@@ -40,7 +40,8 @@
 
                 @if($isItemCustomFields)
                     <div class="bg-gray-50 dark:bg-gray-950 px-5 sm:px-8 py-4 border-t border-gray-200 dark:border-gray-800 shrink-0 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <button wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', 'front')"
+                        <button @click.stop
+                                wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', 'front')"
                                 type="button"
                                 class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-[var(--theme-color)] text-gray-950 text-xs font-black uppercase tracking-widest rounded-xl border border-[var(--theme-color)] shadow-sm hover:opacity-90 transition-all duration-300 focus:outline-none cursor-pointer">
                             <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -48,7 +49,8 @@
                             </svg>
                             <span>xTool Projekt (.xcs)</span>
                         </button>
-                        <button wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')"
+                        <button @click.stop
+                                wire:click.prevent="downloadLaserFile('{{ $previewItem->id }}', 'front')"
                                 type="button"
                                 class="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs font-black uppercase tracking-widest rounded-xl border border-gray-300 dark:border-gray-700 shadow-sm dark:shadow-inner hover:bg-[var(--theme-color)] hover:text-gray-900 hover:border-[var(--theme-color)] transition-all duration-300 group focus:outline-none cursor-pointer">
                             <svg class="w-4 h-4 text-[var(--theme-color)] group-hover:text-gray-900 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -77,10 +79,13 @@
                 @include('livewire.shop.order.order-offer-detail-partials.laser-cockpit-card')
             @endif
 
-            {{-- XTOOL STUDIO WERKSTATTHANDBUCH & LASER-PARAMETER (DIREKT AUS SCHRITT 4.2 DES PRODUKTS) --}}
+            {{-- XTOOL STUDIO WERKSTATTHANDBUCH & LASER-PARAMETER (DIREKT AUS SCHRITT 4.2 DES PRODUKTS + AUFTRAGS-OVERRIDES) --}}
             @if($previewItem->product && $previewItem->product->isPhysical() && $previewItem->product->isPersonalizable() && !$isDigitalItem && !$isService)
                 @php
-                    $orderLaserGuide = $previewItem->product->getLaserInstructionSummary();
+                    $orderLaserGuide = app(\App\Services\Laser\XtoolLaserCockpitService::class)->resolveEffectiveLaserParameters(
+                        $previewItem,
+                        $this->laserCockpitSide ?? 'front'
+                    );
                     $allOrderLaserPdfs = \App\Models\Product\Product::getLaserPdfGuides();
                     $editLaserUrl = route('admin.products', ['editProduct' => $previewItem->product->id, 'step' => 4, 'subStep' => 2]);
                 @endphp
@@ -95,6 +100,12 @@
                                 <span class="px-2.5 py-0.5 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] text-[9px] font-black uppercase tracking-wider">
                                     {{ $orderLaserGuide['equipment_title'] }}
                                 </span>
+                                @if(!empty($orderLaserGuide['has_overrides']))
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-40)] text-[9px] font-black uppercase tracking-wider">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)]"></span>
+                                        <span>Angepasst</span>
+                                    </span>
+                                @endif
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2">
@@ -186,7 +197,7 @@
                                     <span>{{ $orderLaserGuide['element_type'] }} · {{ $orderLaserGuide['engrave_tab'] }}</span>
                                     <span>{{ $orderLaserGuide['preset_mode'] }}</span>
                                 </div>
-                                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                     <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
                                         <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Punktdauer</span>
                                         <span class="block text-xs font-mono font-black text-gray-900 dark:text-white">{{ $orderLaserGuide['dot_duration_us'] }} µs</span>
@@ -194,6 +205,10 @@
                                     <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
                                         <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Leistung</span>
                                         <span class="block text-xs font-mono font-black text-gray-900 dark:text-white">{{ $orderLaserGuide['power_percent'] }} %</span>
+                                    </div>
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
+                                        <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Speed</span>
+                                        <span class="block text-xs font-mono font-black text-gray-900 dark:text-white">{{ $orderLaserGuide['speed_mms'] }} mm/s</span>
                                     </div>
                                     <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
                                         <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">DPI</span>
@@ -211,7 +226,7 @@
                                         <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Bitmap</span>
                                         <span class="block text-xs font-bold text-gray-900 dark:text-white truncate">{{ $orderLaserGuide['bitmap_mode'] }}</span>
                                     </div>
-                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800 col-span-2 sm:col-span-1">
+                                    <div class="bg-white dark:bg-gray-900 rounded-lg px-2.5 py-2 border border-gray-200/70 dark:border-gray-800">
                                         <span class="block text-[8px] font-black uppercase tracking-wider text-gray-400">Richtung</span>
                                         <span class="block text-xs font-bold text-gray-900 dark:text-white truncate">{{ $orderLaserGuide['engrave_mode'] }}</span>
                                     </div>

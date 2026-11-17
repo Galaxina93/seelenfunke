@@ -184,7 +184,8 @@ class XtoolLaserCockpitTest extends TestCase
 
         $canvasId = $project['activeCanvasId'];
         $canvasMeta = json_decode((string) $zip->getFromName("canvases/{$canvasId}.json"), true);
-        $this->assertEquals('BATCH_TEMPLATE', $canvasMeta['batchData']['entryType']);
+        $this->assertArrayNotHasKey('batchData', $canvasMeta);
+        $this->assertEmpty($canvasMeta['groupData']);
 
         $displays = json_decode((string) $zip->getFromName("canvases/{$canvasId}/displays-0.json"), true)['displays'];
         $this->assertCount(2, $displays);
@@ -194,6 +195,12 @@ class XtoolLaserCockpitTest extends TestCase
 
         $this->assertNotNull($bitmapDisplay);
         $this->assertNotNull($ghostDisplay);
+        $this->assertSame(250, $bitmapDisplay['color']['whiteClip']);
+        $this->assertSame('#FFFFFF', $bitmapDisplay['fillColor']);
+        $this->assertSame('', $bitmapDisplay['groupTag']);
+        $this->assertSame('', $ghostDisplay['groupTag']);
+        $this->assertFalse($bitmapDisplay['lockState']);
+        $this->assertFalse($ghostDisplay['lockState']);
         // Gravurfläche workingArea = 70 % von 40 mm = 28,0 x 28,0 mm -> 96.5 - (28 / 2) = 82.5 mm, 98.5 - (28 / 2) = 84.5 mm
         $this->assertEquals(82.5, $bitmapDisplay['x']);
         $this->assertEquals(84.5, $bitmapDisplay['y']);
@@ -1161,5 +1168,439 @@ class XtoolLaserCockpitTest extends TestCase
         } finally {
             Storage::disk('public')->delete($relUpload);
         }
+    }
+
+    #[Test]
+    public function xcs_backup_embeds_opaque_white_backed_bitmap_bright_thumbnail_and_allows_free_deletion_without_batch_lock(): void
+    {
+        Storage::fake('local');
+        $admin = $this->createAdmin();
+        $product = $this->createPersonalizableLaserProduct();
+        [$order, $item] = $this->createSampleOrderWithItem($product);
+
+        $tmpFilesBefore = glob(sys_get_temp_dir() . '/sf_xcs_*') ?: [];
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->assertSee('.xcs Backup')
+            ->assertSee('wire:target="downloadLaserXcsFile"', false)
+            ->call('downloadLaserXcsFile', $item->id, 'front')
+            ->assertFileDownloaded();
+
+        $tmpFilesAfter = glob(sys_get_temp_dir() . '/sf_xcs_*') ?: [];
+        $this->assertCount(count($tmpFilesBefore), $tmpFilesAfter, 'Keine verwaisten sf_xcs_* Temp-Dateien erlaubt');
+
+        $downloadResp = app(\App\Services\Export\FileDownloadService::class)->downloadLaserXcs($item->id, 'front', 100.0, 100.0, 0.0);
+        $this->assertSame('application/octet-stream', $downloadResp->headers->get('Content-Type'));
+        $this->assertStringContainsString('attachment;', (string) $downloadResp->headers->get('Content-Disposition'));
+
+        // Auch Schnell-Personalisierung (custom_fields_data ohne texts-Array) muss glasklare Gravurpixel auf weißem Grund liefern
+        $cfItem = OrderOrderItem::create([
+            'order_id'      => $order->id,
+            'product_id'    => $product->id,
+            'product_name'  => $product->name,
+            'quantity'      => 1,
+            'unit_price'    => 3490,
+            'tax_rate'      => 19.0,
+            'total_price'   => 3490,
+            'configuration' => [
+                'personalization_mode' => 'custom_fields',
+                'custom_fields_data'   => [
+                    ['id' => 'cf_name', 'label' => 'Wunschname', 'type' => 'text', 'value' => 'Alina & Seelenfunke'],
+                    ['id' => 'cf_font', 'label' => 'Schriftart', 'type' => 'font', 'value' => 'Montserrat'],
+                ],
+            ],
+        ]);
+
+        $cockpit = app(XtoolLaserCockpitService::class);
+        $xcs = $cockpit->generateXcsProjectBytes($cfItem, 'front', 100.0, 100.0, 0.0);
+
+        $tmpZip = tempnam(sys_get_temp_dir(), 'test_xcs_fix_');
+        file_put_contents($tmpZip, $xcs['bytes']);
+
+        try {
+            $zip = new \ZipArchive();
+            $this->assertTrue($zip->open($tmpZip) === true);
+
+            $project = json_decode((string) $zip->getFromName('project.json'), true);
+            $canvasId = $project['activeCanvasId'];
+            $canvasMeta = json_decode((string) $zip->getFromName("canvases/{$canvasId}.json"), true);
+
+            // Kein BATCH_TEMPLATE und kein erzwungenes groupData -> Projekt & Elemente lassen sich frei per X / Entf schließen & löschen
+            $this->assertArrayNotHasKey('batchData', $canvasMeta);
+            $this->assertEmpty($canvasMeta['groupData']);
+            $this->assertSame([0], $canvasMeta['chunkLayout']['chunkIndexes']);
+
+            $displaysPayload = json_decode((string) $zip->getFromName("canvases/{$canvasId}/displays-0.json"), true);
+            $this->assertSame($canvasId, $displaysPayload['canvasId']);
+            $displays = $displaysPayload['displays'];
+            $bitmapDisplay = collect($displays)->firstWhere('type', 'BITMAP');
+            $ghostDisplay = collect($displays)->firstWhere('type', 'PATH');
+
+            $this->assertSame(250, $bitmapDisplay['color']['whiteClip']);
+            $this->assertSame([0, 250], $bitmapDisplay['grayValue']);
+            $this->assertTrue($bitmapDisplay['isFill']);
+            $this->assertTrue($bitmapDisplay['isGrayscale']);
+            $this->assertFalse($bitmapDisplay['isInvert']);
+            $this->assertSame('#FFFFFF', $bitmapDisplay['fillColor']);
+            $this->assertFalse($bitmapDisplay['fill']['visible']);
+            $this->assertSame('', $bitmapDisplay['groupTag']);
+            $this->assertSame([], $bitmapDisplay['groupTags']);
+            $this->assertSame('', $ghostDisplay['groupTag']);
+            $this->assertFalse($bitmapDisplay['lockState']);
+            $this->assertFalse($bitmapDisplay['isLock']);
+            $this->assertTrue($bitmapDisplay['enableTransform']);
+            $this->assertFalse($ghostDisplay['lockState']);
+            $this->assertFalse($ghostDisplay['isLock']);
+
+            // V2DeviceConfig Schema-Validierung für xTool Studio v1.10.15
+            $deviceCfg = json_decode((string) $zip->getFromName('devices/device-GS009-CLASS-4-1.json'), true);
+            $this->assertSame('GS009-CLASS-4', $deviceCfg['deviceCode']);
+            $this->assertSame($canvasId, $deviceCfg['processing'][$canvasId]['id']);
+            $planeMode = $deviceCfg['processing'][$canvasId]['modes']['LASER_PLANE'];
+            $this->assertTrue(array_is_list($planeMode['profiles']));
+            $this->assertTrue(array_is_list($planeMode['bindings']));
+            $this->assertContains($bitmapDisplay['id'], $planeMode['bindings'][0]['displayIds']);
+
+            // Eingebettetes Ressourcen-PNG + .meta.json prüfen: Außenbereich 100 % transparent (alpha = 127), dunkle Gravur-Glyphen im Motiv, niemals schwarzes Rechteck
+            $resPath = (string) $bitmapDisplay['resourcePath'];
+            $this->assertNotFalse($zip->getFromName($resPath . '.meta.json'));
+            $resPngBytes = (string) $zip->getFromName($resPath);
+            $resGd = imagecreatefromstring($resPngBytes);
+            $this->assertNotFalse($resGd);
+
+            $rw = imagesx($resGd);
+            $rh = imagesy($resGd);
+            $cornerColor = imagecolorat($resGd, 0, 0);
+            $this->assertSame(127, ($cornerColor >> 24) & 0x7F, 'Eingebettetes .xcs PNG ist außen 100 % transparent (alpha = 127) für freie Live-Kamerasicht');
+            $this->assertSame(255, ($cornerColor >> 16) & 0xFF, 'Außenbereich trägt sauberes RGB #FFFFFF statt Schwarz');
+            $this->assertSame(255, ($cornerColor >> 8) & 0xFF);
+            $this->assertSame(255, $cornerColor & 0xFF);
+
+            $minGrayInBitmap = 255;
+            $opaqueDarkCount = 0;
+            $sampledTotal = 0;
+            for ($y = 0; $y < $rh; $y += 2) {
+                for ($x = 0; $x < $rw; $x += 2) {
+                    $sampledTotal++;
+                    $px = imagecolorat($resGd, $x, $y);
+                    $alphaVal = ($px >> 24) & 0x7F;
+                    if ($alphaVal < 120) {
+                        $gVal = ($px >> 16) & 0xFF;
+                        if ($gVal < $minGrayInBitmap) {
+                            $minGrayInBitmap = $gVal;
+                        }
+                        if ($gVal < 60) {
+                            $opaqueDarkCount++;
+                        }
+                    }
+                }
+            }
+            imagedestroy($resGd);
+            $this->assertLessThan(40, $minGrayInBitmap, 'Schnell-Personalisierung muss gestochen scharfe dunkle Gravur-Pixel enthalten');
+            $this->assertLessThan(0.90, $opaqueDarkCount / max(1, $sampledTotal), 'Eingebettetes .xcs PNG darf niemals ein vollflächig schwarzes Rechteck sein');
+
+            // thumbnail.png prüfen: 400x400 px, freundlich heller Hintergrund (#FAF8F5 = 250, 248, 245), niemals schwarz!
+            $thumbBytes = (string) $zip->getFromName('thumbnail.png');
+            $thumbGd = imagecreatefromstring($thumbBytes);
+            $this->assertNotFalse($thumbGd);
+            $this->assertSame(400, imagesx($thumbGd));
+            $this->assertSame(400, imagesy($thumbGd));
+
+            $thumbCorner = imagecolorat($thumbGd, 4, 4);
+            $this->assertSame(0, ($thumbCorner >> 24) & 0x7F);
+            $this->assertSame(250, ($thumbCorner >> 16) & 0xFF);
+            $this->assertSame(248, ($thumbCorner >> 8) & 0xFF);
+            $this->assertSame(245, $thumbCorner & 0xFF);
+
+            $minThumbGray = 255;
+            for ($ty = 40; $ty < 360; $ty += 2) {
+                for ($tx = 40; $tx < 360; $tx += 2) {
+                    $tpx = imagecolorat($thumbGd, $tx, $ty);
+                    $tg = (int) ((((($tpx >> 16) & 0xFF) * 77) + (((($tpx >> 8) & 0xFF)) * 150) + (($tpx & 0xFF) * 29)) >> 8);
+                    if ($tg < $minThumbGray) {
+                        $minThumbGray = $tg;
+                    }
+                }
+            }
+            imagedestroy($thumbGd);
+            $this->assertLessThan(80, $minThumbGray, 'thumbnail.png muss das dunkle Gravurmotiv auf hellem Grund zeigen');
+
+            $zip->close();
+        } finally {
+            @unlink($tmpZip);
+        }
+    }
+
+    #[Test]
+    public function step_one_laser_parameters_can_be_customized_inline_persisted_propagated_to_xf_and_xcs_and_reset(): void
+    {
+        Storage::fake('local');
+        $admin = $this->createAdmin();
+        $product = $this->createPersonalizableLaserProduct();
+        [$order, $item] = $this->createSampleOrderWithItem($product);
+
+        $cockpit = app(XtoolLaserCockpitService::class);
+        $initialParams = $cockpit->resolveEffectiveLaserParameters($item, 'front');
+        $this->assertFalse($initialParams['has_overrides']);
+        $this->assertSame('Edelstahl 14K vergoldet', $initialParams['material']);
+        $this->assertSame('flatbed_standard', $initialParams['equipment_key']);
+        $this->assertSame(3.8, $initialParams['focus_mm']);
+        $this->assertSame(85, $initialParams['power_percent']);
+        $this->assertSame(200, $initialParams['speed_mms']);
+        $this->assertSame(650, $initialParams['dpi']);
+
+        // 1. Schritt-1-UI rendert die direkte Laserparameter-Leiste + alle 15 Schritt-4.2-Felder + Speed + Komfort-Buttons (0 KI-Gedankenstriche)
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->assertSee('Laserparameter anpassen')
+            ->assertSee('Aufbau')
+            ->assertSee('Modus')
+            ->assertSee('Material')
+            ->assertSee('Fokus (mm)')
+            ->assertSee('Elementtyp')
+            ->assertSee('Gravur-Art')
+            ->assertSee('Vorgabe')
+            ->assertSee('Leistung (%)')
+            ->assertSee('Speed (mm/s)')
+            ->assertSee('DPI')
+            ->assertSee('Punktdauer (µs)')
+            ->assertSee('Frequenz (kHz)')
+            ->assertSee('Durchgänge')
+            ->assertSee('Bitmap')
+            ->assertSee('Richtung')
+            ->assertSee('Vektortext')
+            ->assertSee('Standardwerte laden')
+            ->assertSee('Als Produkt-Standard speichern')
+            ->assertSee('Übernehmen')
+            ->assertDontSee(" \u{2013} ");
+
+        // 2. Explizites Speichern aller 15 Schritt-4.2-Parameter + Speed (inkl. Komma-Fokus) via updateLaserParameters
+        $customSet = [
+            'equipment_key'   => 'conveyor',
+            'process_mode'    => 'Gleiches Design - Stapelverarbeitung',
+            'material'        => 'Eloxiertes Aluminium',
+            'focus_mm'        => '19,9',
+            'element_type'    => 'Vektor',
+            'engrave_tab'     => 'Farbgravur',
+            'preset_mode'     => 'Referenz',
+            'power_percent'   => 92,
+            'speed_mms'       => 360,
+            'dpi'             => 800,
+            'dot_duration_us' => 280,
+            'frequency_khz'   => 80,
+            'passes'          => 3,
+            'bitmap_mode'     => 'Stucki',
+            'engrave_mode'    => 'Unidirektional',
+            'vector_note'     => '88 % · 260 mm/s · 70 kHz',
+        ];
+
+        $component->call('updateLaserParameters', $item->id, 'front', $customSet)
+            ->assertDispatched('laser-params-sync');
+
+        $resolvedAfterUpdate = $cockpit->resolveEffectiveLaserParameters($item->fresh(), 'front');
+        $this->assertTrue($resolvedAfterUpdate['has_overrides']);
+        $this->assertSame('conveyor_batch', $resolvedAfterUpdate['equipment_key']);
+        $this->assertSame('Gleiches Design - Stapelverarbeitung', $resolvedAfterUpdate['process_mode']);
+        $this->assertSame('Eloxiertes Aluminium', $resolvedAfterUpdate['material']);
+        $this->assertSame(19.9, $resolvedAfterUpdate['focus_mm']);
+        $this->assertSame('19,9 mm', $resolvedAfterUpdate['focus_formatted']);
+        $this->assertSame('Vektor', $resolvedAfterUpdate['element_type']);
+        $this->assertSame('Farbgravur', $resolvedAfterUpdate['engrave_tab']);
+        $this->assertSame('Referenz', $resolvedAfterUpdate['preset_mode']);
+        $this->assertSame(92, $resolvedAfterUpdate['power_percent']);
+        $this->assertSame(360, $resolvedAfterUpdate['speed_mms']);
+        $this->assertSame(800, $resolvedAfterUpdate['dpi']);
+        $this->assertSame(280, $resolvedAfterUpdate['dot_duration_us']);
+        $this->assertSame(80, $resolvedAfterUpdate['frequency_khz']);
+        $this->assertSame(3, $resolvedAfterUpdate['passes']);
+        $this->assertSame('Stucki', $resolvedAfterUpdate['bitmap_mode']);
+        $this->assertSame('Unidirektional', $resolvedAfterUpdate['engrave_mode']);
+        $this->assertSame('88 % · 260 mm/s · 70 kHz', $resolvedAfterUpdate['vector_note']);
+
+        // 3. Durchgängiger Nachweis in .xf (description.json + motion.gcode)
+        $xf = $cockpit->generateXfPackageBytes($item->fresh(), 'front', 100.0, 100.0, 0.0);
+        $this->assertSame('LASER_CONVEYOR_FEEDER', $xf['description']['mode']);
+        $this->assertSame('Gleiches Design - Stapelverarbeitung', $xf['description']['processMode']);
+        $this->assertSame('985', $xf['description']['material']);
+        $this->assertSame('Eloxiertes Aluminium', $xf['description']['materialLabel']);
+        $this->assertSame(19.9, $xf['description']['focus']);
+        $this->assertSame('Vektor', $xf['description']['processingParams'][0]['elementType']);
+        $this->assertSame('Farbgravur', $xf['description']['processingParams'][0]['engraveTab']);
+        $this->assertSame('Referenz', $xf['description']['processingParams'][0]['presetMode']);
+        $this->assertSame('88 % · 260 mm/s · 70 kHz', $xf['description']['processingParams'][0]['vectorNote']);
+        $this->assertSame('COLOR_ENGRAVE', $xf['description']['processingParams'][0]['processingType']);
+        $this->assertSame(92, $xf['description']['processingParams'][0]['power']);
+        $this->assertSame(360, $xf['description']['processingParams'][0]['speed']);
+        $this->assertSame(800, $xf['description']['processingParams'][0]['dpi']);
+        $this->assertSame(280, $xf['description']['processingParams'][0]['dotDuration']);
+        $this->assertSame(80, $xf['description']['processingParams'][0]['frequency']);
+        $this->assertSame(3, $xf['description']['processingParams'][0]['repeat']);
+        $this->assertSame('stucki', $xf['description']['processingParams'][0]['bitmapMode']);
+        $this->assertSame('singleMode', $xf['description']['processingParams'][0]['bitmapScanMode']);
+        $this->assertStringContainsString('G0Q80', $xf['motion_gcode']);
+        $this->assertStringContainsString('G104 P3', $xf['motion_gcode']);
+        $this->assertStringContainsString('"speed":360', $xf['motion_gcode']);
+        $this->assertStringContainsString('"powerFactor":0.92', $xf['motion_gcode']);
+
+        // 4. Durchgängiger Nachweis in .xcs (device-GS009-CLASS-4-1.json + displays-0.json)
+        $xcs = $cockpit->generateXcsProjectBytes($item->fresh(), 'front', 100.0, 100.0, 0.0);
+        $tmpZip = tempnam(sys_get_temp_dir(), 'test_xcs_dyn_');
+        file_put_contents($tmpZip, $xcs['bytes']);
+        try {
+            $zip = new \ZipArchive();
+            $this->assertTrue($zip->open($tmpZip) === true);
+            $project = json_decode((string) $zip->getFromName('project.json'), true);
+            $canvasId = $project['activeCanvasId'];
+            $this->assertSame('Vektor', $project['customData']['seelenfunke_element_type']);
+            $this->assertSame('Farbgravur', $project['customData']['seelenfunke_engrave_tab']);
+            $this->assertSame('Referenz', $project['customData']['seelenfunke_preset_mode']);
+            $this->assertSame('88 % · 260 mm/s · 70 kHz', $project['customData']['seelenfunke_vector_note']);
+
+            $displays = json_decode((string) $zip->getFromName("canvases/{$canvasId}/displays-0.json"), true)['displays'];
+            $bitmapDisplay = collect($displays)->firstWhere('type', 'BITMAP');
+            $this->assertSame(800, $bitmapDisplay['DPI']);
+
+            $device = json_decode((string) $zip->getFromName('devices/device-GS009-CLASS-4-1.json'), true);
+            $this->assertSame('LASER_CONVEYOR_FEEDER', $device['processing'][$canvasId]['activeMode']);
+            $modeBlock = $device['processing'][$canvasId]['modes']['LASER_CONVEYOR_FEEDER'];
+            $this->assertSame(985, $modeBlock['data']['material']);
+            $this->assertSame(19.9, $modeBlock['data']['thickness']);
+            $profileNode = reset($modeBlock['profiles']);
+            $this->assertSame('COLOR_ENGRAVE', $profileNode['processingType']);
+            $this->assertSame('official', $profileNode['base']['source']);
+            $vals = $profileNode['base']['values'];
+            $this->assertSame(92, $vals['power']);
+            $this->assertSame(360, $vals['speed']);
+            $this->assertSame(800, $vals['dpi']);
+            $this->assertSame(280, $vals['dotDuration']);
+            $this->assertSame(80, $vals['frequency']);
+            $this->assertSame(3, $vals['repeat']);
+            $this->assertSame('stucki', $vals['bitmapMode']);
+            $this->assertSame('singleMode', $vals['bitmapScanMode']);
+            $zip->close();
+        } finally {
+            @unlink($tmpZip);
+        }
+
+        // 5. 0-Race-Condition Inline-Übergabe direkt bei refreshLaserCameraAndAlign UND sendJobDirectlyToLaser
+        $inlineAlignParams = [
+            'material'      => 'Schieferstein',
+            'equipment_key' => 'flatbed_standard',
+            'focus_mm'      => '12,4',
+            'power_percent' => 78,
+        ];
+        $component->call('refreshLaserCameraAndAlign', 'front', $inlineAlignParams)
+            ->assertDispatched('laser-params-sync');
+        $afterAlign = $cockpit->resolveEffectiveLaserParameters($item->fresh(), 'front');
+        $this->assertSame('Schieferstein', $afterAlign['material']);
+        $this->assertSame(12.4, $afterAlign['focus_mm']);
+        $this->assertSame(78, $afterAlign['power_percent']);
+
+        $inlineCrystalParams = [
+            'material'        => 'K9 Kristallglas',
+            'equipment_key'   => 'inner_engraving',
+            'process_mode'    => 'Innengravur - 3D-Miniatur',
+            'focus_mm'        => 33.1,
+            'element_type'    => '3D-Modell',
+            'engrave_tab'     => 'Konturgravur',
+            'preset_mode'     => 'Benutzerdefiniert',
+            'power_percent'   => 100,
+            'speed_mms'       => 150,
+            'dpi'             => 900,
+            'dot_duration_us' => 500,
+            'frequency_khz'   => 40,
+            'passes'          => 1,
+            'bitmap_mode'     => 'Schwellenwert',
+            'engrave_mode'    => 'Bidirektional',
+            'vector_note'     => '3D-Fokus 33,1 mm',
+        ];
+
+        $component->call('sendJobDirectlyToLaser', $item->id, 'front', $inlineCrystalParams)
+            ->assertSet('laserWorkflowStep', 3)
+            ->assertDispatched('laser-params-sync');
+
+        $queueState = $cockpit->getQueueState(false);
+        $latestJob = $queueState['pending_jobs'][0];
+        $this->assertSame('INNER_LASER', $latestJob['description']['mode']);
+        $this->assertSame('4064', $latestJob['description']['material']);
+        $this->assertSame(33.1, $latestJob['description']['focus']);
+        $this->assertSame('RELIEF', $latestJob['description']['processingParams'][0]['processingType']);
+        $this->assertSame(100, $latestJob['description']['processingParams'][0]['power']);
+        $this->assertSame(150, $latestJob['description']['processingParams'][0]['speed']);
+        $this->assertSame(900, $latestJob['description']['processingParams'][0]['dpi']);
+        $this->assertSame('threshold', $latestJob['description']['processingParams'][0]['bitmapMode']);
+        $this->assertSame('zMode', $latestJob['description']['processingParams'][0]['bitmapScanMode']);
+        $this->assertTrue($latestJob['laser_parameters']['has_overrides']);
+
+        // 6. Reset auf Produkt-Standardwerte via resetOrderItemLaserParameters + 4 Theme-Color Range-Slider verifizieren
+        $renderedHtml = $component->html();
+        $this->assertStringContainsString('sf-laser-range', $renderedHtml);
+        $this->assertStringContainsString('accent-color: var(--theme-color)', $renderedHtml);
+        $this->assertGreaterThanOrEqual(4, substr_count($renderedHtml, 'type="range"'));
+
+        $component->call('resetOrderItemLaserParameters', $item->id, 'front')
+            ->assertDispatched('laser-params-sync');
+
+        $resetParams = $cockpit->resolveEffectiveLaserParameters($item->fresh(), 'front');
+        $this->assertFalse($resetParams['has_overrides']);
+        $this->assertSame('Edelstahl 14K vergoldet', $resetParams['material']);
+        $this->assertSame('flatbed_standard', $resetParams['equipment_key']);
+        $this->assertSame(3.8, $resetParams['focus_mm']);
+        $this->assertSame(85, $resetParams['power_percent']);
+        $this->assertSame(200, $resetParams['speed_mms']);
+        $this->assertSame(650, $resetParams['dpi']);
+        $this->assertSame(140, $resetParams['dot_duration_us']);
+        $this->assertSame(60, $resetParams['frequency_khz']);
+        $this->assertSame(2, $resetParams['passes']);
+
+        // 7. Komfort-Aktion "Als Produkt-Standard speichern" übernimmt Werte dauerhaft nach Product->configurator_settings (Schritt 4.2)
+        $newProductStandard = [
+            'equipment_key'   => 'rotary_ra3',
+            'process_mode'    => 'Walze - Rotationsaufsatz',
+            'material'        => 'Messing gebürstet',
+            'focus_mm'        => '14,5',
+            'element_type'    => 'Vektor',
+            'engrave_tab'     => 'Gravieren',
+            'preset_mode'     => 'Benutzerdefiniert',
+            'dot_duration_us' => 210,
+            'power_percent'   => 88,
+            'speed_mms'       => 275,
+            'dpi'             => 750,
+            'passes'          => 2,
+            'frequency_khz'   => 70,
+            'bitmap_mode'     => 'Jarvis',
+            'engrave_mode'    => 'Zweidirektional',
+            'vector_note'     => '90 % · 250 mm/s · 70 kHz',
+        ];
+
+        $component->call('saveOrderLaserParametersToProduct', $item->id, 'front', $newProductStandard)
+            ->assertDispatched('laser-params-sync')
+            ->assertDispatched('order-feedback');
+
+        $freshProductCfg = $product->fresh()->configurator_settings;
+        $this->assertSame('rotary_ra3', $freshProductCfg['xtool_equipment_key']);
+        $this->assertSame('Walze - Rotationsaufsatz', $freshProductCfg['xtool_process_mode']);
+        $this->assertSame('Messing gebürstet', $freshProductCfg['xtool_material']);
+        $this->assertSame(14.5, (float) $freshProductCfg['xtool_focus_mm']);
+        $this->assertSame('Vektor', $freshProductCfg['xtool_element_type']);
+        $this->assertSame('Gravieren', $freshProductCfg['xtool_engrave_tab']);
+        $this->assertSame('Benutzerdefiniert', $freshProductCfg['xtool_preset_mode']);
+        $this->assertSame(210, $freshProductCfg['xtool_dot_duration_us']);
+        $this->assertSame(88, $freshProductCfg['xtool_power_percent']);
+        $this->assertSame(275, $freshProductCfg['xtool_speed_mms']);
+        $this->assertSame(750, $freshProductCfg['xtool_dpi']);
+        $this->assertSame(2, $freshProductCfg['xtool_passes']);
+        $this->assertSame(70, $freshProductCfg['xtool_frequency_khz']);
+        $this->assertSame('Jarvis', $freshProductCfg['xtool_bitmap_mode']);
+        $this->assertSame('Zweidirektional', $freshProductCfg['xtool_engrave_mode']);
+        $this->assertSame('90 % · 250 mm/s · 70 kHz', $freshProductCfg['xtool_vector_note']);
+
+        $afterSaveToProduct = $cockpit->resolveEffectiveLaserParameters($item->fresh()->load('product'), 'front');
+        $this->assertFalse($afterSaveToProduct['has_overrides'], 'Nach Speichern als Produkt-Standard entspricht Position exakt dem neuen Produkt-Standard');
+        $this->assertSame('Messing gebürstet', $afterSaveToProduct['material']);
+        $this->assertSame(14.5, $afterSaveToProduct['focus_mm']);
     }
 }

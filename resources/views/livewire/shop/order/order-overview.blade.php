@@ -13,6 +13,9 @@
         },
         closeHeaderModalClient() {
             this.headerModal = null;
+            if ($wire.activeHeaderModal) {
+                $wire.closeHeaderModal();
+            }
         },
         switchStepOneTab(tab) {
             this.stepOneTab = tab;

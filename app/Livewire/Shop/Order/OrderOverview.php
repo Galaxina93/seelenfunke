@@ -1612,9 +1612,19 @@ class OrderOverview extends Component
         return $exportService->downloadLaserPng($itemId, $side);
     }
 
-    public function downloadLaserXcsFile($itemId, $side = 'front', ?\App\Services\Export\FileDownloadService $exportService = null)
+    public function downloadLaserXcsFile($itemId, $side = 'front', $inlineParams = null)
     {
-        $exportService = $exportService ?: app(\App\Services\Export\FileDownloadService::class);
+        if ($inlineParams instanceof \App\Services\Export\FileDownloadService) {
+            $exportService = $inlineParams;
+            $inlineParams = null;
+        } else {
+            $exportService = app(\App\Services\Export\FileDownloadService::class);
+        }
+
+        if (is_array($inlineParams) && !empty($inlineParams)) {
+            $this->persistInlineLaserParametersOnItem((string) $itemId, (string) $side, $inlineParams);
+        }
+
         return $exportService->downloadLaserXcs(
             $itemId,
             $side,
@@ -1626,9 +1636,19 @@ class OrderOverview extends Component
         );
     }
 
-    public function downloadLaserXfFile($itemId, $side = 'front', ?\App\Services\Export\FileDownloadService $exportService = null)
+    public function downloadLaserXfFile($itemId, $side = 'front', $inlineParams = null)
     {
-        $exportService = $exportService ?: app(\App\Services\Export\FileDownloadService::class);
+        if ($inlineParams instanceof \App\Services\Export\FileDownloadService) {
+            $exportService = $inlineParams;
+            $inlineParams = null;
+        } else {
+            $exportService = app(\App\Services\Export\FileDownloadService::class);
+        }
+
+        if (is_array($inlineParams) && !empty($inlineParams)) {
+            $this->persistInlineLaserParametersOnItem((string) $itemId, (string) $side, $inlineParams);
+        }
+
         return $exportService->downloadLaserXf(
             $itemId,
             $side,
@@ -1641,6 +1661,136 @@ class OrderOverview extends Component
     }
 
     // --- XTOOL F2 ULTRA UV LIVE-LASER-COCKPIT ACTIONS ---
+
+    protected function resolveOrderItemForLaserAction(?string $itemId = null): ?OrderOrderItem
+    {
+        $cleanId = trim((string) $itemId);
+        if ($cleanId !== '') {
+            $query = OrderOrderItem::with('product');
+            if ($this->selectedOrderId) {
+                $query->where('order_id', $this->selectedOrderId);
+            }
+            return $query->find($cleanId);
+        }
+
+        return $this->previewItem;
+    }
+
+    protected function syncOrderItemConfigInMemory(OrderOrderItem $item): void
+    {
+        if ($this->selectedOrder && $this->selectedOrder->relationLoaded('items')) {
+            $loaded = $this->selectedOrder->items->firstWhere('id', $item->id);
+            if ($loaded && $loaded !== $item) {
+                $loaded->configuration = $item->configuration;
+            }
+        }
+    }
+
+    protected function persistInlineLaserParametersOnItem(string $itemId, string $side, array $inlineParams): ?array
+    {
+        $item = $this->resolveOrderItemForLaserAction($itemId);
+        if (!$item) {
+            return null;
+        }
+
+        $effectiveSide = ($side === 'back') ? 'back' : 'front';
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $effective = $cockpit->saveOrderItemLaserParameterOverrides($item, $effectiveSide, $inlineParams, true);
+        $this->syncOrderItemConfigInMemory($item);
+
+        $this->dispatch('laser-params-sync', params: $effective);
+
+        return $effective;
+    }
+
+    public function updateLaserParameters(string $itemId, string $side = 'front', array $params = []): void
+    {
+        $item = $this->resolveOrderItemForLaserAction($itemId);
+        if (!$item || empty($params)) {
+            return;
+        }
+
+        $effectiveSide = ($side === 'back') ? 'back' : 'front';
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $effective = $cockpit->saveOrderItemLaserParameterOverrides($item, $effectiveSide, $params, false);
+        $this->syncOrderItemConfigInMemory($item);
+
+        $this->laserLastActionStatus = "Parameter aktiv: {$effective['material']} · {$effective['focus_formatted']} · {$effective['power_percent']} % · {$effective['dot_duration_us']} µs · {$effective['frequency_khz']} kHz · {$effective['dpi']} DPI · {$effective['passes']}×";
+        $this->dispatch('laser-params-sync', params: $effective);
+    }
+
+    public function saveOrderItemLaserParameters(?string $itemId = null, ?string $side = null, array $params = []): void
+    {
+        $targetItemId = $itemId ?: (string) ($this->previewItem->id ?? '');
+        $targetSide = $side ?: $this->laserCockpitSide;
+        if ($targetItemId === '' || empty($params)) {
+            return;
+        }
+
+        $this->updateLaserParameters($targetItemId, $targetSide, $params);
+    }
+
+    public function resetLaserParameters(string $itemId, string $side = 'front'): void
+    {
+        $item = $this->resolveOrderItemForLaserAction($itemId);
+        if (!$item) {
+            return;
+        }
+
+        $effectiveSide = ($side === 'back') ? 'back' : 'front';
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $effective = $cockpit->resetOrderItemLaserParameterOverrides($item, $effectiveSide);
+        $this->syncOrderItemConfigInMemory($item);
+
+        $this->laserLastActionStatus = 'Standardwerte wiederhergestellt';
+        $this->dispatch('laser-params-sync', params: $effective);
+    }
+
+    public function resetOrderItemLaserParameters(?string $itemId = null, ?string $side = null): void
+    {
+        $targetItemId = $itemId ?: (string) ($this->previewItem->id ?? '');
+        $targetSide = $side ?: $this->laserCockpitSide;
+        if ($targetItemId === '') {
+            return;
+        }
+
+        $this->resetLaserParameters($targetItemId, $targetSide);
+    }
+
+    public function saveOrderLaserParametersToProduct(?string $itemId = null, ?string $side = null, ?array $params = null): void
+    {
+        $targetItemId = $itemId ?: (string) ($this->previewItem->id ?? '');
+        $effectiveSide = ($side === 'back') ? 'back' : ($this->laserCockpitSide === 'back' ? 'back' : 'front');
+        $item = $this->resolveOrderItemForLaserAction($targetItemId);
+        if (!$item || !$item->product) {
+            return;
+        }
+
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $effective = (is_array($params) && !empty($params))
+            ? $cockpit->saveOrderItemLaserParameterOverrides($item, $effectiveSide, $params, false)
+            : $cockpit->resolveEffectiveLaserParameters($item, $effectiveSide);
+
+        $cockpit->saveLaserParametersToProduct($item->product, $effective);
+        $item->load('product');
+
+        $freshEffective = $cockpit->resetOrderItemLaserParameterOverrides($item, $effectiveSide);
+        $this->syncOrderItemConfigInMemory($item);
+        if ($this->selectedOrder && $this->selectedOrder->relationLoaded('items')) {
+            $loaded = $this->selectedOrder->items->firstWhere('id', $item->id);
+            if ($loaded) {
+                $loaded->setRelation('product', $item->product);
+            }
+        }
+
+        $this->laserLastActionStatus = 'Als Produkt-Standard (4.2) gespeichert';
+        $this->dispatch('laser-params-sync', params: $freshEffective);
+        $this->notifyOrderFeedback(
+            'success',
+            'Produkt-Standard gespeichert',
+            "xTool-Laserparameter wurden dauerhaft in {$item->product->name} (Schritt 4.2) übernommen."
+        );
+    }
 
     protected function persistLaserCoordinatesOnItem(
         ?OrderOrderItem $item,
@@ -1761,7 +1911,7 @@ class OrderOverview extends Component
         $this->initializeLaserCockpitForPreviewItem(false);
     }
 
-    public function refreshLaserCameraAndAlign(?string $side = null): void
+    public function refreshLaserCameraAndAlign(?string $side = null, ?array $inlineParams = null): void
     {
         if ($side !== null) {
             $this->laserCockpitSide = $side === 'back' ? 'back' : 'front';
@@ -1770,6 +1920,11 @@ class OrderOverview extends Component
         $item = $this->previewItem;
         if (!$item) {
             return;
+        }
+
+        if (is_array($inlineParams) && !empty($inlineParams)) {
+            $this->persistInlineLaserParametersOnItem((string) $item->id, $this->laserCockpitSide, $inlineParams);
+            $item = $this->resolveOrderItemForLaserAction((string) $item->id) ?: $item;
         }
 
         try {
@@ -1975,12 +2130,16 @@ class OrderOverview extends Component
         );
     }
 
-    public function triggerLaserFraming(?string $itemId = null, ?string $side = null)
+    public function triggerLaserFraming(?string $itemId = null, ?string $side = null, ?array $inlineParams = null)
     {
         $targetItemId = $itemId ?: ($this->previewItem->id ?? null);
         $targetSide = $side ?: $this->laserCockpitSide;
         if (!$targetItemId) {
             return;
+        }
+
+        if (is_array($inlineParams) && !empty($inlineParams)) {
+            $this->persistInlineLaserParametersOnItem((string) $targetItemId, (string) $targetSide, $inlineParams);
         }
 
         try {
@@ -2023,12 +2182,16 @@ class OrderOverview extends Component
         }
     }
 
-    public function sendJobDirectlyToLaser(?string $itemId = null, ?string $side = null)
+    public function sendJobDirectlyToLaser(?string $itemId = null, ?string $side = null, ?array $inlineParams = null)
     {
         $targetItemId = $itemId ?: ($this->previewItem->id ?? null);
         $targetSide = $side ?: $this->laserCockpitSide;
         if (!$targetItemId) {
             return;
+        }
+
+        if (is_array($inlineParams) && !empty($inlineParams)) {
+            $this->persistInlineLaserParametersOnItem((string) $targetItemId, (string) $targetSide, $inlineParams);
         }
 
         try {
@@ -2072,6 +2235,11 @@ class OrderOverview extends Component
         }
     }
 
+    public function sendToXtoolLaser(?string $itemId = null, ?string $side = null, ?array $inlineParams = null)
+    {
+        return $this->sendJobDirectlyToLaser($itemId, $side, $inlineParams);
+    }
+
     public function getLaserCockpitDataProperty(): ?array
     {
         $item = $this->previewItem;
@@ -2091,24 +2259,35 @@ class OrderOverview extends Component
         try {
             $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
             $camInfo = $cockpit->syncCameraFromHostOrLaser(null, false);
-            $laserGuide = $item->product->getLaserInstructionSummary();
+            $laserGuide = $cockpit->resolveEffectiveLaserParameters($item, $effectiveSide);
 
             $downloadService = app(\App\Services\Export\FileDownloadService::class);
             $productCfg = is_string($item->product?->configurator_settings)
                 ? (json_decode($item->product->configurator_settings, true) ?: [])
                 : ($item->product?->configurator_settings ?? []);
+            $effectiveProductCfg = $productCfg;
+            if (!empty($laserGuide['has_overrides']) && !empty($laserGuide['material'])) {
+                $effectiveProductCfg['xtool_material'] = (string) $laserGuide['material'];
+                $effectiveProductCfg['xtool_material_override'] = (string) $laserGuide['material'];
+            }
             $calibration = $downloadService->resolveEngravingWorkingAreaCalibration($item->product, $productCfg, $conf, false);
 
             $confForCache = $conf;
-            unset($confForCache['laser_cockpit_coordinates'], $confForCache['manufacturing_checklist']);
+            unset(
+                $confForCache['laser_cockpit_coordinates'],
+                $confForCache['manufacturing_checklist'],
+                $confForCache['laser_parameter_overrides'],
+                $confForCache['laser_cockpit_parameters']
+            );
 
             // Schneller Disk-Cache für das hochauflösende WYSIWYG-Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
             $cacheHash = sha1(
-                'v6-cockpit-wysiwyg|'
+                'v7-cockpit-wysiwyg|'
                 . $item->id . '|'
                 . $effectiveSide . '|'
                 . ($item->updated_at?->timestamp ?? 0) . '|'
                 . ($item->product?->updated_at?->timestamp ?? 0) . '|'
+                . ($laserGuide['material'] ?? '') . '|'
                 . json_encode($calibration) . '|'
                 . json_encode($confForCache)
             );
@@ -2119,7 +2298,7 @@ class OrderOverview extends Component
             $baseWidthMm = null;
             $baseHeightMm = null;
             $contourShape = (string) ($calibration['contourShape'] ?? 'rect');
-            $isDarkSurface = $downloadService->isFrostedLightEngravingSurface($item->product, $productCfg);
+            $isDarkSurface = $downloadService->isFrostedLightEngravingSurface($item->product, $effectiveProductCfg);
             $ghostDPath = null;
             $previewUrl = null;
 
@@ -2198,6 +2377,8 @@ class OrderOverview extends Component
                 'workflow_step'     => $this->laserWorkflowStep,
                 'equipment_title'   => $laserGuide['equipment_title'] ?? 'Standard-Aufbau',
                 'focus_formatted'   => $laserGuide['focus_formatted'] ?? '33,1 mm',
+                'laser_params'      => $laserGuide,
+                'equipment_modes'   => \App\Services\Laser\XtoolLaserCockpitService::getSupportedEquipmentModes(),
                 'ghost_d_path'      => $ghostDPath,
                 'preview_data_url'  => $previewUrl,
                 'last_status'       => $this->laserLastActionStatus,

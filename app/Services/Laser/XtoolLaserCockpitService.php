@@ -1517,6 +1517,698 @@ class XtoolLaserCockpitService
     }
 
     /**
+     * Katalog der im Schritt-1-Cockpit auswählbaren Equipment- & Prozess-Modi
+     * (synchron zu Product::getLaserEquipmentCatalog() und resolveXtoolActiveMode()).
+     *
+     * @return array<string, array{key: string, label: string, title: string, badge: string, process_mode: string}>
+     */
+    public static function getSupportedEquipmentModes(): array
+    {
+        return [
+            'flatbed_standard' => [
+                'key'          => 'flatbed_standard',
+                'label'        => 'Laserbett (Flachgravur)',
+                'title'        => 'Flachbett Standard',
+                'badge'        => 'Standard-Linse · Lamellenrost',
+                'process_mode' => 'Prozess auf flacher Oberfläche',
+            ],
+            'conveyor_batch' => [
+                'key'          => 'conveyor_batch',
+                'label'        => 'Laufband (Conveyor)',
+                'title'        => 'Laufband Serie',
+                'badge'        => 'Anleitung 2 · Förderband',
+                'process_mode' => 'Gleiches Design - Stapelverarbeitung',
+            ],
+            'rotary_ra3' => [
+                'key'          => 'rotary_ra3',
+                'label'        => 'RA3 Rotation',
+                'title'        => '360° Rotation (xTool RA3)',
+                'badge'        => 'Anleitung 1 · RA3 Aufsatz',
+                'process_mode' => 'Walze - Rotationsaufsatz',
+            ],
+            'curved_surface' => [
+                'key'          => 'curved_surface',
+                'label'        => 'Gebogene Oberfläche',
+                'title'        => 'Gebogene Oberfläche',
+                'badge'        => '3D-Oberflächenprojektion',
+                'process_mode' => 'Gebogene Oberfläche',
+            ],
+            'inner_3d' => [
+                'key'          => 'inner_3d',
+                'label'        => 'Glas-Innengravur',
+                'title'        => '3D-Innengravur',
+                'badge'        => 'Anleitung 3 · Gold-Linse + Riser',
+                'process_mode' => 'Innengravur - 3D-Miniatur',
+            ],
+        ];
+    }
+
+    public static function normalizeEquipmentKey(string $rawKey, string $rawProcessMode = ''): string
+    {
+        $k = mb_strtolower(trim($rawKey));
+        $direct = match ($k) {
+            'flatbed_standard', 'flatbed', 'laser_plane'                   => 'flatbed_standard',
+            'conveyor_batch', 'conveyor', 'laser_conveyor_feeder'          => 'conveyor_batch',
+            'rotary_ra3', 'rotary', 'laser_cylinder'                       => 'rotary_ra3',
+            'curved_surface', 'curved', 'curved_process'                   => 'curved_surface',
+            'inner_3d', 'inner_engraving', 'inner_laser', 'innengravur'    => 'inner_3d',
+            default                                                        => null,
+        };
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        $haystack = mb_strtolower(trim($rawKey . ' ' . $rawProcessMode));
+        if (str_contains($haystack, 'ra3') || str_contains($haystack, 'rotation') || str_contains($haystack, 'walze') || str_contains($haystack, 'spannfutter')) {
+            return 'rotary_ra3';
+        }
+        if (str_contains($haystack, 'laufband') || str_contains($haystack, 'conveyor') || str_contains($haystack, 'stapel') || str_contains($haystack, 'förderband')) {
+            return 'conveyor_batch';
+        }
+        if (str_contains($haystack, 'innengravur') || str_contains($haystack, '3d-miniatur') || str_contains($haystack, 'inner')) {
+            return 'inner_3d';
+        }
+        if (str_contains($haystack, 'gebogen') || str_contains($haystack, 'curved')) {
+            return 'curved_surface';
+        }
+
+        return 'flatbed_standard';
+    }
+
+    public static function normalizeBitmapModeLabel(string $rawBitmapMode, string $fallback = 'Graustufen'): string
+    {
+        $b = mb_strtolower(trim($rawBitmapMode));
+        if ($b === '') {
+            return $fallback;
+        }
+        if (str_contains($b, 'jarvis') || str_contains($b, 'raster')) {
+            return 'Jarvis';
+        }
+        if (str_contains($b, 'stucki')) {
+            return 'Stucki';
+        }
+        if (str_contains($b, 'schwellenwert') || str_contains($b, 'threshold')) {
+            return 'Schwellenwert';
+        }
+        if (str_contains($b, 'floyd')) {
+            return 'Floyd';
+        }
+        if (str_contains($b, 'atkinson')) {
+            return 'Atkinson';
+        }
+        if (str_contains($b, 'konturgravur') || str_contains($b, 'emboss') || str_contains($b, 'relief')) {
+            return 'Konturgravur (3D)';
+        }
+        if (str_contains($b, 'flächenfüllung') || str_contains($b, 'flaechenfuellung') || str_contains($b, 'fill')) {
+            return 'Flächenfüllung (Vektor)';
+        }
+        if (str_contains($b, 'graustufen') || str_contains($b, 'greyscale') || str_contains($b, 'grayscale')) {
+            return 'Graustufen';
+        }
+
+        return $fallback;
+    }
+
+    public static function normalizeEngraveModeLabel(string $rawEngraveMode, string $fallback = 'Bidirektional'): string
+    {
+        $e = mb_strtolower(trim($rawEngraveMode));
+        if ($e === '') {
+            return $fallback;
+        }
+        if ($e === 'eindirektional') {
+            return 'Eindirektional';
+        }
+        if (str_contains($e, 'uni') || str_contains($e, 'eindirekt') || str_contains($e, 'single')) {
+            return 'Unidirektional';
+        }
+        if ($e === 'zweidirektional') {
+            return 'Zweidirektional';
+        }
+
+        return 'Bidirektional';
+    }
+
+    public static function normalizeElementTypeLabel(string $rawElementType, string $fallback = 'Bild'): string
+    {
+        $t = mb_strtolower(trim($rawElementType));
+        if ($t === '') {
+            return $fallback;
+        }
+        if (str_contains($t, 'vektor') || str_contains($t, 'vector') || str_contains($t, 'pfad')) {
+            return 'Vektor';
+        }
+        if (str_contains($t, '3d') || str_contains($t, 'modell') || str_contains($t, 'miniatur')) {
+            return '3D-Modell';
+        }
+
+        return 'Bild';
+    }
+
+    public static function normalizeEngraveTabLabel(string $rawEngraveTab, string $fallback = 'Gravieren'): string
+    {
+        $t = mb_strtolower(trim($rawEngraveTab));
+        if ($t === '') {
+            return $fallback;
+        }
+        if (str_contains($t, 'farb') || str_contains($t, 'color')) {
+            return 'Farbgravur';
+        }
+        if (str_contains($t, 'kontur') || str_contains($t, 'relief') || str_contains($t, 'emboss')) {
+            return 'Konturgravur';
+        }
+
+        return 'Gravieren';
+    }
+
+    public static function normalizePresetModeLabel(string $rawPresetMode, string $fallback = 'Benutzerdefiniert'): string
+    {
+        $p = mb_strtolower(trim($rawPresetMode));
+        if ($p === '') {
+            return $fallback;
+        }
+        if (str_contains($p, 'referenz') || str_contains($p, 'official') || str_contains($p, 'standard')) {
+            return 'Referenz';
+        }
+
+        return 'Benutzerdefiniert';
+    }
+
+    public static function resolveXtoolProcessingType(string $elementType, string $engraveTab = 'Gravieren'): string
+    {
+        $el = mb_strtolower(trim($elementType));
+        $tab = mb_strtolower(trim($engraveTab));
+
+        if (str_contains($tab, 'farb')) {
+            return 'COLOR_ENGRAVE';
+        }
+        if (str_contains($tab, 'kontur')) {
+            return 'RELIEF';
+        }
+        if (str_contains($el, 'vektor')) {
+            return 'FILL_VECTOR_ENGRAVING';
+        }
+
+        return 'BITMAP_ENGRAVING';
+    }
+
+    public static function parseSpeedMmsFromVectorNote(string $vectorNote, int $fallback = 200): int
+    {
+        if ($vectorNote !== '' && preg_match('/(\d+(?:[.,]\d+)?)\s*mm\s*\/\s*s/iu', $vectorNote, $m)) {
+            $parsed = (int) round((float) str_replace(',', '.', $m[1]));
+            if ($parsed >= 1) {
+                return max(1, min(4000, $parsed));
+            }
+        }
+
+        return max(1, min(4000, $fallback));
+    }
+
+    /**
+     * Löst die effektiven Laserparameter (alle 15 xTool-Felder aus Schritt 4.2 + speed_mms) für eine Bestellposition und Seite auf:
+     * Produkt-Standardwerte aus getLaserInstructionSummary() überlagert mit configuration['laser_cockpit_parameters'][$side]
+     * bzw. configuration['laser_parameter_overrides'][$side] (Fallback auf 'front').
+     */
+    public function resolveEffectiveLaserParameters($item, string $side = 'front'): array
+    {
+        if (!is_object($item) && $item !== null && $item !== '') {
+            $item = OrderOrderItem::with('product')->find($item)
+                ?? OrderQuoteRequestItem::with('product')->find($item);
+        }
+
+        $effectiveSide = ($side === 'back') ? 'back' : 'front';
+        $product = (is_object($item) && isset($item->product)) ? $item->product : null;
+        $productSettings = $product
+            ? (is_string($product->configurator_settings)
+                ? (json_decode($product->configurator_settings, true) ?: [])
+                : (is_array($product->configurator_settings) ? $product->configurator_settings : []))
+            : [];
+        $baseSummary = $product
+            ? $product->getLaserInstructionSummary()
+            : Product::evaluateLaserInstructionSettings([], false);
+
+        $modesCatalog = self::getSupportedEquipmentModes();
+        $productCatalog = Product::getLaserEquipmentCatalog();
+
+        $defaultEquipKey = self::normalizeEquipmentKey(
+            (string) ($baseSummary['equipment_key'] ?? ''),
+            (string) ($baseSummary['process_mode'] ?? '')
+        );
+        $defaultModeMeta = $modesCatalog[$defaultEquipKey] ?? $modesCatalog['flatbed_standard'];
+        $defaultProcessMode = trim((string) ($baseSummary['process_mode'] ?? '')) !== ''
+            ? trim((string) $baseSummary['process_mode'])
+            : $defaultModeMeta['process_mode'];
+        $defaultMaterial = trim((string) ($baseSummary['material'] ?? '')) !== ''
+            ? trim((string) $baseSummary['material'])
+            : 'Edelstahl';
+        $defaultFocusMm = ((float) ($baseSummary['focus_mm'] ?? 0)) > 0
+            ? round(max(0.1, min(150.0, (float) $baseSummary['focus_mm'])), 2)
+            : 3.0;
+        $defaultElementType = self::normalizeElementTypeLabel((string) ($baseSummary['element_type'] ?? 'Bild'), 'Bild');
+        $defaultEngraveTab = self::normalizeEngraveTabLabel((string) ($baseSummary['engrave_tab'] ?? 'Gravieren'), 'Gravieren');
+        $defaultPresetMode = self::normalizePresetModeLabel((string) ($baseSummary['preset_mode'] ?? 'Benutzerdefiniert'), 'Benutzerdefiniert');
+        $defaultPower = ((int) ($baseSummary['power_percent'] ?? 0)) > 0
+            ? max(1, min(100, (int) $baseSummary['power_percent']))
+            : 70;
+        $defaultSpeedFallback = isset($productSettings['xtool_speed_mms']) && is_numeric($productSettings['xtool_speed_mms'])
+            ? max(1, min(4000, (int) $productSettings['xtool_speed_mms']))
+            : 200;
+        $defaultVectorNote = trim((string) ($baseSummary['vector_note'] ?? ''));
+        $defaultSpeedMms = self::parseSpeedMmsFromVectorNote($defaultVectorNote, $defaultSpeedFallback);
+        $defaultDpi = ((int) ($baseSummary['dpi'] ?? 0)) > 0
+            ? max(50, min(2540, (int) $baseSummary['dpi']))
+            : 500;
+        $defaultDotUs = ((int) ($baseSummary['dot_duration_us'] ?? 0)) > 0
+            ? max(1, min(5000, (int) $baseSummary['dot_duration_us']))
+            : 120;
+        $defaultFreqKhz = ((int) ($baseSummary['frequency_khz'] ?? 0)) > 0
+            ? max(1, min(200, (int) $baseSummary['frequency_khz']))
+            : 60;
+        $defaultPasses = ((int) ($baseSummary['passes'] ?? 0)) > 0
+            ? max(1, min(20, (int) $baseSummary['passes']))
+            : 1;
+        $defaultBitmapMode = self::normalizeBitmapModeLabel((string) ($baseSummary['bitmap_mode'] ?? ''), 'Graustufen');
+        $defaultEngraveMode = self::normalizeEngraveModeLabel((string) ($baseSummary['engrave_mode'] ?? ''), 'Bidirektional');
+
+        $defaults = [
+            'material'        => $defaultMaterial,
+            'equipment_key'   => $defaultEquipKey,
+            'process_mode'    => $defaultProcessMode,
+            'focus_mm'        => $defaultFocusMm,
+            'element_type'    => $defaultElementType,
+            'engrave_tab'     => $defaultEngraveTab,
+            'preset_mode'     => $defaultPresetMode,
+            'power_percent'   => $defaultPower,
+            'speed_mms'       => $defaultSpeedMms,
+            'dpi'             => $defaultDpi,
+            'dot_duration_us' => $defaultDotUs,
+            'frequency_khz'   => $defaultFreqKhz,
+            'passes'          => $defaultPasses,
+            'bitmap_mode'     => $defaultBitmapMode,
+            'engrave_mode'    => $defaultEngraveMode,
+            'vector_note'     => $defaultVectorNote,
+        ];
+
+        $conf = (is_object($item) && is_array($item->configuration ?? null)) ? $item->configuration : [];
+        $cockpitRoot = is_array($conf['laser_cockpit_parameters'] ?? null) ? $conf['laser_cockpit_parameters'] : [];
+        $overridesRoot = is_array($conf['laser_parameter_overrides'] ?? null) ? $conf['laser_parameter_overrides'] : [];
+
+        $rawOverrides = [];
+        if (!empty($cockpitRoot[$effectiveSide]) && is_array($cockpitRoot[$effectiveSide])) {
+            $rawOverrides = $cockpitRoot[$effectiveSide];
+        } elseif (!empty($overridesRoot[$effectiveSide]) && is_array($overridesRoot[$effectiveSide])) {
+            $rawOverrides = $overridesRoot[$effectiveSide];
+        } elseif ($effectiveSide === 'back' && !empty($cockpitRoot['front']) && is_array($cockpitRoot['front'])) {
+            $rawOverrides = $cockpitRoot['front'];
+        } elseif ($effectiveSide === 'back' && !empty($overridesRoot['front']) && is_array($overridesRoot['front'])) {
+            $rawOverrides = $overridesRoot['front'];
+        } elseif (!empty($overridesRoot['default']) && is_array($overridesRoot['default'])) {
+            $rawOverrides = $overridesRoot['default'];
+        }
+
+        $hasOverrides = !empty($rawOverrides);
+        $sanitized = $hasOverrides
+            ? $this->sanitizeLaserParameterInput($rawOverrides, $defaults)
+            : $defaults;
+
+        $equipKey = $sanitized['equipment_key'];
+        $modeMeta = $modesCatalog[$equipKey] ?? $modesCatalog['flatbed_standard'];
+        $prodEquipMeta = $productCatalog[$equipKey] ?? null;
+        $pdfFile = $prodEquipMeta['pdf_file'] ?? null;
+        $pdfUrl = !empty($pdfFile) ? asset($pdfFile) : null;
+        $focusFormatted = number_format((float) $sanitized['focus_mm'], 1, ',', '.') . ' mm';
+
+        $explicitVectorProvided = $hasOverrides && array_key_exists('vector_note', $rawOverrides);
+        if ($explicitVectorProvided) {
+            $vectorNote = $sanitized['vector_note'];
+        } elseif ($defaultVectorNote !== '' && preg_match('/\d+(?:[.,]\d+)?\s*mm\s*\/\s*s/iu', $defaultVectorNote)) {
+            $vectorNote = (string) preg_replace(
+                '/\d+(?:[.,]\d+)?\s*mm\s*\/\s*s/iu',
+                $sanitized['speed_mms'] . ' mm/s',
+                $defaultVectorNote,
+                1
+            );
+        } elseif ($hasOverrides && (int) $sanitized['speed_mms'] !== $defaultSpeedMms) {
+            $vectorNote = "Gravieren · {$sanitized['power_percent']} % · {$sanitized['speed_mms']} mm/s · {$sanitized['frequency_khz']} kHz";
+        } else {
+            $vectorNote = $sanitized['vector_note'];
+        }
+
+        $elementType = $sanitized['element_type'];
+        $engraveTab = $sanitized['engrave_tab'];
+        $presetMode = ($hasOverrides && !array_key_exists('preset_mode', $rawOverrides))
+            ? 'Benutzerdefiniert'
+            : $sanitized['preset_mode'];
+        $setupNote = (string) ($prodEquipMeta['setup_note'] ?? ($baseSummary['setup_note'] ?? ''));
+
+        $copyLines = [];
+        $copyLines[] = 'Equipment: ' . ($prodEquipMeta['title'] ?? $modeMeta['title']) . ' (' . ($prodEquipMeta['badge'] ?? $modeMeta['badge']) . ')';
+        if ($setupNote !== '') {
+            $copyLines[] = 'Hinweis: ' . $setupNote;
+        }
+        $copyLines[] = 'Modus: ' . $sanitized['process_mode'];
+        $copyLines[] = 'Material: ' . $sanitized['material'];
+        $copyLines[] = 'Fokus: ' . $focusFormatted;
+        $copyLines[] = "{$elementType} ({$engraveTab} / {$presetMode}): {$sanitized['dot_duration_us']} µs · {$sanitized['power_percent']} % · {$sanitized['speed_mms']} mm/s · {$sanitized['dpi']} DPI · {$sanitized['passes']}x · {$sanitized['frequency_khz']} kHz · {$sanitized['bitmap_mode']} · {$sanitized['engrave_mode']}";
+        if ($vectorNote !== '') {
+            $copyLines[] = 'Vektor: ' . $vectorNote;
+        }
+
+        return [
+            'is_complete'     => (bool) (($baseSummary['is_complete'] ?? false) || $hasOverrides),
+            'has_geometry'    => (bool) ($baseSummary['has_geometry'] ?? true),
+            'missing_labels'  => $hasOverrides ? [] : ($baseSummary['missing_labels'] ?? []),
+            'has_overrides'   => $hasOverrides,
+            'is_customized'   => $hasOverrides,
+            'equipment_key'   => $equipKey,
+            'equipment_label' => $modeMeta['label'],
+            'equipment_title' => $prodEquipMeta['title'] ?? $modeMeta['title'],
+            'equipment_badge' => $prodEquipMeta['badge'] ?? $modeMeta['badge'],
+            'pdf_file'        => $pdfFile,
+            'pdf_filename'    => $prodEquipMeta['pdf_filename'] ?? null,
+            'pdf_url'         => $pdfUrl,
+            'pdf_label'       => $prodEquipMeta['pdf_label'] ?? null,
+            'setup_note'      => $setupNote,
+            'process_mode'    => $sanitized['process_mode'],
+            'material'        => $sanitized['material'],
+            'focus_mm'        => (float) $sanitized['focus_mm'],
+            'focus_formatted' => $focusFormatted,
+            'element_type'    => $elementType,
+            'engrave_tab'     => $engraveTab,
+            'preset_mode'     => $presetMode,
+            'power_percent'   => (int) $sanitized['power_percent'],
+            'speed_mms'       => (int) $sanitized['speed_mms'],
+            'speed_mm_s'      => (int) $sanitized['speed_mms'],
+            'dpi'             => (int) $sanitized['dpi'],
+            'dot_duration_us' => (int) $sanitized['dot_duration_us'],
+            'frequency_khz'   => (int) $sanitized['frequency_khz'],
+            'passes'          => (int) $sanitized['passes'],
+            'bitmap_mode'     => $sanitized['bitmap_mode'],
+            'engrave_mode'    => $sanitized['engrave_mode'],
+            'vector_note'     => $vectorNote,
+            'copy_summary'    => implode("\n", $copyLines),
+            'defaults'        => $defaults,
+        ];
+    }
+
+    /**
+     * Validiert und clampt übergebene Laserparameter (alle 15 xTool-Felder + speed_mms) gegen die Grenzwerte des xTool F2 Ultra UV.
+     *
+     * @param  array<string, mixed>  $raw
+     * @param  array<string, mixed>  $defaults
+     * @return array<string, mixed>
+     */
+    protected function sanitizeLaserParameterInput(array $raw, array $defaults): array
+    {
+        $modesCatalog = self::getSupportedEquipmentModes();
+
+        $material = array_key_exists('material', $raw)
+            ? trim(strip_tags((string) $raw['material']))
+            : (string) $defaults['material'];
+        $material = $material !== '' ? mb_substr($material, 0, 120) : (string) $defaults['material'];
+
+        $hasExplicitEquip = array_key_exists('equipment_key', $raw) && trim((string) $raw['equipment_key']) !== '';
+        $hasExplicitProc = array_key_exists('process_mode', $raw) && trim((string) $raw['process_mode']) !== '';
+
+        if ($hasExplicitEquip || $hasExplicitProc) {
+            $equipKey = self::normalizeEquipmentKey(
+                $hasExplicitEquip ? (string) $raw['equipment_key'] : '',
+                $hasExplicitProc ? (string) $raw['process_mode'] : ''
+            );
+            $modeMeta = $modesCatalog[$equipKey] ?? $modesCatalog['flatbed_standard'];
+            if ($hasExplicitProc && !$hasExplicitEquip) {
+                $rawProcClean = mb_substr(trim(strip_tags((string) $raw['process_mode'])), 0, 120);
+                $processMode = isset($modesCatalog[mb_strtolower($rawProcClean)])
+                    ? $modeMeta['process_mode']
+                    : ($rawProcClean !== '' ? $rawProcClean : $modeMeta['process_mode']);
+            } elseif ($equipKey !== (string) $defaults['equipment_key'] && !$hasExplicitProc) {
+                $processMode = $modeMeta['process_mode'];
+            } else {
+                $rawProcClean = $hasExplicitProc
+                    ? mb_substr(trim(strip_tags((string) $raw['process_mode'])), 0, 120)
+                    : '';
+                $processMode = $rawProcClean !== '' ? $rawProcClean : (string) $defaults['process_mode'];
+            }
+        } else {
+            $equipKey = (string) $defaults['equipment_key'];
+            $processMode = (string) $defaults['process_mode'];
+        }
+
+        $parseFloat = static function ($val, float $fallback): float {
+            if ($val === null || $val === '') {
+                return $fallback;
+            }
+            $norm = str_replace(',', '.', trim((string) $val));
+            return is_numeric($norm) ? (float) $norm : $fallback;
+        };
+
+        $parseInt = static function ($val, int $fallback): int {
+            if ($val === null || $val === '') {
+                return $fallback;
+            }
+            $norm = str_replace(',', '.', trim((string) $val));
+            return is_numeric($norm) ? (int) round((float) $norm) : $fallback;
+        };
+
+        $rawSpeedVal = $raw['speed_mms'] ?? ($raw['speed_mm_s'] ?? null);
+        $vectorNoteRaw = array_key_exists('vector_note', $raw)
+            ? mb_substr(trim(strip_tags((string) $raw['vector_note'])), 0, 250)
+            : (string) ($defaults['vector_note'] ?? '');
+
+        if (($rawSpeedVal === null || $rawSpeedVal === '') && array_key_exists('vector_note', $raw) && $vectorNoteRaw !== '') {
+            $speedFromNote = self::parseSpeedMmsFromVectorNote($vectorNoteRaw, -1);
+            if ($speedFromNote >= 1) {
+                $rawSpeedVal = $speedFromNote;
+            }
+        }
+
+        $focusMm = round(max(0.1, min(150.0, $parseFloat($raw['focus_mm'] ?? null, (float) $defaults['focus_mm']))), 2);
+        $powerPercent = max(1, min(100, $parseInt($raw['power_percent'] ?? null, (int) $defaults['power_percent'])));
+        $speedMms = max(1, min(4000, $parseInt($rawSpeedVal, (int) ($defaults['speed_mms'] ?? 200))));
+        $dpi = max(50, min(2540, $parseInt($raw['dpi'] ?? null, (int) $defaults['dpi'])));
+        $dotDurationUs = max(1, min(5000, $parseInt($raw['dot_duration_us'] ?? null, (int) $defaults['dot_duration_us'])));
+        $frequencyKhz = max(1, min(200, $parseInt($raw['frequency_khz'] ?? null, (int) $defaults['frequency_khz'])));
+        $passes = max(1, min(20, $parseInt($raw['passes'] ?? null, (int) $defaults['passes'])));
+
+        $elementType = array_key_exists('element_type', $raw)
+            ? self::normalizeElementTypeLabel((string) $raw['element_type'], (string) ($defaults['element_type'] ?? 'Bild'))
+            : (string) ($defaults['element_type'] ?? 'Bild');
+
+        $engraveTab = array_key_exists('engrave_tab', $raw)
+            ? self::normalizeEngraveTabLabel((string) $raw['engrave_tab'], (string) ($defaults['engrave_tab'] ?? 'Gravieren'))
+            : (string) ($defaults['engrave_tab'] ?? 'Gravieren');
+
+        $presetMode = array_key_exists('preset_mode', $raw)
+            ? self::normalizePresetModeLabel((string) $raw['preset_mode'], (string) ($defaults['preset_mode'] ?? 'Benutzerdefiniert'))
+            : (string) ($defaults['preset_mode'] ?? 'Benutzerdefiniert');
+
+        $bitmapMode = array_key_exists('bitmap_mode', $raw)
+            ? self::normalizeBitmapModeLabel((string) $raw['bitmap_mode'], (string) $defaults['bitmap_mode'])
+            : (string) $defaults['bitmap_mode'];
+
+        $engraveMode = array_key_exists('engrave_mode', $raw)
+            ? self::normalizeEngraveModeLabel((string) $raw['engrave_mode'], (string) $defaults['engrave_mode'])
+            : (string) $defaults['engrave_mode'];
+
+        return [
+            'material'        => $material,
+            'equipment_key'   => $equipKey,
+            'process_mode'    => $processMode,
+            'focus_mm'        => $focusMm,
+            'element_type'    => $elementType,
+            'engrave_tab'     => $engraveTab,
+            'preset_mode'     => $presetMode,
+            'power_percent'   => $powerPercent,
+            'speed_mms'       => $speedMms,
+            'dpi'             => $dpi,
+            'dot_duration_us' => $dotDurationUs,
+            'frequency_khz'   => $frequencyKhz,
+            'passes'          => $passes,
+            'bitmap_mode'     => $bitmapMode,
+            'engrave_mode'    => $engraveMode,
+            'vector_note'     => $vectorNoteRaw,
+        ];
+    }
+
+    /**
+     * Speichert und normalisiert alle xTool-Laserparameter direkt auf der Bestellposition.
+     */
+    public function persistItemLaserParameters(OrderOrderItem $item, string $side, array $rawParams): array
+    {
+        return $this->saveOrderItemLaserParameterOverrides($item, $side, $rawParams, false);
+    }
+
+    /**
+     * Speichert benutzerdefinierte Laserparameter-Overrides direkt auf der Bestellposition
+     * (synchron in configuration['laser_cockpit_parameters'][$side] und configuration['laser_parameter_overrides'][$side]).
+     */
+    public function saveOrderItemLaserParameterOverrides(
+        OrderOrderItem $item,
+        string $side,
+        array $rawParams,
+        bool $onlyIfChangedFromCurrent = false
+    ): array {
+        $effectiveSide = ($side === 'back') ? 'back' : 'front';
+        $item->loadMissing('product');
+
+        $currentEffective = $this->resolveEffectiveLaserParameters($item, $effectiveSide);
+        $baseline = [
+            'material'        => $currentEffective['material'],
+            'equipment_key'   => $currentEffective['equipment_key'],
+            'process_mode'    => $currentEffective['process_mode'],
+            'focus_mm'        => $currentEffective['focus_mm'],
+            'element_type'    => $currentEffective['element_type'],
+            'engrave_tab'     => $currentEffective['engrave_tab'],
+            'preset_mode'     => $currentEffective['preset_mode'],
+            'power_percent'   => $currentEffective['power_percent'],
+            'speed_mms'       => $currentEffective['speed_mms'],
+            'dpi'             => $currentEffective['dpi'],
+            'dot_duration_us' => $currentEffective['dot_duration_us'],
+            'frequency_khz'   => $currentEffective['frequency_khz'],
+            'passes'          => $currentEffective['passes'],
+            'bitmap_mode'     => $currentEffective['bitmap_mode'],
+            'engrave_mode'    => $currentEffective['engrave_mode'],
+            'vector_note'     => $currentEffective['vector_note'],
+        ];
+
+        $sanitized = $this->sanitizeLaserParameterInput($rawParams, $baseline);
+
+        if ($onlyIfChangedFromCurrent && !$currentEffective['has_overrides']) {
+            $defaults = $currentEffective['defaults'] ?? $baseline;
+            $differsFromDefaults = false;
+            foreach ($defaults as $k => $defVal) {
+                if (!array_key_exists($k, $sanitized)) {
+                    continue;
+                }
+                if ($k === 'focus_mm') {
+                    if (abs((float) $sanitized[$k] - (float) $defVal) >= 0.05) {
+                        $differsFromDefaults = true;
+                        break;
+                    }
+                } elseif ((string) $sanitized[$k] !== (string) $defVal) {
+                    $differsFromDefaults = true;
+                    break;
+                }
+            }
+            if (!$differsFromDefaults) {
+                return $currentEffective;
+            }
+        }
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        if (!isset($conf['laser_cockpit_parameters']) || !is_array($conf['laser_cockpit_parameters'])) {
+            $conf['laser_cockpit_parameters'] = [];
+        }
+        if (!isset($conf['laser_parameter_overrides']) || !is_array($conf['laser_parameter_overrides'])) {
+            $conf['laser_parameter_overrides'] = [];
+        }
+
+        $storedPayload = array_merge($sanitized, [
+            'updated_at' => now()->toIso8601String(),
+        ]);
+
+        $conf['laser_cockpit_parameters'][$effectiveSide] = $storedPayload;
+        $conf['laser_parameter_overrides'][$effectiveSide] = $storedPayload;
+
+        $item->configuration = $conf;
+        $item->saveQuietly();
+
+        return $this->resolveEffectiveLaserParameters($item, $effectiveSide);
+    }
+
+    /**
+     * Setzt die Laserparameter-Overrides einer Bestellposition wieder auf die Produkt-Standardwerte zurück.
+     */
+    public function resetItemLaserParameters(OrderOrderItem $item, string $side = 'front'): array
+    {
+        return $this->resetOrderItemLaserParameterOverrides($item, $side);
+    }
+
+    /**
+     * Setzt die Laserparameter-Overrides einer Bestellposition für die gewählte Seite wieder auf die Produkt-Standardwerte zurück.
+     */
+    public function resetOrderItemLaserParameterOverrides(OrderOrderItem $item, string $side = 'front'): array
+    {
+        $effectiveSide = ($side === 'back') ? 'back' : 'front';
+        $item->loadMissing('product');
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $changed = false;
+
+        foreach (['laser_cockpit_parameters', 'laser_parameter_overrides'] as $rootKey) {
+            if (isset($conf[$rootKey]) && is_array($conf[$rootKey])) {
+                unset($conf[$rootKey][$effectiveSide], $conf[$rootKey]['default']);
+                if (empty($conf[$rootKey])) {
+                    unset($conf[$rootKey]);
+                }
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $item->configuration = $conf;
+            $item->saveQuietly();
+        }
+
+        return $this->resolveEffectiveLaserParameters($item, $effectiveSide);
+    }
+
+    /**
+     * Übernimmt getestete Laserparameter aus der Bestellbearbeitung dauerhaft als neuen Produkt-Standard (Schritt 4.2).
+     */
+    public function saveLaserParametersToProduct(Product $product, array $rawParams): array
+    {
+        $currentSummary = $product->getLaserInstructionSummary();
+        $productSettings = is_string($product->configurator_settings)
+            ? (json_decode($product->configurator_settings, true) ?: [])
+            : (is_array($product->configurator_settings) ? $product->configurator_settings : []);
+
+        $baseline = [
+            'material'        => trim((string) ($currentSummary['material'] ?? '')) ?: 'Edelstahl',
+            'equipment_key'   => self::normalizeEquipmentKey((string) ($currentSummary['equipment_key'] ?? ''), (string) ($currentSummary['process_mode'] ?? '')),
+            'process_mode'    => trim((string) ($currentSummary['process_mode'] ?? '')) ?: 'Prozess auf flacher Oberfläche',
+            'focus_mm'        => ((float) ($currentSummary['focus_mm'] ?? 0)) > 0 ? (float) $currentSummary['focus_mm'] : 3.0,
+            'element_type'    => self::normalizeElementTypeLabel((string) ($currentSummary['element_type'] ?? 'Bild'), 'Bild'),
+            'engrave_tab'     => self::normalizeEngraveTabLabel((string) ($currentSummary['engrave_tab'] ?? 'Gravieren'), 'Gravieren'),
+            'preset_mode'     => self::normalizePresetModeLabel((string) ($currentSummary['preset_mode'] ?? 'Benutzerdefiniert'), 'Benutzerdefiniert'),
+            'power_percent'   => ((int) ($currentSummary['power_percent'] ?? 0)) > 0 ? (int) $currentSummary['power_percent'] : 70,
+            'speed_mms'       => isset($productSettings['xtool_speed_mms']) && is_numeric($productSettings['xtool_speed_mms'])
+                ? (int) $productSettings['xtool_speed_mms']
+                : self::parseSpeedMmsFromVectorNote((string) ($currentSummary['vector_note'] ?? ''), 200),
+            'dpi'             => ((int) ($currentSummary['dpi'] ?? 0)) > 0 ? (int) $currentSummary['dpi'] : 500,
+            'dot_duration_us' => ((int) ($currentSummary['dot_duration_us'] ?? 0)) > 0 ? (int) $currentSummary['dot_duration_us'] : 120,
+            'frequency_khz'   => ((int) ($currentSummary['frequency_khz'] ?? 0)) > 0 ? (int) $currentSummary['frequency_khz'] : 60,
+            'passes'          => ((int) ($currentSummary['passes'] ?? 0)) > 0 ? (int) $currentSummary['passes'] : 1,
+            'bitmap_mode'     => self::normalizeBitmapModeLabel((string) ($currentSummary['bitmap_mode'] ?? ''), 'Graustufen'),
+            'engrave_mode'    => self::normalizeEngraveModeLabel((string) ($currentSummary['engrave_mode'] ?? ''), 'Bidirektional'),
+            'vector_note'     => trim((string) ($currentSummary['vector_note'] ?? '')),
+        ];
+
+        $sanitized = $this->sanitizeLaserParameterInput($rawParams, $baseline);
+
+        $productSettings['xtool_equipment_key']   = $sanitized['equipment_key'];
+        $productSettings['xtool_process_mode']    = $sanitized['process_mode'];
+        $productSettings['xtool_material']        = $sanitized['material'];
+        $productSettings['xtool_focus_mm']        = $sanitized['focus_mm'];
+        $productSettings['xtool_element_type']    = $sanitized['element_type'];
+        $productSettings['xtool_engrave_tab']     = $sanitized['engrave_tab'];
+        $productSettings['xtool_preset_mode']     = $sanitized['preset_mode'];
+        $productSettings['xtool_dot_duration_us'] = $sanitized['dot_duration_us'];
+        $productSettings['xtool_power_percent']   = $sanitized['power_percent'];
+        $productSettings['xtool_speed_mms']       = $sanitized['speed_mms'];
+        $productSettings['xtool_dpi']             = $sanitized['dpi'];
+        $productSettings['xtool_passes']          = $sanitized['passes'];
+        $productSettings['xtool_frequency_khz']   = $sanitized['frequency_khz'];
+        $productSettings['xtool_bitmap_mode']     = $sanitized['bitmap_mode'];
+        $productSettings['xtool_engrave_mode']    = $sanitized['engrave_mode'];
+        $productSettings['xtool_vector_note']     = $sanitized['vector_note'];
+
+        $product->configurator_settings = $productSettings;
+        $product->saveQuietly();
+
+        return $product->fresh()->getLaserInstructionSummary();
+    }
+
+    /**
      * Übersetzt die Seelenfunke Materialbezeichnung in die offizielle xTool Studio Material-ID (F2 Ultra UV).
      */
     public static function resolveXtoolMaterialId(string $materialLabel): int
@@ -1531,7 +2223,7 @@ class XtoolLaserCockpitService
         if (str_contains($m, 'schiefer') || str_contains($m, 'stein') || str_contains($m, 'keramik') || str_contains($m, 'untersetzer')) {
             return 2514; // Stein-Untersetzer / Naturschiefer
         }
-        return 1098; // Edelstahl / Metall / Leder / Standard-UV-Oberfläche
+        return 1098; // Edelstahl / Messing / Holz / Metall / Leder / Standard-UV-Oberfläche
     }
 
     /**
@@ -1539,10 +2231,13 @@ class XtoolLaserCockpitService
      */
     public static function resolveXtoolActiveMode(string $equipmentKey, string $processMode = ''): string
     {
-        return match ($equipmentKey) {
+        $normalizedKey = self::normalizeEquipmentKey($equipmentKey, $processMode);
+
+        return match ($normalizedKey) {
             'rotary_ra3'     => 'LASER_CYLINDER',
             'conveyor_batch' => 'LASER_CONVEYOR_FEEDER',
             'inner_3d'       => 'INNER_LASER',
+            'curved_surface' => 'CURVED_PROCESS',
             default          => 'LASER_PLANE',
         };
     }
@@ -1562,7 +2257,29 @@ class XtoolLaserCockpitService
         if (str_contains($b, 'floyd')) {
             return 'floyd';
         }
+        if (str_contains($b, 'atkinson')) {
+            return 'atkinson';
+        }
+        if (str_contains($b, 'schwellenwert') || str_contains($b, 'threshold')) {
+            return 'threshold';
+        }
+        if (str_contains($b, 'konturgravur') || str_contains($b, 'emboss') || str_contains($b, 'relief')) {
+            return 'emboss';
+        }
         return 'greyscale';
+    }
+
+    /**
+     * Übersetzt die Gravur-Richtung in den xTool Studio Scan-Modus ('zMode' = Bidirektional, 'singleMode' = Unidirektional).
+     */
+    public static function resolveXtoolScanMode(string $engraveModeLabel): string
+    {
+        $em = mb_strtolower(trim($engraveModeLabel));
+        if (str_contains($em, 'uni') || str_contains($em, 'eindirekt') || str_contains($em, 'single')) {
+            return 'singleMode';
+        }
+
+        return 'zMode';
     }
 
     /**
@@ -1647,7 +2364,7 @@ class XtoolLaserCockpitService
 
         $item = $payload['item'];
         $product = $payload['product'];
-        $laserSummary = $product ? $product->getLaserInstructionSummary() : Product::evaluateLaserInstructionSettings([], false);
+        $laserSummary = $this->resolveEffectiveLaserParameters($item, $side);
 
         $savedCoords = (is_object($item) && is_array($item->configuration ?? null))
             ? ($item->configuration['laser_cockpit_coordinates'][$side] ?? [])
@@ -1682,30 +2399,42 @@ class XtoolLaserCockpitService
         $topLeftX = round($centerXMm - ($widthMm / 2.0), 4);
         $topLeftY = round($centerYMm - ($heightMm / 2.0), 4);
 
-        $engravePngBytes = $payload['stageEngravePngBytes'];
+        // Sauberes Gravur-PNG mit echt transparentem Hintergrund (Alpha = 0 außerhalb des Motivs) erzeugen,
+        // damit xTool Studio auf dem Live-Kamerabild keinen schwarzen oder weißen Kasten über den Rohling legt.
+        $engravePngBytes = $this->buildCleanTransparentXcsBitmapPng((string) $payload['stageEngravePngBytes']);
+        $opaqueThumbSourceBytes = $this->buildOpaqueWhiteBackedGrayscalePng((string) $payload['stageEngravePngBytes']);
+        $thumbnailPngBytes = $this->buildXcsProjectThumbnailPng($opaqueThumbSourceBytes);
+
         $engraveSha256 = hash('sha256', $engravePngBytes);
-        $resourceRelPath = 'resources/' . $engraveSha256 . '.png';
+        $resourceFileName = $engraveSha256 . '.png';
+        $resourceRelPath = 'resources/' . $resourceFileName;
         $base64DataUrl = 'data:image/png;base64,' . base64_encode($engravePngBytes);
 
         $projectId = (string) Str::uuid();
         $canvasId = (string) Str::uuid();
         $engraveDisplayId = (string) Str::uuid();
         $ghostContourDisplayId = (string) Str::uuid();
-        $groupTag = 'G-' . Str::uuid();
+        $bitmapSourceToken = (string) Str::uuid();
 
         $activeMode = self::resolveXtoolActiveMode(
             (string) ($laserSummary['equipment_key'] ?? 'flatbed_standard'),
             (string) ($laserSummary['process_mode'] ?? '')
         );
         $materialId = self::resolveXtoolMaterialId((string) ($laserSummary['material'] ?? 'Edelstahl'));
-        $focusMm = max(0.5, (float) ($laserSummary['focus_mm'] ?: 3.0));
-        $dotDurationUs = max(10, (int) ($laserSummary['dot_duration_us'] ?: 120));
+        $focusMm = max(0.1, min(150.0, (float) ($laserSummary['focus_mm'] ?: 3.0)));
+        $elementType = (string) ($laserSummary['element_type'] ?? 'Bild');
+        $engraveTab = (string) ($laserSummary['engrave_tab'] ?? 'Gravieren');
+        $presetMode = (string) ($laserSummary['preset_mode'] ?? 'Benutzerdefiniert');
+        $vectorNote = (string) ($laserSummary['vector_note'] ?? '');
+        $processingType = self::resolveXtoolProcessingType($elementType, $engraveTab);
+        $dotDurationUs = max(1, min(5000, (int) ($laserSummary['dot_duration_us'] ?: 120)));
         $powerPercent = max(1, min(100, (int) ($laserSummary['power_percent'] ?: 70)));
-        $dpi = max(100, (int) ($laserSummary['dpi'] ?: 500));
-        $passes = max(1, (int) ($laserSummary['passes'] ?: 1));
-        $frequencyKhz = max(20, (int) ($laserSummary['frequency_khz'] ?: 60));
+        $speedMms = max(1, min(4000, (int) ($laserSummary['speed_mms'] ?: 200)));
+        $dpi = max(50, min(2540, (int) ($laserSummary['dpi'] ?: 500)));
+        $passes = max(1, min(20, (int) ($laserSummary['passes'] ?: 1)));
+        $frequencyKhz = max(1, min(200, (int) ($laserSummary['frequency_khz'] ?: 60)));
         $bitmapMode = self::resolveXtoolBitmapMode((string) ($laserSummary['bitmap_mode'] ?? 'Graustufen'));
-        $scanMode = str_contains(mb_strtolower((string) ($laserSummary['engrave_mode'] ?? 'bi')), 'uni') ? 'singleMode' : 'zMode';
+        $scanMode = self::resolveXtoolScanMode((string) ($laserSummary['engrave_mode'] ?? 'Bidirektional'));
 
         $orderNumber = (string) ($item->order->order_number ?? 'Auftrag');
         $safeOrderNumber = preg_replace('/[^A-Za-z0-9_-]/', '_', $orderNumber) ?: 'Auftrag';
@@ -1715,79 +2444,92 @@ class XtoolLaserCockpitService
         // 1. Ghost-Contour SVG dPath im lokalen Koordinatensystem (0..widthMm, 0..heightMm)
         $ghostDPath = $payload['ghostContourDPath'];
 
-        // 2. displays-0.json (Gravur-Bitmap auf Ebene #000000 + 1:1 Geister-Kontur auf Ebene #00bcd4)
+        // 2. displays-0.json (mit Pflichtfeld canvasId für XcsSnapshotDeserializer sowie frei auswähl- & löschbaren Elementen)
         $displaysJson = [
+            'canvasId' => $canvasId,
             'displays' => [
                 [
-                    'id'              => $engraveDisplayId,
-                    'name'            => 'Seelenfunke Gravur (' . ($item->product_name ?? 'Unikat') . ')',
-                    'type'            => 'BITMAP',
-                    'visible'         => true,
-                    'layerColor'      => '#000000',
-                    'x'               => $topLeftX,
-                    'y'               => $topLeftY,
-                    'angle'           => round($angleDeg, 2),
-                    'scale'           => [
+                    'id'                            => $engraveDisplayId,
+                    'name'                          => 'Seelenfunke Gravur (' . ($item->product_name ?? 'Unikat') . ')',
+                    'type'                          => 'BITMAP',
+                    'visible'                       => true,
+                    'layerColor'                    => '#000000',
+                    'x'                             => $topLeftX,
+                    'y'                             => $topLeftY,
+                    'angle'                         => round($angleDeg, 2),
+                    'scale'                         => [
                         'x' => round($widthMm / max(1, $payload['stagePixelWidth']), 6),
                         'y' => round($heightMm / max(1, $payload['stagePixelHeight']), 6),
                     ],
-                    'skew'            => ['x' => 0, 'y' => 0],
-                    'pivot'           => ['x' => 0, 'y' => 0],
-                    'localSkew'       => ['x' => 0, 'y' => 0],
-                    'offsetX'         => $topLeftX,
-                    'offsetY'         => $topLeftY,
-                    'lockRatio'       => true,
-                    'isClosePath'     => true,
-                    'zOrder'          => 1,
-                    'sourceId'        => $engraveDisplayId,
-                    'groupTag'        => $groupTag,
-                    'layerTag'        => '#000000',
-                    'fillColor'       => '#000000',
-                    'visibleState'    => true,
-                    'lockState'       => false,
-                    'resourceOrigin'  => '',
-                    'customData'      => new \stdClass(),
-                    'rootComponentId' => '',
-                    'minCanvasVersion'=> '0.0.0',
-                    'width'           => $widthMm,
-                    'height'          => $heightMm,
-                    'base64'          => $base64DataUrl,
-                    'originWidth'     => $payload['stagePixelWidth'],
-                    'originHeight'    => $payload['stagePixelHeight'],
-                    'DPI'             => $dpi,
-                    'isFill'          => false,
-                    'lineColor'       => '#FF0000',
-                    'stroke'          => [
+                    'skew'                          => ['x' => 0, 'y' => 0],
+                    'pivot'                         => ['x' => 0, 'y' => 0],
+                    'localSkew'                     => ['x' => 0, 'y' => 0],
+                    'offsetX'                       => $topLeftX,
+                    'offsetY'                       => $topLeftY,
+                    'lockRatio'                     => true,
+                    'enableTransform'               => true,
+                    'isClosePath'                   => false,
+                    'zOrder'                        => 1,
+                    'sourceId'                      => $engraveDisplayId,
+                    'groupTag'                      => '',
+                    'groupTags'                     => [],
+                    'layerTag'                      => '#000000',
+                    'fillColor'                     => '#FFFFFF',
+                    'visibleState'                  => true,
+                    'lockState'                     => false,
+                    'isLock'                        => false,
+                    'resourceOrigin'                => '',
+                    'customData'                    => new \stdClass(),
+                    'rootComponentId'               => '',
+                    'minCanvasVersion'              => '0.0.0',
+                    'width'                         => $widthMm,
+                    'height'                        => $heightMm,
+                    'base64'                        => $base64DataUrl,
+                    'originWidth'                   => $payload['stagePixelWidth'],
+                    'originHeight'                  => $payload['stagePixelHeight'],
+                    'DPI'                           => $dpi,
+                    'isFill'                        => true,
+                    'filterList'                    => [],
+                    'grayValue'                     => [0, 250],
+                    'sharpness'                     => 50,
+                    'brightness'                    => 0,
+                    'contrast'                      => 0,
+                    'saturation'                    => 0,
+                    'temperature'                   => 0,
+                    'tone'                          => 0,
+                    'colorInverted'                 => false,
+                    'colorInvertedFillTransparent'  => false,
+                    'colorInvertedTransparentColor' => 'black',
+                    'isGray'                        => true,
+                    'opacity'                       => 1,
+                    'bitmapSourceToken'             => $bitmapSourceToken,
+                    'lineColor'                     => '#FF0000',
+                    'stroke'                        => [
                         'color'     => 16711680,
                         'width'     => 0.1,
                         'alpha'     => 0,
+                        'visible'   => false,
                         'cap'       => 'butt',
                         'join'      => 'miter',
                         'miterLimit'=> 4,
                         'alignment' => 0.5,
                     ],
-                    'fill'            => [
-                        'color'   => 0,
-                        'alpha'   => 1,
+                    'fill'                          => [
+                        'color'   => 16777215,
+                        'alpha'   => 0,
                         'visible' => false,
                     ],
-                    'totalFrame'      => 1,
-                    'Enhance'         => [
-                        'sharpness'  => 0,
-                        'embossment' => 0,
-                        'blur'       => 0,
-                        'denoise'    => 0,
-                    ],
-                    'color'           => [
+                    'totalFrame'                    => 1,
+                    'color'                         => [
                         'bright'     => 0,
                         'contrast'   => 0,
                         'saturation' => 0,
-                        'whiteClip'  => 255,
+                        'whiteClip'  => 250,
                         'blackClip'  => 0,
                     ],
-                    'isGrayscale'     => true,
-                    'isInvert'        => false,
-                    'resourcePath'    => $resourceRelPath,
+                    'isGrayscale'                   => true,
+                    'isInvert'                      => false,
+                    'resourcePath'                  => $resourceRelPath,
                 ],
                 [
                     'id'              => $ghostContourDisplayId,
@@ -1808,14 +2550,17 @@ class XtoolLaserCockpitService
                     'offsetX'         => $topLeftX,
                     'offsetY'         => $topLeftY,
                     'lockRatio'       => true,
+                    'enableTransform' => true,
                     'isClosePath'     => true,
                     'zOrder'          => 2,
                     'sourceId'        => $ghostContourDisplayId,
-                    'groupTag'        => $groupTag,
+                    'groupTag'        => '',
+                    'groupTags'       => [],
                     'layerTag'        => '#00bcd4',
                     'fillColor'       => '#00bcd4',
                     'visibleState'    => true,
                     'lockState'       => false,
+                    'isLock'          => false,
                     'resourceOrigin'  => '',
                     'customData'      => new \stdClass(),
                     'rootComponentId' => '',
@@ -1834,7 +2579,7 @@ class XtoolLaserCockpitService
             ],
         ];
 
-        // 3. canvases/<canvasId>.json (inkl. BATCH_TEMPLATE für Serien- und Laufband-Gravur)
+        // 3. canvases/<canvasId>.json (ohne BATCH_TEMPLATE-Sperre und ohne Zwangs-Gruppierung, inkl. chunkIndexes: [0])
         $canvasMetaJson = [
             'id'              => $canvasId,
             'title'           => $projectName,
@@ -1850,13 +2595,7 @@ class XtoolLaserCockpitService
                     'visible' => true,
                 ],
             ],
-            'groupData'       => [
-                $groupTag => [
-                    'groupName' => 'Gravur + Ausricht-Kontur',
-                    'groupTag'  => $groupTag,
-                    'contain'   => [$engraveDisplayId, $ghostContourDisplayId],
-                ],
-            ],
+            'groupData'       => new \stdClass(),
             'SHOW_RULER'      => true,
             'VISIBLE_GRID'    => true,
             'LOCK_CONVERT'    => false,
@@ -1873,77 +2612,86 @@ class XtoolLaserCockpitService
             'gridOptions'     => ['size' => 'standard', 'unit' => 'mm'],
             'textPluginData'  => [],
             'auxiliaryLines'  => [],
-            'batchData'       => [
-                'entryType' => 'BATCH_TEMPLATE',
-                'bindings'  => [],
-            ],
             'chunkLayout'     => [
-                [
-                    'file'  => 'displays-0.json',
-                    'count' => 2,
-                ],
+                'chunkIndexes' => [0],
+                'file'         => 'displays-0.json',
+                'count'        => 2,
             ],
         ];
 
-        // 4. devices/device-GS009-CLASS-4-1.json (inkl. ignoredDisplayIds für die Geister-Kontur!)
-        $profileKey = implode('::', [$activeMode, $materialId, 'BITMAP', 'BITMAP_ENGRAVING', 'uv', 0]);
-        $patchId = $engraveDisplayId . '::' . $profileKey;
+        // 4. devices/device-GS009-CLASS-4-1.json (100 % V2DeviceConfig-konform: id auf Canvas, profiles/patches/bindings als Listen)
+        $profileKey = implode('::', [$activeMode, $materialId, 'BITMAP', $processingType, 'uv', 0]);
+        $profileId = 'profile_' . substr(md5($profileKey), 0, 8);
+        $bindingId = 'binding_' . substr(md5($engraveDisplayId . '::' . $profileId), 0, 8);
+        $profileSource = $presetMode === 'Referenz' ? 'official' : 'custom';
+        $profileValues = [
+            'materialType'          => $materialId > 0 ? 'official' : 'customize',
+            'materialId'            => $materialId,
+            'ProcessingLightSource' => 'uv',
+            'laserType'             => 'uv',
+            'dotDuration'           => $dotDurationUs,
+            'power'                 => $powerPercent,
+            'speed'                 => $speedMms,
+            'dpi'                   => $dpi,
+            'repeat'                => $passes,
+            'frequency'             => $frequencyKhz,
+            'bitmapMode'            => $bitmapMode,
+            'bitmapScanMode'        => $scanMode,
+            'elementType'           => $elementType,
+            'engraveTab'            => $engraveTab,
+            'presetMode'            => $presetMode,
+            'vectorNote'            => $vectorNote,
+            'crossAngle'            => false,
+            'enableKerf'            => false,
+            'kerfDistance'          => 0,
+        ];
 
         $deviceJson = [
             'id'         => self::DEVICE_ID_KEY,
+            'deviceCode' => self::DEVICE_EXT_ID,
             'extId'      => self::DEVICE_EXT_ID,
             'extName'    => self::DEVICE_EXT_NAME,
+            'snCode'     => self::DEVICE_SN_CODE,
+            'power'      => 5,
             'processing' => [
                 $canvasId => [
+                    'id'         => $canvasId,
                     'activeMode' => $activeMode,
                     'modes'      => [
                         $activeMode => [
                             'data'              => [
-                                'material'              => $materialId,
-                                'lightSourceMode'       => 'uv',
-                                'isProcessByLayer'      => false,
-                                'pathPlanning'          => 'auto',
-                                'fillPlanning'          => 'separate',
-                                'scanDirection'         => 'topToBottom',
-                                'enableOddEvenKerf'     => false,
-                                'perimeter'             => 100,
-                                'diameter'              => round($widthMm / M_PI, 2),
-                                'thickness'             => $focusMm,
-                                'Drehachsenversatz'     => 0,
-                                'Drehrichtung'          => 'clockwise',
-                                'isCheckFloorExist'     => false,
+                                'material'          => $materialId,
+                                'lightSourceMode'   => 'uv',
+                                'isProcessByLayer'  => false,
+                                'pathPlanning'      => 'auto',
+                                'fillPlanning'      => 'separate',
+                                'scanDirection'     => 'topToBottom',
+                                'enableOddEvenKerf' => false,
+                                'perimeter'         => round($widthMm, 2),
+                                'diameter'          => round($widthMm / M_PI, 2),
+                                'thickness'         => $focusMm,
+                                'isCheckFloorExist' => false,
                             ],
                             'profiles'          => [
-                                $profileKey => [
-                                    'key'              => $profileKey,
-                                    'processingType'   => 'BITMAP_ENGRAVING',
+                                [
+                                    'id'                    => $profileId,
+                                    'key'                   => $profileKey,
+                                    'processingType'        => $processingType,
                                     'ProcessingLightSource' => 'uv',
-                                    'base'             => [
-                                        'source' => 'custom',
-                                        'values' => [
-                                            'dotDuration'    => $dotDurationUs,
-                                            'power'          => $powerPercent,
-                                            'dpi'            => $dpi,
-                                            'repeat'         => $passes,
-                                            'frequency'      => $frequencyKhz,
-                                            'bitmapMode'     => $bitmapMode,
-                                            'bitmapScanMode' => $scanMode,
-                                            'crossAngle'     => false,
-                                            'enableKerf'     => false,
-                                            'kerfDistance'   => 0,
-                                        ],
+                                    'values'                => $profileValues,
+                                    'base'                  => [
+                                        'source' => $profileSource,
+                                        'values' => $profileValues,
                                     ],
                                 ],
                             ],
-                            'patches'           => [
-                                $patchId => [
-                                    'id'      => $patchId,
-                                    'baseKey' => $profileKey,
-                                    'delta'   => new \stdClass(),
-                                ],
-                            ],
+                            'patches'           => [],
                             'bindings'          => [
-                                $engraveDisplayId => $patchId,
+                                [
+                                    'bindingId'     => $bindingId,
+                                    'baseProfileId' => $profileId,
+                                    'displayIds'    => [$engraveDisplayId],
+                                ],
                             ],
                             'ignoredDisplayIds' => [
                                 $ghostContourDisplayId,
@@ -1954,8 +2702,24 @@ class XtoolLaserCockpitService
             ],
         ];
 
-        // 5. project.json
+        // 5. project.json + resources/<sha256>.png.meta.json für OPFS-Rehydrierung in xTool Studio v1.10.15
         $nowMs = (int) round(microtime(true) * 1000);
+        $resourceMetaJson = [
+            'ref'      => $resourceRelPath,
+            'metadata' => [
+                'kind'      => 'binary',
+                'size'      => strlen($engravePngBytes),
+                'mimeType'  => 'image/png',
+                'checksum'  => $engraveSha256,
+                'canvasId'  => $canvasId,
+                'displayId' => $engraveDisplayId,
+                'source'    => [
+                    'type'  => 'workspace',
+                    'value' => $resourceFileName,
+                ],
+            ],
+        ];
+
         $projectJson = [
             '__v2__'              => true,
             'projectId'           => $projectId,
@@ -1976,6 +2740,12 @@ class XtoolLaserCockpitService
                 'seelenfunke_item_id'      => (string) $item->id,
                 'seelenfunke_side'         => $side,
                 'seelenfunke_focus_mm'     => $focusMm,
+                'seelenfunke_speed_mms'    => $speedMms,
+                'seelenfunke_material'     => (string) $laserSummary['material'],
+                'seelenfunke_element_type' => $elementType,
+                'seelenfunke_engrave_tab'  => $engraveTab,
+                'seelenfunke_preset_mode'  => $presetMode,
+                'seelenfunke_vector_note'  => $vectorNote,
             ],
             'meta'                => [],
             'modules'             => [
@@ -2002,25 +2772,35 @@ class XtoolLaserCockpitService
             'protocol'      => 'xcs-workspace-v2',
         ];
 
-        $tmpZipPath = tempnam(sys_get_temp_dir(), 'sf_xcs_') . '.xcs';
-        $zip = new \ZipArchive();
-        if ($zip->open($tmpZipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
-            throw new \RuntimeException('xTool .xcs Projektarchiv konnte nicht angelegt werden.');
+        $baseTmp = tempnam(sys_get_temp_dir(), 'sf_xcs_');
+        if ($baseTmp === false) {
+            throw new \RuntimeException('Temporäre Arbeitsdatei für xTool .xcs Projektarchiv konnte nicht angelegt werden.');
         }
+        $tmpZipPath = $baseTmp . '.xcs';
 
-        $jsonFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
-        $zip->addFromString('meta/persistence-meta.json', json_encode($persistenceMetaJson, $jsonFlags));
-        $zip->addFromString('.format', 'v2');
-        $zip->addFromString('project.json', json_encode($projectJson, $jsonFlags));
-        $zip->addFromString("canvases/{$canvasId}.json", json_encode($canvasMetaJson, $jsonFlags));
-        $zip->addFromString("canvases/{$canvasId}/displays-0.json", json_encode($displaysJson, $jsonFlags));
-        $zip->addFromString('devices/device-' . self::DEVICE_ID_KEY . '.json', json_encode($deviceJson, $jsonFlags));
-        $zip->addFromString($resourceRelPath, $engravePngBytes);
-        $zip->addFromString('thumbnail.png', $engravePngBytes);
-        $zip->close();
+        try {
+            $zip = new \ZipArchive();
+            if ($zip->open($tmpZipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+                throw new \RuntimeException('xTool .xcs Projektarchiv konnte nicht angelegt werden.');
+            }
 
-        $zipBytes = (string) file_get_contents($tmpZipPath);
-        @unlink($tmpZipPath);
+            $jsonFlags = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+            $zip->addFromString('meta/persistence-meta.json', json_encode($persistenceMetaJson, $jsonFlags));
+            $zip->addFromString('.format', 'v2');
+            $zip->addFromString('project.json', json_encode($projectJson, $jsonFlags));
+            $zip->addFromString("canvases/{$canvasId}.json", json_encode($canvasMetaJson, $jsonFlags));
+            $zip->addFromString("canvases/{$canvasId}/displays-0.json", json_encode($displaysJson, $jsonFlags));
+            $zip->addFromString('devices/device-' . self::DEVICE_ID_KEY . '.json', json_encode($deviceJson, $jsonFlags));
+            $zip->addFromString($resourceRelPath, $engravePngBytes);
+            $zip->addFromString($resourceRelPath . '.meta.json', json_encode($resourceMetaJson, $jsonFlags));
+            $zip->addFromString('thumbnail.png', $thumbnailPngBytes);
+            $zip->close();
+
+            $zipBytes = (string) file_get_contents($tmpZipPath);
+        } finally {
+            @unlink($tmpZipPath);
+            @unlink($baseTmp);
+        }
 
         $filename = "xTool-Projekt-{$safeOrderNumber}-Pos-" . substr((string) $item->id, 0, 8) . "-{$sideLabel}.xcs";
 
@@ -2055,7 +2835,7 @@ class XtoolLaserCockpitService
 
         $item = $payload['item'];
         $product = $payload['product'];
-        $laserSummary = $product ? $product->getLaserInstructionSummary() : Product::evaluateLaserInstructionSettings([], false);
+        $laserSummary = $this->resolveEffectiveLaserParameters($item, $side);
 
         $savedCoords = (is_object($item) && is_array($item->configuration ?? null))
             ? ($item->configuration['laser_cockpit_coordinates'][$side] ?? [])
@@ -2094,14 +2874,20 @@ class XtoolLaserCockpitService
             (string) ($laserSummary['process_mode'] ?? '')
         );
         $materialId = self::resolveXtoolMaterialId((string) ($laserSummary['material'] ?? 'Edelstahl'));
-        $focusMm = max(0.5, (float) ($laserSummary['focus_mm'] ?: 3.0));
-        $dotDurationUs = max(10, (int) ($laserSummary['dot_duration_us'] ?: 120));
+        $focusMm = max(0.1, min(150.0, (float) ($laserSummary['focus_mm'] ?: 3.0)));
+        $elementType = (string) ($laserSummary['element_type'] ?? 'Bild');
+        $engraveTab = (string) ($laserSummary['engrave_tab'] ?? 'Gravieren');
+        $presetMode = (string) ($laserSummary['preset_mode'] ?? 'Benutzerdefiniert');
+        $vectorNote = (string) ($laserSummary['vector_note'] ?? '');
+        $processingType = self::resolveXtoolProcessingType($elementType, $engraveTab);
+        $dotDurationUs = max(1, min(5000, (int) ($laserSummary['dot_duration_us'] ?: 120)));
         $powerPercent = max(1, min(100, (int) ($laserSummary['power_percent'] ?: 70)));
-        $dpi = max(100, (int) ($laserSummary['dpi'] ?: 500));
-        $passes = max(1, (int) ($laserSummary['passes'] ?: 1));
-        $frequencyKhz = max(20, (int) ($laserSummary['frequency_khz'] ?: 60));
+        $speedMms = max(1, min(4000, (int) ($laserSummary['speed_mms'] ?: 200)));
+        $dpi = max(50, min(2540, (int) ($laserSummary['dpi'] ?: 500)));
+        $passes = max(1, min(20, (int) ($laserSummary['passes'] ?: 1)));
+        $frequencyKhz = max(1, min(200, (int) ($laserSummary['frequency_khz'] ?: 60)));
         $bitmapMode = self::resolveXtoolBitmapMode((string) ($laserSummary['bitmap_mode'] ?? 'Graustufen'));
-        $scanMode = str_contains(mb_strtolower((string) ($laserSummary['engrave_mode'] ?? 'bi')), 'uni') ? 'singleMode' : 'zMode';
+        $scanMode = self::resolveXtoolScanMode((string) ($laserSummary['engrave_mode'] ?? 'Bidirektional'));
 
         $previewJpgBytes = $this->buildPreviewJpeg200($payload['stageEngravePngBytes']);
         $motionGcodeBytes = $this->buildLaserMotionStream(
@@ -2116,29 +2902,38 @@ class XtoolLaserCockpitService
             $frequencyKhz,
             $passes,
             $dpi,
-            $scanMode
+            $scanMode,
+            $speedMms
         );
 
+        $speedTimeScale = max(0.2, min(10.0, $speedMms / 200.0));
         $description = [
             'mode'                   => $activeMode,
+            'processMode'            => (string) $laserSummary['process_mode'],
             'light'                  => 'uv',
             'create_time'            => (int) round(microtime(true) * 1000),
-            'total_Time'             => max(5, (int) round(($widthMm * $heightMm * $passes) / 18.0)),
+            'total_Time'             => max(5, (int) round(($widthMm * $heightMm * $passes) / (18.0 * $speedTimeScale))),
             'Compatible Machine Type'=> [self::DEVICE_EXT_ID],
             'focus'                  => $focusMm,
             'thickness'              => $focusMm,
             'processingParams'       => [[
-                'processingType' => 'BITMAP_ENGRAVING',
+                'processingType' => $processingType,
+                'elementType'    => $elementType,
+                'engraveTab'     => $engraveTab,
+                'presetMode'     => $presetMode,
                 'lightSource'    => 'uv',
                 'bitmapMode'     => $bitmapMode,
                 'bitmapScanMode' => $scanMode,
                 'dotDuration'    => $dotDurationUs,
                 'dpi'            => $dpi,
                 'power'          => $powerPercent,
+                'speed'          => $speedMms,
                 'frequency'      => $frequencyKhz,
                 'repeat'         => $passes,
+                'vectorNote'     => $vectorNote,
             ]],
             'material'               => (string) $materialId,
+            'materialLabel'          => (string) $laserSummary['material'],
             'isProcessByLayer'       => false,
             'pathPlanning'           => 'auto',
             'fillPlanning'           => 'separate',
@@ -2228,6 +3023,7 @@ class XtoolLaserCockpitService
         $exportService = app(FileDownloadService::class);
         $payload = $exportService->buildLaserDesignPayload($itemId, $side, true);
         $item = $payload['item'];
+        $effectiveLaserParams = $this->resolveEffectiveLaserParameters($item, $side);
 
         // Direkte V2-TLS-WebSocket-Übertragung an den xTool F2 Ultra UV bzw. Stage <-> Mini-PC Echtzeit-Relay
         $sendResult = ['ok' => false, 'task_id' => null, 'error' => null];
@@ -2277,30 +3073,49 @@ class XtoolLaserCockpitService
         $sentDirect = (bool) ($sendResult['ok'] ?? false);
 
         $job = [
-            'id'             => (string) ($sendResult['task_id'] ?: Str::uuid()),
-            'type'           => $effectiveType,
-            'status'         => $sentDirect ? 'sent_to_laser' : 'pending',
-            'sent_direct'    => $sentDirect,
-            'delivery_error' => $sentDirect ? null : ($sendResult['error'] ?? null),
-            'laser_ip'       => $safeIp,
-            'device_sn'      => self::DEVICE_SN_CODE,
-            'order_id'       => (string) ($item->order_id ?? ''),
-            'order_number'   => (string) ($item->order->order_number ?? 'Auftrag'),
-            'item_id'        => (string) $item->id,
-            'product_name'   => (string) ($item->product_name ?? 'Unikat'),
-            'side'           => $side,
-            'center_x_mm'    => $xfData['center_x_mm'],
-            'center_y_mm'    => $xfData['center_y_mm'],
-            'angle_deg'      => $xfData['angle_deg'],
-            'width_mm'       => $xcsData['width_mm'],
-            'height_mm'      => $xcsData['height_mm'],
-            'xcs_filename'   => $xcsData['filename'],
-            'xf_filename'    => $xfData['filename'],
-            'border_gcode'   => $xfData['border_gcode'],
-            'description'    => $xfData['description'],
-            'created_at'     => now()->toIso8601String(),
-            'processed_at'   => $sentDirect ? now()->toIso8601String() : null,
-            'error_message'  => $sentDirect ? null : ($sendResult['error'] ?? null),
+            'id'               => (string) ($sendResult['task_id'] ?: Str::uuid()),
+            'type'             => $effectiveType,
+            'status'           => $sentDirect ? 'sent_to_laser' : 'pending',
+            'sent_direct'      => $sentDirect,
+            'delivery_error'   => $sentDirect ? null : ($sendResult['error'] ?? null),
+            'laser_ip'         => $safeIp,
+            'device_sn'        => self::DEVICE_SN_CODE,
+            'order_id'         => (string) ($item->order_id ?? ''),
+            'order_number'     => (string) ($item->order->order_number ?? 'Auftrag'),
+            'item_id'          => (string) $item->id,
+            'product_name'     => (string) ($item->product_name ?? 'Unikat'),
+            'side'             => $side,
+            'center_x_mm'      => $xfData['center_x_mm'],
+            'center_y_mm'      => $xfData['center_y_mm'],
+            'angle_deg'        => $xfData['angle_deg'],
+            'width_mm'         => $xcsData['width_mm'],
+            'height_mm'        => $xcsData['height_mm'],
+            'xcs_filename'     => $xcsData['filename'],
+            'xf_filename'      => $xfData['filename'],
+            'border_gcode'     => $xfData['border_gcode'],
+            'description'      => $xfData['description'],
+            'laser_parameters' => [
+                'material'        => $effectiveLaserParams['material'],
+                'equipment_key'   => $effectiveLaserParams['equipment_key'],
+                'process_mode'    => $effectiveLaserParams['process_mode'],
+                'focus_mm'        => $effectiveLaserParams['focus_mm'],
+                'element_type'    => $effectiveLaserParams['element_type'],
+                'engrave_tab'     => $effectiveLaserParams['engrave_tab'],
+                'preset_mode'     => $effectiveLaserParams['preset_mode'],
+                'power_percent'   => $effectiveLaserParams['power_percent'],
+                'speed_mms'       => $effectiveLaserParams['speed_mms'],
+                'dpi'             => $effectiveLaserParams['dpi'],
+                'dot_duration_us' => $effectiveLaserParams['dot_duration_us'],
+                'frequency_khz'   => $effectiveLaserParams['frequency_khz'],
+                'passes'          => $effectiveLaserParams['passes'],
+                'bitmap_mode'     => $effectiveLaserParams['bitmap_mode'],
+                'engrave_mode'    => $effectiveLaserParams['engrave_mode'],
+                'vector_note'     => $effectiveLaserParams['vector_note'],
+                'has_overrides'   => $effectiveLaserParams['has_overrides'],
+            ],
+            'created_at'       => now()->toIso8601String(),
+            'processed_at'     => $sentDirect ? now()->toIso8601String() : null,
+            'error_message'    => $sentDirect ? null : ($sendResult['error'] ?? null),
         ];
 
         $this->appendJob($job);
@@ -2367,6 +3182,212 @@ class XtoolLaserCockpitService
     }
 
     /**
+     * Bereitet die Stage-Gravur-Bitmap für .xcs als sauberes, hochauflösendes dunkles/Graustufen-Motiv
+     * auf echt transparentem Hintergrund (PNG Alpha = 0 / GD Alpha = 127 außerhalb des Motivs) auf.
+     * Verhindert sowohl weiße Abdeckkästen über dem Live-Kamerabild als auch 100 % schwarze Vollflächen-Rechtecke.
+     */
+    public function buildCleanTransparentXcsBitmapPng(string $pngBytes): string
+    {
+        $src = @imagecreatefromstring($pngBytes);
+        if (!$src) {
+            $fallback = imagecreatetruecolor(64, 64);
+            imagealphablending($fallback, false);
+            imagesavealpha($fallback, true);
+            $trans = imagecolorallocatealpha($fallback, 255, 255, 255, 127);
+            imagefill($fallback, 0, 0, $trans);
+            ob_start();
+            imagepng($fallback, null, 6);
+            $outBytes = (string) ob_get_clean();
+            imagedestroy($fallback);
+
+            return $outBytes;
+        }
+
+        $w = max(1, imagesx($src));
+        $h = max(1, imagesy($src));
+        $dst = imagecreatetruecolor($w, $h);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $trans = imagecolorallocatealpha($dst, 255, 255, 255, 127);
+        imagefill($dst, 0, 0, $trans);
+
+        $opaqueGrayLut = [];
+        $alphaBlackLut = [];
+        for ($g = 0; $g <= 255; $g++) {
+            $opaqueGrayLut[$g] = imagecolorallocatealpha($dst, $g, $g, $g, 0);
+        }
+        for ($a = 0; $a <= 127; $a++) {
+            $alphaBlackLut[$a] = imagecolorallocatealpha($dst, 0, 0, 0, $a);
+        }
+
+        $opaqueDarkPixels = 0;
+        $totalPixels = $w * $h;
+
+        for ($y = 0; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                $c = imagecolorat($src, $x, $y);
+                $gdAlpha = ($c >> 24) & 0x7F;
+                if ($gdAlpha >= 126) {
+                    continue;
+                }
+                $r = ($c >> 16) & 0xFF;
+                $g = ($c >> 8) & 0xFF;
+                $b = $c & 0xFF;
+                $srcGray = (int) ((($r * 77) + ($g * 150) + ($b * 29)) >> 8);
+
+                // Reinweiße Hintergrundpixel (>= 252) echt transparent freistellen
+                if ($srcGray >= 252) {
+                    continue;
+                }
+
+                if ($gdAlpha > 0) {
+                    if ($srcGray <= 12) {
+                        imagesetpixel($dst, $x, $y, $alphaBlackLut[$gdAlpha]);
+                    } else {
+                        $col = imagecolorallocatealpha($dst, $srcGray, $srcGray, $srcGray, $gdAlpha);
+                        imagesetpixel($dst, $x, $y, $col);
+                    }
+                } else {
+                    imagesetpixel($dst, $x, $y, $opaqueGrayLut[$srcGray]);
+                    if ($srcGray < 15) {
+                        $opaqueDarkPixels++;
+                    }
+                }
+            }
+        }
+
+        // Schutz gegen vollflächige schwarze Test-/Fehl-Bitmaps (>= 98 % tiefschwarzes Rechteck ohne Transparenz):
+        // Äußeren 1-px-Saum transparent halten, sodass niemals ein 100 % schwarzer Kasten eingebettet wird.
+        if ($totalPixels > 16 && $opaqueDarkPixels >= (int) round($totalPixels * 0.98)) {
+            for ($x = 0; $x < $w; $x++) {
+                imagesetpixel($dst, $x, 0, $trans);
+                imagesetpixel($dst, $x, $h - 1, $trans);
+            }
+            for ($y = 0; $y < $h; $y++) {
+                imagesetpixel($dst, 0, $y, $trans);
+                imagesetpixel($dst, $w - 1, $y, $trans);
+            }
+        }
+
+        imagedestroy($src);
+        ob_start();
+        imagepng($dst, null, 6);
+        $outBytes = (string) ob_get_clean();
+        imagedestroy($dst);
+
+        return $outBytes;
+    }
+
+    /**
+     * Wandelt die transparente Stage-Gravur-Bitmap in ein 100 % opakes Graustufen-PNG auf reinweißem Grund (#FFFFFF) um
+     * (z. B. als Quelle für das helle 400x400 thumbnail.png Vorschaubild).
+     */
+    public function buildOpaqueWhiteBackedGrayscalePng(string $pngBytes): string
+    {
+        $src = @imagecreatefromstring($pngBytes);
+        if (!$src) {
+            $fallback = imagecreatetruecolor(64, 64);
+            imagealphablending($fallback, false);
+            imagesavealpha($fallback, false);
+            $white = imagecolorallocate($fallback, 255, 255, 255);
+            imagefill($fallback, 0, 0, $white);
+            ob_start();
+            imagepng($fallback, null, 6);
+            $outBytes = (string) ob_get_clean();
+            imagedestroy($fallback);
+
+            return $outBytes;
+        }
+
+        $w = max(1, imagesx($src));
+        $h = max(1, imagesy($src));
+        $dst = imagecreatetruecolor($w, $h);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, false);
+
+        $grayLut = [];
+        for ($g = 0; $g <= 255; $g++) {
+            $grayLut[$g] = imagecolorallocate($dst, $g, $g, $g);
+        }
+        imagefill($dst, 0, 0, $grayLut[255]);
+
+        for ($y = 0; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                $c = imagecolorat($src, $x, $y);
+                $gdAlpha = ($c >> 24) & 0x7F;
+                if ($gdAlpha >= 126) {
+                    continue;
+                }
+                $r = ($c >> 16) & 0xFF;
+                $g = ($c >> 8) & 0xFF;
+                $b = $c & 0xFF;
+                $srcGray = (int) ((($r * 77) + ($g * 150) + ($b * 29)) >> 8);
+                if ($gdAlpha <= 0) {
+                    $compGray = $srcGray;
+                } else {
+                    $opacity = (127 - $gdAlpha) / 127.0;
+                    $compGray = max(0, min(255, (int) round(($srcGray * $opacity) + (255.0 * (1.0 - $opacity)))));
+                }
+                if ($compGray < 255) {
+                    imagesetpixel($dst, $x, $y, $grayLut[$compGray]);
+                }
+            }
+        }
+
+        imagedestroy($src);
+        ob_start();
+        imagepng($dst, null, 6);
+        $outBytes = (string) ob_get_clean();
+        imagedestroy($dst);
+
+        return $outBytes;
+    }
+
+    /**
+     * Erzeugt ein kontrastreiches, freundliches 400x400 px Projekt-Vorschaubild (thumbnail.png auf #FAF8F5)
+     * für die xTool Studio Projektübersicht.
+     */
+    public function buildXcsProjectThumbnailPng(string $opaqueWhitePngBytes): string
+    {
+        $thumbSize = 400;
+        $thumb = imagecreatetruecolor($thumbSize, $thumbSize);
+        imagealphablending($thumb, false);
+        imagesavealpha($thumb, false);
+
+        $bgLight = imagecolorallocate($thumb, 250, 248, 245); // #FAF8F5
+        $cardWhite = imagecolorallocate($thumb, 255, 255, 255);
+        $borderCol = imagecolorallocate($thumb, 222, 216, 206);
+        $accentGold = imagecolorallocate($thumb, 197, 160, 89); // #C5A059
+        imagefill($thumb, 0, 0, $bgLight);
+
+        imagefilledrectangle($thumb, 18, 18, 381, 381, $cardWhite);
+        imagerectangle($thumb, 18, 18, 381, 381, $borderCol);
+        imagerectangle($thumb, 19, 19, 380, 380, $accentGold);
+
+        $src = @imagecreatefromstring($opaqueWhitePngBytes);
+        if ($src) {
+            $sw = max(1, imagesx($src));
+            $sh = max(1, imagesy($src));
+            $maxBox = 332.0;
+            $scale = min($maxBox / $sw, $maxBox / $sh);
+            $dw = max(1, (int) round($sw * $scale));
+            $dh = max(1, (int) round($sh * $scale));
+            $dx = (int) round(($thumbSize - $dw) / 2.0);
+            $dy = (int) round(($thumbSize - $dh) / 2.0);
+
+            imagecopyresampled($thumb, $src, $dx, $dy, 0, 0, $dw, $dh, $sw, $sh);
+            imagedestroy($src);
+        }
+
+        ob_start();
+        imagepng($thumb, null, 6);
+        $thumbBytes = (string) ob_get_clean();
+        imagedestroy($thumb);
+
+        return $thumbBytes;
+    }
+
+    /**
      * Erstellt ein 200x200 px Vorschaubild (preview.jpg) auf weißem Hintergrund für das .xf Druckpaket.
      */
     private function buildPreviewJpeg200(string $pngBytes): string
@@ -2405,16 +3426,19 @@ class XtoolLaserCockpitService
         int $frequencyKhz,
         int $passes,
         int $dpi = 500,
-        string $scanMode = 'zMode'
+        string $scanMode = 'zMode',
+        int $speedMms = 200
     ): string {
-        $effectiveDpi = max(180, min(508, $dpi));
-        $sampleW = max(64, min(640, (int) round(($widthMm / 25.4) * $effectiveDpi)));
-        $sampleH = max(64, min(640, (int) round(($heightMm / 25.4) * $effectiveDpi)));
+        $effectiveDpi = max(100, min(1000, $dpi));
+        $sampleW = max(64, min(800, (int) round(($widthMm / 25.4) * $effectiveDpi)));
+        $sampleH = max(64, min(800, (int) round(($heightMm / 25.4) * $effectiveDpi)));
         $densityLinesPerMm = round($sampleH / max(1.0, $heightMm), 4);
         $pixelPitchMm = $widthMm / max(1, $sampleW);
+        $speedScale = max(0.05, min(20.0, max(1, $speedMms) / 200.0));
+        $dotFeedMmPerMin = (($pixelPitchMm * 1000000.0) / max(10, $dotDurationUs)) * 60.0;
         $feedMmPerMin = max(
-            12000,
-            min(90000, (int) round((($pixelPitchMm * 1000000.0) / max(30, $dotDurationUs)) * 60.0))
+            600,
+            min(240000, (int) round($dotFeedMmPerMin * $speedScale))
         );
 
         $powerFactor = round(max(0.01, min(1.0, $powerPercent / 100.0)), 3);
@@ -2423,6 +3447,7 @@ class XtoolLaserCockpitService
 
         $blockConfigJson = json_encode([
             'powerFactor' => $powerFactor,
+            'speed'       => max(1, min(4000, $speedMms)),
             'overDist'    => 0,
             'accel'       => 5000,
             'density'     => $densityLinesPerMm,

@@ -34,6 +34,7 @@
     <div x-cloak
          x-show="headerModal !== null"
          style="display: none;"
+         @click.self="closeHeaderModalClient()"
          class="fixed inset-0 z-[110] flex items-start sm:items-center justify-center bg-black/50 dark:bg-black/65 backdrop-blur-sm p-4 pt-[8vh] sm:pt-4 overflow-y-auto"
          @keydown.escape.window="closeHeaderModalClient()">
         <div @click.outside="closeHeaderModalClient()"
@@ -63,7 +64,8 @@
                 </div>
 
                 <button type="button"
-                        @click="closeHeaderModalClient()"
+                        @click.stop="closeHeaderModalClient()"
+                        title="Schließen"
                         class="p-2 rounded-xl text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
@@ -240,17 +242,20 @@
                         @if($hasFrontExport)
                             <div class="grid grid-cols-1 {{ $hasFrontLogoModal ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }} gap-2">
                                 <button type="button"
+                                        @click.stop
                                         wire:click.prevent="downloadLaserXcsFile('{{ $modalPreviewItem->id }}', 'front')"
                                         class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-950 text-[10px] font-black uppercase tracking-wider cursor-pointer">
                                     <span>xTool Projekt (.xcs)</span>
                                 </button>
                                 <button type="button"
+                                        @click.stop
                                         wire:click.prevent="downloadLaserFile('{{ $modalPreviewItem->id }}', 'front')"
                                         class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider hover:border-[var(--theme-color)] cursor-pointer">
                                     <span>Laser-SVG</span>
                                 </button>
                                 @if($hasFrontLogoModal)
                                     <button type="button"
+                                            @click.stop
                                             wire:click.prevent="downloadLaserPngFile('{{ $modalPreviewItem->id }}', 'front')"
                                             class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider hover:border-[var(--theme-color)] cursor-pointer">
                                         <span>Kontur-PNG</span>
@@ -262,6 +267,7 @@
                         @if($hasModalBackContent)
                             <div class="grid grid-cols-1 {{ $hasModalBackLogo ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }} gap-2">
                                 <button type="button"
+                                        @click.stop
                                         wire:click.prevent="downloadLaserXcsFile('{{ $modalPreviewItem->id }}', 'back')"
                                         class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-950 text-[10px] font-black uppercase tracking-wider cursor-pointer">
                                     <span>.xcs (Rückseite)</span>

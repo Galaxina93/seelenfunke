@@ -266,8 +266,11 @@ class FileDownloadService
 
         // Fallback & Aufbereitung für Schnell-Personalisierung / Neuling-Modus (custom_fields_data)
         $hasNonEmptyTexts = collect($texts)->contains(fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
-        $isCustomFieldsConfig = (($config['personalization_mode'] ?? null) === 'custom_fields') || !empty($config['custom_fields_data']);
-        if ($side !== 'back' && !empty($config['custom_fields_data']) && is_array($config['custom_fields_data']) && (!$hasNonEmptyTexts || ($isCustomFieldsConfig && empty($logos)))) {
+        $rawCustomFieldsSvg = !empty($config['custom_fields_data']) && is_array($config['custom_fields_data'])
+            ? $config['custom_fields_data']
+            : (!empty($config['custom_fields']) && is_array($config['custom_fields']) ? $config['custom_fields'] : []);
+        $isCustomFieldsConfig = (($config['personalization_mode'] ?? null) === 'custom_fields') || !empty($rawCustomFieldsSvg);
+        if ($side !== 'back' && !empty($rawCustomFieldsSvg) && (!$hasNonEmptyTexts || ($isCustomFieldsConfig && empty($logos)))) {
             if (($productConfig['area_shape'] ?? 'rect') === 'custom' && !empty($productConfig['custom_points']) && is_array($productConfig['custom_points'])) {
                 $xs = array_map(fn($p) => (float) ($p['x'] ?? 50), $productConfig['custom_points']);
                 $ys = array_map(fn($p) => (float) ($p['y'] ?? 50), $productConfig['custom_points']);
@@ -396,7 +399,14 @@ class FileDownloadService
             $customLines = [];
             $matchedSymbolUrl = null;
 
-            foreach ($config['custom_fields_data'] as $cfd) {
+            foreach ($rawCustomFieldsSvg as $cfdKey => $cfd) {
+                if (is_scalar($cfd)) {
+                    $cfd = [
+                        'id'    => (string) $cfdKey,
+                        'type'  => str_contains(mb_strtolower((string) $cfdKey), 'font') ? 'font' : 'text',
+                        'value' => (string) $cfd,
+                    ];
+                }
                 if (!is_array($cfd)) {
                     continue;
                 }
@@ -1215,7 +1225,8 @@ class FileDownloadService
         return response()->streamDownload(function () use ($xcsData) {
             echo $xcsData['bytes'];
         }, $xcsData['filename'], [
-            'Content-Type' => 'application/octet-stream',
+            'Content-Type'           => 'application/octet-stream',
+            'Content-Disposition'    => 'attachment; filename="' . $xcsData['filename'] . '"',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
@@ -1240,7 +1251,8 @@ class FileDownloadService
         return response()->streamDownload(function () use ($xfData) {
             echo $xfData['bytes'];
         }, $xfData['filename'], [
-            'Content-Type' => 'application/x-tar',
+            'Content-Type'           => 'application/x-tar',
+            'Content-Disposition'    => 'attachment; filename="' . $xfData['filename'] . '"',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
@@ -1333,23 +1345,30 @@ class FileDownloadService
 
         // Aufbereitung für Schnell-Personalisierung / Neuling-Modus (custom_fields_data)
         $hasNonEmptyTexts = collect($texts)->contains(fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
-        $isCustomFieldsConfig = (($config['personalization_mode'] ?? null) === 'custom_fields') || !empty($config['custom_fields_data']);
-        if ($side !== 'back' && !empty($config['custom_fields_data']) && is_array($config['custom_fields_data']) && (!$hasNonEmptyTexts || ($isCustomFieldsConfig && empty($logos)))) {
-            if (($productConfig['area_shape'] ?? 'rect') === 'custom' && !empty($productConfig['custom_points']) && is_array($productConfig['custom_points'])) {
-                $xs = array_map(fn ($p) => (float) ($p['x'] ?? 50), $productConfig['custom_points']);
-                $ys = array_map(fn ($p) => (float) ($p['y'] ?? 50), $productConfig['custom_points']);
-                $areaLeft = min($xs);
-                $areaTop = min($ys);
-                $areaWidth = max(8.0, max($xs) - $areaLeft);
-                $areaHeight = max(8.0, max($ys) - $areaTop);
-            } else {
-                $areaLeft = isset($productConfig['area_left']) ? (float) $productConfig['area_left'] : 10.0;
-                $areaTop = isset($productConfig['area_top']) ? (float) $productConfig['area_top'] : 10.0;
-                $areaWidth = isset($productConfig['area_width']) ? (float) $productConfig['area_width'] : 80.0;
-                $areaHeight = isset($productConfig['area_height']) ? (float) $productConfig['area_height'] : 80.0;
-            }
-            $centerX = round($areaLeft + ($areaWidth / 2.0), 2);
-            $centerY = round($areaTop + ($areaHeight / 2.0), 2);
+        $rawCustomFields = !empty($config['custom_fields_data']) && is_array($config['custom_fields_data'])
+            ? $config['custom_fields_data']
+            : (!empty($config['custom_fields']) && is_array($config['custom_fields']) ? $config['custom_fields'] : []);
+        $isCustomFieldsConfig = (($config['personalization_mode'] ?? null) === 'custom_fields') || !empty($rawCustomFields);
+
+        if (($productConfig['area_shape'] ?? 'rect') === 'custom' && !empty($productConfig['custom_points']) && is_array($productConfig['custom_points'])) {
+            $xs = array_map(fn ($p) => (float) ($p['x'] ?? 50), $productConfig['custom_points']);
+            $ys = array_map(fn ($p) => (float) ($p['y'] ?? 50), $productConfig['custom_points']);
+            $areaLeft = min($xs);
+            $areaTop = min($ys);
+            $areaWidth = max(8.0, max($xs) - $areaLeft);
+            $areaHeight = max(8.0, max($ys) - $areaTop);
+        } else {
+            $areaLeft = isset($productConfig['area_left']) ? (float) $productConfig['area_left'] : 10.0;
+            $areaTop = isset($productConfig['area_top']) ? (float) $productConfig['area_top'] : 10.0;
+            $areaWidth = isset($productConfig['area_width']) ? (float) $productConfig['area_width'] : 80.0;
+            $areaHeight = isset($productConfig['area_height']) ? (float) $productConfig['area_height'] : 80.0;
+        }
+        $defaultAreaCenterX = round($areaLeft + ($areaWidth / 2.0), 2);
+        $defaultAreaCenterY = round($areaTop + ($areaHeight / 2.0), 2);
+
+        if ($side !== 'back' && !empty($rawCustomFields) && (!$hasNonEmptyTexts || ($isCustomFieldsConfig && empty($logos)))) {
+            $centerX = $defaultAreaCenterX;
+            $centerY = $defaultAreaCenterY;
 
             $defaultSymbolX = $centerX;
             $defaultSymbolY = round($areaTop + ($areaHeight * 0.36), 2);
@@ -1401,7 +1420,14 @@ class FileDownloadService
             $customLines = [];
             $matchedSymbolUrl = null;
 
-            foreach ($config['custom_fields_data'] as $cfd) {
+            foreach ($rawCustomFields as $cfdKey => $cfd) {
+                if (is_scalar($cfd)) {
+                    $cfd = [
+                        'id'    => (string) $cfdKey,
+                        'type'  => str_contains(mb_strtolower((string) $cfdKey), 'font') ? 'font' : 'text',
+                        'value' => (string) $cfd,
+                    ];
+                }
                 if (!is_array($cfd)) continue;
                 $cfdVal = trim(str_replace(["\r\n", "\r"], "\n", (string) ($cfd['value'] ?? '')));
                 if ($cfdVal === '') continue;
@@ -1434,7 +1460,7 @@ class FileDownloadService
                 ]];
             }
 
-            if (!empty($customLines)) {
+            if (!empty($customLines) && !$hasNonEmptyTexts) {
                 $maxCharsPerLine = max(12, min(28, (int) round($areaWidth * 0.56)));
                 $wrappedLines = [];
                 foreach (explode("\n", implode("\n", $customLines)) as $rawLine) {
@@ -1463,13 +1489,13 @@ class FileDownloadService
                     'rotation' => 0,
                 ]];
             }
-        } elseif (empty($texts) && !empty($config['text']) && trim((string) $config['text']) !== '') {
+        } elseif (!$hasNonEmptyTexts && $side !== 'back' && !empty($config['text']) && trim((string) $config['text']) !== '') {
             $texts = [[
                 'text'     => trim((string) $config['text']),
                 'font'     => (string) ($config['font'] ?? 'Montserrat'),
                 'align'    => 'center',
-                'x'        => 50,
-                'y'        => 50,
+                'x'        => $defaultAreaCenterX,
+                'y'        => $defaultAreaCenterY,
                 'size'     => 1.0,
                 'rotation' => 0,
             ]];
@@ -1525,10 +1551,24 @@ class FileDownloadService
             $texts
         );
 
+        $effectiveSideForMaterial = ($side === 'back') ? 'back' : 'front';
+        $overrideMaterial = trim((string) (
+            $config['laser_cockpit_parameters'][$effectiveSideForMaterial]['material']
+            ?? $config['laser_parameter_overrides'][$effectiveSideForMaterial]['material']
+            ?? $config['laser_cockpit_parameters']['front']['material']
+            ?? $config['laser_parameter_overrides']['front']['material']
+            ?? ''
+        ));
+        $effectiveProductConfig = $productConfig;
+        if ($overrideMaterial !== '') {
+            $effectiveProductConfig['xtool_material'] = $overrideMaterial;
+            $effectiveProductConfig['xtool_material_override'] = $overrideMaterial;
+        }
+
         $widthMm = (float) $workingAreaCal['engraveWidthMm'];
         $heightMm = (float) $workingAreaCal['engraveHeightMm'];
         $contourShape = (string) $workingAreaCal['contourShape'];
-        $isDarkSurface = $this->isFrostedLightEngravingSurface($product, $productConfig);
+        $isDarkSurface = $this->isFrostedLightEngravingSurface($product, $effectiveProductConfig);
 
         // Exakt EINE bündige 1:1 Kontur der Gravurfläche in Millimetern (0..widthMm x 0..heightMm)
         $ghostContourDPath = $this->buildSingleOuterBlankContourDPath(
@@ -1578,6 +1618,16 @@ class FileDownloadService
      */
     public function isFrostedLightEngravingSurface($product = null, array $productConfig = []): bool
     {
+        $overrideMat = mb_strtolower(trim((string) ($productConfig['xtool_material_override'] ?? '')));
+        if ($overrideMat !== '') {
+            if (preg_match('/(glas|kristall|k9|schiefer|aluminium)/u', $overrideMat)) {
+                return true;
+            }
+            if (preg_match('/(edelstahl|silber|gold|messing|holz|leder)/u', $overrideMat)) {
+                return false;
+            }
+        }
+
         $explicitStyle = strtolower(trim((string) ($productConfig['engraving_style'] ?? $productConfig['engraving_Style'] ?? '')));
         if ($explicitStyle === 'dark') {
             return false;

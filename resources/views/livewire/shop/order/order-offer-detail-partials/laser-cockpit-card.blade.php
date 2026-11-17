@@ -18,9 +18,41 @@
         $baseViewW = max(0.1, (float) ($cockpitData['base_width_mm'] ?? $cockpitData['width_mm'] ?? 40.0));
         $baseViewH = max(0.1, (float) ($cockpitData['base_height_mm'] ?? $cockpitData['height_mm'] ?? 40.0));
         $isDarkSurfaceOverlay = !empty($cockpitData['is_dark_surface']);
+        $lp = is_array($cockpitData['laser_params'] ?? null)
+            ? $cockpitData['laser_params']
+            : app(\App\Services\Laser\XtoolLaserCockpitService::class)->resolveEffectiveLaserParameters($previewItem, $cockpitData['side'] ?? 'front');
+        $equipModes = is_array($cockpitData['equipment_modes'] ?? null)
+            ? $cockpitData['equipment_modes']
+            : \App\Services\Laser\XtoolLaserCockpitService::getSupportedEquipmentModes();
+        $cockpitSideJs = (string) ($cockpitData['side'] ?? 'front');
+        $openScopeKey = $previewItem->id . '-' . $cockpitSideJs;
+        $bitmapOptions = [
+            'Jarvis',
+            'Stucki',
+            'Floyd',
+            'Atkinson',
+            'Graustufen',
+            'Schwellenwert',
+            'Konturgravur (3D)',
+            'Flächenfüllung (Vektor)',
+        ];
+        if (!empty($lp['bitmap_mode']) && !in_array($lp['bitmap_mode'], $bitmapOptions, true)) {
+            $bitmapOptions[] = $lp['bitmap_mode'];
+        }
+        $engraveModeOptions = ['Zweidirektional', 'Eindirektional', 'Bidirektional', 'Unidirektional'];
+        if (!empty($lp['engrave_mode']) && !in_array($lp['engrave_mode'], $engraveModeOptions, true)) {
+            $engraveModeOptions[] = $lp['engrave_mode'];
+        }
+        $equipmentDefaultProcessModes = [];
+        foreach ($equipModes as $eqK => $eqM) {
+            $equipmentDefaultProcessModes[$eqK] = (string) ($eqM['process_mode'] ?? '');
+        }
     @endphp
     <div x-data="{
             itemId: '{{ $previewItem->id }}',
+            sideKey: '{{ $cockpitSideJs }}',
+            openScopeKey: '{{ $openScopeKey }}',
+            equipmentDefaultModes: @js($equipmentDefaultProcessModes),
             dragging: false,
             dragMode: 'move',
             startClientX: 0,
@@ -36,8 +68,66 @@
             angleDeg: {{ (float) $cockpitData['angle_deg'] }},
             wMm: {{ (float) $cockpitData['width_mm'] }},
             hMm: {{ (float) $cockpitData['height_mm'] }},
+            showLaserParams: window.__sfLaserParamsOpen === '{{ $openScopeKey }}',
+            hasLaserOverrides: @js((bool) ($lp['has_overrides'] ?? false)),
+            laserParams: {
+                equipment_key: @js((string) ($lp['equipment_key'] ?? 'flatbed_standard')),
+                process_mode: @js((string) ($lp['process_mode'] ?? 'Prozess auf flacher Oberfläche')),
+                material: @js((string) ($lp['material'] ?? 'Edelstahl')),
+                focus_mm: {{ (float) ($lp['focus_mm'] ?? 3.0) }},
+                element_type: @js((string) ($lp['element_type'] ?? 'Bild')),
+                engrave_tab: @js((string) ($lp['engrave_tab'] ?? 'Gravieren')),
+                preset_mode: @js((string) ($lp['preset_mode'] ?? 'Benutzerdefiniert')),
+                dot_duration_us: {{ (int) ($lp['dot_duration_us'] ?? 120) }},
+                power_percent: {{ (int) ($lp['power_percent'] ?? 70) }},
+                speed_mms: {{ (int) ($lp['speed_mms'] ?? 200) }},
+                dpi: {{ (int) ($lp['dpi'] ?? 500) }},
+                passes: {{ (int) ($lp['passes'] ?? 1) }},
+                frequency_khz: {{ (int) ($lp['frequency_khz'] ?? 60) }},
+                bitmap_mode: @js((string) ($lp['bitmap_mode'] ?? 'Graustufen')),
+                engrave_mode: @js((string) ($lp['engrave_mode'] ?? 'Bidirektional')),
+                vector_note: @js((string) ($lp['vector_note'] ?? ''))
+            },
+            toggleLaserParams() {
+                this.showLaserParams = !this.showLaserParams;
+                window.__sfLaserParamsOpen = this.showLaserParams ? this.openScopeKey : null;
+            },
+            onEquipmentChange() {
+                const defMode = this.equipmentDefaultModes[this.laserParams.equipment_key] || '';
+                if (defMode !== '') {
+                    this.laserParams.process_mode = defMode;
+                }
+                this.persistLaserParams();
+            },
+            persistLaserParams() {
+                this.hasLaserOverrides = true;
+                $wire.updateLaserParameters(this.itemId, this.sideKey, this.laserParams);
+            },
+            syncLaserParamsFromServer(detail) {
+                const p = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
+                const next = p.params || null;
+                if (!next) return;
+                if (next.equipment_key !== undefined) this.laserParams.equipment_key = String(next.equipment_key);
+                if (next.process_mode !== undefined) this.laserParams.process_mode = String(next.process_mode);
+                if (next.material !== undefined) this.laserParams.material = String(next.material);
+                if (next.focus_mm !== undefined) this.laserParams.focus_mm = Number(next.focus_mm);
+                if (next.element_type !== undefined) this.laserParams.element_type = String(next.element_type);
+                if (next.engrave_tab !== undefined) this.laserParams.engrave_tab = String(next.engrave_tab);
+                if (next.preset_mode !== undefined) this.laserParams.preset_mode = String(next.preset_mode);
+                if (next.dot_duration_us !== undefined) this.laserParams.dot_duration_us = Number(next.dot_duration_us);
+                if (next.power_percent !== undefined) this.laserParams.power_percent = Number(next.power_percent);
+                if (next.speed_mms !== undefined) this.laserParams.speed_mms = Number(next.speed_mms);
+                if (next.dpi !== undefined) this.laserParams.dpi = Number(next.dpi);
+                if (next.passes !== undefined) this.laserParams.passes = Number(next.passes);
+                if (next.frequency_khz !== undefined) this.laserParams.frequency_khz = Number(next.frequency_khz);
+                if (next.bitmap_mode !== undefined) this.laserParams.bitmap_mode = String(next.bitmap_mode);
+                if (next.engrave_mode !== undefined) this.laserParams.engrave_mode = String(next.engrave_mode);
+                if (next.vector_note !== undefined) this.laserParams.vector_note = String(next.vector_note);
+                if (next.has_overrides !== undefined) this.hasLaserOverrides = Boolean(next.has_overrides);
+            },
             fmtMm(v) {
-                const n = Number(v) || 0;
+                const parsed = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : Number(v);
+                const n = Number.isFinite(parsed) ? parsed : 0;
                 return Math.abs(n - Math.round(n)) < 0.05
                     ? Math.round(n).toString()
                     : n.toFixed(1).replace('.', ',');
@@ -144,6 +234,7 @@
             }
          }"
          @laser-cockpit-sync.window="syncCoordsFromServer($event.detail)"
+         @laser-params-sync.window="syncLaserParamsFromServer($event.detail)"
          wire:key="laser-cockpit-{{ $previewItem->id }}-{{ $cockpitData['side'] }}"
          class="bg-white dark:bg-gray-900/90 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 shrink-0 relative">
 
@@ -157,6 +248,83 @@
             .sf-laser-action-btn:disabled {
                 opacity: 0.75;
                 cursor: wait;
+            }
+            .sf-laser-range {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 100%;
+                height: 6px;
+                border-radius: 9999px;
+                outline: none;
+                cursor: pointer;
+                accent-color: var(--theme-color);
+                background: linear-gradient(
+                    to right,
+                    var(--theme-color) 0%,
+                    var(--theme-color) var(--val-pct, 50%),
+                    rgba(156, 163, 175, 0.30) var(--val-pct, 50%),
+                    rgba(156, 163, 175, 0.30) 100%
+                );
+            }
+            html.dark .sf-laser-range {
+                background: linear-gradient(
+                    to right,
+                    var(--theme-color) 0%,
+                    var(--theme-color) var(--val-pct, 50%),
+                    rgba(75, 85, 99, 0.55) var(--val-pct, 50%),
+                    rgba(75, 85, 99, 0.55) 100%
+                );
+            }
+            .sf-laser-range::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                appearance: none;
+                width: 16px;
+                height: 16px;
+                border-radius: 9999px;
+                background: var(--theme-color);
+                border: 2px solid #ffffff;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+                cursor: pointer;
+                transition: transform 0.12s ease, box-shadow 0.12s ease;
+            }
+            html.dark .sf-laser-range::-webkit-slider-thumb {
+                border-color: #030712;
+            }
+            .sf-laser-range:hover::-webkit-slider-thumb,
+            .sf-laser-range:focus::-webkit-slider-thumb {
+                transform: scale(1.12);
+                box-shadow: 0 0 0 4px var(--theme-color-20);
+            }
+            .sf-laser-range::-moz-range-track {
+                height: 6px;
+                border-radius: 9999px;
+                background: rgba(156, 163, 175, 0.30);
+            }
+            html.dark .sf-laser-range::-moz-range-track {
+                background: rgba(75, 85, 99, 0.55);
+            }
+            .sf-laser-range::-moz-range-progress {
+                height: 6px;
+                border-radius: 9999px;
+                background: var(--theme-color);
+            }
+            .sf-laser-range::-moz-range-thumb {
+                width: 16px;
+                height: 16px;
+                border-radius: 9999px;
+                background: var(--theme-color);
+                border: 2px solid #ffffff;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+                cursor: pointer;
+                transition: transform 0.12s ease, box-shadow 0.12s ease;
+            }
+            html.dark .sf-laser-range::-moz-range-thumb {
+                border-color: #030712;
+            }
+            .sf-laser-range:hover::-moz-range-thumb,
+            .sf-laser-range:focus::-moz-range-thumb {
+                transform: scale(1.12);
+                box-shadow: 0 0 0 4px var(--theme-color-20);
             }
         </style>
 
@@ -199,7 +367,9 @@
 
                 <div x-show="showLaserDetails" class="flex flex-wrap items-center gap-1.5">
                     <button type="button"
-                            wire:click="triggerLaserFraming('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
+                            @mousedown.stop
+                            @touchstart.stop
+                            wire:click="triggerLaserFraming('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
                             wire:loading.attr="disabled"
                             wire:target="triggerLaserFraming"
                             title="Blauen Laser-Rahmen zur Kontrolle auf dem Rohling projizieren"
@@ -216,10 +386,24 @@
                         </span>
                     </button>
                     <button type="button"
-                            wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
+                            @click.stop
+                            @mousedown.stop
+                            @touchstart.stop
+                            wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
+                            wire:loading.attr="disabled"
+                            wire:target="downloadLaserXcsFile"
                             title="Manuelles xTool Studio Backup-Projekt (.xcs) herunterladen"
-                            class="px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
-                        .xcs Backup
+                            class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait">
+                        <span wire:loading.remove wire:target="downloadLaserXcsFile">.xcs Backup</span>
+                        <span wire:loading wire:target="downloadLaserXcsFile">
+                            <span class="inline-flex items-center gap-1.5">
+                                <svg class="w-3 h-3 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                                    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                                </svg>
+                                <span>.xcs Backup</span>
+                            </span>
+                        </span>
                     </button>
                     <span class="text-[9px] font-mono font-bold text-gray-500 dark:text-gray-400">
                         {{ $cockpitData['camera_updated_at'] }}
@@ -412,11 +596,376 @@
                 </div>
             </div>
 
+            {{-- Direkte Laserparameter-Leiste & Clean-Design Parameter-Editor (Schritt 1: In Bearbeitung) --}}
+            <div class="space-y-2">
+                <div @click="toggleLaserParams()"
+                     class="bg-gray-50 dark:bg-gray-950 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] flex flex-wrap items-center justify-between gap-2 transition-colors cursor-pointer select-none">
+                    <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono font-bold text-gray-700 dark:text-gray-300 min-w-0">
+                        <span x-cloak
+                              x-show="hasLaserOverrides"
+                              @if(empty($lp['has_overrides'])) style="display: none;" @endif
+                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-40)] font-sans text-[9px] font-black uppercase tracking-wider">
+                            <span class="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)]"></span>
+                            <span>Angepasst</span>
+                        </span>
+                        <span class="font-sans font-black text-gray-900 dark:text-white truncate max-w-[180px]" x-text="laserParams.material">{{ $lp['material'] }}</span>
+                        <span class="text-gray-400">·</span>
+                        <span x-text="fmtMm(laserParams.focus_mm) + ' mm'">{{ $lp['focus_formatted'] }}</span>
+                        <span class="text-gray-400">·</span>
+                        <span x-text="laserParams.power_percent + ' %'">{{ $lp['power_percent'] }} %</span>
+                        <span class="text-gray-400">·</span>
+                        <span x-text="laserParams.dot_duration_us + ' µs'">{{ $lp['dot_duration_us'] }} µs</span>
+                        <span class="text-gray-400">·</span>
+                        <span x-text="laserParams.frequency_khz + ' kHz'">{{ $lp['frequency_khz'] }} kHz</span>
+                        <span class="text-gray-400">·</span>
+                        <span x-text="laserParams.dpi + ' DPI'">{{ $lp['dpi'] }} DPI</span>
+                        <span class="text-gray-400">·</span>
+                        <span x-text="laserParams.passes + '×'">{{ $lp['passes'] }}&times;</span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 ml-auto shrink-0" @click.stop>
+                        <button type="button"
+                                @click.stop
+                                @mousedown.stop
+                                @touchstart.stop
+                                wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
+                                wire:loading.attr="disabled"
+                                wire:target="downloadLaserXcsFile"
+                                title="xTool Studio Projekt (.xcs) mit aktuellen Parametern herunterladen"
+                                class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait">
+                            <span wire:loading.remove wire:target="downloadLaserXcsFile">.xcs Backup</span>
+                            <span wire:loading wire:target="downloadLaserXcsFile">
+                                <span class="inline-flex items-center gap-1.5">
+                                    <svg class="w-3 h-3 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                                        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                                    </svg>
+                                    <span>.xcs Backup</span>
+                                </span>
+                            </span>
+                        </button>
+                        <button type="button"
+                                @click="toggleLaserParams()"
+                                :class="showLaserParams ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]'"
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                            <span>&#9881;&#65039; Laserparameter anpassen</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div x-cloak
+                     x-show="showLaserParams"
+                     style="display: none;"
+                     class="bg-gray-50 dark:bg-gray-950 p-3 rounded-xl border border-gray-200 dark:border-gray-800 space-y-2.5">
+                    {{-- Zeile 1: Aufbau (Equipment) · Prozess-Modus · Material · Fokus (mm) --}}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Aufbau</label>
+                            <select x-model="laserParams.equipment_key"
+                                    @change="onEquipmentChange()"
+                                    class="w-full mt-0.5 text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                                @foreach($equipModes as $eqKey => $eqMeta)
+                                    <option value="{{ $eqKey }}">{{ $eqMeta['label'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Modus</label>
+                            <input type="text"
+                                   list="sfLaserProcessModes-{{ $previewItem->id }}"
+                                   x-model="laserParams.process_mode"
+                                   @change="persistLaserParams()"
+                                   class="w-full mt-0.5 text-xs font-bold bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                            <datalist id="sfLaserProcessModes-{{ $previewItem->id }}">
+                                <option value="Prozess auf flacher Oberfläche"></option>
+                                <option value="Walze - Rotationsaufsatz"></option>
+                                <option value="Spannfutter - Rotationsaufsatz"></option>
+                                <option value="Gleiches Design - Stapelverarbeitung"></option>
+                                <option value="Innengravur - 3D-Miniatur"></option>
+                                <option value="Gebogene Oberfläche"></option>
+                            </datalist>
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Material</label>
+                            <input type="text"
+                                   list="sfLaserMaterials-{{ $previewItem->id }}"
+                                   x-model="laserParams.material"
+                                   @change="persistLaserParams()"
+                                   class="w-full mt-0.5 text-xs font-bold bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                            <datalist id="sfLaserMaterials-{{ $previewItem->id }}">
+                                <option value="14K vergoldeter Edelstahl"></option>
+                                <option value="Edelstahl"></option>
+                                <option value="0,2 mm Aluminiumlegierung"></option>
+                                <option value="Eloxiertes Aluminium"></option>
+                                <option value="K9 Kristalltrophäe"></option>
+                                <option value="K9 Kristallglas"></option>
+                                <option value="Klares Glas"></option>
+                                <option value="Schieferstein"></option>
+                                <option value="Messing"></option>
+                                <option value="Holz"></option>
+                                <option value="Acryl"></option>
+                                <option value="Leder"></option>
+                                <option value="Keramik"></option>
+                            </datalist>
+                        </div>
+
+                        <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="text-[9px] font-black uppercase tracking-wider text-gray-400">Fokus (mm)</label>
+                            <input type="number"
+                                   step="0.1"
+                                   min="0.1"
+                                   max="150"
+                                   x-model="laserParams.focus_mm"
+                                   @change="persistLaserParams()"
+                                   class="w-20 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                        </div>
+                    </div>
+
+                    {{-- Zeile 2: Elementtyp · Gravur-Art · Vorgabe --}}
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Elementtyp</label>
+                            <select x-model="laserParams.element_type"
+                                    @change="persistLaserParams()"
+                                    class="w-full mt-0.5 text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                                <option value="Bild">Bild</option>
+                                <option value="Vektor">Vektor</option>
+                                <option value="3D-Modell">3D-Modell</option>
+                            </select>
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Gravur-Art</label>
+                            <select x-model="laserParams.engrave_tab"
+                                    @change="persistLaserParams()"
+                                    class="w-full mt-0.5 text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                                <option value="Gravieren">Gravieren</option>
+                                <option value="Farbgravur">Farbgravur</option>
+                                <option value="Konturgravur">Konturgravur</option>
+                            </select>
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Vorgabe</label>
+                            <select x-model="laserParams.preset_mode"
+                                    @change="persistLaserParams()"
+                                    class="w-full mt-0.5 text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                                <option value="Benutzerdefiniert">Benutzerdefiniert</option>
+                                <option value="Referenz">Referenz</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {{-- Zeile 3: 4 Theme-Color Schieberegler: Punktdauer, Leistung, DPI & Frequenz --}}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div class="bg-white dark:bg-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-800 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <label class="text-[9px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Punktdauer (µs)</label>
+                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] border border-[var(--theme-color-30)]">
+                                    <input type="number"
+                                           step="5"
+                                           min="1"
+                                           max="5000"
+                                           x-model.number="laserParams.dot_duration_us"
+                                           @change="persistLaserParams()"
+                                           class="w-14 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
+                                    <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">µs</span>
+                                </div>
+                            </div>
+                            <input type="range"
+                                   min="1"
+                                   :max="Math.max(1000, Number(laserParams.dot_duration_us) || 1000)"
+                                   step="5"
+                                   @mousedown.stop
+                                   @touchstart.stop
+                                   x-model.number="laserParams.dot_duration_us"
+                                   @change="persistLaserParams()"
+                                   :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(laserParams.dot_duration_us) || 1) - 1) / (Math.max(1000, Number(laserParams.dot_duration_us) || 1000) - 1)) * 100))}%;`"
+                                   class="sf-laser-range">
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-800 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <label class="text-[9px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Leistung (%)</label>
+                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] border border-[var(--theme-color-30)]">
+                                    <input type="number"
+                                           step="1"
+                                           min="1"
+                                           max="100"
+                                           x-model.number="laserParams.power_percent"
+                                           @change="persistLaserParams()"
+                                           class="w-11 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
+                                    <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">%</span>
+                                </div>
+                            </div>
+                            <input type="range"
+                                   min="1"
+                                   max="100"
+                                   step="1"
+                                   @mousedown.stop
+                                   @touchstart.stop
+                                   x-model.number="laserParams.power_percent"
+                                   @change="persistLaserParams()"
+                                   :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(laserParams.power_percent) || 1) - 1) / 99) * 100))}%;`"
+                                   class="sf-laser-range">
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-800 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <label class="text-[9px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">DPI</label>
+                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] border border-[var(--theme-color-30)]">
+                                    <input type="number"
+                                           step="1"
+                                           min="50"
+                                           max="2540"
+                                           list="sfLaserDpi-{{ $previewItem->id }}"
+                                           x-model.number="laserParams.dpi"
+                                           @change="persistLaserParams()"
+                                           class="w-14 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
+                                    <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">DPI</span>
+                                </div>
+                                <datalist id="sfLaserDpi-{{ $previewItem->id }}">
+                                    <option value="254"></option>
+                                    <option value="300"></option>
+                                    <option value="500"></option>
+                                    <option value="600"></option>
+                                    <option value="800"></option>
+                                    <option value="1000"></option>
+                                    <option value="1270"></option>
+                                    <option value="2540"></option>
+                                </datalist>
+                            </div>
+                            <input type="range"
+                                   min="50"
+                                   :max="Math.max(1270, Number(laserParams.dpi) || 1270)"
+                                   step="10"
+                                   @mousedown.stop
+                                   @touchstart.stop
+                                   x-model.number="laserParams.dpi"
+                                   @change="persistLaserParams()"
+                                   :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(laserParams.dpi) || 50) - 50) / (Math.max(1270, Number(laserParams.dpi) || 1270) - 50)) * 100))}%;`"
+                                   class="sf-laser-range">
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-800 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <label class="text-[9px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Frequenz (kHz)</label>
+                                <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] border border-[var(--theme-color-30)]">
+                                    <input type="number"
+                                           step="1"
+                                           min="1"
+                                           max="200"
+                                           x-model.number="laserParams.frequency_khz"
+                                           @change="persistLaserParams()"
+                                           class="w-12 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
+                                    <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">kHz</span>
+                                </div>
+                            </div>
+                            <input type="range"
+                                   min="1"
+                                   :max="Math.max(150, Number(laserParams.frequency_khz) || 150)"
+                                   step="1"
+                                   @mousedown.stop
+                                   @touchstart.stop
+                                   x-model.number="laserParams.frequency_khz"
+                                   @change="persistLaserParams()"
+                                   :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(laserParams.frequency_khz) || 1) - 1) / (Math.max(150, Number(laserParams.frequency_khz) || 150) - 1)) * 100))}%;`"
+                                   class="sf-laser-range">
+                        </div>
+                    </div>
+
+                    {{-- Zeile 4: Speed (mm/s) · Durchgänge · Bitmap · Richtung --}}
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Speed (mm/s)</label>
+                            <input type="number"
+                                   step="1"
+                                   min="1"
+                                   max="4000"
+                                   x-model.number="laserParams.speed_mms"
+                                   @change="persistLaserParams()"
+                                   class="w-full mt-0.5 font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Durchgänge</label>
+                            <input type="number"
+                                   step="1"
+                                   min="1"
+                                   max="20"
+                                   x-model.number="laserParams.passes"
+                                   @change="persistLaserParams()"
+                                   class="w-full mt-0.5 font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Bitmap</label>
+                            <select x-model="laserParams.bitmap_mode"
+                                    @change="persistLaserParams()"
+                                    class="w-full mt-0.5 text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                                @foreach($bitmapOptions as $bmpOpt)
+                                    <option value="{{ $bmpOpt }}">{{ $bmpOpt }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Richtung</label>
+                            <select x-model="laserParams.engrave_mode"
+                                    @change="persistLaserParams()"
+                                    class="w-full mt-0.5 text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                                @foreach($engraveModeOptions as $engOpt)
+                                    <option value="{{ $engOpt }}">{{ $engOpt }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    {{-- Zeile 5: Vektortext / Zusatzparameter + Komfort-Aktionen --}}
+                    <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2 pt-0.5">
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800 flex-1 min-w-[220px]">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-gray-400">Vektortext</label>
+                            <input type="text"
+                                   placeholder="z. B. 80 % · 200 mm/s · 60 kHz"
+                                   x-model="laserParams.vector_note"
+                                   @change="persistLaserParams()"
+                                   class="w-full mt-0.5 font-mono text-xs font-bold bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none">
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+                            <button type="button"
+                                    wire:click="resetOrderItemLaserParameters('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
+                                    wire:loading.attr="disabled"
+                                    wire:target="resetOrderItemLaserParameters,resetLaserParameters"
+                                    class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                                <span>Standardwerte laden</span>
+                            </button>
+
+                            <button type="button"
+                                    wire:click="saveOrderLaserParametersToProduct('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
+                                    wire:loading.attr="disabled"
+                                    wire:target="saveOrderLaserParametersToProduct"
+                                    class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                                <span>Als Produkt-Standard speichern</span>
+                            </button>
+
+                            <button type="button"
+                                    @click.stop="persistLaserParams()"
+                                    class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--theme-color)] text-gray-950 border border-[var(--theme-color)] text-[9px] font-black uppercase tracking-wider hover:brightness-95 transition-all cursor-pointer">
+                                <span>Übernehmen</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {{-- Schlanker 2-Schritte-Laser-Ablauf: 1. Kamera & KI-Ausrichten -> 2. An Laser senden --}}
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {{-- SCHRITT 1 --}}
                 <button type="button"
-                        wire:click="refreshLaserCameraAndAlign"
+                        wire:click="refreshLaserCameraAndAlign('{{ $cockpitData['side'] }}', laserParams)"
                         wire:loading.attr="disabled"
                         wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"
                         class="sf-laser-action-btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 1
@@ -441,7 +990,7 @@
 
                 {{-- SCHRITT 2 --}}
                 <button type="button"
-                        wire:click="sendJobDirectlyToLaser('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}')"
+                        wire:click="sendJobDirectlyToLaser('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
                         wire:loading.attr="disabled"
                         wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"
                         class="sf-laser-action-btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 2
