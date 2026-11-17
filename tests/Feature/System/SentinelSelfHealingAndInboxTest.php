@@ -5,6 +5,7 @@ namespace Tests\Feature\System;
 use App\Livewire\Shop\System\SystemLogs;
 use App\Models\Admin\Admin;
 use App\Models\System\SystemLog;
+use App\Services\System\LogArchiveService;
 use App\Services\System\SentinelTriageService;
 use App\Services\System\SystemErrorLogger;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -1128,6 +1130,99 @@ class SentinelSelfHealingAndInboxTest extends TestCase
             $this->assertSame('queued_for_antigravity', $freshRow->triageState());
         } finally {
             @unlink($tmpImportPath);
+        }
+    }
+
+    public function test_phpunit_log_isolation_keeps_laravel_log_at_zero_bytes_and_sentinel_ignores_testing_log_lines(): void
+    {
+        // 1. PHPUnit-Pfadisolation pruefen: Log::error() schreibt nach /tmp/sf_phpunit_testing.log und laesst storage/logs/laravel.log bei 0 Bytes
+        $this->assertSame('/tmp/sf_phpunit_testing.log', config('logging.channels.single.path'));
+        $this->assertSame('/tmp/sf_phpunit_testing.log', config('logging.channels.daily.path'));
+        $this->assertSame('/tmp/sf_phpunit_testing.log', config('logging.channels.emergency.path'));
+
+        $laravelLogPath = storage_path('logs/laravel.log');
+        $hadOriginalLaravelLog = is_file($laravelLogPath);
+        $originalLaravelLogContent = $hadOriginalLaravelLog ? (string) file_get_contents($laravelLogPath) : null;
+
+        $negMarker = 'NegativTest_' . bin2hex(random_bytes(6));
+
+        try {
+            File::ensureDirectoryExists(dirname($laravelLogPath));
+            file_put_contents($laravelLogPath, '');
+            clearstatcache(true, $laravelLogPath);
+            $this->assertSame(0, (int) filesize($laravelLogPath));
+
+            Log::error('Simulierter Negativ-Testfehler ' . $negMarker);
+
+            clearstatcache(true, $laravelLogPath);
+            $this->assertSame(
+                0,
+                (int) filesize($laravelLogPath),
+                'storage/logs/laravel.log muss waehrend PHPUnit-Laeufen exakt 0 Bytes gross bleiben!'
+            );
+
+            $isolatedTestLog = '/tmp/sf_phpunit_testing.log';
+            clearstatcache(true, $isolatedTestLog);
+            $this->assertFileExists($isolatedTestLog);
+            $this->assertStringContainsString($negMarker, (string) file_get_contents($isolatedTestLog));
+        } finally {
+            if ($hadOriginalLaravelLog && $originalLaravelLogContent !== null) {
+                file_put_contents($laravelLogPath, $originalLaravelLogContent);
+            }
+            clearstatcache(true, $laravelLogPath);
+        }
+
+        // 2. Defense-in-Depth: Logfile-Scanner ignoriert saemtliche testing.*-Zeilen, eskaliert aber echte production.*/local.*-Zeilen
+        SystemLog::query()->delete();
+
+        $testOnlyMarker = 'TestingOnly_' . bin2hex(random_bytes(6));
+        $prodMarker = 'ProdRealBug_' . bin2hex(random_bytes(6));
+        $localMarker = 'LocalRealBug_' . bin2hex(random_bytes(6));
+        $tmpLogPath = sys_get_temp_dir() . '/sf_sentinel_testing_filter_' . bin2hex(random_bytes(5)) . '.log';
+
+        try {
+            file_put_contents($tmpLogPath, implode("\n", [
+                "[2026-11-17 09:05:00] testing.ERROR: Ignorierter PHPUnit Fehler {$testOnlyMarker}",
+                "[2026-11-17 09:05:01] testing.CRITICAL: Ignorierter PHPUnit Critical {$testOnlyMarker}",
+                "[2026-11-17 09:05:02] testing.WARNING: Ignorierte PHPUnit Warnung {$testOnlyMarker}",
+                "[2026-11-17 09:05:03] testing.INFO: Ignorierte PHPUnit Info {$testOnlyMarker}",
+                '',
+            ]));
+
+            $this->assertFalse(
+                LogArchiveService::fileHasErrorLines($tmpLogPath),
+                'Reine testing.*-Logzeilen duerfen nicht als echte Fehlerzeilen gewertet werden.'
+            );
+
+            $sentinel = app(SentinelTriageService::class);
+            $this->assertSame(0, $sentinel->scanLaravelLogFile($tmpLogPath));
+            $this->assertSame(0, SystemLog::where('message', 'like', "%{$testOnlyMarker}%")->count());
+
+            // Echte production.ERROR- und local.CRITICAL-Zeilen ergaenzen -> muessen scharf erkannt und eskaliert werden!
+            file_put_contents($tmpLogPath, implode("\n", [
+                "[2026-11-17 09:06:00] production.ERROR: Unbehandelter Produktionsfehler {$prodMarker}",
+                "[2026-11-17 09:06:01] local.CRITICAL: Unbehandelter Lokalfehler {$localMarker}",
+                '',
+            ]), FILE_APPEND);
+
+            $this->assertTrue(LogArchiveService::fileHasErrorLines($tmpLogPath));
+
+            $ingested = $sentinel->scanLaravelLogFile($tmpLogPath);
+            $this->assertSame(2, $ingested);
+
+            $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+
+            $this->assertSame(0, SystemLog::where('message', 'like', "%{$testOnlyMarker}%")->count());
+
+            $prodRow = SystemLog::where('message', 'like', "%{$prodMarker}%")->firstOrFail();
+            $this->assertSame('error', $prodRow->status);
+            $this->assertSame('queued_for_antigravity', $prodRow->triageState());
+
+            $localRow = SystemLog::where('message', 'like', "%{$localMarker}%")->firstOrFail();
+            $this->assertSame('error', $localRow->status);
+            $this->assertSame('queued_for_antigravity', $localRow->triageState());
+        } finally {
+            @unlink($tmpLogPath);
         }
     }
 }

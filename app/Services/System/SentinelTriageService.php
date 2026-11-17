@@ -86,6 +86,17 @@ class SentinelTriageService
     }
 
     /**
+     * Scant eine Laravel-Logdatei gezielt über die gehärtete LogArchiveService-Pipeline (ignoriert `testing.*`-Zeilen,
+     * eskaliert jedoch `local.*` und `production.*` ERROR/CRITICAL-Zeilen in system_logs).
+     */
+    public function scanLaravelLogFile(?string $customPath = null): int
+    {
+        $path = $customPath ?? storage_path('logs/laravel.log');
+
+        return LogArchiveService::ingestSingleLogFileIntoSentinel($path, 'laravel.log');
+    }
+
+    /**
      * Haupt-Triage-Zyklus (alle 5 Minuten auf Stage per Cronjob + manuell per Button/CLI).
      */
     public function runTriageCycle(bool $probeBridges = false, bool $allowAiEnrichment = true): array

@@ -17,8 +17,9 @@
     <!-- <env name="DB_CONNECTION" value="sqlite"/> -->
     <env name="DB_DATABASE" value="seelenfunke_testing" force="true"/>
     <env name="MAIL_MAILER" value="array" force="true"/>
-    <env name="BROADCAST_CONNECTION" value="log" force="true"/>
-    <env name="BROADCAST_DRIVER" value="log" force="true"/>
+    <env name="BROADCAST_CONNECTION" value="null" force="true"/>
+    <env name="BROADCAST_DRIVER" value="null" force="true"/>
+    <env name="LOG_SINGLE_PATH" value="/tmp/sf_phpunit_testing.log" force="true"/>
     <env name="QUEUE_CONNECTION" value="sync" force="true"/>
     <env name="SESSION_DRIVER" value="array" force="true"/>
     <env name="TELESCOPE_ENABLED" value="false" force="true"/>

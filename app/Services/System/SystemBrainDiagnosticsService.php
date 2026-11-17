@@ -1444,8 +1444,16 @@ class SystemBrainDiagnosticsService
         $found = [];
         $currentMsg = null;
         foreach (explode("\n", $content) as $line) {
-            if (preg_match('/^\[[^\]]+\]\s+[a-zA-Z0-9_-]+\.ERROR:\s*(.+)$/', $line, $em)) {
-                $currentMsg = SystemErrorLogger::sanitizeSensitiveText(trim($em[1]));
+            if (LogArchiveService::isTestingEnvironmentLogLine($line)) {
+                $currentMsg = null;
+                continue;
+            }
+            if (preg_match('/^\[[^\]]+\]\s+([a-zA-Z0-9_.-]+)\.([A-Z]+):\s*(.+)$/', $line, $em)) {
+                if (strtolower($em[1]) !== 'testing' && in_array(strtoupper($em[2]), ['ERROR', 'CRITICAL', 'ALERT', 'EMERGENCY'], true)) {
+                    $currentMsg = SystemErrorLogger::sanitizeSensitiveText(trim($em[3]));
+                } else {
+                    $currentMsg = null;
+                }
             }
             if ($currentMsg && !str_contains($line, '/vendor/')) {
                 if (preg_match('/((?:app|resources\/views|routes|config)\/[A-Za-z0-9_\-\.\/]+\.php)(?:\((\d+)\)|:(\d+))?/', str_replace('\\', '/', $line), $fm)) {

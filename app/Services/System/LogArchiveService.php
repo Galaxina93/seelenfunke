@@ -36,18 +36,39 @@ class LogArchiveService
     }
 
     /**
+     * Erkennt Monolog-Zeilen aus reinen PHPUnit-/Test-Umgebungen (`[...] testing.ERROR:`, `testing.CRITICAL:` usw.),
+     * damit Testläufe niemals produktive Sentinel-Dossiers oder Brain-Fehlalarme auslösen.
+     */
+    public static function isTestingEnvironmentLogLine(string $line): bool
+    {
+        $trimmed = trim($line);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/^\[[^\]]+\]\s+testing\.(?:ERROR|CRITICAL|WARNING|INFO|DEBUG|NOTICE|ALERT|EMERGENCY):/i',
+            $trimmed
+        );
+    }
+
+    /**
      * Extrahiert aus einer einzelnen Logzeile echte Fehler-/Absturz-Meldungen (Monolog ERROR..EMERGENCY,
-     * twilio_bridge.log sowie CLI-/PHP-Fehler in cron-*.log), ohne harmlose Info-Zeilen auszulösen.
+     * twilio_bridge.log sowie CLI-/PHP-Fehler in cron-*.log), ohne harmlose Info- oder `testing.*`-Zeilen auszulösen.
      */
     public static function extractLogErrorLine(string $baseName, string $line): ?string
     {
         $trimmed = trim($line);
-        if ($trimmed === '') {
+        if ($trimmed === '' || self::isTestingEnvironmentLogLine($trimmed)) {
             return null;
         }
 
-        if (preg_match('/^\[[^\]]+\]\s+[A-Za-z0-9_.-]+\.(?:ERROR|CRITICAL|ALERT|EMERGENCY):\s*(.+)$/', $trimmed, $m)) {
-            return trim($m[1]);
+        if (preg_match('/^\[[^\]]+\]\s+([A-Za-z0-9_.-]+)\.(?:ERROR|CRITICAL|ALERT|EMERGENCY):\s*(.+)$/', $trimmed, $m)) {
+            if (strtolower($m[1]) === 'testing') {
+                return null;
+            }
+
+            return trim($m[2]);
         }
 
         if ($baseName === 'twilio_bridge.log' && (str_contains($trimmed, '❌') || stripos($trimmed, 'ERROR:') !== false)) {
@@ -114,73 +135,85 @@ class LogArchiveService
 
         $ingested = 0;
         foreach (self::listActiveLogFiles() as $logFile) {
-            if (!is_readable($logFile)) {
+            $ingested += self::ingestSingleLogFileIntoSentinel($logFile);
+        }
+
+        return $ingested;
+    }
+
+    /**
+     * Scant eine einzelne Logdatei (z. B. storage/logs/laravel.log) auf unstrukturierte ERROR/CRITICAL-Zeilen,
+     * ignoriert reine PHPUnit-`testing.*`-Zeilen und legt für echte Laufzeitfehler deduplizierte SystemLog-Einträge an.
+     */
+    public static function ingestSingleLogFileIntoSentinel(string $logFile, ?string $logicalBaseName = null): int
+    {
+        if (!Schema::hasTable('system_logs') || !is_file($logFile) || !is_readable($logFile)) {
+            return 0;
+        }
+
+        clearstatcache(true, $logFile);
+        $size = @filesize($logFile) ?: 0;
+        if ($size <= 0) {
+            return 0;
+        }
+
+        // Lese max. die letzten 256 KB für schnelles Parsing
+        $fpHandle = @fopen($logFile, 'rb');
+        if (!$fpHandle) {
+            return 0;
+        }
+        if ($size > 262144) {
+            @fseek($fpHandle, -262144, SEEK_END);
+        }
+        $chunk = (string) @fread($fpHandle, 262144);
+        @fclose($fpHandle);
+
+        if ($chunk === '') {
+            return 0;
+        }
+
+        $baseName = $logicalBaseName !== null && $logicalBaseName !== '' ? $logicalBaseName : basename($logFile);
+        $lines = explode("\n", $chunk);
+        $ingested = 0;
+
+        foreach ($lines as $line) {
+            $matchedMsg = self::extractLogErrorLine($baseName, $line);
+            if ($matchedMsg === null || $matchedMsg === '') {
                 continue;
             }
 
-            clearstatcache(true, $logFile);
-            $size = @filesize($logFile) ?: 0;
-            if ($size <= 0) {
+            // Endlosschleifen verhindern: Ignoriere reine Test-/Artisan-Infozeilen
+            $cleanMsg = SystemErrorLogger::sanitizeSensitiveText(Str::limit($matchedMsg, 1500, '...'));
+            $normForFp = preg_replace('/\b\d+\b/', '#', strtolower(mb_substr($cleanMsg, 0, 180)));
+            $fingerprint = hash('sha256', 'raw_logfile|' . strtolower($baseName) . '|' . $normForFp);
+
+            $exists = SystemLog::where('payload->fingerprint', $fingerprint)
+                ->where('started_at', '>=', now()->subHours(24))
+                ->exists();
+
+            if ($exists) {
                 continue;
             }
 
-            // Lese max. die letzten 256 KB für schnelles Parsing
-            $fpHandle = @fopen($logFile, 'rb');
-            if (!$fpHandle) {
-                continue;
-            }
-            if ($size > 262144) {
-                @fseek($fpHandle, -262144, SEEK_END);
-            }
-            $chunk = (string) @fread($fpHandle, 262144);
-            @fclose($fpHandle);
-
-            if ($chunk === '') {
-                continue;
-            }
-
-            $baseName = basename($logFile);
-            $lines = explode("\n", $chunk);
-
-            foreach ($lines as $line) {
-                $matchedMsg = self::extractLogErrorLine($baseName, $line);
-                if ($matchedMsg === null || $matchedMsg === '') {
-                    continue;
-                }
-
-                // Endlosschleifen verhindern: Ignoriere reine Test-/Artisan-Infozeilen
-                $cleanMsg = SystemErrorLogger::sanitizeSensitiveText(Str::limit($matchedMsg, 1500, '...'));
-                $normForFp = preg_replace('/\b\d+\b/', '#', strtolower(mb_substr($cleanMsg, 0, 180)));
-                $fingerprint = hash('sha256', 'raw_logfile|' . strtolower($baseName) . '|' . $normForFp);
-
-                $exists = SystemLog::where('payload->fingerprint', $fingerprint)
-                    ->where('started_at', '>=', now()->subHours(24))
-                    ->exists();
-
-                if ($exists) {
-                    continue;
-                }
-
-                SystemLog::create([
-                    'type' => 'system',
-                    'action_id' => 'logfile:' . $baseName . ':' . substr($fingerprint, 0, 12),
-                    'title' => Str::limit("[{$baseName}] " . trim(Str::before($cleanMsg, '{')), 180),
-                    'message' => $cleanMsg,
-                    'status' => 'error',
-                    'payload' => [
-                        'platform' => 'portal',
-                        'platform_label' => 'Webportal',
-                        'fingerprint' => $fingerprint,
-                        'source_logfile' => 'storage/logs/' . $baseName,
-                        'occurrences_count' => 1,
-                        'first_seen_at' => now()->toIso8601String(),
-                        'last_seen_at' => now()->toIso8601String(),
-                    ],
-                    'started_at' => now(),
-                    'finished_at' => now(),
-                ]);
-                $ingested++;
-            }
+            SystemLog::create([
+                'type' => 'system',
+                'action_id' => 'logfile:' . $baseName . ':' . substr($fingerprint, 0, 12),
+                'title' => Str::limit("[{$baseName}] " . trim(Str::before($cleanMsg, '{')), 180),
+                'message' => $cleanMsg,
+                'status' => 'error',
+                'payload' => [
+                    'platform' => 'portal',
+                    'platform_label' => 'Webportal',
+                    'fingerprint' => $fingerprint,
+                    'source_logfile' => 'storage/logs/' . $baseName,
+                    'occurrences_count' => 1,
+                    'first_seen_at' => now()->toIso8601String(),
+                    'last_seen_at' => now()->toIso8601String(),
+                ],
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+            $ingested++;
         }
 
         return $ingested;
