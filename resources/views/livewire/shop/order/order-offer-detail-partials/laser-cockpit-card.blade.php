@@ -48,27 +48,94 @@
             $equipmentDefaultProcessModes[$eqK] = (string) ($eqM['process_mode'] ?? '');
         }
         $handbookPresets = \App\Services\Laser\XtoolLaserCockpitService::getStepOnePresetOptions($previewItem->product);
+        $productProfiles = is_array($cockpitData['product_profiles'] ?? null)
+            ? $cockpitData['product_profiles']
+            : $previewItem->product->getLaserProfiles();
+
+        $calcServerPct = static function ($val, float $min, float $max): string {
+            if ($max <= $min) {
+                return '0.00';
+            }
+            $clamped = max($min, min($max, (float) $val));
+            return number_format((($clamped - $min) / ($max - $min)) * 100.0, 2, '.', '');
+        };
+
+        $initDotUs = max(1, min(3000, (int) ($lp['dot_duration_us'] ?? 120)));
+        $initPowerPctVal = max(1, min(100, (int) ($lp['power_percent'] ?? 70)));
+        $initDpiVal = max(50, min(2540, (int) ($lp['dpi'] ?? 500)));
+        $initFreqVal = max(1, min(200, (int) ($lp['frequency_khz'] ?? 60)));
+
+        $initDotBarPct = $calcServerPct($initDotUs, 1, 3000);
+        $initPowerBarPct = $calcServerPct($initPowerPctVal, 1, 100);
+        $initDpiBarPct = $calcServerPct($initDpiVal, 50, 2540);
+        $initFreqBarPct = $calcServerPct($initFreqVal, 1, 200);
+
+        $initFrameLeftPct = number_format(((float) $cockpitData['center_x_mm'] / 200.0) * 100.0, 4, '.', '');
+        $initFrameTopPct = number_format(((float) $cockpitData['center_y_mm'] / 200.0) * 100.0, 4, '.', '');
+        $initFrameWidthPct = number_format(((float) $cockpitData['width_mm'] / 200.0) * 100.0, 4, '.', '');
+        $initFrameHeightPct = number_format(((float) $cockpitData['height_mm'] / 200.0) * 100.0, 4, '.', '');
+        $initFrameAngle = number_format((float) $cockpitData['angle_deg'], 2, '.', '');
+
+        $cockpitBootPayload = [
+            'xMm'                   => (float) $cockpitData['center_x_mm'],
+            'yMm'                   => (float) $cockpitData['center_y_mm'],
+            'angleDeg'              => (float) $cockpitData['angle_deg'],
+            'wMm'                   => (float) $cockpitData['width_mm'],
+            'hMm'                   => (float) $cockpitData['height_mm'],
+            'defaultWMm'            => (float) $cockpitData['width_mm'],
+            'defaultHMm'            => (float) $cockpitData['height_mm'],
+            'hasLaserOverrides'     => (bool) ($lp['has_overrides'] ?? false),
+            'equipmentDefaultModes' => $equipmentDefaultProcessModes,
+            'handbookPresets'       => $handbookPresets,
+            'productProfiles'       => array_values($productProfiles),
+            'laserParams'           => [
+                'equipment_key'   => (string) ($lp['equipment_key'] ?? 'flatbed_standard'),
+                'process_mode'    => (string) ($lp['process_mode'] ?? 'Prozess auf flacher Oberfläche'),
+                'material'        => (string) ($lp['material'] ?? 'Edelstahl'),
+                'focus_mm'        => (float) ($lp['focus_mm'] ?? 3.0),
+                'element_type'    => (string) ($lp['element_type'] ?? 'Bild'),
+                'engrave_tab'     => (string) ($lp['engrave_tab'] ?? 'Gravieren'),
+                'preset_mode'     => (string) ($lp['preset_mode'] ?? 'Benutzerdefiniert'),
+                'dot_duration_us' => $initDotUs,
+                'power_percent'   => $initPowerPctVal,
+                'speed_mms'       => (int) ($lp['speed_mms'] ?? 200),
+                'dpi'             => $initDpiVal,
+                'passes'          => (int) ($lp['passes'] ?? 1),
+                'frequency_khz'   => $initFreqVal,
+                'bitmap_mode'     => (string) ($lp['bitmap_mode'] ?? 'Graustufen'),
+                'engrave_mode'    => (string) ($lp['engrave_mode'] ?? 'Bidirektional'),
+                'vector_note'     => (string) ($lp['vector_note'] ?? ''),
+            ],
+        ];
     @endphp
     <div x-data="{
             itemId: '{{ $previewItem->id }}',
             sideKey: '{{ $cockpitSideJs }}',
             openScopeKey: '{{ $openScopeKey }}',
-            equipmentDefaultModes: @js($equipmentDefaultProcessModes),
+            equipmentDefaultModes: {},
             dragging: false,
             dragMode: 'move',
+            _hasMovedDuringDrag: false,
+            _dragStageRect: null,
+            _coordSeq: 0,
+            _lockedCoords: null,
+            _paramSeq: 0,
+            _activeSliderKey: null,
             startClientX: 0,
             startClientY: 0,
-            startXMm: 0,
-            startYMm: 0,
+            startXMm: 100,
+            startYMm: 100,
             startAngleDeg: 0,
-            startWMm: {{ (float) $cockpitData['width_mm'] }},
-            startHMm: {{ (float) $cockpitData['height_mm'] }},
+            startWMm: 40,
+            startHMm: 40,
+            defaultWMm: 40,
+            defaultHMm: 40,
             startResizeDistPx: 40,
-            xMm: {{ (float) $cockpitData['center_x_mm'] }},
-            yMm: {{ (float) $cockpitData['center_y_mm'] }},
-            angleDeg: {{ (float) $cockpitData['angle_deg'] }},
-            wMm: {{ (float) $cockpitData['width_mm'] }},
-            hMm: {{ (float) $cockpitData['height_mm'] }},
+            xMm: 100,
+            yMm: 100,
+            angleDeg: 0,
+            wMm: 40,
+            hMm: 40,
             cockpitZoom: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].zoom || 1) : 1,
             cockpitPanX: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].panX || 0) : 0,
             cockpitPanY: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].panY || 0) : 0,
@@ -79,11 +146,176 @@
             isDraggingMinimap: false,
             _minimapOffsetX: 0,
             _minimapOffsetY: 0,
+            showLaserParams: window.__sfLaserParamsOpen === '{{ $openScopeKey }}',
+            hasLaserOverrides: false,
+            productProfiles: [],
+            handbookPresets: [],
+            handbookPresetKey: '',
+            showNewProfileForm: false,
+            newProfileTitle: '',
+            laserParams: {
+                equipment_key: 'flatbed_standard',
+                process_mode: 'Prozess auf flacher Oberfläche',
+                material: 'Edelstahl',
+                focus_mm: 21.5,
+                element_type: 'Bild',
+                engrave_tab: 'Gravieren',
+                preset_mode: 'Benutzerdefiniert',
+                dot_duration_us: 120,
+                power_percent: 70,
+                speed_mms: 200,
+                dpi: 500,
+                passes: 1,
+                frequency_khz: 60,
+                bitmap_mode: 'Graustufen',
+                engrave_mode: 'Bidirektional',
+                vector_note: ''
+            },
+            init() {
+                this.bootFromDataset();
+                this.$nextTick(() => {
+                    this.refreshAllRangeFills();
+                });
+                if (typeof MutationObserver !== 'undefined') {
+                    const obs = new MutationObserver(() => {
+                        if (this.$refs.cockpitBootPayload) {
+                            const raw = this.$refs.cockpitBootPayload.getAttribute('data-boot');
+                            if (raw && raw.startsWith('{')) {
+                                const parsed = JSON.parse(raw);
+                                if (Array.isArray(parsed.productProfiles)) {
+                                    this.productProfiles = parsed.productProfiles;
+                                }
+                            }
+                        }
+                        if (this._activeSliderKey === null) {
+                            this.refreshAllRangeFills();
+                        }
+                    });
+                    obs.observe(this.$el, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-boot'] });
+                }
+            },
+            bootFromDataset() {
+                const el = this.$refs.cockpitBootPayload;
+                if (!el) return;
+                const raw = el.getAttribute('data-boot');
+                if (!raw || !raw.startsWith('{')) return;
+                const d = JSON.parse(raw);
+                this.equipmentDefaultModes = d.equipmentDefaultModes || {};
+                this.handbookPresets = Array.isArray(d.handbookPresets) ? d.handbookPresets : [];
+                this.productProfiles = Array.isArray(d.productProfiles) ? d.productProfiles : [];
+                this.defaultWMm = Number(d.defaultWMm) || 40;
+                this.defaultHMm = Number(d.defaultHMm) || 40;
+                this.startWMm = this.defaultWMm;
+                this.startHMm = this.defaultHMm;
+                this.xMm = Number(d.xMm) || 100;
+                this.yMm = Number(d.yMm) || 100;
+                this.angleDeg = Number(d.angleDeg) || 0;
+                this.wMm = Number(d.wMm) || this.defaultWMm;
+                this.hMm = Number(d.hMm) || this.defaultHMm;
+                this.hasLaserOverrides = Boolean(d.hasLaserOverrides);
+                if (d.laserParams && typeof d.laserParams === 'object') {
+                    this.applyParamObjectLocally(d.laserParams);
+                }
+            },
+            applyParamObjectLocally(next) {
+                if (!next || typeof next !== 'object') return;
+                if (next.equipment_key !== undefined) this.laserParams.equipment_key = String(next.equipment_key);
+                if (next.process_mode !== undefined) this.laserParams.process_mode = String(next.process_mode);
+                if (next.material !== undefined) this.laserParams.material = String(next.material);
+                if (next.focus_mm !== undefined) this.laserParams.focus_mm = Number(next.focus_mm);
+                if (next.element_type !== undefined) this.laserParams.element_type = String(next.element_type);
+                if (next.engrave_tab !== undefined) this.laserParams.engrave_tab = String(next.engrave_tab);
+                if (next.preset_mode !== undefined) this.laserParams.preset_mode = String(next.preset_mode);
+                if (next.dot_duration_us !== undefined) {
+                    this.laserParams.dot_duration_us = Math.max(1, Math.min(3000, Math.round(Number(next.dot_duration_us) || 1)));
+                }
+                if (next.power_percent !== undefined) {
+                    this.laserParams.power_percent = Math.max(1, Math.min(100, Math.round(Number(next.power_percent) || 1)));
+                }
+                if (next.speed_mms !== undefined) {
+                    this.laserParams.speed_mms = Math.max(1, Math.min(4000, Math.round(Number(next.speed_mms) || 200)));
+                }
+                if (next.dpi !== undefined) {
+                    this.laserParams.dpi = Math.max(50, Math.min(2540, Math.round(Number(next.dpi) || 500)));
+                }
+                if (next.passes !== undefined) {
+                    this.laserParams.passes = Math.max(1, Math.min(20, Math.round(Number(next.passes) || 1)));
+                }
+                if (next.frequency_khz !== undefined) {
+                    this.laserParams.frequency_khz = Math.max(1, Math.min(200, Math.round(Number(next.frequency_khz) || 60)));
+                }
+                if (next.bitmap_mode !== undefined) this.laserParams.bitmap_mode = String(next.bitmap_mode);
+                if (next.engrave_mode !== undefined) this.laserParams.engrave_mode = String(next.engrave_mode);
+                if (next.vector_note !== undefined) this.laserParams.vector_note = String(next.vector_note);
+            },
+            calcRangePct(val, min, max) {
+                const lo = Number(min);
+                const hi = Number(max);
+                if (!Number.isFinite(hi) || hi <= lo) return 0;
+                const parsed = Number(val);
+                const clamped = Number.isFinite(parsed) ? Math.max(lo, Math.min(hi, parsed)) : lo;
+                return Number((((clamped - lo) / (hi - lo)) * 100).toFixed(2));
+            },
+            rangeFillStyle(val, min, max) {
+                return `--val-pct: ${this.calcRangePct(val, min, max)}%;`;
+            },
+            refreshAllRangeFills() {
+                if (!this.$el) return;
+                const ranges = this.$el.querySelectorAll('[data-sf-param-range]');
+                ranges.forEach((el) => {
+                    const key = el.getAttribute('data-sf-param-range');
+                    if (!key || this.laserParams[key] === undefined) return;
+                    const min = Number(el.getAttribute('min') || 1);
+                    const max = Number(el.getAttribute('max') || 100);
+                    const val = Math.max(min, Math.min(max, Number(this.laserParams[key]) || min));
+                    if (String(el.value) !== String(val)) {
+                        el.value = String(val);
+                    }
+                    const pct = this.calcRangePct(val, min, max);
+                    el.style.setProperty('--val-pct', pct + '%');
+                });
+            },
+            beginSliderDrag(key) {
+                this._activeSliderKey = key;
+            },
+            onSliderInput(key, rawVal, min, max, el) {
+                this._activeSliderKey = key;
+                const clamped = Math.max(min, Math.min(max, Math.round(Number(rawVal) || min)));
+                this.laserParams[key] = clamped;
+                this._paramSeq++;
+                if (el && el.style) {
+                    el.style.setProperty('--val-pct', this.calcRangePct(clamped, min, max) + '%');
+                }
+            },
+            onSliderCommit(key, rawVal, min, max, el) {
+                const clamped = Math.max(min, Math.min(max, Math.round(Number(rawVal) || min)));
+                this.laserParams[key] = clamped;
+                this._activeSliderKey = null;
+                if (el && el.style) {
+                    el.style.setProperty('--val-pct', this.calcRangePct(clamped, min, max) + '%');
+                }
+                this.persistLaserParams();
+            },
+            onNumericParamChange(key, min, max) {
+                const clamped = Math.max(min, Math.min(max, Math.round(Number(this.laserParams[key]) || min)));
+                this.laserParams[key] = clamped;
+                this.refreshAllRangeFills();
+                this.persistLaserParams();
+            },
             get frameCenterX() {
                 return Math.max(0, Math.min(100, ((Number(this.xMm) || 100) / 200) * 100));
             },
             get frameCenterY() {
                 return Math.max(0, Math.min(100, ((Number(this.yMm) || 100) / 200) * 100));
+            },
+            getBlueFrameStyle() {
+                const active = this._lockedCoords || { x: this.xMm, y: this.yMm, angle: this.angleDeg, w: this.wMm, h: this.hMm };
+                const lx = ((Number(active.x) || 100) / 200) * 100;
+                const ty = ((Number(active.y) || 100) / 200) * 100;
+                const wd = ((Number(active.w) || this.defaultWMm) / 200) * 100;
+                const ht = ((Number(active.h) || this.defaultHMm) / 200) * 100;
+                const ang = Number(active.angle) || 0;
+                return `left: ${lx}%; top: ${ty}%; width: ${wd}%; height: ${ht}%; transform: translate(-50%, -50%) rotate(${ang}deg);`;
             },
             saveCockpitZoomScope() {
                 window.__sfLaserCockpitZoom = window.__sfLaserCockpitZoom || {};
@@ -194,34 +426,37 @@
                 this._zoomFocusY = Number((50 - this.cockpitPanY / z).toFixed(2));
                 this.saveCockpitZoomScope();
             },
-            showLaserParams: window.__sfLaserParamsOpen === '{{ $openScopeKey }}',
-            hasLaserOverrides: @js((bool) ($lp['has_overrides'] ?? false)),
-            laserParams: {
-                equipment_key: @js((string) ($lp['equipment_key'] ?? 'flatbed_standard')),
-                process_mode: @js((string) ($lp['process_mode'] ?? 'Prozess auf flacher Oberfläche')),
-                material: @js((string) ($lp['material'] ?? 'Edelstahl')),
-                focus_mm: {{ (float) ($lp['focus_mm'] ?? 3.0) }},
-                element_type: @js((string) ($lp['element_type'] ?? 'Bild')),
-                engrave_tab: @js((string) ($lp['engrave_tab'] ?? 'Gravieren')),
-                preset_mode: @js((string) ($lp['preset_mode'] ?? 'Benutzerdefiniert')),
-                dot_duration_us: {{ (int) ($lp['dot_duration_us'] ?? 120) }},
-                power_percent: {{ (int) ($lp['power_percent'] ?? 70) }},
-                speed_mms: {{ (int) ($lp['speed_mms'] ?? 200) }},
-                dpi: {{ (int) ($lp['dpi'] ?? 500) }},
-                passes: {{ (int) ($lp['passes'] ?? 1) }},
-                frequency_khz: {{ (int) ($lp['frequency_khz'] ?? 60) }},
-                bitmap_mode: @js((string) ($lp['bitmap_mode'] ?? 'Graustufen')),
-                engrave_mode: @js((string) ($lp['engrave_mode'] ?? 'Bidirektional')),
-                vector_note: @js((string) ($lp['vector_note'] ?? ''))
-            },
             toggleLaserParams() {
                 this.showLaserParams = !this.showLaserParams;
                 window.__sfLaserParamsOpen = this.showLaserParams ? this.openScopeKey : null;
+                if (this.showLaserParams) {
+                    this.$nextTick(() => this.refreshAllRangeFills());
+                }
             },
-            handbookPresets: @js($handbookPresets),
-            handbookPresetKey: '',
             applyHandbookPreset() {
-                const preset = this.handbookPresets.find(p => p.key === this.handbookPresetKey);
+                const rawKey = String(this.handbookPresetKey || '');
+                if (!rawKey) return;
+
+                if (rawKey.startsWith('profile:')) {
+                    const profId = rawKey.slice(8);
+                    const prof = this.productProfiles.find(p => String(p.id) === profId);
+                    if (prof) {
+                        this.applyParamObjectLocally(prof);
+                        if (prof.equipment_key && this.equipmentDefaultModes[prof.equipment_key] !== undefined && !prof.process_mode) {
+                            this.laserParams.process_mode = this.equipmentDefaultModes[prof.equipment_key] || this.laserParams.process_mode;
+                        }
+                        this.hasLaserOverrides = true;
+                        const seq = ++this._paramSeq;
+                        this.$nextTick(() => this.refreshAllRangeFills());
+                        const res = $wire.applyProductLaserProfile(this.itemId, this.sideKey, profId, seq);
+                        if (res && typeof res.then === 'function') {
+                            res.then(() => this.$nextTick(() => this.refreshAllRangeFills()));
+                        }
+                    }
+                    return;
+                }
+
+                const preset = this.handbookPresets.find(p => p.key === rawKey);
                 if (!preset) return;
                 const bmp = preset.bitmap || null;
                 const vec = preset.vector || null;
@@ -232,24 +467,37 @@
                     this.laserParams.process_mode = this.equipmentDefaultModes[preset.equipment_key] || this.laserParams.process_mode;
                 }
                 this.laserParams.focus_mm = Math.max(0.1, Number(main.focus_mm) || 0.1);
-                this.laserParams.power_percent = Number(main.power_percent);
-                this.laserParams.frequency_khz = Number(main.frequency_khz);
-                this.laserParams.passes = Number(main.passes);
-                this.laserParams.dpi = Number(main.dpi);
+                this.laserParams.power_percent = Math.max(1, Math.min(100, Number(main.power_percent) || 1));
+                this.laserParams.frequency_khz = Math.max(1, Math.min(200, Number(main.frequency_khz) || 40));
+                this.laserParams.passes = Math.max(1, Math.min(20, Number(main.passes) || 1));
+                this.laserParams.dpi = Math.max(50, Math.min(2540, Number(main.dpi) || 500));
                 if (bmp) {
                     this.laserParams.element_type = 'Bild';
-                    this.laserParams.dot_duration_us = Number(bmp.dot_duration_us);
+                    this.laserParams.dot_duration_us = Math.max(1, Math.min(3000, Number(bmp.dot_duration_us) || 120));
                     this.laserParams.bitmap_mode = String(bmp.bitmap_mode || 'Jarvis');
                 } else {
                     this.laserParams.element_type = 'Vektor';
                     this.laserParams.bitmap_mode = 'Schwellenwert';
                 }
                 if (vec) {
-                    this.laserParams.speed_mms = Number(vec.speed_mms);
+                    this.laserParams.speed_mms = Math.max(1, Math.min(4000, Number(vec.speed_mms) || 200));
                     this.laserParams.vector_note = `Gravieren · ${vec.power_percent} % · ${vec.speed_mms} mm/s · ${vec.lpc} Linien/cm · ${vec.frequency_khz} kHz` + (Number(vec.passes) > 1 ? ` · ${vec.passes}x` : '');
                 }
                 this.laserParams.preset_mode = 'Referenz';
+                this.refreshAllRangeFills();
                 this.persistLaserParams();
+            },
+            saveCurrentAsProductProfile() {
+                const title = String(this.newProfileTitle || '').trim();
+                if (!title) return;
+                this._paramSeq++;
+                const payload = { ...this.laserParams };
+                this.showNewProfileForm = false;
+                this.newProfileTitle = '';
+                const res = $wire.saveOrderLaserParametersAsProductProfile(this.itemId, this.sideKey, title, payload, false);
+                if (res && typeof res.then === 'function') {
+                    res.then(() => this.$nextTick(() => this.refreshAllRangeFills()));
+                }
             },
             onEquipmentChange() {
                 const defMode = this.equipmentDefaultModes[this.laserParams.equipment_key] || '';
@@ -260,29 +508,34 @@
             },
             persistLaserParams() {
                 this.hasLaserOverrides = true;
-                $wire.updateLaserParameters(this.itemId, this.sideKey, this.laserParams);
+                const seq = ++this._paramSeq;
+                this.refreshAllRangeFills();
+                const res = $wire.updateLaserParameters(this.itemId, this.sideKey, { ...this.laserParams }, seq);
+                if (res && typeof res.then === 'function') {
+                    res.then(() => this.$nextTick(() => this.refreshAllRangeFills()));
+                }
             },
             syncLaserParamsFromServer(detail) {
                 const p = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
+                if (Array.isArray(p.profiles)) {
+                    this.productProfiles = p.profiles;
+                }
+                if (p.active_profile_id) {
+                    this.handbookPresetKey = 'profile:' + String(p.active_profile_id);
+                }
+                if (this._activeSliderKey !== null) {
+                    return;
+                }
+                if (p.seq !== undefined && p.seq !== null && Number(p.seq) < this._paramSeq) {
+                    return;
+                }
                 const next = p.params || null;
                 if (!next) return;
-                if (next.equipment_key !== undefined) this.laserParams.equipment_key = String(next.equipment_key);
-                if (next.process_mode !== undefined) this.laserParams.process_mode = String(next.process_mode);
-                if (next.material !== undefined) this.laserParams.material = String(next.material);
-                if (next.focus_mm !== undefined) this.laserParams.focus_mm = Number(next.focus_mm);
-                if (next.element_type !== undefined) this.laserParams.element_type = String(next.element_type);
-                if (next.engrave_tab !== undefined) this.laserParams.engrave_tab = String(next.engrave_tab);
-                if (next.preset_mode !== undefined) this.laserParams.preset_mode = String(next.preset_mode);
-                if (next.dot_duration_us !== undefined) this.laserParams.dot_duration_us = Number(next.dot_duration_us);
-                if (next.power_percent !== undefined) this.laserParams.power_percent = Number(next.power_percent);
-                if (next.speed_mms !== undefined) this.laserParams.speed_mms = Number(next.speed_mms);
-                if (next.dpi !== undefined) this.laserParams.dpi = Number(next.dpi);
-                if (next.passes !== undefined) this.laserParams.passes = Number(next.passes);
-                if (next.frequency_khz !== undefined) this.laserParams.frequency_khz = Number(next.frequency_khz);
-                if (next.bitmap_mode !== undefined) this.laserParams.bitmap_mode = String(next.bitmap_mode);
-                if (next.engrave_mode !== undefined) this.laserParams.engrave_mode = String(next.engrave_mode);
-                if (next.vector_note !== undefined) this.laserParams.vector_note = String(next.vector_note);
-                if (next.has_overrides !== undefined) this.hasLaserOverrides = Boolean(next.has_overrides);
+                this.applyParamObjectLocally(next);
+                if (next.has_overrides !== undefined) {
+                    this.hasLaserOverrides = Boolean(next.has_overrides);
+                }
+                this.$nextTick(() => this.refreshAllRangeFills());
             },
             fmtMm(v) {
                 const parsed = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : Number(v);
@@ -292,7 +545,19 @@
                     : n.toFixed(1).replace('.', ',');
             },
             syncCoordsFromServer(detail) {
+                if (this.dragging) return;
                 const p = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
+                if (p.source === 'ack') {
+                    const ackSeq = Number(p.seq || 0);
+                    if (ackSeq < this._coordSeq) {
+                        return;
+                    }
+                    if (ackSeq === this._coordSeq) {
+                        this._lockedCoords = null;
+                    }
+                    return;
+                }
+                this._lockedCoords = null;
                 if (p.x !== undefined) this.xMm = Number(p.x);
                 if (p.y !== undefined) this.yMm = Number(p.y);
                 if (p.angle !== undefined) this.angleDeg = Number(p.angle);
@@ -304,14 +569,28 @@
                     this.setCockpitZoom(this.cockpitZoom);
                 }
             },
+            lockCurrentCoords() {
+                const seq = ++this._coordSeq;
+                this._lockedCoords = {
+                    seq: seq,
+                    x: Number(this.xMm) || 100,
+                    y: Number(this.yMm) || 100,
+                    angle: Number(this.angleDeg) || 0,
+                    w: Number(this.wMm) || this.defaultWMm,
+                    h: Number(this.hMm) || this.defaultHMm
+                };
+                return seq;
+            },
             persistCoords() {
+                const seq = this.lockCurrentCoords();
                 $wire.updateLaserCoordinates(
                     this.itemId,
-                    Number(this.xMm) || 100,
-                    Number(this.yMm) || 100,
-                    Number(this.angleDeg) || 0,
-                    Number(this.wMm) || {{ (float) $cockpitData['width_mm'] }},
-                    Number(this.hMm) || {{ (float) $cockpitData['height_mm'] }}
+                    this._lockedCoords.x,
+                    this._lockedCoords.y,
+                    this._lockedCoords.angle,
+                    this._lockedCoords.w,
+                    this._lockedCoords.h,
+                    seq
                 );
             },
             nudge(dx, dy, da) {
@@ -324,6 +603,7 @@
                 if (e.button !== undefined && e.button !== 0) return;
                 this.dragging = true;
                 this.dragMode = mode;
+                this._hasMovedDuringDrag = false;
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 this.startClientX = clientX;
@@ -333,14 +613,23 @@
                 this.startXMm = Number(this.xMm) || 100;
                 this.startYMm = Number(this.yMm) || 100;
                 this.startAngleDeg = Number(this.angleDeg) || 0;
-                this.startWMm = Math.max(2.5, Number(this.wMm) || {{ (float) $cockpitData['width_mm'] }});
-                this.startHMm = Math.max(2.5, Number(this.hMm) || {{ (float) $cockpitData['height_mm'] }});
-                if (mode === 'resize' && this.$refs.bedStage) {
+                this.startWMm = Math.max(2.5, Number(this.wMm) || this.defaultWMm);
+                this.startHMm = Math.max(2.5, Number(this.hMm) || this.defaultHMm);
+                this._dragStageRect = null;
+                if (this.$refs.bedStage) {
                     const rect = this.$refs.bedStage.getBoundingClientRect();
                     if (rect.width && rect.height) {
-                        const centerX = rect.left + (this.startXMm / 200) * rect.width;
-                        const centerY = rect.top + (this.startYMm / 200) * rect.height;
-                        this.startResizeDistPx = Math.max(4, Math.hypot(clientX - centerX, clientY - centerY));
+                        this._dragStageRect = {
+                            left: rect.left,
+                            top: rect.top,
+                            width: rect.width,
+                            height: rect.height
+                        };
+                        if (mode === 'resize') {
+                            const centerX = rect.left + (this.startXMm / 200) * rect.width;
+                            const centerY = rect.top + (this.startYMm / 200) * rect.height;
+                            this.startResizeDistPx = Math.max(4, Math.hypot(clientX - centerX, clientY - centerY));
+                        }
                     }
                 }
             },
@@ -354,14 +643,14 @@
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
                 if (this.dragMode === 'pan') {
-                    const vpEl = this.$refs.bedViewport || this.$refs.bedStage;
-                    if (!vpEl) return;
-                    const vpRect = vpEl.getBoundingClientRect();
-                    if (!vpRect.width || !vpRect.height) return;
                     const z = Math.max(1.01, Number(this.cockpitZoom || 1.01));
+                    const stageRect = this._dragStageRect || (this.$refs.bedStage ? this.$refs.bedStage.getBoundingClientRect() : null);
+                    if (!stageRect || !stageRect.width || !stageRect.height) return;
+                    const unscaledW = stageRect.width / z;
+                    const unscaledH = stageRect.height / z;
                     const maxPan = 50 * (z - 1);
-                    const dPanX = ((clientX - this.startClientX) / vpRect.width) * 100;
-                    const dPanY = ((clientY - this.startClientY) / vpRect.height) * 100;
+                    const dPanX = ((clientX - this.startClientX) / Math.max(1, unscaledW)) * 100;
+                    const dPanY = ((clientY - this.startClientY) / Math.max(1, unscaledH)) * 100;
                     this.cockpitPanX = Number(Math.max(-maxPan, Math.min(maxPan, this.startPanX + dPanX)).toFixed(2));
                     this.cockpitPanY = Number(Math.max(-maxPan, Math.min(maxPan, this.startPanY + dPanY)).toFixed(2));
                     this._zoomFocusX = Number((50 - this.cockpitPanX / z).toFixed(2));
@@ -370,9 +659,14 @@
                     return;
                 }
 
-                if (!this.$refs.bedStage) return;
-                const rect = this.$refs.bedStage.getBoundingClientRect();
+                if (!this.$refs.bedStage && !this._dragStageRect) return;
+                const rect = this._dragStageRect || this.$refs.bedStage.getBoundingClientRect();
                 if (!rect.width || !rect.height) return;
+
+                if (Math.hypot(clientX - this.startClientX, clientY - this.startClientY) < 0.25 && !this._hasMovedDuringDrag) {
+                    return;
+                }
+                this._hasMovedDuringDrag = true;
 
                 if (this.dragMode === 'rotate') {
                     const centerX = rect.left + ((Number(this.xMm) || 100) / 200) * rect.width;
@@ -384,6 +678,7 @@
                     while (deltaAngle < -180) deltaAngle += 360;
                     const nextAngle = Math.max(-45, Math.min(45, this.startAngleDeg + deltaAngle));
                     this.angleDeg = Math.round(nextAngle * 10) / 10;
+                    this.lockCurrentCoords();
                     return;
                 }
 
@@ -406,6 +701,7 @@
                     }
                     this.wMm = Math.round(Math.max(2.5, Math.min(195, nextW)) * 10) / 10;
                     this.hMm = Math.round(Math.max(2.5, Math.min(195, nextH)) * 10) / 10;
+                    this.lockCurrentCoords();
                     return;
                 }
 
@@ -415,6 +711,7 @@
                 const nextY = Math.max(5, Math.min(195, this.startYMm + dyMm));
                 this.xMm = Math.round(nextX * 10) / 10;
                 this.yMm = Math.round(nextY * 10) / 10;
+                this.lockCurrentCoords();
             },
             stopDrag() {
                 if (this.isDraggingMinimap) {
@@ -423,8 +720,11 @@
                 }
                 if (!this.dragging) return;
                 const wasPan = this.dragMode === 'pan';
+                const didMove = this._hasMovedDuringDrag;
                 this.dragging = false;
-                if (!wasPan) {
+                this._dragStageRect = null;
+                this._hasMovedDuringDrag = false;
+                if (!wasPan && didMove) {
                     this.persistCoords();
                 }
             }
@@ -433,6 +733,10 @@
          @laser-params-sync.window="syncLaserParamsFromServer($event.detail)"
          wire:key="laser-cockpit-{{ $previewItem->id }}-{{ $cockpitData['side'] }}"
          class="bg-white dark:bg-gray-900/90 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 shrink-0 relative">
+
+        <span x-ref="cockpitBootPayload"
+              class="hidden"
+              data-boot="{{ json_encode($cockpitBootPayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}"></span>
 
         <style>
             @keyframes sfLaserBtnSpin {
@@ -689,7 +993,8 @@
                          @touchstart.stop.passive="startDrag($event, 'move')"
                          :class="dragging && dragMode === 'move' ? 'cursor-grabbing' : 'cursor-move'"
                          class="absolute z-10 pointer-events-auto touch-none {{ $isCircleContour ? 'rounded-full' : '' }}"
-                         :style="`left: ${(xMm / 200) * 100}%; top: ${(yMm / 200) * 100}%; width: ${(wMm / 200) * 100}%; height: ${(hMm / 200) * 100}%; transform: translate(-50%, -50%) rotate(${angleDeg}deg);`">
+                         style="left: {{ $initFrameLeftPct }}%; top: {{ $initFrameTopPct }}%; width: {{ $initFrameWidthPct }}%; height: {{ $initFrameHeightPct }}%; transform: translate(-50%, -50%) rotate({{ $initFrameAngle }}deg);"
+                         :style="getBlueFrameStyle()">
                         <svg viewBox="0 0 {{ $baseViewW }} {{ $baseViewH }}"
                              preserveAspectRatio="none"
                              class="w-full h-full overflow-visible pointer-events-none">
@@ -950,15 +1255,33 @@
                      x-show="showLaserParams"
                      style="display: none;"
                      class="bg-gray-50 dark:bg-gray-950 p-3 rounded-xl border border-gray-200 dark:border-gray-800 space-y-2.5">
-                    @if(!empty($handbookPresets))
-                        {{-- Zeile 0: Validierte xTool F2 Ultra UV Handbuch-Presets (PDF 1 & PDF 2, Vektor + Bitmap) --}}
-                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-[var(--theme-color-30)]">
-                            <label class="block text-[9px] font-black uppercase tracking-wider text-[var(--theme-color)]">Handbuch-Preset</label>
-                            <select x-model="handbookPresetKey"
-                                    @change="applyHandbookPreset()"
-                                    data-sf-handbook-presets="{{ count($handbookPresets) }}"
-                                    class="w-full mt-0.5 text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
-                                <option value="">Preset wählen</option>
+                    {{-- Zeile 0: Produkt-Profile (ganz oben) + validierte xTool F2 Ultra UV Handbuch-Presets + direkt als Profil speichern --}}
+                    <div class="bg-white dark:bg-gray-900 px-3 py-2 rounded-lg border border-[var(--theme-color-30)] space-y-2">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <label class="block text-[9px] font-black uppercase tracking-wider text-[var(--theme-color)]">Produkt-Profile &amp; Handbuch-Preset</label>
+                            <button type="button"
+                                    data-sf-toggle-new-profile
+                                    @click.stop="showNewProfileForm = !showNewProfileForm"
+                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] hover:bg-[var(--theme-color)] text-[var(--theme-color)] hover:text-gray-950 border border-[var(--theme-color-30)] text-[9px] font-black uppercase tracking-wider transition-colors cursor-pointer">
+                                <span>+ Als Produkt-Profil speichern</span>
+                            </button>
+                        </div>
+                        <select x-model="handbookPresetKey"
+                                @change="applyHandbookPreset()"
+                                data-sf-handbook-presets="{{ count($handbookPresets) }}"
+                                data-sf-product-profiles="{{ count($productProfiles) }}"
+                                class="w-full text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
+                            <option value="">Profil / Preset wählen</option>
+                            @if(!empty($productProfiles))
+                                <optgroup label="Produkt-Profile">
+                                    @foreach($productProfiles as $prodProf)
+                                        <option value="profile:{{ $prodProf['id'] }}">
+                                            {{ $prodProf['title'] }}{{ !empty($prodProf['is_default']) ? ' (Standard)' : '' }} · {{ $fmtDim((float) ($prodProf['focus_mm'] ?? 0)) }} mm · {{ (int) ($prodProf['power_percent'] ?? 0) }} % · {{ (int) ($prodProf['dot_duration_us'] ?? 0) }} µs
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endif
+                            @if(!empty($handbookPresets))
                                 @foreach(collect($handbookPresets)->groupBy('group') as $presetGroup => $presetsInGroup)
                                     <optgroup label="{{ $presetGroup }}">
                                         @foreach($presetsInGroup as $hbPreset)
@@ -966,9 +1289,25 @@
                                         @endforeach
                                     </optgroup>
                                 @endforeach
-                            </select>
+                            @endif
+                        </select>
+
+                        <div x-cloak
+                             x-show="showNewProfileForm"
+                             style="display: none;"
+                             class="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 pt-1.5 border-t border-gray-200 dark:border-gray-800">
+                            <input type="text"
+                                   x-model="newProfileTitle"
+                                   @keydown.enter.prevent="saveCurrentAsProductProfile()"
+                                   placeholder="Profil-Titel (z. B. Rückseite Widmung)"
+                                   class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 text-xs font-bold text-gray-900 dark:text-white focus:border-[var(--theme-color)] focus:outline-none">
+                            <button type="button"
+                                    @click.stop="saveCurrentAsProductProfile()"
+                                    class="px-3 py-1.5 rounded-lg bg-[var(--theme-color)] text-gray-950 text-[9px] font-black uppercase tracking-wider hover:brightness-95 transition cursor-pointer shrink-0">
+                                Profil anlegen
+                            </button>
                         </div>
-                    @endif
+                    </div>
                     {{-- Zeile 1: Aufbau (Equipment) · Prozess-Modus · Material · Fokus (mm) --}}
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
@@ -1070,31 +1409,36 @@
                         </div>
                     </div>
 
-                    {{-- Zeile 3: 4 Theme-Color Schieberegler: Punktdauer, Leistung, DPI & Frequenz --}}
+                    {{-- Zeile 3: 4 Theme-Color Schieberegler: Punktdauer (1-3000 µs), Leistung, DPI & Frequenz --}}
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div class="bg-white dark:bg-gray-900 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-800 space-y-2">
                             <div class="flex items-center justify-between gap-2">
                                 <label class="text-[9px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Punktdauer (µs)</label>
                                 <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] border border-[var(--theme-color-30)]">
                                     <input type="number"
-                                           step="5"
+                                           step="1"
                                            min="1"
-                                           max="5000"
+                                           max="3000"
                                            x-model.number="laserParams.dot_duration_us"
-                                           @change="persistLaserParams()"
+                                           @change="onNumericParamChange('dot_duration_us', 1, 3000)"
                                            class="w-14 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
                                     <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">µs</span>
                                 </div>
                             </div>
                             <input type="range"
+                                   data-sf-param-range="dot_duration_us"
                                    min="1"
-                                   :max="Math.max(1000, Number(laserParams.dot_duration_us) || 1000)"
-                                   step="5"
-                                   @mousedown.stop
-                                   @touchstart.stop
-                                   x-model.number="laserParams.dot_duration_us"
-                                   @change="persistLaserParams()"
-                                   :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(laserParams.dot_duration_us) || 1) - 1) / (Math.max(1000, Number(laserParams.dot_duration_us) || 1000) - 1)) * 100))}%;`"
+                                   max="3000"
+                                   step="1"
+                                   value="{{ $initDotUs }}"
+                                   :value="laserParams.dot_duration_us"
+                                   @pointerdown.stop="beginSliderDrag('dot_duration_us')"
+                                   @mousedown.stop="beginSliderDrag('dot_duration_us')"
+                                   @touchstart.stop.passive="beginSliderDrag('dot_duration_us')"
+                                   @input="onSliderInput('dot_duration_us', $event.target.value, 1, 3000, $event.target)"
+                                   @change="onSliderCommit('dot_duration_us', $event.target.value, 1, 3000, $event.target)"
+                                   style="--val-pct: {{ $initDotBarPct }}%;"
+                                   :style="rangeFillStyle(laserParams.dot_duration_us, 1, 3000)"
                                    class="sf-laser-range">
                         </div>
 
@@ -1107,20 +1451,25 @@
                                            min="1"
                                            max="100"
                                            x-model.number="laserParams.power_percent"
-                                           @change="persistLaserParams()"
+                                           @change="onNumericParamChange('power_percent', 1, 100)"
                                            class="w-11 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
                                     <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">%</span>
                                 </div>
                             </div>
                             <input type="range"
+                                   data-sf-param-range="power_percent"
                                    min="1"
                                    max="100"
                                    step="1"
-                                   @mousedown.stop
-                                   @touchstart.stop
-                                   x-model.number="laserParams.power_percent"
-                                   @change="persistLaserParams()"
-                                   :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(laserParams.power_percent) || 1) - 1) / 99) * 100))}%;`"
+                                   value="{{ $initPowerPctVal }}"
+                                   :value="laserParams.power_percent"
+                                   @pointerdown.stop="beginSliderDrag('power_percent')"
+                                   @mousedown.stop="beginSliderDrag('power_percent')"
+                                   @touchstart.stop.passive="beginSliderDrag('power_percent')"
+                                   @input="onSliderInput('power_percent', $event.target.value, 1, 100, $event.target)"
+                                   @change="onSliderCommit('power_percent', $event.target.value, 1, 100, $event.target)"
+                                   style="--val-pct: {{ $initPowerBarPct }}%;"
+                                   :style="rangeFillStyle(laserParams.power_percent, 1, 100)"
                                    class="sf-laser-range">
                         </div>
 
@@ -1134,7 +1483,7 @@
                                            max="2540"
                                            list="sfLaserDpi-{{ $previewItem->id }}"
                                            x-model.number="laserParams.dpi"
-                                           @change="persistLaserParams()"
+                                           @change="onNumericParamChange('dpi', 50, 2540)"
                                            class="w-14 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
                                     <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">DPI</span>
                                 </div>
@@ -1150,14 +1499,19 @@
                                 </datalist>
                             </div>
                             <input type="range"
+                                   data-sf-param-range="dpi"
                                    min="50"
-                                   :max="Math.max(1270, Number(laserParams.dpi) || 1270)"
-                                   step="10"
-                                   @mousedown.stop
-                                   @touchstart.stop
-                                   x-model.number="laserParams.dpi"
-                                   @change="persistLaserParams()"
-                                   :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(laserParams.dpi) || 50) - 50) / (Math.max(1270, Number(laserParams.dpi) || 1270) - 50)) * 100))}%;`"
+                                   max="2540"
+                                   step="1"
+                                   value="{{ $initDpiVal }}"
+                                   :value="laserParams.dpi"
+                                   @pointerdown.stop="beginSliderDrag('dpi')"
+                                   @mousedown.stop="beginSliderDrag('dpi')"
+                                   @touchstart.stop.passive="beginSliderDrag('dpi')"
+                                   @input="onSliderInput('dpi', $event.target.value, 50, 2540, $event.target)"
+                                   @change="onSliderCommit('dpi', $event.target.value, 50, 2540, $event.target)"
+                                   style="--val-pct: {{ $initDpiBarPct }}%;"
+                                   :style="rangeFillStyle(laserParams.dpi, 50, 2540)"
                                    class="sf-laser-range">
                         </div>
 
@@ -1170,20 +1524,25 @@
                                            min="1"
                                            max="200"
                                            x-model.number="laserParams.frequency_khz"
-                                           @change="persistLaserParams()"
+                                           @change="onNumericParamChange('frequency_khz', 1, 200)"
                                            class="w-12 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
                                     <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">kHz</span>
                                 </div>
                             </div>
                             <input type="range"
+                                   data-sf-param-range="frequency_khz"
                                    min="1"
-                                   :max="Math.max(150, Number(laserParams.frequency_khz) || 150)"
+                                   max="200"
                                    step="1"
-                                   @mousedown.stop
-                                   @touchstart.stop
-                                   x-model.number="laserParams.frequency_khz"
-                                   @change="persistLaserParams()"
-                                   :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(laserParams.frequency_khz) || 1) - 1) / (Math.max(150, Number(laserParams.frequency_khz) || 150) - 1)) * 100))}%;`"
+                                   value="{{ $initFreqVal }}"
+                                   :value="laserParams.frequency_khz"
+                                   @pointerdown.stop="beginSliderDrag('frequency_khz')"
+                                   @mousedown.stop="beginSliderDrag('frequency_khz')"
+                                   @touchstart.stop.passive="beginSliderDrag('frequency_khz')"
+                                   @input="onSliderInput('frequency_khz', $event.target.value, 1, 200, $event.target)"
+                                   @change="onSliderCommit('frequency_khz', $event.target.value, 1, 200, $event.target)"
+                                   style="--val-pct: {{ $initFreqBarPct }}%;"
+                                   :style="rangeFillStyle(laserParams.frequency_khz, 1, 200)"
                                    class="sf-laser-range">
                         </div>
                     </div>

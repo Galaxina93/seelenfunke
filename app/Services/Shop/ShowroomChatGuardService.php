@@ -2,6 +2,7 @@
 
 namespace App\Services\Shop;
 
+use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Support\Facades\Cache;
 
 class ShowroomChatGuardService
@@ -174,32 +175,41 @@ class ShowroomChatGuardService
             ];
         }
 
-        $reportKey = $this->reportCacheKey($target);
-        $reporters = Cache::get($reportKey, []);
-        if (!is_array($reporters)) {
-            $reporters = [];
+        $applyReport = function () use ($reporter, $target): array {
+            $reportKey = $this->reportCacheKey($target);
+            $reporters = Cache::get($reportKey, []);
+            if (!is_array($reporters)) {
+                $reporters = [];
+            }
+
+            $reporters[$reporter] = time();
+            Cache::put($reportKey, $reporters, self::SHADOW_MUTE_SECONDS);
+
+            $count = count($reporters);
+            $muted = $this->isPlayerShadowMuted($target);
+
+            if ($count >= self::REPORT_THRESHOLD && !$muted) {
+                Cache::put(
+                    $this->muteCacheKey($target),
+                    time() + self::SHADOW_MUTE_SECONDS,
+                    self::SHADOW_MUTE_SECONDS
+                );
+                $muted = true;
+            }
+
+            return [
+                'accepted' => true,
+                'reports_count' => $count,
+                'shadow_muted' => $muted,
+            ];
+        };
+
+        $store = Cache::getStore();
+        if ($store instanceof LockProvider) {
+            return Cache::lock('sf_showroom_rep_lock_' . md5($target), 5)->block(2, $applyReport);
         }
 
-        $reporters[$reporter] = time();
-        Cache::put($reportKey, $reporters, self::SHADOW_MUTE_SECONDS);
-
-        $count = count($reporters);
-        $muted = $this->isPlayerShadowMuted($target);
-
-        if ($count >= self::REPORT_THRESHOLD && !$muted) {
-            Cache::put(
-                $this->muteCacheKey($target),
-                time() + self::SHADOW_MUTE_SECONDS,
-                self::SHADOW_MUTE_SECONDS
-            );
-            $muted = true;
-        }
-
-        return [
-            'accepted' => true,
-            'reports_count' => $count,
-            'shadow_muted' => $muted,
-        ];
+        return $applyReport();
     }
 
     public function isPlayerShadowMuted(string $customerId): bool

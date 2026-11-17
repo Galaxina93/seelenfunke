@@ -109,6 +109,14 @@ class GameSparkHuntComponent extends Component
             return;
         }
 
+        // Atomares Single-Use Lock gegen parallele Livewire-Doppelklick-Requests
+        if (!Cache::add('spark_claim_lock:' . $sessionToken, 1, 60)) {
+            $this->isVisible = false;
+            $this->sparkToken = '';
+            session()->forget(['spark_hunt_token', 'spark_hunt_user_id', 'spark_hunt_spawned_at']);
+            return;
+        }
+
         // Token sofort verbrauchen (Single-Use Nonce)
         session()->forget(['spark_hunt_token', 'spark_hunt_user_id', 'spark_hunt_spawned_at']);
         $this->isVisible = false;

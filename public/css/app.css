@@ -4260,6 +4260,9 @@ video {
 .gap-8 {
   gap: 2rem;
 }
+.\!gap-2\.5 {
+  gap: 0.625rem !important;
+}
 .gap-x-1 {
   -moz-column-gap: 0.25rem;
        column-gap: 0.25rem;
@@ -8668,6 +8671,10 @@ video {
 .py-8 {
   padding-top: 2rem;
   padding-bottom: 2rem;
+}
+.\!px-3\.5 {
+  padding-left: 0.875rem !important;
+  padding-right: 0.875rem !important;
 }
 .\!pr-10 {
   padding-right: 2.5rem !important;
@@ -22887,6 +22894,12 @@ video {
     margin-bottom: calc(1rem * var(--tw-space-y-reverse));
   }
 
+  .sm\:space-y-0\.5 > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(0.125rem * calc(1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(0.125rem * var(--tw-space-y-reverse));
+  }
+
   .sm\:self-auto {
     align-self: auto;
   }
@@ -24870,6 +24883,10 @@ video {
     grid-template-columns: repeat(8, minmax(0, 1fr));
   }
 
+  .lg\:grid-cols-1 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
   .lg\:flex-row {
     flex-direction: row;
   }
@@ -25582,6 +25599,10 @@ video {
 
   .xl\:gap-8 {
     gap: 2rem;
+  }
+
+  .xl\:gap-6 {
+    gap: 1.5rem;
   }
 
   .xl\:space-y-8 > :not([hidden]) ~ :not([hidden]) {

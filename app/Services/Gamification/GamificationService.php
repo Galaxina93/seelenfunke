@@ -25,7 +25,11 @@ class GamificationService
         self::$columnsChecked = true;
 
         try {
-            if (!Schema::hasColumn('customer_gamifications', 'active_background') || !Schema::hasColumn('customer_gamifications', 'player_name')) {
+            if (
+                !Schema::hasColumn('customer_gamifications', 'active_background')
+                || !Schema::hasColumn('customer_gamifications', 'player_name')
+                || !Schema::hasColumn('customer_gamifications', 'magma_unlocked_level')
+            ) {
                 Schema::table('customer_gamifications', function (\Illuminate\Database\Schema\Blueprint $table) {
                     if (!Schema::hasColumn('customer_gamifications', 'active_background')) {
                         $table->string('active_background', 64)->default('default');
@@ -41,6 +45,18 @@ class GamificationService
                     }
                     if (!Schema::hasColumn('customer_gamifications', 'ranking_opt_in')) {
                         $table->boolean('ranking_opt_in')->default(false);
+                    }
+                    if (!Schema::hasColumn('customer_gamifications', 'magma_unlocked_level')) {
+                        $table->unsignedTinyInteger('magma_unlocked_level')->default(1);
+                    }
+                    if (!Schema::hasColumn('customer_gamifications', 'magma_hearts')) {
+                        $table->unsignedTinyInteger('magma_hearts')->default(6);
+                    }
+                    if (!Schema::hasColumn('customer_gamifications', 'magma_active_run_id')) {
+                        $table->string('magma_active_run_id', 64)->nullable();
+                    }
+                    if (!Schema::hasColumn('customer_gamifications', 'magma_run_committed')) {
+                        $table->boolean('magma_run_committed')->default(false);
                     }
                 });
             }
@@ -81,15 +97,7 @@ class GamificationService
      */
     public function hasCompletedOrder(Customer $customer): bool
     {
-        $hasOrder = OrderOrder::where('customer_id', $customer->id)
-            ->whereNotIn('status', ['cancelled', 'refunded'])
-            ->where(function ($q) {
-                $q->where('payment_status', 'paid')
-                  ->orWhereIn('status', ['completed', 'shipped', 'delivered', 'processing']);
-            })
-            ->exists();
-
-        if ($hasOrder) {
+        if (LobbyInstanceService::hasValidPaidNonRevokedOrder((string) $customer->id)) {
             return true;
         }
 
@@ -939,50 +947,57 @@ class GamificationService
 
     public function incrementTitleProgress(CustomerGamification $profile, string $titleId, int $amount = 1): void
     {
-        if (!$profile->is_active) {
+        if (!$profile->is_active || !$profile->id) {
             return;
         }
 
-        $progress = $profile->titles_progress;
-        if (!is_array($progress) || empty($progress)) {
-            $progress = $this->getInitialTitlesProgress();
-        }
-        if (!array_key_exists($titleId, $progress)) {
-            $progress[$titleId] = 0;
-        }
+        DB::transaction(function () use ($profile, $titleId, $amount) {
+            $locked = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first();
+            if (!$locked || !$locked->is_active) {
+                return;
+            }
 
-        $progress[$titleId] += $amount;
-        $profile->update(['titles_progress' => $progress]);
+            $progress = $locked->titles_progress;
+            if (!is_array($progress) || empty($progress)) {
+                $progress = $this->getInitialTitlesProgress();
+            }
+            if (!array_key_exists($titleId, $progress)) {
+                $progress[$titleId] = 0;
+            }
+
+            $progress[$titleId] = (int) $progress[$titleId] + $amount;
+            $locked->titles_progress = $progress;
+            $locked->save();
+
+            $profile->titles_progress = $progress;
+        });
     }
 
     public function syncDynamicTitles(CustomerGamification $profile): void
     {
         $customer = $profile->customer;
-        if (!$customer) {
+        if (!$customer || !$profile->id) {
             return;
         }
 
-        $progress = $profile->titles_progress;
-        if (!is_array($progress)) {
-            $progress = $this->getInitialTitlesProgress();
-        }
         $tz = config('app.timezone', 'Europe/Berlin');
 
         $reviews = ProductReview::where('customer_id', $customer->id)->where('status', 'approved')->get();
-        $progress['botschafter'] = $reviews->count();
-        $progress['treuer_bewerter'] = $reviews->where('rating', 5)->count();
-        $progress['bildreporter'] = $reviews->filter(fn($r) => !empty($r->media))->count();
-        $progress['wortgewandt'] = $reviews->filter(fn($r) => mb_strlen($r->content ?? '') >= 100)->count();
+        $computedCounters = [];
+        $computedCounters['botschafter'] = $reviews->count();
+        $computedCounters['treuer_bewerter'] = $reviews->where('rating', 5)->count();
+        $computedCounters['bildreporter'] = $reviews->filter(fn ($r) => !empty($r->media))->count();
+        $computedCounters['wortgewandt'] = $reviews->filter(fn ($r) => mb_strlen($r->content ?? '') >= 100)->count();
 
         $orders = OrderOrder::where('customer_id', $customer->id)
             ->where('payment_status', 'paid')
-            ->whereNotIn('status', ['cancelled', 'refunded'])
+            ->whereNotIn('status', ['cancelled', 'refunded', 'revoked'])
             ->with('items.product.categories')
             ->get();
-        $progress['schatzhueter'] = $orders->count();
-        $progress['massenkaeufer'] = (int) $orders->flatMap(fn($o) => $o->items)->sum('quantity');
+        $computedCounters['schatzhueter'] = $orders->count();
+        $computedCounters['massenkaeufer'] = (int) $orders->flatMap(fn ($o) => $o->items)->sum('quantity');
 
-        $progress['freudebringer'] = $orders->filter(function ($order) {
+        $computedCounters['freudebringer'] = $orders->filter(function ($order) {
             if (isset($order->is_different_shipping_address) && $order->is_different_shipping_address) {
                 return true;
             }
@@ -996,7 +1011,7 @@ class GamificationService
             if ($shipStreet === '' && $shipCity === '') {
                 return false;
             }
-            $norm = fn(array $a) => mb_strtolower(trim(implode('|', [
+            $norm = fn (array $a) => mb_strtolower(trim(implode('|', [
                 $a['first_name'] ?? '',
                 $a['last_name'] ?? '',
                 $a['street'] ?? $a['address'] ?? '',
@@ -1006,7 +1021,7 @@ class GamificationService
             return $norm($billing) !== $norm($shipping);
         })->count();
 
-        $progress['entdecker'] = $orders->flatMap(fn($o) => $o->items->flatMap(function ($i) {
+        $computedCounters['entdecker'] = $orders->flatMap(fn ($o) => $o->items->flatMap(function ($i) {
             if (!$i->product) {
                 return [];
             }
@@ -1016,7 +1031,7 @@ class GamificationService
             return $i->product->categories?->pluck('id')->all() ?? [];
         }))->filter()->unique()->count();
 
-        $progress['nachtschwaermer'] = $orders->filter(function ($o) use ($tz) {
+        $computedCounters['nachtschwaermer'] = $orders->filter(function ($o) use ($tz) {
             if (!$o->created_at) {
                 return false;
             }
@@ -1024,51 +1039,93 @@ class GamificationService
             return $hour >= 22 || $hour <= 4;
         })->count();
 
-        $progress['wochenend_shopper'] = $orders->filter(fn($o) => $o->created_at && $o->created_at->copy()->timezone($tz)->isWeekend())->count();
-        $progress['wiederholungstaeter'] = $orders->filter(fn($o) => (bool) $o->created_at)->map(fn($o) => $o->created_at->format('Y-m'))->unique()->count();
-        $progress['treue_seele'] = max(0, $customer->created_at ? (int) floor($customer->created_at->diffInDays(now())) : 0);
-        $progress['funkenkoenig'] = (int) ($profile->funken_total_earned ?? 0);
+        $computedCounters['wochenend_shopper'] = $orders->filter(fn ($o) => $o->created_at && $o->created_at->copy()->timezone($tz)->isWeekend())->count();
+        $computedCounters['wiederholungstaeter'] = $orders->filter(fn ($o) => (bool) $o->created_at)->map(fn ($o) => $o->created_at->format('Y-m'))->unique()->count();
+        $computedCounters['treue_seele'] = max(0, $customer->created_at ? (int) floor($customer->created_at->diffInDays(now())) : 0);
 
-        $updatePayload = ['titles_progress' => $progress];
-        if ($profile->active_title) {
-            $configs = GameConfig::getTitles();
-            $activeKey = (string) $profile->active_title;
-            $currentLevel = min(GameConfig::MAX_LEVEL, max(1, (int) ($profile->level ?: 1)));
+        DB::transaction(function () use ($profile, $computedCounters) {
+            $locked = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first();
+            if (!$locked) {
+                return;
+            }
 
-            if ($activeKey === 'seelengott') {
-                $allDiamonds = true;
-                foreach ($configs as $key => $cfg) {
-                    $maxReq = (int) ($cfg['tiers']['diamant']['req'] ?? PHP_INT_MAX);
-                    if ((int) ($progress[$key] ?? 0) < $maxReq) {
-                        $allDiamonds = false;
-                        break;
-                    }
-                }
-                if (!$allDiamonds || $currentLevel < GameConfig::MAX_LEVEL) {
-                    $updatePayload['active_title'] = null;
-                }
-            } elseif (str_starts_with($activeKey, 'level_')) {
-                $lvl = (int) str_replace('level_', '', $activeKey);
-                if ($lvl < 1 || $lvl > $currentLevel || !isset(GameConfig::getLevelTitles()[$lvl])) {
-                    $updatePayload['active_title'] = null;
-                }
-            } else {
-                $minReq = $configs[$activeKey]['tiers']['silber']['req'] ?? PHP_INT_MAX;
-                if (!isset($configs[$activeKey]) || (int) ($progress[$activeKey] ?? 0) < $minReq) {
-                    $updatePayload['active_title'] = null;
+            $existingProgress = is_array($locked->titles_progress)
+                ? $locked->titles_progress
+                : $this->getInitialTitlesProgress();
+
+            $mergedProgress = $existingProgress;
+            $changed = false;
+
+            foreach ($computedCounters as $counterKey => $counterVal) {
+                if (($mergedProgress[$counterKey] ?? null) !== $counterVal) {
+                    $mergedProgress[$counterKey] = $counterVal;
+                    $changed = true;
                 }
             }
-        }
 
-        CustomerGamification::withoutTimestamps(function () use ($profile, $updatePayload) {
-            $profile->update($updatePayload);
+            $expectedFunkenkoenig = (int) ($locked->funken_total_earned ?? 0);
+            if (($mergedProgress['funkenkoenig'] ?? null) !== $expectedFunkenkoenig) {
+                $mergedProgress['funkenkoenig'] = $expectedFunkenkoenig;
+                $changed = true;
+            }
+
+            $newActiveTitle = $locked->active_title;
+            if ($locked->active_title) {
+                $configs = GameConfig::getTitles();
+                $activeKey = (string) $locked->active_title;
+                $currentLevel = min(GameConfig::MAX_LEVEL, max(1, (int) ($locked->level ?: 1)));
+
+                if ($activeKey === 'seelengott') {
+                    $allDiamonds = true;
+                    foreach ($configs as $key => $cfg) {
+                        $maxReq = (int) ($cfg['tiers']['diamant']['req'] ?? PHP_INT_MAX);
+                        if ((int) ($mergedProgress[$key] ?? 0) < $maxReq) {
+                            $allDiamonds = false;
+                            break;
+                        }
+                    }
+                    if (!$allDiamonds || $currentLevel < GameConfig::MAX_LEVEL) {
+                        $newActiveTitle = null;
+                        $changed = true;
+                    }
+                } elseif (str_starts_with($activeKey, 'level_')) {
+                    $lvl = (int) str_replace('level_', '', $activeKey);
+                    if ($lvl < 1 || $lvl > $currentLevel || !isset(GameConfig::getLevelTitles()[$lvl])) {
+                        $newActiveTitle = null;
+                        $changed = true;
+                    }
+                } else {
+                    $minReq = $configs[$activeKey]['tiers']['silber']['req'] ?? PHP_INT_MAX;
+                    if (!isset($configs[$activeKey]) || (int) ($mergedProgress[$activeKey] ?? 0) < $minReq) {
+                        $newActiveTitle = null;
+                        $changed = true;
+                    }
+                }
+            }
+
+            if ($changed) {
+                $updatePayload = [
+                    'titles_progress' => $mergedProgress,
+                    'active_title' => $newActiveTitle,
+                ];
+                CustomerGamification::withoutTimestamps(function () use ($locked, $updatePayload) {
+                    $locked->update($updatePayload);
+                });
+            }
+
+            $profile->titles_progress = $mergedProgress;
+            $profile->active_title = $newActiveTitle;
         });
     }
 
-    public function evaluateTitles(CustomerGamification $profile): array
+    public function evaluateTitles(CustomerGamification $profile, bool $syncBeforeEvaluate = true): array
     {
-        $this->syncDynamicTitles($profile);
-        $freshProfile = $profile->fresh() ?? $profile;
+        if ($syncBeforeEvaluate) {
+            $this->syncDynamicTitles($profile);
+            $freshProfile = $profile->fresh() ?? $profile;
+        } else {
+            $freshProfile = $profile;
+        }
         $progress = $freshProfile->titles_progress ?? $this->getInitialTitlesProgress();
         $currentLevel = min(GameConfig::MAX_LEVEL, max(1, (int) ($freshProfile->level ?: 1)));
 
@@ -1207,7 +1264,10 @@ class GamificationService
         }
 
         if ($titleKey === null || $titleKey === '') {
-            $profile->update(['active_title' => null]);
+            DB::transaction(function () use ($profile) {
+                $locked = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first() ?? $profile;
+                $locked->update(['active_title' => null]);
+            });
             return ['success' => true, 'rank_name' => null, 'message' => 'Titel-Auswahl zurückgesetzt.'];
         }
 
@@ -1217,7 +1277,10 @@ class GamificationService
             if (empty($titlesData['is_seelengott'])) {
                 return ['success' => false, 'message' => 'Der Titel "' . GameConfig::ULTIMATE_TITLE_NAME . '" erfordert Level 10 und alle 5 Titel auf Max-Stufe (Diamant).'];
             }
-            $profile->update(['active_title' => 'seelengott']);
+            DB::transaction(function () use ($profile) {
+                $locked = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first() ?? $profile;
+                $locked->update(['active_title' => 'seelengott']);
+            });
             return ['success' => true, 'rank_name' => GameConfig::ULTIMATE_TITLE_NAME, 'message' => 'Göttlicher Rang "' . GameConfig::ULTIMATE_TITLE_NAME . '" ausgerüstet!'];
         }
 
@@ -1227,7 +1290,10 @@ class GamificationService
             if (!$lvlInfo || empty($lvlInfo['unlocked'])) {
                 return ['success' => false, 'message' => 'Dieser Level-Titel ist noch nicht freigeschaltet.'];
             }
-            $profile->update(['active_title' => $titleKey]);
+            DB::transaction(function () use ($profile, $titleKey) {
+                $locked = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first() ?? $profile;
+                $locked->update(['active_title' => $titleKey]);
+            });
             return ['success' => true, 'rank_name' => $lvlInfo['name'], 'message' => 'Level-Titel "' . $lvlInfo['name'] . '" ausgerüstet!'];
         }
 
@@ -1236,7 +1302,10 @@ class GamificationService
             return ['success' => false, 'message' => 'Dieser Titel ist noch gesperrt (mindestens Silber-Stufe erforderlich).'];
         }
 
-        $profile->update(['active_title' => $titleKey]);
+        DB::transaction(function () use ($profile, $titleKey) {
+            $locked = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first() ?? $profile;
+            $locked->update(['active_title' => $titleKey]);
+        });
         return ['success' => true, 'rank_name' => $titleInfo['tier_name'], 'message' => 'Titel "' . $titleInfo['tier_name'] . '" ausgerüstet!'];
     }
 
@@ -1275,14 +1344,26 @@ class GamificationService
             $validatedPlayerName = $validation['sanitized'];
         }
 
-        $oldRankingOptIn = (bool) $profile->ranking_opt_in;
-        $oldUseRealName = (bool) $profile->use_real_name;
-        $oldPlayerName = (string) ($profile->player_name ?? '');
+        [$oldRankingOptIn, $oldUseRealName, $oldPlayerName, $profile] = DB::transaction(function () use (
+            $profile,
+            $rankingOptIn,
+            $useRealName,
+            $validatedPlayerName
+        ) {
+            $locked = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first() ?? $profile;
+            $prevOptIn = (bool) $locked->ranking_opt_in;
+            $prevReal = (bool) $locked->use_real_name;
+            $prevName = (string) ($locked->player_name ?? '');
 
-        $profile->ranking_opt_in = $rankingOptIn;
-        $profile->use_real_name = $useRealName;
-        $profile->player_name = $validatedPlayerName;
-        $profile->save();
+            $locked->ranking_opt_in = $rankingOptIn;
+            $locked->use_real_name = $useRealName;
+            $locked->player_name = $validatedPlayerName;
+            $locked->save();
+
+            return [$prevOptIn, $prevReal, $prevName, $locked];
+        });
+
+        \App\Http\Controllers\Api\FunkenwerkHeroesController::forgetPublicCache();
 
         $hofChanges = [];
         if ($oldRankingOptIn !== (bool) $profile->ranking_opt_in) {
@@ -1400,8 +1481,11 @@ class GamificationService
      * Erzeugt die Profil-Darstellungsdaten eines Kunden für das öffentliche Profil-Modal (z. B. bei Produktbewertungen)
      * sowie für die Halle der Helden.
      */
-    public function getPublicProfileCardData(Customer $customer, ?CustomerGamification $profile = null): array
-    {
+    public function getPublicProfileCardData(
+        Customer $customer,
+        ?CustomerGamification $profile = null,
+        bool $syncDynamic = false
+    ): array {
         $this->ensureHangarColumns();
         $rawProfile = $profile ?? $customer->gamification ?? CustomerGamification::where('customer_id', $customer->id)->first();
         $activeProfile = ($rawProfile && $rawProfile->is_active) ? $rawProfile : null;
@@ -1422,7 +1506,7 @@ class GamificationService
         }
 
         $lvlCfg = GameConfig::getLevelConfig($displayLevel);
-        $titlesData = $activeProfile ? $this->evaluateTitles($activeProfile) : null;
+        $titlesData = $activeProfile ? $this->evaluateTitles($activeProfile, $syncDynamic) : null;
         $defaultRankName = GameConfig::getLevelTitles()[$level]['name'] ?? 'Kleiner Seelenfunke';
         $activeRankName = ($activeProfile && $titlesData)
             ? ($this->resolveActiveRankName($activeProfile, $titlesData) ?: $defaultRankName)

@@ -394,6 +394,7 @@ class Customer3DLobbyInstancesTest extends TestCase
             'first_name' => 'Leon',
             'last_name' => 'StrengVertraulichRechnung',
             'email' => 'leon.privat@geheim-domain.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('TopSecretPass!99'),
         ]);
         CustomerGamification::create([
@@ -416,6 +417,7 @@ class Customer3DLobbyInstancesTest extends TestCase
             'first_name' => 'Sabine',
             'last_name' => 'GeheimerNachnameZwei',
             'email' => 'sabine.rechnung@privat.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('AnotherSecret!88'),
         ]);
         CustomerGamification::create([
@@ -776,6 +778,35 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->assertOk()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('zone', 'lava');
+
+        // (e) Red-Team Härtung: Showroom-Chat & Report erfordern can_enter_sanctums === true + selben Raum + sync_interval_ms = 750
+        $bootAuth = $this->actingAs($noMagicCustomer, 'customer')->getJson('/shop/showroom-data')->assertOk();
+        $this->assertSame(750, $bootAuth->json('multiplayer.sync_interval_ms'));
+        $targetPid = (string) $bootAuth->json('multiplayer.player_id');
+
+        // Ohne Bestellung kein Chat & kein Report (403 order_required)
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/shop/showroom-chat', ['message' => 'Hallo ohne Bestellung'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'order_required');
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/shop/showroom-report', ['target_player_id' => $targetPid])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'order_required');
+
+        // Berechtigter Kunde, der aber NICHT im selben Raum aktiv ist, kann keinen fremden Spieler melden (422)
+        $outsiderReporter = $this->makeCustomer(83, true, 'AussenMelder', 3, true, true);
+        $this->actingAs($outsiderReporter, 'customer')
+            ->postJson('/shop/showroom-report', ['target_player_id' => $targetPid])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'not_in_room');
+
+        // Sobald Reporter denselben Raum betritt, wird die Meldung akzeptiert
+        $this->actingAs($outsiderReporter, 'customer')->getJson('/shop/showroom-data')->assertOk();
+        $this->actingAs($outsiderReporter, 'customer')
+            ->postJson('/shop/showroom-report', ['target_player_id' => $targetPid])
+            ->assertOk()
+            ->assertJsonPath('reports_count', 1);
     }
 
     private function makeCustomer(
@@ -791,6 +822,7 @@ class Customer3DLobbyInstancesTest extends TestCase
             'first_name' => 'Vorname' . $index,
             'last_name' => 'RechnungsNachname' . $index,
             'email' => sprintf('kunde.%d.geheim@example.de', $index),
+            'email_verified_at' => now(),
             'password' => bcrypt('SecretPass!' . $index),
         ]);
 

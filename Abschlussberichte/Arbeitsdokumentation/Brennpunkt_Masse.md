@@ -31,7 +31,7 @@ Zentrale Praxis-Dokumentation aller gemessenen Fokus-Höhen (`mm` in xTool Studi
 ## 1b. Validierte Handbuchwerte 11/2026 (Vektor & Bitmap getrennt) + Foto-Dot-Gain-Regel
 
 > [!IMPORTANT]
-> Quelle: **PDF 1** (Laserwerte- & Schwarzgravur-Handbuch, Pos. 01-16) und **PDF 2** (Laserwerte-Datenbank Stand 11/2026). Die Werte sind identisch in `database/seeders/ProductSeeder.php`, im Schritt-1-Preset-Katalog `XtoolLaserCockpitService::getHandbookPresetCatalog()` und in der Live-Sync-Migration `2026_11_17_160000_sync_validated_xtool_uv_handbook_laser_values.php` hinterlegt. Kundenfotos laufen im `.xcs`/`.xf` auf einem eigenen **Foto-Bitmap-Layer**, Texte & Symbole auf einem eigenen **Vektor-Layer** (deckungsgleiche Geometrie).
+> Quelle: **PDF 1** (Laserwerte- & Schwarzgravur-Handbuch, Pos. 01-16) und **PDF 2** (Laserwerte-Datenbank Stand 11/2026). Alle Produkte unterstützen unter `/admin/products` -> Schritt `4.2` -> `2. Wie man es bearbeitet` beliebig viele benannte, aufklappbare **Laserprofile (`xtool_profiles`)** (z. B. `Schwarz (Anlass-Gravur 100 kHz)` auf dem Lamellenrost mit `21,5 mm` Fokus vs. `Weiß / Silber-Kontrast` mit `19,5 mm` Fokus, Punktdauer-Range `1 bis 3000 µs`). Beim direkten Senden aus dem Live-Laser-Cockpit (`2. An Laser senden`) fährt `XtoolLaserCockpitService::sendJobToLaserV2()` vor dem Upload von `tmp.xf` automatisch den Z-Motor via `POST /v1/laser-head/focus/control` (`goTo`, `z = focus_mm + 6,0`) auf die eingestellte Fokus-Höhe. Kundenfotos laufen im `.xcs`/`.xf` auf einem eigenen **Foto-Bitmap-Layer**, Texte & Symbole auf einem eigenen **Vektor-Layer** (deckungsgleiche Geometrie).
 
 | Produkt | Polarität | Vektor (Text & Symbole) | Bitmap (Kundenfoto) | Zusatz-Presets |
 | :--- | :--- | :--- | :--- | :--- |

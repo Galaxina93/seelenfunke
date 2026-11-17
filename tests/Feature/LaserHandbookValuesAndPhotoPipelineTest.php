@@ -27,9 +27,9 @@ class LaserHandbookValuesAndPhotoPipelineTest extends TestCase
      * [polarity, bitmap: focus, power, µs, kHz, DPI, passes | vector: focus, power, mm/s, kHz, L/cm, passes]
      */
     private const EXPECTED = [
-        'seelen-pfote-hundemarke'   => ['dark_on_light', [3.2, 45, 210, 65, 800, 1], [3.2, 42, 110, 65, 330, 1]],
-        'goldenes-seelen-herz'      => ['dark_on_light', [5.4, 48, 220, 65, 800, 1], [5.4, 46, 100, 65, 350, 1]],
-        'seelen-talisman'           => ['dark_on_light', [3.5, 46, 215, 65, 800, 1], [3.6, 44, 105, 65, 330, 1]],
+        'seelen-pfote-hundemarke'   => ['dark_on_light', [21.5, 95, 1100, 100, 1270, 1], [21.5, 95, 25, 100, 1000, 1]],
+        'goldenes-seelen-herz'      => ['dark_on_light', [21.5, 95, 1100, 100, 1270, 1], [21.5, 95, 25, 100, 1000, 1]],
+        'seelen-talisman'           => ['dark_on_light', [21.5, 95, 1100, 100, 1270, 1], [21.5, 95, 25, 100, 1000, 1]],
         'seelen-anhaenger'          => ['white_on_dark', [19.9, 85, 280, 40, 600, 1], [19.9, 70, 450, 40, 300, 1]],
         'id-armband-silber-herz'    => ['dark_on_light', [2.2, 75, 240, 50, 1000, 2], [2.2, 75, 180, 50, 400, 2]],
         'id-armband-gold-herz'      => ['dark_on_light', [2.5, 34, 180, 70, 1000, 1], [2.5, 34, 130, 70, 400, 1]],
@@ -482,12 +482,12 @@ class LaserHandbookValuesAndPhotoPipelineTest extends TestCase
         $photoProfile = collect($mode['profiles'])->firstWhere('values.seelenfunkeLayer', 'photo_bitmap');
         $vectorProfile = collect($mode['profiles'])->firstWhere('values.seelenfunkeLayer', 'text_vector');
         $this->assertSame('threshold', $photoProfile['values']['bitmapMode']);
-        $this->assertSame(45, $photoProfile['values']['power']);
-        $this->assertSame(210, $photoProfile['values']['dotDuration']);
-        $this->assertSame(42, $vectorProfile['values']['power']);
-        $this->assertSame(110, $vectorProfile['values']['speed']);
-        $this->assertSame(65, $vectorProfile['values']['frequency']);
-        $this->assertSame(330, $vectorProfile['values']['density']);
+        $this->assertSame(95, $photoProfile['values']['power']);
+        $this->assertSame(1100, $photoProfile['values']['dotDuration']);
+        $this->assertSame(95, $vectorProfile['values']['power']);
+        $this->assertSame(25, $vectorProfile['values']['speed']);
+        $this->assertSame(100, $vectorProfile['values']['frequency']);
+        $this->assertSame(1000, $vectorProfile['values']['density']);
         $this->assertNull($xcs['photo_jarvis_png'], 'Silhouetten benötigen keine Jarvis-Vorschau');
         $zip->close();
     }

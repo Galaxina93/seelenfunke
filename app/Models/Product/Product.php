@@ -1246,7 +1246,7 @@ use HasFactory, HasUuids, SoftDeletes;
             } elseif ($isPresetWrapAddon) {
                 $canonicalId = 'gift_wrap_black_gold';
                 $rawName = 'Geschenkpapier (Schwarz-Gold-Look)';
-                $rawDesc = ($rawDesc !== '' && !str_contains($rawDesc, ' – '))
+                $rawDesc = ($rawDesc !== '' && !str_contains($rawDesc, " \u{2013} "))
                     ? $rawDesc
                     : 'Edles Schwarz-Gold-Geschenkpapier: Wahlweise fertig verpackt oder als Bogen zum Selbstverpacken beigelegt';
                 if ($priceCents === 0 || $priceCents === 290) {
@@ -1682,11 +1682,309 @@ use HasFactory, HasUuids, SoftDeletes;
         ];
     }
 
+    public const MIN_LASER_DOT_DURATION_US = 1;
+    public const MAX_LASER_DOT_DURATION_US = 3000;
+
+    /**
+     * Normalisiert ein einzelnes benanntes Laserprofil aus configurator_settings['xtool_profiles'].
+     *
+     * @param  array<string, mixed>  $raw
+     * @param  array<string, mixed>  $fallbackSettings
+     * @return array<string, mixed>
+     */
+    public static function normalizeLaserProfileItem(array $raw, int $index = 0, array $fallbackSettings = []): array
+    {
+        $cleanText = static function (string $val): string {
+            return trim(str_replace(" \u{2013} ", ' · ', strip_tags($val)));
+        };
+
+        $defaultTitle = $index === 0 ? 'Standard' : ('Profil ' . ($index + 1));
+        $title = $cleanText((string) ($raw['title'] ?? $raw['label'] ?? $defaultTitle));
+        if ($title === '') {
+            $title = $defaultTitle;
+        }
+        $title = mb_substr($title, 0, 120);
+
+        $rawId = preg_replace('/[^A-Za-z0-9_-]/', '_', trim((string) ($raw['id'] ?? $raw['key'] ?? '')));
+        if ($rawId === null || $rawId === '') {
+            $slugPart = \Illuminate\Support\Str::slug($title, '_');
+            $rawId = 'prof_' . ($slugPart !== '' ? substr($slugPart, 0, 36) : ('p' . ($index + 1))) . '_' . ($index + 1);
+        }
+
+        $parseFloat = static function ($v, float $fb = 0.0): float {
+            if ($v === null || $v === '') {
+                return $fb;
+            }
+            $norm = str_replace(',', '.', trim((string) $v));
+            return is_numeric($norm) ? (float) $norm : $fb;
+        };
+
+        $parseInt = static function ($v, int $fb = 0): int {
+            if ($v === null || $v === '') {
+                return $fb;
+            }
+            $norm = str_replace(',', '.', trim((string) $v));
+            return is_numeric($norm) ? (int) round((float) $norm) : $fb;
+        };
+
+        $fbFocus = $parseFloat($fallbackSettings['xtool_focus_mm'] ?? null, 0.0);
+        $focusRaw = $parseFloat($raw['focus_mm'] ?? ($raw['xtool_focus_mm'] ?? null), $fbFocus);
+        $focusMm = $focusRaw > 0 ? round(max(0.1, min(150.0, $focusRaw)), 2) : 0.0;
+
+        $elTypeRaw = $cleanText((string) ($raw['element_type'] ?? ($raw['xtool_element_type'] ?? ($fallbackSettings['xtool_element_type'] ?? 'Bild'))));
+        $elementType = in_array($elTypeRaw, ['Bild', 'Vektor', '3D-Modell'], true) ? $elTypeRaw : 'Bild';
+
+        $tabRaw = $cleanText((string) ($raw['engrave_tab'] ?? ($raw['xtool_engrave_tab'] ?? ($fallbackSettings['xtool_engrave_tab'] ?? 'Gravieren'))));
+        $engraveTab = in_array($tabRaw, ['Gravieren', 'Farbgravur', 'Konturgravur'], true) ? $tabRaw : 'Gravieren';
+
+        $presetRaw = $cleanText((string) ($raw['preset_mode'] ?? ($raw['xtool_preset_mode'] ?? ($fallbackSettings['xtool_preset_mode'] ?? 'Benutzerdefiniert'))));
+        $presetMode = in_array($presetRaw, ['Benutzerdefiniert', 'Referenz'], true) ? $presetRaw : 'Benutzerdefiniert';
+
+        $fbDot = $parseInt($fallbackSettings['xtool_dot_duration_us'] ?? null, 0);
+        $dotRaw = $parseInt($raw['dot_duration_us'] ?? ($raw['xtool_dot_duration_us'] ?? null), $fbDot);
+        $dotDurationUs = $dotRaw > 0
+            ? max(self::MIN_LASER_DOT_DURATION_US, min(self::MAX_LASER_DOT_DURATION_US, $dotRaw))
+            : 0;
+
+        $fbPower = $parseInt($fallbackSettings['xtool_power_percent'] ?? null, 0);
+        $powerRaw = $parseInt($raw['power_percent'] ?? ($raw['xtool_power_percent'] ?? null), $fbPower);
+        $powerPercent = $powerRaw > 0 ? max(1, min(100, $powerRaw)) : 0;
+
+        $fbDpi = $parseInt($fallbackSettings['xtool_dpi'] ?? null, 0);
+        $dpiRaw = $parseInt($raw['dpi'] ?? ($raw['xtool_dpi'] ?? null), $fbDpi);
+        $dpi = $dpiRaw > 0 ? max(50, min(2540, $dpiRaw)) : 0;
+
+        $fbFreq = $parseInt($fallbackSettings['xtool_frequency_khz'] ?? null, 0);
+        $freqRaw = $parseInt($raw['frequency_khz'] ?? ($raw['xtool_frequency_khz'] ?? null), $fbFreq);
+        $frequencyKhz = $freqRaw > 0 ? max(1, min(200, $freqRaw)) : 0;
+
+        $vectorNote = mb_substr(
+            $cleanText((string) ($raw['vector_note'] ?? ($raw['xtool_vector_note'] ?? ($fallbackSettings['xtool_vector_note'] ?? '')))),
+            0,
+            250
+        );
+
+        $fbSpeed = $parseInt($fallbackSettings['xtool_speed_mms'] ?? null, 200);
+        $speedRaw = $raw['speed_mms'] ?? ($raw['xtool_speed_mms'] ?? null);
+        if (($speedRaw === null || $speedRaw === '') && $vectorNote !== '' && preg_match('/(\d+(?:[.,]\d+)?)\s*mm\s*\/\s*s/iu', $vectorNote, $sm)) {
+            $speedRaw = (int) round((float) str_replace(',', '.', $sm[1]));
+        }
+        $speedParsed = $parseInt($speedRaw, $fbSpeed > 0 ? $fbSpeed : 200);
+        $speedMms = max(1, min(4000, $speedParsed > 0 ? $speedParsed : 200));
+
+        $fbPasses = $parseInt($fallbackSettings['xtool_passes'] ?? null, 1);
+        $passesRaw = $parseInt($raw['passes'] ?? ($raw['xtool_passes'] ?? null), $fbPasses);
+        $passes = $passesRaw > 0 ? max(1, min(20, $passesRaw)) : 0;
+
+        $bitmapMode = $cleanText((string) ($raw['bitmap_mode'] ?? ($raw['xtool_bitmap_mode'] ?? ($fallbackSettings['xtool_bitmap_mode'] ?? ''))));
+        $engraveMode = $cleanText((string) ($raw['engrave_mode'] ?? ($raw['xtool_engrave_mode'] ?? ($fallbackSettings['xtool_engrave_mode'] ?? ''))));
+
+        $item = [
+            'id'              => $rawId,
+            'title'           => $title,
+            'is_default'      => filter_var($raw['is_default'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            'focus_mm'        => $focusMm,
+            'element_type'    => $elementType,
+            'engrave_tab'     => $engraveTab,
+            'preset_mode'     => $presetMode,
+            'dot_duration_us' => $dotDurationUs,
+            'power_percent'   => $powerPercent,
+            'dpi'             => $dpi,
+            'frequency_khz'   => $frequencyKhz,
+            'speed_mms'       => $speedMms,
+            'passes'          => $passes,
+            'bitmap_mode'     => $bitmapMode,
+            'engrave_mode'    => $engraveMode,
+            'vector_note'     => $vectorNote,
+        ];
+
+        foreach (['equipment_key', 'process_mode', 'material'] as $optKey) {
+            if (isset($raw[$optKey]) && trim((string) $raw[$optKey]) !== '') {
+                $item[$optKey] = $cleanText((string) $raw[$optKey]);
+            }
+        }
+
+        return $item;
+    }
+
+    /**
+     * Erzeugt aus den primären xtool_*-Feldern eines configurator_settings-Arrays ein normalisiertes Profil-Array.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    public static function extractPrimaryLaserProfileFromSettings(array $settings, string $title = 'Standard', string $id = 'prof_standard'): array
+    {
+        return self::normalizeLaserProfileItem([
+            'id'              => $id,
+            'title'           => $title,
+            'is_default'      => true,
+            'focus_mm'        => $settings['xtool_focus_mm'] ?? null,
+            'element_type'    => $settings['xtool_element_type'] ?? 'Bild',
+            'engrave_tab'     => $settings['xtool_engrave_tab'] ?? 'Gravieren',
+            'preset_mode'     => $settings['xtool_preset_mode'] ?? 'Benutzerdefiniert',
+            'dot_duration_us' => $settings['xtool_dot_duration_us'] ?? null,
+            'power_percent'   => $settings['xtool_power_percent'] ?? null,
+            'dpi'             => $settings['xtool_dpi'] ?? null,
+            'frequency_khz'   => $settings['xtool_frequency_khz'] ?? null,
+            'speed_mms'       => $settings['xtool_speed_mms'] ?? null,
+            'passes'          => $settings['xtool_passes'] ?? null,
+            'bitmap_mode'     => $settings['xtool_bitmap_mode'] ?? '',
+            'engrave_mode'    => $settings['xtool_engrave_mode'] ?? '',
+            'vector_note'     => $settings['xtool_vector_note'] ?? '',
+        ], 0, $settings);
+    }
+
+    /**
+     * Überträgt die Werte eines Standard-Laserprofils rückwärtskompatibel in die primären xtool_*-Felder.
+     *
+     * @param  array<string, mixed>  $settings
+     * @param  array<string, mixed>  $profile
+     * @return array<string, mixed>
+     */
+    public static function applyLaserProfileToPrimarySettings(array $settings, array $profile): array
+    {
+        $norm = self::normalizeLaserProfileItem($profile, 0, $settings);
+
+        $settings['xtool_focus_mm']        = $norm['focus_mm'] > 0 ? $norm['focus_mm'] : null;
+        $settings['xtool_element_type']    = $norm['element_type'];
+        $settings['xtool_engrave_tab']     = $norm['engrave_tab'];
+        $settings['xtool_preset_mode']     = $norm['preset_mode'];
+        $settings['xtool_dot_duration_us'] = $norm['dot_duration_us'] > 0 ? $norm['dot_duration_us'] : null;
+        $settings['xtool_power_percent']   = $norm['power_percent'] > 0 ? $norm['power_percent'] : null;
+        $settings['xtool_speed_mms']       = $norm['speed_mms'];
+        $settings['xtool_dpi']             = $norm['dpi'] > 0 ? $norm['dpi'] : null;
+        $settings['xtool_passes']          = $norm['passes'] > 0 ? $norm['passes'] : null;
+        $settings['xtool_frequency_khz']   = $norm['frequency_khz'] > 0 ? $norm['frequency_khz'] : null;
+        $settings['xtool_bitmap_mode']     = $norm['bitmap_mode'];
+        $settings['xtool_engrave_mode']    = $norm['engrave_mode'];
+        $settings['xtool_vector_note']     = $norm['vector_note'];
+
+        if (!empty($norm['equipment_key']) && empty($settings['xtool_equipment_key'])) {
+            $settings['xtool_equipment_key'] = $norm['equipment_key'];
+        }
+        if (!empty($norm['process_mode']) && empty($settings['xtool_process_mode'])) {
+            $settings['xtool_process_mode'] = $norm['process_mode'];
+        }
+        if (!empty($norm['material']) && empty($settings['xtool_material'])) {
+            $settings['xtool_material'] = $norm['material'];
+        }
+
+        if (array_key_exists('xtool_bitmap_focus_mm', $settings) && $norm['focus_mm'] > 0) {
+            $settings['xtool_bitmap_focus_mm']        = $norm['focus_mm'];
+            $settings['xtool_bitmap_power_percent']   = $norm['power_percent'];
+            $settings['xtool_bitmap_dot_duration_us'] = $norm['dot_duration_us'];
+            $settings['xtool_bitmap_frequency_khz']   = $norm['frequency_khz'];
+            $settings['xtool_bitmap_dpi']             = $norm['dpi'];
+            $settings['xtool_bitmap_passes']          = $norm['passes'];
+        }
+
+        return $settings;
+    }
+
+    /**
+     * Normalisiert configurator_settings['xtool_profiles'] (eindeutige IDs, genau 1 Standard-Profil)
+     * und hält Standard-Profil und primäre xtool_*-Felder zu 100 % synchron.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    public static function syncLaserProfilesAndPrimarySettings(array $settings, bool $preferPrimaryOverDefault = false): array
+    {
+        $rawProfiles = isset($settings['xtool_profiles']) && is_array($settings['xtool_profiles'])
+            ? array_values(array_filter($settings['xtool_profiles'], 'is_array'))
+            : [];
+
+        $normalized = [];
+        $usedIds = [];
+        foreach ($rawProfiles as $idx => $rawProf) {
+            $item = self::normalizeLaserProfileItem($rawProf, $idx, $settings);
+            $baseId = $item['id'];
+            $suffix = 2;
+            while (isset($usedIds[$item['id']])) {
+                $item['id'] = $baseId . '_' . $suffix;
+                $suffix++;
+            }
+            $usedIds[$item['id']] = true;
+            $normalized[] = $item;
+        }
+
+        if (empty($normalized)) {
+            $primary = self::extractPrimaryLaserProfileFromSettings($settings);
+            $hasAnyPrimaryValue = $primary['focus_mm'] > 0
+                || $primary['dot_duration_us'] > 0
+                || $primary['power_percent'] > 0
+                || $primary['dpi'] > 0;
+            if ($hasAnyPrimaryValue) {
+                $normalized = [$primary];
+            }
+        }
+
+        if (!empty($normalized)) {
+            $defaultIndex = null;
+            foreach ($normalized as $idx => $p) {
+                if (!empty($p['is_default']) && $defaultIndex === null) {
+                    $defaultIndex = $idx;
+                }
+            }
+            if ($defaultIndex === null) {
+                $defaultIndex = 0;
+            }
+            foreach ($normalized as $idx => &$p) {
+                $p['is_default'] = ($idx === $defaultIndex);
+            }
+            unset($p);
+
+            if ($preferPrimaryOverDefault) {
+                $existingTitle = (string) ($normalized[$defaultIndex]['title'] ?? 'Standard');
+                $existingId = (string) ($normalized[$defaultIndex]['id'] ?? 'prof_standard');
+                $updatedDefault = self::extractPrimaryLaserProfileFromSettings($settings, $existingTitle, $existingId);
+                $updatedDefault['is_default'] = true;
+                foreach (['equipment_key', 'process_mode', 'material'] as $optK) {
+                    if (isset($normalized[$defaultIndex][$optK])) {
+                        $updatedDefault[$optK] = $normalized[$defaultIndex][$optK];
+                    }
+                }
+                $normalized[$defaultIndex] = $updatedDefault;
+                $settings = self::applyLaserProfileToPrimarySettings($settings, $normalized[$defaultIndex]);
+            } else {
+                $settings = self::applyLaserProfileToPrimarySettings($settings, $normalized[$defaultIndex]);
+            }
+
+            $settings['xtool_profiles'] = $normalized;
+        }
+
+        return $settings;
+    }
+
+    /**
+     * Liefert die normalisierte Liste aller benannten Laserprofile dieses Produkts.
+     * Fällt rückwärtskompatibel auf ein aus den primären xtool_*-Feldern abgeleitetes Standard-Profil zurück.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function getLaserProfiles(): array
+    {
+        $settings = is_array($this->configurator_settings) ? $this->configurator_settings : [];
+        $synced = self::syncLaserProfilesAndPrimarySettings($settings, false);
+
+        return isset($synced['xtool_profiles']) && is_array($synced['xtool_profiles'])
+            ? array_values($synced['xtool_profiles'])
+            : [];
+    }
+
     /**
      * Wertet ein configurator_settings-Array hinsichtlich Geometrie, Equipment-Voraussetzung und xTool Studio Parametern aus.
      */
     public static function evaluateLaserInstructionSettings(array $settings, bool $requireStudioGeometry = true): array
     {
+        if (!empty($settings['xtool_profiles']) && is_array($settings['xtool_profiles'])) {
+            $focusCheck = str_replace(',', '.', trim((string) ($settings['xtool_focus_mm'] ?? '')));
+            if (!is_numeric($focusCheck) || (float) $focusCheck <= 0) {
+                $settings = self::syncLaserProfilesAndPrimarySettings($settings, false);
+            }
+        }
+
         $catalog = self::getLaserEquipmentCatalog();
         $overlayType = (string) ($settings['overlay_type'] ?? 'plane');
 
@@ -1706,7 +2004,10 @@ use HasFactory, HasUuids, SoftDeletes;
         $engraveTab = trim((string) ($settings['xtool_engrave_tab'] ?? 'Gravieren')) ?: 'Gravieren';
         $presetMode = trim((string) ($settings['xtool_preset_mode'] ?? 'Benutzerdefiniert')) ?: 'Benutzerdefiniert';
 
-        $dotDurationUs = (int) ($settings['xtool_dot_duration_us'] ?? 0);
+        $rawDotDuration = (int) ($settings['xtool_dot_duration_us'] ?? 0);
+        $dotDurationUs = $rawDotDuration > 0
+            ? max(self::MIN_LASER_DOT_DURATION_US, min(self::MAX_LASER_DOT_DURATION_US, $rawDotDuration))
+            : 0;
         $powerPercent = (int) ($settings['xtool_power_percent'] ?? 0);
         $dpi = (int) ($settings['xtool_dpi'] ?? 0);
         $passes = (int) ($settings['xtool_passes'] ?? 0);
@@ -1731,8 +2032,8 @@ use HasFactory, HasUuids, SoftDeletes;
         if ($focusMm <= 0) {
             $missingLabels[] = 'Fokus (mm)';
         }
-        if ($dotDurationUs <= 0) {
-            $missingLabels[] = 'Punktdauer (µs)';
+        if ($rawDotDuration < self::MIN_LASER_DOT_DURATION_US || $rawDotDuration > self::MAX_LASER_DOT_DURATION_US) {
+            $missingLabels[] = 'Punktdauer (1-3000 µs)';
         }
         if ($powerPercent <= 0) {
             $missingLabels[] = 'Leistung (%)';
@@ -1780,6 +2081,8 @@ use HasFactory, HasUuids, SoftDeletes;
             $copyLines[] = 'Vektor: ' . $vectorNote;
         }
 
+        $syncedProfiles = self::syncLaserProfilesAndPrimarySettings($settings, false)['xtool_profiles'] ?? [];
+
         return [
             'is_complete'       => $isComplete,
             'has_geometry'      => $hasGeometry,
@@ -1807,6 +2110,7 @@ use HasFactory, HasUuids, SoftDeletes;
             'bitmap_mode'       => $bitmapMode,
             'engrave_mode'      => $engraveMode,
             'vector_note'       => $vectorNote,
+            'profiles'          => is_array($syncedProfiles) ? array_values($syncedProfiles) : [],
             'copy_summary'      => implode("\n", $copyLines),
         ];
     }
@@ -3182,7 +3486,7 @@ use HasFactory, HasUuids, SoftDeletes;
                     $videoUrl = asset('storage/' . ltrim((string) $media['path'], '/'));
                     $productNode['subjectOf'] = [
                         '@type' => 'VideoObject',
-                        'name' => $media['alt'] ?? ($this->name . ' – Produktvideo & Lasergravur'),
+                        'name' => $media['alt'] ?? ($this->name . ' · Produktvideo & Lasergravur'),
                         'description' => trim(preg_replace('/\s+/', ' ', strip_tags((string) ($this->short_description ?: $this->description)))),
                         'thumbnailUrl' => [$mainImageUrl],
                         'contentUrl' => $videoUrl,

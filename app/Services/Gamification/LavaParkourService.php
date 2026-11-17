@@ -2,6 +2,8 @@
 
 namespace App\Services\Gamification;
 
+use App\Http\Controllers\Api\FunkenwerkHeroesController;
+use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
 use App\Models\Customer\CustomerGamificationLog;
@@ -22,6 +24,12 @@ class LavaParkourService
     public const MASTER_KEY_MIN_LEVEL = 6;
     public const MASTER_KEY_MIN_GIFT_VOUCHER_CENTS = 1500;
 
+    public const MAX_HEARTS = 6;
+    public const MAX_SHIELD_USES_PER_RUN = 3;
+    public const SHIELD_COOLDOWN_MS = 13500;
+    public const HIT_DEBOUNCE_MS = 1000;
+    public const SAFE_BALCONY_MAX_REL_X = 3.2;
+
     public const DAILY_REWARD = 5;
     public const DAILY_CAP_FREE = 15;
     public const DAILY_CAP_MASTER = 30;
@@ -30,40 +38,55 @@ class LavaParkourService
     public const RUN_TTL_MINUTES = 15;
     public const MAX_RUN_DURATION_MS = 900000;
 
-    public const MIN_CP1_ELAPSED_MS = 1200;
-    public const MIN_CP2_ELAPSED_MS = 1400;
-    public const MIN_CLAIM_AFTER_CP2_MS = 1200;
-    public const MIN_TOTAL_RUN_MS = 4200;
+    public const MIN_SPLIT_1_MS = 1600;
+    public const MIN_SPLIT_2_MS = 2000;
+    public const MIN_SPLIT_CLAIM_MS = 1500;
+    public const MIN_TOTAL_RUN_MS = 5600;
 
-    public const ROOM1_ORIGIN_X = 12.0;
-    public const ROOM1_ORIGIN_Z = -2.0;
+    public const MIN_CP1_ELAPSED_MS = self::MIN_SPLIT_1_MS;
+    public const MIN_CP2_ELAPSED_MS = self::MIN_SPLIT_2_MS;
+    public const MIN_CLAIM_AFTER_CP2_MS = self::MIN_SPLIT_CLAIM_MS;
 
-    public const REL_CP1_X = 19.5;
-    public const REL_CP1_Z = 0.0;
-    public const REL_CP2_X = 39.0;
-    public const REL_CP2_Z = 0.0;
-    public const REL_CHEST_X = 54.5;
+    public const ORIGIN_X = 16.5;
+    public const ORIGIN_Y = 0.004;
+    public const ORIGIN_Z = -2.0;
+
+    public const ROOM1_ORIGIN_X = self::ORIGIN_X;
+    public const ROOM1_ORIGIN_Z = self::ORIGIN_Z;
+
+    public const REL_CP1_X = 18.5;
+    public const REL_CP1_Y = 0.85;
+    public const REL_CP1_Z = 7.5;
+
+    public const REL_CP2_X = 37.5;
+    public const REL_CP2_Y = 1.95;
+    public const REL_CP2_Z = -8.3;
+
+    public const REL_CHEST_X = 55.5;
     public const REL_CHEST_Y = 3.2;
-    public const REL_CHEST_Z = 0.0;
+    public const REL_CHEST_Z = 3.5;
 
-    public const CP1_X = 31.5;
-    public const CP1_Z = -2.0;
+    public const MIN_REL_Y = -1.0;
+    public const MAX_REL_Y = 16.5;
+
+    public const CP1_X = 35.0;
+    public const CP1_Z = 5.5;
     public const CP1_MAX_DIST = 6.5;
-    public const CP1_MIN_Y = -1.0;
-    public const CP1_MAX_Y = 14.5;
+    public const CP1_MIN_Y = self::MIN_REL_Y;
+    public const CP1_MAX_Y = self::MAX_REL_Y;
 
-    public const CP2_X = 51.0;
-    public const CP2_Z = -2.0;
+    public const CP2_X = 54.0;
+    public const CP2_Z = -10.3;
     public const CP2_MAX_DIST = 6.5;
-    public const CP2_MIN_Y = -0.5;
-    public const CP2_MAX_Y = 15.5;
+    public const CP2_MIN_Y = self::MIN_REL_Y;
+    public const CP2_MAX_Y = self::MAX_REL_Y;
 
-    public const CHEST_X = 66.5;
-    public const CHEST_Y = 3.2;
-    public const CHEST_Z = -2.0;
+    public const CHEST_X = 72.0;
+    public const CHEST_Y = 3.204;
+    public const CHEST_Z = 1.5;
     public const CHEST_MAX_DIST = 6.0;
-    public const CHEST_MIN_Y = 0.5;
-    public const CHEST_MAX_Y = 14.5;
+    public const CHEST_MIN_Y = self::MIN_REL_Y;
+    public const CHEST_MAX_Y = self::MAX_REL_Y;
 
     /**
      * @var array<int, string>
@@ -120,6 +143,13 @@ class LavaParkourService
     public function __construct(
         private readonly GamificationService $gamificationService
     ) {
+    }
+
+    public static function minTotalRunMs(int $level): int
+    {
+        $clamped = max(1, min(self::MAX_MAGMA_LEVEL, $level));
+
+        return 5600 + ($clamped - 1) * 300;
     }
 
     /**
@@ -199,7 +229,7 @@ class LavaParkourService
     }
 
     /**
-     * Liefert die statischen Definitionen aller 10 Magma-Level (1..10).
+     * Liefert die statischen Definitionen aller 10 Magma-Level (1..10) inkl. deterministischer S-Kurven-Anker.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -215,11 +245,33 @@ class LavaParkourService
     }
 
     /**
+     * Deterministische S-Kurven-Ankerkoordinaten fuer Raeume 1..10 (auf 0.01 m identisch mit dem 3D-Inselgenerator).
+     *
      * @return array<string, mixed>
      */
     public function getLevelDefinition(int $level): array
     {
         $clamped = max(1, min(self::MAX_MAGMA_LEVEL, $level));
+        $dir = ($clamped % 2 === 1) ? 1.0 : -1.0;
+        $ampZ = round(7.5 + ($clamped - 1) * 0.55, 2);
+
+        $relCp1 = [
+            'x' => round(18.5 + ($clamped - 1) * 0.60, 2),
+            'y' => round(0.85 + ($clamped - 1) * 0.14, 2),
+            'z' => round($dir * $ampZ, 2),
+        ];
+
+        $relCp2 = [
+            'x' => round(37.5 + ($clamped - 1) * 1.15, 2),
+            'y' => round(1.95 + ($clamped - 1) * 0.22, 2),
+            'z' => round(-$dir * ($ampZ + 0.80), 2),
+        ];
+
+        $relChest = [
+            'x' => round(55.5 + ($clamped - 1) * 1.65, 2),
+            'y' => round(3.20 + ($clamped - 1) * 0.28, 2),
+            'z' => round($dir * (2.40 + ($clamped % 3) * 1.10), 2),
+        ];
 
         return [
             'level' => $clamped,
@@ -227,28 +279,15 @@ class LavaParkourService
             'requires_master_key' => $clamped >= self::MASTER_KEY_MIN_LEVEL,
             'first_clear_reward' => self::FIRST_CLEAR_REWARDS[$clamped],
             'daily_reward' => self::DAILY_REWARDS[$clamped],
-            'rel_cp1' => [
-                'stage' => 1,
-                'rel_x' => self::REL_CP1_X,
-                'rel_z' => self::REL_CP1_Z,
-                'x' => self::REL_CP1_X,
-                'z' => self::REL_CP1_Z,
+            'min_total_run_ms' => self::minTotalRunMs($clamped),
+            'origin' => [
+                'x' => self::ORIGIN_X,
+                'y' => self::ORIGIN_Y,
+                'z' => self::ORIGIN_Z,
             ],
-            'rel_cp2' => [
-                'stage' => 2,
-                'rel_x' => self::REL_CP2_X,
-                'rel_z' => self::REL_CP2_Z,
-                'x' => self::REL_CP2_X,
-                'z' => self::REL_CP2_Z,
-            ],
-            'rel_chest' => [
-                'rel_x' => self::REL_CHEST_X,
-                'rel_y' => self::REL_CHEST_Y,
-                'rel_z' => self::REL_CHEST_Z,
-                'x' => self::REL_CHEST_X,
-                'y' => self::REL_CHEST_Y,
-                'z' => self::REL_CHEST_Z,
-            ],
+            'rel_cp1' => $relCp1,
+            'rel_cp2' => $relCp2,
+            'rel_chest' => $relChest,
         ];
     }
 
@@ -264,6 +303,8 @@ class LavaParkourService
      *     master_key_unlocked: bool,
      *     highest_unlocked_level: int,
      *     raw_progress_unlocked_level: int,
+     *     hearts: int,
+     *     max_hearts: int,
      *     unlocked_portals: array<int, int>,
      *     first_cleared_levels: array<int, int>,
      *     daily_cleared_levels: array<int, int>,
@@ -279,6 +320,8 @@ class LavaParkourService
                 'master_key_unlocked' => false,
                 'highest_unlocked_level' => 1,
                 'raw_progress_unlocked_level' => 1,
+                'hearts' => self::MAX_HEARTS,
+                'max_hearts' => self::MAX_HEARTS,
                 'unlocked_portals' => [],
                 'first_cleared_levels' => [],
                 'daily_cleared_levels' => [],
@@ -314,16 +357,22 @@ class LavaParkourService
             $dailyClearedLevels = [1];
         }
 
-        $maxSequential = 0;
-        for ($lvl = 1; $lvl <= self::MAX_MAGMA_LEVEL; $lvl++) {
-            if (in_array($lvl, $clearedLevels, true)) {
-                $maxSequential = $lvl;
-            } else {
-                break;
+        $maxSequential = $this->computeMaxSequentialCleared($clearedLevels);
+        $fallbackUnlocked = min(self::MAX_MAGMA_LEVEL, $maxSequential + 1);
+
+        $rawProgressUnlocked = $fallbackUnlocked;
+        $hearts = self::MAX_HEARTS;
+
+        if ($gamification !== null) {
+            $attrs = $gamification->getAttributes();
+            if (array_key_exists('magma_unlocked_level', $attrs) && $attrs['magma_unlocked_level'] !== null) {
+                $rawProgressUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) $attrs['magma_unlocked_level']));
+            }
+            if (array_key_exists('magma_hearts', $attrs) && $attrs['magma_hearts'] !== null && (int) $attrs['magma_hearts'] > 0) {
+                $hearts = max(1, min(self::MAX_HEARTS, (int) $attrs['magma_hearts']));
             }
         }
 
-        $rawProgressUnlocked = min(self::MAX_MAGMA_LEVEL, $maxSequential + 1);
         $highestUnlockedLevel = $masterKeyUnlocked
             ? $rawProgressUnlocked
             : min(5, $rawProgressUnlocked);
@@ -336,6 +385,8 @@ class LavaParkourService
             'master_key_unlocked' => $masterKeyUnlocked,
             'highest_unlocked_level' => $highestUnlockedLevel,
             'raw_progress_unlocked_level' => $rawProgressUnlocked,
+            'hearts' => $hearts,
+            'max_hearts' => self::MAX_HEARTS,
             'unlocked_portals' => $unlockedPortals,
             'first_cleared_levels' => $clearedLevels,
             'daily_cleared_levels' => $dailyClearedLevels,
@@ -346,10 +397,7 @@ class LavaParkourService
     }
 
     /**
-     * Prueft die 3 Voraussetzungen fuer das gesamte Magma-Level (Stufen 1 bis 10, Portal-Hub, Checkpoints & Truhe):
-     * 1. Eingeloggter Kunde ('login_required')
-     * 2. Mindestens eine bezahlte, nicht stornierte/erstattete Bestellung ('order_required')
-     * 3. Seelenfunken-Magie aktiviert ('magic_activation_required')
+     * Prueft die Voraussetzungen fuer das gesamte Magma-Level (Stufen 1 bis 10, Portal-Hub, Checkpoints & Truhe).
      *
      * @return array{status: int, body: array<string, mixed>}|null
      */
@@ -396,6 +444,8 @@ class LavaParkourService
             $levelsList[] = $levelDef;
         }
 
+        $lvl1Def = $this->getLevelDefinition(1);
+
         return [
             'enabled' => true,
             'daily_reward' => self::FIRST_CLEAR_REWARDS[1],
@@ -407,38 +457,64 @@ class LavaParkourService
             'claimed_today' => in_array(1, $state['daily_cleared_levels'], true),
             'master_key_unlocked' => $state['master_key_unlocked'],
             'highest_unlocked_level' => $state['highest_unlocked_level'],
+            'unlocked_level' => $state['highest_unlocked_level'],
+            'hearts' => $state['hearts'],
+            'max_hearts' => self::MAX_HEARTS,
             'unlocked_portals' => $state['unlocked_portals'],
             'first_cleared_levels' => $state['first_cleared_levels'],
             'daily_cleared_levels' => $state['daily_cleared_levels'],
             'daily_claimed_levels' => $state['daily_cleared_levels'],
             'daily_sparks_earned' => $state['daily_sparks_earned'],
             'daily_sparks_cap' => $state['daily_sparks_cap'],
+            'origin' => [
+                'x' => self::ORIGIN_X,
+                'y' => self::ORIGIN_Y,
+                'z' => self::ORIGIN_Z,
+            ],
             'levels' => $levelsList,
             'checkpoints' => [
-                ['stage' => 1, 'x' => self::CP1_X, 'z' => self::CP1_Z, 'rel_x' => self::REL_CP1_X, 'rel_z' => self::REL_CP1_Z],
-                ['stage' => 2, 'x' => self::CP2_X, 'z' => self::CP2_Z, 'rel_x' => self::REL_CP2_X, 'rel_z' => self::REL_CP2_Z],
+                [
+                    'stage' => 1,
+                    'x' => round(self::ORIGIN_X + $lvl1Def['rel_cp1']['x'], 2),
+                    'y' => round(self::ORIGIN_Y + $lvl1Def['rel_cp1']['y'], 3),
+                    'z' => round(self::ORIGIN_Z + $lvl1Def['rel_cp1']['z'], 2),
+                    'rel_x' => $lvl1Def['rel_cp1']['x'],
+                    'rel_y' => $lvl1Def['rel_cp1']['y'],
+                    'rel_z' => $lvl1Def['rel_cp1']['z'],
+                ],
+                [
+                    'stage' => 2,
+                    'x' => round(self::ORIGIN_X + $lvl1Def['rel_cp2']['x'], 2),
+                    'y' => round(self::ORIGIN_Y + $lvl1Def['rel_cp2']['y'], 3),
+                    'z' => round(self::ORIGIN_Z + $lvl1Def['rel_cp2']['z'], 2),
+                    'rel_x' => $lvl1Def['rel_cp2']['x'],
+                    'rel_y' => $lvl1Def['rel_cp2']['y'],
+                    'rel_z' => $lvl1Def['rel_cp2']['z'],
+                ],
             ],
             'chest_pos' => [
-                'x' => self::CHEST_X,
-                'y' => self::CHEST_Y,
-                'z' => self::CHEST_Z,
-                'rel_x' => self::REL_CHEST_X,
-                'rel_y' => self::REL_CHEST_Y,
-                'rel_z' => self::REL_CHEST_Z,
+                'x' => round(self::ORIGIN_X + $lvl1Def['rel_chest']['x'], 2),
+                'y' => round(self::ORIGIN_Y + $lvl1Def['rel_chest']['y'], 3),
+                'z' => round(self::ORIGIN_Z + $lvl1Def['rel_chest']['z'], 2),
+                'rel_x' => $lvl1Def['rel_chest']['x'],
+                'rel_y' => $lvl1Def['rel_chest']['y'],
+                'rel_z' => $lvl1Def['rel_chest']['z'],
             ],
         ];
     }
 
     /**
+     * Startet einen Magma-Lauf (Pessimistic Run-Escrow: zieht bei abgebrochenem committed-Lauf 1 Herz ab).
+     *
      * @return array{status: int, body: array<string, mixed>}
      */
-    public function startRun(Customer $customer, int $level = 1): array
+    public function startRun(Customer $customer, int $requestedLevel = 1): array
     {
         if ($denied = $this->checkSanctumAccess($customer)) {
             return $denied;
         }
 
-        if ($level < 1 || $level > self::MAX_MAGMA_LEVEL) {
+        if ($requestedLevel < 1 || $requestedLevel > self::MAX_MAGMA_LEVEL) {
             return [
                 'status' => 422,
                 'body' => [
@@ -449,107 +525,651 @@ class LavaParkourService
             ];
         }
 
-        $gamification = $this->gamificationService->getProfile($customer);
-        $state = $this->resolveProgressState($customer, $gamification);
+        $this->gamificationService->getProfile($customer);
+        $customerId = (string) $customer->id;
 
-        if ($level >= self::MASTER_KEY_MIN_LEVEL && !$state['master_key_unlocked']) {
-            return [
-                'status' => 403,
-                'body' => [
-                    'success' => false,
-                    'code' => 'MASTER_KEY_REQUIRED',
-                    'master_key_unlocked' => false,
-                    'highest_unlocked_level' => $state['highest_unlocked_level'],
-                    'gift_voucher_url' => '/produkt/geschenkgutschein',
-                    'message' => 'Für Stufe 6 bis 10 wird der Manufaktur-Meisterschlüssel benötigt (ab deiner ersten bezahlten Bestellung oder einem Geschenkgutschein ab 15,00 €).',
-                ],
-            ];
-        }
+        return $this->withCustomerParkourLock($customerId, function () use ($customer, $customerId, $requestedLevel): array {
+            return DB::transaction(function () use ($customer, $customerId, $requestedLevel): array {
+                $gam = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->firstOrFail();
 
-        if ($level > $state['highest_unlocked_level']) {
-            return [
-                'status' => 403,
-                'body' => [
-                    'success' => false,
-                    'code' => 'LEVEL_LOCKED',
-                    'highest_unlocked_level' => $state['highest_unlocked_level'],
-                    'message' => 'Bitte schließe zuerst Stufe ' . ($level - 1) . ' ab, um Stufe ' . $level . ' freizuschalten.',
-                ],
-            ];
+                $masterKeyUnlocked = $this->hasMasterKey($customer);
+                $maxCap = $masterKeyUnlocked ? self::MAX_MAGMA_LEVEL : 5;
+
+                $rawUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($gam->magma_unlocked_level ?: 1)));
+                $hearts = max(1, min(self::MAX_HEARTS, (int) ($gam->magma_hearts ?: self::MAX_HEARTS)));
+
+                $escrowPenaltyApplied = false;
+                $escrowDemoted = false;
+
+                // F5 / Tab-Close / Request-Block Schutz: Falls ein bereits gestarteter Lauf den Startbalkon verlassen hatte
+                if (!empty($gam->magma_active_run_id) && (bool) $gam->magma_run_committed === true) {
+                    $escrowPenaltyApplied = true;
+                    $hearts--;
+
+                    if ($hearts <= 0) {
+                        $rawUnlocked = max(1, $rawUnlocked - 1);
+                        $hearts = self::MAX_HEARTS;
+                        $escrowDemoted = true;
+                    }
+                }
+
+                $effectiveMaxUnlocked = max(1, min($maxCap, $rawUnlocked));
+
+                if ($escrowPenaltyApplied) {
+                    $level = max(1, min($requestedLevel, $effectiveMaxUnlocked));
+                } else {
+                    if ($requestedLevel >= self::MASTER_KEY_MIN_LEVEL && !$masterKeyUnlocked) {
+                        return [
+                            'status' => 403,
+                            'body' => [
+                                'success' => false,
+                                'code' => 'MASTER_KEY_REQUIRED',
+                                'master_key_unlocked' => false,
+                                'highest_unlocked_level' => $effectiveMaxUnlocked,
+                                'unlocked_level' => $effectiveMaxUnlocked,
+                                'hearts' => $hearts,
+                                'max_hearts' => self::MAX_HEARTS,
+                                'gift_voucher_url' => '/produkt/geschenkgutschein',
+                                'message' => 'Für Stufe 6 bis 10 wird der Manufaktur-Meisterschlüssel benötigt (ab deiner ersten bezahlten Bestellung oder einem Geschenkgutschein ab 15,00 €).',
+                            ],
+                        ];
+                    }
+
+                    if ($requestedLevel > $effectiveMaxUnlocked) {
+                        return [
+                            'status' => 403,
+                            'body' => [
+                                'success' => false,
+                                'code' => 'LEVEL_LOCKED',
+                                'highest_unlocked_level' => $effectiveMaxUnlocked,
+                                'unlocked_level' => $effectiveMaxUnlocked,
+                                'hearts' => $hearts,
+                                'max_hearts' => self::MAX_HEARTS,
+                                'message' => 'Bitte schließe zuerst Stufe ' . ($requestedLevel - 1) . ' ab, um Stufe ' . $requestedLevel . ' freizuschalten.',
+                            ],
+                        ];
+                    }
+
+                    $level = $requestedLevel;
+                }
+
+                $runId = Str::random(40);
+                $lifeNonce = Str::random(32);
+                $secret = Str::random(48);
+                $nowMs = Carbon::now()->getTimestampMs();
+
+                $gam->magma_unlocked_level = $rawUnlocked;
+                $gam->magma_hearts = $hearts;
+                $gam->magma_active_run_id = $runId;
+                $gam->magma_run_committed = false;
+                $gam->save();
+
+                if ($escrowDemoted) {
+                    FunkenwerkHeroesController::forgetPublicCache();
+                }
+
+                $this->storeActiveLifeNonce($customerId, $lifeNonce);
+
+                Cache::put(
+                    $this->runCacheKey($customerId),
+                    [
+                        'customer_id' => $customerId,
+                        'run_id' => $runId,
+                        'life_nonce' => $lifeNonce,
+                        'level' => $level,
+                        'secret' => $secret,
+                        'started_at_ms' => $nowMs,
+                        'cp1_at_ms' => null,
+                        'cp2_at_ms' => null,
+                        'stage' => 0,
+                        'claim_token' => null,
+                        'committed' => false,
+                        'shield_uses' => 0,
+                        'last_shield_at_ms' => null,
+                        'last_hit_at_ms' => null,
+                    ],
+                    Carbon::now()->addMinutes(self::RUN_TTL_MINUTES)
+                );
+
+                $state = $this->resolveProgressState($customer, $gam);
+                $levelDef = $this->getLevelDefinition($level);
+                $isFirstClearAvailable = !in_array($level, $state['first_cleared_levels'], true);
+                $isClaimedToday = in_array($level, $state['daily_cleared_levels'], true);
+
+                return [
+                    'status' => 200,
+                    'body' => [
+                        'success' => true,
+                        'run_id' => $runId,
+                        'life_nonce' => $lifeNonce,
+                        'level' => $level,
+                        'title' => $levelDef['title'],
+                        'hearts' => $hearts,
+                        'max_hearts' => self::MAX_HEARTS,
+                        'unlocked_level' => $effectiveMaxUnlocked,
+                        'highest_unlocked_level' => $effectiveMaxUnlocked,
+                        'shield_charges_remaining' => self::MAX_SHIELD_USES_PER_RUN,
+                        'escrow_penalty_applied' => $escrowPenaltyApplied,
+                        'demoted' => $escrowDemoted,
+                        'is_first_clear_available' => $isFirstClearAvailable,
+                        'claimed_today' => $isClaimedToday,
+                        'already_claimed_today' => $isClaimedToday,
+                        'chest_locked_today' => $isClaimedToday,
+                        'daily_claimed_levels' => $state['daily_cleared_levels'],
+                        'daily_cleared_levels' => $state['daily_cleared_levels'],
+                        'first_clear_reward' => $levelDef['first_clear_reward'],
+                        'daily_reward' => $isFirstClearAvailable ? $levelDef['first_clear_reward'] : $levelDef['daily_reward'],
+                        'repeat_daily_reward' => $levelDef['daily_reward'],
+                        'master_key_unlocked' => $masterKeyUnlocked,
+                        'unlocked_portals' => $state['unlocked_portals'],
+                        'anchors' => [
+                            'cp1' => $levelDef['rel_cp1'],
+                            'cp2' => $levelDef['rel_cp2'],
+                            'chest' => $levelDef['rel_chest'],
+                        ],
+                        'checkpoints' => [
+                            'cp1' => [
+                                'stage' => 1,
+                                'x' => $levelDef['rel_cp1']['x'],
+                                'y' => $levelDef['rel_cp1']['y'],
+                                'z' => $levelDef['rel_cp1']['z'],
+                                'rel_x' => $levelDef['rel_cp1']['x'],
+                                'rel_y' => $levelDef['rel_cp1']['y'],
+                                'rel_z' => $levelDef['rel_cp1']['z'],
+                            ],
+                            'cp2' => [
+                                'stage' => 2,
+                                'x' => $levelDef['rel_cp2']['x'],
+                                'y' => $levelDef['rel_cp2']['y'],
+                                'z' => $levelDef['rel_cp2']['z'],
+                                'rel_x' => $levelDef['rel_cp2']['x'],
+                                'rel_y' => $levelDef['rel_cp2']['y'],
+                                'rel_z' => $levelDef['rel_cp2']['z'],
+                            ],
+                        ],
+                        'chest_pos' => [
+                            'x' => $levelDef['rel_chest']['x'],
+                            'y' => $levelDef['rel_chest']['y'],
+                            'z' => $levelDef['rel_chest']['z'],
+                            'rel_x' => $levelDef['rel_chest']['x'],
+                            'rel_y' => $levelDef['rel_chest']['y'],
+                            'rel_z' => $levelDef['rel_chest']['z'],
+                        ],
+                    ],
+                ];
+            });
+        });
+    }
+
+    /**
+     * Markiert den aktiven Lauf als committed, sobald der Spieler den sicheren Startbalkon (x > 19.35) verlaesst.
+     *
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function commitRun(Customer $customer, string $runId): array
+    {
+        if ($denied = $this->checkSanctumAccess($customer)) {
+            return $denied;
         }
 
         $customerId = (string) $customer->id;
-        $levelDef = $this->getLevelDefinition($level);
-        $isFirstClearAvailable = !in_array($level, $state['first_cleared_levels'], true);
-        $isClaimedToday = in_array($level, $state['daily_cleared_levels'], true);
-
-        return $this->withCustomerParkourLock($customerId, function () use (
-            $customerId,
-            $level,
-            $levelDef,
-            $isFirstClearAvailable,
-            $isClaimedToday,
-            $state
-        ): array {
-            $runId = Str::random(40);
-            $secret = Str::random(48);
-            $nowMs = Carbon::now()->getTimestampMs();
-
-            Cache::put(
-                $this->runCacheKey($customerId),
-                [
-                    'customer_id' => $customerId,
-                    'run_id' => $runId,
-                    'level' => $level,
-                    'secret' => $secret,
-                    'started_at_ms' => $nowMs,
-                    'cp1_at_ms' => null,
-                    'cp2_at_ms' => null,
-                    'stage' => 0,
-                    'claim_token' => null,
-                ],
-                Carbon::now()->addMinutes(self::RUN_TTL_MINUTES)
-            );
-
+        if ($runId === '') {
             return [
-                'status' => 200,
+                'status' => 422,
                 'body' => [
-                    'success' => true,
-                    'run_id' => $runId,
-                    'level' => $level,
-                    'title' => $levelDef['title'],
-                    'is_first_clear_available' => $isFirstClearAvailable,
-                    'claimed_today' => $isClaimedToday,
-                    'already_claimed_today' => $isClaimedToday,
-                    'chest_locked_today' => $isClaimedToday,
-                    'daily_claimed_levels' => $state['daily_cleared_levels'],
-                    'daily_cleared_levels' => $state['daily_cleared_levels'],
-                    'first_clear_reward' => $levelDef['first_clear_reward'],
-                    'daily_reward' => $isFirstClearAvailable ? $levelDef['first_clear_reward'] : $levelDef['daily_reward'],
-                    'repeat_daily_reward' => $levelDef['daily_reward'],
-                    'master_key_unlocked' => $state['master_key_unlocked'],
-                    'highest_unlocked_level' => $state['highest_unlocked_level'],
-                    'unlocked_portals' => $state['unlocked_portals'],
-                    'checkpoints' => [
-                        'cp1' => [
-                            'stage' => 1,
-                            'rel_x' => self::REL_CP1_X,
-                            'rel_z' => self::REL_CP1_Z,
-                        ],
-                        'cp2' => [
-                            'stage' => 2,
-                            'rel_x' => self::REL_CP2_X,
-                            'rel_z' => self::REL_CP2_Z,
-                        ],
-                    ],
-                    'chest_pos' => [
-                        'rel_x' => self::REL_CHEST_X,
-                        'rel_y' => self::REL_CHEST_Y,
-                        'rel_z' => self::REL_CHEST_Z,
-                    ],
+                    'success' => false,
+                    'message' => 'Ungültige Lauf-Kennung.',
                 ],
             ];
+        }
+
+        return $this->withCustomerParkourLock($customerId, function () use ($customer, $customerId, $runId): array {
+            $cacheKey = $this->runCacheKey($customerId);
+            $run = Cache::get($cacheKey);
+
+            if (!is_array($run) || !isset($run['run_id']) || !hash_equals((string) $run['run_id'], $runId)) {
+                return [
+                    'status' => 422,
+                    'body' => [
+                        'success' => false,
+                        'message' => 'Kein passender aktiver Lauf gefunden.',
+                    ],
+                ];
+            }
+
+            $run['committed'] = true;
+            $this->refreshRunTtl($cacheKey, $run);
+
+            return DB::transaction(function () use ($customer, $runId, $run): array {
+                $gam = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->firstOrFail();
+                $gam->magma_active_run_id = $runId;
+                $gam->magma_run_committed = true;
+                $gam->save();
+
+                $state = $this->resolveProgressState($customer, $gam);
+
+                return [
+                    'status' => 200,
+                    'body' => [
+                        'success' => true,
+                        'status' => 'committed',
+                        'run_id' => $runId,
+                        'committed' => true,
+                        'hearts' => $state['hearts'],
+                        'max_hearts' => self::MAX_HEARTS,
+                        'unlocked_level' => $state['highest_unlocked_level'],
+                        'life_nonce' => (string) ($run['life_nonce'] ?? ''),
+                    ],
+                ];
+            });
         });
+    }
+
+    /**
+     * Beendet den aktiven Lauf ohne Herzverlust NUR solange magma_run_committed === false ist
+     * oder der Spieler regulaer auf den Startbalkon (rel_x <= 3.2) zurueckgekehrt ist.
+     *
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function leaveRun(Customer $customer, string $runId, ?float $relX = null): array
+    {
+        if ($denied = $this->checkSanctumAccess($customer)) {
+            return $denied;
+        }
+
+        $customerId = (string) $customer->id;
+        if ($relX !== null && (!is_finite($relX) || abs($relX) > LobbyInstanceService::EXTREME_COORD_THRESHOLD)) {
+            return [
+                'status' => 422,
+                'body' => [
+                    'success' => false,
+                    'message' => 'Ungültige Positionsdaten.',
+                ],
+            ];
+        }
+
+        return $this->withCustomerParkourLock($customerId, function () use ($customer, $customerId, $runId, $relX): array {
+            return DB::transaction(function () use ($customer, $customerId, $runId, $relX): array {
+                $gam = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->first();
+                $cacheKey = $this->runCacheKey($customerId);
+                $run = Cache::get($cacheKey);
+                $state = $this->resolveProgressState($customer, $gam);
+
+                if ($gam === null || ($gam->magma_active_run_id === null && !is_array($run))) {
+                    return [
+                        'status' => 200,
+                        'body' => [
+                            'success' => true,
+                            'status' => 'left_safely',
+                            'hearts' => $state['hearts'],
+                            'max_hearts' => self::MAX_HEARTS,
+                            'unlocked_level' => $state['highest_unlocked_level'],
+                        ],
+                    ];
+                }
+
+                $activeRunId = (string) ($gam->magma_active_run_id ?: ($run['run_id'] ?? ''));
+                if ($runId === '' || ($activeRunId !== '' && !hash_equals($activeRunId, $runId))) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'message' => 'Ungültige Lauf-Kennung.',
+                        ],
+                    ];
+                }
+
+                $isCommitted = (bool) $gam->magma_run_committed || !empty($run['committed']);
+                $nowMs = Carbon::now()->getTimestampMs();
+
+                $returnedSafelyToBalcony = false;
+                if ($relX !== null && $relX >= -8.0 && $relX <= self::SAFE_BALCONY_MAX_REL_X) {
+                    $cp2AtMs = is_array($run) && is_int($run['cp2_at_ms'] ?? null) ? (int) $run['cp2_at_ms'] : null;
+                    $cp1AtMs = is_array($run) && is_int($run['cp1_at_ms'] ?? null) ? (int) $run['cp1_at_ms'] : null;
+
+                    // Schutz gegen Instant-Teleport-Spoof auf den Balkon unmittelbar nach einem Checkpoint
+                    $plausibleReturn = ($cp2AtMs === null || ($nowMs - $cp2AtMs) >= 1800)
+                        && ($cp1AtMs === null || ($nowMs - $cp1AtMs) >= 1000);
+
+                    if ($plausibleReturn) {
+                        $returnedSafelyToBalcony = true;
+                    }
+                }
+
+                if (!$isCommitted || $returnedSafelyToBalcony) {
+                    $gam->magma_active_run_id = null;
+                    $gam->magma_run_committed = false;
+                    $gam->save();
+
+                    Cache::forget($cacheKey);
+                    $this->clearActiveLifeNonce($customerId);
+
+                    return [
+                        'status' => 200,
+                        'body' => [
+                            'success' => true,
+                            'status' => 'left_safely',
+                            'hearts' => $state['hearts'],
+                            'max_hearts' => self::MAX_HEARTS,
+                            'unlocked_level' => $state['highest_unlocked_level'],
+                        ],
+                    ];
+                }
+
+                return [
+                    'status' => 409,
+                    'body' => [
+                        'success' => false,
+                        'status' => 'run_still_committed',
+                        'committed' => true,
+                        'hearts' => $state['hearts'],
+                        'max_hearts' => self::MAX_HEARTS,
+                        'unlocked_level' => $state['highest_unlocked_level'],
+                        'message' => 'Kehr zuerst auf den sicheren Startbalkon zurück, um den Lauf ohne Herzverlust zu verlassen.',
+                    ],
+                ];
+            });
+        });
+    }
+
+    /**
+     * Verarbeitet einen Lava-Treffer / Schild-Einsatz inkl. 1.0s Debounce, 6-Herzen-Abzug & 0/6 Level-Rueckstufung.
+     *
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function recordHit(
+        Customer $customer,
+        string $runId,
+        ?int $requestedLevel = null,
+        ?string $cause = null,
+        bool $usedShield = false
+    ): array {
+        if ($denied = $this->checkSanctumAccess($customer)) {
+            return $denied;
+        }
+
+        $customerId = (string) $customer->id;
+        if ($runId === '') {
+            return [
+                'status' => 422,
+                'body' => [
+                    'success' => false,
+                    'message' => 'Ungültige Lauf-Kennung.',
+                ],
+            ];
+        }
+
+        return $this->withCustomerParkourLock(
+            $customerId,
+            function () use ($customer, $customerId, $runId, $requestedLevel, $usedShield): array {
+                $nowMs = Carbon::now()->getTimestampMs();
+                $lastHitMeta = Cache::get($this->lastHitMetaKey($customerId));
+
+                if (
+                    !$usedShield
+                    && is_array($lastHitMeta)
+                    && isset($lastHitMeta['at_ms'], $lastHitMeta['response'])
+                    && ($nowMs - (int) $lastHitMeta['at_ms']) >= 0
+                    && ($nowMs - (int) $lastHitMeta['at_ms']) < self::HIT_DEBOUNCE_MS
+                    && in_array($runId, array_filter([
+                        (string) ($lastHitMeta['old_run_id'] ?? ''),
+                        (string) ($lastHitMeta['new_run_id'] ?? ''),
+                    ]), true)
+                ) {
+                    $debouncedBody = $lastHitMeta['response'];
+                    $debouncedBody['debounced'] = true;
+
+                    return [
+                        'status' => 200,
+                        'body' => $debouncedBody,
+                    ];
+                }
+
+                $cacheKey = $this->runCacheKey($customerId);
+                $run = Cache::get($cacheKey);
+
+                if (!is_array($run) || !is_string($run['run_id'] ?? null)) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'message' => 'Kein aktiver Lauf gefunden.',
+                        ],
+                    ];
+                }
+
+                if (!isset($run['customer_id']) || !hash_equals((string) $run['customer_id'], $customerId)) {
+                    return $this->destroyRunResponse($customerId, 'hit_customer_mismatch');
+                }
+
+                if (!hash_equals($run['run_id'], $runId)) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'message' => 'Ungültiger Lauf.',
+                        ],
+                    ];
+                }
+
+                $runLevel = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($run['level'] ?? 1)));
+                if ($requestedLevel !== null && $requestedLevel !== $runLevel) {
+                    return $this->destroyRunResponse($customerId, 'hit_level_mismatch', [
+                        'run_level' => $runLevel,
+                        'requested_level' => $requestedLevel,
+                    ]);
+                }
+
+                // Schild-Pruefung (>= 13.5 s Cooldown und max. 3 Einsaetze pro Run)
+                if ($usedShield) {
+                    $shieldUses = (int) ($run['shield_uses'] ?? 0);
+                    $lastShieldAtMs = isset($run['last_shield_at_ms']) && is_int($run['last_shield_at_ms'])
+                        ? (int) $run['last_shield_at_ms']
+                        : null;
+                    $cooldownOk = ($lastShieldAtMs === null) || (($nowMs - $lastShieldAtMs) >= self::SHIELD_COOLDOWN_MS);
+
+                    if ($shieldUses < self::MAX_SHIELD_USES_PER_RUN && $cooldownOk) {
+                        $shieldUses++;
+                        $run['shield_uses'] = $shieldUses;
+                        $run['last_shield_at_ms'] = $nowMs;
+                        $run['committed'] = true;
+                        $this->refreshRunTtl($cacheKey, $run);
+
+                        return DB::transaction(function () use ($customer, $runId, $run, $runLevel, $shieldUses): array {
+                            $gam = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->firstOrFail();
+                            $gam->magma_active_run_id = $runId;
+                            $gam->magma_run_committed = true;
+                            $gam->save();
+
+                            $state = $this->resolveProgressState($customer, $gam);
+
+                            return [
+                                'status' => 200,
+                                'body' => [
+                                    'success' => true,
+                                    'status' => 'shield_saved',
+                                    'hearts' => $state['hearts'],
+                                    'max_hearts' => self::MAX_HEARTS,
+                                    'demoted' => false,
+                                    'unlocked_level' => $state['highest_unlocked_level'],
+                                    'target_level' => $runLevel,
+                                    'run_id' => $runId,
+                                    'life_nonce' => (string) ($run['life_nonce'] ?? ''),
+                                    'shield_charges_remaining' => max(0, self::MAX_SHIELD_USES_PER_RUN - $shieldUses),
+                                ],
+                            ];
+                        });
+                    }
+
+                    $this->logCheatAttempt($customerId, 'shield_budget_or_cooldown_forged', [
+                        'shield_uses' => $shieldUses,
+                        'since_last_ms' => $lastShieldAtMs !== null ? ($nowMs - $lastShieldAtMs) : null,
+                    ]);
+                }
+
+                // Regulaerer Lava-Treffer (1.0s Debounce zusaetzlich direkt auf dem Run pruefen)
+                $lastRunHitAtMs = isset($run['last_hit_at_ms']) && is_int($run['last_hit_at_ms'])
+                    ? (int) $run['last_hit_at_ms']
+                    : null;
+                if ($lastRunHitAtMs !== null && ($nowMs - $lastRunHitAtMs) >= 0 && ($nowMs - $lastRunHitAtMs) < self::HIT_DEBOUNCE_MS) {
+                    $state = $this->resolveProgressState($customer);
+
+                    return [
+                        'status' => 200,
+                        'body' => [
+                            'success' => true,
+                            'status' => 'heart_lost',
+                            'debounced' => true,
+                            'hearts' => $state['hearts'],
+                            'max_hearts' => self::MAX_HEARTS,
+                            'demoted' => false,
+                            'unlocked_level' => $state['highest_unlocked_level'],
+                            'target_level' => $runLevel,
+                            'run_id' => $runId,
+                            'life_nonce' => (string) ($run['life_nonce'] ?? ''),
+                        ],
+                    ];
+                }
+
+                return DB::transaction(function () use ($customer, $customerId, $cacheKey, $run, $runId, $runLevel, $nowMs): array {
+                    $gam = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->firstOrFail();
+                    $masterKeyUnlocked = $this->hasMasterKey($customer);
+                    $maxCap = $masterKeyUnlocked ? self::MAX_MAGMA_LEVEL : 5;
+
+                    $currentHearts = max(1, min(self::MAX_HEARTS, (int) ($gam->magma_hearts ?: self::MAX_HEARTS)));
+                    $nextHearts = $currentHearts - 1;
+                    $currentRawUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($gam->magma_unlocked_level ?: 1)));
+
+                    if ($nextHearts > 0) {
+                        $newLifeNonce = Str::random(32);
+                        $newSecret = Str::random(48);
+
+                        $gam->magma_hearts = $nextHearts;
+                        $gam->magma_active_run_id = $runId;
+                        $gam->magma_run_committed = false;
+                        $gam->save();
+
+                        $this->storeActiveLifeNonce($customerId, $newLifeNonce);
+
+                        $run['stage'] = 0;
+                        $run['started_at_ms'] = $nowMs;
+                        $run['cp1_at_ms'] = null;
+                        $run['cp2_at_ms'] = null;
+                        $run['claim_token'] = null;
+                        $run['committed'] = false;
+                        $run['life_nonce'] = $newLifeNonce;
+                        $run['secret'] = $newSecret;
+                        $run['last_hit_at_ms'] = $nowMs;
+                        $this->refreshRunTtl($cacheKey, $run);
+
+                        $effectiveUnlocked = max(1, min($maxCap, $currentRawUnlocked));
+                        $levelDef = $this->getLevelDefinition($runLevel);
+
+                        $body = [
+                            'success' => true,
+                            'status' => 'heart_lost',
+                            'hearts' => $nextHearts,
+                            'max_hearts' => self::MAX_HEARTS,
+                            'demoted' => false,
+                            'unlocked_level' => $effectiveUnlocked,
+                            'target_level' => $runLevel,
+                            'run_id' => $runId,
+                            'life_nonce' => $newLifeNonce,
+                            'shield_charges_remaining' => max(0, self::MAX_SHIELD_USES_PER_RUN - (int) ($run['shield_uses'] ?? 0)),
+                            'anchors' => [
+                                'cp1' => $levelDef['rel_cp1'],
+                                'cp2' => $levelDef['rel_cp2'],
+                                'chest' => $levelDef['rel_chest'],
+                            ],
+                        ];
+
+                        Cache::put($this->lastHitMetaKey($customerId), [
+                            'at_ms' => $nowMs,
+                            'old_run_id' => $runId,
+                            'new_run_id' => $runId,
+                            'response' => $body,
+                        ], 10);
+
+                        return [
+                            'status' => 200,
+                            'body' => $body,
+                        ];
+                    }
+
+                    // 0/6 Herzen erreicht -> Level-Rueckstufung um 1 Stufe & frische 6/6 Herzen
+                    $newRawUnlocked = max(1, $currentRawUnlocked - 1);
+                    $newEffectiveUnlocked = max(1, min($maxCap, $newRawUnlocked));
+                    $newTargetLevel = max(1, min($runLevel, $newEffectiveUnlocked));
+
+                    $newRunId = Str::random(40);
+                    $newLifeNonce = Str::random(32);
+                    $newSecret = Str::random(48);
+
+                    $gam->magma_unlocked_level = $newRawUnlocked;
+                    $gam->magma_hearts = self::MAX_HEARTS;
+                    $gam->magma_active_run_id = $newRunId;
+                    $gam->magma_run_committed = false;
+                    $gam->save();
+
+                    FunkenwerkHeroesController::forgetPublicCache();
+                    $this->storeActiveLifeNonce($customerId, $newLifeNonce);
+
+                    Cache::put(
+                        $cacheKey,
+                        [
+                            'customer_id' => $customerId,
+                            'run_id' => $newRunId,
+                            'life_nonce' => $newLifeNonce,
+                            'level' => $newTargetLevel,
+                            'secret' => $newSecret,
+                            'started_at_ms' => $nowMs,
+                            'cp1_at_ms' => null,
+                            'cp2_at_ms' => null,
+                            'stage' => 0,
+                            'claim_token' => null,
+                            'committed' => false,
+                            'shield_uses' => 0,
+                            'last_shield_at_ms' => null,
+                            'last_hit_at_ms' => $nowMs,
+                        ],
+                        Carbon::now()->addMinutes(self::RUN_TTL_MINUTES)
+                    );
+
+                    $newLevelDef = $this->getLevelDefinition($newTargetLevel);
+
+                    $body = [
+                        'success' => true,
+                        'status' => 'level_demoted',
+                        'hearts' => self::MAX_HEARTS,
+                        'max_hearts' => self::MAX_HEARTS,
+                        'demoted' => true,
+                        'unlocked_level' => $newEffectiveUnlocked,
+                        'demoted_to_level' => $newTargetLevel,
+                        'target_level' => $newTargetLevel,
+                        'run_id' => $newRunId,
+                        'life_nonce' => $newLifeNonce,
+                        'shield_charges_remaining' => self::MAX_SHIELD_USES_PER_RUN,
+                        'anchors' => [
+                            'cp1' => $newLevelDef['rel_cp1'],
+                            'cp2' => $newLevelDef['rel_cp2'],
+                            'chest' => $newLevelDef['rel_chest'],
+                        ],
+                    ];
+
+                    Cache::put($this->lastHitMetaKey($customerId), [
+                        'at_ms' => $nowMs,
+                        'old_run_id' => $runId,
+                        'new_run_id' => $newRunId,
+                        'response' => $body,
+                    ], 10);
+
+                    return [
+                        'status' => 200,
+                        'body' => $body,
+                    ];
+                });
+            }
+        );
     }
 
     /**
@@ -562,7 +1182,8 @@ class LavaParkourService
         float $relX,
         float $relY,
         float $relZ,
-        ?int $requestedLevel = null
+        ?int $requestedLevel = null,
+        ?string $lifeNonce = null
     ): array {
         if ($denied = $this->checkSanctumAccess($customer)) {
             $this->invalidateActiveRunForCustomer((string) $customer->id);
@@ -595,7 +1216,7 @@ class LavaParkourService
 
         return $this->withCustomerParkourLock(
             $customerId,
-            function () use ($customerId, $runId, $stage, $relX, $relY, $relZ, $requestedLevel): array {
+            function () use ($customerId, $runId, $stage, $relX, $relY, $relZ, $requestedLevel, $lifeNonce): array {
                 $cacheKey = $this->runCacheKey($customerId);
                 $run = Cache::get($cacheKey);
 
@@ -662,9 +1283,28 @@ class LavaParkourService
                     ];
                 }
 
+                $runLifeNonce = (string) ($run['life_nonce'] ?? '');
+                if (!$this->verifyRunLifeNonce($customerId, $runLifeNonce, $lifeNonce)) {
+                    $this->logCheatAttempt($customerId, 'checkpoint_life_nonce_mismatch', ['stage' => $stage]);
+
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'retryable' => false,
+                            'current_stage' => 0,
+                            'message' => 'Dieser Versuch wurde bereits beendet. Bitte starte auf dem Startbalkon neu.',
+                        ],
+                    ];
+                }
+
+                $levelDef = $this->getLevelDefinition($runLevel);
+                $cp1Anchor = $levelDef['rel_cp1'];
+                $cp2Anchor = $levelDef['rel_cp2'];
+
                 if ($stage === 1) {
-                    $dist = hypot($relX - self::REL_CP1_X, $relZ - self::REL_CP1_Z);
-                    if ($dist > self::CP1_MAX_DIST || $relY < self::CP1_MIN_Y || $relY > self::CP1_MAX_Y) {
+                    $dist = hypot($relX - (float) $cp1Anchor['x'], $relZ - (float) $cp1Anchor['z']);
+                    if ($dist > self::CP1_MAX_DIST || $relY < self::MIN_REL_Y || $relY > self::MAX_REL_Y) {
                         $this->refreshRunTtl($cacheKey, $run);
                         $this->logCheatAttempt($customerId, 'cp1_coordinates_violation', [
                             'dist' => round($dist, 2),
@@ -680,7 +1320,7 @@ class LavaParkourService
                     }
 
                     if ($currentStage === 1 || $currentStage === 2) {
-                        $this->refreshRunTtl($cacheKey, $run);
+                        $this->ensureRunCommittedInDb($customerId, $runId, $run, $cacheKey);
 
                         return [
                             'status' => 200,
@@ -688,6 +1328,7 @@ class LavaParkourService
                                 'success' => true,
                                 'level' => $runLevel,
                                 'stage' => $currentStage,
+                                'life_nonce' => $runLifeNonce,
                                 'claim_token' => $currentStage === 2 && is_string($run['claim_token'] ?? null)
                                     ? $run['claim_token']
                                     : null,
@@ -706,8 +1347,8 @@ class LavaParkourService
                     }
 
                     $elapsedCp1Ms = $nowMs - $startedAtMs;
-                    if ($elapsedCp1Ms < self::MIN_CP1_ELAPSED_MS) {
-                        $waitMs = self::MIN_CP1_ELAPSED_MS - $elapsedCp1Ms;
+                    if ($elapsedCp1Ms < self::MIN_SPLIT_1_MS) {
+                        $waitMs = self::MIN_SPLIT_1_MS - $elapsedCp1Ms;
                         $this->refreshRunTtl($cacheKey, $run);
                         $this->logCheatAttempt($customerId, 'cp1_speedhack_blocked', [
                             'elapsed_ms' => $elapsedCp1Ms,
@@ -723,7 +1364,7 @@ class LavaParkourService
 
                     $run['stage'] = 1;
                     $run['cp1_at_ms'] = $nowMs;
-                    $this->refreshRunTtl($cacheKey, $run);
+                    $this->ensureRunCommittedInDb($customerId, $runId, $run, $cacheKey);
 
                     return [
                         'status' => 200,
@@ -731,16 +1372,17 @@ class LavaParkourService
                             'success' => true,
                             'level' => $runLevel,
                             'stage' => 1,
+                            'life_nonce' => $runLifeNonce,
                             'claim_token' => null,
                         ],
                     ];
                 }
 
                 // Stage 2
-                $dist = hypot($relX - self::REL_CP2_X, $relZ - self::REL_CP2_Z);
+                $dist = hypot($relX - (float) $cp2Anchor['x'], $relZ - (float) $cp2Anchor['z']);
 
                 if ($currentStage === 2 && !empty($run['claim_token']) && is_string($run['claim_token'])) {
-                    if ($dist > self::CP2_MAX_DIST || $relY < self::CP2_MIN_Y || $relY > self::CP2_MAX_Y) {
+                    if ($dist > self::CP2_MAX_DIST || $relY < self::MIN_REL_Y || $relY > self::MAX_REL_Y) {
                         $this->refreshRunTtl($cacheKey, $run);
                         $this->logCheatAttempt($customerId, 'cp2_retry_coordinates_violation', [
                             'dist' => round($dist, 2),
@@ -755,7 +1397,7 @@ class LavaParkourService
                         );
                     }
 
-                    $this->refreshRunTtl($cacheKey, $run);
+                    $this->ensureRunCommittedInDb($customerId, $runId, $run, $cacheKey);
 
                     return [
                         'status' => 200,
@@ -763,6 +1405,7 @@ class LavaParkourService
                             'success' => true,
                             'level' => $runLevel,
                             'stage' => 2,
+                            'life_nonce' => $runLifeNonce,
                             'claim_token' => $run['claim_token'],
                         ],
                     ];
@@ -783,7 +1426,7 @@ class LavaParkourService
                     );
                 }
 
-                if ($dist > self::CP2_MAX_DIST || $relY < self::CP2_MIN_Y || $relY > self::CP2_MAX_Y) {
+                if ($dist > self::CP2_MAX_DIST || $relY < self::MIN_REL_Y || $relY > self::MAX_REL_Y) {
                     $this->refreshRunTtl($cacheKey, $run);
                     $this->logCheatAttempt($customerId, 'cp2_coordinates_violation', [
                         'dist' => round($dist, 2),
@@ -799,8 +1442,8 @@ class LavaParkourService
                 }
 
                 $elapsedCp2Ms = $nowMs - $cp1AtMs;
-                if ($elapsedCp2Ms < self::MIN_CP2_ELAPSED_MS) {
-                    $waitMs = self::MIN_CP2_ELAPSED_MS - $elapsedCp2Ms;
+                if ($elapsedCp2Ms < self::MIN_SPLIT_2_MS) {
+                    $waitMs = self::MIN_SPLIT_2_MS - $elapsedCp2Ms;
                     $this->refreshRunTtl($cacheKey, $run);
                     $this->logCheatAttempt($customerId, 'cp2_speedhack_blocked', [
                         'elapsed_ms' => $elapsedCp2Ms,
@@ -819,12 +1462,20 @@ class LavaParkourService
                     return $this->destroyRunResponse($customerId, 'missing_run_secret');
                 }
 
-                $claimToken = $this->computeClaimToken($customerId, $runId, $runLevel, $cp1AtMs, $nowMs, $secret);
+                $claimToken = $this->computeClaimToken(
+                    $customerId,
+                    $runId,
+                    $runLevel,
+                    $runLifeNonce,
+                    $cp1AtMs,
+                    $nowMs,
+                    $secret
+                );
                 $run['stage'] = 2;
                 $run['cp2_at_ms'] = $nowMs;
                 $run['claim_token'] = $claimToken;
 
-                $this->refreshRunTtl($cacheKey, $run);
+                $this->ensureRunCommittedInDb($customerId, $runId, $run, $cacheKey);
 
                 return [
                     'status' => 200,
@@ -832,6 +1483,7 @@ class LavaParkourService
                         'success' => true,
                         'level' => $runLevel,
                         'stage' => 2,
+                        'life_nonce' => $runLifeNonce,
                         'claim_token' => $claimToken,
                     ],
                 ];
@@ -849,7 +1501,8 @@ class LavaParkourService
         float $relX,
         float $relY,
         float $relZ,
-        ?int $requestedLevel = null
+        ?int $requestedLevel = null,
+        ?string $lifeNonce = null
     ): array {
         if ($denied = $this->checkSanctumAccess($customer)) {
             $this->invalidateActiveRunForCustomer((string) $customer->id);
@@ -881,7 +1534,7 @@ class LavaParkourService
 
         return $this->withCustomerParkourLock(
             $customerId,
-            function () use ($customer, $customerId, $runId, $claimToken, $relX, $relY, $relZ, $requestedLevel): array {
+            function () use ($customer, $customerId, $runId, $claimToken, $relX, $relY, $relZ, $requestedLevel, $lifeNonce): array {
                 $cacheKey = $this->runCacheKey($customerId);
 
                 if ($claimToken !== '' && Cache::has($this->usedTokenKey($claimToken))) {
@@ -963,6 +1616,21 @@ class LavaParkourService
                     ];
                 }
 
+                $runLifeNonce = (string) ($run['life_nonce'] ?? '');
+                if (!$this->verifyRunLifeNonce($customerId, $runLifeNonce, $lifeNonce)) {
+                    $this->logCheatAttempt($customerId, 'claim_life_nonce_mismatch');
+
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'retryable' => false,
+                            'current_stage' => 0,
+                            'message' => 'Dieser Versuch wurde durch einen Treffer zurückgesetzt. Bitte passiere die Checkpoints erneut.',
+                        ],
+                    ];
+                }
+
                 if ($currentStage !== 2) {
                     if ($claimToken !== '') {
                         return $this->destroyRunResponse($customerId, 'forged_token_before_stage_2', [
@@ -1010,6 +1678,7 @@ class LavaParkourService
                     $customerId,
                     $runId,
                     $runLevel,
+                    $runLifeNonce,
                     (int) $run['cp1_at_ms'],
                     (int) $run['cp2_at_ms'],
                     (string) $run['secret']
@@ -1019,8 +1688,11 @@ class LavaParkourService
                     return $this->destroyRunResponse($customerId, 'claim_hmac_mismatch');
                 }
 
-                $dist = hypot($relX - self::REL_CHEST_X, $relZ - self::REL_CHEST_Z);
-                if ($dist > self::CHEST_MAX_DIST || $relY < self::CHEST_MIN_Y || $relY > self::CHEST_MAX_Y) {
+                $levelDef = $this->getLevelDefinition($runLevel);
+                $chestAnchor = $levelDef['rel_chest'];
+                $dist = hypot($relX - (float) $chestAnchor['x'], $relZ - (float) $chestAnchor['z']);
+
+                if ($dist > self::CHEST_MAX_DIST || $relY < self::MIN_REL_Y || $relY > self::MAX_REL_Y) {
                     $this->refreshRunTtl($cacheKey, $run);
                     $this->logCheatAttempt($customerId, 'chest_coordinates_violation', [
                         'dist' => round($dist, 2),
@@ -1042,12 +1714,13 @@ class LavaParkourService
                 $sinceCp2Ms = $nowMs - $cp2AtMs;
                 $totalDurationMs = $nowMs - $startedAtMs;
 
-                if ($cp1SplitMs < self::MIN_CP1_ELAPSED_MS || $cp2SplitMs < self::MIN_CP2_ELAPSED_MS) {
+                if ($cp1SplitMs < self::MIN_SPLIT_1_MS || $cp2SplitMs < self::MIN_SPLIT_2_MS) {
                     return $this->destroyRunResponse($customerId, 'claim_corrupted_split_timestamps');
                 }
 
-                $waitAfterCp2Ms = max(0, self::MIN_CLAIM_AFTER_CP2_MS - $sinceCp2Ms);
-                $waitTotalMs = max(0, self::MIN_TOTAL_RUN_MS - $totalDurationMs);
+                $minTotalForLevelMs = self::minTotalRunMs($runLevel);
+                $waitAfterCp2Ms = max(0, self::MIN_SPLIT_CLAIM_MS - $sinceCp2Ms);
+                $waitTotalMs = max(0, $minTotalForLevelMs - $totalDurationMs);
                 $requiredWaitMs = max($waitAfterCp2Ms, $waitTotalMs);
 
                 if ($requiredWaitMs > 0) {
@@ -1067,6 +1740,7 @@ class LavaParkourService
 
                 if ($runLevel >= self::MASTER_KEY_MIN_LEVEL && !$this->hasMasterKey($customer)) {
                     Cache::forget($cacheKey);
+                    $this->clearActiveLifeNonce($customerId);
 
                     return [
                         'status' => 403,
@@ -1082,6 +1756,8 @@ class LavaParkourService
 
                 // Single-Use: Run sofort entwerten und atomaren Token-Tombstone setzen, bevor DB-Transaktion startet
                 Cache::forget($cacheKey);
+                $this->clearActiveLifeNonce($customerId);
+
                 if (!Cache::add($this->usedTokenKey($claimToken), $nowMs, Carbon::now()->addDays(2))) {
                     $this->logCheatAttempt($customerId, 'parallel_claim_race_blocked');
 
@@ -1108,7 +1784,7 @@ class LavaParkourService
                                 'success' => false,
                                 'code' => 'magic_activation_required',
                                 'sanctum_block_reason' => 'magic_activation_required',
-                                'message' => 'Bitte führe im Kundenbereich zuerst Magie aktivieren aus, um die Halle der Helden oder das Magma-Level zu betreten.',
+                                'message' => 'Bitte führe zuerst Magie aktivieren aus, um die Halle der Helden oder das Magma-Level zu betreten.',
                             ],
                         ];
                     }
@@ -1121,6 +1797,7 @@ class LavaParkourService
                         ? $gam->titles_progress
                         : $this->gamificationService->getInitialTitlesProgress();
 
+                    // Anti-Farming: lava_cleared_levels bleibt permanentes Erstabschluss-Register (max. 1x pro Raum im Leben!)
                     $clearedLevels = $this->normalizeLevelList($titlesProgress['lava_cleared_levels'] ?? []);
 
                     $rawDaily = $titlesProgress['lava_daily_claims'] ?? null;
@@ -1153,8 +1830,6 @@ class LavaParkourService
                             }
                         }
 
-                        // Jede Magma-Truhe (Stufe 1..10) wird bei der ersten Oeffnung des Kalendertages
-                        // sofort fest als geoeffnet markiert (auch wenn das Tages-Funken-Cap bereits erreicht ist).
                         $dailyLevels[] = $runLevel;
                         $dailyLevels = $this->normalizeLevelList($dailyLevels);
                         $titlesProgress['_lava_chest_last_claim_date'] = $today;
@@ -1176,8 +1851,16 @@ class LavaParkourService
                         'sparks' => $dailySparksEarned,
                     ];
 
+                    $currentMagmaUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($gam->magma_unlocked_level ?: 1)));
+                    $nextRawUnlocked = max($currentMagmaUnlocked, min(self::MAX_MAGMA_LEVEL, $runLevel + 1));
+
+                    $gam->magma_unlocked_level = $nextRawUnlocked;
+                    $gam->magma_active_run_id = null;
+                    $gam->magma_run_committed = false;
                     $gam->titles_progress = $titlesProgress;
                     $gam->save();
+
+                    FunkenwerkHeroesController::forgetPublicCache();
 
                     if ($sparksAwarded > 0) {
                         $levelTitle = self::LEVEL_TITLES[$runLevel];
@@ -1209,19 +1892,11 @@ class LavaParkourService
                     $lvlCfg = GameConfig::getLevelConfig($playerLevel);
                     $modelUrl = '/' . ltrim((string) ($lvlCfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_1_rags.glb'), '/');
 
-                    $maxSequential = 0;
-                    for ($lvl = 1; $lvl <= self::MAX_MAGMA_LEVEL; $lvl++) {
-                        if (in_array($lvl, $clearedLevels, true)) {
-                            $maxSequential = $lvl;
-                        } else {
-                            break;
-                        }
-                    }
-                    $rawUnlocked = min(self::MAX_MAGMA_LEVEL, $maxSequential + 1);
-                    $highestUnlockedLevel = $masterKeyUnlocked ? $rawUnlocked : min(5, $rawUnlocked);
+                    $highestUnlockedLevel = $masterKeyUnlocked ? $nextRawUnlocked : min(5, $nextRawUnlocked);
                     $unlockedPortals = $highestUnlockedLevel >= 2 ? range(2, $highestUnlockedLevel) : [];
                     $heroMetrics = LobbyInstanceService::calculateHeroRankingMetrics($gam);
                     $isLockedToday = in_array($runLevel, $dailyLevels, true);
+                    $hearts = max(1, min(self::MAX_HEARTS, (int) ($gam->magma_hearts ?: self::MAX_HEARTS)));
 
                     if ($alreadyClaimedToday) {
                         $message = 'Diese Truhe wurde heute bereits geöffnet. Morgen ab 00:00 Uhr ist sie wieder bereit!';
@@ -1236,6 +1911,9 @@ class LavaParkourService
                         'body' => [
                             'success' => true,
                             'level' => $runLevel,
+                            'hearts' => $hearts,
+                            'max_hearts' => self::MAX_HEARTS,
+                            'unlocked_level' => $highestUnlockedLevel,
                             'sparks_awarded' => $sparksAwarded,
                             'rewarded_sparks' => $sparksAwarded,
                             'is_first_clear' => $isFirstClear,
@@ -1268,11 +1946,251 @@ class LavaParkourService
         );
     }
 
+    /**
+     * Konsistenter Admin-Vorschau-Modus fuer eingeloggte Admins ohne aktive Customer-Session (0 DB-Writes).
+     *
+     * @param array<string, mixed> $payload
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function handleAdminPreviewAction(Admin $admin, string $action, array $payload = []): array
+    {
+        $actorId = 'admin_' . $admin->id;
+        $cacheKey = $this->runCacheKey($actorId);
+        $nowMs = Carbon::now()->getTimestampMs();
+
+        if ($action === 'start') {
+            $level = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($payload['level'] ?? 1)));
+            $levelDef = $this->getLevelDefinition($level);
+            $runId = Str::random(40);
+            $lifeNonce = Str::random(32);
+            $secret = Str::random(48);
+
+            Cache::put($cacheKey, [
+                'run_id' => $runId,
+                'life_nonce' => $lifeNonce,
+                'level' => $level,
+                'secret' => $secret,
+                'started_at_ms' => $nowMs,
+                'cp1_at_ms' => null,
+                'cp2_at_ms' => null,
+                'stage' => 0,
+                'claim_token' => null,
+                'hearts' => self::MAX_HEARTS,
+            ], Carbon::now()->addMinutes(self::RUN_TTL_MINUTES));
+
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'admin_preview' => true,
+                    'run_id' => $runId,
+                    'life_nonce' => $lifeNonce,
+                    'level' => $level,
+                    'title' => $levelDef['title'],
+                    'hearts' => self::MAX_HEARTS,
+                    'max_hearts' => self::MAX_HEARTS,
+                    'unlocked_level' => self::MAX_MAGMA_LEVEL,
+                    'highest_unlocked_level' => self::MAX_MAGMA_LEVEL,
+                    'shield_charges_remaining' => self::MAX_SHIELD_USES_PER_RUN,
+                    'master_key_unlocked' => true,
+                    'unlocked_portals' => range(2, 10),
+                    'anchors' => [
+                        'cp1' => $levelDef['rel_cp1'],
+                        'cp2' => $levelDef['rel_cp2'],
+                        'chest' => $levelDef['rel_chest'],
+                    ],
+                ],
+            ];
+        }
+
+        $run = Cache::get($cacheKey);
+        $level = is_array($run) ? max(1, min(self::MAX_MAGMA_LEVEL, (int) ($run['level'] ?? 1))) : 1;
+        $levelDef = $this->getLevelDefinition($level);
+        $runId = is_array($run) ? (string) ($run['run_id'] ?? Str::random(40)) : Str::random(40);
+        $lifeNonce = is_array($run) ? (string) ($run['life_nonce'] ?? Str::random(32)) : Str::random(32);
+
+        if ($action === 'commit') {
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'status' => 'committed',
+                    'run_id' => $runId,
+                    'committed' => true,
+                    'hearts' => self::MAX_HEARTS,
+                    'max_hearts' => self::MAX_HEARTS,
+                    'unlocked_level' => self::MAX_MAGMA_LEVEL,
+                    'life_nonce' => $lifeNonce,
+                ],
+            ];
+        }
+
+        if ($action === 'leave') {
+            Cache::forget($cacheKey);
+
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'status' => 'left_safely',
+                    'hearts' => self::MAX_HEARTS,
+                    'max_hearts' => self::MAX_HEARTS,
+                    'unlocked_level' => self::MAX_MAGMA_LEVEL,
+                ],
+            ];
+        }
+
+        if ($action === 'hit') {
+            $newNonce = Str::random(32);
+            if (is_array($run)) {
+                $run['life_nonce'] = $newNonce;
+                $run['stage'] = 0;
+                $run['started_at_ms'] = $nowMs;
+                $this->refreshRunTtl($cacheKey, $run);
+            }
+
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'status' => !empty($payload['used_shield']) ? 'shield_saved' : 'heart_lost',
+                    'hearts' => self::MAX_HEARTS,
+                    'max_hearts' => self::MAX_HEARTS,
+                    'demoted' => false,
+                    'unlocked_level' => self::MAX_MAGMA_LEVEL,
+                    'target_level' => $level,
+                    'run_id' => $runId,
+                    'life_nonce' => $newNonce,
+                    'shield_charges_remaining' => self::MAX_SHIELD_USES_PER_RUN,
+                    'anchors' => [
+                        'cp1' => $levelDef['rel_cp1'],
+                        'cp2' => $levelDef['rel_cp2'],
+                        'chest' => $levelDef['rel_chest'],
+                    ],
+                ],
+            ];
+        }
+
+        if ($action === 'checkpoint') {
+            $stage = (int) ($payload['stage'] ?? 1);
+            $tok = $stage === 2 ? hash_hmac('sha256', $actorId . '|' . $runId, (string) ($run['secret'] ?? 'adm')) : null;
+            if (is_array($run)) {
+                $run['stage'] = $stage;
+                $run['claim_token'] = $tok;
+                $this->refreshRunTtl($cacheKey, $run);
+            }
+
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'level' => $level,
+                    'stage' => $stage,
+                    'life_nonce' => $lifeNonce,
+                    'claim_token' => $tok,
+                ],
+            ];
+        }
+
+        Cache::forget($cacheKey);
+
+        return [
+            'status' => 200,
+            'body' => [
+                'success' => true,
+                'admin_preview' => true,
+                'level' => $level,
+                'hearts' => self::MAX_HEARTS,
+                'max_hearts' => self::MAX_HEARTS,
+                'unlocked_level' => self::MAX_MAGMA_LEVEL,
+                'sparks_awarded' => 0,
+                'rewarded_sparks' => 0,
+                'message' => 'Admin-Vorschau abgeschlossen.',
+            ],
+        ];
+    }
+
     public function invalidateActiveRunForCustomer(string $customerId): void
     {
         if ($customerId !== '') {
             Cache::forget($this->runCacheKey($customerId));
+            $this->clearActiveLifeNonce($customerId);
         }
+    }
+
+    /**
+     * @param array<int, int> $clearedLevels
+     */
+    private function computeMaxSequentialCleared(array $clearedLevels): int
+    {
+        $maxSequential = 0;
+        for ($lvl = 1; $lvl <= self::MAX_MAGMA_LEVEL; $lvl++) {
+            if (in_array($lvl, $clearedLevels, true)) {
+                $maxSequential = $lvl;
+            } else {
+                break;
+            }
+        }
+
+        return $maxSequential;
+    }
+
+    /**
+     * @param array<string, mixed> $run
+     */
+    private function ensureRunCommittedInDb(string $customerId, string $runId, array &$run, string $cacheKey): void
+    {
+        $wasCommitted = !empty($run['committed']);
+        $run['committed'] = true;
+        $this->refreshRunTtl($cacheKey, $run);
+
+        if (!$wasCommitted && Schema::hasTable('customer_gamifications')) {
+            CustomerGamification::where('customer_id', $customerId)
+                ->update([
+                    'magma_active_run_id' => $runId,
+                    'magma_run_committed' => true,
+                ]);
+        }
+    }
+
+    private function storeActiveLifeNonce(string $customerId, string $lifeNonce): void
+    {
+        Cache::put($this->lifeNonceKey($customerId), $lifeNonce, Carbon::now()->addMinutes(self::RUN_TTL_MINUTES));
+        try {
+            if (request()?->hasSession()) {
+                request()->session()->put('sf_magma_life_nonce_' . $customerId, $lifeNonce);
+            }
+        } catch (\Throwable) {
+        }
+    }
+
+    private function clearActiveLifeNonce(string $customerId): void
+    {
+        Cache::forget($this->lifeNonceKey($customerId));
+        try {
+            if (request()?->hasSession()) {
+                request()->session()->forget('sf_magma_life_nonce_' . $customerId);
+            }
+        } catch (\Throwable) {
+        }
+    }
+
+    private function verifyRunLifeNonce(string $customerId, string $runLifeNonce, ?string $requestLifeNonce): bool
+    {
+        if ($runLifeNonce === '') {
+            return false;
+        }
+
+        if ($requestLifeNonce !== null && $requestLifeNonce !== '' && !hash_equals($runLifeNonce, $requestLifeNonce)) {
+            return false;
+        }
+
+        $authoritativeNonce = Cache::get($this->lifeNonceKey($customerId));
+        if (is_string($authoritativeNonce) && $authoritativeNonce !== '' && !hash_equals($authoritativeNonce, $runLifeNonce)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -1302,19 +2220,10 @@ class LavaParkourService
 
     private function isOrderRevoked(OrderOrder $order): bool
     {
-        $rawNumber = trim((string) ($order->order_number ?? ''));
-        if ($rawNumber === '') {
+        $candidates = LobbyInstanceService::orderNumberRevocationCandidates((string) ($order->order_number ?? ''));
+        if (empty($candidates)) {
             return false;
         }
-
-        $cleanNumber = strtoupper(trim(ltrim((string) preg_replace('/^(bestellung|order|nr\.?|rechnung)\s*/i', '', $rawNumber), '#')));
-
-        $candidates = array_values(array_unique(array_filter([
-            $rawNumber,
-            $cleanNumber,
-            $cleanNumber !== '' ? ('ORD-' . $cleanNumber) : '',
-            $cleanNumber !== '' ? ('SF-' . $cleanNumber) : '',
-        ])));
 
         return OrderRevocation::whereIn('order_number', $candidates)
             ->whereIn('status', ['processed', 'approved', 'completed'])
@@ -1350,11 +2259,16 @@ class LavaParkourService
         string $customerId,
         string $runId,
         int $level,
+        string $lifeNonce,
         int $cp1AtMs,
         int $cp2AtMs,
         string $secret
     ): string {
-        return hash_hmac('sha256', $customerId . '|' . $runId . '|lvl' . $level . '|cp2|' . $cp1AtMs . '|' . $cp2AtMs, $secret);
+        return hash_hmac(
+            'sha256',
+            $customerId . '|' . $runId . '|lvl' . $level . '|nonce:' . $lifeNonce . '|cp2|' . $cp1AtMs . '|' . $cp2AtMs,
+            $secret
+        );
     }
 
     /**
@@ -1394,6 +2308,7 @@ class LavaParkourService
         string $message = 'Ungültiger Lauf.'
     ): array {
         Cache::forget($this->runCacheKey($customerId));
+        $this->clearActiveLifeNonce($customerId);
         $this->logCheatAttempt($customerId, $reason, $context);
 
         return [
@@ -1423,6 +2338,16 @@ class LavaParkourService
     private function runCacheKey(string $customerId): string
     {
         return 'sf_lava_run_' . $customerId;
+    }
+
+    private function lifeNonceKey(string $customerId): string
+    {
+        return 'sf_lava_nonce_' . $customerId;
+    }
+
+    private function lastHitMetaKey(string $customerId): string
+    {
+        return 'sf_lava_last_hit_' . $customerId;
     }
 
     private function claimLockKey(string $customerId): string

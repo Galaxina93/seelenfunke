@@ -244,8 +244,10 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'first_name' => 'Maximilian',
             'last_name' => 'StrengGeheimerNachname Eins',
             'email' => 'streng.geheim.eins@private-mail.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('secret1234'),
         ]);
+        $this->createPaidOrder('ORD-HERO-ONE-01', $heroOneCustomer, false, 'completed');
         CustomerGamification::create([
             'customer_id' => $heroOneCustomer->id,
             'is_active' => true,
@@ -266,8 +268,10 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'first_name' => 'Versteckt',
             'last_name' => 'Unsichtbar',
             'email' => 'unsichtbar@example.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('secret1234'),
         ]);
+        $this->createPaidOrder('ORD-HERO-TWO-02', $optOutCustomer, false, 'completed');
         CustomerGamification::create([
             'customer_id' => $optOutCustomer->id,
             'is_active' => true,
@@ -284,8 +288,12 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'first_name' => 'Clara',
             'last_name' => 'SuperGeheimNachname',
             'email' => 'clara.privat@geheim.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('secret1234'),
         ]);
+        $meOrder = $this->createPaidOrder('ORD-HERO-CLARA-03', $meCustomer, false, 'completed');
+        $meOrder->timestamps = false;
+        $meOrder->forceFill(['created_at' => now()->subMinutes(10), 'updated_at' => now()->subMinutes(10)])->save();
         CustomerGamification::create([
             'customer_id' => $meCustomer->id,
             'is_active' => true,
@@ -303,8 +311,10 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'first_name' => 'Helena',
             'last_name' => 'GeheimPrivatNachname',
             'email' => 'helena.geheim@example.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('secret1234'),
         ]);
+        $this->createPaidOrder('ORD-HERO-HELENA-04', $anonNoPseudoCustomer, false, 'completed');
         CustomerGamification::create([
             'customer_id' => $anonNoPseudoCustomer->id,
             'is_active' => true,
@@ -313,6 +323,36 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'player_name' => null,
             'level' => 2,
             'funken_total_earned' => 271,
+        ]);
+
+        // Storno-Leiche: Hat zwar magma_cleared_count > 0, aber seine einzige Bestellung wurde widerrufen -> darf NICHT auf Podest erscheinen!
+        $revokedGhostCustomer = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Storno',
+            'last_name' => 'Geist',
+            'email' => 'storno.geist@example.de',
+            'email_verified_at' => now(),
+            'password' => bcrypt('secret1234'),
+        ]);
+        $this->createPaidOrder('ORD-REVOKED-GHOST-99', $revokedGhostCustomer, false, 'completed');
+        \App\Models\Order\OrderRevocation::create([
+            'name' => 'Storno Geist',
+            'email' => $revokedGhostCustomer->email,
+            'order_number' => 'ORD-REVOKED-GHOST-99',
+            'status' => 'approved',
+        ]);
+        CustomerGamification::create([
+            'customer_id' => $revokedGhostCustomer->id,
+            'is_active' => true,
+            'ranking_opt_in' => true,
+            'use_real_name' => false,
+            'player_name' => 'StornoGeist999',
+            'level' => 10,
+            'funken_total_earned' => 9000,
+            'magma_unlocked_level' => 5,
+            'titles_progress' => [
+                'lava_cleared_levels' => [1, 2, 3, 4],
+            ],
         ]);
 
         // 1. Public guest request works on BOTH routes and exposes 0 PII (inkl. Sanctum-Gate fuer Gast: login_required)
@@ -360,6 +400,10 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringNotContainsString((string) $heroOneCustomer->id, $rawGuestBody);
         $this->assertStringNotContainsString((string) $meCustomer->id, $rawGuestBody);
         $this->assertStringNotContainsString((string) $anonNoPseudoCustomer->id, $rawGuestBody);
+        $this->assertStringNotContainsString('StornoGeist999', $rawGuestBody);
+
+        // 15s Public-Cache ist gefuellt
+        $this->assertTrue(\Illuminate\Support\Facades\Cache::has(\App\Http\Controllers\Api\FunkenwerkHeroesController::PUBLIC_CACHE_KEY));
 
         // 2. Logged-in customer ($meCustomer auf Platz #3) sieht sich mit is_me = true, waehrend Platz #4 weiterhin "Funken-Hüter #4" bleibt
         $this->actingAs($meCustomer, 'customer');
@@ -367,11 +411,11 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $authResp->assertOk()
             ->assertJsonPath('customer_logged_in', true)
             ->assertJsonPath('customer_opt_in', true)
-            ->assertJsonPath('has_completed_order', false)
+            ->assertJsonPath('has_completed_order', true)
             ->assertJsonPath('gamification_active', true)
-            ->assertJsonPath('can_enter_heroes', false)
-            ->assertJsonPath('can_enter_sanctums', false)
-            ->assertJsonPath('sanctum_block_reason', 'order_required')
+            ->assertJsonPath('can_enter_heroes', true)
+            ->assertJsonPath('can_enter_sanctums', true)
+            ->assertJsonPath('sanctum_block_reason', null)
             ->assertJsonPath('my_hero_slot', 3)
             ->assertJsonPath('level_models.1', '/shop/customer/gamification/models/funki_lvl_1_rags.glb')
             ->assertJsonPath('level_models.10', '/shop/customer/gamification/models/funki_lvl_10_god_of_soul.glb')
@@ -551,8 +595,10 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'first_name' => 'Alpha',
             'last_name' => 'NachnameAlpha',
             'email' => 'alpha.sync@example.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('secret1234'),
         ]);
+        $this->createPaidOrder('ORD-ALPHA-SYNC-1', $cAlpha, false, 'completed');
         $pAlpha = CustomerGamification::create([
             'customer_id' => $cAlpha->id,
             'is_active' => true,
@@ -571,8 +617,10 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'first_name' => 'Beta',
             'last_name' => 'NachnameBeta',
             'email' => 'beta.sync@example.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('secret1234'),
         ]);
+        $this->createPaidOrder('ORD-BETA-SYNC-2', $cBeta, false, 'completed');
         $pBeta = CustomerGamification::create([
             'customer_id' => $cBeta->id,
             'is_active' => true,
@@ -591,8 +639,10 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'first_name' => 'Gamma',
             'last_name' => 'NachnameGamma',
             'email' => 'gamma.sync@example.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('secret1234'),
         ]);
+        $this->createPaidOrder('ORD-GAMMA-SYNC-3', $cGamma, false, 'completed');
         $pGamma = CustomerGamification::create([
             'customer_id' => $cGamma->id,
             'is_active' => true,
@@ -623,6 +673,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         // Punkt 5b: Magma-Level fliesst logisch in die Halle-der-Helden-Bewertungslogik ein!
         // FunkenBeta (2900 Funken) meistert Magma-Raeume 1..5 -> +15 +30 +45 +60 +75 = +225 Prestige -> hero_score = 3125 > 3100!
         $pBeta->forceFill([
+            'magma_unlocked_level' => 6,
             'titles_progress' => [
                 'lava_cleared_levels' => [1, 2, 3, 4, 5],
             ],
@@ -684,6 +735,7 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
             'first_name' => 'Alina',
             'last_name' => 'SteinhauerPrivat',
             'email' => 'alina.podium@example.de',
+            'email_verified_at' => now(),
             'password' => bcrypt('secret1234'),
         ]);
         CustomerGamification::create([

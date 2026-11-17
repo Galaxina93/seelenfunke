@@ -164,7 +164,7 @@ Route::get('/shop/showroom-data', [\App\Http\Controllers\Frontend\ShopShowroomCo
     ->middleware('throttle:60,1,showroom_data')
     ->name('shop.showroom.data');
 Route::post('/shop/showroom-sync', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'sync'])
-    ->middleware('throttle:90,1,showroom_sync')
+    ->middleware('throttle:120,1,showroom_sync')
     ->name('shop.showroom.sync');
 Route::post('/shop/showroom-chat', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'chat'])
     ->middleware('throttle:30,1,showroom_chat')
@@ -191,6 +191,10 @@ Route::get('/kontakt', function () {
 // --- 3. Tools ---
 // Kalkulator
 Route::get('/calculator', function () {
+    if (!\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()) {
+        abort(404);
+    }
+
     return view('frontend.pages.calculator');
 })->name('calculator');
 
@@ -216,10 +220,27 @@ Route::post('/funkenwerk-welt/lobby/leave', [\App\Http\Controllers\Api\CustomerL
     ->middleware('throttle:60,1,lobby_leave')
     ->name('gamification.funkenwerk-lobby.leave');
 
-// 10-Stufen Magma-Spiel (Server-Authoritative Anti-Cheat, Level 1 bis 10 & Manufaktur-Meisterschluessel)
+// Inline-Auth & Inline-Magie-Aktivierung für 3D-Showroom & Funkenreich
+Route::post('/funkenwerk-welt/inline-login', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'inlineLogin'])
+    ->middleware('throttle:10,1,fw_inline_login')
+    ->name('gamification.funkenwerk.inline-login');
+Route::post('/funkenwerk-welt/activate-magic', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'activateMagic'])
+    ->middleware('throttle:15,1,fw_activate_magic')
+    ->name('gamification.funkenwerk.activate-magic');
+
+// 10-Stufen Magma-Spiel (Server-Authoritative Anti-Cheat, 6-Herzen Run-Escrow, Level 1 bis 10 & Manufaktur-Meisterschluessel)
 Route::post('/funkenwerk-welt/lava-parkour/start', [\App\Http\Controllers\Api\LavaParkourController::class, 'start'])
     ->middleware('throttle:60,1,lava_start')
     ->name('gamification.lava-parkour.start');
+Route::post('/funkenwerk-welt/lava-parkour/commit', [\App\Http\Controllers\Api\LavaParkourController::class, 'commit'])
+    ->middleware('throttle:120,1,lava_commit')
+    ->name('gamification.lava-parkour.commit');
+Route::post('/funkenwerk-welt/lava-parkour/leave', [\App\Http\Controllers\Api\LavaParkourController::class, 'leave'])
+    ->middleware('throttle:60,1,lava_leave')
+    ->name('gamification.lava-parkour.leave');
+Route::post('/funkenwerk-welt/lava-parkour/hit', [\App\Http\Controllers\Api\LavaParkourController::class, 'hit'])
+    ->middleware('throttle:90,1,lava_hit')
+    ->name('gamification.lava-parkour.hit');
 Route::post('/funkenwerk-welt/lava-parkour/checkpoint', [\App\Http\Controllers\Api\LavaParkourController::class, 'checkpoint'])
     ->middleware('throttle:90,1,lava_cp')
     ->name('gamification.lava-parkour.checkpoint');

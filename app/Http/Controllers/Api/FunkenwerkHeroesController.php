@@ -11,17 +11,26 @@ use App\Services\Gamification\LobbyInstanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
 class FunkenwerkHeroesController extends Controller
 {
+    public const PUBLIC_CACHE_KEY = 'sf_heroes_data_public_v2';
+    public const PUBLIC_CACHE_TTL_SECONDS = 15;
+
+    public static function forgetPublicCache(): void
+    {
+        try {
+            Cache::forget(self::PUBLIC_CACHE_KEY);
+        } catch (\Throwable) {
+        }
+    }
+
     /**
      * DSGVO-konformer Zero-PII Endpunkt fuer die 3D-Halle der Helden (/funkenwerk-welt/heroes-data).
-     * Liefert alle berechtigten aktiven Seelenfunken-Teilnehmer deterministisch sortiert nach hero_score
-     * (Lebenszeit-Funken + Magma-Ehrenwertung) und schuetzt Klardaten ohne leere Podeste:
-     * - ranking_opt_in = true: gewaehlter Spielername bzw. Vorname + Initial
-     * - ranking_opt_in = false + player_name: Pseudonym (0 Klardaten)
-     * - ranking_opt_in = false ohne player_name: eigener Vorname nur fuer $isMe, sonst "Funken-Hüter #<Rang>"
+     * Nutzt einen 15s Server-Cache fuer den oeffentlichen Sockel-Snapshot und reichert fuer eingeloggte
+     * Kunden ausschliesslich das eigene Podest ($isMe) an.
      * Gibt NIEMALS E-Mail-Adressen, volle Nachnamen, Adressen, Kunden-UUIDs oder Bestellnummern preis.
      */
     public function index(Request $request, GamificationService $gameService): JsonResponse
@@ -68,76 +77,113 @@ class FunkenwerkHeroesController extends Controller
             ], 200, $this->securityHeaders());
         }
 
-        $rankedEntries = LobbyInstanceService::loadRankedHeroEntries(500);
-        $levelTitles = GameConfig::getLevelTitles();
-        $heroes = [];
+        $cachedPublic = Cache::remember(
+            self::PUBLIC_CACHE_KEY,
+            self::PUBLIC_CACHE_TTL_SECONDS,
+            function () use ($gameService): array {
+                $rankedEntries = LobbyInstanceService::loadRankedHeroEntries(500);
+                $levelTitles = GameConfig::getLevelTitles();
+                $publicHeroes = [];
+                $selfSlotMap = [];
+                $slot = 0;
+
+                foreach ($rankedEntries as $entry) {
+                    /** @var CustomerGamification $profile */
+                    $profile = $entry['profile'];
+                    $metrics = $entry['metrics'];
+
+                    if (!$profile->customer) {
+                        continue;
+                    }
+
+                    $slot++;
+                    $sparksTotal = $metrics['sparks_total'];
+                    $level = $metrics['level'];
+                    $levelCfg = GameConfig::getLevelConfig($level);
+                    $modelPath = !empty($levelCfg['model_path'])
+                        ? (string) $levelCfg['model_path']
+                        : 'shop/customer/gamification/models/funki_lvl_1_rags.glb';
+
+                    $publicDisplayName = LobbyInstanceService::resolveHallOfHeroesDisplayName(
+                        $profile->customer,
+                        $profile,
+                        $slot,
+                        false,
+                        $gameService
+                    );
+
+                    $selfDisplayName = LobbyInstanceService::resolveHallOfHeroesDisplayName(
+                        $profile->customer,
+                        $profile,
+                        $slot,
+                        true,
+                        $gameService
+                    );
+
+                    $customerHash = $this->makeCustomerSlotHash((string) $profile->customer_id);
+                    $selfSlotMap[$customerHash] = [
+                        'slot' => $slot,
+                        'self_display_name' => $selfDisplayName,
+                    ];
+
+                    $rankClass = $this->resolveRankClass($level);
+                    $shipClass = LobbyInstanceService::resolveShipClassForProfile($profile, $level);
+                    $titlesCount = LobbyInstanceService::resolveTitlesCountForProfile($profile, $level);
+                    $levelTitle = LobbyInstanceService::cleanZeroDashText(
+                        (string) ($levelTitles[$level]['name'] ?? ('Stufe ' . $level))
+                    );
+                    $aura = $this->resolveHeroAura($profile, $level, $slot);
+
+                    $publicHeroes[] = [
+                        'slot' => $slot,
+                        'occupied' => true,
+                        'is_placeholder' => false,
+                        'display_name' => $publicDisplayName,
+                        'level' => $level,
+                        'level_title' => $levelTitle,
+                        'rank_class' => $rankClass,
+                        'ship_class' => $shipClass,
+                        'titles_count' => $titlesCount,
+                        'sparks' => $sparksTotal,
+                        'sparks_total' => $sparksTotal,
+                        'sparks_formatted' => number_format($sparksTotal, 0, ',', '.'),
+                        'hero_score' => $metrics['hero_score'],
+                        'hero_score_formatted' => number_format($metrics['hero_score'], 0, ',', '.'),
+                        'magma_highest_level' => $metrics['magma_highest_level'],
+                        'magma_cleared_count' => $metrics['magma_cleared_count'],
+                        'magma_prestige_points' => $metrics['magma_prestige_points'],
+                        'aura' => $aura,
+                        'model_url' => asset($modelPath),
+                        'is_me' => false,
+                    ];
+                }
+
+                $totalHeroes = count($publicHeroes);
+
+                return [
+                    'total_heroes' => $totalHeroes,
+                    'public_heroes' => $this->padEmptyHeroSlots($publicHeroes, 10),
+                    'self_slot_map' => $selfSlotMap,
+                ];
+            }
+        );
+
+        $totalHeroes = (int) ($cachedPublic['total_heroes'] ?? 0);
+        $heroes = is_array($cachedPublic['public_heroes'] ?? null) ? $cachedPublic['public_heroes'] : $this->padEmptyHeroSlots([], 10);
         $myHeroSlot = null;
-        $slot = 0;
 
-        foreach ($rankedEntries as $entry) {
-            /** @var CustomerGamification $profile */
-            $profile = $entry['profile'];
-            $metrics = $entry['metrics'];
-
-            if (!$profile->customer) {
-                continue;
+        if ($loggedInCustomer instanceof Customer) {
+            $ownHash = $this->makeCustomerSlotHash((string) $loggedInCustomer->id);
+            $selfMeta = $cachedPublic['self_slot_map'][$ownHash] ?? null;
+            if (is_array($selfMeta) && isset($selfMeta['slot'])) {
+                $slotIdx = (int) $selfMeta['slot'] - 1;
+                if (isset($heroes[$slotIdx]) && !empty($heroes[$slotIdx]['occupied'])) {
+                    $myHeroSlot = (int) $selfMeta['slot'];
+                    $heroes[$slotIdx]['is_me'] = true;
+                    $heroes[$slotIdx]['display_name'] = (string) ($selfMeta['self_display_name'] ?? $heroes[$slotIdx]['display_name']);
+                }
             }
-
-            $slot++;
-            $sparksTotal = $metrics['sparks_total'];
-            $level = $metrics['level'];
-            $levelCfg = GameConfig::getLevelConfig($level);
-            $modelPath = !empty($levelCfg['model_path'])
-                ? (string) $levelCfg['model_path']
-                : 'shop/customer/gamification/models/funki_lvl_1_rags.glb';
-
-            $isMe = $loggedInCustomer !== null && (string) $loggedInCustomer->id === (string) $profile->customer_id;
-            if ($isMe) {
-                $myHeroSlot = $slot;
-            }
-
-            $displayName = LobbyInstanceService::resolveHallOfHeroesDisplayName(
-                $profile->customer,
-                $profile,
-                $slot,
-                $isMe,
-                $gameService
-            );
-
-            $rankClass = $this->resolveRankClass($level);
-            $shipClass = LobbyInstanceService::resolveShipClassForProfile($profile, $level);
-            $titlesCount = LobbyInstanceService::resolveTitlesCountForProfile($profile, $level);
-            $levelTitle = LobbyInstanceService::cleanZeroDashText(
-                (string) ($levelTitles[$level]['name'] ?? ('Stufe ' . $level))
-            );
-            $aura = $this->resolveHeroAura($profile, $level, $slot);
-
-            $heroes[] = [
-                'slot' => $slot,
-                'occupied' => true,
-                'is_placeholder' => false,
-                'display_name' => $displayName,
-                'level' => $level,
-                'level_title' => $levelTitle,
-                'rank_class' => $rankClass,
-                'ship_class' => $shipClass,
-                'titles_count' => $titlesCount,
-                'sparks' => $sparksTotal,
-                'sparks_total' => $sparksTotal,
-                'sparks_formatted' => number_format($sparksTotal, 0, ',', '.'),
-                'hero_score' => $metrics['hero_score'],
-                'hero_score_formatted' => number_format($metrics['hero_score'], 0, ',', '.'),
-                'magma_highest_level' => $metrics['magma_highest_level'],
-                'magma_cleared_count' => $metrics['magma_cleared_count'],
-                'magma_prestige_points' => $metrics['magma_prestige_points'],
-                'aura' => $aura,
-                'model_url' => asset($modelPath),
-                'is_me' => $isMe,
-            ];
         }
-
-        $totalHeroes = count($heroes);
-        $heroes = $this->padEmptyHeroSlots($heroes, 10);
 
         return response()->json([
             'ok' => true,
@@ -157,6 +203,13 @@ class FunkenwerkHeroesController extends Controller
             'level_models' => $levelModels,
             'heroes' => $heroes,
         ], 200, $this->securityHeaders());
+    }
+
+    private function makeCustomerSlotHash(string $customerId): string
+    {
+        $secret = (string) (config('app.key') ?: 'sf_heroes_slot_hmac');
+
+        return hash_hmac('sha256', $customerId, $secret);
     }
 
     /**

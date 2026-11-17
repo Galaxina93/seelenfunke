@@ -60,7 +60,9 @@ class CustomerLobbyController extends Controller
 
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
-        $isAdmin = $actor !== null && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
+        $isAdmin = $customer === null
+            && $actor !== null
+            && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
 
         if ($denied = $lobby->checkZoneSanctumRestriction($customer instanceof Customer ? $customer : null, $request->input('zone'), $isAdmin)) {
             if ($actor !== null) {
@@ -89,7 +91,9 @@ class CustomerLobbyController extends Controller
 
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
-        $isAdmin = $actor !== null && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
+        $isAdmin = $customer === null
+            && $actor !== null
+            && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
 
         if ($denied = $lobby->checkZoneSanctumRestriction($customer instanceof Customer ? $customer : null, $request->input('zone'), $isAdmin)) {
             if ($actor !== null) {
@@ -117,7 +121,9 @@ class CustomerLobbyController extends Controller
 
         /** @var Customer|null $customer */
         $customer = Auth::guard('customer')->user();
-        $isAdmin = $actor !== null && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
+        $isAdmin = $customer === null
+            && $actor !== null
+            && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
 
         if ($denied = $lobby->checkZoneSanctumRestriction($customer instanceof Customer ? $customer : null, 'heroes', $isAdmin)) {
             if ($actor !== null) {

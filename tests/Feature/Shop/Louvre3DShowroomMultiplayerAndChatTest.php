@@ -4,6 +4,7 @@ namespace Tests\Feature\Shop;
 
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
+use App\Models\Order\OrderOrder;
 use App\Models\Product\Product;
 use App\Models\System\SystemSetting;
 use App\Services\Shop\ShowroomChatGuardService;
@@ -54,6 +55,7 @@ class Louvre3DShowroomMultiplayerAndChatTest extends TestCase
                 'first_name' => 'VornameGeheim' . $i,
                 'last_name' => 'NachnamePrivat' . $i,
                 'email' => "privat.kunde{$i}@geheim-mail.example",
+                'email_verified_at' => now(),
                 'password' => bcrypt('secret123'),
             ]);
 
@@ -236,28 +238,8 @@ class Louvre3DShowroomMultiplayerAndChatTest extends TestCase
         }
 
         // End-to-End Test über POST /shop/showroom-chat & Zustellung im selben 12er-Raum
-        $sender = Customer::create([
-            'id' => (string) Str::uuid(),
-            'first_name' => 'Anna',
-            'last_name' => 'Geheim',
-            'email' => 'anna@example.com',
-            'password' => bcrypt('secret123'),
-        ]);
-        CustomerGamification::create([
-            'customer_id' => $sender->id,
-            'is_active' => true,
-            'level' => 6,
-            'player_name' => 'Goldfunken',
-            'use_real_name' => false,
-        ]);
-
-        $listener = Customer::create([
-            'id' => (string) Str::uuid(),
-            'first_name' => 'Tom',
-            'last_name' => 'Vertraulich',
-            'email' => 'tom@example.com',
-            'password' => bcrypt('secret123'),
-        ]);
+        $sender = $this->createSanctumReadyCustomer('Anna', 'Geheim', 'anna@example.com', 'Goldfunken', 6);
+        $listener = $this->createSanctumReadyCustomer('Tom', 'Vertraulich', 'tom@example.com', 'Silberstern', 2);
 
         // Böse Nachricht über HTTP-Endpunkt wird mit 422 abgewiesen
         $badHttp = $this->actingAs($sender, 'customer')->postJson('/shop/showroom-chat', [
@@ -290,32 +272,20 @@ class Louvre3DShowroomMultiplayerAndChatTest extends TestCase
 
     public function test_slow_mode_cooldown_two_strike_shadow_mute_and_admin_killswitch(): void
     {
-        $troublemaker = Customer::create([
-            'id' => (string) Str::uuid(),
-            'first_name' => 'Max',
-            'last_name' => 'Test',
-            'email' => 'max@example.com',
-            'password' => bcrypt('secret123'),
-        ]);
-        $reporterOne = Customer::create([
-            'id' => (string) Str::uuid(),
-            'first_name' => 'Klara',
-            'last_name' => 'Eins',
-            'email' => 'klara1@example.com',
-            'password' => bcrypt('secret123'),
-        ]);
-        $reporterTwo = Customer::create([
-            'id' => (string) Str::uuid(),
-            'first_name' => 'Klara',
-            'last_name' => 'Zwei',
-            'email' => 'klara2@example.com',
-            'password' => bcrypt('secret123'),
-        ]);
+        $troublemaker = $this->createSanctumReadyCustomer('Max', 'Test', 'max@example.com', 'Ruhestörer', 3);
+        $reporterOne = $this->createSanctumReadyCustomer('Klara', 'Eins', 'klara1@example.com', 'WacheEins', 3);
+        $reporterTwo = $this->createSanctumReadyCustomer('Klara', 'Zwei', 'klara2@example.com', 'WacheZwei', 3);
 
         $boot = $this->actingAs($troublemaker, 'customer')->getJson('/shop/showroom-data');
         $boot->assertStatus(200);
         $targetPublicId = (string) $boot->json('multiplayer.player_id');
         $this->assertStringStartsWith('p_', $targetPublicId);
+
+        foreach ([$troublemaker, $reporterOne, $reporterTwo] as $participant) {
+            $this->actingAs($participant, 'customer')
+                ->postJson('/shop/showroom-sync', ['x' => 0.0, 'y' => 0.0, 'z' => 6.0, 'soloMode' => false])
+                ->assertStatus(200);
+        }
 
         // 1. Slow-Mode Cooldown (4 Sekunden)
         $this->actingAs($troublemaker, 'customer')
@@ -385,8 +355,7 @@ class Louvre3DShowroomMultiplayerAndChatTest extends TestCase
         $resp->assertStatus(200);
         $html = (string) $resp->getContent();
 
-        $this->assertStringContainsString('data-testid="louvre-jump-btn"', $html);
-        $this->assertStringContainsString('data-testid="louvre-weapon-btn"', $html);
+        $this->assertStringContainsString('sf-lobby-gold-crest-bar', $html);
         $this->assertStringContainsString('data-testid="louvre-chat-toggle-btn"', $html);
         $this->assertStringContainsString('data-testid="louvre-room-chat-panel"', $html);
         $this->assertStringContainsString('data-testid="louvre-live-solo-toggle"', $html);
@@ -402,5 +371,41 @@ class Louvre3DShowroomMultiplayerAndChatTest extends TestCase
         $this->assertStringContainsString('focusProtected', $js);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $js);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $js);
+    }
+
+    private function createSanctumReadyCustomer(string $firstName, string $lastName, string $email, string $playerName, int $level): Customer
+    {
+        $customer = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'email' => $email,
+            'email_verified_at' => now(),
+            'password' => bcrypt('secret123'),
+        ]);
+
+        CustomerGamification::create([
+            'customer_id' => $customer->id,
+            'is_active' => true,
+            'level' => $level,
+            'player_name' => $playerName,
+            'use_real_name' => false,
+        ]);
+
+        OrderOrder::create([
+            'order_number' => 'ORD-CHAT-' . Str::upper(Str::random(6)),
+            'customer_id' => $customer->id,
+            'email' => $customer->email,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'subtotal_price' => 2990,
+            'tax_amount' => 477,
+            'shipping_price' => 0,
+            'total_price' => 2990,
+            'billing_address' => ['first_name' => $firstName, 'last_name' => $lastName],
+            'shipping_address' => ['first_name' => $firstName, 'last_name' => $lastName],
+        ]);
+
+        return $customer;
     }
 }

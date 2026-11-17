@@ -133,7 +133,7 @@ class ShowroomMultiplayerService
             'solo_only' => false,
             'room_id' => $roomId,
             'max_players_per_room' => self::MAX_PLAYERS_PER_ROOM,
-            'sync_interval_ms' => 220,
+            'sync_interval_ms' => 750,
             'player_id' => $identity['player_id'],
             'display_name' => $identity['display_name'],
             'level' => $identity['level'],
@@ -339,6 +339,74 @@ class ShowroomMultiplayerService
                 'success' => false,
                 'status' => 422,
                 'message' => 'Meldung konnte nicht zugeordnet werden.',
+            ];
+        }
+
+        // Nachweisbare Praesenz des Meldenden UND des gemeldeten Spielers im selben aktiven Raum pruefen
+        $reporterIdentity = $this->resolveCustomerIdentity($reporter);
+        $reporterPublicId = $reporterIdentity['player_id'];
+        $reporterRoomId = Cache::get($this->playerRoomCacheKey($reporterPublicId));
+
+        if (!is_string($reporterRoomId) || !str_starts_with($reporterRoomId, 'louvre-room-')) {
+            return [
+                'success' => false,
+                'status' => 422,
+                'code' => 'not_in_room',
+                'reports_count' => 0,
+                'shadow_muted' => false,
+                'message' => 'Du befindest dich aktuell in keinem aktiven Showroom-Raum.',
+            ];
+        }
+
+        $now = Carbon::now()->getTimestamp();
+        $nowMs = Carbon::now()->getTimestampMs();
+        $roster = $this->loadPrunedRoomRoster($reporterRoomId, $now);
+
+        if (!isset($roster[$reporterPublicId]) || !empty($roster[$reporterPublicId]['solo_mode'])) {
+            return [
+                'success' => false,
+                'status' => 422,
+                'code' => 'not_in_room',
+                'reports_count' => 0,
+                'shadow_muted' => false,
+                'message' => 'Meldungen sind nur im aktiven Mehrspieler-Raum möglich.',
+            ];
+        }
+
+        $targetInRoster = isset($roster[$cleanTargetPid]) && empty($roster[$cleanTargetPid]['solo_mode']);
+        $targetInRoomChat = false;
+
+        if (!$targetInRoster) {
+            $rawChat = Cache::get($this->roomChatCacheKey($reporterRoomId), []);
+            if (is_array($rawChat)) {
+                foreach ($rawChat as $msg) {
+                    if (
+                        is_array($msg)
+                        && (int) ($msg['expires_at_ms'] ?? 0) > $nowMs
+                        && (string) ($msg['player_id'] ?? '') === $cleanTargetPid
+                    ) {
+                        $targetInRoomChat = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!$targetInRoster && !$targetInRoomChat) {
+            LobbyInstanceService::logTamperThrottled(
+                'customer:' . $reporter->id,
+                'shop/showroom-report',
+                'cross_room_or_phantom_report_blocked',
+                ['target_pid' => $cleanTargetPid, 'room_id' => $reporterRoomId]
+            );
+
+            return [
+                'success' => false,
+                'status' => 422,
+                'code' => 'not_in_same_room',
+                'reports_count' => 0,
+                'shadow_muted' => false,
+                'message' => 'Spieler befindet sich nicht im selben Raum.',
             ];
         }
 

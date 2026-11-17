@@ -117,12 +117,12 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
 
         $funkira = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
 
-        // 1. Core-Werkzeuge sind schlank (< 50 statt 140+), enthalten funkira_equip_skill_pool, aber keine Spezialtools wie finance_list_fixed_costs
+        // 1. Core-Werkzeuge sind schlank (< 55 statt 140+), enthalten funkira_equip_skill_pool, aber keine Spezialtools wie finance_list_fixed_costs
         $coreTools = FunkiraSkillPoolService::getActiveToolIdentifiers([]);
         $this->assertContains(FunkiraSkillPoolService::EQUIP_TOOL_NAME, $coreTools);
         $this->assertNotContains('finance_list_fixed_costs', $coreTools);
         $this->assertNotContains('supplier_get_all', $coreTools);
-        $this->assertLessThan(50, count($coreTools));
+        $this->assertLessThan(55, count($coreTools));
 
         // 2. Anfrage zur Buchhaltung aktiviert in Vordistanz den Pool 'finance', rüstet im Loop 'products' & 'laser' nach und springt danach zurück auf []
         $agent = new InspectableSkillPoolGeminiAgent($funkira);

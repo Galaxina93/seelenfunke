@@ -95,7 +95,66 @@ protected $guarded = [];
         'equipped_items' => 'array',
         'inventory_items' => 'array',
         'buyback_items' => 'array',
+        'magma_unlocked_level' => 'integer',
+        'magma_hearts' => 'integer',
+        'magma_run_committed' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $model): void {
+            $attrs = $model->getAttributes();
+
+            if (!array_key_exists('magma_unlocked_level', $attrs) || $attrs['magma_unlocked_level'] === null) {
+                $progress = $model->titles_progress;
+                $rawCleared = is_array($progress) ? ($progress['lava_cleared_levels'] ?? []) : [];
+                $valid = [];
+                if (is_array($rawCleared)) {
+                    foreach ($rawCleared as $val) {
+                        if (is_int($val) || (is_string($val) && ctype_digit($val))) {
+                            $lvl = (int) $val;
+                            if ($lvl >= 1 && $lvl <= 10) {
+                                $valid[$lvl] = true;
+                            }
+                        }
+                    }
+                }
+
+                $maxSeq = 0;
+                for ($i = 1; $i <= 10; $i++) {
+                    if (isset($valid[$i])) {
+                        $maxSeq = $i;
+                    } else {
+                        break;
+                    }
+                }
+
+                $model->attributes['magma_unlocked_level'] = max(1, min(10, $maxSeq + 1));
+            }
+
+            if (!array_key_exists('magma_hearts', $attrs) || $attrs['magma_hearts'] === null) {
+                $model->attributes['magma_hearts'] = 6;
+            }
+
+            if (!array_key_exists('magma_run_committed', $attrs) || $attrs['magma_run_committed'] === null) {
+                $model->attributes['magma_run_committed'] = false;
+            }
+        });
+
+        static::saved(function (): void {
+            try {
+                \Illuminate\Support\Facades\Cache::forget('sf_heroes_data_public_v2');
+            } catch (\Throwable) {
+            }
+        });
+
+        static::deleted(function (): void {
+            try {
+                \Illuminate\Support\Facades\Cache::forget('sf_heroes_data_public_v2');
+            } catch (\Throwable) {
+            }
+        });
+    }
 
     public function customer()
     {

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Customer;
 
+use App\Http\Controllers\Api\FunkenwerkHeroesController;
 use App\Models\Customer\CustomerGamification;
 use App\Models\Marketing\MarketingGiftVoucher;
 use App\Models\Order\OrderOrder;
@@ -9,7 +10,10 @@ use App\Services\Gamification\GameConfig;
 use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\LobbyInstanceService;
 use App\Services\ReferralService;
+use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
+use DanHarrin\LivewireRateLimiting\WithRateLimiting;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
@@ -19,6 +23,7 @@ use Livewire\Component;
 #[Layout('components.layouts.customer_layout')]
 class CustomerDashboardComponent extends Component
 {
+    use WithRateLimiting;
     #[Locked]
     public $profileSteps = [];
     #[Locked]
@@ -172,42 +177,91 @@ class CustomerDashboardComponent extends Component
     public function activateSeelenfunke(GamificationService $gameService): void
     {
         $user = Auth::guard('customer')->user();
-        if (!$user) {
+        if (
+            !$user
+            || (method_exists($user, 'trashed') && $user->trashed())
+            || (method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail())
+            || !empty($user->needs_password_change)
+        ) {
+            $this->dispatch('notify', [
+                'type'    => 'error',
+                'message' => 'Bitte bestätige zuerst deine E-Mail-Adresse und dein Kundenkonto.',
+            ]);
             return;
         }
 
         $this->acceptTerms = true;
-        $profile = $gameService->getProfile($user);
-        $wasActive = (bool) $profile->is_active;
-        $oldOptIn = (bool) $profile->ranking_opt_in;
-        $oldUseReal = (bool) $profile->use_real_name;
-        $profile->is_active = true;
+        $gameService->getProfile($user);
 
-        if ($this->optInPublicNameOnActivate) {
-            $profile->ranking_opt_in = true;
-            if (trim((string) ($profile->player_name ?? '')) === '') {
-                $profile->use_real_name = true;
+        $activationResult = DB::transaction(function () use ($user, $gameService): array {
+            $profile = CustomerGamification::where('customer_id', $user->id)->lockForUpdate()->firstOrFail();
+            $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($user);
+
+            if (!$sanctumAccess['has_completed_order']) {
+                return [
+                    'allowed' => false,
+                    'message' => (string) ($sanctumAccess['message'] ?? 'Ab deiner ersten abgeschlossenen Bestellung schaltest du die Seelenfunken-Magie frei.'),
+                ];
             }
+
+            $wasActive = (bool) $profile->is_active;
+            $oldOptIn = (bool) $profile->ranking_opt_in;
+            $oldUseReal = (bool) $profile->use_real_name;
+            $profile->is_active = true;
+
+            if ((int) ($profile->magma_unlocked_level ?? 0) < 1) {
+                $profile->magma_unlocked_level = 1;
+            }
+            if ((int) ($profile->magma_hearts ?? 0) <= 0) {
+                $profile->magma_hearts = 6;
+            }
+
+            if ($this->optInPublicNameOnActivate) {
+                $profile->ranking_opt_in = true;
+                if (trim((string) ($profile->player_name ?? '')) === '') {
+                    $profile->use_real_name = true;
+                }
+            }
+
+            $progress = is_array($profile->titles_progress) ? $profile->titles_progress : [];
+            $progress['_audio_muted'] = true;
+            $progress['_audio_keep_playing'] = false;
+            $profile->titles_progress = $progress;
+
+            $gameService->syncLevelFromLifetimeSparks($profile);
+            $profile->save();
+
+            $loggedChanges = [];
+            if (!$wasActive) {
+                $loggedChanges['gamification_active'] = ['old' => false, 'new' => true];
+            }
+            if ($oldOptIn !== (bool) $profile->ranking_opt_in) {
+                $loggedChanges['ranking_opt_in'] = ['old' => $oldOptIn, 'new' => (bool) $profile->ranking_opt_in];
+            }
+            if ($oldUseReal !== (bool) $profile->use_real_name) {
+                $loggedChanges['use_real_name'] = ['old' => $oldUseReal, 'new' => (bool) $profile->use_real_name];
+            }
+
+            return [
+                'allowed' => true,
+                'profile' => $profile,
+                'logged_changes' => $loggedChanges,
+            ];
+        });
+
+        if (empty($activationResult['allowed'])) {
+            $this->loadDashboardData($user);
+            $this->dispatch('notify', [
+                'type'    => 'error',
+                'message' => $activationResult['message'],
+            ]);
+            return;
         }
 
-        $progress = is_array($profile->titles_progress) ? $profile->titles_progress : [];
-        $progress['_audio_muted'] = true;
-        $progress['_audio_keep_playing'] = false;
-        $profile->titles_progress = $progress;
+        /** @var CustomerGamification $profile */
+        $profile = $activationResult['profile'];
+        $loggedChanges = $activationResult['logged_changes'];
 
-        $gameService->syncLevelFromLifetimeSparks($profile);
-        $profile->save();
-
-        $loggedChanges = [];
-        if (!$wasActive) {
-            $loggedChanges['gamification_active'] = ['old' => false, 'new' => true];
-        }
-        if ($oldOptIn !== (bool) $profile->ranking_opt_in) {
-            $loggedChanges['ranking_opt_in'] = ['old' => $oldOptIn, 'new' => (bool) $profile->ranking_opt_in];
-        }
-        if ($oldUseReal !== (bool) $profile->use_real_name) {
-            $loggedChanges['use_real_name'] = ['old' => $oldUseReal, 'new' => (bool) $profile->use_real_name];
-        }
         if (!empty($loggedChanges)) {
             $gameService->recordUserProfileChangeLog($user, $loggedChanges, 'Kunde (im Frontend)');
         }
@@ -221,6 +275,8 @@ class CustomerDashboardComponent extends Component
             0,
             (int) $profile->funken_balance
         );
+
+        FunkenwerkHeroesController::forgetPublicCache();
 
         $this->loadDashboardData($user);
         $this->dispatch('gamification-mode-changed');
@@ -242,10 +298,17 @@ class CustomerDashboardComponent extends Component
             return;
         }
 
-        $profile = $gameService->getProfile($user);
-        $wasActive = (bool) $profile->is_active;
-        $profile->is_active = false;
-        $profile->save();
+        $wasActive = DB::transaction(function () use ($user, $gameService): bool {
+            $gameService->getProfile($user);
+            $profile = CustomerGamification::where('customer_id', $user->id)->lockForUpdate()->firstOrFail();
+            $prev = (bool) $profile->is_active;
+            $profile->is_active = false;
+            $profile->save();
+
+            return $prev;
+        });
+
+        FunkenwerkHeroesController::forgetPublicCache();
 
         if ($wasActive) {
             $gameService->recordUserProfileChangeLog($user, [
@@ -294,27 +357,29 @@ class CustomerDashboardComponent extends Component
     public function nextHallOfFamePage(): void
     {
         if ($this->hallOfFamePage < $this->hallOfFameLastPage) {
-            $this->hallOfFamePage++;
-            $user = Auth::guard('customer')->user();
-            if ($user) {
-                $this->loadHallOfFamePage(app(GamificationService::class));
-            }
+            $this->gotoHallOfFamePage($this->hallOfFamePage + 1);
         }
     }
 
     public function prevHallOfFamePage(): void
     {
         if ($this->hallOfFamePage > 1) {
-            $this->hallOfFamePage--;
-            $user = Auth::guard('customer')->user();
-            if ($user) {
-                $this->loadHallOfFamePage(app(GamificationService::class));
-            }
+            $this->gotoHallOfFamePage($this->hallOfFamePage - 1);
         }
     }
 
     public function gotoHallOfFamePage(int $page): void
     {
+        try {
+            $this->rateLimit(30, 60, 'hallOfFamePagination');
+        } catch (TooManyRequestsException $exception) {
+            $this->dispatch('notify', [
+                'type'    => 'warning',
+                'message' => "Bitte warte noch {$exception->secondsUntilAvailable} Sekunden, bevor du weiterblätterst.",
+            ]);
+            return;
+        }
+
         $this->hallOfFamePage = max(1, min($this->hallOfFameLastPage, $page));
         $user = Auth::guard('customer')->user();
         if ($user) {
@@ -505,10 +570,7 @@ class CustomerDashboardComponent extends Component
                 ->get()
             : collect();
 
-        $this->hasCompletedOrder = OrderOrder::where('customer_id', $user->id)
-            ->where('payment_status', 'paid')
-            ->whereNotIn('status', ['cancelled', 'refunded'])
-            ->exists();
+        $this->hasCompletedOrder = LobbyInstanceService::hasValidPaidNonRevokedOrder((string) $user->id);
 
         // Seelenfunken & Funki-Daten laden
         $gameService = app(GamificationService::class);

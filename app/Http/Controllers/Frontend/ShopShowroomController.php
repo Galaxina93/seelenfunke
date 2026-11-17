@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Frontend;
 
+use App\Http\Controllers\Api\FunkenwerkHeroesController;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\EnforceShopMaintenanceMode;
 use App\Models\Customer\Customer;
@@ -9,17 +10,26 @@ use App\Models\Customer\CustomerGamification;
 use App\Models\Delivery\DeliverySetting;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
+use App\Models\System\SystemBlockedIp;
+use App\Models\System\SystemLoginAttempt;
+use App\Services\CartService;
 use App\Services\Gamification\GameConfig;
+use App\Services\Gamification\GamificationService;
 use App\Services\Gamification\LavaParkourService;
 use App\Services\Gamification\LobbyInstanceService;
 use App\Services\Shop\ShowroomMultiplayerService;
+use App\Services\System\SystemSecurityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use PragmaRX\Google2FA\Google2FA;
 
 class ShopShowroomController extends Controller
 {
@@ -51,8 +61,9 @@ class ShopShowroomController extends Controller
         }
 
         $products = $this->resolveCachedShowroomProducts();
+        $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
         $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
-        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload);
+        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer);
         $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
         $environmentPayload = $this->resolveShowroomEnvironment();
         $playerPayload = $this->resolveShowroomPlayer(
@@ -63,14 +74,481 @@ class ShopShowroomController extends Controller
 
         return response()->json([
             'success' => true,
+            'csrf_token' => csrf_token(),
             'showroom_style' => 'louvre_black_gold',
             'total_products' => count($products),
             'environment' => $environmentPayload,
+            'sanctum_access' => $sanctumAccess,
             'player' => $playerPayload,
             'player_funki' => $playerFunki,
             'multiplayer' => $multiplayerPayload,
             'lava_parkour' => $lavaParkourPayload,
             'products' => $products,
+        ], 200, $this->noStoreHeaders());
+    }
+
+    /**
+     * Inline-Kunden-Login direkt im 3D-Showroom / Funkenreich ohne Seiten-Reload.
+     * Enthaelt IP-Sperre, 3-Versuche-Lockout, Verifikations- & Aktiv-Pruefung, 2FA, Session-Regenerierung & Warenkorb-Merge.
+     */
+    public function inlineLogin(
+        Request $request,
+        ShowroomMultiplayerService $multiplayer,
+        LavaParkourService $lavaParkour,
+        CartService $cartService
+    ): JsonResponse {
+        if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
+            return $maintenanceResp;
+        }
+
+        $tamper = LobbyInstanceService::inspectRequestTampering($request->all(), $request->path());
+        if ($tamper['has_explicit_cheat']) {
+            return $this->tamperRejectedResponse();
+        }
+
+        $ip = (string) ($request->ip() ?: '');
+        if (SystemBlockedIp::isBlocked($ip)) {
+            return response()->json([
+                'success' => false,
+                'status' => 'ip_blocked',
+                'csrf_token' => csrf_token(),
+                'message' => 'Deine IP-Adresse wurde aufgrund verdächtiger Aktivitäten gesperrt.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        $validator = Validator::make($request->all(), [
+            'email' => ['required', 'string', 'email', 'max:255'],
+            'password' => ['required', 'string', 'max:255'],
+            'remember' => ['nullable', 'boolean'],
+            'two_factor_code' => ['nullable', 'string', 'max:64'],
+        ], [
+            'email.required' => 'Bitte gib eine gültige E-Mail-Adresse ein.',
+            'email.email' => 'Bitte gib eine gültige E-Mail-Adresse ein.',
+            'password.required' => 'Bitte gib dein Passwort ein.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'status' => 'validation_error',
+                'csrf_token' => csrf_token(),
+                'message' => (string) $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 422, $this->noStoreHeaders());
+        }
+
+        $email = mb_strtolower(trim((string) $request->input('email')));
+        $password = (string) $request->input('password');
+        $remember = filter_var($request->input('remember', false), FILTER_VALIDATE_BOOLEAN);
+        $twoFactorCode = trim((string) ($request->input('two_factor_code') ?? ''));
+
+        // 3 Fehlversuche -> 10 Sekunden Lockout + Sicherheits-Protokollierung
+        $maxFailedAttempts = 3;
+        $lockoutSeconds = 10;
+        $recentAttempts = SystemLoginAttempt::where(function ($q) use ($ip, $email) {
+                if ($ip !== '') {
+                    $q->where('ip_address', $ip)->orWhere('email', $email);
+                } else {
+                    $q->where('email', $email);
+                }
+            })
+            ->where('created_at', '>=', now()->subSeconds($lockoutSeconds))
+            ->orderBy('created_at', 'desc')
+            ->take($maxFailedAttempts)
+            ->get();
+
+        if ($recentAttempts->count() >= $maxFailedAttempts && $recentAttempts->every(fn ($attempt) => !$attempt->success)) {
+            $lastFailed = $recentAttempts->first()->created_at;
+            $diff = (float) abs(now()->diffInSeconds($lastFailed));
+            $secondsRemaining = (int) max(1, ceil($lockoutSeconds - $diff));
+            if ($diff < $lockoutSeconds) {
+                SystemSecurityService::logEvent(
+                    'security:inline_login_lockout',
+                    'Inline-Login Lockout ausgelöst',
+                    "Sperre nach {$maxFailedAttempts} Fehlversuchen für '{$email}' im 3D-Showroom.",
+                    'warning',
+                    ['target_email' => $email, 'seconds_remaining' => $secondsRemaining]
+                );
+
+                return response()->json([
+                    'success' => false,
+                    'status' => 'locked_out',
+                    'retry_after_seconds' => $secondsRemaining,
+                    'csrf_token' => csrf_token(),
+                    'message' => "Zu viele fehlerhafte Login-Versuche. Bitte warte {$secondsRemaining} Sekunden, bevor du es erneut versuchst.",
+                ], 429, $this->noStoreHeaders());
+            }
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Customer::withTrashed()->whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if (!$customer || !Auth::guard('customer')->validate(['email' => $customer->email, 'password' => $password])) {
+            SystemSecurityService::recordLoginAttempt($email, $ip, false, 'inline_3d');
+
+            return response()->json([
+                'success' => false,
+                'status' => 'invalid_credentials',
+                'csrf_token' => csrf_token(),
+                'message' => 'Die eingegebenen Anmeldedaten sind ungültig.',
+            ], 422, $this->noStoreHeaders());
+        }
+
+        if (method_exists($customer, 'trashed') && $customer->trashed()) {
+            SystemSecurityService::recordLoginAttempt($customer->email, $ip, false, 'inline_3d');
+
+            return response()->json([
+                'success' => false,
+                'status' => 'account_deactivated',
+                'csrf_token' => csrf_token(),
+                'message' => 'Dieser Account wurde deaktiviert.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        if (!$customer->hasVerifiedEmail()) {
+            SystemSecurityService::recordLoginAttempt($customer->email, $ip, false, 'inline_3d');
+
+            return response()->json([
+                'success' => false,
+                'status' => 'email_verification_required',
+                'csrf_token' => csrf_token(),
+                'message' => 'Bitte bestätige zuerst deine E-Mail-Adresse über den Link in deinem Postfach.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        // Zwei-Faktor-Authentifizierung (falls auf CustomerProfile aktiviert)
+        $customer->loadMissing('profile');
+        if ($customer->profile && $customer->profile->two_factor_is_active) {
+            if ($twoFactorCode === '') {
+                if ($request->hasSession()) {
+                    $request->session()->put('inline_2fa_guest_session_id', $request->session()->getId());
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'status' => 'two_factor_required',
+                    'two_factor_required' => true,
+                    'csrf_token' => csrf_token(),
+                    'message' => 'Bitte 6-stelligen Sicherheitscode eingeben.',
+                ], 200, $this->noStoreHeaders());
+            }
+
+            $throttleKey = '2fa_verify_' . $customer->id . '_' . $ip;
+            if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+                $seconds = RateLimiter::availableIn($throttleKey);
+                SystemSecurityService::logEvent(
+                    'security:2fa_rate_limit',
+                    '2FA Brute-Force Schutz ausgelöst',
+                    "Zu viele fehlerhafte 2FA-Versuche für '{$customer->email}' (inline_3d) von IP {$ip}",
+                    'error',
+                    ['target_email' => $customer->email, 'guard' => 'customer']
+                );
+
+                return response()->json([
+                    'success' => false,
+                    'status' => 'two_factor_rate_limited',
+                    'csrf_token' => csrf_token(),
+                    'message' => "Zu viele Fehlversuche bei der 2FA-Eingabe. Bitte warte {$seconds} Sekunden.",
+                ], 429, $this->noStoreHeaders());
+            }
+
+            $valid2fa = $this->verifyCustomerTwoFactorCode($customer, $twoFactorCode);
+            if (!$valid2fa) {
+                RateLimiter::hit($throttleKey, 300);
+                SystemSecurityService::recordLoginAttempt($customer->email, $ip, false, '2fa');
+                SystemSecurityService::logEvent(
+                    'security:2fa_failed',
+                    'Fehlgeschlagene 2FA-Verifikation',
+                    "Ungültiger 2FA-Code für '{$customer->email}' (inline_3d) von IP {$ip}",
+                    'warning',
+                    ['target_email' => $customer->email, 'guard' => 'customer']
+                );
+
+                return response()->json([
+                    'success' => false,
+                    'status' => 'invalid_two_factor_code',
+                    'csrf_token' => csrf_token(),
+                    'message' => 'Der eingegebene Sicherheitscode ist ungültig.',
+                ], 422, $this->noStoreHeaders());
+            }
+
+            RateLimiter::clear($throttleKey);
+        }
+
+        SystemSecurityService::recordLoginAttempt($customer->email, $ip, true, 'inline_3d');
+
+        $previousSessionId = $request->hasSession()
+            ? ((string) ($request->session()->pull('inline_2fa_guest_session_id') ?: $request->session()->getId()))
+            : null;
+        Auth::guard('customer')->login($customer, $remember);
+
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
+
+        $cartService->mergeGuestCartIntoCustomer($customer, $previousSessionId);
+
+        if (!empty($customer->needs_password_change)) {
+            if ($request->hasSession()) {
+                $request->session()->put('force_password_change_customer_id', $customer->id);
+            }
+
+            return response()->json([
+                'success' => false,
+                'status' => 'password_change_required',
+                'redirect_url' => route('customer.password-change-force'),
+                'csrf_token' => csrf_token(),
+                'message' => 'Bitte ändere zuerst dein vorläufiges Passwort.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
+        $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
+        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer);
+        $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
+        $playerPayload = $this->resolveShowroomPlayer(
+            $customer,
+            $multiplayerPayload,
+            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false)
+        );
+
+        return response()->json([
+            'success' => true,
+            'status' => 'authenticated',
+            'csrf_token' => csrf_token(),
+            'sanctum_access' => $sanctumAccess,
+            'player' => $playerPayload,
+            'player_funki' => $playerFunki,
+            'multiplayer' => $multiplayerPayload,
+            'lava_parkour' => $lavaParkourPayload,
+        ], 200, $this->noStoreHeaders());
+    }
+
+    /**
+     * Inline-Aktivierung der Seelenfunken-Magie direkt im 3D-Showroom / Funkenreich.
+     * Erzwingt unter DB::transaction & lockForUpdate() eine verifizierte, nicht widerrufene Bestellung.
+     */
+    public function activateMagic(
+        Request $request,
+        GamificationService $gameService,
+        ShowroomMultiplayerService $multiplayer,
+        LavaParkourService $lavaParkour
+    ): JsonResponse {
+        if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
+            return $maintenanceResp;
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        $tamper = LobbyInstanceService::inspectRequestTampering(
+            $request->all(),
+            $request->path(),
+            $customer !== null ? ('customer:' . $customer->id) : null
+        );
+
+        if ($tamper['has_explicit_cheat']) {
+            return $this->tamperRejectedResponse();
+        }
+
+        if ($customer === null) {
+            return response()->json([
+                'success' => false,
+                'status' => 'login_required',
+                'code' => 'login_required',
+                'csrf_token' => csrf_token(),
+                'message' => 'Bitte melde dich zuerst an.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        if (method_exists($customer, 'trashed') && $customer->trashed()) {
+            return response()->json([
+                'success' => false,
+                'status' => 'account_deactivated',
+                'code' => 'account_deactivated',
+                'csrf_token' => csrf_token(),
+                'message' => 'Dieses Kundenkonto ist deaktiviert.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        if (!$customer->hasVerifiedEmail()) {
+            return response()->json([
+                'success' => false,
+                'status' => 'email_verification_required',
+                'code' => 'email_verification_required',
+                'csrf_token' => csrf_token(),
+                'message' => 'Bitte bestätige zuerst deine E-Mail-Adresse.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        if (!empty($customer->needs_password_change)) {
+            return response()->json([
+                'success' => false,
+                'status' => 'password_change_required',
+                'code' => 'password_change_required',
+                'redirect_url' => route('customer.password-change-force'),
+                'csrf_token' => csrf_token(),
+                'message' => 'Bitte ändere zuerst dein vorläufiges Passwort.',
+            ], 403, $this->noStoreHeaders());
+        }
+
+        $rawAcceptTerms = $request->input('accept_terms', null);
+        if (is_array($rawAcceptTerms) || is_object($rawAcceptTerms) || filter_var($rawAcceptTerms, FILTER_VALIDATE_BOOLEAN) !== true) {
+            return response()->json([
+                'success' => false,
+                'status' => 'terms_required',
+                'code' => 'terms_required',
+                'csrf_token' => csrf_token(),
+                'message' => 'Bitte bestätige die Teilnahmebedingungen, um die Seelenfunken-Magie zu aktivieren.',
+            ], 422, $this->noStoreHeaders());
+        }
+
+        $hasOptInParam = $request->has('ranking_opt_in') && $request->input('ranking_opt_in') !== null;
+        if ($hasOptInParam && (is_array($request->input('ranking_opt_in')) || is_object($request->input('ranking_opt_in')))) {
+            return $this->tamperRejectedResponse();
+        }
+        $rankingOptIn = $hasOptInParam
+            ? filter_var($request->input('ranking_opt_in'), FILTER_VALIDATE_BOOLEAN)
+            : null;
+
+        $gameService->getProfile($customer);
+
+        $txResult = DB::transaction(function () use ($customer, $gameService, $rankingOptIn): array {
+            $profile = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->firstOrFail();
+            $accessCheck = LobbyInstanceService::evaluateSanctumAccess($customer);
+
+            if (!$accessCheck['has_completed_order']) {
+                return [
+                    'allowed' => false,
+                    'access' => $accessCheck,
+                ];
+            }
+
+            $wasActive = (bool) $profile->is_active;
+            $oldOptIn = (bool) $profile->ranking_opt_in;
+            $oldUseReal = (bool) $profile->use_real_name;
+
+            $profile->is_active = true;
+
+            $progress = is_array($profile->titles_progress) && !empty($profile->titles_progress)
+                ? $profile->titles_progress
+                : $gameService->getInitialTitlesProgress();
+
+            if (!array_key_exists('_audio_muted', $progress)) {
+                $progress['_audio_muted'] = true;
+            }
+            if (!array_key_exists('_audio_keep_playing', $progress)) {
+                $progress['_audio_keep_playing'] = false;
+            }
+            $profile->titles_progress = $progress;
+
+            if ((int) ($profile->magma_unlocked_level ?? 0) < 1) {
+                $rawCleared = $progress['lava_cleared_levels'] ?? [];
+                $maxSeq = 0;
+                if (is_array($rawCleared)) {
+                    $lookup = [];
+                    foreach ($rawCleared as $v) {
+                        if (is_int($v) || (is_string($v) && ctype_digit($v))) {
+                            $lookup[(int) $v] = true;
+                        }
+                    }
+                    for ($i = 1; $i <= LavaParkourService::MAX_MAGMA_LEVEL; $i++) {
+                        if (isset($lookup[$i])) {
+                            $maxSeq = $i;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                $profile->magma_unlocked_level = max(1, min(LavaParkourService::MAX_MAGMA_LEVEL, $maxSeq + 1));
+            }
+
+            if (!$wasActive || (int) ($profile->magma_hearts ?? 0) <= 0) {
+                $profile->magma_hearts = LavaParkourService::MAX_HEARTS;
+            }
+
+            if ($rankingOptIn !== null) {
+                $profile->ranking_opt_in = $rankingOptIn;
+                if ($rankingOptIn && trim((string) ($profile->player_name ?? '')) === '') {
+                    $profile->use_real_name = true;
+                }
+            }
+
+            $gameService->syncLevelFromLifetimeSparks($profile);
+            $profile->save();
+
+            $loggedChanges = [];
+            if (!$wasActive) {
+                $loggedChanges['gamification_active'] = ['old' => false, 'new' => true];
+            }
+            if ($oldOptIn !== (bool) $profile->ranking_opt_in) {
+                $loggedChanges['ranking_opt_in'] = ['old' => $oldOptIn, 'new' => (bool) $profile->ranking_opt_in];
+            }
+            if ($oldUseReal !== (bool) $profile->use_real_name) {
+                $loggedChanges['use_real_name'] = ['old' => $oldUseReal, 'new' => (bool) $profile->use_real_name];
+            }
+
+            return [
+                'allowed' => true,
+                'was_active' => $wasActive,
+                'profile' => $profile,
+                'logged_changes' => $loggedChanges,
+            ];
+        });
+
+        if (empty($txResult['allowed'])) {
+            $deniedAccess = $txResult['access'];
+
+            return response()->json([
+                'success' => false,
+                'status' => 'order_required',
+                'code' => 'order_required',
+                'sanctum_block_reason' => 'order_required',
+                'has_completed_order' => false,
+                'gamification_active' => false,
+                'can_enter_sanctums' => false,
+                'csrf_token' => csrf_token(),
+                'message' => (string) ($deniedAccess['message'] ?? 'Ab deiner ersten abgeschlossenen Bestellung schaltest du die Seelenfunken-Magie frei.'),
+            ], 403, $this->noStoreHeaders());
+        }
+
+        /** @var CustomerGamification $activatedProfile */
+        $activatedProfile = $txResult['profile'];
+        if (!empty($txResult['logged_changes'])) {
+            $gameService->recordUserProfileChangeLog($customer, $txResult['logged_changes'], 'Kunde (Inline 3D)');
+        }
+        if (empty($txResult['was_active'])) {
+            $gameService->logGamificationEvent(
+                (string) $customer->id,
+                'opt_in',
+                'system',
+                'Seelenfunken-Magie aktiviert',
+                'Kunde hat die Seelenfunken-Magie direkt in der 3D-Welt aktiviert.',
+                0,
+                (int) $activatedProfile->funken_balance
+            );
+        }
+
+        FunkenwerkHeroesController::forgetPublicCache();
+
+        $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
+        $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
+        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer);
+        $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
+        $playerPayload = $this->resolveShowroomPlayer(
+            $customer,
+            $multiplayerPayload,
+            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false)
+        );
+
+        return response()->json([
+            'success' => true,
+            'status' => 'magic_activated',
+            'csrf_token' => csrf_token(),
+            'sanctum_access' => $sanctumAccess,
+            'player' => $playerPayload,
+            'player_funki' => $playerFunki,
+            'multiplayer' => $multiplayerPayload,
+            'lava_parkour' => $lavaParkourPayload,
         ], 200, $this->noStoreHeaders());
     }
 
@@ -184,6 +662,19 @@ class ShopShowroomController extends Controller
             ], 403, $this->noStoreHeaders());
         }
 
+        $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
+        if (!$sanctumAccess['can_enter_sanctums']) {
+            return response()->json([
+                'success' => false,
+                'code' => $sanctumAccess['sanctum_block_reason'],
+                'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
+                'has_completed_order' => $sanctumAccess['has_completed_order'],
+                'gamification_active' => $sanctumAccess['gamification_active'],
+                'can_enter_sanctums' => false,
+                'message' => (string) ($sanctumAccess['message'] ?? 'Der Showroom-Chat erfordert eine abgeschlossene Bestellung und aktivierte Magie.'),
+            ], 403, $this->noStoreHeaders());
+        }
+
         $rawMessage = $request->input('message', '');
         if (!is_string($rawMessage)) {
             LobbyInstanceService::logTamperThrottled('customer:' . $customer->id, $request->path(), 'non_string_chat_message');
@@ -247,6 +738,19 @@ class ShopShowroomController extends Controller
             ], 403, $this->noStoreHeaders());
         }
 
+        $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
+        if (!$sanctumAccess['can_enter_sanctums']) {
+            return response()->json([
+                'success' => false,
+                'code' => $sanctumAccess['sanctum_block_reason'],
+                'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
+                'has_completed_order' => $sanctumAccess['has_completed_order'],
+                'gamification_active' => $sanctumAccess['gamification_active'],
+                'can_enter_sanctums' => false,
+                'message' => (string) ($sanctumAccess['message'] ?? 'Meldungen erfordern eine abgeschlossene Bestellung und aktivierte Magie.'),
+            ], 403, $this->noStoreHeaders());
+        }
+
         $rawTarget = $request->input('target_player_id', '');
         if (!is_string($rawTarget)) {
             return response()->json([
@@ -259,10 +763,48 @@ class ShopShowroomController extends Controller
 
         return response()->json([
             'success' => $result['success'],
+            'code' => $result['code'] ?? null,
             'reports_count' => $result['reports_count'] ?? 0,
             'shadow_muted' => $result['shadow_muted'] ?? false,
             'message' => $result['message'] ?? 'Meldung verarbeitet.',
         ], (int) ($result['status'] ?? 200), $this->noStoreHeaders());
+    }
+
+    private function verifyCustomerTwoFactorCode(Customer $customer, string $inputCode): bool
+    {
+        if (!$customer->profile) {
+            return false;
+        }
+
+        if (!empty($customer->profile->two_factor_secret)) {
+            try {
+                $google2fa = new Google2FA();
+                if ((bool) $google2fa->verifyKey((string) $customer->profile->two_factor_secret, $inputCode)) {
+                    return true;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        if (!empty($customer->profile->two_factor_recovery_codes)) {
+            try {
+                $recoveryCodes = json_decode(decrypt($customer->profile->two_factor_recovery_codes), true);
+                if (is_array($recoveryCodes)) {
+                    foreach ($recoveryCodes as $idx => $savedCode) {
+                        if (is_string($savedCode) && $savedCode !== '' && hash_equals($savedCode, $inputCode)) {
+                            unset($recoveryCodes[$idx]);
+                            $customer->profile->two_factor_recovery_codes = encrypt(json_encode(array_values($recoveryCodes)));
+                            $customer->profile->save();
+
+                            return true;
+                        }
+                    }
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return false;
     }
 
     private function tamperRejectedResponse(): JsonResponse
@@ -276,10 +818,7 @@ class ShopShowroomController extends Controller
 
     private function checkMaintenanceOrLock(Request $request): ?JsonResponse
     {
-        $isMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)
-            || filter_var(shop_setting('shop_maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
-
-        if (!EnforceShopMaintenanceMode::isShopLive($request) || ($isMaintenance && !Auth::guard('admin')->check())) {
+        if (!EnforceShopMaintenanceMode::isShopLive($request)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Mein Seelenfunke befindet sich aktuell im Wartungsmodus.',
@@ -317,6 +856,7 @@ class ShopShowroomController extends Controller
         $activeCount = (int) (clone $baseScope)->count();
         $latestStamp = (string) ((clone $baseScope)->max('updated_at') ?? '0');
         $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
+        $isMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
         $taxRateKey = (string) shop_setting('default_tax_rate', 19);
         $freeThreshold = (int) shop_setting('shipping_free_threshold', 5000);
         $shippingCost = (int) shop_setting('shipping_cost', 490);
@@ -325,13 +865,14 @@ class ShopShowroomController extends Controller
             $activeCount,
             $latestStamp,
             $isSmallBusiness ? 'sb1' : 'sb0',
+            $isMaintenance ? 'm1' : 'm0',
             $taxRateKey,
             $freeThreshold,
             $shippingCost,
             now()->format('Y-m-d'),
         ]));
 
-        return Cache::remember($cacheKey, 120, function () use ($isSmallBusiness, $freeThreshold, $shippingCost) {
+        return Cache::remember($cacheKey, 120, function () use ($isSmallBusiness, $freeThreshold, $shippingCost, $isMaintenance) {
             $items = Product::where('status', 'active')
                 ->where('slug', '!=', 'seelenfunke-ingame-artifact')
                 ->with([
@@ -347,7 +888,7 @@ class ShopShowroomController extends Controller
 
             $mapped = [];
             foreach ($items as $product) {
-                $mapped[] = $this->mapProductForShowroom($product, $isSmallBusiness, $freeThreshold, $shippingCost);
+                $mapped[] = $this->mapProductForShowroom($product, $isSmallBusiness, $freeThreshold, $shippingCost, $isMaintenance);
             }
 
             return $mapped;
@@ -361,7 +902,8 @@ class ShopShowroomController extends Controller
         Product $product,
         bool $isSmallBusiness,
         int $freeThresholdCents,
-        int $shippingCostCents
+        int $shippingCostCents,
+        bool $isMaintenance = false
     ): array {
         $isVoucher = $product->slug === 'geschenkgutschein' || ((int) $product->price === 0 && $product->is_personalizable);
         $grossCents = $isVoucher && (int) $product->gross_price <= 0
@@ -405,7 +947,7 @@ class ShopShowroomController extends Controller
             'collection_world' => $product->resolveCollectionWorld(),
             'is_personalizable' => (bool) $product->is_personalizable,
             'is_available' => $product->isAvailable(),
-            'can_direct_add_to_cart' => !$product->is_personalizable && $product->slug !== 'geschenkgutschein' && $product->isAvailable(),
+            'can_direct_add_to_cart' => !$isMaintenance && !$product->is_personalizable && $product->slug !== 'geschenkgutschein' && $product->isAvailable(),
             'price_cents' => $grossCents,
             'price_formatted' => $priceFormatted,
             'tax_shipping_label' => $taxNote . ' · ' . $shippingNote,
@@ -657,12 +1199,12 @@ class ShopShowroomController extends Controller
      * @param array<string, mixed> $multiplayerPayload
      * @return array<string, mixed>
      */
-    private function resolvePlayerFunki(array $multiplayerPayload = []): array
+    private function resolvePlayerFunki(array $multiplayerPayload = [], ?Customer $resolvedCustomer = null): array
     {
         $levelModels = $this->resolveFunkiLevelModelsMap();
 
         /** @var Customer|null $customer */
-        $customer = Auth::guard('customer')->user();
+        $customer = $resolvedCustomer ?? Auth::guard('customer')->user();
 
         if ($customer !== null) {
             $resolvedLevel = 1;

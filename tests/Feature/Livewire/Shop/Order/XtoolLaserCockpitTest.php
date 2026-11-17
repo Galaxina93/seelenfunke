@@ -1680,4 +1680,423 @@ class XtoolLaserCockpitTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/data-resize-handle="nw"[^>]*-translate-x-1\/2/s', $html);
         $this->assertStringNotContainsString(" \u{2013} ", $html);
     }
+
+    #[Test]
+    public function z_axis_focus_control_sends_goto_focus_plus_6mm_on_flatbed_and_curved_but_skips_framing_and_ra3_and_syncs_relay_payload(): void
+    {
+        // 1. Statische Z-Achsen-Formel verifizieren (z = round(focus_mm + 6.0, 2))
+        $cmdBlack = XtoolLaserCockpitService::buildZAxisFocusControlCommand(21.5, 'engrave', 'flatbed_standard');
+        $this->assertNotNull($cmdBlack);
+        $this->assertSame('POST', $cmdBlack['method']);
+        $this->assertSame('/v1/laser-head/focus/control', $cmdBlack['url']);
+        $this->assertSame([], $cmdBlack['params']);
+        $this->assertSame(['action' => 'goTo', 'stopFirst' => 1, 'z' => 27.5], $cmdBlack['data']);
+
+        $cmdSilver = XtoolLaserCockpitService::buildZAxisFocusControlCommand(19.5, 'engrave', 'flatbed_standard');
+        $this->assertSame(25.5, $cmdSilver['data']['z']);
+
+        $cmdCurved = XtoolLaserCockpitService::buildZAxisFocusControlCommand(33.1, 'engrave', 'curved_surface');
+        $this->assertSame(39.1, $cmdCurved['data']['z']);
+
+        // NIEMALS Z-Achse fahren bei Framing, RA3 Walze, Conveyor oder 3D-Innengravur
+        $this->assertNull(XtoolLaserCockpitService::buildZAxisFocusControlCommand(21.5, 'framing', 'flatbed_standard'));
+        $this->assertNull(XtoolLaserCockpitService::buildZAxisFocusControlCommand(74.0, 'engrave', 'rotary_ra3'));
+        $this->assertNull(XtoolLaserCockpitService::buildZAxisFocusControlCommand(15.6, 'engrave', 'inner_3d'));
+        $this->assertNull(XtoolLaserCockpitService::buildZAxisFocusControlCommand(19.5, 'engrave', 'conveyor_batch'));
+        $this->assertNull(XtoolLaserCockpitService::buildZAxisFocusControlCommand(0.0, 'engrave', 'flatbed_standard'));
+
+        // 2. Echte V2-WebSocket-Befehlssequenz in sendJobToLaserV2 verifizieren
+        $v2Harness = new class extends XtoolLaserCockpitService {
+            public array $events = [];
+
+            public function probeLaserReachability(string $ip = self::DEFAULT_LASER_IP, bool $force = false): bool
+            {
+                return true;
+            }
+
+            protected function v2WsConnect(string $ip, int $port, string $path)
+            {
+                return fopen('php://memory', 'r+');
+            }
+
+            protected function v2SendJsonCmd($ws, int &$txId, string $sessionToken, string $method, string $url, array $params = [], array $data = []): ?array
+            {
+                $txId++;
+                $this->events[] = [
+                    'kind'   => 'cmd',
+                    'method' => $method,
+                    'url'    => $url,
+                    'params' => $params,
+                    'data'   => $data,
+                ];
+                if ($url === '/v1/user/parity') {
+                    return ['code' => 0, 'data' => ['sessionToken' => 'sf-test-session']];
+                }
+                return ['code' => 0, 'data' => []];
+            }
+
+            protected function v2UploadFileToLaser(
+                $mainWs,
+                $fileWs,
+                int &$txId,
+                string $sessionToken,
+                string $remoteFilename,
+                string $fileBytes,
+                int $fileType = 1,
+                int $channel = 62
+            ): bool {
+                $this->events[] = [
+                    'kind'     => 'upload',
+                    'filename' => $remoteFilename,
+                    'channel'  => $channel,
+                ];
+                return true;
+            }
+        };
+        $v2Harness->setV2SocketTestingMode(true);
+
+        // 2a. Engrave auf Flachbett (21.5 mm -> z = 27.5 mm VOR Upload von tmp.xf)
+        $resEngrave = $v2Harness->sendJobToLaserV2('engrave', 'TAR_XF_BYTES', '192.168.188.150', 21.5, 'flatbed_standard');
+        $this->assertTrue($resEngrave['ok']);
+        $this->assertSame(27.5, $resEngrave['target_z_mm']);
+        $this->assertCount(4, $v2Harness->events);
+        $this->assertSame('/v1/user/parity', $v2Harness->events[0]['url']);
+        $this->assertSame('POST', $v2Harness->events[1]['method']);
+        $this->assertSame('/v1/laser-head/focus/control', $v2Harness->events[1]['url']);
+        $this->assertSame(['action' => 'goTo', 'stopFirst' => 1, 'z' => 27.5], $v2Harness->events[1]['data']);
+        $this->assertSame('upload', $v2Harness->events[2]['kind']);
+        $this->assertSame('tmp.xf', $v2Harness->events[2]['filename']);
+        $this->assertSame('/v1/processing/upload/config', $v2Harness->events[3]['url']);
+        $this->assertSame(0, $v2Harness->events[3]['data']['autoStart']);
+
+        // 2b. Framing sendet KEIN focus/control
+        $v2Harness->events = [];
+        $resFraming = $v2Harness->sendJobToLaserV2('framing', 'G0X100Y100', '192.168.188.150', 21.5, 'flatbed_standard');
+        $this->assertTrue($resFraming['ok']);
+        $this->assertNull($resFraming['target_z_mm']);
+        $urlsFraming = array_column(array_filter($v2Harness->events, fn ($e) => $e['kind'] === 'cmd'), 'url');
+        $this->assertNotContains('/v1/laser-head/focus/control', $urlsFraming);
+
+        // 2c. RA3 Walze sendet KEIN focus/control
+        $v2Harness->events = [];
+        $resRa3 = $v2Harness->sendJobToLaserV2('engrave', 'TAR_XF_BYTES', '192.168.188.150', 74.0, 'rotary_ra3');
+        $this->assertTrue($resRa3['ok']);
+        $this->assertNull($resRa3['target_z_mm']);
+        $urlsRa3 = array_column(array_filter($v2Harness->events, fn ($e) => $e['kind'] === 'cmd'), 'url');
+        $this->assertNotContains('/v1/laser-head/focus/control', $urlsRa3);
+
+        // 3. Mini-PC-Relay Job-Payload enthält focus_mm & target_z_mm (21.5 + 6.0 = 27.5 mm)
+        $isolatedRelayDir = storage_path('app/private/testing_xtool_z_relay_' . Str::lower(Str::random(8)));
+        $cockpit = new XtoolLaserCockpitService();
+        $cockpit->setRelayTestingOptions($isolatedRelayDir, true, 0.1, 0.1);
+        try {
+            $relayJob = $cockpit->enqueueRelayJob('send_xf', [
+                'laser_ip'      => '192.168.188.150',
+                'xf_base64'     => base64_encode('MOCK_XF'),
+                'equipment_key' => 'flatbed_standard',
+                'focus_mm'      => 21.5,
+            ]);
+            $this->assertSame(21.5, $relayJob['focus_mm']);
+            $this->assertSame(27.5, $relayJob['target_z_mm']);
+            $this->assertSame(['action' => 'goTo', 'stopFirst' => 1, 'z' => 27.5], $relayJob['focus_control']);
+
+            $claimed = $cockpit->claimNextPendingRelayJob(true, '192.168.188.150');
+            $this->assertNotNull($claimed);
+            $this->assertSame(21.5, $claimed['focus_mm']);
+            $this->assertSame(27.5, $claimed['target_z_mm']);
+            $this->assertSame(['action' => 'goTo', 'stopFirst' => 1, 'z' => 27.5], $claimed['focus_control']);
+        } finally {
+            if (is_dir($isolatedRelayDir)) {
+                \Illuminate\Support\Facades\File::deleteDirectory($isolatedRelayDir);
+            }
+        }
+    }
+
+    #[Test]
+    public function multi_laser_profiles_work_in_product_step_4_2_seeder_migration_and_cockpit_dropdown(): void
+    {
+        Storage::fake('local');
+        $admin = $this->createAdmin();
+        $this->seed(\Database\Seeders\ProductSeeder::class);
+
+        // Nicht-destruktive Migration zweifach ausführen (Idempotenz-Beweis)
+        $migration = require database_path('migrations/2026_11_17_220000_sync_multi_laser_profiles_on_products.php');
+        $migration->up();
+        $pfoteBeforeSecondRun = Product::where('slug', 'seelen-pfote-hundemarke')->firstOrFail()->getRawOriginal('configurator_settings');
+        $migration->up();
+        $pfoteAfterSecondRun = Product::where('slug', 'seelen-pfote-hundemarke')->firstOrFail()->getRawOriginal('configurator_settings');
+        $this->assertSame($pfoteBeforeSecondRun, $pfoteAfterSecondRun);
+
+        // 1. Alle 3 Gold-Edelstahl-Produkte besitzen exakt die geforderten Lamellenrost-Profile
+        foreach (['seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'seelen-talisman'] as $slug) {
+            $prod = Product::where('slug', $slug)->firstOrFail();
+            $profiles = $prod->getLaserProfiles();
+            $this->assertGreaterThanOrEqual(3, count($profiles), "{$slug} muss mindestens 3 Profile besitzen");
+
+            $p1 = $profiles[0];
+            $this->assertTrue($p1['is_default']);
+            $this->assertSame('Schwarz (Anlass-Gravur 100 kHz)', $p1['title']);
+            $this->assertSame(21.5, (float) $p1['focus_mm']);
+            $this->assertSame(95, (int) $p1['power_percent']);
+            $this->assertSame(1100, (int) $p1['dot_duration_us']);
+            $this->assertSame(1270, (int) $p1['dpi']);
+            $this->assertSame(100, (int) $p1['frequency_khz']);
+            $this->assertSame(25, (int) $p1['speed_mms']);
+            $this->assertSame(1, (int) $p1['passes']);
+            $this->assertSame('Schwellenwert', $p1['bitmap_mode']);
+            $this->assertSame('Bidirektional', $p1['engrave_mode']);
+
+            $p2 = $profiles[1];
+            $this->assertFalse($p2['is_default']);
+            $this->assertSame('Cockpit-Sweetspot 65 kHz', $p2['title']);
+            $this->assertSame(20.9, (float) $p2['focus_mm']);
+            $this->assertSame(45, (int) $p2['power_percent']);
+            $this->assertSame(210, (int) $p2['dot_duration_us']);
+            $this->assertSame(800, (int) $p2['dpi']);
+            $this->assertSame(65, (int) $p2['frequency_khz']);
+            $this->assertSame(110, (int) $p2['speed_mms']);
+            $this->assertSame('Jarvis', $p2['bitmap_mode']);
+
+            $p3 = $profiles[2];
+            $this->assertFalse($p3['is_default']);
+            $this->assertSame('Weiß / Silber-Kontrast', $p3['title']);
+            $this->assertSame(19.5, (float) $p3['focus_mm']);
+            $this->assertSame(45, (int) $p3['power_percent']);
+            $this->assertSame(210, (int) $p3['dot_duration_us']);
+            $this->assertSame(600, (int) $p3['dpi']);
+            $this->assertSame(40, (int) $p3['frequency_khz']);
+            $this->assertSame(550, (int) $p3['speed_mms']);
+            $this->assertSame('Jarvis', $p3['bitmap_mode']);
+
+            // Rückwärtskompatible Synchronisation der primären Produkt-Felder
+            $cfg = $prod->configurator_settings;
+            $this->assertSame(21.5, (float) $cfg['xtool_focus_mm']);
+            $this->assertSame(95, (int) $cfg['xtool_power_percent']);
+            $this->assertSame(1100, (int) $cfg['xtool_dot_duration_us']);
+            $this->assertSame(1270, (int) $cfg['xtool_dpi']);
+            $this->assertSame(100, (int) $cfg['xtool_frequency_khz']);
+            $this->assertSame(25, (int) $cfg['xtool_speed_mms']);
+            $this->assertSame('Schwellenwert', $cfg['xtool_bitmap_mode']);
+        }
+
+        // 2. Seelen Kristall behält unantastbar die 33,1 mm / 32,8 mm Master-Referenz
+        $kristall = Product::where('slug', 'seelen-kristall')->firstOrFail();
+        $kristallProfiles = $kristall->getLaserProfiles();
+        $this->assertSame(33.1, (float) $kristall->configurator_settings['xtool_focus_mm']);
+        $this->assertSame(33.1, (float) $kristallProfiles[0]['focus_mm']);
+        $this->assertSame(32.8, (float) $kristallProfiles[1]['focus_mm']);
+
+        // 3. Produkt-Editor Schritt 4.2 rendert das Accordion & synchronisiert beim Umschalten des Standards die Primärfelder
+        $pfote = Product::where('slug', 'seelen-pfote-hundemarke')->firstOrFail();
+        $prodEditor = Livewire::actingAs($admin, 'admin')
+            ->test(\App\Livewire\Shop\Product\ProductCreate::class)
+            ->call('openProductInStep', $pfote->id, 4, 2)
+            ->assertSee('2. Wie man es bearbeitet (xTool Studio Parameter) *')
+            ->assertSee('+ Laserprofil hinzufügen')
+            ->assertSee('data-xtool-profiles-table', false);
+
+        $fullStep4Html = $prodEditor->html();
+        $step42Start = strpos($fullStep4Html, 'data-step-4-2-root');
+        $step43Start = strpos($fullStep4Html, '$wire.step4SubStep === 3');
+        $this->assertNotFalse($step42Start);
+        $step42RenderedHtml = $step43Start !== false
+            ? substr($fullStep4Html, $step42Start, $step43Start - $step42Start)
+            : substr($fullStep4Html, $step42Start);
+        $this->assertStringNotContainsString(" \u{2013} ", $step42RenderedHtml);
+
+        $editedProfiles = $pfote->getLaserProfiles();
+        $editedProfiles[0]['is_default'] = false;
+        $editedProfiles[2]['is_default'] = true; // Weiß / Silber-Kontrast (19.5 mm) wird Standard
+        $prodEditor->set('configSettings.xtool_profiles', $editedProfiles)
+            ->call('save');
+
+        $pfoteReloaded = $pfote->fresh();
+        $this->assertSame(19.5, (float) $pfoteReloaded->configurator_settings['xtool_focus_mm']);
+        $this->assertSame(45, (int) $pfoteReloaded->configurator_settings['xtool_power_percent']);
+        $this->assertSame(210, (int) $pfoteReloaded->configurator_settings['xtool_dot_duration_us']);
+        $this->assertSame(600, (int) $pfoteReloaded->configurator_settings['xtool_dpi']);
+        $this->assertSame(550, (int) $pfoteReloaded->configurator_settings['xtool_speed_mms']);
+
+        // 4. Schritt-1-Cockpit zeigt Produkt-Profile ganz oben, lädt Profil sofort & speichert neues benanntes Profil am Produkt
+        [$order, $item] = $this->createSampleOrderWithItem($pfoteReloaded);
+        $cockpitComp = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->assertSee('Produkt-Profile')
+            ->assertSee('Schwarz (Anlass-Gravur 100 kHz)')
+            ->assertSee('Cockpit-Sweetspot 65 kHz')
+            ->assertSee('Weiß / Silber-Kontrast')
+            ->assertSee('+ Als Produkt-Profil speichern');
+
+        // Wechsel auf Profil 1 (Schwarz 100 kHz -> 21,5 mm) im Cockpit
+        $cockpitComp->call('applyProductLaserProfile', $item->id, 'front', 'prof_schwarz_100khz', 1)
+            ->assertDispatched('laser-params-sync');
+
+        $activeAfterSelect = app(XtoolLaserCockpitService::class)->resolveEffectiveLaserParameters($item->fresh(), 'front');
+        $this->assertSame(21.5, $activeAfterSelect['focus_mm']);
+        $this->assertSame(95, $activeAfterSelect['power_percent']);
+        $this->assertSame(1100, $activeAfterSelect['dot_duration_us']);
+        $this->assertSame(1270, $activeAfterSelect['dpi']);
+        $this->assertSame(100, $activeAfterSelect['frequency_khz']);
+
+        // Neues benanntes Profil direkt aus dem Cockpit am Produkt speichern
+        $customBackParams = [
+            'focus_mm'        => 19.5,
+            'element_type'    => 'Vektor',
+            'engrave_tab'     => 'Gravieren',
+            'preset_mode'     => 'Benutzerdefiniert',
+            'dot_duration_us' => 180,
+            'power_percent'   => 38,
+            'speed_mms'       => 420,
+            'dpi'             => 600,
+            'passes'          => 1,
+            'frequency_khz'   => 45,
+            'bitmap_mode'     => 'Schwellenwert',
+            'engrave_mode'    => 'Bidirektional',
+            'vector_note'     => 'Gravieren · 38 % · 420 mm/s · 300 Linien/cm · 45 kHz',
+        ];
+        $cockpitComp->call('saveOrderLaserParametersAsProductProfile', $item->id, 'front', 'Rückseite Telefonnummer Fein', $customBackParams, false)
+            ->assertDispatched('laser-params-sync')
+            ->assertDispatched('order-feedback');
+
+        $updatedTitles = array_column($pfoteReloaded->fresh()->getLaserProfiles(), 'title');
+        $this->assertContains('Rückseite Telefonnummer Fein', $updatedTitles);
+    }
+
+    #[Test]
+    public function dot_duration_us_supports_1_to_3000_range_across_cockpit_product_editor_xf_and_xcs(): void
+    {
+        Storage::fake('local');
+        $admin = $this->createAdmin();
+        $product = $this->createPersonalizableLaserProduct();
+        [$order, $item] = $this->createSampleOrderWithItem($product);
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id);
+
+        $html = $component->html();
+        $this->assertMatchesRegularExpression('/data-sf-param-range="dot_duration_us"[^>]*min="1"[^>]*max="3000"/s', $html);
+
+        // 1. Exakt 3000 µs speichern -> 100 % Slider-Füllung + Propagation nach .xf & .xcs
+        $component->call('updateLaserParameters', $item->id, 'front', ['dot_duration_us' => 3000], 10)
+            ->assertDispatched('laser-params-sync');
+
+        $cockpit = app(XtoolLaserCockpitService::class);
+        $resolved3000 = $cockpit->resolveEffectiveLaserParameters($item->fresh(), 'front');
+        $this->assertSame(3000, $resolved3000['dot_duration_us']);
+        $this->assertStringContainsString('--val-pct: 100.00%;', $component->html());
+
+        $xf = $cockpit->generateXfPackageBytes($item->fresh(), 'front', 100.0, 100.0, 0.0);
+        $this->assertSame(3000, $xf['description']['processingParams'][0]['dotDuration']);
+
+        $xcs = $cockpit->generateXcsProjectBytes($item->fresh(), 'front', 100.0, 100.0, 0.0);
+        $tmpZip = tempnam(sys_get_temp_dir(), 'test_xcs_3000_');
+        file_put_contents($tmpZip, $xcs['bytes']);
+        try {
+            $zip = new \ZipArchive();
+            $this->assertTrue($zip->open($tmpZip) === true);
+            $project = json_decode((string) $zip->getFromName('project.json'), true);
+            $canvasId = $project['activeCanvasId'];
+            $device = json_decode((string) $zip->getFromName('devices/device-GS009-CLASS-4-1.json'), true);
+            $vals = reset($device['processing'][$canvasId]['modes']['LASER_PLANE']['profiles'])['base']['values'];
+            $this->assertSame(3000, $vals['dotDuration']);
+            $zip->close();
+        } finally {
+            @unlink($tmpZip);
+        }
+
+        // 2. Überhöhter Wert (> 3000 µs) wird serverseitig sauber auf 3000 µs geclampt
+        $component->call('updateLaserParameters', $item->id, 'front', ['dot_duration_us' => 4800], 11);
+        $this->assertSame(3000, $cockpit->resolveEffectiveLaserParameters($item->fresh(), 'front')['dot_duration_us']);
+
+        // 3. Minimalwert 1 µs -> 0.00 % Slider-Füllung
+        $component->call('updateLaserParameters', $item->id, 'front', ['dot_duration_us' => 1], 12);
+        $this->assertSame(1, $cockpit->resolveEffectiveLaserParameters($item->fresh(), 'front')['dot_duration_us']);
+        $this->assertStringContainsString('--val-pct: 0.00%;', $component->html());
+
+        // 4. Produkt-Editor Schritt 4.2 akzeptiert 3000 µs und clampt > 3000 sauber auf 3000 µs
+        $eval3000 = Product::evaluateLaserInstructionSettings(array_merge(
+            $product->configurator_settings,
+            ['xtool_dot_duration_us' => 3000]
+        ), true);
+        $this->assertTrue($eval3000['is_complete']);
+        $this->assertSame(3000, $eval3000['dot_duration_us']);
+
+        $evalTooHigh = Product::evaluateLaserInstructionSettings(array_merge(
+            $product->configurator_settings,
+            ['xtool_dot_duration_us' => 3500]
+        ), true);
+        $this->assertFalse($evalTooHigh['is_complete']);
+    }
+
+    #[Test]
+    public function slider_fill_sync_and_blue_frame_drag_lock_prevent_flicker_and_verify_zero_en_dashes_across_all_touched_files(): void
+    {
+        $admin = $this->createAdmin();
+        $product = $this->createPersonalizableLaserProduct();
+        [$order, $item] = $this->createSampleOrderWithItem($product);
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id);
+
+        $htmlBefore = $component->html();
+        preg_match('/<div x-data="([^"]+)"/s', $htmlBefore, $mBefore);
+        $this->assertNotEmpty($mBefore[1] ?? '');
+
+        // 1. Sequenzbestätigtes Verschieben des blauen Rahmens liefert ack-Event und verändert x-data-String NICHT (0,0 px Remount-Flicker)
+        $component->call('updateLaserCoordinates', $item->id, 118.4, 84.2, -2.5, 28.0, 28.0, 7)
+            ->assertSet('laserCenterXMm', 118.4)
+            ->assertSet('laserCenterYMm', 84.2)
+            ->assertDispatched('laser-cockpit-sync', function (string $name, array $params): bool {
+                return ($params['source'] ?? null) === 'ack'
+                    && ($params['seq'] ?? null) === 7
+                    && (float) ($params['x'] ?? 0) === 118.4
+                    && (float) ($params['y'] ?? 0) === 84.2;
+            });
+
+        // 2. Slider-Update mit Sequenznummer liefert seq zurück und verändert x-data-String ebenfalls NICHT
+        $component->call('updateLaserParameters', $item->id, 'front', [
+            'dot_duration_us' => 1500,
+            'power_percent'   => 60,
+            'dpi'             => 1000,
+            'frequency_khz'   => 80,
+        ], 9)->assertDispatched('laser-params-sync', function (string $name, array $params): bool {
+            return ($params['seq'] ?? null) === 9
+                && (int) ($params['params']['dot_duration_us'] ?? 0) === 1500;
+        });
+
+        $htmlAfter = $component->html();
+        preg_match('/<div x-data="([^"]+)"/s', $htmlAfter, $mAfter);
+        $this->assertSame($mBefore[1], $mAfter[1], 'x-data Attribut muss bei Koordinaten- und Slider-Updates konstant bleiben, damit Livewire Alpine niemals neu mountet');
+        $this->assertStringContainsString('onSliderInput(', $htmlAfter);
+        $this->assertStringContainsString('onSliderCommit(', $htmlAfter);
+        $this->assertStringContainsString('refreshAllRangeFills()', $htmlAfter);
+        $this->assertStringContainsString('lockCurrentCoords()', $htmlAfter);
+        $this->assertStringContainsString('this._dragStageRect', $htmlAfter);
+
+        // 3. Programmatischer 0-KI-Gedankenstrich-Check über alle geänderten & neuen Dateien
+        $checkedFiles = [
+            app_path('Services/Laser/XtoolLaserCockpitService.php'),
+            app_path('Models/Product/Product.php'),
+            app_path('Livewire/Shop/Product/ProductCreate.php'),
+            resource_path('views/livewire/shop/product/partials/edit-partials/step_4_partials/dimensions.blade.php'),
+            app_path('Livewire/Shop/Order/OrderOverview.php'),
+            resource_path('views/livewire/shop/order/order-offer-detail-partials/laser-cockpit-card.blade.php'),
+            database_path('seeders/ProductSeeder.php'),
+            database_path('migrations/2026_11_17_220000_sync_multi_laser_profiles_on_products.php'),
+            base_path('tests/Feature/Livewire/Shop/Order/XtoolLaserCockpitTest.php'),
+        ];
+
+        foreach ($checkedFiles as $filePath) {
+            $this->assertFileExists($filePath);
+            $contents = (string) file_get_contents($filePath);
+            $this->assertSame(
+                0,
+                substr_count($contents, " \u{2013} "),
+                'Verbotener KI-Gedankenstrich in ' . basename($filePath) . ' gefunden!'
+            );
+        }
+    }
 }

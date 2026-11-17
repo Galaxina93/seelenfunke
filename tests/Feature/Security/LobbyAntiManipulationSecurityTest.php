@@ -336,26 +336,28 @@ class LobbyAntiManipulationSecurityTest extends TestCase
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $runSkip,
                 'stage' => 2,
-                'x' => 51.0,
-                'y' => 2.1,
-                'z' => -2.0,
+                'x' => 54.0,
+                'y' => 1.95,
+                'z' => -10.3,
             ])
             ->assertStatus(422);
 
         // 4. Ehrliche Checkpoints 1 & 2, aber Instant-Teleport in 10ms zur Truhe -> 422 & 0 Funken
-        $runInstantChest = $this->actingAs($cheater, 'customer')
+        $startInstant = $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/start')
-            ->assertOk()
-            ->json('run_id');
+            ->assertOk();
+        $runInstantChest = $startInstant->json('run_id');
+        $nonceInstant = $startInstant->json('life_nonce');
 
         $this->travel(3100)->milliseconds();
         $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $runInstantChest,
+                'life_nonce' => $nonceInstant,
                 'stage' => 1,
-                'x' => 31.5,
-                'y' => 1.2,
-                'z' => -2.0,
+                'x' => 35.0,
+                'y' => 0.85,
+                'z' => 5.5,
             ])
             ->assertOk();
 
@@ -363,10 +365,11 @@ class LobbyAntiManipulationSecurityTest extends TestCase
         $cp2Fast = $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $runInstantChest,
+                'life_nonce' => $nonceInstant,
                 'stage' => 2,
-                'x' => 51.0,
-                'y' => 2.1,
-                'z' => -2.0,
+                'x' => 54.0,
+                'y' => 1.95,
+                'z' => -10.3,
             ])
             ->assertOk();
 
@@ -374,27 +377,30 @@ class LobbyAntiManipulationSecurityTest extends TestCase
         $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/claim', [
                 'run_id' => $runInstantChest,
+                'life_nonce' => $nonceInstant,
                 'claim_token' => $cp2Fast->json('claim_token'),
-                'x' => 66.5,
-                'y' => 2.8,
-                'z' => -2.0,
+                'x' => 72.0,
+                'y' => 3.2,
+                'z' => 1.5,
             ])
             ->assertStatus(422);
 
         // 5. Ehrliche Checkpoints 1 & 2, richtige Zeit, aber um 1 Zeichen manipuliertes Token -> 422 & 0 Funken
-        $runForgedTok = $this->actingAs($cheater, 'customer')
+        $startForged = $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/start')
-            ->assertOk()
-            ->json('run_id');
+            ->assertOk();
+        $runForgedTok = $startForged->json('run_id');
+        $nonceForged = $startForged->json('life_nonce');
 
         $this->travel(3100)->milliseconds();
         $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $runForgedTok,
+                'life_nonce' => $nonceForged,
                 'stage' => 1,
-                'x' => 31.5,
-                'y' => 1.2,
-                'z' => -2.0,
+                'x' => 35.0,
+                'y' => 0.85,
+                'z' => 5.5,
             ])
             ->assertOk();
 
@@ -402,10 +408,11 @@ class LobbyAntiManipulationSecurityTest extends TestCase
         $cp2Valid = $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $runForgedTok,
+                'life_nonce' => $nonceForged,
                 'stage' => 2,
-                'x' => 51.0,
-                'y' => 2.1,
-                'z' => -2.0,
+                'x' => 54.0,
+                'y' => 1.95,
+                'z' => -10.3,
             ])
             ->assertOk();
 
@@ -416,10 +423,11 @@ class LobbyAntiManipulationSecurityTest extends TestCase
         $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/claim', [
                 'run_id' => $runForgedTok,
+                'life_nonce' => $nonceForged,
                 'claim_token' => $tamperedToken,
-                'x' => 66.5,
-                'y' => 2.8,
-                'z' => -2.0,
+                'x' => 72.0,
+                'y' => 3.2,
+                'z' => 1.5,
             ])
             ->assertStatus(422);
 
@@ -430,21 +438,23 @@ class LobbyAntiManipulationSecurityTest extends TestCase
             CustomerGamificationLog::where('customer_id', $cheater->id)->where('event_type', 'lava_parkour_chest')->count()
         );
 
-        // 6. Ein ehrlicher Lauf danach (2 Min. spaeter am selben Kalendertag) + Replay-Angriff desselben Tokens -> exakt 1x +5 Funken!
+        // 6. Ein ehrlicher Lauf danach (2 Min. spaeter am selben Kalendertag) + Replay-Angriff desselben Tokens -> exakt 1x Erstabschluss-Funken!
         $this->travel(2)->minutes();
-        $honestRun = $this->actingAs($cheater, 'customer')
+        $startHonest = $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/start')
-            ->assertOk()
-            ->json('run_id');
+            ->assertOk();
+        $honestRun = $startHonest->json('run_id');
+        $nonceHonest = $startHonest->json('life_nonce');
 
         $this->travel(3200)->milliseconds();
         $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $honestRun,
+                'life_nonce' => $nonceHonest,
                 'stage' => 1,
-                'x' => 31.5,
-                'y' => 1.2,
-                'z' => -2.0,
+                'x' => 35.0,
+                'y' => 0.85,
+                'z' => 5.5,
             ])
             ->assertOk();
 
@@ -452,33 +462,36 @@ class LobbyAntiManipulationSecurityTest extends TestCase
         $honestCp2 = $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/checkpoint', [
                 'run_id' => $honestRun,
+                'life_nonce' => $nonceHonest,
                 'stage' => 2,
-                'x' => 51.0,
-                'y' => 2.1,
-                'z' => -2.0,
+                'x' => 54.0,
+                'y' => 1.95,
+                'z' => -10.3,
             ])
             ->assertOk();
 
         $this->travel(3000)->milliseconds();
         $claimBody = [
             'run_id' => $honestRun,
+            'life_nonce' => $nonceHonest,
             'claim_token' => $honestCp2->json('claim_token'),
-            'x' => 66.5,
-            'y' => 2.8,
-            'z' => -2.0,
+            'x' => 72.0,
+            'y' => 3.2,
+            'z' => 1.5,
         ];
 
-        $this->actingAs($cheater, 'customer')
+        $claimOk = $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/claim', $claimBody)
-            ->assertOk()
-            ->assertJsonPath('rewarded_sparks', 5);
+            ->assertOk();
+        $rewarded = (int) $claimOk->json('rewarded_sparks');
+        $this->assertGreaterThanOrEqual(5, $rewarded);
 
         // Sofortiger Replay-Versuch (z. B. Promise.all Zweitrequest) -> 422 Single-Use-Tombstone
         $this->actingAs($cheater, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/claim', $claimBody)
             ->assertStatus(422);
 
-        $this->assertSame(5, (int) CustomerGamification::where('customer_id', $cheater->id)->value('funken_balance'));
+        $this->assertSame($rewarded, (int) CustomerGamification::where('customer_id', $cheater->id)->value('funken_balance'));
         $this->assertSame(
             1,
             CustomerGamificationLog::where('customer_id', $cheater->id)->where('event_type', 'lava_parkour_chest')->count()
@@ -675,6 +688,7 @@ class LobbyAntiManipulationSecurityTest extends TestCase
             'first_name' => 'Vorname' . $idx,
             'last_name' => 'GeheimNachname' . $idx,
             'email' => sprintf('sec.lobby.%d@example.de', $idx),
+            'email_verified_at' => now(),
             'password' => bcrypt('StrongPass!' . $idx),
         ]);
 

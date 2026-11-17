@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261117v5';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261117v6';
 
     var KEYBIND_ACTIONS = [
         { key: 'jump', label: 'Sprung' },
@@ -137,15 +137,34 @@
         '.sf-lobby-unit-mana-track { flex: 1 1 auto; height: 6px; border-radius: 999px; background: rgba(29,78,216,0.16); border: 1px solid rgba(29,78,216,0.26); overflow: hidden; }',
         '.sf-lobby-unit-mana-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%); transition: width 160ms ease; }',
         '.sf-lobby-unit-mana-val { font-size: 9.5px; font-weight: 800; color: #1E40AF; line-height: 1; flex-shrink: 0; font-variant-numeric: tabular-nums; }',
-        '.sf-lobby-minimap-wrap { position: absolute; top: 62px; right: 18px; width: 180px; height: 180px; z-index: 25; pointer-events: auto; display: flex; align-items: center; justify-content: center; }',
+        '.sf-lobby-topright-stack { position: absolute; top: 60px; right: 18px; z-index: 25; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }',
+        '.sf-lobby-vital-hud { pointer-events: auto; width: 180px; padding: 8px 11px 7px; border-radius: 16px; background: rgba(255,255,255,0.96); border: 1.5px solid #C5A059; box-shadow: 0 10px 26px rgba(17,24,39,0.12); display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; }',
+        '.sf-lobby-vital-hearts { display: flex; align-items: center; justify-content: space-between; gap: 3px; }',
+        '.sf-lobby-heart-icon { width: 21px; height: 21px; display: inline-flex; align-items: center; justify-content: center; transition: transform 220ms cubic-bezier(0.22,1,0.36,1), opacity 220ms ease; }',
+        '.sf-lobby-heart-icon svg { width: 100%; height: 100%; display: block; overflow: visible; }',
+        '.sf-lobby-heart-icon.is-shattering { animation: sfHeartShatter 520ms cubic-bezier(0.22,1,0.36,1); }',
+        '@keyframes sfHeartShatter { 0% { transform: scale(1.28) rotate(-8deg); filter: brightness(1.3); } 45% { transform: scale(0.72) rotate(10deg); } 100% { transform: scale(1) rotate(0deg); filter: none; } }',
+        '.sf-lobby-demote-banner { position: absolute; top: 68px; left: 50%; transform: translateX(-50%); z-index: 42; padding: 9px 18px; border-radius: 999px; background: rgba(255,255,255,0.98); border: 1.5px solid #DC2626; color: #991B1B; font-size: 12.5px; font-weight: 800; box-shadow: 0 14px 32px rgba(17,24,39,0.18); white-space: nowrap; pointer-events: none; }',
+        '.sf-lobby-minimap-wrap { position: relative; width: 180px; height: 180px; z-index: 25; pointer-events: auto; display: flex; align-items: center; justify-content: center; }',
         '.sf-lobby-minimap-canvas { width: 100%; height: 100%; border-radius: 999px; background: rgba(255,255,255,0.96); border: 2.5px solid #C5A059; box-shadow: 0 12px 30px rgba(17,24,39,0.16), 0 0 0 3px rgba(255,255,255,0.72); display: block; }',
         '.sf-lobby-minimap-time { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px; background: #FFFFFF; border: 1px solid #C5A059; color: #111827; font-size: 10.5px; font-weight: 800; line-height: 1.25; white-space: nowrap; box-shadow: 0 4px 12px rgba(17,24,39,0.12); cursor: help; }',
         '.sf-lobby-exhibit-step-row { margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(197,160,89,0.22); display: flex; align-items: center; justify-content: space-between; gap: 4px; }',
         '.sf-lobby-sanctum-list { display: flex; flex-direction: column; gap: 8px; }',
-        '.sf-lobby-sanctum-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.34); font-size: 13px; font-weight: 800; color: #111827; }',
-        '.sf-lobby-sanctum-row.is-done { background: #FFFFFF; border-color: #C5A059; }',
-        '.sf-lobby-sanctum-check { width: 22px; height: 22px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900; flex-shrink: 0; background: #FFFFFF; border: 1.5px solid rgba(197,160,89,0.55); color: #6B7280; }',
-        '.sf-lobby-sanctum-row.is-done .sf-lobby-sanctum-check { background: #FAF3E3; border-color: #C5A059; color: #C5A059; }',
+        '.sf-lobby-sanctum-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.34); font-size: 13px; font-weight: 800; color: #111827; transition: border-color 150ms ease, background-color 150ms ease; }',
+        '.sf-lobby-sanctum-row.is-clickable { cursor: pointer; }',
+        '.sf-lobby-sanctum-row.is-clickable:hover { border-color: #C5A059; background: #FFFFFF; }',
+        '.sf-lobby-sanctum-row.is-done { background: #FFFFFF; border-color: #C5A059; cursor: default; }',
+        '.sf-lobby-sanctum-check { width: 24px; height: 24px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 900; flex-shrink: 0; background: #FEF2F2; border: 1.5px solid #FECACA; color: #DC2626; line-height: 1; }',
+        '.sf-lobby-sanctum-row.is-done .sf-lobby-sanctum-check { background: #FAF6EE; border-color: #C5A059; color: #C5A059; }',
+        '.sf-lobby-inline-panel { padding: 12px; border-radius: 14px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.45); display: flex; flex-direction: column; gap: 9px; }',
+        '.sf-lobby-inline-input { width: 100%; padding: 9px 11px; border-radius: 10px; border: 1px solid rgba(197,160,89,0.55); background: #FFFFFF; color: #111827; font-size: 12.5px; font-weight: 600; outline: none; box-sizing: border-box; }',
+        '.sf-lobby-inline-input:focus { border-color: #C5A059; box-shadow: 0 0 0 2px rgba(197,160,89,0.18); }',
+        '.sf-lobby-pwd-wrap { position: relative; width: 100%; display: flex; align-items: center; }',
+        '.sf-lobby-pwd-wrap .sf-lobby-inline-input { padding-right: 38px; }',
+        '.sf-lobby-pwd-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; color: #6B7280; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }',
+        '.sf-lobby-pwd-eye:hover { color: #111827; background: #FAF6EE; }',
+        '.sf-lobby-inline-error { padding: 7px 10px; border-radius: 9px; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; font-size: 11.5px; font-weight: 700; }',
+        '.sf-lobby-inline-check { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #111827; cursor: pointer; }',
         '.sf-lobby-gold-crest-bar { position: absolute; left: 0; right: 0; bottom: 0; min-height: 62px; padding: 6px 20px calc(8px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgba(250,248,245,0.88) 0%, rgba(255,255,255,0.98) 38%, #FAF6EE 100%); border-top: 2px solid #C5A059; box-shadow: 0 -8px 28px rgba(17,24,39,0.09), 0 1px 0 rgba(255,255,255,0.9) inset; display: flex; align-items: center; justify-content: center; z-index: 26; pointer-events: auto; box-sizing: border-box; }',
         '.sf-lobby-gold-crest-bar::before { content: ""; position: absolute; top: 3px; left: 18px; right: 18px; height: 1px; background: linear-gradient(90deg, transparent 0%, rgba(197,160,89,0.55) 18%, rgba(197,160,89,0.85) 50%, rgba(197,160,89,0.55) 82%, transparent 100%); pointer-events: none; }',
         '.sf-lobby-copyright { position: absolute; left: 20px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: #7C6334; white-space: nowrap; pointer-events: none; }',
@@ -187,9 +206,9 @@
         '.sf-lobby-bottom-pill { pointer-events: auto; display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.95); border: 1px solid rgba(197,160,89,0.48); box-shadow: 0 10px 28px rgba(17,24,39,0.12); max-width: 100%; box-sizing: border-box; }',
         '.sf-lobby-step-btn { appearance: none; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(197,160,89,0.40); background: #FAF8F5; color: #111827; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; }',
         '.sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }',
-        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; } .sf-lobby-stick { width: 70px; height: 70px; } .sf-lobby-minimap-wrap { width: 136px; height: 136px; top: 58px; right: 12px; } .sf-ability-btn { width: 44px; height: 44px; border-radius: 11px; } .sf-ability-svg { width: 21px; height: 21px; } .sf-ability-tooltip { display: none; } }',
+        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; } .sf-lobby-stick { width: 70px; height: 70px; } .sf-lobby-topright-stack { top: 56px; right: 12px; gap: 6px; } .sf-lobby-vital-hud { width: 148px; padding: 6px 8px; } .sf-lobby-heart-icon { width: 17px; height: 17px; } .sf-lobby-minimap-wrap { width: 136px; height: 136px; } .sf-ability-btn { width: 44px; height: 44px; border-radius: 11px; } .sf-ability-svg { width: 21px; height: 21px; } .sf-ability-tooltip { display: none; } }',
         '@media (max-width: 767px) { .sf-lobby-topbar { padding: 8px 10px; gap: 6px; } .sf-lobby-zone-badge { padding: 5px 9px; font-size: 11px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 9px; font-size: 11px; } .sf-lobby-kbd { display: none !important; } .sf-lobby-copyright { font-size: 9.5px; left: 10px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } }',
-        '@media (max-width: 559px) { .sf-lobby-minimap-wrap { width: 116px; height: 116px; top: 96px; right: 10px; } .sf-lobby-unit-meta { min-width: 112px; } .sf-lobby-gold-crest-bar { min-height: 56px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; } .sf-lobby-copyright { left: 10px; font-size: 9px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; } .sf-lobby-abilities-dock { gap: 6px; } .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; } .sf-ability-svg { width: 19px; height: 19px; } .sf-ability-key { display: none; } .sf-lobby-floating-card { width: 266px; padding: 12px 13px 10px; } .sf-lobby-prod-title { font-size: 13.5px; } }'
+        '@media (max-width: 559px) { .sf-lobby-topright-stack { top: 92px; right: 10px; gap: 5px; } .sf-lobby-vital-hud { width: 132px; padding: 5px 7px; } .sf-lobby-heart-icon { width: 15px; height: 15px; } .sf-lobby-minimap-wrap { width: 116px; height: 116px; } .sf-lobby-unit-meta { min-width: 112px; } .sf-lobby-gold-crest-bar { min-height: 56px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; } .sf-lobby-copyright { left: 10px; font-size: 9px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; } .sf-lobby-abilities-dock { gap: 6px; } .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; } .sf-ability-svg { width: 19px; height: 19px; } .sf-ability-key { display: none; } .sf-lobby-floating-card { width: 266px; padding: 12px 13px 10px; } .sf-lobby-prod-title { font-size: 13.5px; } }'
     ].join('\n');
 
     var FALLBACK_LOBBY_PRODUCTS = [
@@ -250,9 +269,35 @@
             styleTag.id = 'sf-3d-lobby-scoped-css';
             styleTag.textContent = STANDALONE_SCOPED_CSS;
             (document.head || document.documentElement).appendChild(styleTag);
-        } else if (!existing.textContent || existing.textContent.indexOf('.sf-lobby-gold-crest-bar') === -1) {
+        } else if (!existing.textContent || existing.textContent.indexOf('.sf-lobby-vital-hud') === -1) {
             existing.textContent = STANDALONE_SCOPED_CSS;
         }
+    }
+
+    function updateCsrfMetaToken(nextToken) {
+        if (!nextToken || typeof document === 'undefined') return;
+        var clean = String(nextToken).trim();
+        if (!clean) return;
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('name', 'csrf-token');
+            document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', clean);
+    }
+
+    function buildRubyHeartSvg(isFilled) {
+        if (isFilled) {
+            return '<svg viewBox="0 0 24 24" aria-hidden="true">'
+                + '<path d="M12 21.2L10.4 19.7C5.1 14.9 2 12.1 2 8.4C2 5.4 4.4 3 7.4 3C9.2 3 10.9 3.9 12 5.2C13.1 3.9 14.8 3 16.6 3C19.6 3 22 5.4 22 8.4C22 12.1 18.9 14.9 13.6 19.7L12 21.2Z" fill="#DC2626" stroke="#C5A059" stroke-width="1.55" stroke-linejoin="round"/>'
+                + '<path d="M12 5.4L9.2 9.4L12 19.4L14.8 9.4L12 5.4Z" fill="#EF4444" fill-opacity="0.45"/>'
+                + '<path d="M6.2 6.1C7.1 5.1 8.5 4.9 9.5 5.4" fill="none" stroke="#FEE2E2" stroke-width="1.35" stroke-linecap="round"/>'
+                + '</svg>';
+        }
+        return '<svg viewBox="0 0 24 24" aria-hidden="true">'
+            + '<path d="M12 21.2L10.4 19.7C5.1 14.9 2 12.1 2 8.4C2 5.4 4.4 3 7.4 3C9.2 3 10.9 3.9 12 5.2C13.1 3.9 14.8 3 16.6 3C19.6 3 22 5.4 22 8.4C22 12.1 18.9 14.9 13.6 19.7L12 21.2Z" fill="#1F2937" fill-opacity="0.22" stroke="#9CA3AF" stroke-width="1.35" stroke-linejoin="round"/>'
+            + '</svg>';
     }
 
     function getActiveFullscreenElement() {
@@ -337,6 +382,16 @@
         this.settingsOpen = false;
         this.sanctumGateOpen = false;
         this.sanctumGateZone = 'heroes';
+        this.sanctumExpandedStep = '';
+        this.inlineLoginEmail = '';
+        this.inlineLoginPassword = '';
+        this.inlineLoginShowPassword = false;
+        this.inlineLoginTwoFactorRequired = false;
+        this.inlineLoginTwoFactorCode = '';
+        this.inlineMagicAcceptTerms = false;
+        this.inlineMagicRankingOptIn = true;
+        this.inlineAuthBusy = false;
+        this.inlineAuthError = '';
         this.sanctumGateState = {
             canEnter: false,
             reason: 'login_required',
@@ -361,8 +416,16 @@
             funkenBalance: 0,
             mana: 100,
             maxMana: 100,
+            hearts: 6,
+            maxHearts: 6,
+            lastHeartLostSeq: 0,
+            lastHeartLostIndex: -1,
+            demoteBannerText: '',
             giftVoucherUrl: '/produkt/geschenkgutschein'
         };
+        this._lastSeenHeartLostSeq = 0;
+        this._heartShatterIdx = -1;
+        this._heartShatterTimer = null;
         this.keybindingsExpanded = false;
         this.listeningKeyAction = '';
         this.userSettings = {
@@ -614,9 +677,29 @@
             '<div class="sf-lobby-stage">',
             '  <canvas data-lobby-canvas class="sf-lobby-canvas"></canvas>',
             '  <div data-lobby-ivory-transition class="sf-lobby-ivory-transition"></div>',
-            '  <div data-lobby-minimap data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">',
-            '    <canvas data-lobby-minimap-canvas width="180" height="180" class="sf-lobby-minimap-canvas"></canvas>',
-            '    <span data-lobby-minimap-time class="sf-lobby-minimap-time" title="Herbst">12:00</span>',
+            '  <div data-lobby-demote-banner data-testid="lobby-lava-demote-banner" class="sf-lobby-demote-banner" style="display:none;"></div>',
+            '  <div class="sf-lobby-topright-stack">',
+            '    <div data-lobby-vital-hud data-testid="lobby-vital-hud" class="sf-lobby-vital-hud">',
+            '      <div data-lobby-vital-hearts class="sf-lobby-vital-hearts" aria-label="Lebensherzen">',
+            '        <span data-heart-slot="0" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
+            '        <span data-heart-slot="1" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
+            '        <span data-heart-slot="2" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
+            '        <span data-heart-slot="3" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
+            '        <span data-heart-slot="4" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
+            '        <span data-heart-slot="5" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
+            '      </div>',
+            '      <div class="sf-lobby-unit-mana-row">',
+            '        <span class="sf-lobby-unit-mana-label">Mana</span>',
+            '        <div class="sf-lobby-unit-mana-track">',
+            '          <div data-lobby-vital-mana class="sf-lobby-unit-mana-fill" style="width:100%;"></div>',
+            '        </div>',
+            '        <span data-lobby-vital-mana-val class="sf-lobby-unit-mana-val">100/100</span>',
+            '      </div>',
+            '    </div>',
+            '    <div data-lobby-minimap data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">',
+            '      <canvas data-lobby-minimap-canvas width="180" height="180" class="sf-lobby-minimap-canvas"></canvas>',
+            '      <span data-lobby-minimap-time class="sf-lobby-minimap-time" title="Herbst">12:00</span>',
+            '    </div>',
             '  </div>',
             '  <div data-lobby-loading class="sf-lobby-loading">',
             '    <div class="sf-lobby-spinner"></div>',
@@ -647,9 +730,28 @@
             '        <button type="button" data-sanctum-close style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;" aria-label="Schließen">&times;</button>',
             '      </div>',
             '      <div class="sf-lobby-sanctum-list">',
-            '        <div data-sanctum-row="login" data-testid="sanctum-check-login" class="sf-lobby-sanctum-row"><span>Angemeldet</span><span data-sanctum-chk="login" class="sf-lobby-sanctum-check">1</span></div>',
-            '        <div data-sanctum-row="order" data-testid="sanctum-check-order" class="sf-lobby-sanctum-row"><span>Mindestens 1 Bestellung</span><span data-sanctum-chk="order" class="sf-lobby-sanctum-check">2</span></div>',
-            '        <div data-sanctum-row="magic" data-testid="sanctum-check-magic" class="sf-lobby-sanctum-row"><span>✨ Magie aktivieren</span><span data-sanctum-chk="magic" class="sf-lobby-sanctum-check">3</span></div>',
+            '        <div data-sanctum-row="login" data-testid="sanctum-check-login" class="sf-lobby-sanctum-row is-clickable"><span>Angemeldet</span><span data-sanctum-chk="login" class="sf-lobby-sanctum-check">✕</span></div>',
+            '        <form data-sanctum-login-panel data-testid="sanctum-inline-login-form" class="sf-lobby-inline-panel" style="display:none;">',
+            '          <input type="email" data-sanctum-login-email placeholder="E-Mail" autocomplete="email" required aria-label="E-Mail" class="sf-lobby-inline-input">',
+            '          <div class="sf-lobby-pwd-wrap">',
+            '            <input type="password" data-sanctum-login-pwd placeholder="Passwort" autocomplete="current-password" required aria-label="Passwort" class="sf-lobby-inline-input">',
+            '            <button type="button" data-sanctum-pwd-eye data-testid="sanctum-login-password-eye" class="sf-lobby-pwd-eye" aria-label="Passwort anzeigen" title="Passwort anzeigen">',
+            '              <svg data-eye-open width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+            '              <svg data-eye-closed width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>',
+            '            </button>',
+            '          </div>',
+            '          <input type="text" inputmode="numeric" maxlength="10" data-sanctum-login-2fa placeholder="2FA-Code" autocomplete="one-time-code" aria-label="2FA-Code" class="sf-lobby-inline-input" style="display:none;">',
+            '          <div data-sanctum-login-error class="sf-lobby-inline-error" style="display:none;"></div>',
+            '          <button type="submit" data-sanctum-login-submit data-testid="sanctum-inline-login-submit" class="sf-lobby-prod-cta" style="margin-top:2px;border:none;">Anmelden</button>',
+            '        </form>',
+            '        <div data-sanctum-row="order" data-testid="sanctum-check-order" class="sf-lobby-sanctum-row is-clickable"><span>Mindestens 1 Bestellung</span><span data-sanctum-chk="order" class="sf-lobby-sanctum-check">✕</span></div>',
+            '        <div data-sanctum-row="magic" data-testid="sanctum-check-magic" class="sf-lobby-sanctum-row is-clickable"><span>✨ Magie aktivieren</span><span data-sanctum-chk="magic" class="sf-lobby-sanctum-check">✕</span></div>',
+            '        <div data-sanctum-magic-panel data-testid="sanctum-inline-magic-panel" class="sf-lobby-inline-panel" style="display:none;">',
+            '          <label class="sf-lobby-inline-check"><input type="checkbox" data-sanctum-magic-terms data-testid="sanctum-magic-terms-checkbox" style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;"><span>Teilnahmebedingungen akzeptieren</span></label>',
+            '          <label class="sf-lobby-inline-check"><input type="checkbox" data-sanctum-magic-ranking data-testid="sanctum-magic-ranking-checkbox" checked style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;"><span>In der Halle der Helden sichtbar</span></label>',
+            '          <div data-sanctum-magic-error class="sf-lobby-inline-error" style="display:none;"></div>',
+            '          <button type="button" data-sanctum-magic-submit data-testid="sanctum-inline-magic-submit" class="sf-lobby-prod-cta" style="margin-top:2px;border:none;opacity:0.55;cursor:not-allowed;" disabled>✨ Magie aktivieren</button>',
+            '        </div>',
             '      </div>',
             '      <div data-sanctum-cta-wrap></div>',
             '    </div>',
@@ -765,6 +867,7 @@
 
     SeelenfunkeUnifiedLobbyHost.prototype._setSanctumGateOpen = function (flag, zone, incomingState) {
         this.sanctumGateOpen = Boolean(flag);
+        this.inlineAuthError = '';
         if (zone) {
             this.sanctumGateZone = (zone === 'lava') ? 'lava' : 'heroes';
         }
@@ -786,6 +889,15 @@
                 dashboardUrl: resolved.dashboardUrl || '/dashboard'
             };
         }
+        if (this.sanctumGateOpen) {
+            if (!this.sanctumGateState.checks.login) {
+                this.sanctumExpandedStep = 'login';
+            } else if (this.sanctumGateState.checks.order && !this.sanctumGateState.checks.magic) {
+                this.sanctumExpandedStep = 'magic';
+            } else {
+                this.sanctumExpandedStep = '';
+            }
+        }
         this._renderSanctumGateModal();
         if (this.modalEl) {
             var modal = this.modalEl.querySelector('[data-lobby-sanctum-modal]');
@@ -793,6 +905,214 @@
                 modal.style.display = this.sanctumGateOpen ? 'flex' : 'none';
             }
         }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._focusNearestVitrineFromModal = function () {
+        this._setSanctumGateOpen(false);
+        if (this._audio) this._audio.playUiClick();
+        var facade = getFacade(this);
+        if (facade && typeof facade.focusNearestExhibit === 'function') {
+            facade.focusNearestExhibit();
+        } else if (facade && typeof facade.focusExhibit === 'function') {
+            facade.focusExhibit(this.activeIndex || 0, false);
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._applyLiveAccountPayload = function (body) {
+        if (!body || typeof body !== 'object') return;
+        if (body.csrf_token) {
+            updateCsrfMetaToken(body.csrf_token);
+        }
+        if (body.player_funki && typeof body.player_funki === 'object') {
+            this.funkiInfo = body.player_funki;
+            if (!body.player_funki.is_guest) {
+                this.lobbyAuth = true;
+            }
+        }
+        if (body.sanctum_access && typeof body.sanctum_access === 'object') {
+            var sa = body.sanctum_access;
+            if (sa.is_authenticated !== undefined) {
+                this.lobbyAuth = Boolean(sa.is_authenticated);
+            }
+            this.sanctumGateState = {
+                canEnter: Boolean(sa.can_enter_sanctums),
+                reason: sa.block_reason || null,
+                checks: {
+                    login: Boolean(sa.is_authenticated),
+                    order: Boolean(sa.has_completed_order),
+                    magic: Boolean(sa.gamification_active)
+                },
+                loginUrl: sa.login_url || '/login',
+                dashboardUrl: sa.dashboard_url || '/dashboard'
+            };
+        }
+        var facade = getFacade(this);
+        if (facade && typeof facade.applyLiveAccountUpdate === 'function') {
+            var nextAccess = facade.applyLiveAccountUpdate(body);
+            if (nextAccess && typeof nextAccess === 'object') {
+                this.sanctumGateState = {
+                    canEnter: Boolean(nextAccess.canEnter),
+                    reason: nextAccess.reason || null,
+                    checks: {
+                        login: Boolean(nextAccess.checks && nextAccess.checks.login),
+                        order: Boolean(nextAccess.checks && nextAccess.checks.order),
+                        magic: Boolean(nextAccess.checks && nextAccess.checks.magic)
+                    },
+                    loginUrl: nextAccess.loginUrl || '/login',
+                    dashboardUrl: nextAccess.dashboardUrl || '/dashboard'
+                };
+            }
+            if (typeof facade.getPlayerHudState === 'function') {
+                this.playerHud = facade.getPlayerHudState();
+            }
+        }
+        this._syncHudState();
+        this._syncAbilityHud();
+        this._renderLavaChestCard();
+        this._renderSanctumGateModal();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._submitInlineLogin = function () {
+        if (this.inlineAuthBusy || !this.modalEl) return;
+        var self = this;
+        var emailInp = this.modalEl.querySelector('[data-sanctum-login-email]');
+        var pwdInp = this.modalEl.querySelector('[data-sanctum-login-pwd]');
+        var tfaInp = this.modalEl.querySelector('[data-sanctum-login-2fa]');
+        var email = emailInp ? String(emailInp.value || '').trim() : '';
+        var password = pwdInp ? String(pwdInp.value || '') : '';
+        if (!email || !password) {
+            this.inlineAuthError = 'Bitte E-Mail und Passwort eingeben.';
+            this._renderSanctumGateModal();
+            return;
+        }
+        this.inlineAuthBusy = true;
+        this.inlineAuthError = '';
+        this._renderSanctumGateModal();
+
+        var reqBody = { email: email, password: password };
+        if (this.inlineLoginTwoFactorRequired && tfaInp && String(tfaInp.value || '').trim() !== '') {
+            reqBody.two_factor_code = String(tfaInp.value || '').trim();
+        }
+
+        fetch('/funkenwerk-welt/inline-login', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken()
+            },
+            body: JSON.stringify(reqBody)
+        })
+            .then(function (r) {
+                return r.json().catch(function () { return null; });
+            })
+            .then(function (body) {
+                self.inlineAuthBusy = false;
+                if (!body) {
+                    self.inlineAuthError = 'Anmeldung fehlgeschlagen.';
+                    self._renderSanctumGateModal();
+                    return;
+                }
+                if (body.csrf_token) {
+                    updateCsrfMetaToken(body.csrf_token);
+                }
+                if (body.status === 'two_factor_required') {
+                    self.inlineLoginTwoFactorRequired = true;
+                    self.inlineAuthError = body.message || 'Bitte 2FA-Code eingeben.';
+                    self._renderSanctumGateModal();
+                    return;
+                }
+                if (body.status === 'password_change_required' && body.redirect_url) {
+                    window.location.href = String(body.redirect_url);
+                    return;
+                }
+                if (body.status === 'authenticated' || body.success) {
+                    if (pwdInp) pwdInp.value = '';
+                    if (tfaInp) tfaInp.value = '';
+                    self.inlineLoginTwoFactorRequired = false;
+                    self._applyLiveAccountPayload(body);
+
+                    if (self.sanctumGateState.canEnter) {
+                        self.sanctumExpandedStep = '';
+                        self._renderSanctumGateModal();
+                        setTimeout(function () {
+                            self._setSanctumGateOpen(false);
+                        }, 440);
+                    } else if (!self.sanctumGateState.checks.order) {
+                        self.sanctumExpandedStep = '';
+                        self._renderSanctumGateModal();
+                    } else if (!self.sanctumGateState.checks.magic) {
+                        self.sanctumExpandedStep = 'magic';
+                        self._renderSanctumGateModal();
+                    }
+                    return;
+                }
+                self.inlineAuthError = body.message || 'Zugangsdaten ungültig.';
+                self._renderSanctumGateModal();
+            })
+            .catch(function () {
+                self.inlineAuthBusy = false;
+                self.inlineAuthError = 'Verbindung fehlgeschlagen.';
+                self._renderSanctumGateModal();
+            });
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._submitInlineActivateMagic = function () {
+        if (this.inlineAuthBusy || !this.modalEl) return;
+        var termsChk = this.modalEl.querySelector('[data-sanctum-magic-terms]');
+        var rankChk = this.modalEl.querySelector('[data-sanctum-magic-ranking]');
+        if (!termsChk || !termsChk.checked) return;
+
+        var self = this;
+        this.inlineAuthBusy = true;
+        this.inlineAuthError = '';
+        this._renderSanctumGateModal();
+
+        fetch('/funkenwerk-welt/activate-magic', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken()
+            },
+            body: JSON.stringify({
+                accept_terms: true,
+                ranking_opt_in: rankChk ? Boolean(rankChk.checked) : true
+            })
+        })
+            .then(function (r) {
+                return r.json().catch(function () { return null; });
+            })
+            .then(function (body) {
+                self.inlineAuthBusy = false;
+                if (!body) {
+                    self.inlineAuthError = 'Aktivierung fehlgeschlagen.';
+                    self._renderSanctumGateModal();
+                    return;
+                }
+                if (body.csrf_token) {
+                    updateCsrfMetaToken(body.csrf_token);
+                }
+                if (body.status === 'magic_activated' || body.success) {
+                    body.play_awaken_fx = true;
+                    self._applyLiveAccountPayload(body);
+                    self.sanctumExpandedStep = '';
+                    self._renderSanctumGateModal();
+                    setTimeout(function () {
+                        self._setSanctumGateOpen(false);
+                    }, 480);
+                    return;
+                }
+                self.inlineAuthError = body.message || 'Aktivierung nicht möglich.';
+                self._renderSanctumGateModal();
+            })
+            .catch(function () {
+                self.inlineAuthBusy = false;
+                self.inlineAuthError = 'Verbindung fehlgeschlagen.';
+                self._renderSanctumGateModal();
+            });
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._setMasterKeyModalOpen = function (flag) {
@@ -823,35 +1143,83 @@
 
         var st = this.sanctumGateState || { checks: { login: false, order: false, magic: false }, loginUrl: '/login', dashboardUrl: '/dashboard' };
         var checks = st.checks || {};
-        var syncRow = function (key, numLabel, done) {
+        var syncRow = function (key, done) {
             var row = root.querySelector('[data-sanctum-row="' + key + '"]');
             var chk = root.querySelector('[data-sanctum-chk="' + key + '"]');
             if (row) {
-                if (done) row.classList.add('is-done');
-                else row.classList.remove('is-done');
+                if (done) {
+                    row.classList.add('is-done');
+                    row.classList.remove('is-clickable');
+                } else {
+                    row.classList.remove('is-done');
+                    row.classList.add('is-clickable');
+                }
             }
             if (chk) {
-                chk.textContent = done ? '✓' : numLabel;
+                chk.textContent = done ? '✓' : '✕';
             }
         };
-        syncRow('login', '1', Boolean(checks.login));
-        syncRow('order', '2', Boolean(checks.order));
-        syncRow('magic', '3', Boolean(checks.magic));
+        syncRow('login', Boolean(checks.login));
+        syncRow('order', Boolean(checks.order));
+        syncRow('magic', Boolean(checks.magic));
+
+        var loginPanel = root.querySelector('[data-sanctum-login-panel]');
+        if (loginPanel) {
+            var showLogin = (!checks.login && this.sanctumExpandedStep === 'login');
+            loginPanel.style.display = showLogin ? 'flex' : 'none';
+            var tfaInp = root.querySelector('[data-sanctum-login-2fa]');
+            if (tfaInp) tfaInp.style.display = this.inlineLoginTwoFactorRequired ? 'block' : 'none';
+            var logErr = root.querySelector('[data-sanctum-login-error]');
+            if (logErr) {
+                logErr.style.display = (showLogin && this.inlineAuthError) ? 'block' : 'none';
+                logErr.textContent = this.inlineAuthError || '';
+            }
+            var logSub = root.querySelector('[data-sanctum-login-submit]');
+            if (logSub) {
+                logSub.disabled = Boolean(this.inlineAuthBusy);
+                logSub.textContent = this.inlineAuthBusy ? 'Anmeldung...' : 'Anmelden';
+            }
+        }
+
+        var magicPanel = root.querySelector('[data-sanctum-magic-panel]');
+        if (magicPanel) {
+            var showMagic = (Boolean(checks.login) && Boolean(checks.order) && !checks.magic && this.sanctumExpandedStep === 'magic');
+            magicPanel.style.display = showMagic ? 'flex' : 'none';
+            var magErr = root.querySelector('[data-sanctum-magic-error]');
+            if (magErr) {
+                magErr.style.display = (showMagic && this.inlineAuthError) ? 'block' : 'none';
+                magErr.textContent = this.inlineAuthError || '';
+            }
+            var termsChk = root.querySelector('[data-sanctum-magic-terms]');
+            var magSub = root.querySelector('[data-sanctum-magic-submit]');
+            if (magSub) {
+                var okTerms = Boolean(termsChk && termsChk.checked);
+                magSub.disabled = Boolean(this.inlineAuthBusy || !okTerms);
+                magSub.style.opacity = (this.inlineAuthBusy || !okTerms) ? '0.55' : '1';
+                magSub.style.cursor = (this.inlineAuthBusy || !okTerms) ? 'not-allowed' : 'pointer';
+                magSub.textContent = this.inlineAuthBusy ? 'Aktivierung...' : '✨ Magie aktivieren';
+            }
+        }
 
         var ctaWrap = root.querySelector('[data-sanctum-cta-wrap]');
         if (!ctaWrap) return;
         while (ctaWrap.firstChild) ctaWrap.removeChild(ctaWrap.firstChild);
 
         var self = this;
-        if (!checks.login) {
-            var loginLink = document.createElement('a');
-            loginLink.href = st.loginUrl || '/login';
-            loginLink.setAttribute('data-testid', 'sanctum-gate-cta-btn');
-            loginLink.className = 'sf-lobby-prod-cta';
-            loginLink.style.marginTop = '2px';
-            loginLink.textContent = 'Anmelden →';
-            ctaWrap.appendChild(loginLink);
-        } else if (!checks.order) {
+        if (!checks.login && this.sanctumExpandedStep !== 'login') {
+            var loginBtn = document.createElement('button');
+            loginBtn.type = 'button';
+            loginBtn.setAttribute('data-testid', 'sanctum-gate-cta-btn');
+            loginBtn.className = 'sf-lobby-prod-cta';
+            loginBtn.style.cssText = 'margin-top:2px;border:none;cursor:pointer;';
+            loginBtn.textContent = 'Anmelden →';
+            loginBtn.addEventListener('click', function () {
+                self.sanctumExpandedStep = 'login';
+                self.inlineAuthError = '';
+                self._renderSanctumGateModal();
+            });
+            ctaWrap.appendChild(loginBtn);
+        } else if (checks.login && !checks.order) {
             var shopBtn = document.createElement('button');
             shopBtn.type = 'button';
             shopBtn.setAttribute('data-testid', 'sanctum-gate-cta-btn');
@@ -859,17 +1227,22 @@
             shopBtn.style.cssText = 'margin-top:2px;border:none;cursor:pointer;';
             shopBtn.textContent = 'Kollektion ansehen';
             shopBtn.addEventListener('click', function () {
-                self._setSanctumGateOpen(false);
+                self._focusNearestVitrineFromModal();
             });
             ctaWrap.appendChild(shopBtn);
-        } else {
-            var magicLink = document.createElement('a');
-            magicLink.href = st.dashboardUrl || '/dashboard';
-            magicLink.setAttribute('data-testid', 'sanctum-gate-cta-btn');
-            magicLink.className = 'sf-lobby-prod-cta';
-            magicLink.style.marginTop = '2px';
-            magicLink.textContent = '✨ Magie aktivieren →';
-            ctaWrap.appendChild(magicLink);
+        } else if (checks.login && checks.order && !checks.magic && this.sanctumExpandedStep !== 'magic') {
+            var magicBtn = document.createElement('button');
+            magicBtn.type = 'button';
+            magicBtn.setAttribute('data-testid', 'sanctum-gate-cta-btn');
+            magicBtn.className = 'sf-lobby-prod-cta';
+            magicBtn.style.cssText = 'margin-top:2px;border:none;cursor:pointer;';
+            magicBtn.textContent = '✨ Magie aktivieren →';
+            magicBtn.addEventListener('click', function () {
+                self.sanctumExpandedStep = 'magic';
+                self.inlineAuthError = '';
+                self._renderSanctumGateModal();
+            });
+            ctaWrap.appendChild(magicBtn);
         }
     };
 
@@ -1168,6 +1541,9 @@
         var uStats = root.querySelector('[data-lobby-unit-stats]');
         var uMana = root.querySelector('[data-lobby-unit-mana]');
         var uManaVal = root.querySelector('[data-lobby-unit-mana-val]');
+        var vMana = root.querySelector('[data-lobby-vital-mana]');
+        var vManaVal = root.querySelector('[data-lobby-vital-mana-val]');
+        var demoteEl = root.querySelector('[data-lobby-demote-banner]');
         if (uName && this.playerHud) uName.textContent = sanitizeText(this.playerHud.name || 'Funki');
         if (uStats && this.playerHud) uStats.textContent = 'Stufe ' + (this.playerHud.level || 2) + ' · ✨ ' + (this.playerHud.funkenBalance || 0);
         if (this.playerHud) {
@@ -1176,6 +1552,43 @@
             var pct = Math.max(0, Math.min(100, Math.round((curMana / maxMana) * 100)));
             if (uMana) uMana.style.width = pct + '%';
             if (uManaVal) uManaVal.textContent = String(curMana);
+            if (vMana) vMana.style.width = pct + '%';
+            if (vManaVal) vManaVal.textContent = curMana + '/' + maxMana;
+
+            if (this.playerHud.lastHeartLostSeq && this.playerHud.lastHeartLostSeq !== this._lastSeenHeartLostSeq) {
+                this._lastSeenHeartLostSeq = this.playerHud.lastHeartLostSeq;
+                this._heartShatterIdx = typeof this.playerHud.lastHeartLostIndex === 'number' ? this.playerHud.lastHeartLostIndex : -1;
+                var selfRef = this;
+                if (this._heartShatterTimer) clearTimeout(this._heartShatterTimer);
+                this._heartShatterTimer = setTimeout(function () {
+                    selfRef._heartShatterIdx = -1;
+                }, 560);
+            }
+
+            var curHearts = (typeof this.playerHud.hearts === 'number') ? clampInt(this.playerHud.hearts, 0, 6) : 6;
+            for (var hi = 0; hi < 6; hi++) {
+                var hSlot = root.querySelector('[data-heart-slot="' + hi + '"]');
+                if (hSlot) {
+                    var filled = (hi < curHearts);
+                    if (hSlot.getAttribute('data-filled') !== (filled ? '1' : '0')) {
+                        hSlot.setAttribute('data-filled', filled ? '1' : '0');
+                        hSlot.innerHTML = (this._mod && typeof this._mod.getLobbyHeartSvgMarkup === 'function')
+                            ? this._mod.getLobbyHeartSvgMarkup(filled)
+                            : buildRubyHeartSvg(filled);
+                    }
+                    if (this._heartShatterIdx === hi) hSlot.classList.add('is-shattering');
+                    else hSlot.classList.remove('is-shattering');
+                }
+            }
+
+            if (demoteEl) {
+                if (this.playerHud.demoteBannerText) {
+                    demoteEl.style.display = 'block';
+                    demoteEl.textContent = sanitizeText(this.playerHud.demoteBannerText);
+                } else {
+                    demoteEl.style.display = 'none';
+                }
+            }
         }
         var mTime = root.querySelector('[data-lobby-minimap-time]');
         if (mTime && this.environmentInfo) {
@@ -1308,6 +1721,71 @@
                 if (ev.target === ev.currentTarget) {
                     self._setSanctumGateOpen(false);
                 }
+            });
+        }
+        var rowLogin = root.querySelector('[data-sanctum-row="login"]');
+        if (rowLogin) {
+            rowLogin.addEventListener('click', function () {
+                if (!(self.sanctumGateState.checks && self.sanctumGateState.checks.login)) {
+                    self.sanctumExpandedStep = (self.sanctumExpandedStep === 'login') ? '' : 'login';
+                    self.inlineAuthError = '';
+                    self._renderSanctumGateModal();
+                }
+            });
+        }
+        var rowOrder = root.querySelector('[data-sanctum-row="order"]');
+        if (rowOrder) {
+            rowOrder.addEventListener('click', function () {
+                if (!(self.sanctumGateState.checks && self.sanctumGateState.checks.order)) {
+                    self._focusNearestVitrineFromModal();
+                }
+            });
+        }
+        var rowMagic = root.querySelector('[data-sanctum-row="magic"]');
+        if (rowMagic) {
+            rowMagic.addEventListener('click', function () {
+                var ch = self.sanctumGateState.checks || {};
+                if (!ch.login) {
+                    self.sanctumExpandedStep = 'login';
+                    self._renderSanctumGateModal();
+                } else if (!ch.order) {
+                    self._focusNearestVitrineFromModal();
+                } else if (!ch.magic) {
+                    self.sanctumExpandedStep = (self.sanctumExpandedStep === 'magic') ? '' : 'magic';
+                    self.inlineAuthError = '';
+                    self._renderSanctumGateModal();
+                }
+            });
+        }
+        var loginForm = root.querySelector('[data-sanctum-login-panel]');
+        if (loginForm) {
+            loginForm.addEventListener('submit', function (ev) {
+                ev.preventDefault();
+                self._submitInlineLogin();
+            });
+        }
+        var pwdEyeBtn = root.querySelector('[data-sanctum-pwd-eye]');
+        if (pwdEyeBtn) {
+            pwdEyeBtn.addEventListener('click', function () {
+                self.inlineLoginShowPassword = !self.inlineLoginShowPassword;
+                var pwdInp = root.querySelector('[data-sanctum-login-pwd]');
+                var eyeOpen = pwdEyeBtn.querySelector('[data-eye-open]');
+                var eyeClosed = pwdEyeBtn.querySelector('[data-eye-closed]');
+                if (pwdInp) pwdInp.type = self.inlineLoginShowPassword ? 'text' : 'password';
+                if (eyeOpen) eyeOpen.style.display = self.inlineLoginShowPassword ? 'none' : 'block';
+                if (eyeClosed) eyeClosed.style.display = self.inlineLoginShowPassword ? 'block' : 'none';
+            });
+        }
+        var magicTerms = root.querySelector('[data-sanctum-magic-terms]');
+        if (magicTerms) {
+            magicTerms.addEventListener('change', function () {
+                self._renderSanctumGateModal();
+            });
+        }
+        var magicSubmit = root.querySelector('[data-sanctum-magic-submit]');
+        if (magicSubmit) {
+            magicSubmit.addEventListener('click', function () {
+                self._submitInlineActivateMagic();
             });
         }
 
@@ -1857,7 +2335,7 @@
             return;
         }
 
-        // Solo-Zone ('gallery', 'lava', 'labyrinth'): Peers sofort leeren, Timer stoppen & Heldenhallen-Platz freigeben!
+        // Solo-Zone ('gallery', 'lava'): Peers sofort leeren, Timer stoppen & Heldenhallen-Platz freigeben!
         var wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer));
         this._activeSyncZone = z;
         this._setInstanceMenuOpen(false);

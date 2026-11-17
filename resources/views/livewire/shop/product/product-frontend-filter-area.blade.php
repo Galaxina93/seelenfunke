@@ -1690,10 +1690,77 @@
                 flex-shrink: 0;
                 font-variant-numeric: tabular-nums;
             }
-            .sf-lobby-minimap-wrap {
+            .sf-lobby-topright-stack {
                 position: absolute;
-                top: 62px;
+                top: 60px;
                 right: 18px;
+                z-index: 25;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end;
+                gap: 8px;
+                pointer-events: none;
+            }
+            .sf-lobby-vital-hud {
+                pointer-events: auto;
+                width: 180px;
+                padding: 8px 11px 7px;
+                border-radius: 16px;
+                background: rgba(255, 255, 255, 0.96);
+                border: 1.5px solid #C5A059;
+                box-shadow: 0 10px 26px rgba(17, 24, 39, 0.12);
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                box-sizing: border-box;
+            }
+            .sf-lobby-vital-hearts {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 3px;
+            }
+            .sf-lobby-heart-icon {
+                width: 21px;
+                height: 21px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease;
+            }
+            .sf-lobby-heart-icon svg {
+                width: 100%;
+                height: 100%;
+                display: block;
+                overflow: visible;
+            }
+            .sf-lobby-heart-icon.is-shattering {
+                animation: sfHeartShatter 520ms cubic-bezier(0.22, 1, 0.36, 1);
+            }
+            @keyframes sfHeartShatter {
+                0% { transform: scale(1.28) rotate(-8deg); filter: brightness(1.3); }
+                45% { transform: scale(0.72) rotate(10deg); }
+                100% { transform: scale(1) rotate(0deg); filter: none; }
+            }
+            .sf-lobby-demote-banner {
+                position: absolute;
+                top: 68px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 42;
+                padding: 9px 18px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.98);
+                border: 1.5px solid #DC2626;
+                color: #991B1B;
+                font-size: 12.5px;
+                font-weight: 800;
+                box-shadow: 0 14px 32px rgba(17, 24, 39, 0.18);
+                white-space: nowrap;
+                pointer-events: none;
+            }
+            .sf-lobby-minimap-wrap {
+                position: relative;
                 width: 180px;
                 height: 180px;
                 z-index: 25;
@@ -1754,26 +1821,90 @@
                 font-size: 13px;
                 font-weight: 800;
                 color: #111827;
+                transition: border-color 150ms ease, background-color 150ms ease;
             }
-            .sf-lobby-sanctum-row.is-done { background: #FFFFFF; border-color: #C5A059; }
+            .sf-lobby-sanctum-row.is-clickable { cursor: pointer; }
+            .sf-lobby-sanctum-row.is-clickable:hover { border-color: #C5A059; background: #FFFFFF; }
+            .sf-lobby-sanctum-row.is-done { background: #FFFFFF; border-color: #C5A059; cursor: default; }
             .sf-lobby-sanctum-check {
-                width: 22px;
-                height: 22px;
+                width: 24px;
+                height: 24px;
                 border-radius: 999px;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                font-size: 12px;
+                font-size: 12.5px;
                 font-weight: 900;
                 flex-shrink: 0;
-                background: #FFFFFF;
-                border: 1.5px solid rgba(197, 160, 89, 0.55);
-                color: #6B7280;
+                background: #FEF2F2;
+                border: 1.5px solid #FECACA;
+                color: #DC2626;
+                line-height: 1;
             }
             .sf-lobby-sanctum-row.is-done .sf-lobby-sanctum-check {
-                background: #FAF3E3;
+                background: #FAF6EE;
                 border-color: #C5A059;
                 color: #C5A059;
+            }
+            .sf-lobby-inline-panel {
+                padding: 12px;
+                border-radius: 14px;
+                background: #FAF8F5;
+                border: 1px solid rgba(197, 160, 89, 0.45);
+                display: flex;
+                flex-direction: column;
+                gap: 9px;
+            }
+            .sf-lobby-inline-input {
+                width: 100%;
+                padding: 9px 11px;
+                border-radius: 10px;
+                border: 1px solid rgba(197, 160, 89, 0.55);
+                background: #FFFFFF;
+                color: #111827;
+                font-size: 12.5px;
+                font-weight: 600;
+                outline: none;
+                box-sizing: border-box;
+            }
+            .sf-lobby-inline-input:focus { border-color: #C5A059; box-shadow: 0 0 0 2px rgba(197, 160, 89, 0.18); }
+            .sf-lobby-pwd-wrap { position: relative; width: 100%; display: flex; align-items: center; }
+            .sf-lobby-pwd-wrap .sf-lobby-inline-input { padding-right: 38px; }
+            .sf-lobby-pwd-eye {
+                position: absolute;
+                right: 6px;
+                top: 50%;
+                transform: translateY(-50%);
+                width: 28px;
+                height: 28px;
+                border-radius: 8px;
+                border: none;
+                background: transparent;
+                color: #6B7280;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                padding: 0;
+            }
+            .sf-lobby-pwd-eye:hover { color: #111827; background: #FAF6EE; }
+            .sf-lobby-inline-error {
+                padding: 7px 10px;
+                border-radius: 9px;
+                background: #FEF2F2;
+                border: 1px solid #FECACA;
+                color: #B91C1C;
+                font-size: 11.5px;
+                font-weight: 700;
+            }
+            .sf-lobby-inline-check {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 12px;
+                font-weight: 700;
+                color: #111827;
+                cursor: pointer;
             }
             .sf-lobby-stick-wrap { display: none; position: absolute; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 14px; z-index: 25; }
             .sf-lobby-stick {
@@ -1843,7 +1974,10 @@
             @media (max-width: 900px), (pointer: coarse) {
                 .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; }
                 .sf-lobby-stick { width: 70px; height: 70px; }
-                .sf-lobby-minimap-wrap { width: 136px; height: 136px; top: 58px; right: 12px; }
+                .sf-lobby-topright-stack { top: 56px; right: 12px; gap: 6px; }
+                .sf-lobby-vital-hud { width: 148px; padding: 6px 8px; }
+                .sf-lobby-heart-icon { width: 17px; height: 17px; }
+                .sf-lobby-minimap-wrap { width: 136px; height: 136px; }
                 .sf-ability-btn { width: 44px; height: 44px; border-radius: 11px; }
                 .sf-ability-svg { width: 21px; height: 21px; }
                 .sf-ability-tooltip { display: none; }
@@ -1859,7 +1993,10 @@
                 .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
             }
             @media (max-width: 559px) {
-                .sf-lobby-minimap-wrap { width: 116px; height: 116px; top: 96px; right: 10px; }
+                .sf-lobby-topright-stack { top: 92px; right: 10px; gap: 5px; }
+                .sf-lobby-vital-hud { width: 132px; padding: 5px 7px; }
+                .sf-lobby-heart-icon { width: 15px; height: 15px; }
+                .sf-lobby-minimap-wrap { width: 116px; height: 116px; }
                 .sf-lobby-unit-meta { min-width: 112px; }
                 .sf-lobby-gold-crest-bar { min-height: 56px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; }
                 .sf-lobby-copyright { left: 10px; font-size: 9px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
@@ -2037,15 +2174,42 @@
                     {{-- Kinoreife Elfenbein-Gold-Blende beim Klick auf "Jetzt gestalten" --}}
                     <div class="sf-lobby-ivory-transition" :class="{ 'is-fading': productTransitionActive }"></div>
 
-                    {{-- Runde Echtzeit-Minimap oben rechts mit sticky Uhrzeit-Badge & Jahreszeiten-Tooltip --}}
+                    {{-- Praegnantes Demotion-Banner bei 0/6 verlorenen Magma-Herzen --}}
+                    <div x-show="playerHud.demoteBannerText && playerHud.demoteBannerText !== ''"
+                         x-cloak
+                         data-testid="lobby-lava-demote-banner"
+                         class="sf-lobby-demote-banner"
+                         x-text="playerHud.demoteBannerText"></div>
+
+                    {{-- Oben rechts ueber der 180x180 Minimap: 6 rubinrote Lebensherzen + saphirblauer Mana-Balken --}}
                     <div x-show="!isLoading && loadError === ''"
                          @pointerdown.stop
-                         data-testid="lobby-minimap"
-                         class="sf-lobby-minimap-wrap">
-                        <canvas x-ref="minimapCanvas" width="180" height="180" class="sf-lobby-minimap-canvas"></canvas>
-                        <span class="sf-lobby-minimap-time"
-                              :title="minimapTooltip()"
-                              x-text="environmentInfo.server_time || '12:00'"></span>
+                         class="sf-lobby-topright-stack">
+                        <div data-testid="lobby-vital-hud" class="sf-lobby-vital-hud">
+                            <div class="sf-lobby-vital-hearts" aria-label="Lebensherzen">
+                                <template x-for="hIdx in [0, 1, 2, 3, 4, 5]" :key="hIdx">
+                                    <span class="sf-lobby-heart-icon"
+                                          :class="{ 'is-shattering': heartShatterIdx === hIdx }"
+                                          x-html="heartSvgMarkup(hIdx < (playerHud.hearts ?? 6))"></span>
+                                </template>
+                            </div>
+                            <div class="sf-lobby-unit-mana-row">
+                                <span class="sf-lobby-unit-mana-label">Mana</span>
+                                <div class="sf-lobby-unit-mana-track">
+                                    <div class="sf-lobby-unit-mana-fill"
+                                         :style="'width:' + Math.max(0, Math.min(100, Math.round(((playerHud.mana ?? 100) / Math.max(1, playerHud.maxMana || 100)) * 100))) + '%'"></div>
+                                </div>
+                                <span class="sf-lobby-unit-mana-val"
+                                      x-text="Math.round(playerHud.mana ?? 100) + '/' + (playerHud.maxMana || 100)">100/100</span>
+                            </div>
+                        </div>
+
+                        <div data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">
+                            <canvas x-ref="minimapCanvas" width="180" height="180" class="sf-lobby-minimap-canvas"></canvas>
+                            <span class="sf-lobby-minimap-time"
+                                  :title="minimapTooltip()"
+                                  x-text="environmentInfo.server_time || '12:00'"></span>
+                        </div>
                     </div>
 
                     {{-- Lade- & Fehlerstatus im Light-Mode --}}
@@ -2205,7 +2369,7 @@
                         </div>
                     </div>
 
-                    {{-- Helles Light-Mode Voraussetzungs-Modal (3-Stufen-Zugangscheck fuer Halle der Helden & Magma-Welt, Clean-Design, 0 Subtexte) --}}
+                    {{-- Helles Light-Mode Voraussetzungs-Modal (Rotes ✕ vs. Goldenes ✓, In-Game-Login mit Auge-Icon & 1-Klick-Magie, Clean-Design) --}}
                     <div x-show="sanctumGateOpen"
                          x-cloak
                          @pointerdown.stop
@@ -2227,56 +2391,159 @@
                             <div class="sf-lobby-sanctum-list">
                                 <div class="sf-lobby-sanctum-row"
                                      data-testid="sanctum-check-login"
-                                     :class="{ 'is-done': sanctumGateState.checks.login }">
+                                     @click="handleSanctumStepClick('login')"
+                                     :class="{ 'is-done': sanctumGateState.checks.login, 'is-clickable': !sanctumGateState.checks.login }">
                                     <span>Angemeldet</span>
                                     <span class="sf-lobby-sanctum-check"
-                                          x-text="sanctumGateState.checks.login ? '✓' : '1'"></span>
+                                          x-text="sanctumGateState.checks.login ? '✓' : '✕'"></span>
                                 </div>
+
+                                <template x-if="!sanctumGateState.checks.login && sanctumExpandedStep === 'login'">
+                                    <form @submit.prevent="submitInlineLobbyLogin()"
+                                          data-testid="sanctum-inline-login-form"
+                                          class="sf-lobby-inline-panel">
+                                        <input type="email"
+                                               x-model="inlineLoginEmail"
+                                               placeholder="E-Mail"
+                                               autocomplete="email"
+                                               required
+                                               aria-label="E-Mail"
+                                               class="sf-lobby-inline-input">
+
+                                        <div class="sf-lobby-pwd-wrap">
+                                            <input :type="inlineLoginShowPassword ? 'text' : 'password'"
+                                                   x-model="inlineLoginPassword"
+                                                   placeholder="Passwort"
+                                                   autocomplete="current-password"
+                                                   required
+                                                   aria-label="Passwort"
+                                                   class="sf-lobby-inline-input">
+                                            <button type="button"
+                                                    data-testid="sanctum-login-password-eye"
+                                                    @click="inlineLoginShowPassword = !inlineLoginShowPassword"
+                                                    class="sf-lobby-pwd-eye"
+                                                    :aria-label="inlineLoginShowPassword ? 'Passwort verbergen' : 'Passwort anzeigen'"
+                                                    :title="inlineLoginShowPassword ? 'Passwort verbergen' : 'Passwort anzeigen'">
+                                                <svg x-show="!inlineLoginShowPassword" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                                    <circle cx="12" cy="12" r="3"></circle>
+                                                </svg>
+                                                <svg x-show="inlineLoginShowPassword" x-cloak width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                                </svg>
+                                            </button>
+                                        </div>
+
+                                        <input x-show="inlineLoginTwoFactorRequired"
+                                               x-cloak
+                                               type="text"
+                                               inputmode="numeric"
+                                               maxlength="10"
+                                               x-model="inlineLoginTwoFactorCode"
+                                               placeholder="2FA-Code"
+                                               autocomplete="one-time-code"
+                                               aria-label="2FA-Code"
+                                               class="sf-lobby-inline-input">
+
+                                        <div x-show="inlineAuthError !== ''"
+                                             x-cloak
+                                             class="sf-lobby-inline-error"
+                                             x-text="inlineAuthError"></div>
+
+                                        <button type="submit"
+                                                data-testid="sanctum-inline-login-submit"
+                                                :disabled="inlineAuthBusy"
+                                                class="sf-lobby-prod-cta"
+                                                style="margin-top:2px;border:none;">
+                                            <span x-text="inlineAuthBusy ? 'Anmeldung...' : 'Anmelden'"></span>
+                                        </button>
+                                    </form>
+                                </template>
 
                                 <div class="sf-lobby-sanctum-row"
                                      data-testid="sanctum-check-order"
-                                     :class="{ 'is-done': sanctumGateState.checks.order }">
+                                     @click="handleSanctumStepClick('order')"
+                                     :class="{ 'is-done': sanctumGateState.checks.order, 'is-clickable': !sanctumGateState.checks.order }">
                                     <span>Mindestens 1 Bestellung</span>
                                     <span class="sf-lobby-sanctum-check"
-                                          x-text="sanctumGateState.checks.order ? '✓' : '2'"></span>
+                                          x-text="sanctumGateState.checks.order ? '✓' : '✕'"></span>
                                 </div>
 
                                 <div class="sf-lobby-sanctum-row"
                                      data-testid="sanctum-check-magic"
-                                     :class="{ 'is-done': sanctumGateState.checks.magic }">
+                                     @click="handleSanctumStepClick('magic')"
+                                     :class="{ 'is-done': sanctumGateState.checks.magic, 'is-clickable': !sanctumGateState.checks.magic }">
                                     <span>✨ Magie aktivieren</span>
                                     <span class="sf-lobby-sanctum-check"
-                                          x-text="sanctumGateState.checks.magic ? '✓' : '3'"></span>
+                                          x-text="sanctumGateState.checks.magic ? '✓' : '✕'"></span>
                                 </div>
+
+                                <template x-if="sanctumGateState.checks.login && sanctumGateState.checks.order && !sanctumGateState.checks.magic && sanctumExpandedStep === 'magic'">
+                                    <div data-testid="sanctum-inline-magic-panel" class="sf-lobby-inline-panel">
+                                        <label class="sf-lobby-inline-check">
+                                            <input type="checkbox"
+                                                   data-testid="sanctum-magic-terms-checkbox"
+                                                   x-model="inlineMagicAcceptTerms"
+                                                   style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;">
+                                            <span>Teilnahmebedingungen akzeptieren</span>
+                                        </label>
+
+                                        <label class="sf-lobby-inline-check">
+                                            <input type="checkbox"
+                                                   data-testid="sanctum-magic-ranking-checkbox"
+                                                   x-model="inlineMagicRankingOptIn"
+                                                   style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;">
+                                            <span>In der Halle der Helden sichtbar</span>
+                                        </label>
+
+                                        <div x-show="inlineAuthError !== ''"
+                                             x-cloak
+                                             class="sf-lobby-inline-error"
+                                             x-text="inlineAuthError"></div>
+
+                                        <button type="button"
+                                                data-testid="sanctum-inline-magic-submit"
+                                                @click="submitInlineActivateMagic()"
+                                                :disabled="inlineAuthBusy || !inlineMagicAcceptTerms"
+                                                class="sf-lobby-prod-cta"
+                                                style="margin-top:2px;border:none;"
+                                                :style="(!inlineMagicAcceptTerms || inlineAuthBusy) ? 'opacity:0.55;cursor:not-allowed;margin-top:2px;border:none;' : 'margin-top:2px;border:none;'">
+                                            <span x-text="inlineAuthBusy ? 'Aktivierung...' : '✨ Magie aktivieren'"></span>
+                                        </button>
+                                    </div>
+                                </template>
                             </div>
 
                             <div>
-                                <template x-if="!sanctumGateState.checks.login">
-                                    <a :href="sanctumGateState.loginUrl || '/login'"
-                                       data-testid="sanctum-gate-cta-btn"
-                                       class="sf-lobby-prod-cta"
-                                       style="margin-top:2px;">
+                                <template x-if="!sanctumGateState.checks.login && sanctumExpandedStep !== 'login'">
+                                    <button type="button"
+                                            @click="handleSanctumStepClick('login')"
+                                            data-testid="sanctum-gate-cta-btn"
+                                            class="sf-lobby-prod-cta"
+                                            style="margin-top:2px;border:none;cursor:pointer;">
                                         <span>Anmelden</span>
                                         <span>&rarr;</span>
-                                    </a>
+                                    </button>
                                 </template>
                                 <template x-if="sanctumGateState.checks.login && !sanctumGateState.checks.order">
                                     <button type="button"
-                                            @click="closeSanctumGateModal()"
+                                            @click="focusNearestLobbyVitrine()"
                                             data-testid="sanctum-gate-cta-btn"
                                             class="sf-lobby-prod-cta"
                                             style="margin-top:2px;border:none;cursor:pointer;">
                                         <span>Kollektion ansehen</span>
                                     </button>
                                 </template>
-                                <template x-if="sanctumGateState.checks.login && sanctumGateState.checks.order && !sanctumGateState.checks.magic">
-                                    <a :href="sanctumGateState.dashboardUrl || '/dashboard'"
-                                       data-testid="sanctum-gate-cta-btn"
-                                       class="sf-lobby-prod-cta"
-                                       style="margin-top:2px;">
+                                <template x-if="sanctumGateState.checks.login && sanctumGateState.checks.order && !sanctumGateState.checks.magic && sanctumExpandedStep !== 'magic'">
+                                    <button type="button"
+                                            @click="handleSanctumStepClick('magic')"
+                                            data-testid="sanctum-gate-cta-btn"
+                                            class="sf-lobby-prod-cta"
+                                            style="margin-top:2px;border:none;cursor:pointer;">
                                         <span>✨ Magie aktivieren</span>
                                         <span>&rarr;</span>
-                                    </a>
+                                    </button>
                                 </template>
                             </div>
                         </div>
@@ -2931,10 +3198,28 @@
                         funkenBalance: 0,
                         mana: 100,
                         maxMana: 100,
+                        hearts: 6,
+                        maxHearts: 6,
+                        lastHeartLostSeq: 0,
+                        lastHeartLostIndex: -1,
+                        demoteBannerText: '',
                         giftVoucherUrl: '/produkt/geschenkgutschein',
                     },
+                    heartShatterIdx: -1,
+                    _lastSeenHeartLostSeq: 0,
+                    _heartShatterTimer: null,
                     sanctumGateOpen: false,
                     sanctumGateZone: 'heroes',
+                    sanctumExpandedStep: '',
+                    inlineLoginEmail: '',
+                    inlineLoginPassword: '',
+                    inlineLoginShowPassword: false,
+                    inlineLoginTwoFactorRequired: false,
+                    inlineLoginTwoFactorCode: '',
+                    inlineMagicAcceptTerms: false,
+                    inlineMagicRankingOptIn: true,
+                    inlineAuthBusy: false,
+                    inlineAuthError: '',
                     sanctumGateState: {
                         canEnter: false,
                         reason: 'login_required',
@@ -3132,6 +3417,47 @@
                         return season;
                     },
 
+                    heartSvgMarkup(isFilled) {
+                        if (privateMod && typeof privateMod.getLobbyHeartSvgMarkup === 'function') {
+                            return privateMod.getLobbyHeartSvgMarkup(Boolean(isFilled));
+                        }
+                        if (isFilled) {
+                            return '<svg viewBox="0 0 24 24" aria-hidden="true">'
+                                + '<path d="M12 21.2L10.4 19.7C5.1 14.9 2 12.1 2 8.4C2 5.4 4.4 3 7.4 3C9.2 3 10.9 3.9 12 5.2C13.1 3.9 14.8 3 16.6 3C19.6 3 22 5.4 22 8.4C22 12.1 18.9 14.9 13.6 19.7L12 21.2Z" fill="#DC2626" stroke="#C5A059" stroke-width="1.55" stroke-linejoin="round"/>'
+                                + '<path d="M12 5.4L9.2 9.4L12 19.4L14.8 9.4L12 5.4Z" fill="#EF4444" fill-opacity="0.45"/>'
+                                + '<path d="M6.2 6.1C7.1 5.1 8.5 4.9 9.5 5.4" fill="none" stroke="#FEE2E2" stroke-width="1.35" stroke-linecap="round"/>'
+                                + '</svg>';
+                        }
+                        return '<svg viewBox="0 0 24 24" aria-hidden="true">'
+                            + '<path d="M12 21.2L10.4 19.7C5.1 14.9 2 12.1 2 8.4C2 5.4 4.4 3 7.4 3C9.2 3 10.9 3.9 12 5.2C13.1 3.9 14.8 3 16.6 3C19.6 3 22 5.4 22 8.4C22 12.1 18.9 14.9 13.6 19.7L12 21.2Z" fill="#1F2937" fill-opacity="0.22" stroke="#9CA3AF" stroke-width="1.35" stroke-linejoin="round"/>'
+                            + '</svg>';
+                    },
+
+                    _syncHudHeartAnimation(hud) {
+                        if (!hud || typeof hud !== 'object') return;
+                        if (hud.lastHeartLostSeq && hud.lastHeartLostSeq !== this._lastSeenHeartLostSeq) {
+                            this._lastSeenHeartLostSeq = hud.lastHeartLostSeq;
+                            this.heartShatterIdx = typeof hud.lastHeartLostIndex === 'number' ? hud.lastHeartLostIndex : -1;
+                            if (this._heartShatterTimer) clearTimeout(this._heartShatterTimer);
+                            this._heartShatterTimer = setTimeout(() => {
+                                this.heartShatterIdx = -1;
+                            }, 560);
+                        }
+                    },
+
+                    updateDocumentCsrfToken(nextToken) {
+                        if (!nextToken || typeof document === 'undefined') return;
+                        const clean = String(nextToken).trim();
+                        if (!clean) return;
+                        let meta = document.querySelector('meta[name="csrf-token"]');
+                        if (!meta) {
+                            meta = document.createElement('meta');
+                            meta.setAttribute('name', 'csrf-token');
+                            document.head.appendChild(meta);
+                        }
+                        meta.setAttribute('content', clean);
+                    },
+
                     canEnterSanctums() {
                         return Boolean(this.sanctumGateState && this.sanctumGateState.canEnter);
                     },
@@ -3142,6 +3468,7 @@
                             facade.releasePointerLock();
                         }
                         this.sanctumGateZone = (zone === 'lava') ? 'lava' : 'heroes';
+                        this.inlineAuthError = '';
                         const resolved = incomingState
                             || (facade && typeof facade.getSanctumAccessState === 'function' ? facade.getSanctumAccessState() : null);
                         if (resolved && typeof resolved === 'object') {
@@ -3157,12 +3484,230 @@
                                 dashboardUrl: resolved.dashboardUrl || '/dashboard',
                             };
                         }
+                        if (!this.sanctumGateState.checks.login) {
+                            this.sanctumExpandedStep = 'login';
+                        } else if (this.sanctumGateState.checks.order && !this.sanctumGateState.checks.magic) {
+                            this.sanctumExpandedStep = 'magic';
+                        } else {
+                            this.sanctumExpandedStep = '';
+                        }
                         this.sanctumGateOpen = true;
                     },
 
                     closeSanctumGateModal() {
                         this.sanctumGateOpen = false;
+                        this.inlineAuthError = '';
                         if (privateAudio) privateAudio.playUiClick();
+                    },
+
+                    focusNearestLobbyVitrine() {
+                        this.sanctumGateOpen = false;
+                        this.inlineAuthError = '';
+                        if (privateAudio) privateAudio.playUiClick();
+                        const facade = getFacade();
+                        if (facade && typeof facade.focusNearestExhibit === 'function') {
+                            facade.focusNearestExhibit();
+                        } else if (facade && typeof facade.focusExhibit === 'function') {
+                            facade.focusExhibit(this.activeIndex || 0, false);
+                        }
+                    },
+
+                    handleSanctumStepClick(step) {
+                        this.inlineAuthError = '';
+                        if (step === 'login') {
+                            if (!this.sanctumGateState.checks.login) {
+                                this.sanctumExpandedStep = (this.sanctumExpandedStep === 'login') ? '' : 'login';
+                                if (privateAudio) privateAudio.playUiClick();
+                            }
+                            return;
+                        }
+                        if (step === 'order') {
+                            if (!this.sanctumGateState.checks.order) {
+                                this.focusNearestLobbyVitrine();
+                            }
+                            return;
+                        }
+                        if (step === 'magic') {
+                            if (!this.sanctumGateState.checks.login) {
+                                this.sanctumExpandedStep = 'login';
+                            } else if (!this.sanctumGateState.checks.order) {
+                                this.focusNearestLobbyVitrine();
+                            } else if (!this.sanctumGateState.checks.magic) {
+                                this.sanctumExpandedStep = (this.sanctumExpandedStep === 'magic') ? '' : 'magic';
+                                if (privateAudio) privateAudio.playUiClick();
+                            }
+                        }
+                    },
+
+                    applyLiveAccountResponse(body) {
+                        if (!body || typeof body !== 'object') return;
+                        if (body.csrf_token) {
+                            this.updateDocumentCsrfToken(body.csrf_token);
+                        }
+                        if (body.player_funki && typeof body.player_funki === 'object') {
+                            this.funkiInfo = Object.assign({}, this.funkiInfo || {}, body.player_funki);
+                            if (!body.player_funki.is_guest) {
+                                this.lobbyAuthenticated = true;
+                                this.multiplayer.is_authenticated = true;
+                                if (body.player_funki.player_id) {
+                                    this.multiplayer.player_id = body.player_funki.player_id;
+                                }
+                            }
+                        }
+                        const sa = body.sanctum_access || null;
+                        if (sa && typeof sa === 'object') {
+                            if (sa.is_authenticated !== undefined) {
+                                this.lobbyAuthenticated = Boolean(sa.is_authenticated);
+                                this.multiplayer.is_authenticated = Boolean(sa.is_authenticated);
+                            }
+                            this.sanctumGateState = {
+                                canEnter: Boolean(sa.can_enter_sanctums),
+                                reason: sa.block_reason || null,
+                                checks: {
+                                    login: Boolean(sa.is_authenticated),
+                                    order: Boolean(sa.has_completed_order),
+                                    magic: Boolean(sa.gamification_active),
+                                },
+                                loginUrl: sa.login_url || this.sanctumGateState.loginUrl || '/login',
+                                dashboardUrl: sa.dashboard_url || this.sanctumGateState.dashboardUrl || '/dashboard',
+                            };
+                        }
+
+                        const facade = getFacade();
+                        if (facade && typeof facade.applyLiveAccountUpdate === 'function') {
+                            const nextAccess = facade.applyLiveAccountUpdate(body);
+                            if (nextAccess && typeof nextAccess === 'object') {
+                                this.sanctumGateState = {
+                                    canEnter: Boolean(nextAccess.canEnter),
+                                    reason: nextAccess.reason || null,
+                                    checks: Object.assign({ login: false, order: false, magic: false }, nextAccess.checks || {}),
+                                    loginUrl: nextAccess.loginUrl || '/login',
+                                    dashboardUrl: nextAccess.dashboardUrl || '/dashboard',
+                                };
+                            }
+                            if (typeof facade.getPlayerHudState === 'function') {
+                                const hud = facade.getPlayerHudState();
+                                this.playerHud = Object.assign({}, this.playerHud, hud);
+                            }
+                        }
+                    },
+
+                    submitInlineLobbyLogin() {
+                        if (this.inlineAuthBusy) return;
+                        const email = String(this.inlineLoginEmail || '').trim();
+                        const password = String(this.inlineLoginPassword || '');
+                        if (!email || !password) {
+                            this.inlineAuthError = 'Bitte E-Mail und Passwort eingeben.';
+                            return;
+                        }
+                        this.inlineAuthBusy = true;
+                        this.inlineAuthError = '';
+
+                        const reqBody = {
+                            email,
+                            password,
+                        };
+                        if (this.inlineLoginTwoFactorRequired && String(this.inlineLoginTwoFactorCode || '').trim() !== '') {
+                            reqBody.two_factor_code = String(this.inlineLoginTwoFactorCode || '').trim();
+                        }
+
+                        fetch('/funkenwerk-welt/inline-login', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken(),
+                            },
+                            body: JSON.stringify(reqBody),
+                        })
+                            .then((res) => res.json().catch(() => null).then((b) => ({ status: res.status, body: b })))
+                            .then(({ body }) => {
+                                this.inlineAuthBusy = false;
+                                if (!body) {
+                                    this.inlineAuthError = 'Anmeldung fehlgeschlagen.';
+                                    return;
+                                }
+                                if (body.csrf_token) {
+                                    this.updateDocumentCsrfToken(body.csrf_token);
+                                }
+                                if (body.status === 'two_factor_required') {
+                                    this.inlineLoginTwoFactorRequired = true;
+                                    this.inlineAuthError = body.message || 'Bitte 2FA-Code eingeben.';
+                                    return;
+                                }
+                                if (body.status === 'password_change_required' && body.redirect_url) {
+                                    window.location.href = String(body.redirect_url);
+                                    return;
+                                }
+                                if (body.status === 'authenticated' || body.success) {
+                                    this.inlineLoginPassword = '';
+                                    this.inlineLoginTwoFactorCode = '';
+                                    this.inlineLoginTwoFactorRequired = false;
+                                    this.applyLiveAccountResponse(body);
+
+                                    if (this.sanctumGateState.canEnter) {
+                                        this.sanctumExpandedStep = '';
+                                        setTimeout(() => {
+                                            this.sanctumGateOpen = false;
+                                        }, 440);
+                                    } else if (!this.sanctumGateState.checks.order) {
+                                        this.sanctumExpandedStep = '';
+                                    } else if (!this.sanctumGateState.checks.magic) {
+                                        this.sanctumExpandedStep = 'magic';
+                                    }
+                                    return;
+                                }
+                                this.inlineAuthError = body.message || 'Zugangsdaten ungültig.';
+                            })
+                            .catch(() => {
+                                this.inlineAuthBusy = false;
+                                this.inlineAuthError = 'Verbindung fehlgeschlagen.';
+                            });
+                    },
+
+                    submitInlineActivateMagic() {
+                        if (this.inlineAuthBusy || !this.inlineMagicAcceptTerms) return;
+                        this.inlineAuthBusy = true;
+                        this.inlineAuthError = '';
+
+                        fetch('/funkenwerk-welt/activate-magic', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken(),
+                            },
+                            body: JSON.stringify({
+                                accept_terms: true,
+                                ranking_opt_in: Boolean(this.inlineMagicRankingOptIn),
+                            }),
+                        })
+                            .then((res) => res.json().catch(() => null).then((b) => ({ status: res.status, body: b })))
+                            .then(({ body }) => {
+                                this.inlineAuthBusy = false;
+                                if (!body) {
+                                    this.inlineAuthError = 'Aktivierung fehlgeschlagen.';
+                                    return;
+                                }
+                                if (body.csrf_token) {
+                                    this.updateDocumentCsrfToken(body.csrf_token);
+                                }
+                                if (body.status === 'magic_activated' || body.success) {
+                                    this.applyLiveAccountResponse(Object.assign({}, body, { play_awaken_fx: true }));
+                                    this.sanctumExpandedStep = '';
+                                    setTimeout(() => {
+                                        this.sanctumGateOpen = false;
+                                    }, 480);
+                                    return;
+                                }
+                                this.inlineAuthError = body.message || 'Aktivierung nicht möglich.';
+                            })
+                            .catch(() => {
+                                this.inlineAuthBusy = false;
+                                this.inlineAuthError = 'Verbindung fehlgeschlagen.';
+                            });
                     },
 
                     toggleQuickMute() {
@@ -3469,7 +4014,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v5');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v6');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -3616,6 +4161,7 @@
                                         },
                                         onPlayerHudChange: (hud) => {
                                             if (hud && typeof hud === 'object') {
+                                                this._syncHudHeartAnimation(hud);
                                                 this.playerHud = Object.assign({}, this.playerHud, hud);
                                                 if (hud.environment) {
                                                     this.environmentInfo = Object.assign({}, this.environmentInfo, hud.environment);
@@ -3677,7 +4223,7 @@
                             return;
                         }
 
-                        // Solo-Zonen ('gallery', 'lava', 'labyrinth'): lokal sofort leeren, Loop stoppen & Heldenhallen-Platz freigeben!
+                        // Solo-Zonen ('gallery', 'lava'): lokal sofort leeren, Loop stoppen & Heldenhallen-Platz freigeben!
                         const wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer));
                         this._activeSyncZone = z;
                         this.instanceMenuOpen = false;
@@ -4119,7 +4665,9 @@
                             this.abilityState = facade.getAbilityState();
                         }
                         if (facade && typeof facade.getPlayerHudState === 'function') {
-                            this.playerHud = Object.assign({}, this.playerHud, facade.getPlayerHudState());
+                            const latestHud = facade.getPlayerHudState();
+                            this._syncHudHeartAnimation(latestHud);
+                            this.playerHud = Object.assign({}, this.playerHud, latestHud);
                         }
                         this.renderMinimap();
                     },

@@ -1098,6 +1098,130 @@ export class SeelenfunkeLobbyAudio {
         });
     }
 
+    playGateRepulse() {
+        if (!this._canPlaySfx()) return;
+        const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+        if (this._lastGateRepulseAt && (now - this._lastGateRepulseAt) < 320) return;
+        this._lastGateRepulseAt = now;
+
+        // Gedaempfter Gold-Rot-Schutzfeld-Repulsor beim physischen Rueckstoss vor gesperrten Toren
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 124,
+            freqEnd: 38,
+            duration: 0.34,
+            gain: 0.36,
+            cutoff: 290,
+        });
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: 220,
+            freqEnd: 92,
+            duration: 0.24,
+            gain: 0.20,
+            cutoff: 540,
+            delay: 0.02,
+        });
+        this._triggerMatteWhoosh({
+            duration: 0.32,
+            gain: 0.26,
+            filterType: 'bandpass',
+            freqStart: 520,
+            freqEnd: 150,
+            q: 1.05,
+        });
+    }
+
+    playMagicAwaken() {
+        if (!this._canPlaySfx()) return;
+        // Edler 24K-Gold-Funken-Erweckungsklang beim 1-Klick-Aktivieren der Magie im Sanctum-Modal
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 78,
+            freqEnd: 146.83,
+            duration: 0.58,
+            gain: 0.26,
+            cutoff: 420,
+        });
+        this._triggerMatteWhoosh({
+            duration: 0.64,
+            gain: 0.24,
+            filterType: 'bandpass',
+            freqStart: 220,
+            freqEnd: 680,
+            q: 0.95,
+        });
+        const chord = [261.63, 392.00, 493.88, 587.33, 783.99];
+        for (let i = 0; i < chord.length; i++) {
+            const f = chord[i];
+            const d = 0.03 + i * 0.07;
+            this._triggerMatteTone({
+                type: 'sine',
+                freqStart: f,
+                freqEnd: f * 1.003,
+                duration: 0.68,
+                gain: 0.16 - i * 0.018,
+                cutoff: 1380,
+                delay: d,
+            });
+            this._triggerMatteTone({
+                type: 'triangle',
+                freqStart: f * 0.5,
+                freqEnd: f * 0.5,
+                duration: 0.50,
+                gain: 0.07,
+                cutoff: 720,
+                delay: d + 0.015,
+            });
+        }
+    }
+
+    playHeartLost(remainingHearts = 5) {
+        if (!this._canPlaySfx()) return;
+        const accent = clampNum(0.88 + (6 - clampNum(remainingHearts, 0, 6)) * 0.03, 0.85, 1.12);
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: 246.94 * accent,
+            freqEnd: 98.00,
+            duration: 0.22,
+            gain: 0.22,
+            cutoff: 620,
+        });
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 392.00,
+            freqEnd: 196.00,
+            duration: 0.16,
+            gain: 0.13,
+            cutoff: 920,
+            delay: 0.03,
+        });
+    }
+
+    playLevelDemoted() {
+        if (!this._canPlaySfx()) return;
+        const notes = [293.66, 246.94, 196.00, 146.83];
+        for (let i = 0; i < notes.length; i++) {
+            this._triggerMatteTone({
+                type: 'triangle',
+                freqStart: notes[i],
+                freqEnd: notes[i] * 0.94,
+                duration: 0.34,
+                gain: 0.22 - i * 0.02,
+                cutoff: 580,
+                delay: i * 0.09,
+            });
+        }
+        this._triggerMatteTone({
+            type: 'sine',
+            freqStart: 82,
+            freqEnd: 38,
+            duration: 0.56,
+            gain: 0.30,
+            cutoff: 240,
+        });
+    }
+
     playEpicGateOpen() {
         if (!this._canPlaySfx()) return;
         // Monumentales Obsidian-Gold-Tor schwingt schwer und majestätisch auf

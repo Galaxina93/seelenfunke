@@ -27,12 +27,17 @@ class XtoolLaserCockpitService
     public const BED_HEIGHT_MM = 200.0;
     public const CAMERA_PX_PER_MM = 10.0;
 
+    public const MIN_DOT_DURATION_US = 1;
+    public const MAX_DOT_DURATION_US = 3000;
+    public const Z_AXIS_FOCUS_OFFSET_MM = 6.0;
+
     private const QUEUE_FILE = 'system/xtool_queue/jobs.json';
     private const LOCK_FILE = 'system/xtool_queue/jobs.lock';
     private const MAX_HISTORY = 25;
 
     private ?string $relayRootOverride = null;
     private bool $allowRelayInTests = false;
+    private bool $allowV2SocketInTests = false;
     private float $relayCameraWaitSeconds = 9.0;
     private float $relayJobWaitSeconds = 10.0;
 
@@ -46,6 +51,54 @@ class XtoolLaserCockpitService
         $this->allowRelayInTests = $allowRelayInTests;
         $this->relayCameraWaitSeconds = max(0.05, $cameraWaitSeconds);
         $this->relayJobWaitSeconds = max(0.05, $jobWaitSeconds);
+    }
+
+    public function setV2SocketTestingMode(bool $allow): void
+    {
+        $this->allowV2SocketInTests = $allow;
+    }
+
+    /**
+     * Prüft, ob vor dem Gravur-Job automatisch die motorisierte Z-Achse (GS009-CLASS-4) angefahren werden darf:
+     * Strikt nur bei Gravur-Aufträgen ($jobType !== 'framing'), gültiger Fokus-Höhe (> 0 mm) und
+     * Flachbett / Gebogener Oberfläche (NIEMALS bei RA3 Walze, Förderband oder 3D-Innengravur).
+     */
+    public static function shouldAutoControlZAxis(string $jobType, ?float $focusMm, string $equipmentKey = 'flatbed_standard'): bool
+    {
+        if ($jobType === 'framing' || $focusMm === null || $focusMm <= 0.0) {
+            return false;
+        }
+
+        $normalizedEquip = self::normalizeEquipmentKey($equipmentKey);
+
+        return in_array($normalizedEquip, ['flatbed_standard', 'curved_surface'], true);
+    }
+
+    /**
+     * Baut den verifizierten xTool Studio v1.10.15 Z-Achsen-Steuerbefehl (POST /v1/laser-head/focus/control)
+     * für den xTool F2 Ultra UV (z = focus_mm + 6.0 mm Offset auf GS009-CLASS-4).
+     *
+     * @return array{method: string, url: string, params: array<string, mixed>, data: array{action: string, stopFirst: int, z: float}}|null
+     */
+    public static function buildZAxisFocusControlCommand(
+        ?float $focusMm,
+        string $jobType = 'engrave',
+        string $equipmentKey = 'flatbed_standard'
+    ): ?array {
+        if (!self::shouldAutoControlZAxis($jobType, $focusMm, $equipmentKey)) {
+            return null;
+        }
+
+        return [
+            'method' => 'POST',
+            'url'    => '/v1/laser-head/focus/control',
+            'params' => [],
+            'data'   => [
+                'action'    => 'goTo',
+                'stopFirst' => 1,
+                'z'         => round((float) $focusMm + self::Z_AXIS_FOCUS_OFFSET_MM, 2),
+            ],
+        ];
     }
 
     /**
@@ -634,23 +687,26 @@ class XtoolLaserCockpitService
      * Überträgt einen Gravur-Auftrag (tmp.xf -> autoStart: 0 / WORK_PREPARED) oder eine Rahmen-Vorschau
      * (tmpFrame.gcode -> autoStart: 1 / loopPrint: 1) direkt per V2-TLS-WebSocket (Port 28900) an den xTool F2 Ultra UV.
      *
-     * @return array{ok: bool, task_id: ?string, error: ?string}
+     * @return array{ok: bool, task_id: ?string, target_z_mm?: ?float, error: ?string}
      */
     public function sendJobToLaserV2(
         string $jobType,
         string $payloadBytes,
-        string $ip = self::DEFAULT_LASER_IP
+        string $ip = self::DEFAULT_LASER_IP,
+        ?float $focusMm = null,
+        string $equipmentKey = 'flatbed_standard'
     ): array {
-        if (app()->runningUnitTests()) {
-            return ['ok' => false, 'task_id' => null, 'error' => 'Unit-Test-Modus aktiv.'];
+        if (app()->runningUnitTests() && !$this->allowV2SocketInTests) {
+            return ['ok' => false, 'task_id' => null, 'target_z_mm' => null, 'error' => 'Unit-Test-Modus aktiv.'];
         }
 
         $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($ip, self::DEFAULT_LASER_IP);
         if (!$this->probeLaserReachability($safeIp, true)) {
             return [
-                'ok'      => false,
-                'task_id' => null,
-                'error'   => "xTool F2 Ultra UV unter {$safeIp}:" . self::DEFAULT_V2_PORT . ' aktuell nicht im WLAN erreichbar (Standby oder ausgeschaltet).',
+                'ok'          => false,
+                'task_id'     => null,
+                'target_z_mm' => null,
+                'error'       => "xTool F2 Ultra UV unter {$safeIp}:" . self::DEFAULT_V2_PORT . ' aktuell nicht im WLAN erreichbar (Standby oder ausgeschaltet).',
             ];
         }
 
@@ -658,9 +714,10 @@ class XtoolLaserCockpitService
         $mainWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=instruction");
         if (!is_resource($mainWs)) {
             return [
-                'ok'      => false,
-                'task_id' => null,
-                'error'   => "V2-Steuerkanal zu {$safeIp}:" . self::DEFAULT_V2_PORT . ' konnte nicht geöffnet werden.',
+                'ok'          => false,
+                'task_id'     => null,
+                'target_z_mm' => null,
+                'error'       => "V2-Steuerkanal zu {$safeIp}:" . self::DEFAULT_V2_PORT . ' konnte nicht geöffnet werden.',
             ];
         }
 
@@ -678,22 +735,39 @@ class XtoolLaserCockpitService
             $sessionToken = (string) ($parity['data']['sessionToken'] ?? '');
             if ($sessionToken === '') {
                 return [
-                    'ok'      => false,
-                    'task_id' => null,
-                    'error'   => 'Authentifizierung am xTool F2 Ultra UV fehlgeschlagen (kein Session-Token).',
+                    'ok'          => false,
+                    'task_id'     => null,
+                    'target_z_mm' => null,
+                    'error'       => 'Authentifizierung am xTool F2 Ultra UV fehlgeschlagen (kein Session-Token).',
                 ];
             }
 
             $fileWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=file_stream");
             if (!is_resource($fileWs)) {
                 return [
-                    'ok'      => false,
-                    'task_id' => null,
-                    'error'   => 'V2-Dateikanal (file_stream) konnte nicht geöffnet werden.',
+                    'ok'          => false,
+                    'task_id'     => null,
+                    'target_z_mm' => null,
+                    'error'       => 'V2-Dateikanal (file_stream) konnte nicht geöffnet werden.',
                 ];
             }
 
             $isFraming = ($jobType === 'framing');
+            $targetZMm = null;
+            $focusControlCmd = self::buildZAxisFocusControlCommand($focusMm, $jobType, $equipmentKey);
+            if ($focusControlCmd !== null) {
+                $this->v2SendJsonCmd(
+                    $mainWs,
+                    $txId,
+                    $sessionToken,
+                    $focusControlCmd['method'],
+                    $focusControlCmd['url'],
+                    $focusControlCmd['params'],
+                    $focusControlCmd['data']
+                );
+                $targetZMm = (float) $focusControlCmd['data']['z'];
+            }
+
             $remoteFilename = $isFraming ? 'tmpFrame.gcode' : 'tmp.xf';
             $channel = $isFraming ? 61 : 62;
 
@@ -710,9 +784,10 @@ class XtoolLaserCockpitService
 
             if (!$uploaded) {
                 return [
-                    'ok'      => false,
-                    'task_id' => null,
-                    'error'   => "Dateiübertragung ({$remoteFilename}) an den Laser wurde nicht bestätigt.",
+                    'ok'          => false,
+                    'task_id'     => null,
+                    'target_z_mm' => $targetZMm,
+                    'error'       => "Dateiübertragung ({$remoteFilename}) an den Laser wurde nicht bestätigt.",
                 ];
             }
 
@@ -743,22 +818,25 @@ class XtoolLaserCockpitService
             $cfgCode = isset($cfgResp['code']) ? (int) $cfgResp['code'] : 0;
             if ($cfgResp === null || $cfgCode !== 0) {
                 return [
-                    'ok'      => false,
-                    'task_id' => $taskId,
-                    'error'   => 'Laser hat die Auftrags-Aktivierung (/v1/processing/upload/config) abgelehnt.',
+                    'ok'          => false,
+                    'task_id'     => $taskId,
+                    'target_z_mm' => $targetZMm,
+                    'error'       => 'Laser hat die Auftrags-Aktivierung (/v1/processing/upload/config) abgelehnt.',
                 ];
             }
 
             return [
-                'ok'      => true,
-                'task_id' => $taskId,
-                'error'   => null,
+                'ok'          => true,
+                'task_id'     => $taskId,
+                'target_z_mm' => $targetZMm,
+                'error'       => null,
             ];
         } catch (\Throwable $e) {
             return [
-                'ok'      => false,
-                'task_id' => null,
-                'error'   => $e->getMessage(),
+                'ok'          => false,
+                'task_id'     => null,
+                'target_z_mm' => null,
+                'error'       => $e->getMessage(),
             ];
         } finally {
             if (is_resource($fileWs)) {
@@ -776,7 +854,7 @@ class XtoolLaserCockpitService
      * Lädt eine Datei (tmp.xf oder tmpFrame.gcode) über das native V2-Fensterprotokoll (0xBABE, Kanal 61/62)
      * auf den xTool F2 Ultra UV hoch und wartet auf die JSON-Erfolgsquittung ({channel, code: 0}).
      */
-    private function v2UploadFileToLaser(
+    protected function v2UploadFileToLaser(
         $mainWs,
         $fileWs,
         int &$txId,
@@ -899,7 +977,7 @@ class XtoolLaserCockpitService
     /**
      * @return resource|null
      */
-    private function v2WsConnect(string $ip, int $port, string $path)
+    protected function v2WsConnect(string $ip, int $port, string $path)
     {
         $ctx = stream_context_create([
             'ssl' => [
@@ -1019,7 +1097,7 @@ class XtoolLaserCockpitService
         return $payload;
     }
 
-    private function v2SendJsonCmd($ws, int &$txId, string $sessionToken, string $method, string $url, array $params = [], array $data = []): ?array
+    protected function v2SendJsonCmd($ws, int &$txId, string $sessionToken, string $method, string $url, array $params = [], array $data = []): ?array
     {
         $txId++;
         $cmd = [
@@ -1625,6 +1703,13 @@ class XtoolLaserCockpitService
                 'material'      => 'Edelstahl 14K IP vergoldet (PVD)',
                 'setup_note'    => 'Schwarzes Lamellenrost, vor und nach dem Lasern mit Isopropanol reinigen.',
                 'presets'       => [
+                    'lamellenrost_schwarz_100khz' => [
+                        'label'  => 'Schwarz (Anlass-Gravur 100 kHz · Lamellenrost)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 2.0,
+                        'vector' => $v(21.5, 95, 25, 100, 1000, 1),
+                        'bitmap' => $b(21.5, 95, 1100, 100, 1270, 1, 'Schwellenwert'),
+                    ],
                     'pdf2_sweetspot' => [
                         'label'  => 'Cockpit-Sweetspot (PDF 2)',
                         'source' => 'PDF 2',
@@ -1663,6 +1748,13 @@ class XtoolLaserCockpitService
                 'material'      => 'Edelstahl 14K IP vergoldet (massiv)',
                 'setup_note'    => 'Kette abnehmen, Herz flach auf das schwarze Lamellenrost legen.',
                 'presets'       => [
+                    'lamellenrost_schwarz_100khz' => [
+                        'label'  => 'Schwarz (Anlass-Gravur 100 kHz · Lamellenrost)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 2.0,
+                        'vector' => $v(21.5, 95, 25, 100, 1000, 1),
+                        'bitmap' => $b(21.5, 95, 1100, 100, 1270, 1, 'Schwellenwert'),
+                    ],
                     'pdf2_sweetspot' => [
                         'label'  => 'Schritt-1 Katalog (PDF 2)',
                         'source' => 'PDF 2',
@@ -1687,6 +1779,13 @@ class XtoolLaserCockpitService
                 'material'      => 'Edelstahl Gold-Finish',
                 'setup_note'    => 'Schlüsselring frei über die Lamellenkante hängen lassen.',
                 'presets'       => [
+                    'lamellenrost_schwarz_100khz' => [
+                        'label'  => 'Schwarz (Anlass-Gravur 100 kHz · Lamellenrost)',
+                        'source' => 'PDF 1',
+                        'focus_offset_mm' => 2.0,
+                        'vector' => $v(21.5, 95, 25, 100, 1000, 1),
+                        'bitmap' => $b(21.5, 95, 1100, 100, 1270, 1, 'Schwellenwert'),
+                    ],
                     'pdf2_sweetspot' => [
                         'label'  => 'Schritt-1 Katalog (PDF 2)',
                         'source' => 'PDF 2',
@@ -2420,7 +2519,7 @@ class XtoolLaserCockpitService
             ? max(50, min(2540, (int) $baseSummary['dpi']))
             : 500;
         $defaultDotUs = ((int) ($baseSummary['dot_duration_us'] ?? 0)) > 0
-            ? max(1, min(5000, (int) $baseSummary['dot_duration_us']))
+            ? max(self::MIN_DOT_DURATION_US, min(self::MAX_DOT_DURATION_US, (int) $baseSummary['dot_duration_us']))
             : 120;
         $defaultFreqKhz = ((int) ($baseSummary['frequency_khz'] ?? 0)) > 0
             ? max(1, min(200, (int) $baseSummary['frequency_khz']))
@@ -2627,7 +2726,7 @@ class XtoolLaserCockpitService
         $powerPercent = max(1, min(100, $parseInt($raw['power_percent'] ?? null, (int) $defaults['power_percent'])));
         $speedMms = max(1, min(4000, $parseInt($rawSpeedVal, (int) ($defaults['speed_mms'] ?? 200))));
         $dpi = max(50, min(2540, $parseInt($raw['dpi'] ?? null, (int) $defaults['dpi'])));
-        $dotDurationUs = max(1, min(5000, $parseInt($raw['dot_duration_us'] ?? null, (int) $defaults['dot_duration_us'])));
+        $dotDurationUs = max(self::MIN_DOT_DURATION_US, min(self::MAX_DOT_DURATION_US, $parseInt($raw['dot_duration_us'] ?? null, (int) $defaults['dot_duration_us'])));
         $frequencyKhz = max(1, min(200, $parseInt($raw['frequency_khz'] ?? null, (int) $defaults['frequency_khz'])));
         $passes = max(1, min(20, $parseInt($raw['passes'] ?? null, (int) $defaults['passes'])));
 
@@ -2844,10 +2943,668 @@ class XtoolLaserCockpitService
         $productSettings['xtool_engrave_mode']    = $sanitized['engrave_mode'];
         $productSettings['xtool_vector_note']     = $sanitized['vector_note'];
 
+        $productSettings = Product::syncLaserProfilesAndPrimarySettings($productSettings, true);
         $product->configurator_settings = $productSettings;
         $product->saveQuietly();
 
         return $product->fresh()->getLaserInstructionSummary();
+    }
+
+    /**
+     * Speichert aktuelle Laserparameter als neues (oder gleichnamig aktualisiertes) benanntes Produkt-Profil
+     * in configurator_settings['xtool_profiles'] und synchronisiert bei $makeDefault = true auch die primären Felder.
+     *
+     * @param  array<string, mixed>  $rawParams
+     * @return array{profile: array<string, mixed>, profiles: array<int, array<string, mixed>>, summary: array<string, mixed>}
+     */
+    public function saveLaserProfileToProduct(
+        Product $product,
+        string $title,
+        array $rawParams,
+        bool $makeDefault = false
+    ): array {
+        $cleanTitle = trim(str_replace(" \u{2013} ", ' · ', strip_tags($title)));
+        if ($cleanTitle === '') {
+            $cleanTitle = 'Eigenes Profil ' . (count($product->getLaserProfiles()) + 1);
+        }
+        $cleanTitle = mb_substr($cleanTitle, 0, 120);
+
+        $currentSummary = $product->getLaserInstructionSummary();
+        $productSettings = is_string($product->configurator_settings)
+            ? (json_decode($product->configurator_settings, true) ?: [])
+            : (is_array($product->configurator_settings) ? $product->configurator_settings : []);
+
+        $baseline = [
+            'material'        => trim((string) ($currentSummary['material'] ?? '')) ?: 'Edelstahl',
+            'equipment_key'   => self::normalizeEquipmentKey((string) ($currentSummary['equipment_key'] ?? ''), (string) ($currentSummary['process_mode'] ?? '')),
+            'process_mode'    => trim((string) ($currentSummary['process_mode'] ?? '')) ?: 'Prozess auf flacher Oberfläche',
+            'focus_mm'        => ((float) ($currentSummary['focus_mm'] ?? 0)) > 0 ? (float) $currentSummary['focus_mm'] : 19.5,
+            'element_type'    => self::normalizeElementTypeLabel((string) ($currentSummary['element_type'] ?? 'Bild'), 'Bild'),
+            'engrave_tab'     => self::normalizeEngraveTabLabel((string) ($currentSummary['engrave_tab'] ?? 'Gravieren'), 'Gravieren'),
+            'preset_mode'     => self::normalizePresetModeLabel((string) ($currentSummary['preset_mode'] ?? 'Benutzerdefiniert'), 'Benutzerdefiniert'),
+            'power_percent'   => ((int) ($currentSummary['power_percent'] ?? 0)) > 0 ? (int) $currentSummary['power_percent'] : 70,
+            'speed_mms'       => isset($productSettings['xtool_speed_mms']) && is_numeric($productSettings['xtool_speed_mms'])
+                ? (int) $productSettings['xtool_speed_mms']
+                : self::parseSpeedMmsFromVectorNote((string) ($currentSummary['vector_note'] ?? ''), 200),
+            'dpi'             => ((int) ($currentSummary['dpi'] ?? 0)) > 0 ? (int) $currentSummary['dpi'] : 600,
+            'dot_duration_us' => ((int) ($currentSummary['dot_duration_us'] ?? 0)) > 0 ? (int) $currentSummary['dot_duration_us'] : 210,
+            'frequency_khz'   => ((int) ($currentSummary['frequency_khz'] ?? 0)) > 0 ? (int) $currentSummary['frequency_khz'] : 65,
+            'passes'          => ((int) ($currentSummary['passes'] ?? 0)) > 0 ? (int) $currentSummary['passes'] : 1,
+            'bitmap_mode'     => self::normalizeBitmapModeLabel((string) ($currentSummary['bitmap_mode'] ?? ''), 'Jarvis'),
+            'engrave_mode'    => self::normalizeEngraveModeLabel((string) ($currentSummary['engrave_mode'] ?? ''), 'Bidirektional'),
+            'vector_note'     => trim((string) ($currentSummary['vector_note'] ?? '')),
+        ];
+
+        $sanitized = $this->sanitizeLaserParameterInput($rawParams, $baseline);
+        $existingProfiles = $product->getLaserProfiles();
+
+        $matchedIndex = null;
+        foreach ($existingProfiles as $idx => $ep) {
+            if (mb_strtolower(trim((string) ($ep['title'] ?? ''))) === mb_strtolower($cleanTitle)) {
+                $matchedIndex = $idx;
+                break;
+            }
+        }
+
+        $slugId = Str::slug($cleanTitle, '_');
+        $profileId = $matchedIndex !== null
+            ? (string) ($existingProfiles[$matchedIndex]['id'] ?? ('prof_' . $slugId))
+            : ('prof_' . ($slugId !== '' ? substr($slugId, 0, 32) : 'custom') . '_' . substr(md5($cleanTitle . microtime(true)), 0, 6));
+
+        $newProfile = Product::normalizeLaserProfileItem([
+            'id'              => $profileId,
+            'title'           => $cleanTitle,
+            'is_default'      => $makeDefault || ($matchedIndex !== null && !empty($existingProfiles[$matchedIndex]['is_default'])),
+            'focus_mm'        => $sanitized['focus_mm'],
+            'element_type'    => $sanitized['element_type'],
+            'engrave_tab'     => $sanitized['engrave_tab'],
+            'preset_mode'     => $sanitized['preset_mode'],
+            'dot_duration_us' => $sanitized['dot_duration_us'],
+            'power_percent'   => $sanitized['power_percent'],
+            'dpi'             => $sanitized['dpi'],
+            'frequency_khz'   => $sanitized['frequency_khz'],
+            'speed_mms'       => $sanitized['speed_mms'],
+            'passes'          => $sanitized['passes'],
+            'bitmap_mode'     => $sanitized['bitmap_mode'],
+            'engrave_mode'    => $sanitized['engrave_mode'],
+            'vector_note'     => $sanitized['vector_note'],
+            'equipment_key'   => $sanitized['equipment_key'],
+            'process_mode'    => $sanitized['process_mode'],
+            'material'        => $sanitized['material'],
+        ], $matchedIndex ?? count($existingProfiles), $productSettings);
+
+        if ($makeDefault) {
+            foreach ($existingProfiles as &$ep) {
+                $ep['is_default'] = false;
+            }
+            unset($ep);
+            $newProfile['is_default'] = true;
+            $productSettings['xtool_equipment_key'] = $sanitized['equipment_key'];
+            $productSettings['xtool_process_mode']  = $sanitized['process_mode'];
+            $productSettings['xtool_material']      = $sanitized['material'];
+        }
+
+        if ($matchedIndex !== null) {
+            $existingProfiles[$matchedIndex] = $newProfile;
+        } else {
+            $existingProfiles[] = $newProfile;
+        }
+
+        $productSettings['xtool_profiles'] = array_values($existingProfiles);
+        $productSettings = Product::syncLaserProfilesAndPrimarySettings($productSettings, false);
+
+        $product->configurator_settings = $productSettings;
+        $product->saveQuietly();
+
+        $freshProduct = $product->fresh();
+        $freshProfiles = $freshProduct->getLaserProfiles();
+        $savedProfile = collect($freshProfiles)->firstWhere('id', $profileId) ?? end($freshProfiles) ?: $newProfile;
+
+        return [
+            'profile'  => $savedProfile,
+            'profiles' => $freshProfiles,
+            'summary'  => $freshProduct->getLaserInstructionSummary(),
+        ];
+    }
+
+    /**
+     * Lädt ein am Produkt hinterlegtes Laserprofil aktiv auf eine Bestellposition.
+     */
+    public function applyProductLaserProfileToOrderItem(OrderOrderItem $item, string $side, string $profileId): ?array
+    {
+        $item->loadMissing('product');
+        if (!$item->product) {
+            return null;
+        }
+
+        $profiles = $item->product->getLaserProfiles();
+        $cleanProfileId = preg_replace('/^profile:/i', '', trim($profileId)) ?? trim($profileId);
+
+        $found = null;
+        foreach ($profiles as $prof) {
+            if ((string) ($prof['id'] ?? '') === $cleanProfileId || (string) ($prof['title'] ?? '') === $cleanProfileId) {
+                $found = $prof;
+                break;
+            }
+        }
+
+        if ($found === null) {
+            return null;
+        }
+
+        $payload = [
+            'focus_mm'        => $found['focus_mm'],
+            'element_type'    => $found['element_type'] ?? 'Bild',
+            'engrave_tab'     => $found['engrave_tab'] ?? 'Gravieren',
+            'preset_mode'     => $found['preset_mode'] ?? 'Benutzerdefiniert',
+            'dot_duration_us' => $found['dot_duration_us'],
+            'power_percent'   => $found['power_percent'],
+            'speed_mms'       => $found['speed_mms'] ?? 200,
+            'dpi'             => $found['dpi'],
+            'passes'          => $found['passes'] ?? 1,
+            'frequency_khz'   => $found['frequency_khz'],
+            'bitmap_mode'     => $found['bitmap_mode'] ?? 'Jarvis',
+            'engrave_mode'    => $found['engrave_mode'] ?? 'Bidirektional',
+            'vector_note'     => $found['vector_note'] ?? '',
+        ];
+
+        foreach (['equipment_key', 'process_mode', 'material'] as $optKey) {
+            if (!empty($found[$optKey])) {
+                $payload[$optKey] = $found[$optKey];
+            }
+        }
+
+        return $this->saveOrderItemLaserParameterOverrides($item, $side, $payload, false);
+    }
+
+    /**
+     * Kanonischer Multi-Profil-Katalog für alle Seelenfunke Laser-Produkte inkl. echter Lamellenrost-Höhen
+     * (19,5 mm Oberfläche auf schwarzem Lamellenrost, +2,0 mm Defokus = 21,5 mm für 100 kHz Schwarz-Anlassgravur;
+     * unantastbare 33,1 mm / 32,8 mm Master-Referenz für den Seelen Kristall).
+     *
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    public static function getDefaultProductLaserProfilesCatalog(): array
+    {
+        $goldSteelProfiles = [
+            [
+                'id'              => 'prof_schwarz_100khz',
+                'title'           => 'Schwarz (Anlass-Gravur 100 kHz)',
+                'is_default'      => true,
+                'focus_mm'        => 21.5,
+                'element_type'    => 'Bild',
+                'engrave_tab'     => 'Gravieren',
+                'preset_mode'     => 'Benutzerdefiniert',
+                'dot_duration_us' => 1100,
+                'power_percent'   => 95,
+                'dpi'             => 1270,
+                'frequency_khz'   => 100,
+                'speed_mms'       => 25,
+                'passes'          => 1,
+                'bitmap_mode'     => 'Schwellenwert',
+                'engrave_mode'    => 'Bidirektional',
+                'vector_note'     => 'Gravieren · 95 % · 25 mm/s · 1000 Linien/cm · 100 kHz',
+            ],
+            [
+                'id'              => 'prof_cockpit_sweetspot_65khz',
+                'title'           => 'Cockpit-Sweetspot 65 kHz',
+                'is_default'      => false,
+                'focus_mm'        => 20.9,
+                'element_type'    => 'Bild',
+                'engrave_tab'     => 'Gravieren',
+                'preset_mode'     => 'Benutzerdefiniert',
+                'dot_duration_us' => 210,
+                'power_percent'   => 45,
+                'dpi'             => 800,
+                'frequency_khz'   => 65,
+                'speed_mms'       => 110,
+                'passes'          => 1,
+                'bitmap_mode'     => 'Jarvis',
+                'engrave_mode'    => 'Bidirektional',
+                'vector_note'     => 'Gravieren · 42 % · 110 mm/s · 330 Linien/cm · 65 kHz',
+            ],
+            [
+                'id'              => 'prof_weiss_silber_kontrast',
+                'title'           => 'Weiß / Silber-Kontrast',
+                'is_default'      => false,
+                'focus_mm'        => 19.5,
+                'element_type'    => 'Bild',
+                'engrave_tab'     => 'Gravieren',
+                'preset_mode'     => 'Benutzerdefiniert',
+                'dot_duration_us' => 210,
+                'power_percent'   => 45,
+                'dpi'             => 600,
+                'frequency_khz'   => 40,
+                'speed_mms'       => 550,
+                'passes'          => 1,
+                'bitmap_mode'     => 'Jarvis',
+                'engrave_mode'    => 'Bidirektional',
+                'vector_note'     => 'Gravieren · 28 % · 550 mm/s · 300 Linien/cm · 40 kHz',
+            ],
+        ];
+
+        $pawProfiles = array_merge($goldSteelProfiles, [[
+            'id'              => 'prof_schwarz_bodenplatte_3_8',
+            'title'           => 'Schwarz · Bodenplatte ohne Lamellenrost (3,8 mm)',
+            'is_default'      => false,
+            'focus_mm'        => 3.8,
+            'element_type'    => 'Bild',
+            'engrave_tab'     => 'Gravieren',
+            'preset_mode'     => 'Benutzerdefiniert',
+            'dot_duration_us' => 1100,
+            'power_percent'   => 95,
+            'dpi'             => 1270,
+            'frequency_khz'   => 100,
+            'speed_mms'       => 25,
+            'passes'          => 1,
+            'bitmap_mode'     => 'Schwellenwert',
+            'engrave_mode'    => 'Bidirektional',
+            'vector_note'     => 'Gravieren · 95 % · 25 mm/s · 1000 Linien/cm · 100 kHz',
+        ]]);
+
+        $heartProfiles = array_merge($goldSteelProfiles, [[
+            'id'              => 'prof_massiv_4mm_lamellenrost',
+            'title'           => 'Schwarz · Massiv 4 mm Lamellenrost (+2,0 mm Defokus)',
+            'is_default'      => false,
+            'focus_mm'        => 23.7,
+            'element_type'    => 'Bild',
+            'engrave_tab'     => 'Gravieren',
+            'preset_mode'     => 'Benutzerdefiniert',
+            'dot_duration_us' => 1100,
+            'power_percent'   => 95,
+            'dpi'             => 1270,
+            'frequency_khz'   => 100,
+            'speed_mms'       => 20,
+            'passes'          => 1,
+            'bitmap_mode'     => 'Schwellenwert',
+            'engrave_mode'    => 'Bidirektional',
+            'vector_note'     => 'Gravieren · 98 % · 20 mm/s · 1000 Linien/cm · 100 kHz',
+        ]]);
+
+        $talismanProfiles = array_merge($goldSteelProfiles, [[
+            'id'              => 'prof_schwarz_bodenplatte_4_2',
+            'title'           => 'Schwarz · Bodenplatte ohne Lamellenrost (4,2 mm)',
+            'is_default'      => false,
+            'focus_mm'        => 4.2,
+            'element_type'    => 'Bild',
+            'engrave_tab'     => 'Gravieren',
+            'preset_mode'     => 'Benutzerdefiniert',
+            'dot_duration_us' => 1100,
+            'power_percent'   => 95,
+            'dpi'             => 1270,
+            'frequency_khz'   => 100,
+            'speed_mms'       => 25,
+            'passes'          => 1,
+            'bitmap_mode'     => 'Schwellenwert',
+            'engrave_mode'    => 'Bidirektional',
+            'vector_note'     => 'Gravieren · 95 % · 25 mm/s · 1000 Linien/cm · 100 kHz',
+        ]]);
+
+        return [
+            'seelen-pfote-hundemarke' => $pawProfiles,
+            'goldenes-seelen-herz'    => $heartProfiles,
+            'seelen-talisman'         => $talismanProfiles,
+            'seelen-anhaenger'        => [
+                [
+                    'id'              => 'prof_silber_kontrast_lamellenrost',
+                    'title'           => 'Weiß / Silber-Kontrast · Lamellenrost',
+                    'is_default'      => true,
+                    'focus_mm'        => 19.9,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Referenz',
+                    'dot_duration_us' => 280,
+                    'power_percent'   => 85,
+                    'dpi'             => 600,
+                    'frequency_khz'   => 40,
+                    'speed_mms'       => 450,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Zweidirektional',
+                    'vector_note'     => 'Gravieren · 70 % · 450 mm/s · 300 Linien/cm · 40 kHz',
+                ],
+                [
+                    'id'              => 'prof_rueckseite_widmung_feintext',
+                    'title'           => 'Rückseite Widmung & Feintext · Lamellenrost',
+                    'is_default'      => false,
+                    'focus_mm'        => 19.9,
+                    'element_type'    => 'Vektor',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 300,
+                    'power_percent'   => 55,
+                    'dpi'             => 500,
+                    'frequency_khz'   => 40,
+                    'speed_mms'       => 700,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Schwellenwert',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 55 % · 700 mm/s · 450 Linien/cm · 40 kHz',
+                ],
+                [
+                    'id'              => 'prof_flachbett_ohne_rost_1_8',
+                    'title'           => 'Weiß / Silber-Kontrast · Bodenplatte (1,8 mm)',
+                    'is_default'      => false,
+                    'focus_mm'        => 1.8,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 280,
+                    'power_percent'   => 85,
+                    'dpi'             => 600,
+                    'frequency_khz'   => 40,
+                    'speed_mms'       => 450,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 70 % · 450 mm/s · 300 Linien/cm · 40 kHz',
+                ],
+            ],
+            'seelen-kristall' => [
+                [
+                    'id'              => 'prof_kristall_seidenmatt_33_1',
+                    'title'           => 'Außen Seidenmatt-Frost (33,1 mm)',
+                    'is_default'      => true,
+                    'focus_mm'        => 33.1,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 450,
+                    'power_percent'   => 100,
+                    'dpi'             => 500,
+                    'frequency_khz'   => 40,
+                    'speed_mms'       => 80,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Zweidirektional',
+                    'vector_note'     => 'Gravieren · 60 % · 80 mm/s · 300 Linien/cm · 40 kHz',
+                ],
+                [
+                    'id'              => 'prof_kristall_master_32_8',
+                    'title'           => 'Master-Referenz Brennpunkt-Doku (32,8 mm)',
+                    'is_default'      => false,
+                    'focus_mm'        => 32.8,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 500,
+                    'power_percent'   => 85,
+                    'dpi'             => 600,
+                    'frequency_khz'   => 40,
+                    'speed_mms'       => 80,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Zweidirektional',
+                    'vector_note'     => 'Gravieren · 60 % · 80 mm/s · 300 Linien/cm · 40 kHz',
+                ],
+                [
+                    'id'              => 'prof_kristall_innengravur_3d',
+                    'title'           => 'Innengravur 3D Subsurface (15,6 mm)',
+                    'is_default'      => false,
+                    'equipment_key'   => 'inner_3d',
+                    'process_mode'    => 'Innengravur - 3D-Miniatur',
+                    'focus_mm'        => 15.6,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 220,
+                    'power_percent'   => 80,
+                    'dpi'             => 600,
+                    'frequency_khz'   => 40,
+                    'speed_mms'       => 80,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Innengravur · 80 % · 220 µs · 600 DPI · 40 kHz',
+                ],
+            ],
+            'id-armband-silber-herz' => [
+                [
+                    'id'              => 'prof_silber_schaumstoffmatte',
+                    'title'           => '925er Silber · Schaumstoffmatte (2,2 mm)',
+                    'is_default'      => true,
+                    'focus_mm'        => 2.2,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 240,
+                    'power_percent'   => 75,
+                    'dpi'             => 1000,
+                    'frequency_khz'   => 50,
+                    'speed_mms'       => 180,
+                    'passes'          => 2,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 75 % · 180 mm/s · 400 Linien/cm · 50 kHz · 2x',
+                ],
+                [
+                    'id'              => 'prof_silber_lamellenrost',
+                    'title'           => '925er Silber · Lamellenrost (+1,0 mm Defokus)',
+                    'is_default'      => false,
+                    'focus_mm'        => 20.5,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 240,
+                    'power_percent'   => 75,
+                    'dpi'             => 1000,
+                    'frequency_khz'   => 50,
+                    'speed_mms'       => 180,
+                    'passes'          => 2,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 75 % · 180 mm/s · 400 Linien/cm · 50 kHz · 2x',
+                ],
+                [
+                    'id'              => 'prof_silber_kreuzschraffur',
+                    'title'           => '925er Silber · Tiefkontrast 80 kHz',
+                    'is_default'      => false,
+                    'focus_mm'        => 2.0,
+                    'element_type'    => 'Vektor',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 240,
+                    'power_percent'   => 85,
+                    'dpi'             => 1000,
+                    'frequency_khz'   => 80,
+                    'speed_mms'       => 40,
+                    'passes'          => 2,
+                    'bitmap_mode'     => 'Schwellenwert',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 85 % · 40 mm/s · 1000 Linien/cm · 80 kHz · 2x',
+                ],
+            ],
+            'id-armband-gold-herz' => [
+                [
+                    'id'              => 'prof_vermeil_schaumstoffmatte',
+                    'title'           => 'Gold-Vermeil · Schon-Oxidation (2,5 mm)',
+                    'is_default'      => true,
+                    'focus_mm'        => 2.5,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 180,
+                    'power_percent'   => 34,
+                    'dpi'             => 1000,
+                    'frequency_khz'   => 70,
+                    'speed_mms'       => 130,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 34 % · 130 mm/s · 400 Linien/cm · 70 kHz',
+                ],
+                [
+                    'id'              => 'prof_vermeil_lamellenrost',
+                    'title'           => 'Gold-Vermeil · Lamellenrost (+1,3 mm Defokus)',
+                    'is_default'      => false,
+                    'focus_mm'        => 20.8,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 180,
+                    'power_percent'   => 34,
+                    'dpi'             => 1000,
+                    'frequency_khz'   => 70,
+                    'speed_mms'       => 130,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 34 % · 130 mm/s · 400 Linien/cm · 70 kHz',
+                ],
+                [
+                    'id'              => 'prof_vermeil_kontrast_90khz',
+                    'title'           => 'Gold-Vermeil · Dunkelkontrast 90 kHz',
+                    'is_default'      => false,
+                    'focus_mm'        => 2.4,
+                    'element_type'    => 'Vektor',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 180,
+                    'power_percent'   => 55,
+                    'dpi'             => 1000,
+                    'frequency_khz'   => 90,
+                    'speed_mms'       => 60,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Schwellenwert',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 55 % · 60 mm/s · 1000 Linien/cm · 90 kHz',
+                ],
+            ],
+            'weizenglas-personalisiert' => [
+                [
+                    'id'              => 'prof_ra3_seidenmatt',
+                    'title'           => 'RA3 Walze · Seidenmatt-Frost (Ø 74 mm)',
+                    'is_default'      => true,
+                    'equipment_key'   => 'rotary_ra3',
+                    'process_mode'    => 'Walze - Rotationsaufsatz',
+                    'focus_mm'        => 74.0,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 260,
+                    'power_percent'   => 55,
+                    'dpi'             => 400,
+                    'frequency_khz'   => 40,
+                    'speed_mms'       => 380,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 55 % · 380 mm/s · 300 Linien/cm · 40 kHz',
+                ],
+                [
+                    'id'              => 'prof_ra3_kraeftig_frost',
+                    'title'           => 'RA3 Walze · Kräftig-Frost',
+                    'is_default'      => false,
+                    'equipment_key'   => 'rotary_ra3',
+                    'process_mode'    => 'Walze - Rotationsaufsatz',
+                    'focus_mm'        => 74.0,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 650,
+                    'power_percent'   => 92,
+                    'dpi'             => 500,
+                    'frequency_khz'   => 40,
+                    'speed_mms'       => 125,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 80 % · 125 mm/s · 300 Linien/cm · 40 kHz',
+                ],
+            ],
+            'geschenkgutschein' => [
+                [
+                    'id'              => 'prof_gutschein_schwarz_rost',
+                    'title'           => 'Gutscheinkarte Schwarz · Lamellenrost (19,9 mm)',
+                    'is_default'      => true,
+                    'focus_mm'        => 19.9,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 220,
+                    'power_percent'   => 45,
+                    'dpi'             => 500,
+                    'frequency_khz'   => 55,
+                    'speed_mms'       => 850,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Schwellenwert',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 45 % · 850 mm/s · 450 Linien/cm · 55 kHz',
+                ],
+                [
+                    'id'              => 'prof_gutschein_gold_rost',
+                    'title'           => 'Gutscheinkarte Gold · Lamellenrost (20,3 mm)',
+                    'is_default'      => false,
+                    'focus_mm'        => 20.3,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 220,
+                    'power_percent'   => 52,
+                    'dpi'             => 800,
+                    'frequency_khz'   => 50,
+                    'speed_mms'       => 450,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Jarvis',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 52 % · 450 mm/s · 300 Linien/cm · 50 kHz',
+                ],
+                [
+                    'id'              => 'prof_gutschein_schwarz_bodenplatte',
+                    'title'           => 'Gutscheinkarte Schwarz · Bodenplatte (0,8 mm)',
+                    'is_default'      => false,
+                    'focus_mm'        => 0.8,
+                    'element_type'    => 'Bild',
+                    'engrave_tab'     => 'Gravieren',
+                    'preset_mode'     => 'Benutzerdefiniert',
+                    'dot_duration_us' => 220,
+                    'power_percent'   => 45,
+                    'dpi'             => 500,
+                    'frequency_khz'   => 55,
+                    'speed_mms'       => 850,
+                    'passes'          => 1,
+                    'bitmap_mode'     => 'Schwellenwert',
+                    'engrave_mode'    => 'Bidirektional',
+                    'vector_note'     => 'Gravieren · 45 % · 850 mm/s · 450 Linien/cm · 55 kHz',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * Synchronisiert die kanonischen Multi-Laserprofile für ein Produkt-Settings-Array (für Seeder & Migration)
+     * und aktualisiert automatisch die primären xtool_*-Felder anhand des Standard-Profils.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array<string, mixed>
+     */
+    public static function applySeededMultiLaserProfilesToSettings(string $slug, array $settings): array
+    {
+        $catalog = self::getDefaultProductLaserProfilesCatalog();
+        $tplKey = trim((string) ($settings['template_package'] ?? ''));
+        $profiles = $catalog[$slug] ?? ($tplKey !== '' && isset($catalog[$tplKey]) ? $catalog[$tplKey] : null);
+
+        if ($profiles !== null) {
+            $settings['xtool_profiles'] = $profiles;
+            $settings = Product::syncLaserProfilesAndPrimarySettings($settings, false);
+
+            // Vektor-Begleitfelder bei den 3 Gold-Edelstahl-Marken synchron zum 100 kHz Standard-Profil halten
+            if (in_array($slug, ['seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'seelen-talisman'], true)) {
+                $settings['xtool_handbook_preset']      = 'lamellenrost_schwarz_100khz';
+                $settings['xtool_vector_focus_mm']      = 21.5;
+                $settings['xtool_vector_power_percent'] = 95;
+                $settings['xtool_vector_speed_mms']     = 25;
+                $settings['xtool_vector_frequency_khz'] = 100;
+                $settings['xtool_vector_lpc']           = 1000;
+                $settings['xtool_vector_dpi']           = 2540;
+                $settings['xtool_vector_passes']        = 1;
+                $settings['xtool_lpc']                  = 1000;
+            }
+        } else {
+            $settings = Product::syncLaserProfilesAndPrimarySettings($settings, false);
+        }
+
+        return $settings;
     }
 
     /**
@@ -3073,7 +3830,7 @@ class XtoolLaserCockpitService
         $presetMode = (string) ($laserSummary['preset_mode'] ?? 'Benutzerdefiniert');
         $vectorNote = (string) ($laserSummary['vector_note'] ?? '');
         $processingType = self::resolveXtoolProcessingType($elementType, $engraveTab);
-        $dotDurationUs = max(1, min(5000, (int) ($laserSummary['dot_duration_us'] ?: 120)));
+        $dotDurationUs = max(self::MIN_DOT_DURATION_US, min(self::MAX_DOT_DURATION_US, (int) ($laserSummary['dot_duration_us'] ?: 120)));
         $powerPercent = max(1, min(100, (int) ($laserSummary['power_percent'] ?: 70)));
         $speedMms = max(1, min(4000, (int) ($laserSummary['speed_mms'] ?: 200)));
         $dpi = max(50, min(2540, (int) ($laserSummary['dpi'] ?: 500)));
@@ -3635,7 +4392,7 @@ class XtoolLaserCockpitService
     {
         $pitchMm = 25.4 / max(50, $dpi);
 
-        return max(1, min(5000, (int) round(($pitchMm / max(1, $speedMms)) * 1000000.0)));
+        return max(self::MIN_DOT_DURATION_US, min(self::MAX_DOT_DURATION_US, (int) round(($pitchMm / max(1, $speedMms)) * 1000000.0)));
     }
 
     /**
@@ -3734,7 +4491,7 @@ class XtoolLaserCockpitService
         $presetMode = (string) ($laserSummary['preset_mode'] ?? 'Benutzerdefiniert');
         $vectorNote = (string) ($laserSummary['vector_note'] ?? '');
         $processingType = self::resolveXtoolProcessingType($elementType, $engraveTab);
-        $dotDurationUs = max(1, min(5000, (int) ($laserSummary['dot_duration_us'] ?: 120)));
+        $dotDurationUs = max(self::MIN_DOT_DURATION_US, min(self::MAX_DOT_DURATION_US, (int) ($laserSummary['dot_duration_us'] ?: 120)));
         $powerPercent = max(1, min(100, (int) ($laserSummary['power_percent'] ?: 70)));
         $speedMms = max(1, min(4000, (int) ($laserSummary['speed_mms'] ?: 200)));
         $dpi = max(50, min(2540, (int) ($laserSummary['dpi'] ?: 500)));
@@ -3997,15 +4754,21 @@ class XtoolLaserCockpitService
         $payload = $exportService->buildLaserDesignPayload($itemId, $side, true);
         $item = $payload['item'];
         $effectiveLaserParams = $this->resolveEffectiveLaserParameters($item, $side);
+        $focusMmForZ = isset($effectiveLaserParams['focus_mm']) && is_numeric($effectiveLaserParams['focus_mm'])
+            ? round((float) $effectiveLaserParams['focus_mm'], 2)
+            : null;
+        $equipKeyForZ = (string) ($effectiveLaserParams['equipment_key'] ?? 'flatbed_standard');
+        $focusCtrlCmd = self::buildZAxisFocusControlCommand($focusMmForZ, $effectiveType, $equipKeyForZ);
+        $targetZMm = $focusCtrlCmd !== null ? (float) $focusCtrlCmd['data']['z'] : null;
 
         // Direkte V2-TLS-WebSocket-Übertragung an den xTool F2 Ultra UV bzw. Stage <-> Mini-PC Echtzeit-Relay
-        $sendResult = ['ok' => false, 'task_id' => null, 'error' => null];
+        $sendResult = ['ok' => false, 'task_id' => null, 'target_z_mm' => $targetZMm, 'error' => null];
         $isUnitTestRestricted = app()->runningUnitTests() && !$this->allowRelayInTests;
 
         if (!$isUnitTestRestricted) {
-            if (!$this->isCloudEnvironment() && !app()->runningUnitTests()) {
+            if (!$this->isCloudEnvironment() && (!app()->runningUnitTests() || $this->allowV2SocketInTests)) {
                 $sendPayload = ($effectiveType === 'framing') ? $xfData['border_gcode'] : $xfData['bytes'];
-                $sendResult = $this->sendJobToLaserV2($effectiveType, $sendPayload, $safeIp);
+                $sendResult = $this->sendJobToLaserV2($effectiveType, $sendPayload, $safeIp, $focusMmForZ, $equipKeyForZ);
             }
 
             if (!($sendResult['ok'] ?? false)) {
@@ -4013,14 +4776,18 @@ class XtoolLaserCockpitService
                 if ($heartbeat !== null && $heartbeat['age_seconds'] <= 20.0) {
                     $relayAction = ($effectiveType === 'framing') ? 'frame_border' : 'send_xf';
                     $relayJob = $this->enqueueRelayJob($relayAction, [
-                        'laser_ip'    => $safeIp,
-                        'xf_base64'   => ($effectiveType === 'engrave') ? base64_encode($xfData['bytes']) : null,
-                        'gcode'       => $xfData['border_gcode'],
-                        'center_x_mm' => (float) $xfData['center_x_mm'],
-                        'center_y_mm' => (float) $xfData['center_y_mm'],
-                        'width_mm'    => (float) $xcsData['width_mm'],
-                        'height_mm'   => (float) $xcsData['height_mm'],
-                        'angle_deg'   => (float) $xfData['angle_deg'],
+                        'laser_ip'      => $safeIp,
+                        'xf_base64'     => ($effectiveType === 'engrave') ? base64_encode($xfData['bytes']) : null,
+                        'gcode'         => $xfData['border_gcode'],
+                        'center_x_mm'   => (float) $xfData['center_x_mm'],
+                        'center_y_mm'   => (float) $xfData['center_y_mm'],
+                        'width_mm'      => (float) $xcsData['width_mm'],
+                        'height_mm'     => (float) $xcsData['height_mm'],
+                        'angle_deg'     => (float) $xfData['angle_deg'],
+                        'equipment_key' => $equipKeyForZ,
+                        'focus_mm'      => $focusMmForZ,
+                        'target_z_mm'   => $targetZMm,
+                        'focus_control' => $focusCtrlCmd !== null ? $focusCtrlCmd['data'] : null,
                     ]);
 
                     $relayRes = $this->waitForRelayJobCompletion($relayJob['job_id'], $this->relayJobWaitSeconds);
@@ -4067,6 +4834,9 @@ class XtoolLaserCockpitService
             'xf_filename'      => $xfData['filename'],
             'border_gcode'     => $xfData['border_gcode'],
             'description'      => $xfData['description'],
+            'focus_mm'         => $focusMmForZ,
+            'target_z_mm'      => $targetZMm,
+            'focus_control'    => $focusCtrlCmd !== null ? $focusCtrlCmd['data'] : null,
             'laser_parameters' => [
                 'material'        => $effectiveLaserParams['material'],
                 'equipment_key'   => $effectiveLaserParams['equipment_key'],
@@ -4854,6 +5624,21 @@ class XtoolLaserCockpitService
             self::DEFAULT_LASER_IP
         );
 
+        $rawFocus = isset($params['focus_mm']) && is_numeric($params['focus_mm']) && (float) $params['focus_mm'] > 0
+            ? round((float) $params['focus_mm'], 2)
+            : null;
+        $equipKey = isset($params['equipment_key']) && is_string($params['equipment_key']) && trim($params['equipment_key']) !== ''
+            ? self::normalizeEquipmentKey($params['equipment_key'])
+            : 'flatbed_standard';
+        $jobTypeForZ = ($action === 'send_xf') ? 'engrave' : 'framing';
+        $autoFocusCmd = self::buildZAxisFocusControlCommand($rawFocus, $jobTypeForZ, $equipKey);
+        $resolvedTargetZ = isset($params['target_z_mm']) && is_numeric($params['target_z_mm']) && (float) $params['target_z_mm'] > 0
+            ? round((float) $params['target_z_mm'], 2)
+            : ($autoFocusCmd !== null ? (float) $autoFocusCmd['data']['z'] : null);
+        $resolvedFocusControl = isset($params['focus_control']) && is_array($params['focus_control'])
+            ? $params['focus_control']
+            : ($autoFocusCmd !== null ? $autoFocusCmd['data'] : null);
+
         $jobRecord = [
             'job_id'        => $jobId,
             'status'        => 'pending',
@@ -4870,6 +5655,10 @@ class XtoolLaserCockpitService
             'width_mm'      => isset($params['width_mm']) ? round((float) $params['width_mm'], 2) : 80.0,
             'height_mm'     => isset($params['height_mm']) ? round((float) $params['height_mm'], 2) : 80.0,
             'angle_deg'     => isset($params['angle_deg']) ? round((float) $params['angle_deg'], 2) : 0.0,
+            'equipment_key' => $equipKey,
+            'focus_mm'      => $rawFocus,
+            'target_z_mm'   => $resolvedTargetZ,
+            'focus_control' => $resolvedFocusControl,
             'result'        => null,
         ];
 
@@ -4946,16 +5735,20 @@ class XtoolLaserCockpitService
             $this->atomicWriteJsonFile($chosen['path'], $record);
 
             $claimedWireJob = [
-                'job_id'      => (string) $record['job_id'],
-                'action'      => (string) $record['action'],
-                'laser_ip'    => (string) ($record['laser_ip'] ?? self::DEFAULT_LASER_IP),
-                'xf_base64'   => $record['xf_base64'] ?? null,
-                'gcode'       => $record['gcode'] ?? null,
-                'center_x_mm' => (float) ($record['center_x_mm'] ?? 100.0),
-                'center_y_mm' => (float) ($record['center_y_mm'] ?? 100.0),
-                'width_mm'    => (float) ($record['width_mm'] ?? 80.0),
-                'height_mm'   => (float) ($record['height_mm'] ?? 80.0),
-                'angle_deg'   => (float) ($record['angle_deg'] ?? 0.0),
+                'job_id'        => (string) $record['job_id'],
+                'action'        => (string) $record['action'],
+                'laser_ip'      => (string) ($record['laser_ip'] ?? self::DEFAULT_LASER_IP),
+                'xf_base64'     => $record['xf_base64'] ?? null,
+                'gcode'         => $record['gcode'] ?? null,
+                'center_x_mm'   => (float) ($record['center_x_mm'] ?? 100.0),
+                'center_y_mm'   => (float) ($record['center_y_mm'] ?? 100.0),
+                'width_mm'      => (float) ($record['width_mm'] ?? 80.0),
+                'height_mm'     => (float) ($record['height_mm'] ?? 80.0),
+                'angle_deg'     => (float) ($record['angle_deg'] ?? 0.0),
+                'equipment_key' => $record['equipment_key'] ?? 'flatbed_standard',
+                'focus_mm'      => isset($record['focus_mm']) && is_numeric($record['focus_mm']) ? (float) $record['focus_mm'] : null,
+                'target_z_mm'   => isset($record['target_z_mm']) && is_numeric($record['target_z_mm']) ? (float) $record['target_z_mm'] : null,
+                'focus_control' => $record['focus_control'] ?? null,
             ];
         });
 

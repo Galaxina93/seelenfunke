@@ -137,7 +137,7 @@ class ProductCreate extends Component
         'purchase_price' => 'Dein realer Netto-Einkaufspreis des Rohlings. Wird für Margen- & Unit-Economics-Berechnung verwendet.',
         'legal_type' => 'Produktsicherheit: Typische Deko-Gegenstände dürfen KEIN CE-Zeichen tragen (bei Spielzeug-Optik Hinweis: „Kein Spielzeug“). Bedarfsgegenstände mit Lebensmittelkontakt (z. B. Gläser, Bretter) erfordern Konformitätserklärung & Glas-Gabel-Symbol.',
         'description' => 'Produktbeschreibung im Shop. Pflichtangaben beachten: Bei Textilien Faserzusammensetzung nennen (z. B. „100 % Baumwolle“); bei Deko in Spielzeug-Optik Warnhinweis aufnehmen.',
-        'sku' => 'SKU (Stock Keeping Unit) – Eindeutige Artikelnummer (Pflichtfeld).',
+        'sku' => 'SKU (Stock Keeping Unit): Eindeutige Artikelnummer (Pflichtfeld).',
         'barcode' => 'EAN / GTIN für Scanner und externe Marktplätze.',
         'brand' => 'Marke / Hersteller. GPSR-Pflicht (seit 13.12.2024): Jedes physische Produkt bzw. dessen Verpackung muss zwingend mit Namen und Postanschrift des Herstellers gekennzeichnet sein.',
         'supplier' => 'Zugeordneter B2B-Lieferant für Einkauf, Lieferzeiten und Nachbestellungen.',
@@ -856,6 +856,7 @@ class ProductCreate extends Component
         $this->configSettings['personalization_mode'] = in_array($pMode, ['studio', 'custom_fields'], true) ? $pMode : 'studio';
         $this->configSettings['custom_fields'] = $this->product->getCustomFieldsDefinition();
         $this->configSettings['digital_documents'] = $this->product->getDigitalDocuments();
+        $this->configSettings = Product::syncLaserProfilesAndPrimarySettings($this->configSettings, false);
         $this->new_digital_documents = [];
         $this->new_digital_document_title = '';
         $this->digitalDocumentsSavedText = null;
@@ -1898,7 +1899,7 @@ class ProductCreate extends Component
         $url = trim($this->quickAiReorderUrl);
 
         if ($url === '') {
-            $this->addError('quickAiReorderUrl', 'Bitte gib den Kauflink zum Rohling-Produkt an – alle anderen Felder berechnet die KI automatisch.');
+            $this->addError('quickAiReorderUrl', 'Bitte gib den Kauflink zum Rohling-Produkt an, alle anderen Felder berechnet die KI automatisch.');
             return;
         }
 
@@ -2519,6 +2520,21 @@ class ProductCreate extends Component
                 ? round((float) $rawFocus, 2)
                 : null;
         }
+
+        if (array_key_exists('xtool_dot_duration_us', $this->configSettings)) {
+            $rawDot = str_replace(',', '.', trim((string) ($this->configSettings['xtool_dot_duration_us'] ?? '')));
+            $this->configSettings['xtool_dot_duration_us'] = ($rawDot !== '' && is_numeric($rawDot) && (int) round((float) $rawDot) > 0)
+                ? max(Product::MIN_LASER_DOT_DURATION_US, min(Product::MAX_LASER_DOT_DURATION_US, (int) round((float) $rawDot)))
+                : null;
+        }
+
+        $dbProfilesBefore = is_array($latestDbSettings['xtool_profiles'] ?? null) ? $latestDbSettings['xtool_profiles'] : [];
+        $uiProfilesNow = is_array($this->configSettings['xtool_profiles'] ?? null) ? $this->configSettings['xtool_profiles'] : [];
+        $profilesChangedInUi = !empty($uiProfilesNow) && json_encode($uiProfilesNow) !== json_encode($dbProfilesBefore);
+        $this->configSettings = Product::syncLaserProfilesAndPrimarySettings(
+            $this->configSettings,
+            !$profilesChangedInUi
+        );
 
         // Lieferanten-Vorlaufzeit bei Bestand 0 (Überverkauf) sauber speichern oder bereinigen
         $leadMin = ($this->out_of_stock_lead_days_min !== '' && $this->out_of_stock_lead_days_min !== null && (int) $this->out_of_stock_lead_days_min > 0)

@@ -6,6 +6,7 @@ use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
 use App\Models\Order\OrderOrder;
+use App\Models\Order\OrderRevocation;
 use App\Services\System\SystemSecurityService;
 use Closure;
 use Illuminate\Contracts\Cache\LockProvider;
@@ -446,10 +447,119 @@ class LobbyInstanceService
     }
 
     /**
-     * Prueft zentral die 3 verbindlichen Voraussetzungen fuer die Halle der Helden ('heroes')
+     * Bildet alle normierten Bestellnummer-Kandidaten fuer den Abgleich mit order_revocations.
+     *
+     * @return array<int, string>
+     */
+    public static function orderNumberRevocationCandidates(string $rawNumber): array
+    {
+        $trimmed = trim($rawNumber);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        $cleanNumber = strtoupper(trim(ltrim((string) preg_replace('/^(bestellung|order|nr\.?|rechnung)\s*/i', '', $trimmed), '#')));
+
+        return array_values(array_unique(array_filter([
+            $trimmed,
+            strtoupper($trimmed),
+            $cleanNumber,
+            $cleanNumber !== '' ? ('ORD-' . $cleanNumber) : '',
+            $cleanNumber !== '' ? ('SF-' . $cleanNumber) : '',
+        ])));
+    }
+
+    /**
+     * Ermittelt fuer eine Liste von Kunden-IDs in konstanten Queries alle Kunden mit mindestens 1 bezahlten,
+     * nicht stornierten, nicht erstatteten und nicht widerrufenen Bestellung.
+     *
+     * @param array<int, string> $customerIds
+     * @return array<string, bool>
+     */
+    public static function resolveCustomerIdsWithValidPaidOrder(array $customerIds): array
+    {
+        $uniqueIds = array_values(array_unique(array_filter(array_map('strval', $customerIds))));
+        if (empty($uniqueIds) || !Schema::hasTable('order_orders')) {
+            return [];
+        }
+
+        $orders = OrderOrder::query()
+            ->select(['id', 'customer_id', 'order_number'])
+            ->whereIn('customer_id', $uniqueIds)
+            ->where('payment_status', 'paid')
+            ->whereNotIn('status', ['cancelled', 'refunded', 'revoked'])
+            ->whereNotIn('payment_status', ['refunded', 'cancelled', 'revoked', 'failed'])
+            ->get();
+
+        if ($orders->isEmpty()) {
+            return [];
+        }
+
+        $revokedLookup = [];
+        if (Schema::hasTable('order_revocations')) {
+            $allCandidates = [];
+            foreach ($orders as $order) {
+                foreach (self::orderNumberRevocationCandidates((string) ($order->order_number ?? '')) as $cand) {
+                    $allCandidates[$cand] = $cand;
+                }
+            }
+
+            if (!empty($allCandidates)) {
+                $revokedNumbers = OrderRevocation::query()
+                    ->whereIn('order_number', array_values($allCandidates))
+                    ->whereIn('status', ['approved', 'processed', 'completed'])
+                    ->pluck('order_number')
+                    ->all();
+
+                foreach ($revokedNumbers as $revNum) {
+                    foreach (self::orderNumberRevocationCandidates((string) $revNum) as $cand) {
+                        $revokedLookup[strtoupper($cand)] = true;
+                    }
+                }
+            }
+        }
+
+        $validCustomers = [];
+        foreach ($orders as $order) {
+            $cid = (string) $order->customer_id;
+            if (isset($validCustomers[$cid])) {
+                continue;
+            }
+
+            $isRevoked = false;
+            if (!empty($revokedLookup)) {
+                foreach (self::orderNumberRevocationCandidates((string) ($order->order_number ?? '')) as $cand) {
+                    if (isset($revokedLookup[strtoupper($cand)])) {
+                        $isRevoked = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!$isRevoked) {
+                $validCustomers[$cid] = true;
+            }
+        }
+
+        return $validCustomers;
+    }
+
+    public static function hasValidPaidNonRevokedOrder(string $customerId): bool
+    {
+        if ($customerId === '') {
+            return false;
+        }
+
+        $lookup = self::resolveCustomerIdsWithValidPaidOrder([$customerId]);
+
+        return isset($lookup[$customerId]);
+    }
+
+    /**
+     * Prueft zentral die verbindlichen Voraussetzungen fuer die Halle der Helden ('heroes')
      * und das gesamte Magma-Level ('lava', Stufen 1 bis 10 inkl. Truhe):
-     * 1. Eingeloggter Kunde (login_required)
-     * 2. Mindestens eine bezahlte, nicht stornierte/erstattete Bestellung (order_required)
+     * 1. Aktiver, verifizierter Kunde ohne offenes Initialpasswort
+     * 2. Mindestens eine bezahlte, nicht stornierte/erstattete/widerrufene Bestellung (order_required)
      * 3. Seelenfunken-Magie aktiviert (magic_activation_required)
      *
      * @return array{
@@ -481,11 +591,46 @@ class LobbyInstanceService
             ];
         }
 
-        $hasCompletedOrder = Schema::hasTable('order_orders')
-            && OrderOrder::where('customer_id', $customer->id)
-                ->where('payment_status', 'paid')
-                ->whereNotIn('status', ['cancelled', 'refunded'])
-                ->exists();
+        if (method_exists($customer, 'trashed') && $customer->trashed()) {
+            return [
+                'is_authenticated' => false,
+                'has_completed_order' => false,
+                'gamification_active' => false,
+                'can_enter_sanctums' => false,
+                'sanctum_block_reason' => 'account_deactivated',
+                'login_url' => $loginUrl,
+                'dashboard_url' => $dashboardUrl,
+                'message' => 'Dieses Kundenkonto ist deaktiviert.',
+            ];
+        }
+
+        if (method_exists($customer, 'hasVerifiedEmail') && !$customer->hasVerifiedEmail()) {
+            return [
+                'is_authenticated' => true,
+                'has_completed_order' => false,
+                'gamification_active' => false,
+                'can_enter_sanctums' => false,
+                'sanctum_block_reason' => 'email_verification_required',
+                'login_url' => $loginUrl,
+                'dashboard_url' => '/email/verify',
+                'message' => 'Bitte bestätige zuerst deine E-Mail-Adresse über den Link in deinem Postfach.',
+            ];
+        }
+
+        if (!empty($customer->needs_password_change)) {
+            return [
+                'is_authenticated' => true,
+                'has_completed_order' => false,
+                'gamification_active' => false,
+                'can_enter_sanctums' => false,
+                'sanctum_block_reason' => 'password_change_required',
+                'login_url' => $loginUrl,
+                'dashboard_url' => '/customer/password-change-force',
+                'message' => 'Bitte ändere zuerst dein vorläufiges Passwort.',
+            ];
+        }
+
+        $hasCompletedOrder = self::hasValidPaidNonRevokedOrder((string) $customer->id);
 
         $gamificationActive = Schema::hasTable('customer_gamifications')
             && CustomerGamification::where('customer_id', $customer->id)
@@ -501,7 +646,7 @@ class LobbyInstanceService
             $message = 'Ab deiner ersten abgeschlossenen Bestellung schaltest du die Halle der Helden und das Magma-Level frei.';
         } elseif (!$gamificationActive) {
             $blockReason = 'magic_activation_required';
-            $message = 'Bitte führe im Kundenbereich zuerst Magie aktivieren aus, um die Halle der Helden und das Magma-Level zu betreten.';
+            $message = 'Bitte führe zuerst Magie aktivieren aus, um die Halle der Helden und das Magma-Level zu betreten.';
         }
 
         return [
@@ -1026,7 +1171,30 @@ class LobbyInstanceService
             }
         }
         ksort($validLevels, SORT_NUMERIC);
-        $clearedLevels = array_values($validLevels);
+        $allClearedLevels = array_values($validLevels);
+
+        $magmaUnlockedCap = 1;
+        if ($profile !== null) {
+            $attrs = $profile->getAttributes();
+            if (array_key_exists('magma_unlocked_level', $attrs) && $attrs['magma_unlocked_level'] !== null) {
+                $magmaUnlockedCap = max(1, min(LavaParkourService::MAX_MAGMA_LEVEL, (int) $attrs['magma_unlocked_level']));
+            } else {
+                $maxSeq = 0;
+                for ($i = 1; $i <= LavaParkourService::MAX_MAGMA_LEVEL; $i++) {
+                    if (in_array($i, $allClearedLevels, true)) {
+                        $maxSeq = $i;
+                    } else {
+                        break;
+                    }
+                }
+                $magmaUnlockedCap = max(1, min(LavaParkourService::MAX_MAGMA_LEVEL, $maxSeq + 1));
+            }
+        }
+
+        $clearedLevels = array_values(array_filter(
+            $allClearedLevels,
+            static fn (int $lvl): bool => $lvl <= $magmaUnlockedCap
+        ));
 
         $magmaHighestLevel = !empty($clearedLevels) ? max($clearedLevels) : 0;
         $magmaClearedCount = count($clearedLevels);
@@ -1050,7 +1218,7 @@ class LobbyInstanceService
      * Laedt und sortiert alle berechtigten aktiven Seelenfunken-Teilnehmer identisch fuer die
      * 3D-Halle der Helden (/funkenwerk-welt/heroes-data) und die 2D-Rangliste:
      * - is_active = true + gueltiger Customer
-     * - mindestens 1 bezahlte Bestellung ODER funken_total_earned > 0 ODER gemeistertes Magma-Level
+     * - zwingend mindestens 1 bezahlte, nicht stornierte und nicht widerrufene Bestellung
      * - Sortierung: hero_score DESC -> magma_highest_level DESC -> funken_total_earned DESC -> level DESC -> updated_at ASC -> id ASC
      *
      * @return array<int, array{
@@ -1068,13 +1236,13 @@ class LobbyInstanceService
      */
     public static function loadRankedHeroEntries(int $limit = 500): array
     {
-        if (!Schema::hasTable('customer_gamifications')) {
+        if (!Schema::hasTable('customer_gamifications') || !Schema::hasTable('order_orders')) {
             return [];
         }
 
-        $relations = ['customer:id,first_name,last_name,email,created_at'];
+        $relations = ['customer:id,first_name,last_name,email,email_verified_at,needs_password_change,created_at'];
         if (Schema::hasTable('customer_profiles')) {
-            $relations[] = 'customer.profile:id,customer_id,photo_path';
+            $relations[] = 'customer.profile:id,customer_id,photo_path,email_verified_at';
         }
 
         $profiles = CustomerGamification::with($relations)
@@ -1086,47 +1254,33 @@ class LobbyInstanceService
             return [];
         }
 
-        $preliminary = [];
-        $zeroActivityCustomerIds = [];
-
+        $allCustomerIds = [];
         foreach ($profiles as $profile) {
-            if (!$profile->customer) {
-                continue;
+            if ($profile->customer && !(method_exists($profile->customer, 'trashed') && $profile->customer->trashed())) {
+                $allCustomerIds[] = (string) $profile->customer_id;
             }
-            $metrics = self::calculateHeroRankingMetrics($profile);
-            if ($metrics['sparks_total'] <= 0 && $metrics['magma_cleared_count'] <= 0) {
-                $zeroActivityCustomerIds[] = (string) $profile->customer_id;
-            }
-            $preliminary[] = [
-                'profile' => $profile,
-                'metrics' => $metrics,
-            ];
         }
 
-        $paidOrderCustomerLookup = [];
-        if (!empty($zeroActivityCustomerIds) && Schema::hasTable('order_orders')) {
-            $paidIds = OrderOrder::whereIn('customer_id', array_values(array_unique($zeroActivityCustomerIds)))
-                ->where('payment_status', 'paid')
-                ->whereNotIn('status', ['cancelled', 'refunded'])
-                ->pluck('customer_id')
-                ->all();
-
-            foreach ($paidIds as $cid) {
-                $paidOrderCustomerLookup[(string) $cid] = true;
-            }
+        $validPaidOrderCustomerLookup = self::resolveCustomerIdsWithValidPaidOrder($allCustomerIds);
+        if (empty($validPaidOrderCustomerLookup)) {
+            return [];
         }
 
         $entries = [];
-        foreach ($preliminary as $row) {
-            $metrics = $row['metrics'];
-            $cid = (string) $row['profile']->customer_id;
-            $isEligible = $metrics['sparks_total'] > 0
-                || $metrics['magma_cleared_count'] > 0
-                || isset($paidOrderCustomerLookup[$cid]);
-
-            if ($isEligible) {
-                $entries[] = $row;
+        foreach ($profiles as $profile) {
+            if (!$profile->customer || (method_exists($profile->customer, 'trashed') && $profile->customer->trashed())) {
+                continue;
             }
+
+            $cid = (string) $profile->customer_id;
+            if (!isset($validPaidOrderCustomerLookup[$cid])) {
+                continue;
+            }
+
+            $entries[] = [
+                'profile' => $profile,
+                'metrics' => self::calculateHeroRankingMetrics($profile),
+            ];
         }
 
         usort($entries, static function (array $a, array $b): int {

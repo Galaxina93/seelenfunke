@@ -1703,7 +1703,7 @@ class OrderOverview extends Component
         return $effective;
     }
 
-    public function updateLaserParameters(string $itemId, string $side = 'front', array $params = []): void
+    public function updateLaserParameters(string $itemId, string $side = 'front', array $params = [], ?int $clientSeq = null): void
     {
         $item = $this->resolveOrderItemForLaserAction($itemId);
         if (!$item || empty($params)) {
@@ -1716,7 +1716,92 @@ class OrderOverview extends Component
         $this->syncOrderItemConfigInMemory($item);
 
         $this->laserLastActionStatus = "Parameter aktiv: {$effective['material']} · {$effective['focus_formatted']} · {$effective['power_percent']} % · {$effective['dot_duration_us']} µs · {$effective['frequency_khz']} kHz · {$effective['dpi']} DPI · {$effective['passes']}×";
-        $this->dispatch('laser-params-sync', params: $effective);
+        $this->dispatch(
+            'laser-params-sync',
+            params: $effective,
+            profiles: $item->product?->getLaserProfiles() ?? [],
+            seq: $clientSeq
+        );
+    }
+
+    public function applyProductLaserProfile(?string $itemId = null, ?string $side = null, string $profileId = '', ?int $clientSeq = null): void
+    {
+        $targetItemId = $itemId ?: (string) ($this->previewItem->id ?? '');
+        $effectiveSide = ($side === 'back') ? 'back' : ($this->laserCockpitSide === 'back' ? 'back' : 'front');
+        $item = $this->resolveOrderItemForLaserAction($targetItemId);
+        if (!$item || !$item->product || trim($profileId) === '') {
+            return;
+        }
+
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $effective = $cockpit->applyProductLaserProfileToOrderItem($item, $effectiveSide, $profileId);
+        if ($effective === null) {
+            return;
+        }
+
+        $this->syncOrderItemConfigInMemory($item);
+        $profiles = $item->product->getLaserProfiles();
+        $cleanId = preg_replace('/^profile:/i', '', trim($profileId)) ?? trim($profileId);
+        $matched = collect($profiles)->first(fn ($p) => ($p['id'] ?? '') === $cleanId || ($p['title'] ?? '') === $cleanId);
+        $titleLabel = is_array($matched) ? (string) ($matched['title'] ?? 'Profil') : 'Profil';
+
+        $this->laserLastActionStatus = "Profil geladen: {$titleLabel} ({$effective['focus_formatted']} · {$effective['power_percent']} % · {$effective['dot_duration_us']} µs)";
+        $this->dispatch(
+            'laser-params-sync',
+            params: $effective,
+            profiles: $profiles,
+            active_profile_id: is_array($matched) ? (string) ($matched['id'] ?? '') : $cleanId,
+            seq: $clientSeq
+        );
+    }
+
+    public function saveOrderLaserParametersAsProductProfile(
+        ?string $itemId = null,
+        ?string $side = null,
+        string $profileTitle = '',
+        ?array $params = null,
+        bool $makeDefault = false
+    ): void {
+        $targetItemId = $itemId ?: (string) ($this->previewItem->id ?? '');
+        $effectiveSide = ($side === 'back') ? 'back' : ($this->laserCockpitSide === 'back' ? 'back' : 'front');
+        $item = $this->resolveOrderItemForLaserAction($targetItemId);
+        if (!$item || !$item->product) {
+            return;
+        }
+
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $effective = (is_array($params) && !empty($params))
+            ? $cockpit->saveOrderItemLaserParameterOverrides($item, $effectiveSide, $params, false)
+            : $cockpit->resolveEffectiveLaserParameters($item, $effectiveSide);
+
+        $savedResult = $cockpit->saveLaserProfileToProduct($item->product, $profileTitle, $effective, $makeDefault);
+        $item->load('product');
+        if ($this->selectedOrder && $this->selectedOrder->relationLoaded('items')) {
+            $loaded = $this->selectedOrder->items->firstWhere('id', $item->id);
+            if ($loaded) {
+                $loaded->setRelation('product', $item->product);
+            }
+        }
+
+        if ($makeDefault) {
+            $effective = $cockpit->resetOrderItemLaserParameterOverrides($item, $effectiveSide);
+        }
+        $this->syncOrderItemConfigInMemory($item);
+
+        $savedProfile = $savedResult['profile'];
+        $savedTitle = (string) ($savedProfile['title'] ?? 'Profil');
+        $this->laserLastActionStatus = "Produkt-Profil gespeichert: {$savedTitle}";
+        $this->dispatch(
+            'laser-params-sync',
+            params: $effective,
+            profiles: $savedResult['profiles'],
+            active_profile_id: (string) ($savedProfile['id'] ?? '')
+        );
+        $this->notifyOrderFeedback(
+            'success',
+            'Produkt-Profil gespeichert',
+            "Profil „{$savedTitle}“ wurde dauerhaft in {$item->product->name} hinterlegt."
+        );
     }
 
     public function saveOrderItemLaserParameters(?string $itemId = null, ?string $side = null, array $params = []): void
@@ -1784,7 +1869,11 @@ class OrderOverview extends Component
         }
 
         $this->laserLastActionStatus = 'Als Produkt-Standard (4.2) gespeichert';
-        $this->dispatch('laser-params-sync', params: $freshEffective);
+        $this->dispatch(
+            'laser-params-sync',
+            params: $freshEffective,
+            profiles: $item->product->getLaserProfiles()
+        );
         $this->notifyOrderFeedback(
             'success',
             'Produkt-Standard gespeichert',
@@ -2007,7 +2096,8 @@ class OrderOverview extends Component
         $yMm = null,
         $angleDeg = null,
         $wMm = null,
-        $hMm = null
+        $hMm = null,
+        $clientSeq = null
     ): void {
         $matchesOrderItem = $this->selectedOrder
             && $this->selectedOrder->items->contains(fn ($it) => (string) $it->id === (string) $itemId);
@@ -2100,6 +2190,19 @@ class OrderOverview extends Component
                 $this->laserAngleDeg,
                 $this->laserWidthMm,
                 $this->laserHeightMm
+            );
+        }
+
+        if ($clientSeq !== null && is_numeric($clientSeq)) {
+            $this->dispatch(
+                'laser-cockpit-sync',
+                x: $this->laserCenterXMm,
+                y: $this->laserCenterYMm,
+                angle: $this->laserAngleDeg,
+                w: $this->laserWidthMm,
+                h: $this->laserHeightMm,
+                seq: (int) $clientSeq,
+                source: 'ack'
             );
         }
     }
@@ -2378,6 +2481,7 @@ class OrderOverview extends Component
                 'equipment_title'   => $laserGuide['equipment_title'] ?? 'Standard-Aufbau',
                 'focus_formatted'   => $laserGuide['focus_formatted'] ?? '33,1 mm',
                 'laser_params'      => $laserGuide,
+                'product_profiles'  => $item->product->getLaserProfiles(),
                 'equipment_modes'   => \App\Services\Laser\XtoolLaserCockpitService::getSupportedEquipmentModes(),
                 'ghost_d_path'      => $ghostDPath,
                 'preview_data_url'  => $previewUrl,
