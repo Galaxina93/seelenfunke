@@ -5,9 +5,10 @@
 * **Lösung (Option A - Google Cloud Vertex AI Postpay):** Vollständige Migration sämtlicher KI-, Vision-, OCR-, Grounding-, TTS- und Live-Audio-Schnittstellen auf **Google Cloud Vertex AI (`aiplatform.googleapis.com`)** über ein dediziertes **Postpay-Rechnungskonto** mit monatlicher SEPA-Lastschrift vom **FYRST-Geschäftskonto**.
 
 ## 2. Google Cloud & Billing Stammdaten
-* **Google Cloud Projekt:** `SEELEN` (`gen-lang-client-0670786367`, Projektnummer `623907765016`)
-* **Aktives Rechnungskonto (Postpay):** `Mein-Seelenfunke (Postpay)` (`01527A-BF3B0A-E2C9CB`, Zahlungsprofil `Alina Steinhauer · Organisation · ID: 9554-0689-9279`)
-* **Primäre Zahlungsmethode:** Verifiziertes **FYRST-Geschäftskonto** (`DE•• •••• •••• •••• ••29 00`, kein privates Fallback-Konto)
+* **Google Cloud Projekte auf Postpay:** `SEELEN` (`gen-lang-client-0670786367`, Projektnummer `623907765016`) sowie `mein-seelenfunke-checkout` (`fluted-anthem-334018`, Google Maps / Places / Address Validation API)
+* **Aktives Rechnungskonto (Postpay):** `Mein-Seelenfunke (Postpay)` (`01527A-BF3B0A-E2C9CB`, Zahlungsprofil `Alina Steinhauer · Organisation · ID: 9554-0689-9279`); Altkonto `My Billing Account` (`013732-508BC2-295946`) wurde nach Projekt-Umzug mit `0` Ressourcen dauerhaft geschlossen
+* **Primäre Zahlungsmethode:** Ausschließlich verifiziertes **FYRST-Geschäftskonto** (`DE•• •••• •••• •••• ••29 00`, keine sekundäre/private Fallback-Zahlungsmethode hinterlegt)
+* **Kosten-Budget & E-Mail-Warnungen:** Aktives Monatsbudget `Mein-Seelenfunke Monatsbudget 50 EUR` (`50,00 €` über alle 2 Projekte & Dienste mit automatischen E-Mail-Warnungen bei `50 %` / `25 €`, `90 %` / `45 €` und `100 %` / `50 €`)
 * **Service Account:** `laravel-backend@gen-lang-client-0670786367.iam.gserviceaccount.com` (IAM-Rolle: `Agent Platform User` / `roles/aiplatform.user`)
 * **Schlüsseldatei (Git-ignoriert, Zero-Secret):** `storage/app/vertex-service-account.json` (`chmod 640` lokal / `600` auf Stage & Worker)
 
