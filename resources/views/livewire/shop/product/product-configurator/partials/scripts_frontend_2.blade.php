@@ -502,12 +502,15 @@
                             roughness: 0.9,
                             metalness: 0.0
                         });
-                    } else if(matType === 'metal') {
+                    } else if(matType === 'metal' || matType === 'silver' || matType === 'gold') {
+                        // Polierte Metalle (Edelstahl, Aluminium, 925er Silber, vergoldet): Overlay-Textur mit Alpha-Cutout
+                        // (z. B. ausgestanztes Herz der ID-Armbänder) statt matter Kunststoff-Optik
+                        const isPreciousMetal = (matType === 'silver' || matType === 'gold');
                         child.material = new window.THREE.MeshStandardMaterial({
                             map: oldMap,
                             color: 0xffffff,
-                            roughness: hasEnv ? 0.24 : 0.36,
-                            metalness: hasEnv ? 0.35 : 0.0,
+                            roughness: hasEnv ? (isPreciousMetal ? 0.2 : 0.24) : 0.36,
+                            metalness: hasEnv ? (isPreciousMetal ? 0.6 : 0.35) : 0.0,
                             alphaTest: oldMap ? 0.35 : 0.0,
                             side: window.THREE.DoubleSide
                         });
@@ -724,6 +727,7 @@
                 if(!ctx) return;
                 const cw = canvas.width;
                 ctx.clearRect(0, 0, cw, cw);
+                const isMetalSurface = ['metal', 'silver', 'gold'].includes(this.config.material_type);
 
                 const toPx = (p) => (p / 100) * cw;
 
@@ -795,13 +799,13 @@
 
                     // VISUELLER FILTER: Macht eingefügte Logos auf dunklem Grund weiß/silber und auf hellem Gold-Metall tief-anthrazit (Anlassgravur)
                     // Die Originaldatei (logo.url) bleibt schwarz für den XCS Export!
-                    const isLightMetal = (this.config.material_type === 'metal' && this.config.isDarkSurface === false);
+                    const isLightMetal = (isMetalSurface && this.config.isDarkSurface === false);
                     if (isLightMetal) {
                         ctx.shadowColor = 'rgba(255,248,210,0.55)';
                         ctx.shadowBlur = cw <= 1024 ? 2 : 4;
                         ctx.filter = 'brightness(0.10) opacity(0.92)';
                     } else {
-                        if (this.config.material_type === 'metal') {
+                        if (isMetalSurface) {
                             ctx.shadowColor = 'rgba(0,0,0,0.6)';
                             ctx.shadowBlur = cw <= 1024 ? 3 : 6;
                         }
@@ -874,7 +878,7 @@
                                 const fontSize = (item.size || 1) * (cw / 25);
                                 ctx.font = `bold ${fontSize}px ${fontMap[item.font] || 'Arial'}`;
 
-                                const isLightMetal = (this.config.material_type === 'metal' && this.config.isDarkSurface === false);
+                                const isLightMetal = (isMetalSurface && this.config.isDarkSurface === false);
                                 if (isLightMetal) {
                                     ctx.filter = 'none';
                                     ctx.fillStyle = 'rgba(20,18,14,0.93)';
@@ -891,7 +895,7 @@
                                 } else if(isLightMetal) {
                                     ctx.shadowColor = 'rgba(255,248,210,0.6)';
                                     ctx.shadowBlur = cw <= 1024 ? 2 : 5;
-                                } else if(this.config.material_type === 'metal') {
+                                } else if(isMetalSurface) {
                                     ctx.shadowColor = 'rgba(0,0,0,0.65)';
                                     ctx.shadowBlur = cw <= 1024 ? 3 : 8;
                                 }

@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v9';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v10';
 
     function ensurePrewarmRegistryAndRegister(audioEl) {
         if (!audioEl || typeof window === 'undefined') return audioEl;

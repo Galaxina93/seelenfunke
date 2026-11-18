@@ -485,22 +485,27 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringContainsString('_createFunkiCharacterByLevel', $engineJs);
         $this->assertStringContainsString('Freier Ehrenplatz', $engineJs);
 
-        // 4. Verify "Ins Funkenreich" / "Halle der Helden 3D" buttons render in Customer Dashboard & Funki page (0 internal Funkenwerk references!), and remain REMOVED from Checkout Success
+        // 4. Genau EIN 3D-Einstieg im Kundenbereich: "Ins Funkenreich" auf dem Dashboard (0 internal Funkenwerk references!).
+        //    "Halle der Helden 3D" & "Funken im Funkenreich sammeln" sind entfernt und bleiben auch im Checkout Success entfernt.
         $dashTest = Livewire::actingAs($meCustomer, 'customer')
             ->test(CustomerDashboardComponent::class)
             ->assertSee('Ins Funkenreich')
             ->assertDontSee('3D-Lobby öffnen')
             ->assertDontSee('Funkenwerk 3D öffnen')
+            ->assertDontSee('Halle der Helden 3D')
+            ->assertDontSee('Funken im Funkenreich sammeln')
             ->assertSeeHtml('data-testid="dashboard-open-user-lobby-3d"')
             ->assertSeeHtml('funkenwerk-heroes-3d.js?v=')
             ->assertSeeHtml("open('lobby')")
-            ->assertSeeHtml("open('hall')");
+            ->assertDontSeeHtml("open('hall')")
+            ->assertDontSeeHtml('data-testid="modal-open-hall-of-heroes-3d"');
 
         $dashHtml = (string) $dashTest->html();
         $visibleDashHtml = explode('<template x-teleport="body">', $dashHtml)[0] ?? '';
         $this->assertStringContainsString('data-testid="dashboard-open-user-lobby-3d"', $visibleDashHtml);
         $this->assertStringContainsString('Ins Funkenreich', $visibleDashHtml);
         $this->assertStringNotContainsString('3D-Lobby öffnen', $visibleDashHtml);
+        $this->assertSame(1, substr_count($dashHtml, 'SeelenfunkeHeroes3D'));
 
         $this->actingAs($meCustomer, 'customer')
             ->get('/customer/dashboard')
@@ -512,11 +517,13 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
 
         Livewire::actingAs($meCustomer, 'customer')
             ->test(CustomerFunkiComponent::class)
-            ->assertSee('Halle der Helden 3D')
-            ->assertSee('Funken im Funkenreich sammeln')
+            ->assertSee('Halle der Helden')
+            ->assertDontSee('Halle der Helden 3D')
+            ->assertDontSee('Funken im Funkenreich sammeln')
             ->assertDontSee('Funkenwerk 3D öffnen')
-            ->assertSeeHtml('data-testid="funki-open-hall-of-heroes-3d"')
-            ->assertSeeHtml("open('hall')");
+            ->assertDontSeeHtml('data-testid="funki-open-hall-of-heroes-3d"')
+            ->assertDontSeeHtml('data-testid="funki-vouchers-open-3d-lobby"')
+            ->assertDontSeeHtml('SeelenfunkeHeroes3D');
 
         $this->createPaidOrder('ORD-SUCC-CLEAN-01', $meCustomer, false, 'pending');
 
@@ -697,17 +704,18 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertSame(225, $heroesAfterMagmaResp->json('heroes.0.magma_prestige_points'));
         $this->assertSame(3125, $dashboardItemsAfterMagma[0]['hero_score']);
 
-        // Direkt-Button "Funken im Funkenreich sammeln" im Gutschein-Bereich von CustomerFunkiComponent
+        // Gutschein-Bereich von CustomerFunkiComponent ohne zusaetzlichen 3D-Einstieg (einziger Einstieg: Dashboard "Ins Funkenreich")
         Livewire::actingAs($cAlpha, 'customer')
             ->test(CustomerFunkiComponent::class)
-            ->assertSee('Funken im Funkenreich sammeln')
+            ->assertDontSee('Funken im Funkenreich sammeln')
             ->assertSee('250')
             ->assertSee('600')
             ->assertSee('1.200');
 
-        // Rechtstexte: neue Gutschein-Staffel, Manufaktur-Meisterschluessel, 0 Mini-Labyrinth & 0 KI-Gedankenstriche
+        // Rechtstexte: neue Gutschein-Staffel, Halle der Helden, Magma-Spiel/Meisterschluessel ausgelagert, 0 Mini-Labyrinth & 0 KI-Gedankenstriche
         $agbHtml = (string) $this->get('/agb')->assertOk()->getContent();
-        $this->assertStringContainsString('Manufaktur-Meisterschlüssel', $agbHtml);
+        $this->assertStringNotContainsString('Manufaktur-Meisterschlüssel', $agbHtml);
+        $this->assertStringContainsString('Halle der Helden', $agbHtml);
         $this->assertStringContainsString('250 Seelenfunken', $agbHtml);
         $this->assertStringContainsString('600 Seelenfunken', $agbHtml);
         $this->assertStringContainsString('1.200 Seelenfunken', $agbHtml);
@@ -715,7 +723,8 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $agbHtml);
 
         $widerrufHtml = (string) $this->get('/widerruf')->assertOk()->getContent();
-        $this->assertStringContainsString('Manufaktur-Meisterschlüssel', $widerrufHtml);
+        $this->assertStringNotContainsString('Manufaktur-Meisterschlüssel', $widerrufHtml);
+        $this->assertStringContainsString('Halle der Helden', $widerrufHtml);
         $this->assertStringNotContainsString('Mini-Labyrinth', $widerrufHtml);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $widerrufHtml);
 

@@ -144,6 +144,212 @@
         .sf-magic-activate-cta:hover {
             transform: translate3d(0, -1px, 0) scale(1.025);
         }
+
+        /* ===== Einziger 3D-Einstieg im Kundenbereich: Funkenreich-CTA (Schwarz-Gold, matt, 60 FPS: nur transform/opacity) ===== */
+        @keyframes sfFrBorderOrbit {
+            from { transform: translate3d(-50%, -50%, 0) rotate(0deg); }
+            to { transform: translate3d(-50%, -50%, 0) rotate(360deg); }
+        }
+        @keyframes sfFrRingSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes sfFrSparkRise {
+            0% { transform: translate3d(0, 0, 0) scale(0.55); opacity: 0; }
+            18% { opacity: 0.95; }
+            70% { opacity: 0.55; }
+            100% { transform: translate3d(var(--sf-fr-drift, 0px), -34px, 0) scale(1); opacity: 0; }
+        }
+        .sf-funkenreich-cta {
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+            border-radius: 0.85rem;
+            padding: 0;
+            border: 0;
+            background: #2a2418;
+            color: #F5DCA0;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6), 0 6px 16px rgba(17, 24, 39, 0.16);
+            transform: translate3d(0, 0, 0);
+            transition: transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.25s ease;
+        }
+        .dark .sf-funkenreich-cta {
+            background: #3a311f;
+            box-shadow: 0 0 0 1px rgba(197, 160, 89, 0.22), 0 8px 20px rgba(0, 0, 0, 0.45);
+        }
+        .sf-funkenreich-cta .sf-fr-orbit {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: max(260%, 420px);
+            aspect-ratio: 1 / 1;
+            background: conic-gradient(from 0deg, rgba(197, 160, 89, 0) 0deg, rgba(197, 160, 89, 0) 228deg, #8a6a2f 262deg, #C5A059 300deg, #FFF3D1 326deg, #E6C57A 340deg, rgba(197, 160, 89, 0) 360deg);
+            transform: translate3d(-50%, -50%, 0) rotate(0deg);
+            animation: sfFrBorderOrbit 6.5s linear infinite;
+            will-change: transform;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .sf-funkenreich-cta .sf-fr-face {
+            position: absolute;
+            inset: 1.5px;
+            border-radius: calc(0.85rem - 1.5px);
+            background: radial-gradient(120% 140% at 50% 0%, #26211a 0%, #121214 55%, #0b0b0d 100%);
+            box-shadow: inset 0 1px 0 rgba(245, 220, 160, 0.14), inset 0 -8px 18px rgba(0, 0, 0, 0.35);
+            overflow: hidden;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .sf-funkenreich-cta .sf-fr-sheen {
+            position: absolute;
+            top: -20%;
+            bottom: -20%;
+            left: -20%;
+            width: 46%;
+            background: linear-gradient(105deg, rgba(255, 255, 255, 0) 12%, rgba(245, 220, 160, 0.10) 36%, rgba(255, 246, 222, 0.38) 50%, rgba(197, 160, 89, 0.14) 64%, rgba(255, 255, 255, 0) 88%);
+            transform: translate3d(-145%, 0, 0) skewX(-20deg);
+            animation: sfGoldShimmerSweep 5.2s cubic-bezier(0.22, 0.61, 0.36, 1) 1.2s infinite;
+            will-change: transform;
+        }
+        .sf-funkenreich-cta .sf-fr-sparks {
+            position: absolute;
+            inset: 0;
+        }
+        .sf-funkenreich-cta .sf-fr-sparks i {
+            position: absolute;
+            bottom: 4px;
+            width: 3px;
+            height: 3px;
+            border-radius: 9999px;
+            background: radial-gradient(circle, #FFF3D1 0%, #E6C57A 45%, rgba(197, 160, 89, 0) 75%);
+            opacity: 0;
+            animation: sfFrSparkRise 3.6s ease-out infinite;
+            will-change: transform, opacity;
+        }
+        .sf-funkenreich-cta .sf-fr-sparks i:nth-child(1) { left: 9%;  animation-delay: 0s;    --sf-fr-drift: 4px; }
+        .sf-funkenreich-cta .sf-fr-sparks i:nth-child(2) { left: 22%; animation-delay: 1.4s;  --sf-fr-drift: -5px; width: 2px; height: 2px; }
+        .sf-funkenreich-cta .sf-fr-sparks i:nth-child(3) { left: 36%; animation-delay: 2.5s;  --sf-fr-drift: 3px; }
+        .sf-funkenreich-cta .sf-fr-sparks i:nth-child(4) { left: 51%; animation-delay: 0.7s;  --sf-fr-drift: -3px; width: 2px; height: 2px; }
+        .sf-funkenreich-cta .sf-fr-sparks i:nth-child(5) { left: 64%; animation-delay: 1.9s;  --sf-fr-drift: 6px; }
+        .sf-funkenreich-cta .sf-fr-sparks i:nth-child(6) { left: 78%; animation-delay: 3.0s;  --sf-fr-drift: -4px; width: 2px; height: 2px; }
+        .sf-funkenreich-cta .sf-fr-sparks i:nth-child(7) { left: 90%; animation-delay: 1.1s;  --sf-fr-drift: 2px; }
+        .sf-funkenreich-cta .sf-fr-content {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            padding: 0.7rem 1rem;
+        }
+        .sf-funkenreich-cta .sf-fr-portal {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.6rem;
+            height: 1.6rem;
+            flex-shrink: 0;
+        }
+        .sf-funkenreich-cta .sf-fr-ring {
+            position: absolute;
+            inset: 0;
+            border-radius: 9999px;
+            border: 1px dashed rgba(230, 197, 122, 0.65);
+            animation: sfFrRingSpin 9s linear infinite;
+            will-change: transform;
+        }
+        .sf-funkenreich-cta .sf-fr-ring::after {
+            content: "";
+            position: absolute;
+            top: -2px;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            margin-left: -2px;
+            border-radius: 9999px;
+            background: #F5DCA0;
+        }
+        .sf-funkenreich-cta .sf-fr-icon {
+            position: relative;
+            display: inline-block;
+            font-size: 0.8rem;
+            line-height: 1;
+            animation: sfFrRingSpin 14s linear infinite reverse;
+            will-change: transform;
+        }
+        .sf-funkenreich-cta .sf-fr-label {
+            font-size: 0.75rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+            color: #F5DCA0;
+            text-shadow: 0 1px 0 rgba(0, 0, 0, 0.55);
+        }
+        .sf-funkenreich-cta:hover,
+        .sf-funkenreich-cta:focus-visible {
+            transform: translate3d(0, -2px, 0);
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6), 0 12px 24px rgba(17, 24, 39, 0.24);
+        }
+        .dark .sf-funkenreich-cta:hover,
+        .dark .sf-funkenreich-cta:focus-visible {
+            box-shadow: 0 0 0 1px rgba(197, 160, 89, 0.4), 0 14px 28px rgba(0, 0, 0, 0.55);
+        }
+        .sf-funkenreich-cta:focus-visible {
+            outline: 2px solid #C5A059;
+            outline-offset: 3px;
+        }
+        .sf-funkenreich-cta:hover .sf-fr-orbit,
+        .sf-funkenreich-cta:focus-visible .sf-fr-orbit {
+            animation-duration: 2.4s;
+        }
+        .sf-funkenreich-cta:hover .sf-fr-sheen,
+        .sf-funkenreich-cta:focus-visible .sf-fr-sheen {
+            animation: sfGoldShimmerSweep 1.6s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+        }
+        .sf-funkenreich-cta:hover .sf-fr-sparks i,
+        .sf-funkenreich-cta:focus-visible .sf-fr-sparks i {
+            animation-duration: 1.7s;
+        }
+        .sf-funkenreich-cta:hover .sf-fr-ring,
+        .sf-funkenreich-cta:focus-visible .sf-fr-ring {
+            animation-duration: 2.8s;
+        }
+        .sf-funkenreich-cta:hover .sf-fr-icon,
+        .sf-funkenreich-cta:focus-visible .sf-fr-icon {
+            animation: sfGoldSparkPulse 1.3s ease-in-out infinite;
+        }
+        .sf-funkenreich-cta:active {
+            transform: translate3d(0, 0, 0) scale(0.985);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .sf-funkenreich-cta,
+            .sf-funkenreich-cta:hover,
+            .sf-funkenreich-cta:focus-visible,
+            .sf-funkenreich-cta:active {
+                transition: none;
+                transform: none;
+            }
+            .sf-funkenreich-cta .sf-fr-orbit,
+            .sf-funkenreich-cta .sf-fr-sheen,
+            .sf-funkenreich-cta .sf-fr-ring,
+            .sf-funkenreich-cta .sf-fr-icon,
+            .sf-funkenreich-cta .sf-fr-sparks i,
+            .sf-funkenreich-cta:hover .sf-fr-orbit,
+            .sf-funkenreich-cta:hover .sf-fr-sheen,
+            .sf-funkenreich-cta:hover .sf-fr-ring,
+            .sf-funkenreich-cta:hover .sf-fr-icon,
+            .sf-funkenreich-cta:hover .sf-fr-sparks i {
+                animation: none !important;
+            }
+            .sf-funkenreich-cta .sf-fr-sparks,
+            .sf-funkenreich-cta .sf-fr-sheen {
+                display: none;
+            }
+            .sf-funkenreich-cta .sf-fr-orbit {
+                transform: translate3d(-50%, -50%, 0) rotate(135deg);
+            }
+        }
     </style>
 
     {{-- Alerts & Profile Completion Banner --}}
@@ -375,10 +581,20 @@
 
                 <button type="button"
                         data-testid="dashboard-open-user-lobby-3d"
-                        onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
-                        class="col-span-2 sm:col-span-3 py-2.5 px-4 rounded-xl bg-white dark:bg-gray-950/80 hover:bg-[#faf6ee] dark:hover:bg-gray-900 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
-                    <span>✨</span>
-                    <span>Ins Funkenreich</span>
+                        onclick="(function(){ try{localStorage.setItem('sf_visited_funkenreich_v1','1');}catch(_e){} window.dispatchEvent(new CustomEvent('sf-funkenreich-visited')); var go = function(){ var h = window.SeelenfunkeHeroes3D; if (h && typeof h.open === 'function') { h.open('lobby'); return true; } return false; }; if (go()) return; var s = document.getElementById('sf-heroes-3d-script'); if (s) { s.addEventListener('load', go, { once: true }); return; } s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = go; s.onerror = function(){ if (s.parentNode) s.parentNode.removeChild(s); }; document.head.appendChild(s); })()"
+                        class="sf-funkenreich-cta col-span-2 sm:col-span-3 w-full cursor-pointer">
+                    <span class="sf-fr-orbit" aria-hidden="true"></span>
+                    <span class="sf-fr-face" aria-hidden="true">
+                        <span class="sf-fr-sheen"></span>
+                        <span class="sf-fr-sparks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+                    </span>
+                    <span class="sf-fr-content">
+                        <span class="sf-fr-portal" aria-hidden="true">
+                            <span class="sf-fr-ring"></span>
+                            <span class="sf-fr-icon">✨</span>
+                        </span>
+                        <span class="sf-fr-label">Ins Funkenreich</span>
+                    </span>
                 </button>
 
                 @if($isGameModeActive)
@@ -1075,21 +1291,13 @@
 
                     {{-- TAB 1: RABATT-GUTSCHEINE (250 = 5%, 600 = 10%, 1200 = 15%) --}}
                     <div x-show="activeFunkiTab === 'vouchers'" class="space-y-6">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div>
-                                <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white">
-                                    Gesammelte Seelenfunken gegen Gutscheine eintauschen
-                                </h3>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    Jeder eingelöste Gutschein ist <strong>einmalig für deine nächste Bestellung</strong> gültig. Dein Funki-Level (Lebenszeit-Funken) sinkt beim Einlösen niemals!
-                                </p>
-                            </div>
-                            <button type="button"
-                                    onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
-                                    class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[#faf6ee] dark:hover:bg-gray-800 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black tracking-wide shadow-xs transition cursor-pointer shrink-0">
-                                <span>✨</span>
-                                <span>Funken im Funkenreich sammeln</span>
-                            </button>
+                        <div>
+                            <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white">
+                                Gesammelte Seelenfunken gegen Gutscheine eintauschen
+                            </h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                Jeder eingelöste Gutschein ist <strong>einmalig für deine nächste Bestellung</strong> gültig. Dein Funki-Level (Lebenszeit-Funken) sinkt beim Einlösen niemals!
+                            </p>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1725,18 +1933,9 @@
                                 <h4 class="text-base font-serif font-bold text-gray-900 dark:text-white">
                                     Top Seelenfunken-Sammler ({{ $hallOfFameTotal }} {{ $hallOfFameTotal === 1 ? 'Held' : 'Helden' }})
                                 </h4>
-                                <div class="flex flex-wrap items-center gap-2.5">
-                                    <button type="button"
-                                            data-testid="modal-open-hall-of-heroes-3d"
-                                            onclick="(function(){ var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
-                                            class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C5A059] hover:bg-[#b58f48] text-gray-950 text-xs font-black tracking-wide transition cursor-pointer">
-                                        <span>🏛️</span>
-                                        <span>Halle der Helden 3D</span>
-                                    </button>
-                                    <span class="text-[11px] text-gray-500 dark:text-gray-400">
-                                        Seite {{ $hallOfFamePage }} von {{ $hallOfFameLastPage }}
-                                    </span>
-                                </div>
+                                <span class="text-[11px] text-gray-500 dark:text-gray-400 sm:text-right sm:ml-auto shrink-0">
+                                    Seite {{ $hallOfFamePage }} von {{ $hallOfFameLastPage }}
+                                </span>
                             </div>
 
                             @if(count($hallOfFameLeaders) > 0)
@@ -1808,13 +2007,11 @@
                                                 <span class="font-mono font-black text-xs sm:text-base text-amber-700 dark:text-[#f5dca0] block">
                                                     {{ $leader['hero_score_formatted'] ?? number_format((int) ($leader['hero_score'] ?? 0), 0, ',', '.') }} ✨
                                                 </span>
-                                                <span class="text-[9px] uppercase tracking-wider font-bold text-gray-400 block">
-                                                    @if(!empty($leader['magma_highest_level']))
-                                                        🌋 {{ (int) $leader['magma_highest_level'] }}/10 • {{ (int) ($leader['diamonds_count'] ?? 0) }}/{{ (int) ($leader['total_titles'] ?? 5) }} 💎
-                                                    @else
-                                                        {{ (int) ($leader['diamonds_count'] ?? 0) }}/{{ (int) ($leader['total_titles'] ?? 5) }} 💎
-                                                    @endif
-                                                </span>
+                                                @if(!empty($leader['magma_highest_level']))
+                                                    <span class="text-[9px] uppercase tracking-wider font-bold text-gray-400 block">
+                                                        🌋 {{ (int) $leader['magma_highest_level'] }}/10
+                                                    </span>
+                                                @endif
                                             </div>
                                         </div>
                                     @endforeach

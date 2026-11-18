@@ -283,18 +283,18 @@ SVG,
         $indices = [];
 
         $innerPct = [
-            [50.0, 59.45], [51.13, 58.73], [52.23, 58.01], [53.34, 57.29], [54.54, 56.57], [55.82, 55.84],
-            [57.26, 55.12], [58.83, 54.52], [60.42, 54.19], [62.68, 54.48], [64.54, 55.02], [66.13, 55.74],
-            [67.49, 56.57], [68.67, 57.6], [69.63, 58.73], [70.38, 59.97], [70.95, 61.31], [71.41, 62.75],
-            [71.7, 64.3], [71.86, 65.85], [71.86, 67.39], [71.66, 68.94], [71.35, 70.59], [70.87, 72.34],
-            [70.21, 74.1], [69.35, 75.95], [68.31, 77.81], [67.12, 79.67], [65.72, 81.52], [64.07, 83.38],
-            [62.27, 85.23], [60.21, 87.09], [57.94, 88.95], [55.57, 90.7], [53.47, 92.25], [51.55, 93.55],
-            [50.0, 94.52], [48.45, 93.55], [46.53, 92.25], [44.43, 90.7], [42.06, 88.95], [39.79, 87.09],
-            [37.73, 85.23], [35.93, 83.38], [34.28, 81.52], [32.88, 79.67], [31.68, 77.81], [30.65, 75.95],
-            [29.79, 74.1], [29.13, 72.34], [28.65, 70.59], [28.34, 68.94], [28.14, 67.39], [28.14, 65.85],
-            [28.3, 64.3], [28.59, 62.75], [29.04, 61.31], [29.62, 59.97], [30.37, 58.73], [31.33, 57.6],
-            [32.51, 56.57], [33.87, 55.74], [35.46, 55.02], [37.32, 54.48], [39.58, 54.19], [41.17, 54.52],
-            [42.74, 55.12], [44.18, 55.84], [45.46, 56.57], [46.66, 57.29], [47.77, 58.01], [48.87, 58.73],
+            [50.00, 59.47], [50.47, 59.22], [50.98, 58.84], [51.53, 58.34], [52.15, 57.77], [52.83, 57.15],
+            [53.59, 56.51], [54.44, 55.89], [55.39, 55.31], [56.45, 54.80], [57.63, 54.41], [58.95, 54.14],
+            [60.40, 54.05], [61.97, 54.15], [63.47, 54.45], [64.89, 54.93], [66.22, 55.58], [67.45, 56.39],
+            [68.56, 57.36], [69.53, 58.47], [70.36, 59.71], [71.03, 61.07], [71.52, 62.55], [71.82, 64.12],
+            [71.93, 65.78], [71.72, 68.22], [71.11, 70.71], [70.13, 73.23], [68.82, 75.76], [67.20, 78.30],
+            [65.31, 80.81], [63.17, 83.28], [60.83, 85.70], [58.31, 88.04], [55.65, 90.29], [52.86, 92.42],
+            [50.00, 94.43], [47.14, 92.42], [44.35, 90.29], [41.69, 88.04], [39.17, 85.70], [36.83, 83.28],
+            [34.69, 80.81], [32.80, 78.30], [31.18, 75.76], [29.87, 73.23], [28.89, 70.71], [28.28, 68.22],
+            [28.07, 65.78], [28.18, 64.12], [28.48, 62.55], [28.97, 61.07], [29.64, 59.71], [30.47, 58.47],
+            [31.44, 57.36], [32.55, 56.39], [33.78, 55.58], [35.11, 54.93], [36.53, 54.45], [38.03, 54.15],
+            [39.60, 54.05], [41.05, 54.14], [42.37, 54.41], [43.55, 54.80], [44.61, 55.31], [45.56, 55.89],
+            [46.41, 56.51], [47.17, 57.15], [47.85, 57.77], [48.47, 58.34], [49.02, 58.84], [49.53, 59.22],
         ];
 
         $innerPx = array_map(static fn(array $p): array => [$p[0] * 8.0, $p[1] * 8.0], $innerPct);
@@ -322,6 +322,12 @@ SVG,
             $heartOuter[] = [max(207.0, min(593.0, $ox)), max(418.0, min(772.0, $oy))];
         }
 
+        // Am oberen Herzeinschnitt kreuzen sich die Normalen-Offsets der dicht gesetzten Kerbpunkte
+        // (rechte Kerbpunkte landen links der Mittelachse und umgekehrt). Ohne Bereinigung entsteht im
+        // Fan-Dreiecksnetz ein umgeklapptes, überlappendes Dreieck von der Kerbe bis zur Herzmitte, das mit
+        // DoubleSide-Material als dunkler, flackernder Z-Fighting-Streifen sichtbar wird.
+        $heartOuter = $this->sanitizeStarShapedContour($heartOuter, [400.0, 595.0]);
+
         // 1. Massiver Herz-Korpus (zHalf = 0.032)
         $this->extrudePixelContour($heartOuter, null, [400.0, 595.0], 0.032, $positions, $normals, $uvs, $indices, 1.5);
 
@@ -343,6 +349,56 @@ SVG,
         $this->extrudePixelContour($ringOuter, $ringInner, [407.0, 142.0], 0.028, $positions, $normals, $uvs, $indices, 1.2);
 
         return compact('positions', 'normals', 'uvs', 'indices');
+    }
+
+    /**
+     * Bereinigt eine Außenkontur für die Fan-Triangulierung um $centerPx: Es bleiben nur Punkte erhalten,
+     * deren Polarwinkel um das Zentrum streng monoton in Umlaufrichtung fortschreitet und die den vollen
+     * Umlauf (2π) nicht überschreiten. Damit ist die Kontur sternförmig, selbstüberschneidungsfrei und jedes
+     * Fan-Dreieck besitzt dieselbe Orientierung (keine umgeklappten, überlappenden Flächen).
+     */
+    private function sanitizeStarShapedContour(array $pts, array $centerPx): array
+    {
+        $n = count($pts);
+        if ($n < 4) {
+            return $pts;
+        }
+
+        [$cx, $cy] = $centerPx;
+        $area = 0.0;
+        for ($i = 0; $i < $n; $i++) {
+            [$x0, $y0] = $pts[$i];
+            [$x1, $y1] = $pts[($i + 1) % $n];
+            $area += $x0 * $y1 - $x1 * $y0;
+        }
+        $dir = $area >= 0.0 ? 1.0 : -1.0;
+
+        $normalize = static function (float $a): float {
+            while ($a <= -M_PI) {
+                $a += 2.0 * M_PI;
+            }
+            while ($a > M_PI) {
+                $a -= 2.0 * M_PI;
+            }
+            return $a;
+        };
+
+        $eps = 1e-6;
+        $kept = [$pts[0]];
+        $lastAngle = atan2($pts[0][1] - $cy, $pts[0][0] - $cx);
+        $travelled = 0.0;
+        for ($i = 1; $i < $n; $i++) {
+            $angle = atan2($pts[$i][1] - $cy, $pts[$i][0] - $cx);
+            $step = $dir * $normalize($angle - $lastAngle);
+            if ($step <= $eps || ($travelled + $step) >= (2.0 * M_PI - $eps)) {
+                continue;
+            }
+            $kept[] = $pts[$i];
+            $travelled += $step;
+            $lastAngle = $angle;
+        }
+
+        return $kept;
     }
 
     /**
@@ -922,7 +978,9 @@ SVG,
         $rawPos = pack('g*', ...$positions);
         $rawNorm = pack('g*', ...$normals);
         $rawUv = pack('g*', ...$uvs);
-        $rawIdx = pack('V*', ...$indices);
+        // Kompakte 16-Bit-Indizes (UNSIGNED_SHORT), solange alle Vertices adressierbar sind (spart ~50 % Indexdaten)
+        $useShortIndices = (intdiv($posCount, 3) < 65535);
+        $rawIdx = $useShortIndices ? pack('v*', ...$indices) : pack('V*', ...$indices);
 
         $bPos = $pad4($rawPos);
         $bNorm = $pad4($rawNorm);
@@ -1008,7 +1066,7 @@ SVG,
                 ],
                 [
                     'bufferView' => 3,
-                    'componentType' => 5125,
+                    'componentType' => $useShortIndices ? 5123 : 5125,
                     'count' => count($indices),
                     'type' => 'SCALAR',
                 ],
@@ -1892,7 +1950,9 @@ SVG,
         $rawPos = pack('g*', ...$positions);
         $rawNorm = pack('g*', ...$normals);
         $rawUv = pack('g*', ...$uvs);
-        $rawIdx = pack('V*', ...$indices);
+        // Kompakte 16-Bit-Indizes (UNSIGNED_SHORT), solange alle Vertices adressierbar sind (spart ~50 % Indexdaten)
+        $useShortIndices = (intdiv($posCount, 3) < 65535);
+        $rawIdx = $useShortIndices ? pack('v*', ...$indices) : pack('V*', ...$indices);
 
         $bPos = $pad4($rawPos);
         $bNorm = $pad4($rawNorm);
@@ -1994,7 +2054,7 @@ SVG,
                 ],
                 [
                     'bufferView' => 3,
-                    'componentType' => 5125,
+                    'componentType' => $useShortIndices ? 5123 : 5125,
                     'count' => count($indices),
                     'type' => 'SCALAR',
                 ],
@@ -3358,9 +3418,28 @@ SVG,
     }
 
     /**
+     * 1 mm in GLB-Einheiten der FBM ID-Armbänder (Gravurplatte 24 mm = 528 px = 1,4667 Einheiten, 1 Einheit = 360 px).
+     */
+    public const ARMBAND_MM = 22.0 / 360.0;
+
+    /**
+     * Halbe Plattenstärke der Gravurplatte (reale Stärke 1,2 mm).
+     */
+    public const ARMBAND_PLATE_Z_HALF = 0.6 * (22.0 / 360.0);
+
+    /**
+     * Reale Gesamtlänge des Armbands (Damen-Standard 18,5 cm inkl. Gravurplatte, Endkappen und Federring).
+     */
+    public const ARMBAND_TOTAL_LENGTH_MM = 185.0;
+
+    /**
      * Erzeugt das exakt zum 2D-Overlay (800x800) deckungsgleiche 3D-Mesh für die FBM ID-Gravurarmbänder
-     * (53062HERZ: Gravurplatte 24 x 5,5 mm mit ausgestanztem Herz-Cutout links, seitlichen Dreiecks-Endkappen
-     * und diamantierten 2,1 mm Figaro-Kettengliedern).
+     * (53062HERZ: Gravurplatte 24 x 5,5 x 1,2 mm mit ausgestanztem Herz-Cutout links, seitlichen Dreiecks-Endkappen)
+     * inklusive einer maßtreu GESCHLOSSENEN, diamantierten 2,1 mm Figaro-Kette (18,5 cm Gesamtlänge) mit Federring.
+     *
+     * Die Gravurplatte liegt in der XY-Ebene (Vorderseite +Z) und ist der vorderste Punkt des Modells, damit die
+     * Front- und Rückseiten-Gravurebenen des Konfigurators exakt auf der Plattenoberfläche aufliegen. Die Kette
+     * läuft als Kreisbogen in der XZ-Ebene von Endkappe zu Endkappe um die Rückseite herum.
      */
     private function buildIdArmbandHerz3DMesh(): array
     {
@@ -3384,7 +3463,7 @@ SVG,
                 $platePts[] = [$cx + 22.0 * cos($a), $cy + 22.0 * sin($a)];
             }
         }
-        $this->extrudePixelContour($platePts, null, [400.0, 400.0], 0.032, $positions, $normals, $uvs, $indices, 1.5);
+        $this->extrudePixelContour($platePts, null, [400.0, 400.0], self::ARMBAND_PLATE_Z_HALF, $positions, $normals, $uvs, $indices, 1.5);
 
         // 2. 3D-Innenwände für das ausgestanzte Herz-Cutout links (cx = 236, cy = 400) & die seitlichen Bügel-Schlitze
         $addHoleWallRing = static function (array $pts, float $zHalf = 0.032) use (&$positions, &$normals, &$uvs, &$indices): void {
@@ -3431,7 +3510,7 @@ SVG,
             $ry = $hx * $sinR + $hy * $cosR;
             $heartHolePts[] = [236.0 + $rx, 402.0 + $ry];
         }
-        $addHoleWallRing($heartHolePts, 0.032);
+        $addHoleWallRing($heartHolePts, self::ARMBAND_PLATE_Z_HALF);
 
         // 3. Dreieckige Endkappen links (x = 82..156) & rechts (x = 644..718)
         $leftCapPts = [
@@ -3443,25 +3522,172 @@ SVG,
         $this->extrudePixelContour($leftCapPts, null, [120.0, 400.0], 0.028, $positions, $normals, $uvs, $indices, 1.0);
         $this->extrudePixelContour($rightCapPts, null, [680.0, 400.0], 0.028, $positions, $normals, $uvs, $indices, 1.0);
 
-        // 4. Figaro-Kettenglieder links (x = 12..88) & rechts (x = 712..788)
-        $makeLinkRing = function (float $cx, float $cy, float $rxOut, float $ryOut, float $thick) use (&$positions, &$normals, &$uvs, &$indices): void {
-            $steps = 32;
-            $outer = [];
-            $inner = [];
-            for ($i = 0; $i < $steps; $i++) {
-                $a = ($i / $steps) * M_PI * 2.0;
-                $outer[] = [$cx + $rxOut * cos($a), $cy + $ryOut * sin($a)];
-                $inner[] = [$cx + max(3.0, $rxOut - $thick) * cos($a), $cy + max(3.0, $ryOut - $thick) * sin($a)];
-            }
-            $this->extrudePixelContour($outer, $inner, [$cx, $cy], 0.024, $positions, $normals, $uvs, $indices, 1.0);
+        // 4. Geschlossene, diamantierte 2,1 mm Figaro-Kette (Rapport 3 x kurz + 1 x lang) mit Federring auf der Rückseite.
+        //    Die Kette läuft als Kreisbogen in der XZ-Ebene von der rechten Endkappenspitze (x = 718 px) um die
+        //    Rückseite herum zur linken Endkappenspitze (x = 82 px). Platte + Kappen + Kette = 185 mm Gesamtlänge.
+        $mm = self::ARMBAND_MM;
+        $capTipX = (718.0 - 400.0) / 360.0;
+        // Kettenansatz 0,5 mm hinter der Plattenmitte: Die Gravurplatte bleibt der vorderste Punkt des Modells.
+        $pathZ = -0.5 * $mm;
+        $plateAndCapsMm = (718.0 - 82.0) / 22.0;
+        $arcLen = (self::ARMBAND_TOTAL_LENGTH_MM - $plateAndCapsMm) * $mm;
+        $ringRadius = $this->solveArmbandArcRadius($capTipX, $arcLen);
+        $ringCenterZ = $pathZ - sqrt($ringRadius * $ringRadius - $capTipX * $capTipX);
+        $phi0 = atan2($pathZ - $ringCenterZ, $capTipX);
+
+        $pathFrame = static function (float $s) use ($ringRadius, $ringCenterZ, $phi0): array {
+            $phi = $phi0 - $s / $ringRadius;
+            return [
+                [$ringRadius * cos($phi), 0.0, $ringCenterZ + $ringRadius * sin($phi)],
+                [sin($phi), 0.0, -cos($phi)],
+                [cos($phi), 0.0, sin($phi)],
+            ];
         };
 
-        $makeLinkRing(64.0, 400.0, 24.0, 17.0, 8.0);
-        $makeLinkRing(30.0, 400.0, 18.0, 16.0, 7.5);
-        $makeLinkRing(736.0, 400.0, 24.0, 17.0, 8.0);
-        $makeLinkRing(770.0, 400.0, 18.0, 16.0, 7.5);
+        // Opaker, spiegelpolierter Metallton der Gravurplatte als UV-Quelle für Kettenglieder & Federring
+        $metalU = 520.0 / 800.0;
+        $metalV = 368.0 / 800.0;
 
-        return compact('positions', 'normals', 'uvs', 'indices');
+        $wireR = 0.28 * $mm;
+        $linkHalfWidth = 1.05 * $mm - $wireR;
+        $overlap = 0.9 * $mm;
+        $claspCenterR = 2.0 * $mm;
+        $claspWireR = 0.45 * $mm;
+        $startS = -0.6 * $mm; // erstes Glied greift in die Endkappenspitze
+        $halfSpan = $arcLen * 0.5 - ($claspCenterR + $claspWireR) * 0.8;
+
+        $pattern = [2.4, 2.4, 2.4, 4.6];
+        $lengths = [];
+        $end = $startS;
+        while ($end < $halfSpan) {
+            $len = $pattern[count($lengths) % 4] * $mm;
+            $end += (count($lengths) === 0 ? $len : $len - $overlap);
+            $lengths[] = $len;
+        }
+        $linkCount = count($lengths);
+        $fit = ($halfSpan - $startS + ($linkCount - 1) * $overlap) / array_sum($lengths);
+
+        $s = $startS;
+        foreach ($lengths as $k => $len) {
+            $len *= $fit;
+            $sCenter = $s + $len * 0.5;
+            $halfLength = max($linkHalfWidth, $len * 0.5 - $wireR);
+            $tilt = deg2rad(($k % 2 === 0) ? 16.0 : -16.0);
+            $segU = $len > 3.5 * $mm ? 14 : 10;
+            foreach ([$sCenter, $arcLen - $sCenter] as $sPos) {
+                [$center, $tangent, $radial] = $pathFrame($sPos);
+                $this->appendArmbandTorusLink($center, $tangent, $radial, $halfLength, $linkHalfWidth, $wireR, $tilt, $metalU, $metalV, $segU, 5, $positions, $normals, $uvs, $indices);
+            }
+            $s += $len - $overlap;
+        }
+
+        // Federringverschluss (Ø ca. 4,9 mm) mittig auf der Rückseite, in der Bandebene liegend
+        [$claspCenter, $claspTangent, $claspRadial] = $pathFrame($arcLen * 0.5);
+        $this->appendArmbandTorusLink($claspCenter, $claspTangent, $claspRadial, $claspCenterR, $claspCenterR, $claspWireR, 0.0, $metalU, $metalV, 20, 6, $positions, $normals, $uvs, $indices);
+
+        $meta = [
+            'ring_radius_mm' => $ringRadius / $mm,
+            'total_length_mm' => $plateAndCapsMm + $arcLen / $mm,
+            'link_count' => $linkCount * 2,
+            'plate_z_half' => self::ARMBAND_PLATE_Z_HALF,
+        ];
+
+        return compact('positions', 'normals', 'uvs', 'indices', 'meta');
+    }
+
+    /**
+     * Löst den Kreisradius R, dessen Bogen (über die Rückseite) zwischen den Endkappenspitzen (±$halfChord)
+     * exakt die Kettenlänge $arcLen besitzt: R * (2π - 2 * asin(halfChord / R)) = arcLen.
+     */
+    private function solveArmbandArcRadius(float $halfChord, float $arcLen): float
+    {
+        $lo = $halfChord + 1e-9;
+        $hi = max($halfChord * 4.0, $arcLen);
+        for ($i = 0; $i < 80; $i++) {
+            $mid = ($lo + $hi) * 0.5;
+            $len = $mid * (2.0 * M_PI - 2.0 * asin(min(1.0, $halfChord / $mid)));
+            if ($len < $arcLen) {
+                $lo = $mid;
+            } else {
+                $hi = $mid;
+            }
+        }
+
+        return ($lo + $hi) * 0.5;
+    }
+
+    /**
+     * Hängt ein geschlossenes, ovales Torus-Kettenglied (wasserdicht, nach außen orientierte Dreiecke) an das Mesh an.
+     * Die Längsachse folgt der Laufrichtung ($tangent), die Breitenachse der Handgelenk-Achse Y (um $tiltRad gekippt).
+     */
+    private function appendArmbandTorusLink(
+        array $center,
+        array $tangent,
+        array $radial,
+        float $halfLength,
+        float $halfWidth,
+        float $wireR,
+        float $tiltRad,
+        float $u,
+        float $v,
+        int $segU,
+        int $segV,
+        array &$positions,
+        array &$normals,
+        array &$uvs,
+        array &$indices
+    ): void {
+        $ct = cos($tiltRad);
+        $st = sin($tiltRad);
+        $band = [$radial[0] * $st, $ct + $radial[1] * $st, $radial[2] * $st];
+        $plane = [
+            $tangent[1] * $band[2] - $tangent[2] * $band[1],
+            $tangent[2] * $band[0] - $tangent[0] * $band[2],
+            $tangent[0] * $band[1] - $tangent[1] * $band[0],
+        ];
+
+        $base = intdiv(count($positions), 3);
+        for ($i = 0; $i < $segU; $i++) {
+            $t = ($i / $segU) * 2.0 * M_PI;
+            $cosT = cos($t);
+            $sinT = sin($t);
+            $lx = $halfLength * $cosT;
+            $ly = $halfWidth * $sinT;
+            $ox = $halfWidth * $cosT;
+            $oy = $halfLength * $sinT;
+            $ol = hypot($ox, $oy) ?: 1.0;
+            $ox /= $ol;
+            $oy /= $ol;
+            for ($j = 0; $j < $segV; $j++) {
+                $w = ($j / $segV) * 2.0 * M_PI;
+                $cw = cos($w);
+                $sw = sin($w);
+                $n = [0.0, 0.0, 0.0];
+                for ($c = 0; $c < 3; $c++) {
+                    $n[$c] = $cw * ($ox * $tangent[$c] + $oy * $band[$c]) + $sw * $plane[$c];
+                }
+                array_push(
+                    $positions,
+                    $center[0] + $lx * $tangent[0] + $ly * $band[0] + $wireR * $n[0],
+                    $center[1] + $lx * $tangent[1] + $ly * $band[1] + $wireR * $n[1],
+                    $center[2] + $lx * $tangent[2] + $ly * $band[2] + $wireR * $n[2]
+                );
+                array_push($normals, $n[0], $n[1], $n[2]);
+                array_push($uvs, $u, $v);
+            }
+        }
+
+        for ($i = 0; $i < $segU; $i++) {
+            $i1 = ($i + 1) % $segU;
+            for ($j = 0; $j < $segV; $j++) {
+                $j1 = ($j + 1) % $segV;
+                $a = $base + $i * $segV + $j;
+                $b = $base + $i1 * $segV + $j;
+                $c = $base + $i1 * $segV + $j1;
+                $d = $base + $i * $segV + $j1;
+                array_push($indices, $a, $b, $c, $a, $c, $d);
+            }
+        }
     }
 
     /**

@@ -222,7 +222,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v9')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v10')", $html);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $html);
         $this->assertStringContainsString('window.__sfLobbyAudioRegistry', $html);
         $this->assertStringContainsString('volume: 5,', $html);
@@ -544,7 +544,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v9', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v10', $hostJs);
         $this->assertStringContainsString("root.setAttribute('data-sf-3d-lobby-modal', 'heroes')", $hostJs);
         $this->assertStringContainsString('stopPrewarmAndForceLobbySilence', $hostJs);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $hostJs);

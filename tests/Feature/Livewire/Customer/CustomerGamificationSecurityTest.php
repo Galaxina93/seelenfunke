@@ -198,58 +198,11 @@ class CustomerGamificationSecurityTest extends TestCase
         $this->assertEquals(240, $this->profile->funken_balance);
     }
 
-    public function test_dashboard_activate_seelenfunke_enforces_paid_non_revoked_order_guard()
+    public function test_dashboard_activate_seelenfunke_is_free_without_order_and_initializes_hearts()
     {
         $this->profile->update(['is_active' => false]);
 
-        // 1. Without order -> server guard blocks activation
-        Livewire::test(CustomerDashboardComponent::class)
-            ->call('activateSeelenfunke')
-            ->assertSet('isGameModeActive', false);
-
-        $this->assertFalse((bool) $this->profile->fresh()->is_active);
-
-        // 2. Paid order that was revoked -> still blocked!
-        OrderOrder::create([
-            'order_number' => 'ORD-DASH-REVOKED-1',
-            'customer_id' => $this->customer->id,
-            'email' => $this->customer->email,
-            'status' => 'completed',
-            'payment_status' => 'paid',
-            'subtotal_price' => 2990,
-            'tax_amount' => 477,
-            'shipping_price' => 0,
-            'total_price' => 2990,
-            'billing_address' => ['first_name' => 'Max', 'last_name' => 'Sammler'],
-            'shipping_address' => ['first_name' => 'Max', 'last_name' => 'Sammler'],
-        ]);
-        OrderRevocation::create([
-            'name' => 'Max Sammler',
-            'email' => $this->customer->email,
-            'order_number' => 'ORD-DASH-REVOKED-1',
-            'status' => 'processed',
-        ]);
-
-        Livewire::test(CustomerDashboardComponent::class)
-            ->call('activateSeelenfunke')
-            ->assertSet('isGameModeActive', false);
-        $this->assertFalse((bool) $this->profile->fresh()->is_active);
-
-        // 3. Valid paid non-revoked order -> activation succeeds and initializes 6 hearts
-        OrderOrder::create([
-            'order_number' => 'ORD-DASH-VALID-2',
-            'customer_id' => $this->customer->id,
-            'email' => $this->customer->email,
-            'status' => 'completed',
-            'payment_status' => 'paid',
-            'subtotal_price' => 3990,
-            'tax_amount' => 637,
-            'shipping_price' => 0,
-            'total_price' => 3990,
-            'billing_address' => ['first_name' => 'Max', 'last_name' => 'Sammler'],
-            'shipping_address' => ['first_name' => 'Max', 'last_name' => 'Sammler'],
-        ]);
-
+        // Kostenlose 1-Klick-Magie-Aktivierung ohne Bestellpflicht (Ehrenpodeste erfordern weiterhin eine Bestellung)
         Livewire::test(CustomerDashboardComponent::class)
             ->call('activateSeelenfunke')
             ->assertSet('isGameModeActive', true);
@@ -258,6 +211,15 @@ class CustomerGamificationSecurityTest extends TestCase
         $this->assertTrue((bool) $fresh->is_active);
         $this->assertSame(6, (int) $fresh->magma_hearts);
         $this->assertGreaterThanOrEqual(1, (int) $fresh->magma_unlocked_level);
+
+        // Deaktivieren und sofort wieder aktivieren bleibt verlustfrei moeglich
+        Livewire::test(CustomerDashboardComponent::class)
+            ->call('deactivateSeelenfunke')
+            ->assertSet('isGameModeActive', false)
+            ->call('activateSeelenfunke')
+            ->assertSet('isGameModeActive', true);
+
+        $this->assertTrue((bool) $this->profile->fresh()->is_active);
     }
 
     public function test_hall_of_fame_pagination_avoids_n_plus_1_write_storm_and_rate_limits_rapid_paging()

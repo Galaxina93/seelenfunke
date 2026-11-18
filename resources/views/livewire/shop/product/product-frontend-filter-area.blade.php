@@ -4616,7 +4616,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v9');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v10');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {

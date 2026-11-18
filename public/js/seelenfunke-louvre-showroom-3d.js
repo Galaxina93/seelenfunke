@@ -4188,14 +4188,7 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         try {
-            if (typeof this.renderer.compileAsync === 'function') {
-                await Promise.race([
-                    this.renderer.compileAsync(this.scene, this.camera),
-                    this._delayMs(1400),
-                ]);
-            } else if (typeof this.renderer.compile === 'function') {
-                this.renderer.compile(this.scene, this.camera);
-            }
+            await this._safeCompileAsync(1400);
         } catch (compileErr) {
             try {
                 if (typeof this.renderer.compile === 'function') {
@@ -4220,6 +4213,53 @@ class SeelenfunkeLouvreShowroom3D {
         if (this.onEngineReady) {
             this.onEngineReady();
         }
+    }
+
+    // Null-sicherer Ersatz für THREE.WebGLRenderer.compileAsync (three r182):
+    // Das Original pollt per setTimeout unbegrenzt weiter, auch nachdem Promise.race abgelaufen ist.
+    // Werden Materialien oder der Renderer zwischenzeitlich entsorgt (Modal geschlossen, Exponat getauscht,
+    // wire:navigate), fehlt currentProgram und es entsteht im Bundle
+    // "Cannot read properties of undefined (reading 'isReady')" in Set.forEach.
+    // Diese Variante guardet jedes Material, bricht bei destroy/Renderer-Wechsel ab und endet hart nach maxWaitMs.
+    _safeCompileAsync(maxWaitMs) {
+        const renderer = this.renderer;
+        if (!renderer || !this.scene || !this.camera || typeof renderer.compile !== 'function') {
+            return Promise.resolve();
+        }
+        const pending = renderer.compile(this.scene, this.camera);
+        const ext = renderer.extensions;
+        const hasParallel = !!ext && (typeof ext.has === 'function'
+            ? ext.has('KHR_parallel_shader_compile')
+            : (typeof ext.get === 'function' && ext.get('KHR_parallel_shader_compile') !== null));
+        if (!pending || typeof pending.forEach !== 'function' || !renderer.properties || !hasParallel) {
+            return Promise.resolve();
+        }
+        const deadline = performance.now() + Math.max(0, Number(maxWaitMs) || 0);
+        return new Promise((resolve) => {
+            const finish = () => {
+                if (typeof pending.clear === 'function') pending.clear();
+                resolve();
+            };
+            const check = () => {
+                if (this.destroyed || this.renderer !== renderer || performance.now() >= deadline) {
+                    finish();
+                    return;
+                }
+                pending.forEach((material) => {
+                    const props = material ? renderer.properties.get(material) : null;
+                    const program = props ? props.currentProgram : null;
+                    if (!program || typeof program.isReady !== 'function' || program.isReady()) {
+                        pending.delete(material);
+                    }
+                });
+                if (pending.size === 0) {
+                    resolve();
+                    return;
+                }
+                setTimeout(check, 10);
+            };
+            check();
+        });
     }
 
     _syncZoneGroupVisibility() {
