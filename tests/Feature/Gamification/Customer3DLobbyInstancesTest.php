@@ -1022,6 +1022,154 @@ class Customer3DLobbyInstancesTest extends TestCase
         $this->assertSame(2, collect($peerSync->json('instances'))->firstWhere('id', 1)['count']);
     }
 
+    public function test_ws_relay_signed_ticket_wall_cling_backflip_somersault_sync_and_zero_laravel_lobby_ping(): void
+    {
+        config(['services.gemini.bridge_secret' => 'unit-test-lobby-ws-bridge-secret-2026']);
+        config(['app.url' => 'http://127.0.0.1']);
+
+        $acrobat = $this->makeCustomer(111, true, 'WandAkrobatin', 8, false, true);
+        $spectator = $this->makeCustomer(112, true, 'SaltoZeuge', 6, false, true);
+
+        // 1. ws_relay.url & HMAC-SHA256 Ticket-Signatur bei join & switchInstance (lokal & Stage-Host)
+        $joinResp = $this->actingAs($acrobat, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes', 'x' => -11.5, 'z' => -32.0]);
+        $joinResp->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('instance_id', 1)
+            ->assertJsonPath('ws_relay.url', 'ws://127.0.0.1:8089/lobby-ws')
+            ->assertJsonPath('ws_relay.instance_id', 1)
+            ->assertJsonPath('ws_relay.tick_hz', 20);
+
+        $acrobatPeerId = (string) $joinResp->json('player.peer_id');
+        $joinTicket = (string) $joinResp->json('ws_relay.ticket');
+        $this->assertNotEmpty($joinTicket);
+
+        $joinParts = explode('.', $joinTicket);
+        $this->assertCount(2, $joinParts);
+        [$joinB64, $joinSig] = $joinParts;
+        $expectedJoinSig = hash_hmac('sha256', $joinB64, 'unit-test-lobby-ws-bridge-secret-2026');
+        $this->assertTrue(hash_equals($expectedJoinSig, $joinSig));
+
+        $joinClaims = json_decode((string) base64_decode(strtr($joinB64, '-_', '+/'), true), true);
+        $this->assertIsArray($joinClaims);
+        $this->assertSame($acrobatPeerId, $joinClaims['peer_id']);
+        $this->assertSame(1, $joinClaims['instance_id']);
+        $this->assertSame('WandAkrobatin', $joinClaims['display_name']);
+        $this->assertSame(8, $joinClaims['level']);
+        $this->assertSame('KLASSE A', $joinClaims['ship_class']);
+        $this->assertGreaterThan(now()->getTimestampMs(), $joinClaims['exp']);
+
+        config(['app.url' => 'https://stage.mein-seelenfunke.de']);
+        $switchResp = $this->actingAs($acrobat, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 2, 'zone' => 'heroes']);
+        $switchResp->assertOk()
+            ->assertJsonPath('instance_id', 2)
+            ->assertJsonPath('ws_relay.url', 'wss://api-live-bridge.mein-seelenfunke.de/lobby-ws')
+            ->assertJsonPath('ws_relay.instance_id', 2);
+
+        $switchTicket = (string) $switchResp->json('ws_relay.ticket');
+        [$switchB64, $switchSig] = explode('.', $switchTicket);
+        $this->assertTrue(hash_equals(hash_hmac('sha256', $switchB64, 'unit-test-lobby-ws-bridge-secret-2026'), $switchSig));
+        $switchClaims = json_decode((string) base64_decode(strtr($switchB64, '-_', '+/'), true), true);
+        $this->assertSame(2, $switchClaims['instance_id']);
+
+        // 2. Wall-Cling & Wand-Rueckwaertssalto (somersault_dir = -1) in peers[0] bei sync ohne falsches Tamper-Blocking
+        $this->actingAs($spectator, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 2, 'zone' => 'heroes'])
+            ->assertOk()
+            ->assertJsonPath('instance_id', 2);
+
+        $acrobatSync = $this->actingAs($acrobat, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', [
+                'zone' => 'heroes',
+                'x' => -11.8,
+                'y' => 3.45,
+                'z' => -32.0,
+                'vx' => 4.2,
+                'vy' => 8.75,
+                'vz' => -1.5,
+                'speed' => 6.8,
+                'sprint' => true,
+                'wall_cling' => true,
+                'wall_nx' => 1.0,
+                'wall_nz' => -0.25,
+                'somersault_seq' => 7,
+                'somersault_dir' => -1,
+                'somersault_prog' => 0.625,
+                'emote' => 'spark',
+            ]);
+        $acrobatSync->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('ws_relay.instance_id', 2);
+
+        $spectatorSync = $this->actingAs($spectator, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', [
+                'zone' => 'heroes',
+                'x' => -6.0,
+                'y' => 0.0,
+                'z' => -32.0,
+            ]);
+        $spectatorSync->assertOk();
+
+        $peer = $spectatorSync->json('peers.0');
+        $this->assertNotNull($peer);
+        $this->assertSame($acrobatPeerId, $peer['peer_id']);
+        $this->assertEquals(8.75, $peer['vy']);
+        $this->assertTrue($peer['sprint']);
+        $this->assertTrue($peer['wall_cling']);
+        $this->assertEquals(1.0, $peer['wall_nx']);
+        $this->assertEquals(-0.25, $peer['wall_nz']);
+        $this->assertSame(7, $peer['somersault_seq']);
+        $this->assertSame(-1, $peer['somersault_dir']);
+        $this->assertEquals(0.625, $peer['somersault_prog']);
+        $this->assertSame('spark', $peer['emote']);
+
+        // Clamping-Pruefung fuer Extremwerte auf vy, wall_nx, somersault_dir & somersault_prog
+        $this->actingAs($acrobat, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', [
+                'zone' => 'heroes',
+                'x' => -11.8,
+                'y' => 3.45,
+                'z' => -32.0,
+                'vy' => -99.0,
+                'wall_nx' => -5.0,
+                'wall_nz' => 9.0,
+                'somersault_seq' => 42,
+                'somersault_dir' => 9,
+                'somersault_prog' => 4.5,
+            ])
+            ->assertOk();
+
+        $clampedCheck = $this->actingAs($spectator, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', ['zone' => 'heroes', 'x' => -6.0, 'z' => -32.0]);
+        $clampedPeer = $clampedCheck->json('peers.0');
+        $this->assertEquals(-22.0, $clampedPeer['vy']);
+        $this->assertEquals(-1.0, $clampedPeer['wall_nx']);
+        $this->assertEquals(1.0, $clampedPeer['wall_nz']);
+        $this->assertSame(0, $clampedPeer['somersault_dir']);
+        $this->assertEquals(1.0, $clampedPeer['somersault_prog']);
+
+        // 3. Syntax & Funktion von public/lobby-ping.php (Zero-Laravel, kein vendor/autoload.php)
+        $pingFile = public_path('lobby-ping.php');
+        $this->assertFileExists($pingFile);
+        $rawSource = (string) file_get_contents($pingFile);
+        $this->assertStringNotContainsString('autoload.php', $rawSource);
+
+        $lintProc = new \Symfony\Component\Process\Process([PHP_BINARY, '-l', $pingFile]);
+        $lintProc->run();
+        $this->assertTrue($lintProc->isSuccessful(), $lintProc->getErrorOutput());
+
+        $execProc = new \Symfony\Component\Process\Process([PHP_BINARY, $pingFile]);
+        $execProc->run();
+        $this->assertTrue($execProc->isSuccessful(), $execProc->getErrorOutput());
+
+        $pingJson = json_decode(trim($execProc->getOutput()), true);
+        $this->assertIsArray($pingJson);
+        $this->assertSame(true, $pingJson['ok'] ?? null);
+        $this->assertIsInt($pingJson['server_ts_ms'] ?? null);
+        $this->assertGreaterThan(1700000000000, $pingJson['server_ts_ms']);
+    }
+
     private function makeCustomer(
         int $index,
         bool $optIn,

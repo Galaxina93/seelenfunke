@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v7';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v8';
 
     function ensurePrewarmRegistryAndRegister(audioEl) {
         if (!audioEl || typeof window === 'undefined') return audioEl;
@@ -316,12 +316,22 @@
         this._syncTimer = null;
         this._urgentSyncWatchTimer = null;
         this._pingProbeTimer = null;
+        this._pingWarmupTimer = null;
         this._hudTimer = null;
         this._syncInFlight = false;
         this._syncPendingImmediate = false;
         this._lastSyncSentAtMs = 0;
         this._lastWatchSyncSnap = null;
         this._pingProbeInFlight = false;
+        this._netSampleIsDirectWire = false;
+        this.wsConnected = false;
+        this._lobbyWs = null;
+        this._wsSendTimer = null;
+        this._wsPingTimer = null;
+        this._wsUrgentTimer = null;
+        this._wsTickMs = 50;
+        this._lastWsSentAtMs = 0;
+        this._lastWsSentState = null;
         this._activeSyncZone = null;
         this._openSeq = 0;
         this._fsResizeTimer = null;
@@ -548,6 +558,7 @@
 
         this._boundPageHide = function () {
             if (self.isOpen) {
+                self._closeLobbyWebSocket(true);
                 self._sendLeaveBeacon();
                 self.dispose();
             } else {
@@ -1710,11 +1721,15 @@
             : Date.now();
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._recordNetSample = function (rttMs, tickLabel) {
+    SeelenfunkeUnifiedLobbyHost.prototype._recordNetRttSample = function (rttMs, isDirectWire, tickLabel) {
         var cleanRtt = Math.max(1, Number(rttMs) || 1);
         var ns = this.netStats;
+        var switchingToDirectWire = Boolean(isDirectWire) && !this._netSampleIsDirectWire;
+        if (isDirectWire) {
+            this._netSampleIsDirectWire = true;
+        }
         ns.sentCount += 1;
-        if (ns.samples === 0 || ns.pingMs === null) {
+        if (ns.samples === 0 || ns.pingMs === null || switchingToDirectWire) {
             ns.pingMs = Math.max(1, Math.round(cleanRtt));
             ns.jitterMs = 0;
         } else {
@@ -1730,8 +1745,15 @@
         ns.lossPct = ns.sentCount > 0 ? Math.round((ns.failCount / ns.sentCount) * 100) : 0;
         if (tickLabel) {
             ns.tickHz = tickLabel;
+        } else if (this.wsConnected) {
+            ns.tickHz = '20,0 Hz';
         }
         this._renderPingHud();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._recordNetSample = function (rttMs, tickLabel) {
+        this._netSampleIsDirectWire = false;
+        this._recordNetRttSample(rttMs, false, tickLabel);
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._recordNetFailure = function () {
@@ -1782,7 +1804,9 @@
 
         var isLiveHeroes = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode);
         if (modeValEl) {
-            modeValEl.textContent = isLiveHeroes ? 'Live-Sync (6 Hz)' : 'Atelier (Solo)';
+            modeValEl.textContent = isLiveHeroes
+                ? (this.wsConnected ? 'Echtzeit-WS (20 Hz)' : 'Live-Sync (6 Hz)')
+                : 'Atelier (Solo)';
         }
         if (instRowEl) {
             instRowEl.style.display = isLiveHeroes ? 'flex' : 'none';
@@ -1802,13 +1826,13 @@
     SeelenfunkeUnifiedLobbyHost.prototype._probeSoloAtelierPing = function () {
         var self = this;
         if (!this.isOpen || this._pingProbeInFlight) return;
-        if (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode && this._syncTimer) {
+        if (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode && (this.wsConnected || this._syncTimer)) {
             return;
         }
         this._pingProbeInFlight = true;
         var t0 = this._nowPerfMs();
 
-        fetch('/funkenwerk-welt/lobby/ping', {
+        fetch('/lobby-ping.php', {
             method: 'GET',
             credentials: 'same-origin',
             cache: 'no-store',
@@ -1817,7 +1841,7 @@
             .then(function (r) {
                 if (r.ok) {
                     var rtt = self._nowPerfMs() - t0;
-                    self._recordNetSample(rtt, 'Atelier · Bereit');
+                    self._recordNetRttSample(rtt, true, 'Atelier · Bereit');
                     return null;
                 }
                 var tFallback = self._nowPerfMs();
@@ -1827,7 +1851,7 @@
                     cache: 'no-store'
                 }).then(function (rUp) {
                     if (rUp.ok) {
-                        self._recordNetSample(self._nowPerfMs() - tFallback, 'Atelier · Bereit');
+                        self._recordNetRttSample(self._nowPerfMs() - tFallback, true, 'Atelier · Bereit');
                     } else {
                         self._recordNetFailure();
                     }
@@ -1844,13 +1868,30 @@
     SeelenfunkeUnifiedLobbyHost.prototype._startAtelierPingLoop = function () {
         var self = this;
         this._stopAtelierPingLoop();
-        this._probeSoloAtelierPing();
+        fetch('/lobby-ping.php', {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store'
+        })
+            .catch(function () {})
+            .finally(function () {
+                if (!self.isOpen) return;
+                if (self._pingWarmupTimer) clearTimeout(self._pingWarmupTimer);
+                self._pingWarmupTimer = setTimeout(function () {
+                    self._pingWarmupTimer = null;
+                    self._probeSoloAtelierPing();
+                }, 150);
+            });
         this._pingProbeTimer = setInterval(function () {
             self._probeSoloAtelierPing();
         }, 10000);
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._stopAtelierPingLoop = function () {
+        if (this._pingWarmupTimer) {
+            clearTimeout(this._pingWarmupTimer);
+            this._pingWarmupTimer = null;
+        }
         if (this._pingProbeTimer) {
             clearInterval(this._pingProbeTimer);
             this._pingProbeTimer = null;
@@ -2729,6 +2770,242 @@
         }
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._buildWsStatePayload = function (st) {
+        return {
+            type: 'state',
+            x: st.x,
+            y: st.y,
+            z: st.z,
+            vx: st.vx || 0,
+            vy: st.vy || 0,
+            vz: st.vz || 0,
+            rot_y: st.rot_y,
+            speed: st.speed || 0,
+            jumping: Boolean(st.jumping),
+            sprint: Boolean(st.sprint),
+            wall_cling: Boolean(st.wall_cling),
+            wall_nx: st.wall_nx || 0,
+            wall_nz: st.wall_nz || 0,
+            somersault_seq: st.somersault_seq || 0,
+            somersault_dir: st.somersault_dir || 0,
+            somersault_prog: st.somersault_prog || 0,
+            emote: st.emote || null
+        };
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._hasWsStateChanged = function (st, prev, nowMs) {
+        if (!prev) return true;
+        if ((nowMs - (this._lastWsSentAtMs || 0)) >= 400) return true;
+        if (Math.abs((st.x || 0) - (prev.x || 0)) > 0.004) return true;
+        if (Math.abs((st.y || 0) - (prev.y || 0)) > 0.004) return true;
+        if (Math.abs((st.z || 0) - (prev.z || 0)) > 0.004) return true;
+        var dYaw = (st.rot_y || 0) - (prev.rot_y || 0);
+        while (dYaw > Math.PI) dYaw -= Math.PI * 2;
+        while (dYaw < -Math.PI) dYaw += Math.PI * 2;
+        if (Math.abs(dYaw) > 0.012) return true;
+        if (Math.abs((st.speed || 0) - (prev.speed || 0)) > 0.03) return true;
+        if (Boolean(st.jumping) !== Boolean(prev.jumping)) return true;
+        if (Boolean(st.sprint) !== Boolean(prev.sprint)) return true;
+        if (Boolean(st.wall_cling) !== Boolean(prev.wall_cling)) return true;
+        if ((st.somersault_seq || 0) !== (prev.somersault_seq || 0)) return true;
+        if ((st.somersault_dir || 0) !== (prev.somersault_dir || 0)) return true;
+        if ((st.emote || null) !== (prev.emote || null)) return true;
+        return false;
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._sendWsStateNow = function (force) {
+        if (!this.isOpen || !this.wsConnected || !this._lobbyWs || this._lobbyWs.readyState !== 1) return false;
+        if (this.soloMode || this.currentZone !== 'heroes') return false;
+        var facade = getFacade(this);
+        if (!facade) return false;
+        var st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
+        if (!st) return false;
+        var nowMs = this._nowPerfMs();
+        if (!force && !this._hasWsStateChanged(st, this._lastWsSentState, nowMs)) {
+            return false;
+        }
+        var pkt = this._buildWsStatePayload(st);
+        try {
+            this._lobbyWs.send(JSON.stringify(pkt));
+            this._lastWsSentAtMs = nowMs;
+            this._lastWsSentState = pkt;
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._upsertLocalPeerList = function (peerObj) {
+        if (!peerObj || typeof peerObj !== 'object') return;
+        var pid = String(peerObj.peer_id || peerObj.player_id || '');
+        if (!pid) return;
+        var next = Array.isArray(this.peers) ? this.peers.slice() : [];
+        var foundIdx = -1;
+        for (var i = 0; i < next.length; i++) {
+            var cur = next[i];
+            if (cur && (String(cur.peer_id || '') === pid || String(cur.player_id || '') === pid)) {
+                foundIdx = i;
+                break;
+            }
+        }
+        if (foundIdx >= 0) {
+            next[foundIdx] = Object.assign({}, next[foundIdx], peerObj);
+        } else if (next.length < 19) {
+            next.push(peerObj);
+        }
+        this.peers = next;
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._removeLocalPeerFromList = function (peerId) {
+        if (!peerId || !Array.isArray(this.peers)) return;
+        var target = String(peerId);
+        this.peers = this.peers.filter(function (p) {
+            return p && String(p.peer_id || '') !== target && String(p.player_id || '') !== target;
+        });
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._clearWsTimers = function () {
+        if (this._wsSendTimer) {
+            clearInterval(this._wsSendTimer);
+            this._wsSendTimer = null;
+        }
+        if (this._wsPingTimer) {
+            clearInterval(this._wsPingTimer);
+            this._wsPingTimer = null;
+        }
+        if (this._wsUrgentTimer) {
+            clearTimeout(this._wsUrgentTimer);
+            this._wsUrgentTimer = null;
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._closeLobbyWebSocket = function (sendLeave) {
+        this._clearWsTimers();
+        var ws = this._lobbyWs;
+        this._lobbyWs = null;
+        this.wsConnected = false;
+        this._lastWsSentState = null;
+        if (!ws) return;
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        try {
+            if (sendLeave && ws.readyState === 1) {
+                ws.send(JSON.stringify({ type: 'leave' }));
+            }
+        } catch (e) {}
+        try {
+            ws.close(1000, 'leave');
+        } catch (e2) {}
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._connectLobbyWebSocket = function (wsRelay) {
+        var self = this;
+        if (!wsRelay || !wsRelay.url || !wsRelay.ticket || typeof WebSocket === 'undefined') return;
+        if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
+
+        this._closeLobbyWebSocket(false);
+        this._wsTickMs = Math.max(35, Math.min(100, Number(wsRelay.tick_ms) || 50));
+        var wsUrl = String(wsRelay.url) + (String(wsRelay.url).indexOf('?') === -1 ? '?' : '&') + 'ticket=' + encodeURIComponent(String(wsRelay.ticket));
+        var ws = null;
+        try {
+            ws = new WebSocket(wsUrl);
+        } catch (err) {
+            this.wsConnected = false;
+            return;
+        }
+        this._lobbyWs = ws;
+
+        var sendWsPing = function () {
+            if (!self.wsConnected || self._lobbyWs !== ws || ws.readyState !== 1) return;
+            try {
+                ws.send(JSON.stringify({ type: 'ping', c: self._nowPerfMs() }));
+            } catch (e) {}
+        };
+
+        ws.onmessage = function (ev) {
+            if (self._lobbyWs !== ws || !self.isOpen || self.soloMode || self.currentZone !== 'heroes') return;
+            var msg = null;
+            try {
+                msg = JSON.parse(ev.data);
+            } catch (e) {
+                return;
+            }
+            if (!msg || typeof msg !== 'object') return;
+            var facade = getFacade(self);
+
+            if (msg.type === 'welcome') {
+                self.wsConnected = true;
+                self.netStats.tickHz = '20,0 Hz';
+                self.netStats.tickIntervalMs = self._wsTickMs;
+                if (msg.instance_id) {
+                    self.instanceId = Number(msg.instance_id) || self.instanceId;
+                }
+                if (facade && msg.peer_id && typeof facade.setLocalPeerId === 'function') {
+                    facade.setLocalPeerId(msg.peer_id);
+                }
+                self.peers = Array.isArray(msg.peers) ? msg.peers : [];
+                if (facade) {
+                    facade.updatePeers(self.peers);
+                }
+                self._clearWsTimers();
+                self._sendWsStateNow(true);
+                sendWsPing();
+                self._wsSendTimer = setInterval(function () {
+                    self._sendWsStateNow(false);
+                }, self._wsTickMs);
+                self._wsPingTimer = setInterval(sendWsPing, 2000);
+                self._scheduleNextSyncTick(8000);
+                self._syncHudState();
+                self._renderPingHud();
+                return;
+            }
+
+            if (msg.type === 'peer_state' && msg.peer) {
+                if (facade && typeof facade.upsertPeer === 'function') {
+                    facade.upsertPeer(msg.peer);
+                }
+                self._upsertLocalPeerList(msg.peer);
+                return;
+            }
+
+            if (msg.type === 'peer_left' && msg.peer_id) {
+                if (facade && typeof facade.removePeer === 'function') {
+                    facade.removePeer(msg.peer_id);
+                }
+                self._removeLocalPeerFromList(msg.peer_id);
+                self._syncHudState();
+                self._renderPingHud();
+                return;
+            }
+
+            if (msg.type === 'pong') {
+                var rtt = Math.max(1, self._nowPerfMs() - Number(msg.c));
+                self._recordNetRttSample(rtt, true, '20,0 Hz');
+            }
+        };
+
+        var handleWsDisconnect = function () {
+            if (self._lobbyWs !== ws) return;
+            self._clearWsTimers();
+            self._lobbyWs = null;
+            var wasConnected = self.wsConnected;
+            self.wsConnected = false;
+            self._lastWsSentState = null;
+            if (self.isOpen && self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
+                self.netStats.tickHz = '6,0 Hz';
+                self._renderPingHud();
+                if (wasConnected || !self._syncTimer) {
+                    self._scheduleNextSyncTick(165);
+                }
+            }
+        };
+
+        ws.onerror = handleWsDisconnect;
+        ws.onclose = handleWsDisconnect;
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype._handleZoneSyncTransition = function (nextZone) {
         var z = String(nextZone || 'gallery').toLowerCase() === 'heroes' ? 'heroes' : 'gallery';
         var facade = getFacade(this);
@@ -2737,7 +3014,7 @@
             if (facade && typeof facade.refreshHeroesData === 'function') {
                 facade.refreshHeroesData(false);
             }
-            if (this.lobbyAuth && this.sanctumGateState.canEnter && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
+            if (this.lobbyAuth && this.sanctumGateState.canEnter && !this.soloMode && (this._activeSyncZone !== 'heroes' || (!this._syncTimer && !this.wsConnected))) {
                 this._activeSyncZone = 'heroes';
                 this._joinLobby();
             }
@@ -2745,7 +3022,7 @@
             return;
         }
 
-        var wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer));
+        var wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer) || this.wsConnected);
         this._activeSyncZone = 'gallery';
         this._setInstanceMenuOpen(false);
         this._stopSyncLoop();
@@ -2773,10 +3050,18 @@
                     y: st.y,
                     z: st.z,
                     vx: st.vx || 0,
+                    vy: st.vy || 0,
                     vz: st.vz || 0,
                     rot_y: st.rot_y,
                     speed: st.speed,
                     jumping: Boolean(st.jumping),
+                    sprint: Boolean(st.sprint),
+                    wall_cling: Boolean(st.wall_cling),
+                    wall_nx: st.wall_nx || 0,
+                    wall_nz: st.wall_nz || 0,
+                    somersault_seq: st.somersault_seq || 0,
+                    somersault_dir: st.somersault_dir || 0,
+                    somersault_prog: st.somersault_prog || 0,
                     zone: 'gallery',
                     emote: st.emote || null,
                     combo_seq: 0,
@@ -2807,10 +3092,18 @@
                 y: st.y,
                 z: st.z,
                 vx: st.vx || 0,
+                vy: st.vy || 0,
                 vz: st.vz || 0,
                 rot_y: st.rot_y,
                 speed: st.speed,
                 jumping: Boolean(st.jumping),
+                sprint: Boolean(st.sprint),
+                wall_cling: Boolean(st.wall_cling),
+                wall_nx: st.wall_nx || 0,
+                wall_nz: st.wall_nz || 0,
+                somersault_seq: st.somersault_seq || 0,
+                somersault_dir: st.somersault_dir || 0,
+                somersault_prog: st.somersault_prog || 0,
                 zone: 'heroes',
                 emote: st.emote || null,
                 combo_seq: 0,
@@ -2829,7 +3122,9 @@
                         return null;
                     }
                     if (r.ok) {
-                        self._recordNetSample(rtt, '6,0 Hz');
+                        if (!self.wsConnected) {
+                            self._recordNetSample(rtt, '6,0 Hz');
+                        }
                     } else {
                         self._recordNetFailure();
                     }
@@ -2839,7 +3134,7 @@
             .then(function (data) {
                 if (!data || !data.ok || !self.isOpen || self.currentZone !== 'heroes') return;
                 self.lobbyAuth = Boolean(data.authenticated);
-                if (data.tick_interval_ms) {
+                if (data.tick_interval_ms && !self.wsConnected) {
                     self.netStats.tickIntervalMs = Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165));
                 }
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || 1;
@@ -2860,6 +3155,9 @@
                 self._renderPingHud();
                 if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
                     self._startSyncLoop();
+                    if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket) {
+                        self._connectLobbyWebSocket(data.ws_relay);
+                    }
                 }
             })
             .catch(function () {
@@ -2868,6 +3166,10 @@
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._computeAdaptiveSyncDelayMs = function (st) {
+        if (this.wsConnected) {
+            this.netStats.tickHz = '20,0 Hz';
+            return 8000;
+        }
         var speed = st ? (Number(st.speed) || 0) : 0;
         var jumping = Boolean(st && st.jumping);
         var hasPeers = Array.isArray(this.peers) && this.peers.length > 0;
@@ -2895,6 +3197,25 @@
     SeelenfunkeUnifiedLobbyHost.prototype._requestImmediateSync = function () {
         var self = this;
         if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
+
+        if (this.wsConnected && this._lobbyWs && this._lobbyWs.readyState === 1) {
+            var wsElapsed = this._nowPerfMs() - (this._lastWsSentAtMs || 0);
+            if (wsElapsed >= 25) {
+                if (this._wsUrgentTimer) {
+                    clearTimeout(this._wsUrgentTimer);
+                    this._wsUrgentTimer = null;
+                }
+                this._sendWsStateNow(true);
+            } else if (!this._wsUrgentTimer) {
+                var wsWait = Math.max(4, Math.ceil(25 - wsElapsed));
+                this._wsUrgentTimer = setTimeout(function () {
+                    self._wsUrgentTimer = null;
+                    self._sendWsStateNow(true);
+                }, wsWait);
+            }
+            return;
+        }
+
         if (this._syncInFlight) {
             this._syncPendingImmediate = true;
             return;
@@ -2926,11 +3247,20 @@
 
         var moving = (Number(st.speed) || 0) > 0.08;
         var jumping = Boolean(st.jumping);
+        var wallCling = Boolean(st.wall_cling);
+        var somersaultSeq = st.somersault_seq || 0;
         var emote = st.emote || null;
         var velAngle = moving ? Math.atan2(Number(st.vx) || 0, Number(st.vz) || 0) : 0;
 
         if (!this._lastWatchSyncSnap) {
-            this._lastWatchSyncSnap = { moving: moving, jumping: jumping, emote: emote, velAngle: velAngle };
+            this._lastWatchSyncSnap = {
+                moving: moving,
+                jumping: jumping,
+                wallCling: wallCling,
+                somersaultSeq: somersaultSeq,
+                emote: emote,
+                velAngle: velAngle
+            };
             return;
         }
         var prev = this._lastWatchSyncSnap;
@@ -2939,24 +3269,27 @@
         while (rawDiff < -Math.PI) rawDiff += Math.PI * 2;
         var dirChanged = moving && prev.moving && Math.abs(rawDiff) > (25 * Math.PI / 180);
 
-        if (moving !== prev.moving || (!prev.jumping && jumping) || emote !== prev.emote || dirChanged) {
-            this._lastWatchSyncSnap = { moving: moving, jumping: jumping, emote: emote, velAngle: velAngle };
+        if (
+            moving !== prev.moving
+            || (!prev.jumping && jumping)
+            || wallCling !== prev.wallCling
+            || somersaultSeq !== prev.somersaultSeq
+            || emote !== prev.emote
+            || dirChanged
+        ) {
+            this._lastWatchSyncSnap = {
+                moving: moving,
+                jumping: jumping,
+                wallCling: wallCling,
+                somersaultSeq: somersaultSeq,
+                emote: emote,
+                velAngle: velAngle
+            };
             this._requestImmediateSync();
         }
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._startSyncLoop = function () {
-        var self = this;
-        this._stopSyncLoop();
-        if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
-
-        this._urgentSyncWatchTimer = setInterval(function () {
-            self._checkUrgentWatchState();
-        }, 60);
-        this._scheduleNextSyncTick();
-    };
-
-    SeelenfunkeUnifiedLobbyHost.prototype._stopSyncLoop = function () {
+    SeelenfunkeUnifiedLobbyHost.prototype._stopHttpSyncTimers = function () {
         if (this._syncTimer) {
             clearTimeout(this._syncTimer);
             this._syncTimer = null;
@@ -2970,6 +3303,22 @@
         this._lastWatchSyncSnap = null;
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._startSyncLoop = function () {
+        var self = this;
+        this._stopHttpSyncTimers();
+        if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
+
+        this._urgentSyncWatchTimer = setInterval(function () {
+            self._checkUrgentWatchState();
+        }, 60);
+        this._scheduleNextSyncTick();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._stopSyncLoop = function () {
+        this._closeLobbyWebSocket(true);
+        this._stopHttpSyncTimers();
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype._runSyncTick = function () {
         var self = this;
         var facade = getFacade(this);
@@ -2981,14 +3330,18 @@
             return;
         }
         if (this._syncInFlight) {
-            this._syncPendingImmediate = true;
+            if (!this.wsConnected) {
+                this._syncPendingImmediate = true;
+            }
             return;
         }
         this._syncInFlight = true;
         var st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
         var t0 = this._nowPerfMs();
         this._lastSyncSentAtMs = t0;
-        var nextDelayMode = this._computeAdaptiveSyncDelayMs(st) <= 165 ? '6,0 Hz' : 'Ruhe-Puls';
+        var nextDelayMode = this.wsConnected
+            ? '20,0 Hz'
+            : (this._computeAdaptiveSyncDelayMs(st) <= 165 ? '6,0 Hz' : 'Ruhe-Puls');
 
         fetch('/funkenwerk-welt/lobby/sync', {
             method: 'POST',
@@ -3004,10 +3357,18 @@
                 y: st.y,
                 z: st.z,
                 vx: st.vx || 0,
+                vy: st.vy || 0,
                 vz: st.vz || 0,
                 rot_y: st.rot_y,
                 speed: st.speed,
                 jumping: Boolean(st.jumping),
+                sprint: Boolean(st.sprint),
+                wall_cling: Boolean(st.wall_cling),
+                wall_nx: st.wall_nx || 0,
+                wall_nz: st.wall_nz || 0,
+                somersault_seq: st.somersault_seq || 0,
+                somersault_dir: st.somersault_dir || 0,
+                somersault_prog: st.somersault_prog || 0,
                 zone: 'heroes',
                 emote: st.emote || null,
                 combo_seq: 0,
@@ -3026,8 +3387,10 @@
                         return null;
                     }
                     if (r.ok) {
-                        self._recordNetSample(rtt, nextDelayMode);
-                    } else {
+                        if (!self.wsConnected) {
+                            self._recordNetSample(rtt, nextDelayMode);
+                        }
+                    } else if (!self.wsConnected) {
                         self._recordNetFailure();
                     }
                     return r.ok ? b : null;
@@ -3036,7 +3399,7 @@
             .then(function (data) {
                 var f2 = getFacade(self);
                 if (!data || !data.ok || !self.isOpen || !f2 || self.currentZone !== 'heroes') return;
-                if (data.tick_interval_ms) {
+                if (data.tick_interval_ms && !self.wsConnected) {
                     self.netStats.tickIntervalMs = Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165));
                 }
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || self.instanceId;
@@ -3044,8 +3407,10 @@
                 if (data.peer_id && typeof f2.setLocalPeerId === 'function') {
                     f2.setLocalPeerId(data.peer_id);
                 }
-                self.peers = Array.isArray(data.peers) ? data.peers : [];
-                f2.updatePeers(self.peers);
+                if (!self.wsConnected) {
+                    self.peers = Array.isArray(data.peers) ? data.peers : [];
+                    f2.updatePeers(self.peers);
+                }
                 if (Array.isArray(data.messages)) {
                     self._ingestSyncMessages(data.messages);
                 }
@@ -3054,18 +3419,20 @@
                 if (self.instanceMenuOpen) self._renderInstanceList();
             })
             .catch(function () {
-                self._recordNetFailure();
+                if (!self.wsConnected) {
+                    self._recordNetFailure();
+                }
             })
             .finally(function () {
                 self._syncInFlight = false;
                 if (!self.isOpen || !self.lobbyAuth || self.soloMode || self.currentZone !== 'heroes') {
                     return;
                 }
-                if (self._syncPendingImmediate) {
+                if (!self.wsConnected && self._syncPendingImmediate) {
                     self._syncPendingImmediate = false;
                     self._requestImmediateSync();
                 } else {
-                    self._scheduleNextSyncTick();
+                    self._scheduleNextSyncTick(self.wsConnected ? 8000 : undefined);
                 }
             });
     };
@@ -3083,6 +3450,7 @@
         }
         var st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
         this._setInstanceMenuOpen(false);
+        this._closeLobbyWebSocket(true);
         var t0 = this._nowPerfMs();
 
         fetch('/funkenwerk-welt/lobby/switch', {
@@ -3099,10 +3467,18 @@
                 y: st.y,
                 z: st.z,
                 vx: st.vx || 0,
+                vy: st.vy || 0,
                 vz: st.vz || 0,
                 rot_y: st.rot_y,
                 speed: st.speed,
                 jumping: Boolean(st.jumping),
+                sprint: Boolean(st.sprint),
+                wall_cling: Boolean(st.wall_cling),
+                wall_nx: st.wall_nx || 0,
+                wall_nz: st.wall_nz || 0,
+                somersault_seq: st.somersault_seq || 0,
+                somersault_dir: st.somersault_dir || 0,
+                somersault_prog: st.somersault_prog || 0,
                 zone: 'heroes'
             })
         })
@@ -3118,7 +3494,9 @@
                         return null;
                     }
                     if (r.ok) {
-                        self._recordNetSample(rtt, '6,0 Hz');
+                        if (!self.wsConnected) {
+                            self._recordNetSample(rtt, '6,0 Hz');
+                        }
                     } else {
                         self._recordNetFailure();
                     }
@@ -3130,12 +3508,18 @@
                 if (!data || !data.ok || !self.isOpen || !f2) return;
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || cleanTarget;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
+                if (data.peer_id && typeof f2.setLocalPeerId === 'function') {
+                    f2.setLocalPeerId(data.peer_id);
+                }
                 self.peers = Array.isArray(data.peers) ? data.peers : [];
                 f2.switchInstance(self.peers);
                 self._syncHudState();
                 self._renderPingHud();
                 if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
                     self._startSyncLoop();
+                    if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket) {
+                        self._connectLobbyWebSocket(data.ws_relay);
+                    }
                 }
             })
             .catch(function () {

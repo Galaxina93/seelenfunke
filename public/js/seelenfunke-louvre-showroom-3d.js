@@ -4,7 +4,7 @@
  * On-Demand ES-Modul: 0 KB Initial-Last auf /shop & /mein-konto, 0 % CPU/GPU nach dem Schliessen.
  */
 
-import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v7';
+import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v8';
 
 const TWO_PI = Math.PI * 2;
 const PROXIMITY_FOCUS_ENTER = 3.4;
@@ -1707,6 +1707,10 @@ function clamp(v, lo, hi) {
 
 function lerp(a, b, t) {
     return a + (b - a) * t;
+}
+
+function round3(v) {
+    return Number((Number(v) || 0).toFixed(3));
 }
 
 function normalizeAngleSigned(rad) {
@@ -3945,6 +3949,7 @@ class SeelenfunkeLouvreShowroom3D {
             wallFlipVx: 0.0,
             wallFlipVz: 0.0,
             isSomersault: false,
+            somersaultSeq: 0,
             somersaultDir: 1,
             somersaultProgress: 0.0,
             somersaultDuration: 0.52,
@@ -10514,6 +10519,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.worldVx = this.player.wallFlipVx;
             this.player.worldVz = this.player.wallFlipVz;
             this.player.currentSpeed = Math.hypot(this.player.worldVx, this.player.worldVz);
+            this.player.somersaultSeq = (this.player.somersaultSeq || 0) + 1;
             this.player.isSomersault = true;
             this.player.somersaultDir = -1;
             this.player.somersaultDuration = 0.62;
@@ -10526,7 +10532,7 @@ class SeelenfunkeLouvreShowroom3D {
                 wnZ
             );
             if (this.audio) this.audio.playJump(true);
-            this._notifyLocalUrgentSync('wall_flip');
+            this._notifyUrgentLocalSync('wall_flip');
             return true;
         }
 
@@ -10549,7 +10555,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.somersaultDuration = 0.52;
             this.player.somersaultProgress = 0.0;
             if (this.audio) this.audio.playJump(false);
-            this._notifyLocalUrgentSync('jump');
+            this._notifyUrgentLocalSync('jump');
             return true;
         }
 
@@ -10558,13 +10564,14 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.isJumping = true;
             this.player.jumpCount = 2;
             this.player.vy = 5.85;
+            this.player.somersaultSeq = (this.player.somersaultSeq || 0) + 1;
             this.player.isSomersault = true;
             this.player.somersaultDir = 1;
             this.player.somersaultDuration = 0.52;
             this.player.somersaultProgress = 0.0;
             this._spawnDoubleJumpBurst(this.player.x, (this.player.y || 0) + 0.12, this.player.z);
             if (this.audio) this.audio.playJump(true);
-            this._notifyLocalUrgentSync('double_jump');
+            this._notifyUrgentLocalSync('double_jump');
             return true;
         }
 
@@ -10882,28 +10889,40 @@ class SeelenfunkeLouvreShowroom3D {
         const rawYaw = this.player.yaw || 0;
         const normYaw = Math.atan2(Math.sin(rawYaw), Math.cos(rawYaw));
         const activeEmote = (this.player.emote && (this.player.emoteTimer || 0) > 0) ? String(this.player.emote) : null;
-        const cleanSpeed = Number((this.player.currentSpeed || 0).toFixed(3));
+        const cleanSpeed = round3(this.player.currentSpeed || 0);
         const cleanVx = (!this.player.isWallClinging && cleanSpeed >= 0.02)
-            ? Number(clamp(this.player.worldVx || 0, -9.5, 9.5).toFixed(3))
+            ? round3(clamp(this.player.worldVx || 0, -9.5, 9.5))
             : 0;
         const cleanVz = (!this.player.isWallClinging && cleanSpeed >= 0.02)
-            ? Number(clamp(this.player.worldVz || 0, -9.5, 9.5).toFixed(3))
+            ? round3(clamp(this.player.worldVz || 0, -9.5, 9.5))
             : 0;
         return {
-            x: Number((this.player.x || 0).toFixed(3)),
-            y: Number((this.player.y || 0).toFixed(3)),
-            z: Number((this.player.z || 0).toFixed(3)),
+            x: round3(this.player.x || 0),
+            y: round3(this.player.y || 0),
+            z: round3(this.player.z || 0),
             vx: cleanVx,
+            vy: round3(this.player.isWallClinging ? 0 : (this.player.vy || 0)),
             vz: cleanVz,
-            rot_y: Number(normYaw.toFixed(3)),
-            rotY: Number(normYaw.toFixed(3)),
+            rot_y: round3(normYaw),
+            rotY: round3(normYaw),
             speed: cleanSpeed,
             zone: this.getCurrentZone(),
             jumping: Boolean(this.player.isJumping || this.player.isWallClinging || (this.player.y || 0) > 0.02),
+            sprint: Boolean(this.player.isSprinting),
+            wall_cling: Boolean(this.player.isWallClinging),
+            wall_nx: round3(this.player.wallNormalX || 0),
+            wall_nz: round3(this.player.wallNormalZ || 0),
+            somersault_seq: this.player.somersaultSeq || 0,
+            somersault_dir: this.player.isSomersault ? (this.player.somersaultDir || 1) : 0,
+            somersault_prog: this.player.isSomersault ? round3(clamp(this.player.somersaultProgress || 0, 0, 1)) : 0,
             emote: activeEmote,
             combo_seq: 0,
             combo_stage: 0,
         };
+    }
+
+    _notifyUrgentLocalSync(reason = 'state_change') {
+        this._notifyLocalUrgentSync(reason);
     }
 
     _notifyLocalUrgentSync(reason = 'state_change') {
@@ -10915,6 +10934,9 @@ class SeelenfunkeLouvreShowroom3D {
         this._lastUrgentSyncSnap = {
             moving,
             jumping: st.jumping,
+            wallCling: st.wall_cling,
+            somersaultSeq: st.somersault_seq,
+            sprint: st.sprint,
             emote: st.emote || null,
             velAngle: moving ? Math.atan2(st.vx, st.vz) : (this._lastUrgentSyncSnap ? this._lastUrgentSyncSnap.velAngle : st.rot_y),
             speed: st.speed,
@@ -10935,6 +10957,9 @@ class SeelenfunkeLouvreShowroom3D {
             this._lastUrgentSyncSnap = {
                 moving,
                 jumping: st.jumping,
+                wallCling: st.wall_cling,
+                somersaultSeq: st.somersault_seq,
+                sprint: st.sprint,
                 emote: st.emote || null,
                 velAngle,
                 speed: st.speed,
@@ -10945,20 +10970,27 @@ class SeelenfunkeLouvreShowroom3D {
         const prev = this._lastUrgentSyncSnap;
         const moveToggled = moving !== prev.moving;
         const jumpStarted = (!prev.jumping && st.jumping) || (prev.jumping && !st.jumping);
+        const wallClingToggled = Boolean(st.wall_cling) !== Boolean(prev.wallCling);
+        const somersaultTriggered = (st.somersault_seq || 0) !== (prev.somersaultSeq || 0);
         const emoteChanged = (st.emote || null) !== (prev.emote || null);
         const dirTurned = moving && prev.moving && Math.abs(shortestAngleDiff(prev.velAngle, velAngle)) > (25 * Math.PI / 180);
-        const sprintToggled = moving && prev.moving && Math.abs(st.speed - prev.speed) > 2.4;
+        const sprintToggled = (Boolean(st.sprint) !== Boolean(prev.sprint)) || (moving && prev.moving && Math.abs(st.speed - prev.speed) > 2.4);
 
-        if (moveToggled || jumpStarted || emoteChanged || dirTurned || sprintToggled) {
+        if (moveToggled || jumpStarted || wallClingToggled || somersaultTriggered || emoteChanged || dirTurned || sprintToggled) {
             this._lastUrgentSyncSnap = {
                 moving,
                 jumping: st.jumping,
+                wallCling: st.wall_cling,
+                somersaultSeq: st.somersault_seq,
+                sprint: st.sprint,
                 emote: st.emote || null,
                 velAngle,
                 speed: st.speed,
             };
             this.onLocalUrgentSyncNeeded(
-                jumpStarted ? 'jump' : (emoteChanged ? 'emote' : (moveToggled ? 'move_toggle' : 'direction')),
+                somersaultTriggered
+                    ? 'somersault'
+                    : (wallClingToggled ? 'wall_cling' : (jumpStarted ? 'jump' : (emoteChanged ? 'emote' : (moveToggled ? 'move_toggle' : 'direction')))),
                 st
             );
         }
@@ -11067,9 +11099,237 @@ class SeelenfunkeLouvreShowroom3D {
         this.peers.clear();
     }
 
+    removePeer(peerId) {
+        if (!peerId) return false;
+        const raw = String(peerId);
+        let targetKey = this.peers.has(raw) ? raw : null;
+        if (!targetKey) {
+            this.peers.forEach((p, k) => {
+                if (!targetKey && (p.peerId === raw || p.legacyPlayerId === raw)) {
+                    targetKey = k;
+                }
+            });
+        }
+        if (!targetKey) return false;
+        const peer = this.peers.get(targetKey);
+        this._disposePeerEntry(peer);
+        this.peers.delete(targetKey);
+        return true;
+    }
+
+    upsertPeer(peerData) {
+        if (this.destroyed || !this.THREE || !this.scene) return false;
+        if (this.soloMode || this.getCurrentZone() !== 'heroes' || !peerData || typeof peerData !== 'object') {
+            return false;
+        }
+        return Boolean(this._applyPeerPacket(peerData));
+    }
+
+    _applyPeerPacket(pData) {
+        if (!pData || typeof pData !== 'object' || !this.THREE || !this.scene) return null;
+        const rawPid = pData.peer_id || pData.player_id || null;
+        if (!rawPid) return null;
+
+        const pid = String(rawPid);
+        if (this._localPeerId && pid === String(this._localPeerId)) {
+            return null;
+        }
+
+        const peerZone = String(pData.zone ? pData.zone : 'heroes').toLowerCase();
+        if (peerZone !== 'heroes') {
+            if (this.peers.has(pid)) {
+                this.removePeer(pid);
+            }
+            return null;
+        }
+
+        const THREE = this.THREE;
+        let peer = this.peers.get(pid);
+        if (!peer && this.peers.size >= 19) {
+            return null;
+        }
+
+        const minPeerX = -this.pantheonHalfW + 0.42;
+        const maxPeerX = this.pantheonHalfW - 0.42;
+        const minPeerZ = this.pantheonMinZ + 0.42;
+        const maxPeerZ = this.heroesEntryZ + 0.6;
+        let tx = clamp(Number(pData.x) || 0, minPeerX, maxPeerX);
+        let tz = clamp(Number(pData.z) || (this.pantheonCenterZ + 8.5), minPeerZ, maxPeerZ);
+        const ty = clamp(Number(pData.y) || 0, -1.5, 9.5);
+        const tYaw = Number(pData.rot_y ?? pData.rotY) || 0;
+        const reportedSpeed = Math.max(0, Number(pData.speed) || 0);
+        const isPeerWallCling = Boolean(pData.wall_cling);
+        const peerWallNx = Number(pData.wall_nx) || 0;
+        const peerWallNz = Number(pData.wall_nz) || 0;
+        const isPeerSprint = Boolean(pData.sprint);
+        const isPeerJumping = Boolean(pData.jumping || isPeerWallCling);
+        const hasExplicitVx = pData.vx !== undefined && pData.vx !== null && Number.isFinite(Number(pData.vx));
+        const hasExplicitVz = pData.vz !== undefined && pData.vz !== null && Number.isFinite(Number(pData.vz));
+        const cleanPeerVy = Number.isFinite(Number(pData.vy)) ? clamp(Number(pData.vy), -22, 15) : 0;
+        const incomingSeq = Math.max(0, parseInt(pData.somersault_seq, 10) || 0);
+        const incomingDir = Number(pData.somersault_dir) || 0;
+        const peerLvl = clamp(parseInt(pData.level, 10) || 1, 1, 10);
+        const resolvedYaw = (isPeerWallCling && (Math.abs(peerWallNx) > 0.01 || Math.abs(peerWallNz) > 0.01))
+            ? Math.atan2(-peerWallNx, -peerWallNz)
+            : tYaw;
+
+        if (!peer) {
+            const built = this._createArticulatedAvatarInstance(peerLvl, null, false);
+            const floorOffset = this._computeFloorBaseY(tx, tz);
+            built.root.position.set(tx, floorOffset + ty, tz);
+            built.root.rotation.y = resolvedYaw;
+
+            const fallbackClass = peerLvl >= 9 ? 'KLASSE S' : (peerLvl >= 6 ? 'KLASSE A' : (peerLvl >= 3 ? 'KLASSE B' : 'KLASSE C'));
+            const classLabel = pData.ship_class || fallbackClass;
+            const accentHex = '#C5A059';
+            const nameplateTex = buildPeerNameplateTexture(
+                THREE,
+                pData.display_name || 'Funki',
+                peerLvl,
+                classLabel,
+                accentHex
+            );
+            const nameplateMat = new THREE.SpriteMaterial({
+                map: nameplateTex,
+                transparent: true,
+                depthWrite: false,
+            });
+            const nameplateSprite = new THREE.Sprite(nameplateMat);
+            nameplateSprite.scale.set(1.28, 0.32, 1);
+            nameplateSprite.position.set(0, 2.04, 0);
+            built.root.add(nameplateSprite);
+
+            this.scene.add(built.root);
+
+            peer = {
+                playerId: pid,
+                peerId: pData.peer_id ? String(pData.peer_id) : pid,
+                legacyPlayerId: pData.player_id ? String(pData.player_id) : pid,
+                level: peerLvl,
+                builtRecord: built,
+                root: built.root,
+                joints: built.joints,
+                x: tx,
+                y: ty,
+                z: tz,
+                yaw: resolvedYaw,
+                targetX: tx,
+                targetY: ty,
+                targetZ: tz,
+                targetYaw: resolvedYaw,
+                vx: (!isPeerWallCling && hasExplicitVx) ? clamp(Number(pData.vx), -9.5, 9.5) : 0,
+                vy: isPeerWallCling ? 0 : cleanPeerVy,
+                vz: (!isPeerWallCling && hasExplicitVz) ? clamp(Number(pData.vz), -9.5, 9.5) : 0,
+                jumping: isPeerJumping,
+                sprint: isPeerSprint,
+                wallCling: isPeerWallCling,
+                wallClingBlend: isPeerWallCling ? 1.0 : 0.0,
+                wallNx: peerWallNx,
+                wallNz: peerWallNz,
+                lastSomersaultSeq: incomingSeq,
+                isSomersault: false,
+                somersaultDir: 1,
+                somersaultDuration: 0.52,
+                somersaultProgress: 0,
+                headYaw: 0,
+                headPitch: 0,
+                packetTime: this.elapsedTime,
+                lastPacketAt: this.elapsedTime,
+                reportedSpeed,
+                emote: pData.emote ? String(pData.emote) : null,
+                walkPhase: 0,
+                moveBlend: 0,
+                nameplateSprite,
+                nameplateTex,
+                nameplateMat,
+                bubbleSprite: null,
+                bubbleTex: null,
+                bubbleMat: null,
+                bubbleExpiresAt: 0,
+            };
+            this.peers.set(pid, peer);
+
+            if (incomingDir !== 0 && ty > 0.12) {
+                peer.isSomersault = true;
+                peer.somersaultDir = (incomingDir === -1) ? -1 : 1;
+                peer.somersaultDuration = (peer.somersaultDir === -1) ? 0.62 : 0.52;
+                peer.somersaultProgress = clamp(Number(pData.somersault_prog) || 0, 0, 0.35);
+                if (peer.somersaultDir === -1) {
+                    this._spawnWallKickBurst(tx, ty + 0.55, tz, peer.wallNx, peer.wallNz);
+                } else {
+                    this._spawnDoubleJumpBurst(tx, ty + 0.12, tz);
+                }
+            }
+            return pid;
+        }
+
+        const dtPacket = Math.max(0.025, Math.min(1.2, this.elapsedTime - (peer.packetTime || peer.lastPacketAt || (this.elapsedTime - 0.05))));
+        const distJump = Math.hypot(tx - peer.x, tz - peer.z);
+        if (distJump > 4.5) {
+            peer.x = tx;
+            peer.y = ty;
+            peer.z = tz;
+            peer.yaw = resolvedYaw;
+        }
+        const inferredVx = distJump > 4.5 ? 0 : clamp((tx - peer.targetX) / dtPacket, -9.5, 9.5);
+        const inferredVz = distJump > 4.5 ? 0 : clamp((tz - peer.targetZ) / dtPacket, -9.5, 9.5);
+        if (isPeerWallCling) {
+            peer.vx = 0;
+            peer.vy = 0;
+            peer.vz = 0;
+            peer.isSomersault = false;
+            peer.somersaultProgress = 0;
+        } else {
+            peer.vx = hasExplicitVx
+                ? (reportedSpeed > 0.04 || isPeerJumping ? clamp(Number(pData.vx), -9.5, 9.5) : 0)
+                : (reportedSpeed > 0.08 ? inferredVx : 0);
+            peer.vy = cleanPeerVy;
+            peer.vz = hasExplicitVz
+                ? (reportedSpeed > 0.04 || isPeerJumping ? clamp(Number(pData.vz), -9.5, 9.5) : 0)
+                : (reportedSpeed > 0.08 ? inferredVz : 0);
+        }
+
+        const prevWallNx = peer.wallNx || 0;
+        const prevWallNz = peer.wallNz || 0;
+        peer.wallCling = isPeerWallCling;
+        peer.wallNx = peerWallNx;
+        peer.wallNz = peerWallNz;
+        peer.sprint = isPeerSprint;
+        peer.jumping = isPeerJumping;
+        peer.packetTime = this.elapsedTime;
+        peer.lastPacketAt = this.elapsedTime;
+        peer.targetX = tx;
+        peer.targetY = ty;
+        peer.targetZ = tz;
+        peer.targetYaw = resolvedYaw;
+        peer.reportedSpeed = reportedSpeed;
+        peer.emote = pData.emote ? String(pData.emote) : null;
+        if (pData.peer_id) peer.peerId = String(pData.peer_id);
+        if (pData.player_id) peer.legacyPlayerId = String(pData.player_id);
+
+        if ((incomingSeq > (peer.lastSomersaultSeq || 0)) || (!peer.isSomersault && incomingDir !== 0 && (Number(pData.y) || 0) > 0.12)) {
+            peer.lastSomersaultSeq = Math.max(peer.lastSomersaultSeq || 0, incomingSeq);
+            if (!isPeerWallCling && (incomingDir !== 0 || ty > 0.04 || isPeerJumping)) {
+                peer.isSomersault = true;
+                peer.somersaultDir = (incomingDir === -1) ? -1 : 1;
+                peer.somersaultDuration = (peer.somersaultDir === -1) ? 0.62 : 0.52;
+                peer.somersaultProgress = clamp(Number(pData.somersault_prog) || 0, 0, 0.35);
+                if (peer.somersaultDir === -1) {
+                    const kickNx = (Math.abs(peer.wallNx) > 0.01 || Math.abs(peer.wallNz) > 0.01) ? peer.wallNx : prevWallNx;
+                    const kickNz = (Math.abs(peer.wallNx) > 0.01 || Math.abs(peer.wallNz) > 0.01) ? peer.wallNz : prevWallNz;
+                    this._spawnWallKickBurst(tx, ty + 0.55, tz, kickNx, kickNz);
+                } else {
+                    this._spawnDoubleJumpBurst(tx, ty + 0.12, tz);
+                }
+            }
+        }
+
+        return pid;
+    }
+
     /**
      * Baustein D: Synchronisiert bis zu 19 Mitspieler derselben Multiplayer-Instanz (20er Hard-Cap)
-     * mit 15-Bone SkinnedMesh + 3D-Exoskelett, weicher Lerp-Interpolation & Kombo-Effekten!
+     * mit SkinnedMesh + 3D-Exoskelett, weicher Lerp-Interpolation, Wall-Cling & 360-Grad-Saltos!
      */
     updatePeers(peersArray) {
         if (this.destroyed || !this.THREE || !this.scene) return;
@@ -11078,127 +11338,13 @@ class SeelenfunkeLouvreShowroom3D {
             return;
         }
 
-        const THREE = this.THREE;
         const incomingIds = new Set();
 
         for (let i = 0; i < peersArray.length && i < 19; i++) {
             const pData = peersArray[i];
-            const rawPid = pData ? (pData.peer_id || pData.player_id) : null;
-            if (!rawPid) continue;
-
-            const peerZone = String((pData && pData.zone) ? pData.zone : 'heroes').toLowerCase();
-            if (peerZone !== 'heroes') {
-                continue;
-            }
-
-            const pid = String(rawPid);
-            incomingIds.add(pid);
-
-            let peer = this.peers.get(pid);
-            const minPeerX = -this.pantheonHalfW + 0.42;
-            const maxPeerX = this.pantheonHalfW - 0.42;
-            const minPeerZ = this.pantheonMinZ + 0.42;
-            const maxPeerZ = this.heroesEntryZ + 0.6;
-            let tx = clamp(Number(pData.x) || 0, minPeerX, maxPeerX);
-            let tz = clamp(Number(pData.z) || (this.pantheonCenterZ + 8.5), minPeerZ, maxPeerZ);
-            const ty = clamp(Number(pData.y) || 0, -1.5, 9.5);
-            const tYaw = Number(pData.rot_y ?? pData.rotY) || 0;
-            const reportedSpeed = Math.max(0, Number(pData.speed) || 0);
-            const isPeerJumping = Boolean(pData.jumping);
-            const hasExplicitVx = pData.vx !== undefined && pData.vx !== null && Number.isFinite(Number(pData.vx));
-            const hasExplicitVz = pData.vz !== undefined && pData.vz !== null && Number.isFinite(Number(pData.vz));
-            const peerLvl = clamp(parseInt(pData.level, 10) || 1, 1, 10);
-
-            if (!peer) {
-                const built = this._createArticulatedAvatarInstance(peerLvl, null, false);
-                const floorOffset = this._computeFloorBaseY(tx, tz);
-                built.root.position.set(tx, floorOffset + ty, tz);
-                built.root.rotation.y = tYaw;
-
-                const fallbackClass = peerLvl >= 9 ? 'KLASSE S' : (peerLvl >= 6 ? 'KLASSE A' : (peerLvl >= 3 ? 'KLASSE B' : 'KLASSE C'));
-                const classLabel = pData.ship_class || fallbackClass;
-                const accentHex = '#C5A059';
-                const nameplateTex = buildPeerNameplateTexture(
-                    THREE,
-                    pData.display_name || 'Funki',
-                    peerLvl,
-                    classLabel,
-                    accentHex
-                );
-                const nameplateMat = new THREE.SpriteMaterial({
-                    map: nameplateTex,
-                    transparent: true,
-                    depthWrite: false,
-                });
-                const nameplateSprite = new THREE.Sprite(nameplateMat);
-                nameplateSprite.scale.set(1.28, 0.32, 1);
-                nameplateSprite.position.set(0, 2.04, 0);
-                built.root.add(nameplateSprite);
-
-                this.scene.add(built.root);
-
-                peer = {
-                    playerId: pid,
-                    peerId: pData.peer_id ? String(pData.peer_id) : pid,
-                    legacyPlayerId: pData.player_id ? String(pData.player_id) : pid,
-                    level: peerLvl,
-                    builtRecord: built,
-                    root: built.root,
-                    joints: built.joints,
-                    x: tx,
-                    y: ty,
-                    z: tz,
-                    yaw: tYaw,
-                    targetX: tx,
-                    targetY: ty,
-                    targetZ: tz,
-                    targetYaw: tYaw,
-                    vx: hasExplicitVx ? clamp(Number(pData.vx), -9.5, 9.5) : 0,
-                    vz: hasExplicitVz ? clamp(Number(pData.vz), -9.5, 9.5) : 0,
-                    jumping: isPeerJumping,
-                    packetTime: this.elapsedTime,
-                    lastPacketAt: this.elapsedTime,
-                    reportedSpeed,
-                    emote: pData.emote ? String(pData.emote) : null,
-                    walkPhase: 0,
-                    moveBlend: 0,
-                    nameplateSprite,
-                    nameplateTex,
-                    nameplateMat,
-                    bubbleSprite: null,
-                    bubbleTex: null,
-                    bubbleMat: null,
-                    bubbleExpiresAt: 0,
-                };
-                this.peers.set(pid, peer);
-            } else {
-                const dtPacket = Math.max(0.06, Math.min(1.2, this.elapsedTime - (peer.packetTime || peer.lastPacketAt || (this.elapsedTime - 0.165))));
-                const distJump = Math.hypot(tx - peer.x, tz - peer.z);
-                if (distJump > 4.5) {
-                    peer.x = tx;
-                    peer.y = ty;
-                    peer.z = tz;
-                    peer.yaw = tYaw;
-                }
-                const inferredVx = distJump > 4.5 ? 0 : clamp((tx - peer.targetX) / dtPacket, -9.5, 9.5);
-                const inferredVz = distJump > 4.5 ? 0 : clamp((tz - peer.targetZ) / dtPacket, -9.5, 9.5);
-                peer.vx = hasExplicitVx
-                    ? (reportedSpeed > 0.04 || isPeerJumping ? clamp(Number(pData.vx), -9.5, 9.5) : 0)
-                    : (reportedSpeed > 0.08 ? inferredVx : 0);
-                peer.vz = hasExplicitVz
-                    ? (reportedSpeed > 0.04 || isPeerJumping ? clamp(Number(pData.vz), -9.5, 9.5) : 0)
-                    : (reportedSpeed > 0.08 ? inferredVz : 0);
-                peer.jumping = isPeerJumping;
-                peer.packetTime = this.elapsedTime;
-                peer.lastPacketAt = this.elapsedTime;
-                peer.targetX = tx;
-                peer.targetY = ty;
-                peer.targetZ = tz;
-                peer.targetYaw = tYaw;
-                peer.reportedSpeed = reportedSpeed;
-                peer.emote = pData.emote ? String(pData.emote) : null;
-                if (pData.peer_id) peer.peerId = String(pData.peer_id);
-                if (pData.player_id) peer.legacyPlayerId = String(pData.player_id);
+            const appliedPid = this._applyPeerPacket(pData);
+            if (appliedPid) {
+                incomingIds.add(appliedPid);
             }
         }
 
@@ -11213,7 +11359,7 @@ class SeelenfunkeLouvreShowroom3D {
     _updatePeersKinematics(dt) {
         if (this.peers.size === 0) return;
 
-        // 60-FPS AAA-Dead-Reckoning (Vorwaertsintegration + knackige Fehlerkorrektur ohne Gummiband-Nachhaengen!)
+        // 60-FPS AAA-Dead-Reckoning (Vorwaertsintegration + echte Sprung-Parabel, Wall-Cling & 360-Grad-Saltos!)
         const ySmooth = 1.0 - Math.exp(-dt * 18.0);
         const yawSmooth = 1.0 - Math.exp(-dt * 16.0);
         const blendSmooth = 1.0 - Math.exp(-dt * 11.5);
@@ -11227,46 +11373,99 @@ class SeelenfunkeLouvreShowroom3D {
             const prevZ = peer.z;
 
             const sincePacket = clamp(this.elapsedTime - (peer.lastPacketAt || this.elapsedTime), 0, 0.38);
-            const predX = clamp(peer.targetX + (peer.vx || 0) * sincePacket, minPeerX, maxPeerX);
-            const predZ = clamp(peer.targetZ + (peer.vz || 0) * sincePacket, minPeerZ, maxPeerZ);
-
-            const advFactor = sincePacket < 0.32 ? 0.65 : 0;
-            const stepAdvX = clamp(peer.x + (peer.vx || 0) * dt * advFactor, minPeerX, maxPeerX);
-            const stepAdvZ = clamp(peer.z + (peer.vz || 0) * dt * advFactor, minPeerZ, maxPeerZ);
             const posBlend = 1.0 - Math.exp(-dt * (peer.reportedSpeed > 0.08 ? 13.5 : 18.0));
 
-            peer.x = lerp(stepAdvX, predX, posBlend);
-            peer.z = lerp(stepAdvZ, predZ, posBlend);
-            if (peer.reportedSpeed <= 0.04 && Math.hypot(predX - peer.x, predZ - peer.z) < 0.004) {
-                peer.x = predX;
-                peer.z = predZ;
+            if (peer.wallCling) {
+                const clingSnap = 1.0 - Math.exp(-dt * 20.0);
+                peer.x = lerp(peer.x, peer.targetX, clingSnap);
+                peer.z = lerp(peer.z, peer.targetZ, clingSnap);
+                peer.y = lerp(peer.y, peer.targetY, clingSnap);
+                peer.vy = 0;
+                if (Math.abs(peer.wallNx || 0) > 0.01 || Math.abs(peer.wallNz || 0) > 0.01) {
+                    peer.targetYaw = Math.atan2(-peer.wallNx, -peer.wallNz);
+                }
+                peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, 1.0 - Math.exp(-dt * 22.0));
+            } else {
+                const predX = clamp(peer.targetX + (peer.vx || 0) * sincePacket, minPeerX, maxPeerX);
+                const predZ = clamp(peer.targetZ + (peer.vz || 0) * sincePacket, minPeerZ, maxPeerZ);
+                const advFactor = sincePacket < 0.32 ? 0.65 : 0;
+                const stepAdvX = clamp(peer.x + (peer.vx || 0) * dt * advFactor, minPeerX, maxPeerX);
+                const stepAdvZ = clamp(peer.z + (peer.vz || 0) * dt * advFactor, minPeerZ, maxPeerZ);
+
+                peer.x = lerp(stepAdvX, predX, posBlend);
+                peer.z = lerp(stepAdvZ, predZ, posBlend);
+                if (peer.reportedSpeed <= 0.04 && Math.hypot(predX - peer.x, predZ - peer.z) < 0.004) {
+                    peer.x = predX;
+                    peer.z = predZ;
+                }
+
+                if (peer.jumping || peer.y > 0.02 || peer.targetY > 0.02) {
+                    peer.vy = (peer.vy || 0) - 15.2 * dt;
+                    peer.y = Math.max(
+                        0,
+                        lerp(peer.y + peer.vy * dt * (sincePacket < 0.25 ? 0.75 : 0), peer.targetY, 1.0 - Math.exp(-dt * 16.0))
+                    );
+                } else {
+                    peer.vy = 0;
+                    peer.y = lerp(peer.y, peer.targetY, ySmooth);
+                    if (peer.y < 0.002 && peer.targetY <= 0.002) {
+                        peer.y = 0;
+                    }
+                }
+                peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, yawSmooth);
+
+                if (peer.y <= 0.01 && peer.targetY <= 0.02 && !peer.jumping) {
+                    peer.isSomersault = false;
+                    peer.somersaultProgress = 0;
+                    peer.vy = 0;
+                }
             }
-            peer.y = lerp(peer.y, peer.targetY, ySmooth);
-            peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, yawSmooth);
+
+            let peerSomersaultTuck = 0;
+            if (peer.isSomersault) {
+                peer.somersaultProgress = (peer.somersaultProgress || 0) + dt / Math.max(0.01, peer.somersaultDuration || 0.52);
+                if (peer.somersaultProgress >= 1.0) {
+                    peer.somersaultProgress = 0;
+                    peer.isSomersault = false;
+                } else {
+                    peerSomersaultTuck = Math.sin(clamp(peer.somersaultProgress, 0, 1) * Math.PI);
+                }
+            }
+
+            peer.wallClingBlend = lerp(
+                peer.wallClingBlend || 0,
+                peer.wallCling ? 1.0 : 0.0,
+                1.0 - Math.exp(-dt * 18.0)
+            );
+            const peerWc = clamp(peer.wallClingBlend || 0, 0, 1);
 
             // Lauf-Animation orientiert sich an echter Distanz und stoppt punktgenau bei reportedSpeed == 0
             const stepDist = Math.hypot(peer.x - prevX, peer.z - prevZ);
             const measuredSpeed = stepDist / Math.max(0.001, dt);
-            const effectiveSpeed = (peer.reportedSpeed <= 0.04 && Math.hypot(predX - peer.x, predZ - peer.z) < 0.05)
+            const effectiveSpeed = peer.wallCling
                 ? 0
-                : Math.max(measuredSpeed, sincePacket < 0.32 ? peer.reportedSpeed * 0.90 : 0);
+                : ((peer.reportedSpeed <= 0.04 && Math.hypot(peer.targetX - peer.x, peer.targetZ - peer.z) < 0.05)
+                    ? 0
+                    : Math.max(measuredSpeed, sincePacket < 0.32 ? peer.reportedSpeed * 0.90 : 0));
 
             const floorOffset = this._computeFloorBaseY(peer.x, peer.z);
             const support = { shadowY: 0 };
             const aboveGround = Math.max(0, peer.y - support.shadowY);
-            const airBlend = peer.jumping ? Math.max(0.38, clamp(aboveGround / 0.24, 0, 1)) : clamp(aboveGround / 0.26, 0, 1);
-            const peerSprintBoost = clamp((effectiveSpeed - 5.2) / 3.6, 0, 1.0);
-            const peerSprint = effectiveSpeed > 6.2 ? 1.0 : 0.0;
+            const airBlend = (peer.jumping || peer.wallCling)
+                ? Math.max(0.38, clamp(aboveGround / 0.24, 0, 1))
+                : clamp(aboveGround / 0.26, 0, 1);
+            const peerSprintBoost = peer.sprint ? 1.0 : clamp((effectiveSpeed - 5.2) / 3.6, 0, 1.0);
+            const peerSprint = (peer.sprint || effectiveSpeed > 6.2) ? 1.0 : peerSprintBoost;
             const strideFrequency = 4.48 + 0.72 * peerSprintBoost;
 
             peer.root.position.set(peer.x, floorOffset + peer.y, peer.z);
             peer.root.rotation.y = peer.yaw;
 
-            if (stepDist > 0.00035 && airBlend < 0.65) {
+            if (stepDist > 0.00035 && airBlend < 0.65 && !peer.wallCling) {
                 peer.walkPhase = (peer.walkPhase + stepDist * strideFrequency) % TWO_PI;
             }
 
-            const targetBlend = effectiveSpeed > 0.14 ? clamp(effectiveSpeed / 4.6, 0.24, 1.0) : 0.0;
+            const targetBlend = (!peer.wallCling && effectiveSpeed > 0.14) ? clamp(effectiveSpeed / 4.6, 0.24, 1.0) : 0.0;
             peer.moveBlend = lerp(peer.moveBlend, targetBlend, blendSmooth);
 
             const mb = peer.moveBlend * (1.0 - airBlend * 0.65);
@@ -11275,35 +11474,129 @@ class SeelenfunkeLouvreShowroom3D {
             const j = peer.joints;
             const pL = peer.walkPhase;
             const pR = pL + Math.PI;
+            const strideAmpScale = 1.0 + 0.18 * peerSprintBoost;
 
-            j.hipPivotL.rotation.x = -0.54 * Math.sin(pL) * mb - 0.32 * airBlend;
-            j.hipPivotR.rotation.x = -0.54 * Math.sin(pR) * mb - 0.20 * airBlend;
-            j.hipPivotL.rotation.z = -(0.018 * idlePeer + 0.024 * mb);
-            j.hipPivotR.rotation.z = (0.018 * idlePeer + 0.024 * mb);
-            j.kneePivotL.rotation.x = Math.max(0, Math.cos(pL - 0.16) * 0.72 * mb + 0.58 * airBlend);
-            j.kneePivotR.rotation.x = Math.max(0, Math.cos(pR - 0.16) * 0.72 * mb + 0.44 * airBlend);
+            j.hipPivotL.rotation.x = -0.54 * strideAmpScale * Math.sin(pL) * mb - 0.32 * airBlend;
+            j.hipPivotR.rotation.x = -0.54 * strideAmpScale * Math.sin(pR) * mb - 0.20 * airBlend;
+            j.hipPivotL.rotation.z = -(0.018 * idlePeer + 0.024 * mb + 0.032 * airBlend);
+            j.hipPivotR.rotation.z = (0.018 * idlePeer + 0.024 * mb + 0.032 * airBlend);
+            j.kneePivotL.rotation.x = Math.max(0, Math.cos(pL - 0.16) * 0.72 * strideAmpScale * mb + 0.58 * airBlend);
+            j.kneePivotR.rotation.x = Math.max(0, Math.cos(pR - 0.16) * 0.72 * strideAmpScale * mb + 0.44 * airBlend);
             j.anklePivotL.rotation.x = -Math.max(0, Math.cos(pL - 0.16)) * 0.24 * mb + 0.20 * airBlend;
             j.anklePivotR.rotation.x = -Math.max(0, Math.cos(pR - 0.16)) * 0.24 * mb + 0.20 * airBlend;
 
-            j.shoulderPivotR.rotation.x = -0.42 * Math.sin(pL) * mb - 0.36 * airBlend;
-            j.shoulderPivotR.rotation.z = 0.08;
-            j.elbowPivotR.rotation.x = -0.18 - 0.32 * Math.max(0, Math.sin(pL)) * mb;
-            j.wristPivotR.rotation.x = -0.08 * Math.cos(pL) * mb;
+            if (peer.isSomersault && peerSomersaultTuck > 0) {
+                j.kneePivotL.rotation.x += 2.25 * peerSomersaultTuck;
+                j.kneePivotR.rotation.x += 2.25 * peerSomersaultTuck;
+                j.hipPivotL.rotation.x -= 1.85 * peerSomersaultTuck;
+                j.hipPivotR.rotation.x -= 1.85 * peerSomersaultTuck;
+                j.anklePivotL.rotation.x -= 0.65 * peerSomersaultTuck;
+                j.anklePivotR.rotation.x -= 0.65 * peerSomersaultTuck;
+            }
 
-            j.shoulderPivotL.rotation.x = -0.42 * Math.sin(pR) * mb - 0.36 * airBlend;
-            j.shoulderPivotL.rotation.z = -0.08;
-            j.elbowPivotL.rotation.x = -0.18 - 0.32 * Math.max(0, Math.sin(pR)) * mb;
-            j.wristPivotL.rotation.x = -0.08 * Math.cos(pR) * mb;
+            const armSwingScale = 1.0 - 0.58 * peerSprintBoost;
+            const ninjaSweepBack = 0.56 * peerSprintBoost * mb;
 
-            const bounce = Math.cos(2.0 * pL) * 0.024 * mb;
-            j.pelvisPivot.position.y = 0.776 + bounce - 0.014 * mb + idleBreathPeer;
+            j.shoulderPivotR.rotation.x = (-0.42 * armSwingScale * Math.sin(pL) * mb) + ninjaSweepBack - 0.36 * airBlend;
+            j.shoulderPivotR.rotation.y = -(0.075 * armSwingScale * Math.sin(pL) - 0.08 * peerSprintBoost) * mb;
+            j.shoulderPivotR.rotation.z = 0.072 + (0.036 + 0.145 * peerSprintBoost) * mb + 0.18 * airBlend;
+            j.elbowPivotR.rotation.x = -0.18 - ((0.14 + 0.32 * Math.max(0, Math.sin(pL))) * armSwingScale + 0.08 * peerSprintBoost) * mb - 0.32 * airBlend;
+            j.wristPivotR.rotation.x = (-0.08 * Math.cos(pL) * armSwingScale + 0.14 * peerSprintBoost) * mb + 0.10 * airBlend;
+            j.wristPivotR.rotation.z = 0.04 - 0.06 * airBlend;
+            if (j.fingerCurlR) {
+                j.fingerCurlR.rotation.x = -0.12 * airBlend + 0.18 * Math.max(0, Math.sin(pL)) * armSwingScale * mb;
+                j.fingerCurlR.rotation.z = 0.14 - 0.08 * airBlend;
+            }
+
+            j.shoulderPivotL.rotation.x = (-0.42 * armSwingScale * Math.sin(pR) * mb) + ninjaSweepBack - 0.36 * airBlend;
+            j.shoulderPivotL.rotation.y = (0.075 * armSwingScale * Math.sin(pR) - 0.08 * peerSprintBoost) * mb;
+            j.shoulderPivotL.rotation.z = -(0.072 + (0.036 + 0.145 * peerSprintBoost) * mb + 0.18 * airBlend);
+            j.elbowPivotL.rotation.x = -0.18 - ((0.14 + 0.32 * Math.max(0, Math.sin(pR))) * armSwingScale + 0.08 * peerSprintBoost) * mb - 0.32 * airBlend;
+            j.wristPivotL.rotation.x = (-0.08 * Math.cos(pR) * armSwingScale + 0.14 * peerSprintBoost) * mb + 0.10 * airBlend;
+            j.wristPivotL.rotation.z = -0.04 + 0.06 * airBlend;
+            if (j.fingerCurlL) {
+                j.fingerCurlL.rotation.x = -0.12 * airBlend + 0.18 * Math.max(0, Math.sin(pR)) * armSwingScale * mb;
+                j.fingerCurlL.rotation.z = -0.14 + 0.08 * airBlend;
+            }
+
+            const bounce = Math.cos(2.0 * pL) * (0.024 + 0.012 * peerSprintBoost) * mb;
+            const peerSomersaultDir = peer.somersaultDir || 1;
+            j.pelvisPivot.position.y = 0.776 + bounce - (0.014 + 0.020 * peerSprintBoost) * mb + idleBreathPeer;
             j.pelvisPivot.position.x = -Math.sin(pL) * 0.018 * mb;
+            j.pelvisPivot.position.z = 0.032 * peerSprintBoost * mb;
+            j.pelvisPivot.rotation.x = (peer.isSomersault && peer.y > 0.14)
+                ? ((peer.somersaultDir || 1) * peer.somersaultProgress * TWO_PI)
+                : 0;
             j.pelvisPivot.rotation.y = Math.sin(pL) * 0.065 * mb;
             j.pelvisPivot.rotation.z = -Math.sin(pL) * 0.030 * mb;
-            j.torsoPivot.rotation.x = (0.08 + 0.10 * peerSprint) * mb + idleBreathPeer;
+            j.torsoPivot.rotation.x = (0.08 + 0.20 * peerSprintBoost) * mb
+                + idleBreathPeer
+                + (peerSomersaultDir >= 0 ? 1.35 : 0.85) * peerSomersaultTuck;
             j.torsoPivot.rotation.y = -Math.sin(pL) * 0.085 * mb;
+            j.torsoPivot.rotation.z = Math.sin(pL) * 0.022 * mb;
 
-            if (peer.emote && mb < 0.25) {
+            // Echte Ninja Wall-Cling-Pose am Mitspieler (beide Haende schulterhoch flach an der Wand, angewinkelte Beine)
+            if (peerWc > 0.002) {
+                j.pelvisPivot.position.z = lerp(j.pelvisPivot.position.z, 0.085, peerWc);
+                j.pelvisPivot.rotation.y = lerp(j.pelvisPivot.rotation.y, -0.10, peerWc);
+                j.pelvisPivot.rotation.z = lerp(j.pelvisPivot.rotation.z, 0.03, peerWc);
+                j.torsoPivot.rotation.x = lerp(j.torsoPivot.rotation.x, -0.06, peerWc);
+                j.torsoPivot.rotation.y = lerp(j.torsoPivot.rotation.y, 0.08, peerWc);
+
+                j.shoulderPivotL.rotation.x = lerp(j.shoulderPivotL.rotation.x, -1.42, peerWc);
+                j.shoulderPivotL.rotation.y = lerp(j.shoulderPivotL.rotation.y, 0.18, peerWc);
+                j.shoulderPivotL.rotation.z = lerp(j.shoulderPivotL.rotation.z, -0.46, peerWc);
+                j.elbowPivotL.rotation.x = lerp(j.elbowPivotL.rotation.x, -0.46, peerWc);
+                j.wristPivotL.rotation.x = lerp(j.wristPivotL.rotation.x, 0.58, peerWc);
+                j.wristPivotL.rotation.z = lerp(j.wristPivotL.rotation.z, -0.14, peerWc);
+                if (j.fingerCurlL) {
+                    j.fingerCurlL.rotation.x = lerp(j.fingerCurlL.rotation.x, -0.22, peerWc);
+                    j.fingerCurlL.rotation.z = lerp(j.fingerCurlL.rotation.z, -0.05, peerWc);
+                }
+
+                j.shoulderPivotR.rotation.x = lerp(j.shoulderPivotR.rotation.x, -1.42, peerWc);
+                j.shoulderPivotR.rotation.y = lerp(j.shoulderPivotR.rotation.y, -0.18, peerWc);
+                j.shoulderPivotR.rotation.z = lerp(j.shoulderPivotR.rotation.z, 0.46, peerWc);
+                j.elbowPivotR.rotation.x = lerp(j.elbowPivotR.rotation.x, -0.46, peerWc);
+                j.wristPivotR.rotation.x = lerp(j.wristPivotR.rotation.x, 0.58, peerWc);
+                j.wristPivotR.rotation.z = lerp(j.wristPivotR.rotation.z, 0.14, peerWc);
+                if (j.fingerCurlR) {
+                    j.fingerCurlR.rotation.x = lerp(j.fingerCurlR.rotation.x, -0.22, peerWc);
+                    j.fingerCurlR.rotation.z = lerp(j.fingerCurlR.rotation.z, 0.05, peerWc);
+                }
+
+                j.hipPivotL.rotation.x = lerp(j.hipPivotL.rotation.x, -1.04, peerWc);
+                j.hipPivotL.rotation.z = lerp(j.hipPivotL.rotation.z, -0.20, peerWc);
+                j.kneePivotL.rotation.x = lerp(j.kneePivotL.rotation.x, 1.30, peerWc);
+                j.anklePivotL.rotation.x = lerp(j.anklePivotL.rotation.x, -0.26, peerWc);
+
+                j.hipPivotR.rotation.x = lerp(j.hipPivotR.rotation.x, -0.68, peerWc);
+                j.hipPivotR.rotation.z = lerp(j.hipPivotR.rotation.z, 0.18, peerWc);
+                j.kneePivotR.rotation.x = lerp(j.kneePivotR.rotation.x, 0.96, peerWc);
+                j.anklePivotR.rotation.x = lerp(j.anklePivotR.rotation.x, -0.16, peerWc);
+            }
+
+            const desiredPeerHeadYaw = peerWc > 0.35 ? (0.54 * peerWc) : 0;
+            const desiredPeerHeadPitch = peerWc > 0.35 ? (0.05 * peerWc) : ((-0.02 - 0.11 * peerSprintBoost) * mb);
+            const peerHeadSmooth = 1.0 - Math.exp(-dt * 8.5);
+            peer.headYaw = lerp(peer.headYaw || 0, desiredPeerHeadYaw, peerHeadSmooth);
+            peer.headPitch = lerp(peer.headPitch || 0, desiredPeerHeadPitch, peerHeadSmooth);
+            j.headPivot.rotation.y = peer.headYaw;
+            j.headPivot.rotation.x = peer.headPitch;
+            j.headPivot.rotation.z = -peer.headYaw * 0.12;
+
+            if (peer.isSomersault && peerSomersaultTuck > 0) {
+                j.shoulderPivotL.rotation.x -= 1.35 * peerSomersaultTuck;
+                j.shoulderPivotR.rotation.x -= 1.35 * peerSomersaultTuck;
+                j.shoulderPivotL.rotation.z -= 0.45 * peerSomersaultTuck;
+                j.shoulderPivotR.rotation.z += 0.45 * peerSomersaultTuck;
+                j.elbowPivotL.rotation.x -= 1.85 * peerSomersaultTuck;
+                j.elbowPivotR.rotation.x -= 1.85 * peerSomersaultTuck;
+                if (j.fingerCurlL) j.fingerCurlL.rotation.z = -0.75 * peerSomersaultTuck;
+                if (j.fingerCurlR) j.fingerCurlR.rotation.z = 0.75 * peerSomersaultTuck;
+                j.headPivot.rotation.x += 0.95 * peerSomersaultTuck;
+                j.pelvisPivot.position.y -= 0.14 * peerSomersaultTuck;
+            } else if (peer.emote && mb < 0.25 && peerWc < 0.1) {
                 const em = peer.emote;
                 if (em === 'wave') {
                     j.shoulderPivotR.rotation.x = -2.35;
@@ -11341,12 +11634,12 @@ class SeelenfunkeLouvreShowroom3D {
             }
 
             if (j.thrusterFlameL && j.thrusterFlameR) {
-                const peerThrusters = !(peer.builtRecord && peer.builtRecord.skinnedRig) && peerSprint > 0;
+                const peerThrusters = !(peer.builtRecord && peer.builtRecord.skinnedRig) && peerSprint > 0.15;
                 j.thrusterFlameL.visible = peerThrusters;
                 j.thrusterFlameR.visible = peerThrusters;
             }
             if (j.reactorRing) {
-                j.reactorRing.rotation.z = this.elapsedTime * (peerSprint > 0 ? 4.0 : 1.1);
+                j.reactorRing.rotation.z = this.elapsedTime * (peerSprint > 0.15 ? 4.0 : 1.1);
             }
 
             // Exakte Sohlen-Bodenkorrektur auf 0.004 - minSolePeerY + sauberer footShadow/baseRing-Sitz!
@@ -11368,14 +11661,15 @@ class SeelenfunkeLouvreShowroom3D {
 
             if (peer.builtRecord && peer.builtRecord.skinnedRig) {
                 const skinnedRig = peer.builtRecord.skinnedRig;
-                const peerState = (peer.jumping || airBlend > 0.25) ? 'jump' : (mb > 0.18 ? 'run' : 'idle');
-                this._syncSkinnedFunkiBones(skinnedRig, j, 0, {
+                const peerAnimState = (peer.jumping || airBlend > 0.25 || peerWc > 0.25) ? 'jump' : (mb > 0.18 ? 'run' : 'idle');
+                this._syncSkinnedFunkiBones(skinnedRig, j, peerSomersaultTuck, {
                     dt,
                     speed: effectiveSpeed,
-                    vy: (peer.targetY - peer.y) * 8.0,
+                    vy: peer.vy || 0,
                     turnRate: 0,
-                    animState: peerState,
-                    sprintBoost: peerSprintBoost,
+                    animState: peerAnimState,
+                    sprintBoost: peerSprint,
+                    wallClingBlend: peer.wallClingBlend || 0,
                 });
                 if (skinnedRig.actions && skinnedRig.actions.run && effectiveSpeed > 6.2) {
                     const peerSprintTimeScale = clamp(effectiveSpeed / 5.2, 1.18, 1.72);
@@ -12874,6 +13168,7 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.isWallClinging = false;
                 this.player.wallClingTimer = 0;
                 this.player.vy = -0.35;
+                this._notifyUrgentLocalSync('wall_cling_end');
             }
         } else if (this.player.isJumping || this.player.y > 0) {
             const impactSpeedBefore = Math.max(0, -(this.player.vy || 0));
@@ -12898,10 +13193,14 @@ class SeelenfunkeLouvreShowroom3D {
                     this.player.vy = 0;
                     this.player.velX = 0;
                     this.player.velZ = 0;
+                    this.player.worldVx = 0;
+                    this.player.worldVz = 0;
+                    this.player.currentSpeed = 0;
                     this.player.isSomersault = false;
                     this.player.somersaultProgress = 0.0;
                     this.player.yaw = Math.atan2(-clingWall.nx, -clingWall.nz);
                     if (this.audio) this.audio.playFootstep('marble');
+                    this._notifyUrgentLocalSync('wall_cling_start');
                 }
             }
 
@@ -13451,11 +13750,19 @@ export function createLouvreShowroom(options) {
                 y: sync.y,
                 z: sync.z,
                 vx: sync.vx,
+                vy: sync.vy,
                 vz: sync.vz,
                 rot_y: sync.rot_y,
                 rotY: sync.rotY,
                 speed: sync.speed,
                 jumping: sync.jumping,
+                sprint: sync.sprint,
+                wall_cling: sync.wall_cling,
+                wall_nx: sync.wall_nx,
+                wall_nz: sync.wall_nz,
+                somersault_seq: sync.somersault_seq,
+                somersault_dir: sync.somersault_dir,
+                somersault_prog: sync.somersault_prog,
                 emote: sync.emote,
                 player: Object.freeze(engine.getPlayerHudState()),
                 mmorpg: Object.freeze(engine.getMmorpgAccessState()),
@@ -13543,6 +13850,12 @@ export function createLouvreShowroom(options) {
         },
         updatePeers(peersArray) {
             engine.updatePeers(peersArray);
+        },
+        upsertPeer(peerData) {
+            return engine.upsertPeer(peerData);
+        },
+        removePeer(peerId) {
+            return engine.removePeer(peerId);
         },
         setHeroesPayload(payload) {
             engine.setHeroesPayload(payload);

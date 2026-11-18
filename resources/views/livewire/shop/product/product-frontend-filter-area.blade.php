@@ -3113,6 +3113,13 @@
                 let privateMod = null;
                 let privateAudio = null;
                 let privateAudioUnsub = null;
+                let privateLobbyWs = null;
+                let privateWsSendTimer = null;
+                let privateWsPingTimer = null;
+                let privateWsUrgentTimer = null;
+                let privateLastWsSentState = null;
+                let privateLastWsSentAtMs = 0;
+                let privateWsTickMs = 50;
 
                 const getFacade = () => privateShowroomFacades.get(instanceToken) || null;
                 const setFacade = (facade) => {
@@ -3281,7 +3288,10 @@
                     _syncTimer: null,
                     _urgentSyncWatchTimer: null,
                     _pingProbeTimer: null,
+                    _pingWarmupTimer: null,
                     _pingProbeInFlight: false,
+                    _netSampleIsDirectWire: false,
+                    wsConnected: false,
                     _syncInFlight: false,
                     _syncPendingImmediate: false,
                     _lastSyncSentAtMs: 0,
@@ -3471,7 +3481,7 @@
 
                     pingModeLabel() {
                         if (this.currentZone === 'heroes' && this.isCustomerAuthenticated() && !this.soloMode) {
-                            return 'Live-Sync (6 Hz)';
+                            return this.wsConnected ? 'Echtzeit-WS (20 Hz)' : 'Live-Sync (6 Hz)';
                         }
                         return 'Atelier (Solo)';
                     },
@@ -3480,29 +3490,39 @@
                         return 'Halle #' + this.lobbyInstanceId + ' (' + this.currentInstanceCount() + '/' + this.lobbyCapacity + ')';
                     },
 
-                    recordNetSample(rttMs, tickLabel) {
+                    recordNetRttSample(rttMs, isDirectWire, tickLabel) {
                         const cleanRtt = Math.max(1, Number(rttMs) || 1);
                         const ns = this.netStats;
                         const sent = (ns.sentCount || 0) + 1;
+                        const switchingToDirectWire = Boolean(isDirectWire) && !this._netSampleIsDirectWire;
+                        if (isDirectWire) {
+                            this._netSampleIsDirectWire = true;
+                        }
                         let nextPing = Math.max(1, Math.round(cleanRtt));
                         let nextJitter = 0;
-                        if (ns.samples > 0 && ns.pingMs !== null) {
+                        if (!switchingToDirectWire && ns.samples > 0 && ns.pingMs !== null) {
                             const delta = Math.abs(cleanRtt - (ns.lastRttMs || cleanRtt));
                             const rawJitter = ns.samples === 1 ? delta : ((ns.jitterMs || 0) * 0.72 + delta * 0.28);
                             const rawPing = ns.pingMs * 0.68 + cleanRtt * 0.32;
                             nextPing = Math.max(1, Math.round(rawPing));
                             nextJitter = Math.max(0, Math.round(rawJitter));
                         }
+                        const resolvedHz = tickLabel || (this.wsConnected ? '20,0 Hz' : (ns.tickHz || '6,0 Hz'));
                         this.netStats = Object.assign({}, ns, {
                             pingMs: nextPing,
                             jitterMs: nextJitter,
-                            tickHz: tickLabel || ns.tickHz || '6,0 Hz',
+                            tickHz: resolvedHz,
                             lossPct: Math.round(((ns.failCount || 0) / sent) * 100),
                             hasError: false,
                             samples: (ns.samples || 0) + 1,
                             lastRttMs: cleanRtt,
                             sentCount: sent,
                         });
+                    },
+
+                    recordNetSample(rttMs, tickLabel) {
+                        this._netSampleIsDirectWire = false;
+                        this.recordNetRttSample(rttMs, false, tickLabel);
                     },
 
                     recordNetFailure() {
@@ -3519,13 +3539,13 @@
 
                     probeSoloAtelierPing() {
                         if (!this.isOpen || this._pingProbeInFlight) return;
-                        if (this.currentZone === 'heroes' && this.lobbyAuthenticated && !this.soloMode && this._syncTimer) {
+                        if (this.currentZone === 'heroes' && this.lobbyAuthenticated && !this.soloMode && (this.wsConnected || this._syncTimer)) {
                             return;
                         }
                         this._pingProbeInFlight = true;
                         const t0 = this._nowPerfMs();
 
-                        fetch('/funkenwerk-welt/lobby/ping', {
+                        fetch('/lobby-ping.php', {
                             method: 'GET',
                             credentials: 'same-origin',
                             cache: 'no-store',
@@ -3533,7 +3553,7 @@
                         })
                             .then((res) => {
                                 if (res.ok) {
-                                    this.recordNetSample(this._nowPerfMs() - t0, 'Atelier · Bereit');
+                                    this.recordNetRttSample(this._nowPerfMs() - t0, true, 'Atelier · Bereit');
                                     return null;
                                 }
                                 const tFallback = this._nowPerfMs();
@@ -3543,7 +3563,7 @@
                                     cache: 'no-store',
                                 }).then((rUp) => {
                                     if (rUp.ok) {
-                                        this.recordNetSample(this._nowPerfMs() - tFallback, 'Atelier · Bereit');
+                                        this.recordNetRttSample(this._nowPerfMs() - tFallback, true, 'Atelier · Bereit');
                                     } else {
                                         this.recordNetFailure();
                                     }
@@ -3559,13 +3579,32 @@
 
                     startAtelierPingLoop() {
                         this.stopAtelierPingLoop();
-                        this.probeSoloAtelierPing();
+                        fetch('/lobby-ping.php', {
+                            method: 'GET',
+                            credentials: 'same-origin',
+                            cache: 'no-store',
+                        })
+                            .catch(() => {})
+                            .finally(() => {
+                                if (!this.isOpen) return;
+                                if (this._pingWarmupTimer) {
+                                    clearTimeout(this._pingWarmupTimer);
+                                }
+                                this._pingWarmupTimer = setTimeout(() => {
+                                    this._pingWarmupTimer = null;
+                                    this.probeSoloAtelierPing();
+                                }, 150);
+                            });
                         this._pingProbeTimer = setInterval(() => {
                             this.probeSoloAtelierPing();
                         }, 10000);
                     },
 
                     stopAtelierPingLoop() {
+                        if (this._pingWarmupTimer) {
+                            clearTimeout(this._pingWarmupTimer);
+                            this._pingWarmupTimer = null;
+                        }
                         if (this._pingProbeTimer) {
                             clearInterval(this._pingProbeTimer);
                             this._pingProbeTimer = null;
@@ -4351,6 +4390,7 @@
                         if (!this._pageHideBound) {
                             this._pageHideBound = () => {
                                 if (this.isOpen && this._activeSyncZone === 'heroes') {
+                                    this.closeLobbyWebSocket(true);
                                     this.sendLobbyLeaveBeacon();
                                 }
                                 if (typeof window !== 'undefined' && typeof window.__sfForceStopAllLobbyAudio === 'function') {
@@ -4391,7 +4431,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v7');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v8');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -4617,6 +4657,243 @@
                             });
                     },
 
+                    _buildWsStatePayload(st) {
+                        return {
+                            type: 'state',
+                            x: st.x,
+                            y: st.y,
+                            z: st.z,
+                            vx: st.vx || 0,
+                            vy: st.vy || 0,
+                            vz: st.vz || 0,
+                            rot_y: st.rot_y,
+                            speed: st.speed || 0,
+                            jumping: Boolean(st.jumping),
+                            sprint: Boolean(st.sprint),
+                            wall_cling: Boolean(st.wall_cling),
+                            wall_nx: st.wall_nx || 0,
+                            wall_nz: st.wall_nz || 0,
+                            somersault_seq: st.somersault_seq || 0,
+                            somersault_dir: st.somersault_dir || 0,
+                            somersault_prog: st.somersault_prog || 0,
+                            emote: st.emote || null,
+                        };
+                    },
+
+                    _hasWsStateChanged(st, prev, nowMs) {
+                        if (!prev) return true;
+                        if ((nowMs - (privateLastWsSentAtMs || 0)) >= 400) return true;
+                        if (Math.abs((st.x || 0) - (prev.x || 0)) > 0.004) return true;
+                        if (Math.abs((st.y || 0) - (prev.y || 0)) > 0.004) return true;
+                        if (Math.abs((st.z || 0) - (prev.z || 0)) > 0.004) return true;
+                        let dYaw = (st.rot_y || 0) - (prev.rot_y || 0);
+                        while (dYaw > Math.PI) dYaw -= Math.PI * 2;
+                        while (dYaw < -Math.PI) dYaw += Math.PI * 2;
+                        if (Math.abs(dYaw) > 0.012) return true;
+                        if (Math.abs((st.speed || 0) - (prev.speed || 0)) > 0.03) return true;
+                        if (Boolean(st.jumping) !== Boolean(prev.jumping)) return true;
+                        if (Boolean(st.sprint) !== Boolean(prev.sprint)) return true;
+                        if (Boolean(st.wall_cling) !== Boolean(prev.wall_cling)) return true;
+                        if ((st.somersault_seq || 0) !== (prev.somersault_seq || 0)) return true;
+                        if ((st.somersault_dir || 0) !== (prev.somersault_dir || 0)) return true;
+                        if ((st.emote || null) !== (prev.emote || null)) return true;
+                        return false;
+                    },
+
+                    _sendWsStateNow(force = false) {
+                        if (!this.isOpen || !this.wsConnected || !privateLobbyWs || privateLobbyWs.readyState !== 1) return false;
+                        if (this.soloMode || this.currentZone !== 'heroes') return false;
+                        const facade = getFacade();
+                        if (!facade) return false;
+                        const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
+                        if (!st) return false;
+                        const nowMs = this._nowPerfMs();
+                        if (!force && !this._hasWsStateChanged(st, privateLastWsSentState, nowMs)) {
+                            return false;
+                        }
+                        const pkt = this._buildWsStatePayload(st);
+                        try {
+                            privateLobbyWs.send(JSON.stringify(pkt));
+                            privateLastWsSentAtMs = nowMs;
+                            privateLastWsSentState = pkt;
+                            return true;
+                        } catch (e) {
+                            return false;
+                        }
+                    },
+
+                    _upsertLocalPeerList(peerObj) {
+                        if (!peerObj || typeof peerObj !== 'object') return;
+                        const pid = String(peerObj.peer_id || peerObj.player_id || '');
+                        if (!pid) return;
+                        if (this.multiplayer && this.multiplayer.peer_id && pid === String(this.multiplayer.peer_id)) {
+                            return;
+                        }
+                        const next = Array.isArray(this.peers) ? this.peers.slice() : [];
+                        let foundIdx = -1;
+                        for (let i = 0; i < next.length; i++) {
+                            const cur = next[i];
+                            if (cur && (String(cur.peer_id || '') === pid || String(cur.player_id || '') === pid)) {
+                                foundIdx = i;
+                                break;
+                            }
+                        }
+                        if (foundIdx >= 0) {
+                            next[foundIdx] = Object.assign({}, next[foundIdx], peerObj);
+                        } else if (next.length < 19) {
+                            next.push(peerObj);
+                        }
+                        this.peers = next;
+                    },
+
+                    _removeLocalPeerFromList(peerId) {
+                        if (!peerId || !Array.isArray(this.peers)) return;
+                        const target = String(peerId);
+                        this.peers = this.peers.filter((p) => p && String(p.peer_id || '') !== target && String(p.player_id || '') !== target);
+                    },
+
+                    _clearWsTimers() {
+                        if (privateWsSendTimer) {
+                            clearInterval(privateWsSendTimer);
+                            privateWsSendTimer = null;
+                        }
+                        if (privateWsPingTimer) {
+                            clearInterval(privateWsPingTimer);
+                            privateWsPingTimer = null;
+                        }
+                        if (privateWsUrgentTimer) {
+                            clearTimeout(privateWsUrgentTimer);
+                            privateWsUrgentTimer = null;
+                        }
+                    },
+
+                    closeLobbyWebSocket(sendLeave = false) {
+                        this._clearWsTimers();
+                        const ws = privateLobbyWs;
+                        privateLobbyWs = null;
+                        this.wsConnected = false;
+                        privateLastWsSentState = null;
+                        if (!ws) return;
+                        ws.onopen = null;
+                        ws.onmessage = null;
+                        ws.onerror = null;
+                        ws.onclose = null;
+                        try {
+                            if (sendLeave && ws.readyState === 1) {
+                                ws.send(JSON.stringify({ type: 'leave' }));
+                            }
+                        } catch (e) {}
+                        try {
+                            ws.close(1000, 'leave');
+                        } catch (e2) {}
+                    },
+
+                    connectLobbyWebSocket(wsRelay) {
+                        if (!wsRelay || !wsRelay.url || !wsRelay.ticket || typeof WebSocket === 'undefined') return;
+                        if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') return;
+
+                        this.closeLobbyWebSocket(false);
+                        privateWsTickMs = Math.max(35, Math.min(100, Number(wsRelay.tick_ms) || 50));
+                        const wsUrl = String(wsRelay.url) + (String(wsRelay.url).indexOf('?') === -1 ? '?' : '&') + 'ticket=' + encodeURIComponent(String(wsRelay.ticket));
+                        let ws = null;
+                        try {
+                            ws = new WebSocket(wsUrl);
+                        } catch (err) {
+                            this.wsConnected = false;
+                            return;
+                        }
+                        privateLobbyWs = ws;
+
+                        const sendWsPing = () => {
+                            if (!this.wsConnected || privateLobbyWs !== ws || ws.readyState !== 1) return;
+                            try {
+                                ws.send(JSON.stringify({ type: 'ping', c: this._nowPerfMs() }));
+                            } catch (e) {}
+                        };
+
+                        ws.onmessage = (ev) => {
+                            if (privateLobbyWs !== ws || !this.isOpen || this.soloMode || this.currentZone !== 'heroes') return;
+                            let msg = null;
+                            try {
+                                msg = JSON.parse(ev.data);
+                            } catch (e) {
+                                return;
+                            }
+                            if (!msg || typeof msg !== 'object') return;
+                            const facade = getFacade();
+
+                            if (msg.type === 'welcome') {
+                                this.wsConnected = true;
+                                this.netStats = Object.assign({}, this.netStats, {
+                                    tickHz: '20,0 Hz',
+                                    tickIntervalMs: privateWsTickMs,
+                                });
+                                if (msg.instance_id) {
+                                    this.lobbyInstanceId = Number(msg.instance_id) || this.lobbyInstanceId;
+                                    this.customInstanceInput = this.lobbyInstanceId;
+                                }
+                                if (msg.peer_id) {
+                                    this.multiplayer.peer_id = String(msg.peer_id);
+                                    if (facade && typeof facade.setLocalPeerId === 'function') {
+                                        facade.setLocalPeerId(msg.peer_id);
+                                    }
+                                }
+                                this.peers = Array.isArray(msg.peers) ? msg.peers : [];
+                                if (facade) {
+                                    facade.updatePeers(this.peers);
+                                }
+                                this._clearWsTimers();
+                                this._sendWsStateNow(true);
+                                sendWsPing();
+                                privateWsSendTimer = setInterval(() => {
+                                    this._sendWsStateNow(false);
+                                }, privateWsTickMs);
+                                privateWsPingTimer = setInterval(sendWsPing, 2000);
+                                this.scheduleNextMultiplayerSync(8000);
+                                return;
+                            }
+
+                            if (msg.type === 'peer_state' && msg.peer) {
+                                if (facade && typeof facade.upsertPeer === 'function') {
+                                    facade.upsertPeer(msg.peer);
+                                }
+                                this._upsertLocalPeerList(msg.peer);
+                                return;
+                            }
+
+                            if (msg.type === 'peer_left' && msg.peer_id) {
+                                if (facade && typeof facade.removePeer === 'function') {
+                                    facade.removePeer(msg.peer_id);
+                                }
+                                this._removeLocalPeerFromList(msg.peer_id);
+                                return;
+                            }
+
+                            if (msg.type === 'pong') {
+                                const rtt = Math.max(1, this._nowPerfMs() - Number(msg.c));
+                                this.recordNetRttSample(rtt, true, '20,0 Hz');
+                            }
+                        };
+
+                        const handleWsDisconnect = () => {
+                            if (privateLobbyWs !== ws) return;
+                            this._clearWsTimers();
+                            privateLobbyWs = null;
+                            const wasConnected = this.wsConnected;
+                            this.wsConnected = false;
+                            privateLastWsSentState = null;
+                            if (this.isOpen && this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
+                                this.netStats = Object.assign({}, this.netStats, { tickHz: '6,0 Hz' });
+                                if (wasConnected || !this._syncTimer) {
+                                    this.scheduleNextMultiplayerSync(165);
+                                }
+                            }
+                        };
+
+                        ws.onerror = handleWsDisconnect;
+                        ws.onclose = handleWsDisconnect;
+                    },
+
                     handleZoneSyncTransition(nextZone) {
                         const z = String(nextZone || 'gallery').toLowerCase();
                         const facade = getFacade();
@@ -4625,7 +4902,7 @@
                             if (facade && typeof facade.refreshHeroesData === 'function') {
                                 facade.refreshHeroesData(false);
                             }
-                            if (this.isCustomerAuthenticated() && this.canEnterSanctums() && !this.soloMode && (this._activeSyncZone !== 'heroes' || !this._syncTimer)) {
+                            if (this.isCustomerAuthenticated() && this.canEnterSanctums() && !this.soloMode && (this._activeSyncZone !== 'heroes' || (!this._syncTimer && !this.wsConnected))) {
                                 this._activeSyncZone = 'heroes';
                                 this.joinLobbyInstance();
                             }
@@ -4633,7 +4910,7 @@
                         }
 
                         // Solo-Zonen ('gallery', 'lava'): lokal sofort leeren, Loop stoppen & Heldenhallen-Platz freigeben!
-                        const wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer));
+                        const wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer) || this.wsConnected);
                         this._activeSyncZone = z;
                         this.instanceMenuOpen = false;
                         this.chatOpen = false;
@@ -4660,10 +4937,18 @@
                                     y: st.y,
                                     z: st.z,
                                     vx: st.vx,
+                                    vy: st.vy || 0,
                                     vz: st.vz,
                                     rot_y: st.rot_y,
                                     speed: st.speed,
                                     jumping: Boolean(st.jumping),
+                                    sprint: Boolean(st.sprint),
+                                    wall_cling: Boolean(st.wall_cling),
+                                    wall_nx: st.wall_nx || 0,
+                                    wall_nz: st.wall_nz || 0,
+                                    somersault_seq: st.somersault_seq || 0,
+                                    somersault_dir: st.somersault_dir || 0,
+                                    somersault_prog: st.somersault_prog || 0,
                                     zone: z,
                                     emote: st.emote || null,
                                     ability_slot: st.ability_slot || 0,
@@ -4726,10 +5011,18 @@
                                 y: st.y,
                                 z: st.z,
                                 vx: st.vx,
+                                vy: st.vy || 0,
                                 vz: st.vz,
                                 rot_y: st.rot_y,
                                 speed: st.speed,
                                 jumping: Boolean(st.jumping),
+                                sprint: Boolean(st.sprint),
+                                wall_cling: Boolean(st.wall_cling),
+                                wall_nx: st.wall_nx || 0,
+                                wall_nz: st.wall_nz || 0,
+                                somersault_seq: st.somersault_seq || 0,
+                                somersault_dir: st.somersault_dir || 0,
+                                somersault_prog: st.somersault_prog || 0,
                                 zone: 'heroes',
                                 emote: st.emote || null,
                                 ability_slot: st.ability_slot || 0,
@@ -4750,7 +5043,9 @@
                                         return null;
                                     }
                                     if (res.ok) {
-                                        this.recordNetSample(rtt, '6,0 Hz');
+                                        if (!this.wsConnected) {
+                                            this.recordNetSample(rtt, '6,0 Hz');
+                                        }
                                     } else {
                                         this.recordNetFailure();
                                     }
@@ -4760,7 +5055,7 @@
                             .then((data) => {
                                 if (!data || !data.ok || !this.isOpen || this.currentZone !== 'heroes') return;
                                 this.lobbyAuthenticated = Boolean(data.authenticated);
-                                if (data.tick_interval_ms) {
+                                if (data.tick_interval_ms && !this.wsConnected) {
                                     this.netStats = Object.assign({}, this.netStats, {
                                         tickIntervalMs: Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165)),
                                     });
@@ -4789,8 +5084,11 @@
                                 if (Array.isArray(data.messages)) {
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
-                                if (this.lobbyAuthenticated && this.currentZone === 'heroes') {
+                                if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
                                     this.startMultiplayerLoop();
+                                    if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket) {
+                                        this.connectLobbyWebSocket(data.ws_relay);
+                                    }
                                 }
                             })
                             .catch(() => {
@@ -4799,6 +5097,12 @@
                     },
 
                     computeAdaptiveSyncIntervalMs(st) {
+                        if (this.wsConnected) {
+                            if (this.netStats && this.netStats.tickHz !== '20,0 Hz') {
+                                this.netStats = Object.assign({}, this.netStats, { tickHz: '20,0 Hz' });
+                            }
+                            return 8000;
+                        }
                         const speed = st ? (Number(st.speed) || 0) : 0;
                         const jumping = Boolean(st && st.jumping);
                         const hasPeers = Array.isArray(this.peers) && this.peers.length > 0;
@@ -4829,6 +5133,23 @@
 
                     requestImmediateMultiplayerSync() {
                         if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                            return;
+                        }
+                        if (this.wsConnected && privateLobbyWs && privateLobbyWs.readyState === 1) {
+                            const wsElapsed = this._nowPerfMs() - (privateLastWsSentAtMs || 0);
+                            if (wsElapsed >= 25) {
+                                if (privateWsUrgentTimer) {
+                                    clearTimeout(privateWsUrgentTimer);
+                                    privateWsUrgentTimer = null;
+                                }
+                                this._sendWsStateNow(true);
+                            } else if (!privateWsUrgentTimer) {
+                                const wsWait = Math.max(4, Math.ceil(25 - wsElapsed));
+                                privateWsUrgentTimer = setTimeout(() => {
+                                    privateWsUrgentTimer = null;
+                                    this._sendWsStateNow(true);
+                                }, wsWait);
+                            }
                             return;
                         }
                         if (this._syncInFlight) {
@@ -4862,11 +5183,13 @@
 
                         const moving = (Number(st.speed) || 0) > 0.08;
                         const jumping = Boolean(st.jumping);
+                        const wallCling = Boolean(st.wall_cling);
+                        const somersaultSeq = st.somersault_seq || 0;
                         const emote = st.emote || null;
                         const velAngle = moving ? Math.atan2(Number(st.vx) || 0, Number(st.vz) || 0) : 0;
 
                         if (!this._lastWatchSyncSnap) {
-                            this._lastWatchSyncSnap = { moving, jumping, emote, velAngle };
+                            this._lastWatchSyncSnap = { moving, jumping, wallCling, somersaultSeq, emote, velAngle };
                             return;
                         }
                         const prev = this._lastWatchSyncSnap;
@@ -4875,24 +5198,20 @@
                         while (rawDiff < -Math.PI) rawDiff += Math.PI * 2;
                         const dirTurned = moving && prev.moving && Math.abs(rawDiff) > (25 * Math.PI / 180);
 
-                        if (moving !== prev.moving || (!prev.jumping && jumping) || emote !== prev.emote || dirTurned) {
-                            this._lastWatchSyncSnap = { moving, jumping, emote, velAngle };
+                        if (
+                            moving !== prev.moving
+                            || (!prev.jumping && jumping)
+                            || wallCling !== prev.wallCling
+                            || somersaultSeq !== prev.somersaultSeq
+                            || emote !== prev.emote
+                            || dirTurned
+                        ) {
+                            this._lastWatchSyncSnap = { moving, jumping, wallCling, somersaultSeq, emote, velAngle };
                             this.requestImmediateMultiplayerSync();
                         }
                     },
 
-                    startMultiplayerLoop() {
-                        this.stopMultiplayerLoop();
-                        if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
-                            return;
-                        }
-                        this._urgentSyncWatchTimer = setInterval(() => {
-                            this.checkUrgentLocalSyncWatch();
-                        }, 60);
-                        this.scheduleNextMultiplayerSync();
-                    },
-
-                    stopMultiplayerLoop() {
+                    stopHttpSyncTimers() {
                         if (this._syncTimer) {
                             clearTimeout(this._syncTimer);
                             this._syncTimer = null;
@@ -4906,6 +5225,22 @@
                         this._lastWatchSyncSnap = null;
                     },
 
+                    startMultiplayerLoop() {
+                        this.stopHttpSyncTimers();
+                        if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                            return;
+                        }
+                        this._urgentSyncWatchTimer = setInterval(() => {
+                            this.checkUrgentLocalSyncWatch();
+                        }, 60);
+                        this.scheduleNextMultiplayerSync();
+                    },
+
+                    stopMultiplayerLoop() {
+                        this.closeLobbyWebSocket(true);
+                        this.stopHttpSyncTimers();
+                    },
+
                     runMultiplayerSync() {
                         const facade = getFacade();
                         if (!this.isOpen || !facade) return;
@@ -4914,7 +5249,9 @@
                             return;
                         }
                         if (this._syncInFlight) {
-                            this._syncPendingImmediate = true;
+                            if (!this.wsConnected) {
+                                this._syncPendingImmediate = true;
+                            }
                             return;
                         }
 
@@ -4922,7 +5259,9 @@
                         const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
                         const t0 = this._nowPerfMs();
                         this._lastSyncSentAtMs = t0;
-                        const nextHzLabel = this.computeAdaptiveSyncIntervalMs(st) <= 165 ? '6,0 Hz' : 'Ruhe-Puls';
+                        const nextHzLabel = this.wsConnected
+                            ? '20,0 Hz'
+                            : (this.computeAdaptiveSyncIntervalMs(st) <= 165 ? '6,0 Hz' : 'Ruhe-Puls');
 
                         fetch('/funkenwerk-welt/lobby/sync', {
                             method: 'POST',
@@ -4937,10 +5276,18 @@
                                 y: st.y,
                                 z: st.z,
                                 vx: st.vx,
+                                vy: st.vy || 0,
                                 vz: st.vz,
                                 rot_y: st.rot_y,
                                 speed: st.speed,
                                 jumping: Boolean(st.jumping),
+                                sprint: Boolean(st.sprint),
+                                wall_cling: Boolean(st.wall_cling),
+                                wall_nx: st.wall_nx || 0,
+                                wall_nz: st.wall_nz || 0,
+                                somersault_seq: st.somersault_seq || 0,
+                                somersault_dir: st.somersault_dir || 0,
+                                somersault_prog: st.somersault_prog || 0,
                                 zone: 'heroes',
                                 emote: st.emote || null,
                                 ability_slot: st.ability_slot || 0,
@@ -4961,8 +5308,10 @@
                                         return null;
                                     }
                                     if (res.ok) {
-                                        this.recordNetSample(rtt, nextHzLabel);
-                                    } else {
+                                        if (!this.wsConnected) {
+                                            this.recordNetSample(rtt, nextHzLabel);
+                                        }
+                                    } else if (!this.wsConnected) {
                                         this.recordNetFailure();
                                     }
                                     return res.ok ? b : null;
@@ -4971,7 +5320,7 @@
                             .then((data) => {
                                 const f2 = getFacade();
                                 if (!data || !data.ok || !this.isOpen || !f2 || this.currentZone !== 'heroes') return;
-                                if (data.tick_interval_ms) {
+                                if (data.tick_interval_ms && !this.wsConnected) {
                                     this.netStats = Object.assign({}, this.netStats, {
                                         tickIntervalMs: Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165)),
                                     });
@@ -4988,25 +5337,29 @@
                                         f2.setLocalPeerId(data.peer_id);
                                     }
                                 }
-                                this.peers = Array.isArray(data.peers) ? data.peers : [];
-                                f2.updatePeers(this.peers);
+                                if (!this.wsConnected) {
+                                    this.peers = Array.isArray(data.peers) ? data.peers : [];
+                                    f2.updatePeers(this.peers);
+                                }
                                 if (Array.isArray(data.messages)) {
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
                             })
                             .catch(() => {
-                                this.recordNetFailure();
+                                if (!this.wsConnected) {
+                                    this.recordNetFailure();
+                                }
                             })
                             .finally(() => {
                                 this._syncInFlight = false;
                                 if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
                                     return;
                                 }
-                                if (this._syncPendingImmediate) {
+                                if (!this.wsConnected && this._syncPendingImmediate) {
                                     this._syncPendingImmediate = false;
                                     this.requestImmediateMultiplayerSync();
                                 } else {
-                                    this.scheduleNextMultiplayerSync();
+                                    this.scheduleNextMultiplayerSync(this.wsConnected ? 8000 : undefined);
                                 }
                             });
                     },
@@ -5022,6 +5375,7 @@
                         }
                         const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
                         this.instanceMenuOpen = false;
+                        this.closeLobbyWebSocket(true);
                         const t0 = this._nowPerfMs();
 
                         fetch('/funkenwerk-welt/lobby/switch', {
@@ -5038,10 +5392,18 @@
                                 y: st.y,
                                 z: st.z,
                                 vx: st.vx,
+                                vy: st.vy || 0,
                                 vz: st.vz,
                                 rot_y: st.rot_y,
                                 speed: st.speed,
                                 jumping: Boolean(st.jumping),
+                                sprint: Boolean(st.sprint),
+                                wall_cling: Boolean(st.wall_cling),
+                                wall_nx: st.wall_nx || 0,
+                                wall_nz: st.wall_nz || 0,
+                                somersault_seq: st.somersault_seq || 0,
+                                somersault_dir: st.somersault_dir || 0,
+                                somersault_prog: st.somersault_prog || 0,
                                 zone: 'heroes'
                             })
                         })
@@ -5057,7 +5419,9 @@
                                         return null;
                                     }
                                     if (res.ok) {
-                                        this.recordNetSample(rtt, '6,0 Hz');
+                                        if (!this.wsConnected) {
+                                            this.recordNetSample(rtt, '6,0 Hz');
+                                        }
                                     } else {
                                         this.recordNetFailure();
                                     }
@@ -5089,6 +5453,9 @@
                                 }
                                 if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
                                     this.startMultiplayerLoop();
+                                    if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket) {
+                                        this.connectLobbyWebSocket(data.ws_relay);
+                                    }
                                 }
                             })
                             .catch(() => {

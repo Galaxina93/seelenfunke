@@ -85,6 +85,8 @@ class LobbyInstanceService
         'spark',
         'sit',
         'clap',
+        'heart',
+        'gg',
     ];
 
     private const CACHE_ACTIVE_IDS_KEY = 'sf_fw_lobby_active_instances_v1';
@@ -307,7 +309,7 @@ class LobbyInstanceService
         }
 
         $coordFlags = [];
-        foreach (['x', 'y', 'z', 'vx', 'vz', 'rel_x', 'rel_y', 'rel_z', 'rot_y', 'rotY'] as $coordKey) {
+        foreach (['x', 'y', 'z', 'vx', 'vy', 'vz', 'wall_nx', 'wall_nz', 'somersault_prog', 'rel_x', 'rel_y', 'rel_z', 'rot_y', 'rotY'] as $coordKey) {
             if (!array_key_exists($coordKey, $rawInput) || $rawInput[$coordKey] === null || $rawInput[$coordKey] === '') {
                 continue;
             }
@@ -318,6 +320,14 @@ class LobbyInstanceService
             }
             if (abs((float) $val) > self::EXTREME_COORD_THRESHOLD) {
                 $coordFlags[] = $coordKey . ':extreme';
+            }
+        }
+
+        foreach (['somersault_seq', 'somersault_dir'] as $intKey) {
+            if (array_key_exists($intKey, $rawInput) && $rawInput[$intKey] !== null && $rawInput[$intKey] !== '') {
+                if (!self::isValidFiniteNumeric($rawInput[$intKey])) {
+                    $coordFlags[] = $intKey . ':non_finite';
+                }
             }
         }
 
@@ -936,6 +946,7 @@ class LobbyInstanceService
                     'hard_cap' => self::HARD_CAP,
                     'server_ts_ms' => Carbon::now()->getTimestampMs(),
                     'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
+                    'ws_relay' => $this->buildWsRelayPayload($actor, $selectedInstance),
                     'player' => $this->formatPlayerSelf($actor),
                     'peers' => $this->formatPeersList($rosters[$selectedInstance], $peerId),
                     'messages' => $this->getInstanceMessages($selectedInstance, $peerId),
@@ -1007,6 +1018,7 @@ class LobbyInstanceService
                     'hard_cap' => self::HARD_CAP,
                     'server_ts_ms' => Carbon::now()->getTimestampMs(),
                     'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
+                    'ws_relay' => $this->buildWsRelayPayload($actor, $targetInstanceId),
                     'player' => $this->formatPlayerSelf($actor),
                     'peers' => $this->formatPeersList($roster, $peerId),
                     'messages' => $this->getInstanceMessages($targetInstanceId, $peerId),
@@ -1091,6 +1103,7 @@ class LobbyInstanceService
                     'hard_cap' => self::HARD_CAP,
                     'server_ts_ms' => Carbon::now()->getTimestampMs(),
                     'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
+                    'ws_relay' => $this->buildWsRelayPayload($actor, $targetInstance),
                     'player' => $this->formatPlayerSelf($actor),
                     'peers' => $this->formatPeersList($targetRoster, $peerId),
                     'messages' => $this->getInstanceMessages($targetInstance, $peerId),
@@ -2313,14 +2326,25 @@ class LobbyInstanceService
             }
         }
 
+        $somersaultDirParsed = (int) self::parseFiniteFloat($input['somersault_dir'] ?? null, 0);
+        $somersaultDir = in_array($somersaultDirParsed, [-1, 0, 1], true) ? $somersaultDirParsed : 0;
+
         return [
             'x' => round($clampedX, 3),
             'y' => round($clampedY, 3),
             'z' => round($clampedZ, 3),
             'vx' => round(max(-self::MAX_SPEED, min(self::MAX_SPEED, $rawVx)), 3),
+            'vy' => round(max(-22.0, min(15.0, self::parseFiniteFloat($input['vy'] ?? null, 0.0))), 3),
             'vz' => round(max(-self::MAX_SPEED, min(self::MAX_SPEED, $rawVz)), 3),
             'rot_y' => round(max(-6.3, min(6.3, $rawRot)), 4),
             'speed' => round(max(0.0, min(self::MAX_SPEED, $rawSpeed)), 3),
+            'sprint' => is_scalar($input['sprint'] ?? null) ? filter_var($input['sprint'], FILTER_VALIDATE_BOOLEAN) : false,
+            'wall_cling' => is_scalar($input['wall_cling'] ?? null) ? filter_var($input['wall_cling'], FILTER_VALIDATE_BOOLEAN) : false,
+            'wall_nx' => round(max(-1.0, min(1.0, self::parseFiniteFloat($input['wall_nx'] ?? null, 0.0))), 3),
+            'wall_nz' => round(max(-1.0, min(1.0, self::parseFiniteFloat($input['wall_nz'] ?? null, 0.0))), 3),
+            'somersault_seq' => max(0, min(9999999, (int) self::parseFiniteFloat($input['somersault_seq'] ?? null, 0))),
+            'somersault_dir' => $somersaultDir,
+            'somersault_prog' => round(max(0.0, min(1.0, self::parseFiniteFloat($input['somersault_prog'] ?? null, 0.0))), 3),
             'zone' => $zone,
             'combo_seq' => max(0, min(10000000, $rawComboSeq)),
             'combo_stage' => max(0, min(4, $rawComboStage)),
@@ -2367,9 +2391,17 @@ class LobbyInstanceService
             'y' => $state['y'],
             'z' => $state['z'],
             'vx' => $state['vx'] ?? 0.0,
+            'vy' => $state['vy'] ?? 0.0,
             'vz' => $state['vz'] ?? 0.0,
             'rot_y' => $state['rot_y'],
             'speed' => $state['speed'],
+            'sprint' => (bool) ($state['sprint'] ?? false),
+            'wall_cling' => (bool) ($state['wall_cling'] ?? false),
+            'wall_nx' => $state['wall_nx'] ?? 0.0,
+            'wall_nz' => $state['wall_nz'] ?? 0.0,
+            'somersault_seq' => (int) ($state['somersault_seq'] ?? 0),
+            'somersault_dir' => (int) ($state['somersault_dir'] ?? 0),
+            'somersault_prog' => $state['somersault_prog'] ?? 0.0,
             'zone' => 'heroes',
             'combo_seq' => $state['combo_seq'],
             'combo_stage' => $state['combo_stage'],
@@ -2417,6 +2449,10 @@ class LobbyInstanceService
 
             $rawEmote = is_string($entry['emote'] ?? null) ? $entry['emote'] : '';
             $comboSeq = (int) ($entry['combo_seq'] ?? 0);
+            $somersaultDir = (int) ($entry['somersault_dir'] ?? 0);
+            if (!in_array($somersaultDir, [-1, 0, 1], true)) {
+                $somersaultDir = 0;
+            }
 
             $peers[] = [
                 'peer_id' => (string) $entry['peer_id'],
@@ -2427,9 +2463,17 @@ class LobbyInstanceService
                 'y' => (float) ($entry['y'] ?? 0.0),
                 'z' => (float) $entry['z'],
                 'vx' => (float) ($entry['vx'] ?? 0.0),
+                'vy' => (float) ($entry['vy'] ?? 0.0),
                 'vz' => (float) ($entry['vz'] ?? 0.0),
                 'rot_y' => (float) $entry['rot_y'],
                 'speed' => (float) $entry['speed'],
+                'sprint' => (bool) ($entry['sprint'] ?? false),
+                'wall_cling' => (bool) ($entry['wall_cling'] ?? false),
+                'wall_nx' => (float) ($entry['wall_nx'] ?? 0.0),
+                'wall_nz' => (float) ($entry['wall_nz'] ?? 0.0),
+                'somersault_seq' => max(0, min(9999999, (int) ($entry['somersault_seq'] ?? 0))),
+                'somersault_dir' => $somersaultDir,
+                'somersault_prog' => round(max(0.0, min(1.0, (float) ($entry['somersault_prog'] ?? 0.0))), 3),
                 'zone' => 'heroes',
                 'combo_seq' => $comboSeq,
                 'combo_stage' => (int) ($entry['combo_stage'] ?? 0),
@@ -2649,6 +2693,68 @@ class LobbyInstanceService
     }
 
     /**
+     * Erzeugt ein HMAC-SHA256-signiertes Ticket fuer das In-Memory-20-Hz-WebSocket-Relay (/lobby-ws).
+     *
+     * @param array<string, mixed> $actor
+     * @return array{url: string, ticket: string, instance_id: int, expires_at_ms: int, tick_hz: int}|null
+     */
+    public function buildWsRelayPayload(array $actor, int $instanceId): ?array
+    {
+        $peerId = strtolower(trim((string) ($actor['peer_id'] ?? '')));
+        if (!preg_match('/^[0-9a-f]{12}$/', $peerId) || $instanceId < 1 || $instanceId > 64) {
+            return null;
+        }
+
+        $secret = trim((string) (config('services.gemini.bridge_secret') ?: config('services.ai.proxy_secret') ?: config('services.twilio.bridge_secret') ?: ''));
+        if ($secret === '') {
+            $appKey = trim((string) config('app.key', ''));
+            if ($appKey !== '') {
+                $secret = hash_hmac('sha256', 'seelenfunke-internal-bridge-v1', $appKey);
+            }
+        }
+
+        if ($secret === '') {
+            return null;
+        }
+
+        $displayName = self::cleanZeroDashText((string) ($actor['peer_display_name'] ?? $actor['display_name'] ?? 'Funki'));
+        if ($displayName === '' || str_contains($displayName, '@')) {
+            $displayName = 'Funki';
+        }
+
+        $exp = Carbon::now()->getTimestampMs() + (15 * 60 * 1000);
+        $claims = [
+            'peer_id' => $peerId,
+            'instance_id' => $instanceId,
+            'display_name' => mb_substr($displayName, 0, 28),
+            'level' => max(1, min(10, (int) ($actor['level'] ?? 1))),
+            'ship_class' => (string) ($actor['ship_class'] ?? 'KLASSE C'),
+            'exp' => $exp,
+        ];
+
+        $b64 = rtrim(strtr(base64_encode((string) json_encode($claims, JSON_UNESCAPED_UNICODE)), '+/', '-_'), '=');
+        $sig = hash_hmac('sha256', $b64, $secret);
+        $ticket = $b64 . '.' . $sig;
+
+        $reqHost = strtolower(trim((string) (request()?->getHost() ?? '')));
+        $appHost = strtolower(trim((string) (parse_url((string) config('app.url', ''), PHP_URL_HOST) ?: '')));
+        $isMeinSeelenfunke = ($reqHost === 'mein-seelenfunke.de' || str_ends_with($reqHost, '.mein-seelenfunke.de'))
+            || ($appHost === 'mein-seelenfunke.de' || str_ends_with($appHost, '.mein-seelenfunke.de'));
+
+        $wsUrl = $isMeinSeelenfunke
+            ? 'wss://api-live-bridge.mein-seelenfunke.de/lobby-ws'
+            : 'ws://127.0.0.1:8089/lobby-ws';
+
+        return [
+            'url' => $wsUrl,
+            'ticket' => $ticket,
+            'instance_id' => $instanceId,
+            'expires_at_ms' => $exp,
+            'tick_hz' => 20,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $actor
      * @return array<string, mixed>
      */
@@ -2669,6 +2775,7 @@ class LobbyInstanceService
             'hard_cap' => self::HARD_CAP,
             'server_ts_ms' => Carbon::now()->getTimestampMs(),
             'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
+            'ws_relay' => $this->buildWsRelayPayload($actor, $instanceId),
             'player' => $this->formatPlayerSelf($actor),
             'peers' => $this->formatPeersList($roster, $peerId),
             'messages' => $this->getInstanceMessages($instanceId, $peerId),

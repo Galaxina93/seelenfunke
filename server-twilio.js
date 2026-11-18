@@ -1527,6 +1527,391 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
     });
 }
 
+const lobbyWsRooms = new Map(); // instanceId -> Map<peerId, { ws, state, lastSeenMs }>
+const LOBBY_ALLOWED_EMOTES = new Set(['wave', 'dance', 'cheer', 'bow', 'spark', 'sit', 'clap', 'heart', 'gg']);
+const LOBBY_ALLOWED_SHIP_CLASSES = new Set(['KLASSE C', 'KLASSE B', 'KLASSE A', 'KLASSE S']);
+
+function clampLobbyFloat(val, minVal, maxVal, fallback = 0, decimals = 3) {
+    const num = Number(val);
+    if (!Number.isFinite(num)) {
+        return fallback;
+    }
+    const clamped = Math.max(minVal, Math.min(maxVal, num));
+    const factor = Math.pow(10, decimals);
+    return Math.round(clamped * factor) / factor;
+}
+
+function clampLobbyInt(val, minVal, maxVal, fallback = 0) {
+    const num = Number(val);
+    if (!Number.isFinite(num)) {
+        return fallback;
+    }
+    return Math.max(minVal, Math.min(maxVal, Math.trunc(num)));
+}
+
+function verifyLobbyWsTicket(rawTicket) {
+    if (typeof rawTicket !== 'string' || rawTicket.length < 20 || rawTicket.length > 2048) {
+        return null;
+    }
+    const dotIdx = rawTicket.indexOf('.');
+    if (dotIdx <= 0 || dotIdx !== rawTicket.lastIndexOf('.')) {
+        return null;
+    }
+    const b64 = rawTicket.slice(0, dotIdx);
+    const hexSig = rawTicket.slice(dotIdx + 1);
+    if (!/^[A-Za-z0-9\-_]+$/.test(b64) || !/^[0-9a-f]{64}$/i.test(hexSig)) {
+        return null;
+    }
+    const secret = resolveProxySecret();
+    if (!secret) {
+        return null;
+    }
+    const expectedHex = crypto.createHmac('sha256', secret).update(b64).digest('hex');
+    const sigBuf = Buffer.from(hexSig.toLowerCase(), 'utf8');
+    const expBuf = Buffer.from(expectedHex.toLowerCase(), 'utf8');
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        return null;
+    }
+    let claims;
+    try {
+        const jsonStr = Buffer.from(b64.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+        claims = JSON.parse(jsonStr);
+    } catch (_) {
+        return null;
+    }
+    if (!claims || typeof claims !== 'object') {
+        return null;
+    }
+    const exp = Number(claims.exp);
+    if (!Number.isFinite(exp) || exp <= Date.now()) {
+        return null;
+    }
+    const peerId = typeof claims.peer_id === 'string' ? claims.peer_id.trim().toLowerCase() : '';
+    if (!/^[0-9a-f]{12}$/.test(peerId)) {
+        return null;
+    }
+    const instanceId = Number(claims.instance_id);
+    if (!Number.isInteger(instanceId) || instanceId < 1 || instanceId > 64) {
+        return null;
+    }
+    const rawName = typeof claims.display_name === 'string' ? claims.display_name.trim() : 'Funki';
+    const displayName = (rawName || 'Funki').slice(0, 28);
+    const level = clampLobbyInt(claims.level, 1, 10, 1);
+    const rawShip = typeof claims.ship_class === 'string' ? claims.ship_class.trim().toUpperCase() : 'KLASSE C';
+    const shipClass = LOBBY_ALLOWED_SHIP_CLASSES.has(rawShip) ? rawShip : 'KLASSE C';
+
+    return {
+        peer_id: peerId,
+        instance_id: instanceId,
+        display_name: displayName,
+        level,
+        ship_class: shipClass,
+        exp
+    };
+}
+
+function handleLobbyWsConnection(ws, parsedUrl, _reqMeta) {
+    const ticket = parsedUrl.searchParams.get('ticket') || '';
+    const claims = verifyLobbyWsTicket(ticket);
+    if (!claims) {
+        try {
+            ws.close(4401, 'Invalid ticket');
+        } catch (_) {}
+        return;
+    }
+
+    const peer_id = claims.peer_id;
+    const instance_id = claims.instance_id;
+
+    for (const [instId, existingRoom] of lobbyWsRooms.entries()) {
+        const prev = existingRoom.get(peer_id);
+        if (prev) {
+            existingRoom.delete(peer_id);
+            if (prev.ws && prev.ws !== ws) {
+                try {
+                    prev.ws.close(4000, 'Session superseded');
+                } catch (_) {}
+            }
+            const leftPayload = JSON.stringify({ type: 'peer_left', peer_id });
+            for (const [, other] of existingRoom.entries()) {
+                if (other.ws && other.ws.readyState === 1) {
+                    try {
+                        other.ws.send(leftPayload);
+                    } catch (_) {}
+                }
+            }
+            if (existingRoom.size === 0) {
+                lobbyWsRooms.delete(instId);
+            }
+        }
+    }
+
+    let room = lobbyWsRooms.get(instance_id);
+    if (!room) {
+        room = new Map();
+        lobbyWsRooms.set(instance_id, room);
+    }
+
+    const otherPeersArray = [];
+    for (const [pid, peerEntry] of room.entries()) {
+        if (pid !== peer_id && peerEntry && peerEntry.state) {
+            otherPeersArray.push(peerEntry.state);
+        }
+    }
+
+    const state = {
+        peer_id,
+        player_id: peer_id,
+        display_name: claims.display_name,
+        level: claims.level,
+        ship_class: claims.ship_class,
+        zone: 'heroes',
+        x: 0,
+        y: 0,
+        z: -26,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        rot_y: 3.14,
+        speed: 0,
+        jumping: false,
+        sprint: false,
+        wall_cling: false,
+        wall_nx: 0,
+        wall_nz: 0,
+        somersault_seq: 0,
+        somersault_dir: 0,
+        somersault_prog: 0,
+        combo_seq: 0,
+        combo_stage: 0,
+        weapon_seq: 0,
+        ability_slot: 0,
+        emote: null
+    };
+
+    const entry = {
+        ws,
+        state,
+        lastSeenMs: Date.now()
+    };
+    room.set(peer_id, entry);
+
+    if (ws.readyState === 1) {
+        try {
+            ws.send(JSON.stringify({
+                type: 'welcome',
+                peer_id,
+                instance_id,
+                peers: otherPeersArray,
+                server_ts_ms: Date.now()
+            }));
+        } catch (_) {}
+    }
+
+    let rateWindowStartMs = Date.now();
+    let msgCountInWindow = 0;
+    let isRemoved = false;
+
+    const removeSelfFromRoom = () => {
+        if (isRemoved) {
+            return;
+        }
+        isRemoved = true;
+        const activeRoom = lobbyWsRooms.get(instance_id);
+        if (!activeRoom) {
+            return;
+        }
+        const current = activeRoom.get(peer_id);
+        if (!current || current.ws !== ws) {
+            return;
+        }
+        activeRoom.delete(peer_id);
+        if (activeRoom.size === 0) {
+            lobbyWsRooms.delete(instance_id);
+            return;
+        }
+        const leftMsg = JSON.stringify({ type: 'peer_left', peer_id });
+        for (const [, peerEntry] of activeRoom.entries()) {
+            if (peerEntry.ws && peerEntry.ws.readyState === 1) {
+                try {
+                    peerEntry.ws.send(leftMsg);
+                } catch (_) {}
+            }
+        }
+    };
+
+    ws.on('pong', () => {
+        entry.lastSeenMs = Date.now();
+    });
+
+    ws.on('message', (rawData) => {
+        const byteLen = Buffer.isBuffer(rawData)
+            ? rawData.length
+            : (rawData instanceof ArrayBuffer
+                ? rawData.byteLength
+                : Buffer.byteLength(String(rawData), 'utf8'));
+        if (byteLen > 2048) {
+            return;
+        }
+
+        const nowMs = Date.now();
+        if (nowMs - rateWindowStartMs >= 1000) {
+            rateWindowStartMs = nowMs;
+            msgCountInWindow = 0;
+        }
+        msgCountInWindow++;
+        if (msgCountInWindow > 45) {
+            return;
+        }
+
+        let msg;
+        try {
+            msg = JSON.parse(typeof rawData === 'string' ? rawData : rawData.toString('utf8'));
+        } catch (_) {
+            return;
+        }
+        if (!msg || typeof msg !== 'object') {
+            return;
+        }
+
+        if (msg.type === 'ping') {
+            entry.lastSeenMs = nowMs;
+            const cNum = Number(msg.c);
+            if (ws.readyState === 1) {
+                try {
+                    ws.send(JSON.stringify({
+                        type: 'pong',
+                        c: Number.isFinite(cNum) ? cNum : 0,
+                        server_ts_ms: Date.now()
+                    }));
+                } catch (_) {}
+            }
+            return;
+        }
+
+        if (msg.type === 'state') {
+            if (claims.exp <= nowMs) {
+                removeSelfFromRoom();
+                try {
+                    ws.close(4401, 'Ticket expired');
+                } catch (_) {}
+                return;
+            }
+
+            const src = (msg.state && typeof msg.state === 'object') ? msg.state : msg;
+            state.x = clampLobbyFloat(src.x, -24, 24, state.x, 3);
+            state.y = clampLobbyFloat(src.y, -1.5, 12, state.y, 3);
+            state.z = clampLobbyFloat(src.z, -95, 20, state.z, 3);
+            state.vx = clampLobbyFloat(src.vx, -9.5, 9.5, 0, 3);
+            state.vy = clampLobbyFloat(src.vy, -22, 15, 0, 3);
+            state.vz = clampLobbyFloat(src.vz, -9.5, 9.5, 0, 3);
+            state.rot_y = clampLobbyFloat(src.rot_y !== undefined ? src.rot_y : src.rotY, -6.3, 6.3, state.rot_y, 4);
+            state.speed = clampLobbyFloat(src.speed, 0, 9.5, 0, 3);
+            state.jumping = Boolean(src.jumping);
+            state.sprint = Boolean(src.sprint);
+            state.wall_cling = Boolean(src.wall_cling);
+            state.wall_nx = clampLobbyFloat(src.wall_nx, -1, 1, 0, 3);
+            state.wall_nz = clampLobbyFloat(src.wall_nz, -1, 1, 0, 3);
+            state.somersault_seq = clampLobbyInt(src.somersault_seq, 0, 9999999, state.somersault_seq);
+            const parsedDir = clampLobbyInt(src.somersault_dir, -1, 1, 0);
+            state.somersault_dir = (parsedDir === -1 || parsedDir === 1) ? parsedDir : 0;
+            state.somersault_prog = clampLobbyFloat(src.somersault_prog, 0, 1, 0, 3);
+
+            if (src.combo_seq !== undefined || src.comboSeq !== undefined) {
+                state.combo_seq = clampLobbyInt(src.combo_seq !== undefined ? src.combo_seq : src.comboSeq, 0, 9999999, state.combo_seq);
+            }
+            if (src.combo_stage !== undefined || src.comboStage !== undefined) {
+                state.combo_stage = clampLobbyInt(src.combo_stage !== undefined ? src.combo_stage : src.comboStage, 0, 4, state.combo_stage);
+            }
+            if (src.weapon_seq !== undefined || src.weaponActionSeq !== undefined) {
+                state.weapon_seq = clampLobbyInt(src.weapon_seq !== undefined ? src.weapon_seq : src.weaponActionSeq, 0, 9999999, state.weapon_seq);
+            }
+            if (src.ability_slot !== undefined || src.abilitySlot !== undefined) {
+                state.ability_slot = clampLobbyInt(src.ability_slot !== undefined ? src.ability_slot : src.abilitySlot, 0, 4, state.ability_slot);
+            }
+
+            let cleanEmote = null;
+            if (typeof src.emote === 'string') {
+                const em = src.emote.trim().toLowerCase();
+                if (LOBBY_ALLOWED_EMOTES.has(em)) {
+                    cleanEmote = em;
+                }
+            }
+            state.emote = cleanEmote;
+            entry.lastSeenMs = nowMs;
+
+            const activeRoom = lobbyWsRooms.get(instance_id);
+            if (!activeRoom || activeRoom.size <= 1) {
+                return;
+            }
+            const outPayload = JSON.stringify({
+                type: 'peer_state',
+                peer: entry.state,
+                server_ts_ms: nowMs
+            });
+            for (const [pid, peerEntry] of activeRoom.entries()) {
+                if (pid !== peer_id && peerEntry.ws && peerEntry.ws.readyState === 1) {
+                    try {
+                        peerEntry.ws.send(outPayload);
+                    } catch (_) {}
+                }
+            }
+            return;
+        }
+
+        if (msg.type === 'leave') {
+            removeSelfFromRoom();
+            try {
+                ws.close(1000, 'Left');
+            } catch (_) {}
+        }
+    });
+
+    ws.on('close', () => {
+        removeSelfFromRoom();
+    });
+
+    ws.on('error', () => {
+        removeSelfFromRoom();
+    });
+}
+
+setInterval(() => {
+    const nowMs = Date.now();
+    for (const [instId, room] of lobbyWsRooms.entries()) {
+        const expiredPeerIds = [];
+        for (const [pid, entry] of room.entries()) {
+            if (!entry.ws || entry.ws.readyState > 1 || (nowMs - entry.lastSeenMs) > 35000) {
+                expiredPeerIds.push(pid);
+                if (entry.ws && entry.ws.readyState <= 1) {
+                    try {
+                        entry.ws.terminate();
+                    } catch (_) {}
+                }
+            }
+        }
+        if (expiredPeerIds.length > 0) {
+            for (const pid of expiredPeerIds) {
+                room.delete(pid);
+            }
+            if (room.size === 0) {
+                lobbyWsRooms.delete(instId);
+            } else {
+                for (const pid of expiredPeerIds) {
+                    const leftMsg = JSON.stringify({ type: 'peer_left', peer_id: pid });
+                    for (const [, peerEntry] of room.entries()) {
+                        if (peerEntry.ws && peerEntry.ws.readyState === 1) {
+                            try {
+                                peerEntry.ws.send(leftMsg);
+                            } catch (_) {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}, 15000).unref();
+
 wss.on('connection', (ws, req) => {
     let urlString = req.url || '/';
     // Fallback if URL is relative or lacks host
@@ -1538,8 +1923,10 @@ wss.on('connection', (ws, req) => {
         origin: req.headers['origin'] || null,
         path: pathname
     };
-    
-    debugLog(`🔌 Neue WebSocket-Verbindung auf Pfad: ${pathname} (Client: ${reqMeta.client_ip}, UA: ${reqMeta.user_agent})`);
+
+    if (pathname !== '/lobby-ws') {
+        debugLog(`🔌 Neue WebSocket-Verbindung auf Pfad: ${pathname} (Client: ${reqMeta.client_ip}, UA: ${reqMeta.user_agent})`);
+    }
     
     if (pathname === '/gemini-live') {
         const token = parsedUrl.searchParams.get('token');
@@ -1631,6 +2018,9 @@ wss.on('connection', (ws, req) => {
             );
             ws.close(4003, reason);
         });
+    } else if (pathname === '/lobby-ws') {
+        handleLobbyWsConnection(ws, parsedUrl, reqMeta);
+        return;
     } else {
         handleTwilioConnection(ws);
     }

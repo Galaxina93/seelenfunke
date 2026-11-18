@@ -21,10 +21,16 @@ class CustomerLobbyController extends Controller
         'y',
         'z',
         'vx',
+        'vy',
         'vz',
         'rot_y',
         'rotY',
         'speed',
+        'wall_nx',
+        'wall_nz',
+        'somersault_seq',
+        'somersault_dir',
+        'somersault_prog',
         'combo_seq',
         'comboSeq',
         'combo_stage',
@@ -43,10 +49,18 @@ class CustomerLobbyController extends Controller
         'y',
         'z',
         'vx',
+        'vy',
         'vz',
         'rot_y',
         'rotY',
         'speed',
+        'sprint',
+        'wall_cling',
+        'wall_nx',
+        'wall_nz',
+        'somersault_seq',
+        'somersault_dir',
+        'somersault_prog',
         'zone',
         'combo_seq',
         'comboSeq',
@@ -330,6 +344,16 @@ class CustomerLobbyController extends Controller
             if (array_key_exists($strKey, $all) && $all[$strKey] !== null && !is_string($all[$strKey])) {
                 LobbyInstanceService::logTamperThrottled($logActor, $endpoint, 'non_string_state_field', [
                     'field' => $strKey,
+                ]);
+
+                return $this->forbiddenPayloadResponse();
+            }
+        }
+
+        foreach (['sprint', 'wall_cling'] as $boolKey) {
+            if (array_key_exists($boolKey, $all) && (is_array($all[$boolKey]) || is_object($all[$boolKey]))) {
+                LobbyInstanceService::logTamperThrottled($logActor, $endpoint, 'non_scalar_boolean_field', [
+                    'field' => $boolKey,
                 ]);
 
                 return $this->forbiddenPayloadResponse();
