@@ -270,55 +270,96 @@ class AppServiceProvider extends ServiceProvider
 
         $this->loadMigrationsFrom($paths);
 
-        // 2b. Redis-Ausfallsicherung (DNS- / Verbindungs-Fallback für Stage & Produktion)
+        // 2b. Redis-Ausfallsicherung mit lokalem /tmp Circuit-Breaker (DNS- / Verbindungs-Fallback für Stage & Produktion)
         // Verhindert fatale Predis StreamInitException (getaddrinfo failed), falls der Redis-Container
-        // temporär nicht auflösbar oder nicht erreichbar ist, indem automatisch auf File-Cache/Session gewechselt wird.
+        // temporär nicht auflösbar oder nicht erreichbar ist, und vermeidet wiederholte DNS-/Disk-Latenz pro Request.
         if (Config::get('cache.default') === 'redis' || Config::get('session.driver') === 'redis') {
-            try {
-                $redisHost = Config::get('database.redis.default.host', '127.0.0.1');
-                if (is_string($redisHost) && $redisHost !== '' && !filter_var($redisHost, FILTER_VALIDATE_IP) && $redisHost !== 'localhost') {
-                    $resolved = @gethostbyname($redisHost);
-                    if ($resolved === $redisHost) {
-                        throw new \RuntimeException("DNS resolution failed for Redis host: {$redisHost}");
+            $redisHost = Config::get('database.redis.default.host', '127.0.0.1');
+            $cbFile = !app()->runningUnitTests()
+                ? (rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . '/sf_redis_cb_' . md5((string) $redisHost . '|' . (string) Config::get('database.redis.default.port', 6379)) . '.state')
+                : null;
+
+            $skipRedisNetworkCheck = false;
+            if ($cbFile !== null && is_file($cbFile)) {
+                $cbAge = time() - (int) @filemtime($cbFile);
+                if ($cbAge >= 0 && $cbAge < 45) {
+                    $cbState = trim((string) @file_get_contents($cbFile));
+                    if ($cbState === '0') {
+                        if (Config::get('cache.default') === 'redis') {
+                            Config::set('cache.default', 'file');
+                        }
+                        if (Config::get('session.driver') === 'redis') {
+                            Config::set('session.driver', 'file');
+                        }
+                        if (Config::get('queue.default') === 'redis') {
+                            Config::set('queue.default', 'database');
+                        }
+                        $skipRedisNetworkCheck = true;
+                    } elseif ($cbState === '1' && $cbAge < 20) {
+                        $skipRedisNetworkCheck = true;
                     }
                 }
-                Cache::store('redis')->get('__redis_health_check__');
-            } catch (\Throwable $redisEx) {
-                if (Config::get('cache.default') === 'redis') {
-                    Config::set('cache.default', 'file');
-                }
-                if (Config::get('session.driver') === 'redis') {
-                    Config::set('session.driver', 'file');
-                }
-                if (Config::get('queue.default') === 'redis') {
-                    Config::set('queue.default', Schema::hasTable('jobs') ? 'database' : 'sync');
-                }
-                \Illuminate\Support\Facades\Log::warning('Redis nicht erreichbar (' . $redisEx->getMessage() . ') – Automatischer Fallback auf File-Cache/Session aktiviert.');
+            }
 
+            if (!$skipRedisNetworkCheck) {
                 try {
-                    if (!app()->runningInConsole() && class_exists(\App\Models\System\SystemLog::class) && Schema::hasTable('system_logs')) {
-                        $throttleKey = 'redis_fallback_logged_' . date('Ymd_H');
-                        if (!Cache::store('file')->has($throttleKey)) {
-                            Cache::store('file')->put($throttleKey, true, 1800);
-                            \App\Models\System\SystemLog::create([
-                                'type' => 'system',
-                                'action_id' => 'system:redis_fallback',
-                                'title' => 'Redis-Fallback aktiviert (File-Cache)',
-                                'message' => 'Redis-Host nicht erreichbar (' . substr($redisEx->getMessage(), 0, 250) . '). System nutzt automatisch File-Cache & File-Session.',
-                                'status' => 'warning',
-                                'payload' => [
-                                    'redis_host' => Config::get('database.redis.default.host'),
-                                    'error' => $redisEx->getMessage(),
-                                    'active_cache_driver' => Config::get('cache.default'),
-                                    'active_session_driver' => Config::get('session.driver'),
-                                    'active_queue_driver' => Config::get('queue.default'),
-                                ],
-                                'started_at' => now(),
-                                'finished_at' => now(),
-                            ]);
+                    if (is_string($redisHost) && $redisHost !== '' && !filter_var($redisHost, FILTER_VALIDATE_IP) && $redisHost !== 'localhost') {
+                        $resolved = @gethostbyname($redisHost);
+                        if ($resolved === $redisHost) {
+                            throw new \RuntimeException("DNS resolution failed for Redis host: {$redisHost}");
                         }
                     }
-                } catch (\Throwable $ignore) {
+                    Cache::store('redis')->get('__redis_health_check__');
+                    if ($cbFile !== null) {
+                        @file_put_contents($cbFile, '1');
+                        @chmod($cbFile, 0666);
+                    }
+                } catch (\Throwable $redisEx) {
+                    if ($cbFile !== null) {
+                        @file_put_contents($cbFile, '0');
+                        @chmod($cbFile, 0666);
+                    }
+                    if (Config::get('cache.default') === 'redis') {
+                        Config::set('cache.default', 'file');
+                    }
+                    if (Config::get('session.driver') === 'redis') {
+                        Config::set('session.driver', 'file');
+                    }
+                    if (Config::get('queue.default') === 'redis') {
+                        try {
+                            Config::set('queue.default', Schema::hasTable('jobs') ? 'database' : 'sync');
+                        } catch (\Throwable) {
+                            Config::set('queue.default', 'database');
+                        }
+                    }
+
+                    try {
+                        $throttleKey = 'redis_fallback_logged_' . date('Ymd_H');
+                        if (!Cache::store('file')->has($throttleKey)) {
+                            Cache::store('file')->put($throttleKey, true, 3600);
+                            \Illuminate\Support\Facades\Log::warning('Redis nicht erreichbar (' . $redisEx->getMessage() . '): Automatischer Fallback auf File-Cache/Session aktiviert.');
+
+                            if (!app()->runningInConsole() && class_exists(\App\Models\System\SystemLog::class) && Schema::hasTable('system_logs')) {
+                                \App\Models\System\SystemLog::create([
+                                    'type' => 'system',
+                                    'action_id' => 'system:redis_fallback',
+                                    'title' => 'Redis-Fallback aktiviert (File-Cache)',
+                                    'message' => 'Redis-Host nicht erreichbar (' . substr($redisEx->getMessage(), 0, 250) . '). System nutzt automatisch File-Cache & File-Session.',
+                                    'status' => 'warning',
+                                    'payload' => [
+                                        'redis_host' => Config::get('database.redis.default.host'),
+                                        'error' => $redisEx->getMessage(),
+                                        'active_cache_driver' => Config::get('cache.default'),
+                                        'active_session_driver' => Config::get('session.driver'),
+                                        'active_queue_driver' => Config::get('queue.default'),
+                                    ],
+                                    'started_at' => now(),
+                                    'finished_at' => now(),
+                                ]);
+                            }
+                        }
+                    } catch (\Throwable $ignore) {
+                    }
                 }
             }
         }

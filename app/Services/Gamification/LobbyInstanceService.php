@@ -38,7 +38,9 @@ class LobbyInstanceService
     public const CHAT_BURST_MAX_ATTEMPTS = 8;
     public const REPORT_THRESHOLD = 2;
     public const SHADOW_MUTE_SECONDS = 86400;
-    public const ACTOR_CACHE_TTL_SECONDS = 6;
+    public const ACTOR_CACHE_TTL_SECONDS = 30;
+    public const SYNC_TICK_INTERVAL_MS = 165;
+    public const INSTANCES_SUMMARY_TTL_SECONDS = 3;
 
     /**
      * Solo-Zonen: Jeder Besucher ist hier komplett alleine unterwegs (belegt keinen Instanz-Slot).
@@ -86,6 +88,7 @@ class LobbyInstanceService
     ];
 
     private const CACHE_ACTIVE_IDS_KEY = 'sf_fw_lobby_active_instances_v1';
+    private const CACHE_INSTANCES_SUMMARY_KEY = 'sf_fw_lobby_instances_summary_v1';
     private const CACHE_INSTANCE_PREFIX = 'sf_fw_lobby_inst_v1_';
     private const CACHE_INST_LOCK_PREFIX = 'sf_fw_lobby_inst_lock_v1_';
     private const CACHE_INST_CHAT_PREFIX = 'sf_fw_lobby_chat_v1_';
@@ -582,7 +585,7 @@ class LobbyInstanceService
     }
 
     /**
-     * Invalidiert den 6-Sekunden-Cache fuer Sanctum-Zugang und Lobby-Akteur eines Kunden sofort.
+     * Invalidiert den 30-Sekunden-Cache fuer Sanctum-Zugang und Lobby-Akteur eines Kunden sofort.
      */
     public static function forgetCustomerCache(string $customerId): void
     {
@@ -807,6 +810,8 @@ class LobbyInstanceService
             'instance_id' => null,
             'soft_cap' => self::SOFT_CAP,
             'hard_cap' => self::HARD_CAP,
+            'server_ts_ms' => Carbon::now()->getTimestampMs(),
+            'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
             'player' => null,
             'peers' => [],
             'messages' => [],
@@ -825,6 +830,8 @@ class LobbyInstanceService
             'solo_mode' => true,
             'zone' => 'gallery',
             'instance_id' => null,
+            'server_ts_ms' => Carbon::now()->getTimestampMs(),
+            'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
             'peers' => [],
             'messages' => [],
             'instances' => [],
@@ -916,6 +923,7 @@ class LobbyInstanceService
 
                 $this->persistInstanceRoster($selectedInstance, $rosters[$selectedInstance], $rosters);
                 $this->persistActiveIdsIndex($rosters);
+                Cache::forget(self::CACHE_INSTANCES_SUMMARY_KEY);
                 Cache::put($this->playerPointerKey($peerId), $selectedInstance, self::HEARTBEAT_TTL_SECONDS);
 
                 return [
@@ -926,6 +934,8 @@ class LobbyInstanceService
                     'instance_id' => $selectedInstance,
                     'soft_cap' => self::SOFT_CAP,
                     'hard_cap' => self::HARD_CAP,
+                    'server_ts_ms' => Carbon::now()->getTimestampMs(),
+                    'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
                     'player' => $this->formatPlayerSelf($actor),
                     'peers' => $this->formatPeersList($rosters[$selectedInstance], $peerId),
                     'messages' => $this->getInstanceMessages($selectedInstance, $peerId),
@@ -982,11 +992,10 @@ class LobbyInstanceService
                 $roster[$peerId] = $this->buildRosterEntry($actor, $state, $nowInner);
 
                 Cache::put($this->instanceRosterKey($targetInstanceId), $roster, self::HEARTBEAT_TTL_SECONDS + 30);
-                $this->ensureInstanceInActiveIndex($targetInstanceId);
+                if ($previousEntry === null) {
+                    $this->ensureInstanceInActiveIndex($targetInstanceId);
+                }
                 Cache::put($this->playerPointerKey($peerId), $targetInstanceId, self::HEARTBEAT_TTL_SECONDS);
-
-                $rostersForOverview = $this->loadAndPruneActiveRosters($nowInner);
-                $rostersForOverview[$targetInstanceId] = $roster;
 
                 return [
                     'ok' => true,
@@ -996,10 +1005,12 @@ class LobbyInstanceService
                     'instance_id' => $targetInstanceId,
                     'soft_cap' => self::SOFT_CAP,
                     'hard_cap' => self::HARD_CAP,
+                    'server_ts_ms' => Carbon::now()->getTimestampMs(),
+                    'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
                     'player' => $this->formatPlayerSelf($actor),
                     'peers' => $this->formatPeersList($roster, $peerId),
                     'messages' => $this->getInstanceMessages($targetInstanceId, $peerId),
-                    'instances' => $this->buildInstancesOverview($rostersForOverview, $targetInstanceId),
+                    'instances' => $this->resolveFastInstancesOverviewForSync($targetInstanceId, $roster, $nowInner),
                 ];
             },
             fn (): array => $this->buildReadOnlyHeroSnapshot($actor, $peerId, $targetInstanceId)
@@ -1066,6 +1077,7 @@ class LobbyInstanceService
 
                 $this->persistInstanceRoster($targetInstance, $targetRoster, $rosters);
                 $this->persistActiveIdsIndex($rosters);
+                Cache::forget(self::CACHE_INSTANCES_SUMMARY_KEY);
                 Cache::put($this->playerPointerKey($peerId), $targetInstance, self::HEARTBEAT_TTL_SECONDS);
 
                 return [
@@ -1077,6 +1089,8 @@ class LobbyInstanceService
                     'instance_id' => $targetInstance,
                     'soft_cap' => self::SOFT_CAP,
                     'hard_cap' => self::HARD_CAP,
+                    'server_ts_ms' => Carbon::now()->getTimestampMs(),
+                    'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
                     'player' => $this->formatPlayerSelf($actor),
                     'peers' => $this->formatPeersList($targetRoster, $peerId),
                     'messages' => $this->getInstanceMessages($targetInstance, $peerId),
@@ -1099,6 +1113,7 @@ class LobbyInstanceService
     public function leave(array $actor): void
     {
         $this->evictPlayerFromHeroInstances((string) $actor['peer_id']);
+        Cache::forget(self::CACHE_INSTANCES_SUMMARY_KEY);
     }
 
     /**
@@ -2019,9 +2034,11 @@ class LobbyInstanceService
                     }
                 }
                 $this->persistActiveIdsIndex($rosters);
+                Cache::forget(self::CACHE_INSTANCES_SUMMARY_KEY);
                 Cache::forget($this->playerPointerKey($peerId));
             },
             function () use ($peerId): void {
+                Cache::forget(self::CACHE_INSTANCES_SUMMARY_KEY);
                 Cache::forget($this->playerPointerKey($peerId));
             }
         );
@@ -2041,6 +2058,8 @@ class LobbyInstanceService
             'instance_id' => null,
             'soft_cap' => self::SOFT_CAP,
             'hard_cap' => self::HARD_CAP,
+            'server_ts_ms' => Carbon::now()->getTimestampMs(),
+            'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
             'player' => $this->formatPlayerSelf($actor),
             'peers' => [],
             'messages' => [],
@@ -2424,13 +2443,54 @@ class LobbyInstanceService
     }
 
     /**
-     * Baut die Instanzen-Liste fuer das UI:
-     * Enthaelt immer alle aktuell belegten Instanzen PLUS mindestens 1 komplett freie Ausweich-Instanz (0/20).
+     * Schneller 3s-Summary-Fast-Path fuer sync(): Vermeidet das Laden aller fremden Instanz-Dateien auf jedem 165ms-Tick
+     * und aktualisiert die eigene Instanz live mit count($roster).
      *
-     * @param array<int, array<string, array<string, mixed>>> $rosters
+     * @param array<string, array<string, mixed>> $currentRoster
      * @return array<int, array{id: int, count: int, capacity: int, is_full: bool, is_current: bool}>
      */
-    private function buildInstancesOverview(array $rosters, int $currentInstanceId): array
+    private function resolveFastInstancesOverviewForSync(int $targetInstanceId, array $currentRoster, int $now): array
+    {
+        $cachedCounts = Cache::get(self::CACHE_INSTANCES_SUMMARY_KEY);
+        $liveCount = count($currentRoster);
+
+        if (!is_array($cachedCounts)) {
+            $rostersForOverview = $this->loadAndPruneActiveRosters($now);
+            $rostersForOverview[$targetInstanceId] = $currentRoster;
+            $occupiedCounts = $this->extractOccupiedCounts($rostersForOverview);
+            Cache::put(self::CACHE_INSTANCES_SUMMARY_KEY, $occupiedCounts, self::INSTANCES_SUMMARY_TTL_SECONDS);
+
+            return $this->buildInstancesOverviewFromCounts($occupiedCounts, $targetInstanceId);
+        }
+
+        $occupiedCounts = [];
+        foreach ($cachedCounts as $instId => $cnt) {
+            $id = (int) $instId;
+            $val = (int) $cnt;
+            if ($id >= 1 && $id <= self::MAX_INSTANCES && $val > 0) {
+                $occupiedCounts[$id] = $val;
+            }
+        }
+
+        $previousCachedCount = $occupiedCounts[$targetInstanceId] ?? 0;
+        if ($liveCount > 0) {
+            $occupiedCounts[$targetInstanceId] = $liveCount;
+        } else {
+            unset($occupiedCounts[$targetInstanceId]);
+        }
+
+        if ($previousCachedCount !== $liveCount) {
+            Cache::put(self::CACHE_INSTANCES_SUMMARY_KEY, $occupiedCounts, self::INSTANCES_SUMMARY_TTL_SECONDS);
+        }
+
+        return $this->buildInstancesOverviewFromCounts($occupiedCounts, $targetInstanceId);
+    }
+
+    /**
+     * @param array<int, array<string, array<string, mixed>>> $rosters
+     * @return array<int, int>
+     */
+    private function extractOccupiedCounts(array $rosters): array
     {
         $occupiedIds = [];
         foreach ($rosters as $instId => $roster) {
@@ -2439,8 +2499,34 @@ class LobbyInstanceService
             }
         }
 
+        return $occupiedIds;
+    }
+
+    /**
+     * Baut die Instanzen-Liste fuer das UI:
+     * Enthaelt immer alle aktuell belegten Instanzen PLUS mindestens 1 komplett freie Ausweich-Instanz (0/20).
+     *
+     * @param array<int, array<string, array<string, mixed>>> $rosters
+     * @return array<int, array{id: int, count: int, capacity: int, is_full: bool, is_current: bool}>
+     */
+    private function buildInstancesOverview(array $rosters, int $currentInstanceId): array
+    {
+        $occupiedIds = $this->extractOccupiedCounts($rosters);
         if (!isset($occupiedIds[$currentInstanceId]) && $currentInstanceId >= 1 && $currentInstanceId <= self::MAX_INSTANCES) {
             $occupiedIds[$currentInstanceId] = count($rosters[$currentInstanceId] ?? []);
+        }
+
+        return $this->buildInstancesOverviewFromCounts($occupiedIds, $currentInstanceId);
+    }
+
+    /**
+     * @param array<int, int> $occupiedIds
+     * @return array<int, array{id: int, count: int, capacity: int, is_full: bool, is_current: bool}>
+     */
+    private function buildInstancesOverviewFromCounts(array $occupiedIds, int $currentInstanceId): array
+    {
+        if (!isset($occupiedIds[$currentInstanceId]) && $currentInstanceId >= 1 && $currentInstanceId <= self::MAX_INSTANCES) {
+            $occupiedIds[$currentInstanceId] = 0;
         }
 
         $freeFallbackId = null;
@@ -2581,6 +2667,8 @@ class LobbyInstanceService
             'instance_id' => $instanceId,
             'soft_cap' => self::SOFT_CAP,
             'hard_cap' => self::HARD_CAP,
+            'server_ts_ms' => Carbon::now()->getTimestampMs(),
+            'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
             'player' => $this->formatPlayerSelf($actor),
             'peers' => $this->formatPeersList($roster, $peerId),
             'messages' => $this->getInstanceMessages($instanceId, $peerId),

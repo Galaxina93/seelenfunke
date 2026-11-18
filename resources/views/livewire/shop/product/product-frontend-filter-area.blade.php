@@ -1721,6 +1721,139 @@
                 box-shadow: 0 4px 12px rgba(17, 24, 39, 0.12);
                 cursor: help;
             }
+            @keyframes sfLobbyPingPulse {
+                0% { transform: scale(1); opacity: 0.38; }
+                70% { transform: scale(1.85); opacity: 0; }
+                100% { transform: scale(1.85); opacity: 0; }
+            }
+            .sf-lobby-ping-anchor {
+                position: absolute;
+                top: -8px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 34;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                pointer-events: auto;
+            }
+            .sf-lobby-ping-dot {
+                appearance: none;
+                width: 18px;
+                height: 18px;
+                padding: 0;
+                margin: 0;
+                border-radius: 999px;
+                background: #FFFFFF;
+                border: 1.5px solid #C5A059;
+                box-shadow: 0 4px 10px rgba(17, 24, 39, 0.14);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                position: relative;
+                outline: none;
+            }
+            .sf-lobby-ping-core {
+                width: 9px;
+                height: 9px;
+                border-radius: 999px;
+                display: block;
+                position: relative;
+                z-index: 2;
+                background: #10B981;
+                transition: background-color 160ms ease;
+            }
+            .sf-lobby-ping-pulse {
+                position: absolute;
+                width: 9px;
+                height: 9px;
+                border-radius: 999px;
+                background: #10B981;
+                opacity: 0.34;
+                animation: sfLobbyPingPulse 2.4s ease-out infinite;
+                pointer-events: none;
+            }
+            .sf-lobby-ping-dot.is-optimal .sf-lobby-ping-core,
+            .sf-lobby-ping-dot.is-optimal .sf-lobby-ping-pulse { background: #10B981; }
+            .sf-lobby-ping-dot.is-good .sf-lobby-ping-core,
+            .sf-lobby-ping-dot.is-good .sf-lobby-ping-pulse { background: #D97706; }
+            .sf-lobby-ping-dot.is-delayed .sf-lobby-ping-core,
+            .sf-lobby-ping-dot.is-delayed .sf-lobby-ping-pulse { background: #DC2626; }
+            .sf-lobby-ping-tooltip {
+                position: absolute;
+                top: calc(100% + 8px);
+                right: -56px;
+                width: 214px;
+                background: #FAF8F5;
+                border: 1px solid #C5A059;
+                border-radius: 14px;
+                padding: 10px 12px;
+                box-shadow: 0 14px 32px rgba(17, 24, 39, 0.15);
+                color: #111827;
+                box-sizing: border-box;
+                opacity: 0;
+                visibility: hidden;
+                transform: translateY(-4px);
+                transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+                pointer-events: none;
+                z-index: 40;
+            }
+            .sf-lobby-ping-anchor:hover .sf-lobby-ping-tooltip,
+            .sf-lobby-ping-anchor:focus-within .sf-lobby-ping-tooltip,
+            .sf-lobby-ping-anchor.is-open .sf-lobby-ping-tooltip {
+                opacity: 1;
+                visibility: visible;
+                transform: translateY(0);
+                pointer-events: auto;
+            }
+            .sf-lobby-ping-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                padding-bottom: 6px;
+                margin-bottom: 6px;
+                border-bottom: 1px solid rgba(197, 160, 89, 0.28);
+                font-size: 11.5px;
+                font-weight: 800;
+                color: #111827;
+            }
+            .sf-lobby-ping-badge {
+                padding: 1px 7px;
+                border-radius: 999px;
+                font-size: 10px;
+                font-weight: 800;
+                line-height: 1.35;
+                white-space: nowrap;
+                background: #ECFDF5;
+                border: 1px solid #A7F3D0;
+                color: #065F46;
+            }
+            .sf-lobby-ping-badge.is-good {
+                background: #FFFBEB;
+                border-color: #FDE68A;
+                color: #92400E;
+            }
+            .sf-lobby-ping-badge.is-delayed {
+                background: #FEF2F2;
+                border-color: #FECACA;
+                color: #B91C1C;
+            }
+            .sf-lobby-ping-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                font-size: 11px;
+                line-height: 1.45;
+                color: #4B5563;
+            }
+            .sf-lobby-ping-row strong {
+                font-weight: 800;
+                color: #111827;
+                white-space: nowrap;
+            }
             .sf-lobby-exhibit-step-row {
                 margin-top: 8px;
                 padding-top: 7px;
@@ -1950,6 +2083,7 @@
                 .sf-lobby-topright-stack { top: 62px; right: 10px; gap: 6px; }
                 .sf-lobby-minimap-wrap { width: 138px; height: 138px; }
                 .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; }
+                .sf-lobby-ping-tooltip { right: -48px; width: 202px; }
             }
             @media (max-width: 767px) {
                 .sf-lobby-zone-badge { padding: 4px 8px; font-size: 10px; }
@@ -1972,6 +2106,7 @@
 
         <template x-teleport="body">
             <div id="sf-louvre-showroom-modal"
+                 data-sf-3d-lobby-modal="showroom"
                  x-ref="lobbyModalRoot"
                  x-show="isOpen"
                  x-cloak
@@ -2102,6 +2237,44 @@
                          @click.stop
                          class="sf-lobby-topright-stack">
                         <div data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">
+                            <div class="sf-lobby-ping-anchor"
+                                 :class="{ 'is-open': pingTooltipOpen }"
+                                 @click.outside="pingTooltipOpen = false">
+                                <button type="button"
+                                        data-testid="lobby-minimap-ping-dot"
+                                        @click="pingTooltipOpen = !pingTooltipOpen"
+                                        :class="'sf-lobby-ping-dot is-' + pingTier()"
+                                        aria-label="Serververbindung">
+                                    <span class="sf-lobby-ping-pulse"></span>
+                                    <span class="sf-lobby-ping-core"></span>
+                                </button>
+                                <div data-testid="lobby-minimap-ping-tooltip"
+                                     class="sf-lobby-ping-tooltip"
+                                     role="status">
+                                    <div class="sf-lobby-ping-head">
+                                        <span>Serververbindung</span>
+                                        <span :class="'sf-lobby-ping-badge' + (pingTier() === 'optimal' ? '' : (' is-' + pingTier()))"
+                                              x-text="pingStatusLabel()">Optimal</span>
+                                    </div>
+                                    <div class="sf-lobby-ping-row">
+                                        <span>Ping</span>
+                                        <strong x-text="pingDisplayLabel()">-- ms</strong>
+                                    </div>
+                                    <div class="sf-lobby-ping-row">
+                                        <span>Jitter</span>
+                                        <strong x-text="jitterDisplayLabel()">±0 ms</strong>
+                                    </div>
+                                    <div class="sf-lobby-ping-row">
+                                        <span>Modus</span>
+                                        <strong x-text="pingModeLabel()">Atelier (Solo)</strong>
+                                    </div>
+                                    <div x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode"
+                                         class="sf-lobby-ping-row">
+                                        <span>Instanz</span>
+                                        <strong x-text="pingInstanceLabel()">Halle #1 (1/20)</strong>
+                                    </div>
+                                </div>
+                            </div>
                             <canvas x-ref="minimapCanvas" width="232" height="232" class="sf-lobby-minimap-canvas"></canvas>
                             <span class="sf-lobby-minimap-time"
                                   :title="minimapTooltip()"
@@ -2973,7 +3146,7 @@
                         is_authenticated: false,
                         solo_only: true,
                         room_id: null,
-                        sync_interval_ms: 950,
+                        sync_interval_ms: 165,
                         player_id: null,
                         peer_id: null,
                         display_name: null,
@@ -3092,8 +3265,27 @@
                     stickUiY: 0,
                     prevHtmlOverflow: '',
                     prevOverflow: '',
+                    pingTooltipOpen: false,
+                    netStats: {
+                        pingMs: null,
+                        jitterMs: 0,
+                        tickHz: 'Atelier · Bereit',
+                        tickIntervalMs: 165,
+                        lossPct: 0,
+                        hasError: false,
+                        samples: 0,
+                        lastRttMs: 0,
+                        sentCount: 0,
+                        failCount: 0,
+                    },
                     _syncTimer: null,
+                    _urgentSyncWatchTimer: null,
+                    _pingProbeTimer: null,
+                    _pingProbeInFlight: false,
                     _syncInFlight: false,
+                    _syncPendingImmediate: false,
+                    _lastSyncSentAtMs: 0,
+                    _lastWatchSyncSnap: null,
                     _activeSyncZone: null,
                     _feedbackTimer: null,
                     _fsResizeTimer: null,
@@ -3243,6 +3435,144 @@
                         return season;
                     },
 
+                    _nowPerfMs() {
+                        return (typeof performance !== 'undefined' && typeof performance.now === 'function')
+                            ? performance.now()
+                            : Date.now();
+                    },
+
+                    pingTier() {
+                        const ns = this.netStats || {};
+                        if (ns.hasError || (ns.pingMs !== null && ns.pingMs > 180)) {
+                            return 'delayed';
+                        }
+                        if (ns.pingMs !== null && ns.pingMs > 85) {
+                            return 'good';
+                        }
+                        return 'optimal';
+                    },
+
+                    pingStatusLabel() {
+                        const t = this.pingTier();
+                        if (t === 'delayed') return 'Verzögert';
+                        if (t === 'good') return 'Gut';
+                        return 'Optimal';
+                    },
+
+                    pingDisplayLabel() {
+                        const pm = this.netStats ? this.netStats.pingMs : null;
+                        return pm !== null ? (pm + ' ms') : '... ms';
+                    },
+
+                    jitterDisplayLabel() {
+                        const jm = this.netStats ? (this.netStats.jitterMs || 0) : 0;
+                        return '±' + jm + ' ms';
+                    },
+
+                    pingModeLabel() {
+                        if (this.currentZone === 'heroes' && this.isCustomerAuthenticated() && !this.soloMode) {
+                            return 'Live-Sync (6 Hz)';
+                        }
+                        return 'Atelier (Solo)';
+                    },
+
+                    pingInstanceLabel() {
+                        return 'Halle #' + this.lobbyInstanceId + ' (' + this.currentInstanceCount() + '/' + this.lobbyCapacity + ')';
+                    },
+
+                    recordNetSample(rttMs, tickLabel) {
+                        const cleanRtt = Math.max(1, Number(rttMs) || 1);
+                        const ns = this.netStats;
+                        const sent = (ns.sentCount || 0) + 1;
+                        let nextPing = Math.max(1, Math.round(cleanRtt));
+                        let nextJitter = 0;
+                        if (ns.samples > 0 && ns.pingMs !== null) {
+                            const delta = Math.abs(cleanRtt - (ns.lastRttMs || cleanRtt));
+                            const rawJitter = ns.samples === 1 ? delta : ((ns.jitterMs || 0) * 0.72 + delta * 0.28);
+                            const rawPing = ns.pingMs * 0.68 + cleanRtt * 0.32;
+                            nextPing = Math.max(1, Math.round(rawPing));
+                            nextJitter = Math.max(0, Math.round(rawJitter));
+                        }
+                        this.netStats = Object.assign({}, ns, {
+                            pingMs: nextPing,
+                            jitterMs: nextJitter,
+                            tickHz: tickLabel || ns.tickHz || '6,0 Hz',
+                            lossPct: Math.round(((ns.failCount || 0) / sent) * 100),
+                            hasError: false,
+                            samples: (ns.samples || 0) + 1,
+                            lastRttMs: cleanRtt,
+                            sentCount: sent,
+                        });
+                    },
+
+                    recordNetFailure() {
+                        const ns = this.netStats;
+                        const sent = (ns.sentCount || 0) + 1;
+                        const fails = (ns.failCount || 0) + 1;
+                        this.netStats = Object.assign({}, ns, {
+                            hasError: true,
+                            lossPct: Math.round((fails / sent) * 100),
+                            sentCount: sent,
+                            failCount: fails,
+                        });
+                    },
+
+                    probeSoloAtelierPing() {
+                        if (!this.isOpen || this._pingProbeInFlight) return;
+                        if (this.currentZone === 'heroes' && this.lobbyAuthenticated && !this.soloMode && this._syncTimer) {
+                            return;
+                        }
+                        this._pingProbeInFlight = true;
+                        const t0 = this._nowPerfMs();
+
+                        fetch('/funkenwerk-welt/lobby/ping', {
+                            method: 'GET',
+                            credentials: 'same-origin',
+                            cache: 'no-store',
+                            headers: { 'Accept': 'application/json' },
+                        })
+                            .then((res) => {
+                                if (res.ok) {
+                                    this.recordNetSample(this._nowPerfMs() - t0, 'Atelier · Bereit');
+                                    return null;
+                                }
+                                const tFallback = this._nowPerfMs();
+                                return fetch('/up', {
+                                    method: 'HEAD',
+                                    credentials: 'same-origin',
+                                    cache: 'no-store',
+                                }).then((rUp) => {
+                                    if (rUp.ok) {
+                                        this.recordNetSample(this._nowPerfMs() - tFallback, 'Atelier · Bereit');
+                                    } else {
+                                        this.recordNetFailure();
+                                    }
+                                });
+                            })
+                            .catch(() => {
+                                this.recordNetFailure();
+                            })
+                            .finally(() => {
+                                this._pingProbeInFlight = false;
+                            });
+                    },
+
+                    startAtelierPingLoop() {
+                        this.stopAtelierPingLoop();
+                        this.probeSoloAtelierPing();
+                        this._pingProbeTimer = setInterval(() => {
+                            this.probeSoloAtelierPing();
+                        }, 10000);
+                    },
+
+                    stopAtelierPingLoop() {
+                        if (this._pingProbeTimer) {
+                            clearInterval(this._pingProbeTimer);
+                            this._pingProbeTimer = null;
+                        }
+                        this._pingProbeInFlight = false;
+                    },
+
                     openOuterGateModal(mmorpgState) {
                         const facade = getFacade();
                         if (facade && typeof facade.releasePointerLock === 'function') {
@@ -3276,6 +3606,9 @@
                     enterFunkenreichMmorpg() {
                         if (!this.mmorpgCanEnter) return;
                         const url = String(this.mmorpgEnterUrl || '/funkenreich/enter').trim() || '/funkenreich/enter';
+                        if (typeof window !== 'undefined' && typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                            window.__sfForceStopAllLobbyAudio();
+                        }
                         window.location.href = url;
                     },
 
@@ -3489,6 +3822,9 @@
                                     return;
                                 }
                                 if (body.status === 'password_change_required' && body.redirect_url) {
+                                    if (typeof window !== 'undefined' && typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                        window.__sfForceStopAllLobbyAudio();
+                                    }
                                     window.location.href = String(body.redirect_url);
                                     return;
                                 }
@@ -3939,6 +4275,24 @@
                                 preEl.preload = 'auto';
                                 preEl.volume = 0.025;
                                 window.__sfPrewarmLobbyBgmEl = preEl;
+                                if (!(window.__sfLobbyAudioRegistry instanceof Set)) {
+                                    window.__sfLobbyAudioRegistry = new Set();
+                                }
+                                window.__sfLobbyAudioRegistry.add(preEl);
+                                window.__sfLobbyAudioGraceUntil = Date.now() + 1200;
+                                setTimeout(() => {
+                                    if (!this.isOpen && window.__sfPrewarmLobbyBgmEl === preEl) {
+                                        try {
+                                            preEl.pause();
+                                            preEl.volume = 0;
+                                            preEl.currentTime = 0;
+                                        } catch (e2) {}
+                                        window.__sfPrewarmLobbyBgmEl = null;
+                                        if (typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                            window.__sfForceStopAllLobbyAudio();
+                                        }
+                                    }
+                                }, 1500);
                                 const p = preEl.play();
                                 if (p && typeof p.catch === 'function') p.catch(() => {});
                             }
@@ -3973,6 +4327,7 @@
                             this._productFadeTimer = null;
                         }
                         this.instanceMenuOpen = false;
+                        this.pingTooltipOpen = false;
                         this.settingsOpen = false;
                         this.sanctumGateOpen = false;
                         this.outerGateModalOpen = false;
@@ -3984,6 +4339,7 @@
                         this._activeSyncZone = null;
                         this._seenMessageIds = new Set();
                         this.loadFriendsList();
+                        this.startAtelierPingLoop();
                         if (!this._abilityPollTimer) {
                             this._abilityPollTimer = setInterval(() => this.syncAbilityState(), 120);
                         }
@@ -3994,12 +4350,25 @@
 
                         if (!this._pageHideBound) {
                             this._pageHideBound = () => {
-                                if (!this.isOpen) return;
-                                if (this._activeSyncZone === 'heroes') {
+                                if (this.isOpen && this._activeSyncZone === 'heroes') {
                                     this.sendLobbyLeaveBeacon();
+                                }
+                                if (typeof window !== 'undefined' && typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                    window.__sfForceStopAllLobbyAudio();
                                 }
                             };
                             window.addEventListener('pagehide', this._pageHideBound);
+                        }
+
+                        if (!this._livewireNavigatingBound) {
+                            this._livewireNavigatingBound = () => {
+                                if (this.isOpen) {
+                                    this.closeShowroom();
+                                } else if (typeof window !== 'undefined' && typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                    window.__sfForceStopAllLobbyAudio();
+                                }
+                            };
+                            document.addEventListener('livewire:navigating', this._livewireNavigatingBound);
                         }
 
                         const dataPromise = fetch('/shop/showroom-data', {
@@ -4022,11 +4391,18 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v5');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v6');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
-                                if (!this.isOpen) return;
+                                if (!this.isOpen) {
+                                    if (mod && typeof mod.forceStopAllLobbyAudio === 'function') {
+                                        mod.forceStopAllLobbyAudio();
+                                    } else if (typeof window !== 'undefined' && typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                        window.__sfForceStopAllLobbyAudio();
+                                    }
+                                    return;
+                                }
                                 privateMod = mod;
                                 this.products = Array.isArray(payload.products) ? payload.products : [];
                                 this.funkiInfo = payload.player_funki || { is_guest: true, level: 2, name: '', weapon: null, player_id: null };
@@ -4038,7 +4414,7 @@
                                     is_authenticated: false,
                                     solo_only: true,
                                     room_id: null,
-                                    sync_interval_ms: 950,
+                                    sync_interval_ms: 165,
                                     player_id: null,
                                     peer_id: null
                                 }, payload.multiplayer || {});
@@ -4159,6 +4535,9 @@
                                             this.currentZone = zone;
                                             this.handleZoneSyncTransition(zone);
                                         },
+                                        onLocalUrgentSyncNeeded: () => {
+                                            this.requestImmediateMultiplayerSync();
+                                        },
                                         onAuthGatePrompt: (zone, accessState) => {
                                             this.openSanctumGateModal(zone, accessState);
                                         },
@@ -4222,6 +4601,19 @@
                             .catch(() => {
                                 this.isLoading = false;
                                 this.loadError = 'Der 3D-Showroom konnte auf diesem Gerät nicht geladen werden.';
+                                if (typeof window !== 'undefined') {
+                                    if (window.__sfPrewarmLobbyBgmEl) {
+                                        try {
+                                            window.__sfPrewarmLobbyBgmEl.pause();
+                                            window.__sfPrewarmLobbyBgmEl.volume = 0;
+                                            window.__sfPrewarmLobbyBgmEl.currentTime = 0;
+                                        } catch (e2) {}
+                                        window.__sfPrewarmLobbyBgmEl = null;
+                                    }
+                                    if (typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                        window.__sfForceStopAllLobbyAudio();
+                                    }
+                                }
                             });
                     },
 
@@ -4246,10 +4638,12 @@
                         this.instanceMenuOpen = false;
                         this.chatOpen = false;
                         this.stopMultiplayerLoop();
+                        this.netStats = Object.assign({}, this.netStats, { tickHz: 'Atelier · Bereit' });
                         this.peers = [];
                         if (facade) {
                             facade.updatePeers([]);
                         }
+                        this.probeSoloAtelierPing();
 
                         if (wasInHeroes && this.lobbyAuthenticated && !this.soloMode && facade) {
                             const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
@@ -4265,6 +4659,8 @@
                                     x: st.x,
                                     y: st.y,
                                     z: st.z,
+                                    vx: st.vx,
+                                    vz: st.vz,
                                     rot_y: st.rot_y,
                                     speed: st.speed,
                                     jumping: Boolean(st.jumping),
@@ -4314,6 +4710,9 @@
                             return;
                         }
                         const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
+                        const t0 = this._nowPerfMs();
+                        this._lastSyncSentAtMs = t0;
+
                         fetch('/funkenwerk-welt/lobby/join', {
                             method: 'POST',
                             credentials: 'same-origin',
@@ -4326,6 +4725,8 @@
                                 x: st.x,
                                 y: st.y,
                                 z: st.z,
+                                vx: st.vx,
+                                vz: st.vz,
                                 rot_y: st.rot_y,
                                 speed: st.speed,
                                 jumping: Boolean(st.jumping),
@@ -4337,20 +4738,33 @@
                                 combo_stage: st.combo_stage
                             })
                         })
-                            .then((res) => res.json().catch(() => null).then((b) => {
-                                if (res.status === 401 || res.status === 403) {
-                                    this.stopMultiplayerLoop();
-                                    const fGate = getFacade();
-                                    if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
-                                        fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                            .then((res) => {
+                                const rtt = this._nowPerfMs() - t0;
+                                return res.json().catch(() => null).then((b) => {
+                                    if (res.status === 401 || res.status === 403) {
+                                        this.stopMultiplayerLoop();
+                                        const fGate = getFacade();
+                                        if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                                            fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                                        }
+                                        return null;
                                     }
-                                    return null;
-                                }
-                                return res.ok ? b : null;
-                            }))
+                                    if (res.ok) {
+                                        this.recordNetSample(rtt, '6,0 Hz');
+                                    } else {
+                                        this.recordNetFailure();
+                                    }
+                                    return res.ok ? b : null;
+                                });
+                            })
                             .then((data) => {
                                 if (!data || !data.ok || !this.isOpen || this.currentZone !== 'heroes') return;
                                 this.lobbyAuthenticated = Boolean(data.authenticated);
+                                if (data.tick_interval_ms) {
+                                    this.netStats = Object.assign({}, this.netStats, {
+                                        tickIntervalMs: Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165)),
+                                    });
+                                }
                                 if (data.instance_id) {
                                     this.lobbyInstanceId = Number(data.instance_id) || 1;
                                     this.customInstanceInput = this.lobbyInstanceId;
@@ -4379,7 +4793,92 @@
                                     this.startMultiplayerLoop();
                                 }
                             })
-                            .catch(() => {});
+                            .catch(() => {
+                                this.recordNetFailure();
+                            });
+                    },
+
+                    computeAdaptiveSyncIntervalMs(st) {
+                        const speed = st ? (Number(st.speed) || 0) : 0;
+                        const jumping = Boolean(st && st.jumping);
+                        const hasPeers = Array.isArray(this.peers) && this.peers.length > 0;
+                        const isActive = speed > 0.05 || jumping || hasPeers;
+                        const nextHz = isActive ? '6,0 Hz' : 'Ruhe-Puls';
+                        if (this.netStats && this.netStats.tickHz !== nextHz) {
+                            this.netStats = Object.assign({}, this.netStats, { tickHz: nextHz });
+                        }
+                        return isActive ? 165 : 450;
+                    },
+
+                    scheduleNextMultiplayerSync(overrideDelayMs) {
+                        if (this._syncTimer) {
+                            clearTimeout(this._syncTimer);
+                            this._syncTimer = null;
+                        }
+                        if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                            return;
+                        }
+                        const facade = getFacade();
+                        const st = facade ? (typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot()) : null;
+                        const delay = typeof overrideDelayMs === 'number' ? overrideDelayMs : this.computeAdaptiveSyncIntervalMs(st);
+                        this._syncTimer = setTimeout(() => {
+                            this._syncTimer = null;
+                            this.runMultiplayerSync();
+                        }, delay);
+                    },
+
+                    requestImmediateMultiplayerSync() {
+                        if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                            return;
+                        }
+                        if (this._syncInFlight) {
+                            this._syncPendingImmediate = true;
+                            return;
+                        }
+                        const elapsed = this._nowPerfMs() - (this._lastSyncSentAtMs || 0);
+                        if (elapsed < 75) {
+                            this._syncPendingImmediate = true;
+                            const waitMs = Math.max(8, Math.ceil(75 - elapsed));
+                            this.scheduleNextMultiplayerSync(waitMs);
+                            return;
+                        }
+                        this._syncPendingImmediate = false;
+                        if (this._syncTimer) {
+                            clearTimeout(this._syncTimer);
+                            this._syncTimer = null;
+                        }
+                        this.runMultiplayerSync();
+                    },
+
+                    checkUrgentLocalSyncWatch() {
+                        if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                            this._lastWatchSyncSnap = null;
+                            return;
+                        }
+                        const facade = getFacade();
+                        if (!facade) return;
+                        const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
+                        if (!st) return;
+
+                        const moving = (Number(st.speed) || 0) > 0.08;
+                        const jumping = Boolean(st.jumping);
+                        const emote = st.emote || null;
+                        const velAngle = moving ? Math.atan2(Number(st.vx) || 0, Number(st.vz) || 0) : 0;
+
+                        if (!this._lastWatchSyncSnap) {
+                            this._lastWatchSyncSnap = { moving, jumping, emote, velAngle };
+                            return;
+                        }
+                        const prev = this._lastWatchSyncSnap;
+                        let rawDiff = velAngle - prev.velAngle;
+                        while (rawDiff > Math.PI) rawDiff -= Math.PI * 2;
+                        while (rawDiff < -Math.PI) rawDiff += Math.PI * 2;
+                        const dirTurned = moving && prev.moving && Math.abs(rawDiff) > (25 * Math.PI / 180);
+
+                        if (moving !== prev.moving || (!prev.jumping && jumping) || emote !== prev.emote || dirTurned) {
+                            this._lastWatchSyncSnap = { moving, jumping, emote, velAngle };
+                            this.requestImmediateMultiplayerSync();
+                        }
                     },
 
                     startMultiplayerLoop() {
@@ -4387,29 +4886,43 @@
                         if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
                             return;
                         }
-                        this._syncTimer = setInterval(() => {
-                            this.runMultiplayerSync();
-                        }, 950);
+                        this._urgentSyncWatchTimer = setInterval(() => {
+                            this.checkUrgentLocalSyncWatch();
+                        }, 60);
+                        this.scheduleNextMultiplayerSync();
                     },
 
                     stopMultiplayerLoop() {
                         if (this._syncTimer) {
-                            clearInterval(this._syncTimer);
+                            clearTimeout(this._syncTimer);
                             this._syncTimer = null;
                         }
+                        if (this._urgentSyncWatchTimer) {
+                            clearInterval(this._urgentSyncWatchTimer);
+                            this._urgentSyncWatchTimer = null;
+                        }
                         this._syncInFlight = false;
+                        this._syncPendingImmediate = false;
+                        this._lastWatchSyncSnap = null;
                     },
 
                     runMultiplayerSync() {
                         const facade = getFacade();
-                        if (!this.isOpen || !facade || this._syncInFlight) return;
+                        if (!this.isOpen || !facade) return;
                         if (!this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
                             this.stopMultiplayerLoop();
+                            return;
+                        }
+                        if (this._syncInFlight) {
+                            this._syncPendingImmediate = true;
                             return;
                         }
 
                         this._syncInFlight = true;
                         const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
+                        const t0 = this._nowPerfMs();
+                        this._lastSyncSentAtMs = t0;
+                        const nextHzLabel = this.computeAdaptiveSyncIntervalMs(st) <= 165 ? '6,0 Hz' : 'Ruhe-Puls';
 
                         fetch('/funkenwerk-welt/lobby/sync', {
                             method: 'POST',
@@ -4423,6 +4936,8 @@
                                 x: st.x,
                                 y: st.y,
                                 z: st.z,
+                                vx: st.vx,
+                                vz: st.vz,
                                 rot_y: st.rot_y,
                                 speed: st.speed,
                                 jumping: Boolean(st.jumping),
@@ -4434,20 +4949,33 @@
                                 combo_stage: st.combo_stage
                             })
                         })
-                            .then((res) => res.json().catch(() => null).then((b) => {
-                                if (res.status === 401 || res.status === 403) {
-                                    this.stopMultiplayerLoop();
-                                    const fGate = getFacade();
-                                    if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
-                                        fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                            .then((res) => {
+                                const rtt = this._nowPerfMs() - t0;
+                                return res.json().catch(() => null).then((b) => {
+                                    if (res.status === 401 || res.status === 403) {
+                                        this.stopMultiplayerLoop();
+                                        const fGate = getFacade();
+                                        if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                                            fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                                        }
+                                        return null;
                                     }
-                                    return null;
-                                }
-                                return res.ok ? b : null;
-                            }))
+                                    if (res.ok) {
+                                        this.recordNetSample(rtt, nextHzLabel);
+                                    } else {
+                                        this.recordNetFailure();
+                                    }
+                                    return res.ok ? b : null;
+                                });
+                            })
                             .then((data) => {
                                 const f2 = getFacade();
                                 if (!data || !data.ok || !this.isOpen || !f2 || this.currentZone !== 'heroes') return;
+                                if (data.tick_interval_ms) {
+                                    this.netStats = Object.assign({}, this.netStats, {
+                                        tickIntervalMs: Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165)),
+                                    });
+                                }
                                 if (data.instance_id) {
                                     this.lobbyInstanceId = Number(data.instance_id) || this.lobbyInstanceId;
                                 }
@@ -4466,9 +4994,20 @@
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
                             })
-                            .catch(() => {})
+                            .catch(() => {
+                                this.recordNetFailure();
+                            })
                             .finally(() => {
                                 this._syncInFlight = false;
+                                if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                                    return;
+                                }
+                                if (this._syncPendingImmediate) {
+                                    this._syncPendingImmediate = false;
+                                    this.requestImmediateMultiplayerSync();
+                                } else {
+                                    this.scheduleNextMultiplayerSync();
+                                }
                             });
                     },
 
@@ -4481,8 +5020,9 @@
                             this.currentZone = 'heroes';
                             this._activeSyncZone = 'heroes';
                         }
-                        const st = facade.getHudSnapshot();
+                        const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
                         this.instanceMenuOpen = false;
+                        const t0 = this._nowPerfMs();
 
                         fetch('/funkenwerk-welt/lobby/switch', {
                             method: 'POST',
@@ -4497,21 +5037,33 @@
                                 x: st.x,
                                 y: st.y,
                                 z: st.z,
+                                vx: st.vx,
+                                vz: st.vz,
                                 rot_y: st.rot_y,
+                                speed: st.speed,
+                                jumping: Boolean(st.jumping),
                                 zone: 'heroes'
                             })
                         })
-                            .then((res) => res.json().catch(() => null).then((b) => {
-                                if (res.status === 401 || res.status === 403) {
-                                    this.stopMultiplayerLoop();
-                                    const fGate = getFacade();
-                                    if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
-                                        fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                            .then((res) => {
+                                const rtt = this._nowPerfMs() - t0;
+                                return res.json().catch(() => null).then((b) => {
+                                    if (res.status === 401 || res.status === 403) {
+                                        this.stopMultiplayerLoop();
+                                        const fGate = getFacade();
+                                        if (fGate && typeof fGate.handleSanctumHttpResponse === 'function') {
+                                            fGate.handleSanctumHttpResponse(res.status, b, 'heroes');
+                                        }
+                                        return null;
                                     }
-                                    return null;
-                                }
-                                return res.ok ? b : null;
-                            }))
+                                    if (res.ok) {
+                                        this.recordNetSample(rtt, '6,0 Hz');
+                                    } else {
+                                        this.recordNetFailure();
+                                    }
+                                    return res.ok ? b : null;
+                                });
+                            })
                             .then((data) => {
                                 const f2 = getFacade();
                                 if (!data || !data.ok || !this.isOpen || !f2) return;
@@ -4539,7 +5091,9 @@
                                     this.startMultiplayerLoop();
                                 }
                             })
-                            .catch(() => {});
+                            .catch(() => {
+                                this.recordNetFailure();
+                            });
                     },
 
                     sendLobbyLeaveBeacon() {
@@ -4898,8 +5452,15 @@
                     },
 
                     closeShowroom() {
-                        if (!this.isOpen) return;
+                        if (!this.isOpen) {
+                            if (typeof window !== 'undefined' && typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                window.__sfForceStopAllLobbyAudio();
+                            }
+                            return;
+                        }
                         this.stopMultiplayerLoop();
+                        this.stopAtelierPingLoop();
+                        this.pingTooltipOpen = false;
                         if (!this.soloMode && this._activeSyncZone === 'heroes') {
                             this.sendLobbyLeaveBeacon();
                         }
@@ -4935,11 +5496,18 @@
                         if (privateAudio && typeof privateAudio.setLobbyActive === 'function') {
                             privateAudio.setLobbyActive(false);
                         }
-                        if (typeof window !== 'undefined' && window.__sfPrewarmLobbyBgmEl) {
-                            try {
-                                window.__sfPrewarmLobbyBgmEl.pause();
-                                window.__sfPrewarmLobbyBgmEl.volume = 0;
-                            } catch (e) {}
+                        if (typeof window !== 'undefined') {
+                            if (window.__sfPrewarmLobbyBgmEl) {
+                                try {
+                                    window.__sfPrewarmLobbyBgmEl.pause();
+                                    window.__sfPrewarmLobbyBgmEl.volume = 0;
+                                    window.__sfPrewarmLobbyBgmEl.currentTime = 0;
+                                } catch (e) {}
+                                window.__sfPrewarmLobbyBgmEl = null;
+                            }
+                            if (typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                window.__sfForceStopAllLobbyAudio();
+                            }
                         }
                         if (privateAudioUnsub) {
                             privateAudioUnsub();
@@ -5051,6 +5619,19 @@
 
                         this._productTransitionTimer = setTimeout(() => {
                             this._productTransitionTimer = null;
+                            if (typeof window !== 'undefined') {
+                                if (window.__sfPrewarmLobbyBgmEl) {
+                                    try {
+                                        window.__sfPrewarmLobbyBgmEl.pause();
+                                        window.__sfPrewarmLobbyBgmEl.volume = 0;
+                                        window.__sfPrewarmLobbyBgmEl.currentTime = 0;
+                                    } catch (e) {}
+                                    window.__sfPrewarmLobbyBgmEl = null;
+                                }
+                                if (typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                                    window.__sfForceStopAllLobbyAudio();
+                                }
+                            }
                             window.location.href = targetUrl;
                         }, 680);
                     },

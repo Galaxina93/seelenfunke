@@ -927,6 +927,101 @@ class Customer3DLobbyInstancesTest extends TestCase
         $this->assertNotContains('Unsichtbare Shadow-Mute Nachricht', $listenerTexts);
     }
 
+    public function test_lobby_ping_endpoint_server_timestamps_165ms_tick_interval_and_rapid_vx_vz_sync_without_429(): void
+    {
+        // 1. Ultra-Light GET /funkenwerk-welt/lobby/ping fuer Gaeste (Solo-Atelier Latenz-Messung)
+        Auth::guard('customer')->logout();
+        Auth::forgetGuards();
+
+        $guestPing = $this->getJson('/funkenwerk-welt/lobby/ping');
+        $guestPing->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('authenticated', false)
+            ->assertJsonPath('region', 'DE · Mittwald Stage');
+        $this->assertIsInt($guestPing->json('server_ts_ms'));
+        $this->assertGreaterThan(1700000000000, $guestPing->json('server_ts_ms'));
+
+        // 2. Eingeloggter Spieler auf /lobby/ping, /lobby/join, /lobby/sync und /lobby/switch
+        $runner = $this->makeCustomer(101, true, 'Schnelllaeufer', 7, false, true);
+        $peer = $this->makeCustomer(102, true, 'Zeitnehmer', 6, false, true);
+
+        $authPing = $this->actingAs($runner, 'customer')->getJson('/funkenwerk-welt/lobby/ping');
+        $authPing->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('authenticated', true)
+            ->assertJsonPath('region', 'DE · Mittwald Stage');
+        $this->assertIsInt($authPing->json('server_ts_ms'));
+        $this->assertZeroPiiAndZeroAiDashes($authPing->getContent(), [
+            $runner->email,
+            $runner->last_name,
+            (string) $runner->id,
+        ]);
+
+        $joinResp = $this->actingAs($runner, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes', 'x' => 0.0, 'z' => -24.0]);
+        $joinResp->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('instance_id', 1)
+            ->assertJsonPath('tick_interval_ms', 165);
+        $this->assertIsInt($joinResp->json('server_ts_ms'));
+
+        $this->actingAs($peer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes', 'x' => 2.0, 'z' => -24.0])
+            ->assertOk()
+            ->assertJsonPath('tick_interval_ms', 165);
+
+        $switchResp = $this->actingAs($peer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 2, 'zone' => 'heroes']);
+        $switchResp->assertOk()
+            ->assertJsonPath('instance_id', 2)
+            ->assertJsonPath('tick_interval_ms', 165);
+        $this->assertIsInt($switchResp->json('server_ts_ms'));
+
+        // Zurueck nach Instanz #1 -> 3s-Summary-Cache wird sofort invalidiert
+        $this->actingAs($peer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 1, 'zone' => 'heroes'])
+            ->assertOk()
+            ->assertJsonPath('instance_id', 1);
+
+        // 3. Schnelle aufeinanderfolgende 6-Hz-Sync-Ticks (> 180/min Grenze alt, neu 600/min) mit vx/vz ohne HTTP 429
+        $x = 0.0;
+        $z = -24.0;
+        for ($tick = 1; $tick <= 190; $tick++) {
+            $vx = round(sin($tick * 0.15) * 5.2, 3);
+            $vz = round(cos($tick * 0.15) * -4.8, 3);
+            $x = max(-28.0, min(28.0, round($x + ($vx * 0.165), 3)));
+            $z = max(-95.0, min(-18.0, round($z + ($vz * 0.165), 3)));
+
+            $syncResp = $this->actingAs($runner, 'customer')
+                ->postJson('/funkenwerk-welt/lobby/sync', [
+                    'zone' => 'heroes',
+                    'x' => $x,
+                    'y' => 0.0,
+                    'z' => $z,
+                    'vx' => $vx,
+                    'vz' => $vz,
+                    'speed' => round(hypot($vx, $vz), 3),
+                ]);
+
+            $syncResp->assertOk()
+                ->assertJsonPath('ok', true)
+                ->assertJsonPath('tick_interval_ms', 165);
+            $this->assertIsInt($syncResp->json('server_ts_ms'));
+        }
+
+        $this->assertTrue(Cache::has('sf_fw_lobby_instances_summary_v1'));
+
+        $peerSync = $this->actingAs($peer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', ['zone' => 'heroes', 'x' => 2.0, 'z' => -24.0]);
+        $peerSync->assertOk()
+            ->assertJsonPath('tick_interval_ms', 165);
+        $runnerPeer = collect($peerSync->json('peers'))->firstWhere('display_name', 'Schnelllaeufer');
+        $this->assertNotNull($runnerPeer);
+        $this->assertEquals($x, $runnerPeer['x']);
+        $this->assertEquals($z, $runnerPeer['z']);
+        $this->assertSame(2, collect($peerSync->json('instances'))->firstWhere('id', 1)['count']);
+    }
+
     private function makeCustomer(
         int $index,
         bool $optIn,

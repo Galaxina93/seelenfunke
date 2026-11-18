@@ -93,12 +93,20 @@ class CustomerLobbyController extends Controller
     public function sync(Request $request, LobbyInstanceService $lobby): JsonResponse
     {
         $actor = $lobby->resolveActorFromAuth();
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+
+        if ($request->hasSession()) {
+            $request->session()->save();
+        }
+        if (!app()->runningUnitTests() && session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+
         if ($blocked = $this->guardAgainstConsoleManipulation($request, $actor['actor_key'] ?? null)) {
             return $blocked;
         }
 
-        /** @var Customer|null $customer */
-        $customer = Auth::guard('customer')->user();
         $isAdmin = $customer === null
             && $actor !== null
             && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
@@ -118,6 +126,22 @@ class CustomerLobbyController extends Controller
         $payload = $lobby->sync($actor, $request->only(self::ALLOWED_STATE_KEYS));
 
         return response()->json($payload, 200, $this->securityHeaders());
+    }
+
+    public function ping(Request $request, LobbyInstanceService $lobby): JsonResponse
+    {
+        $actor = $lobby->resolveActorFromAuth();
+
+        if (!app()->runningUnitTests() && session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+
+        return response()->json([
+            'ok' => true,
+            'server_ts_ms' => \Illuminate\Support\Carbon::now()->getTimestampMs(),
+            'authenticated' => $actor !== null,
+            'region' => 'DE · Mittwald Stage',
+        ], 200, $this->securityHeaders());
     }
 
     public function switchInstance(Request $request, LobbyInstanceService $lobby): JsonResponse

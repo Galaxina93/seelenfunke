@@ -71,6 +71,7 @@ class Louvre3DShowroomTest extends TestCase
             $active->name,
         ]);
         $this->assertStringContainsString('id="sf-louvre-showroom-modal"', $html);
+        $this->assertStringContainsString('data-sf-3d-lobby-modal="showroom"', $html);
         $this->assertStringContainsString('MEIN SEELENFUNKE · LOUVRE SHOWROOM', $html);
         $this->assertStringContainsString('Zurück zum Shop', $html);
         $this->assertStringContainsString($active->name, $html);
@@ -221,9 +222,21 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v5')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v6')", $html);
+        $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $html);
+        $this->assertStringContainsString('window.__sfLobbyAudioRegistry', $html);
         $this->assertStringContainsString('volume: 5,', $html);
-        $this->assertStringContainsString('sync_interval_ms: 950,', $html);
+        $this->assertStringContainsString('sync_interval_ms: 165,', $html);
+        $this->assertStringNotContainsString('sync_interval_ms: 950,', $html);
+        $this->assertStringContainsString('data-testid="lobby-minimap-ping-dot"', $html);
+        $this->assertStringContainsString('data-testid="lobby-minimap-ping-tooltip"', $html);
+        $this->assertStringContainsString('Serververbindung', $html);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/ping', $html);
+        $this->assertStringContainsString('vx: st.vx,', $html);
+        $this->assertStringContainsString('vz: st.vz,', $html);
+        $this->assertStringContainsString('return isActive ? 165 : 450;', $html);
+        $this->assertStringContainsString('requestImmediateMultiplayerSync', $html);
+        $this->assertStringContainsString('_syncPendingImmediate', $html);
         $this->assertStringContainsString('dispatchLivewireAuthSync', $html);
         $this->assertStringContainsString("window.Livewire.dispatch('auth-status-changed')", $html);
         $this->assertStringContainsString("window.Livewire.dispatch('cart-updated')", $html);
@@ -360,7 +373,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('carpetStrip.position.set(0, 0.029, carpetCenterZ)', $js);
         $this->assertStringContainsString('BoxGeometry(2.82, 0.018, 0.12)', $js);
         $this->assertStringContainsString('this.audio.setZone(this.currentZone)', $js);
-        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v3', $js);
+        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v6', $js);
         $this->assertStringContainsString('THREE.SkinnedMesh', $js);
         $this->assertStringContainsString('THREE.Skeleton', $js);
         $this->assertStringContainsString('skinIndex', $js);
@@ -429,6 +442,15 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('seelenfunkeStar', $js);
         $this->assertStringContainsString('createArchPortalVeilGeometry', $js);
         $this->assertStringContainsString('setLocalPeerId', $js);
+        $this->assertStringContainsString('vx: cleanVx,', $js);
+        $this->assertStringContainsString('vz: cleanVz,', $js);
+        $this->assertStringContainsString('onLocalUrgentSyncNeeded', $js);
+        $this->assertStringContainsString('const minPeerX = -this.pantheonHalfW + 0.42;', $js);
+        $this->assertStringContainsString('const maxPeerZ = this.heroesEntryZ + 0.6;', $js);
+        $this->assertStringContainsString('peer.packetTime = this.elapsedTime;', $js);
+        $this->assertStringContainsString('if (distJump > 4.5)', $js);
+        $this->assertStringContainsString('const posBlend = 1.0 - Math.exp(-dt * (peer.reportedSpeed > 0.08 ? 13.5 : 18.0));', $js);
+        $this->assertStringContainsString('if (skinnedRig.actions && skinnedRig.actions.run && effectiveSpeed > 6.2)', $js);
         $this->assertStringNotContainsString('digital.' . 'mein-seelenfunke.de', $js);
         $this->assertStringContainsString('getMinimapState', $js);
         $this->assertStringContainsString('releasePointerLock', $js);
@@ -497,7 +519,10 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v5', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v6', $hostJs);
+        $this->assertStringContainsString("root.setAttribute('data-sf-3d-lobby-modal', 'heroes')", $hostJs);
+        $this->assertStringContainsString('stopPrewarmAndForceLobbySilence', $hostJs);
+        $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $hostJs);
         $this->assertStringNotContainsString('data-testid="lobby-vital-hud"', $hostJs);
         $this->assertStringNotContainsString('data-testid="lobby-unit-hearts"', $hostJs);
         $this->assertStringNotContainsString('Mindestens 1 Bestellung', $hostJs);
@@ -546,6 +571,13 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('data-testid="lobby-sanctum-gate-modal"', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-player-unit-frame"', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-minimap"', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-minimap-ping-dot"', $hostJs);
+        $this->assertStringContainsString('data-testid="lobby-minimap-ping-tooltip"', $hostJs);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/ping', $hostJs);
+        $this->assertStringContainsString('vx: st.vx || 0,', $hostJs);
+        $this->assertStringContainsString('vz: st.vz || 0,', $hostJs);
+        $this->assertStringContainsString('return isActive ? 165 : 450;', $hostJs);
+        $this->assertStringContainsString('_requestImmediateSync', $hostJs);
         $this->assertStringContainsString('handleSanctumHttpResponse', $hostJs);
         $this->assertStringContainsString('_handleZoneSyncTransition', $hostJs);
         $this->assertStringContainsString('refreshHeroesData', $hostJs);
@@ -939,12 +971,65 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('playLavaSplash', $audioJs);
         $this->assertStringContainsString('playDrinkPotion', $audioJs);
         $this->assertStringContainsString('DEFAULT_LOBBY_BGM_VOLUME = 5', $audioJs);
+        $this->assertStringContainsString('LOBBY_DOM_WATCHDOG_INTERVAL_MS = 400', $audioJs);
+        $this->assertStringContainsString('LOBBY_OPEN_GRACE_MS = 1200', $audioJs);
+        $this->assertStringContainsString('window.__sfLobbyAudioSingleton', $audioJs);
+        $this->assertStringNotContainsString('let sharedLobbyAudioSingleton', $audioJs);
+        $this->assertStringContainsString('window.__sfLobbyAudioRegistry', $audioJs);
+        $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $audioJs);
+        $this->assertStringContainsString('isAny3dLobbyModalVisibleInDom', $audioJs);
+        $this->assertStringContainsString('livewire:navigating', $audioJs);
+        $this->assertStringContainsString('livewire:navigated', $audioJs);
+        $this->assertStringContainsString('popstate', $audioJs);
+        $this->assertStringContainsString('pagehide', $audioJs);
+        $this->assertStringContainsString('beforeunload', $audioJs);
+        $this->assertStringContainsString('visibilitychange', $audioJs);
         $this->assertStringContainsString('783.99', $audioJs);
         $this->assertStringContainsString('updateLavaAmbience', $audioJs);
         $this->assertStringNotContainsString('digital.' . 'mein-seelenfunke.de', $audioJs);
         $this->assertStringNotContainsString('https://', $audioJs);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $audioJs);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $audioJs);
+    }
+
+    public function test_customer_2d_pages_never_embed_global_lobby_audio_module_and_prevent_split_brain(): void
+    {
+        $customer = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Elena',
+            'last_name' => 'Stille',
+            'email' => 'elena.audio.guard@example.com',
+            'email_verified_at' => now(),
+            'password' => bcrypt('SecretAudioGuard2026!'),
+        ]);
+
+        CustomerGamification::create([
+            'customer_id' => $customer->id,
+            'is_active' => true,
+            'level' => 3,
+            'funken_balance' => 150,
+            'funken_total_earned' => 150,
+        ]);
+
+        $dashboardBlade = (string) file_get_contents(resource_path('views/livewire/customer/customer-dashboard-component.blade.php'));
+        $funkiBlade = (string) file_get_contents(resource_path('views/livewire/customer/customer-funki-component.blade.php'));
+
+        $this->assertStringNotContainsString('seelenfunke-lobby-audio.js', $dashboardBlade);
+        $this->assertStringNotContainsString('seelenfunke-lobby-audio.js', $funkiBlade);
+
+        $dashHtml = (string) $this->actingAs($customer, 'customer')
+            ->get('/customer/dashboard')
+            ->assertStatus(200)
+            ->getContent();
+        $this->assertStringNotContainsString('seelenfunke-lobby-audio.js', $dashHtml);
+
+        $funkiCompHtml = (string) Livewire::actingAs($customer, 'customer')
+            ->test(\App\Livewire\Customer\CustomerFunkiComponent::class)
+            ->html();
+        $this->assertStringNotContainsString('seelenfunke-lobby-audio.js', $funkiCompHtml);
+
+        $shopHtml = (string) $this->get('/shop')->assertStatus(200)->getContent();
+        $this->assertStringNotContainsString('seelenfunke-lobby-audio.js', $shopHtml);
     }
 
     public function test_atelier_3d_star_rating_station_guest_to_inline_login_and_one_click_review_flow(): void

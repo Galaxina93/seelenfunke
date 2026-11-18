@@ -211,8 +211,11 @@ Route::post('/funkenwerk-welt/lobby/join', [\App\Http\Controllers\Api\CustomerLo
     ->middleware('throttle:60,1,lobby_join')
     ->name('gamification.funkenwerk-lobby.join');
 Route::post('/funkenwerk-welt/lobby/sync', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'sync'])
-    ->middleware('throttle:180,1,lobby_sync')
+    ->middleware('throttle:600,1,lobby_sync')
     ->name('gamification.funkenwerk-lobby.sync');
+Route::get('/funkenwerk-welt/lobby/ping', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'ping'])
+    ->middleware('throttle:120,1,lobby_ping')
+    ->name('gamification.funkenwerk-lobby.ping');
 Route::post('/funkenwerk-welt/lobby/switch', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'switchInstance'])
     ->middleware('throttle:60,1,lobby_switch')
     ->name('gamification.funkenwerk-lobby.switch');

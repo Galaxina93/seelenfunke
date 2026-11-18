@@ -5,7 +5,39 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v5';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v6';
+
+    function ensurePrewarmRegistryAndRegister(audioEl) {
+        if (!audioEl || typeof window === 'undefined') return audioEl;
+        if (!(window.__sfLobbyAudioRegistry instanceof Set)) {
+            var nextSet = new Set();
+            if (Array.isArray(window.__sfLobbyAudioRegistry)) {
+                for (var i = 0; i < window.__sfLobbyAudioRegistry.length; i++) {
+                    if (window.__sfLobbyAudioRegistry[i]) nextSet.add(window.__sfLobbyAudioRegistry[i]);
+                }
+            }
+            window.__sfLobbyAudioRegistry = nextSet;
+        }
+        window.__sfLobbyAudioRegistry.add(audioEl);
+        return audioEl;
+    }
+
+    function stopPrewarmAndForceLobbySilence() {
+        if (typeof window === 'undefined') return;
+        if (window.__sfPrewarmLobbyBgmEl) {
+            try {
+                window.__sfPrewarmLobbyBgmEl.pause();
+                window.__sfPrewarmLobbyBgmEl.volume = 0;
+                window.__sfPrewarmLobbyBgmEl.currentTime = 0;
+            } catch (e) {}
+            window.__sfPrewarmLobbyBgmEl = null;
+        }
+        if (typeof window.__sfForceStopAllLobbyAudio === 'function') {
+            try {
+                window.__sfForceStopAllLobbyAudio();
+            } catch (e2) {}
+        }
+    }
 
     var KEYBIND_ACTIONS = [
         { key: 'jump', label: 'Sprung' },
@@ -76,6 +108,22 @@
         '.sf-lobby-minimap-wrap { position: relative; width: 232px; height: 232px; z-index: 25; pointer-events: auto; display: flex; align-items: center; justify-content: center; }',
         '.sf-lobby-minimap-canvas { width: 100%; height: 100%; border-radius: 999px; background: rgba(255,255,255,0.96); border: 2.5px solid #C5A059; box-shadow: 0 12px 30px rgba(17,24,39,0.16), 0 0 0 3px rgba(255,255,255,0.72); display: block; }',
         '.sf-lobby-minimap-time { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px; background: #FFFFFF; border: 1px solid #C5A059; color: #111827; font-size: 10.5px; font-weight: 800; line-height: 1.25; white-space: nowrap; box-shadow: 0 4px 12px rgba(17,24,39,0.12); cursor: help; }',
+        '@keyframes sfLobbyPingPulse { 0% { transform: scale(1); opacity: 0.38; } 70% { transform: scale(1.85); opacity: 0; } 100% { transform: scale(1.85); opacity: 0; } }',
+        '.sf-lobby-ping-anchor { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); z-index: 34; display: inline-flex; align-items: center; justify-content: center; pointer-events: auto; }',
+        '.sf-lobby-ping-dot { appearance: none; width: 18px; height: 18px; padding: 0; margin: 0; border-radius: 999px; background: #FFFFFF; border: 1.5px solid #C5A059; box-shadow: 0 4px 10px rgba(17,24,39,0.14); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; position: relative; outline: none; }',
+        '.sf-lobby-ping-core { width: 9px; height: 9px; border-radius: 999px; display: block; position: relative; z-index: 2; background: #10B981; transition: background-color 160ms ease; }',
+        '.sf-lobby-ping-pulse { position: absolute; width: 9px; height: 9px; border-radius: 999px; background: #10B981; opacity: 0.34; animation: sfLobbyPingPulse 2.4s ease-out infinite; pointer-events: none; }',
+        '.sf-lobby-ping-dot.is-optimal .sf-lobby-ping-core, .sf-lobby-ping-dot.is-optimal .sf-lobby-ping-pulse { background: #10B981; }',
+        '.sf-lobby-ping-dot.is-good .sf-lobby-ping-core, .sf-lobby-ping-dot.is-good .sf-lobby-ping-pulse { background: #D97706; }',
+        '.sf-lobby-ping-dot.is-delayed .sf-lobby-ping-core, .sf-lobby-ping-dot.is-delayed .sf-lobby-ping-pulse { background: #DC2626; }',
+        '.sf-lobby-ping-tooltip { position: absolute; top: calc(100% + 8px); right: -56px; width: 214px; background: #FAF8F5; border: 1px solid #C5A059; border-radius: 14px; padding: 10px 12px; box-shadow: 0 14px 32px rgba(17,24,39,0.15); color: #111827; box-sizing: border-box; opacity: 0; visibility: hidden; transform: translateY(-4px); transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease; pointer-events: none; z-index: 40; }',
+        '.sf-lobby-ping-anchor:hover .sf-lobby-ping-tooltip, .sf-lobby-ping-anchor:focus-within .sf-lobby-ping-tooltip, .sf-lobby-ping-anchor.is-open .sf-lobby-ping-tooltip { opacity: 1; visibility: visible; transform: translateY(0); pointer-events: auto; }',
+        '.sf-lobby-ping-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid rgba(197,160,89,0.28); font-size: 11.5px; font-weight: 800; color: #111827; }',
+        '.sf-lobby-ping-badge { padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 800; line-height: 1.35; white-space: nowrap; background: #ECFDF5; border: 1px solid #A7F3D0; color: #065F46; }',
+        '.sf-lobby-ping-badge.is-good { background: #FFFBEB; border-color: #FDE68A; color: #92400E; }',
+        '.sf-lobby-ping-badge.is-delayed { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }',
+        '.sf-lobby-ping-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; line-height: 1.45; color: #4B5563; }',
+        '.sf-lobby-ping-row strong { font-weight: 800; color: #111827; white-space: nowrap; }',
         '.sf-lobby-exhibit-step-row { margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(197,160,89,0.22); display: flex; align-items: center; justify-content: space-between; gap: 4px; }',
         '.sf-lobby-sanctum-list { display: flex; flex-direction: column; gap: 8px; }',
         '.sf-lobby-sanctum-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 12px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.34); font-size: 13px; font-weight: 800; color: #111827; transition: border-color 150ms ease, background-color 150ms ease; }',
@@ -132,7 +180,7 @@
         '.sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }',
         '.sf-lobby-chat-panel { position: absolute; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); right: 16px; z-index: 28; pointer-events: auto; }',
         '.sf-lobby-chat-box { width: 292px; max-width: calc(100vw - 24px); background: rgba(255,255,255,0.97); border: 1.5px solid #C5A059; border-radius: 16px; padding: 10px 12px; box-shadow: 0 14px 34px rgba(17,24,39,0.14); display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; }',
-        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-topbar { padding: 8px 10px; gap: 6px; } .sf-lobby-actions { margin-right: 0; } .sf-lobby-unit-frame { padding: 5px 11px 5px 6px; gap: 7px; } .sf-lobby-unit-avatar { width: 30px; height: 30px; font-size: 11px; } .sf-lobby-stick-wrap { display: block; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); left: 10px; } .sf-lobby-stick { width: 68px; height: 68px; } .sf-lobby-topright-stack { top: 62px; right: 10px; gap: 6px; } .sf-lobby-minimap-wrap { width: 138px; height: 138px; } .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; } }',
+        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-topbar { padding: 8px 10px; gap: 6px; } .sf-lobby-actions { margin-right: 0; } .sf-lobby-unit-frame { padding: 5px 11px 5px 6px; gap: 7px; } .sf-lobby-unit-avatar { width: 30px; height: 30px; font-size: 11px; } .sf-lobby-stick-wrap { display: block; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); left: 10px; } .sf-lobby-stick { width: 68px; height: 68px; } .sf-lobby-topright-stack { top: 62px; right: 10px; gap: 6px; } .sf-lobby-minimap-wrap { width: 138px; height: 138px; } .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; } .sf-lobby-ping-tooltip { right: -48px; width: 202px; } }',
         '@media (max-width: 767px) { .sf-lobby-zone-badge { padding: 4px 8px; font-size: 10px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 5px 8px; font-size: 11px; } .sf-lobby-kbd, .sf-lobby-copyright { display: none !important; } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } .sf-lobby-gold-crest-bar { min-height: 52px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: center; } }',
         '@media (max-width: 480px) { .sf-lobby-topright-stack { top: 64px; right: 8px; } .sf-lobby-stick-wrap { bottom: calc(62px + env(safe-area-inset-bottom, 0px)); left: 8px; } .sf-lobby-stick { width: 64px; height: 64px; } .sf-lobby-floating-card { width: 266px; padding: 12px 13px 10px; } .sf-lobby-prod-title { font-size: 13.5px; } }'
     ].join('\n');
@@ -194,7 +242,7 @@
             styleTag.id = 'sf-3d-lobby-scoped-css';
             styleTag.textContent = STANDALONE_SCOPED_CSS;
             (document.head || document.documentElement).appendChild(styleTag);
-        } else if (!existing.textContent || existing.textContent.indexOf('.sf-atelier-star-card') === -1) {
+        } else if (!existing.textContent || existing.textContent.indexOf('.sf-lobby-ping-anchor') === -1) {
             existing.textContent = STANDALONE_SCOPED_CSS;
         }
     }
@@ -266,13 +314,32 @@
         this._audio = null;
         this._audioUnsub = null;
         this._syncTimer = null;
+        this._urgentSyncWatchTimer = null;
+        this._pingProbeTimer = null;
         this._hudTimer = null;
         this._syncInFlight = false;
+        this._syncPendingImmediate = false;
+        this._lastSyncSentAtMs = 0;
+        this._lastWatchSyncSnap = null;
+        this._pingProbeInFlight = false;
         this._activeSyncZone = null;
         this._openSeq = 0;
         this._fsResizeTimer = null;
         this.prevHtmlOverflow = '';
         this.prevBodyOverflow = '';
+        this.pingTooltipOpen = false;
+        this.netStats = {
+            pingMs: null,
+            jitterMs: 0,
+            tickHz: 'Atelier · Bereit',
+            tickIntervalMs: 165,
+            lossPct: 0,
+            hasError: false,
+            samples: 0,
+            lastRttMs: 0,
+            sentCount: 0,
+            failCount: 0
+        };
 
         this.currentZone = 'gallery';
         this.stagesMode = 'live';
@@ -463,10 +530,19 @@
         };
 
         this._boundOutsideClick = function (e) {
-            if (!self.instanceMenuOpen || !self.modalEl) return;
-            var wrap = self.modalEl.querySelector('[data-lobby-instance-wrap]');
-            if (wrap && !wrap.contains(e.target)) {
-                self._setInstanceMenuOpen(false);
+            if (!self.modalEl) return;
+            if (self.instanceMenuOpen) {
+                var wrap = self.modalEl.querySelector('[data-lobby-instance-wrap]');
+                if (wrap && !wrap.contains(e.target)) {
+                    self._setInstanceMenuOpen(false);
+                }
+            }
+            if (self.pingTooltipOpen) {
+                var pingAnchor = self.modalEl.querySelector('[data-lobby-ping-anchor]');
+                if (pingAnchor && !pingAnchor.contains(e.target)) {
+                    self.pingTooltipOpen = false;
+                    pingAnchor.classList.remove('is-open');
+                }
             }
         };
 
@@ -474,6 +550,16 @@
             if (self.isOpen) {
                 self._sendLeaveBeacon();
                 self.dispose();
+            } else {
+                stopPrewarmAndForceLobbySilence();
+            }
+        };
+
+        this._boundLivewireNavigating = function () {
+            if (self.isOpen) {
+                self.close();
+            } else {
+                stopPrewarmAndForceLobbySilence();
             }
         };
     }
@@ -508,6 +594,7 @@
         var ids = this._resolveInstanceBtnIds();
         var root = document.createElement('div');
         root.id = 'sf-user-lobby-3d-modal';
+        root.setAttribute('data-sf-3d-lobby-modal', 'heroes');
         root.className = 'sf-lobby-modal is-closed';
         root.setAttribute('role', 'dialog');
         root.setAttribute('aria-modal', 'true');
@@ -554,6 +641,19 @@
             '  <div data-lobby-ivory-transition class="sf-lobby-ivory-transition"></div>',
             '  <div class="sf-lobby-topright-stack">',
             '    <div data-lobby-minimap data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">',
+            '      <div data-lobby-ping-anchor class="sf-lobby-ping-anchor">',
+            '        <button type="button" data-lobby-ping-dot data-testid="lobby-minimap-ping-dot" class="sf-lobby-ping-dot is-optimal" aria-label="Serververbindung">',
+            '          <span class="sf-lobby-ping-pulse"></span>',
+            '          <span class="sf-lobby-ping-core"></span>',
+            '        </button>',
+            '        <div data-lobby-ping-tooltip data-testid="lobby-minimap-ping-tooltip" class="sf-lobby-ping-tooltip" role="status">',
+            '          <div class="sf-lobby-ping-head"><span>Serververbindung</span><span data-ping-status-badge class="sf-lobby-ping-badge">Optimal</span></div>',
+            '          <div class="sf-lobby-ping-row"><span>Ping</span><strong data-ping-ms-val>-- ms</strong></div>',
+            '          <div class="sf-lobby-ping-row"><span>Jitter</span><strong data-ping-jitter-val>±0 ms</strong></div>',
+            '          <div class="sf-lobby-ping-row"><span>Modus</span><strong data-ping-mode-val>Atelier (Solo)</strong></div>',
+            '          <div data-ping-instance-row class="sf-lobby-ping-row" style="display:none;"><span>Instanz</span><strong data-ping-instance-val>Halle #1 (1/20)</strong></div>',
+            '        </div>',
+            '      </div>',
             '      <canvas data-lobby-minimap-canvas width="232" height="232" class="sf-lobby-minimap-canvas"></canvas>',
             '      <span data-lobby-minimap-time class="sf-lobby-minimap-time" title="Herbst">12:00</span>',
             '    </div>',
@@ -781,6 +881,7 @@
             enterBtn.style.cssText = 'margin-top:0;border:none;cursor:pointer;';
             enterBtn.textContent = '✨ In die Außenwelt starten →';
             enterBtn.addEventListener('click', function () {
+                stopPrewarmAndForceLobbySilence();
                 window.location.href = self.mmorpgEnterUrl || '/funkenreich/enter';
             });
             wrap.appendChild(enterBtn);
@@ -1194,6 +1295,7 @@
                     return;
                 }
                 if (body.status === 'password_change_required' && body.redirect_url) {
+                    stopPrewarmAndForceLobbySilence();
                     window.location.href = String(body.redirect_url);
                     return;
                 }
@@ -1598,7 +1700,162 @@
                 ? (this.environmentInfo.season_label + ' · ' + this.environmentInfo.holiday_label)
                 : (this.environmentInfo.season_label || 'Herbst');
         }
+        this._renderPingHud();
         this._renderMinimap();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._nowPerfMs = function () {
+        return (typeof performance !== 'undefined' && typeof performance.now === 'function')
+            ? performance.now()
+            : Date.now();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._recordNetSample = function (rttMs, tickLabel) {
+        var cleanRtt = Math.max(1, Number(rttMs) || 1);
+        var ns = this.netStats;
+        ns.sentCount += 1;
+        if (ns.samples === 0 || ns.pingMs === null) {
+            ns.pingMs = Math.max(1, Math.round(cleanRtt));
+            ns.jitterMs = 0;
+        } else {
+            var delta = Math.abs(cleanRtt - ns.lastRttMs);
+            var nextJitter = ns.samples === 1 ? delta : (ns.jitterMs * 0.72 + delta * 0.28);
+            var nextPing = ns.pingMs * 0.68 + cleanRtt * 0.32;
+            ns.pingMs = Math.max(1, Math.round(nextPing));
+            ns.jitterMs = Math.max(0, Math.round(nextJitter));
+        }
+        ns.lastRttMs = cleanRtt;
+        ns.samples += 1;
+        ns.hasError = false;
+        ns.lossPct = ns.sentCount > 0 ? Math.round((ns.failCount / ns.sentCount) * 100) : 0;
+        if (tickLabel) {
+            ns.tickHz = tickLabel;
+        }
+        this._renderPingHud();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._recordNetFailure = function () {
+        var ns = this.netStats;
+        ns.sentCount += 1;
+        ns.failCount += 1;
+        ns.hasError = true;
+        ns.lossPct = ns.sentCount > 0 ? Math.round((ns.failCount / ns.sentCount) * 100) : 100;
+        this._renderPingHud();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderPingHud = function () {
+        if (!this.modalEl) return;
+        var root = this.modalEl;
+        var dotBtn = root.querySelector('[data-lobby-ping-dot]');
+        var badgeEl = root.querySelector('[data-ping-status-badge]');
+        var pingValEl = root.querySelector('[data-ping-ms-val]');
+        var jitterValEl = root.querySelector('[data-ping-jitter-val]');
+        var modeValEl = root.querySelector('[data-ping-mode-val]');
+        var instRowEl = root.querySelector('[data-ping-instance-row]');
+        var instValEl = root.querySelector('[data-ping-instance-val]');
+
+        var ns = this.netStats;
+        var pingMs = ns.pingMs;
+        var tier = 'optimal';
+        var statusText = 'Optimal';
+        if (ns.hasError || (pingMs !== null && pingMs > 180)) {
+            tier = 'delayed';
+            statusText = 'Verzögert';
+        } else if (pingMs !== null && pingMs > 85) {
+            tier = 'good';
+            statusText = 'Gut';
+        }
+
+        if (dotBtn) {
+            dotBtn.className = 'sf-lobby-ping-dot is-' + tier;
+        }
+        if (badgeEl) {
+            badgeEl.textContent = statusText;
+            badgeEl.className = 'sf-lobby-ping-badge' + (tier === 'optimal' ? '' : (' is-' + tier));
+        }
+        if (pingValEl) {
+            pingValEl.textContent = pingMs !== null ? (pingMs + ' ms') : '... ms';
+        }
+        if (jitterValEl) {
+            jitterValEl.textContent = '±' + (ns.jitterMs || 0) + ' ms';
+        }
+
+        var isLiveHeroes = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode);
+        if (modeValEl) {
+            modeValEl.textContent = isLiveHeroes ? 'Live-Sync (6 Hz)' : 'Atelier (Solo)';
+        }
+        if (instRowEl) {
+            instRowEl.style.display = isLiveHeroes ? 'flex' : 'none';
+        }
+        if (instValEl && isLiveHeroes) {
+            var curCount = 1 + (Array.isArray(this.peers) ? this.peers.length : 0);
+            for (var k = 0; k < this.instances.length; k++) {
+                if (Number(this.instances[k].id) === Number(this.instanceId)) {
+                    curCount = Math.max(curCount, Number(this.instances[k].count) || curCount);
+                    break;
+                }
+            }
+            instValEl.textContent = 'Halle #' + this.instanceId + ' (' + curCount + '/' + (this.instanceCapacity || 20) + ')';
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._probeSoloAtelierPing = function () {
+        var self = this;
+        if (!this.isOpen || this._pingProbeInFlight) return;
+        if (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode && this._syncTimer) {
+            return;
+        }
+        this._pingProbeInFlight = true;
+        var t0 = this._nowPerfMs();
+
+        fetch('/funkenwerk-welt/lobby/ping', {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' }
+        })
+            .then(function (r) {
+                if (r.ok) {
+                    var rtt = self._nowPerfMs() - t0;
+                    self._recordNetSample(rtt, 'Atelier · Bereit');
+                    return null;
+                }
+                var tFallback = self._nowPerfMs();
+                return fetch('/up', {
+                    method: 'HEAD',
+                    credentials: 'same-origin',
+                    cache: 'no-store'
+                }).then(function (rUp) {
+                    if (rUp.ok) {
+                        self._recordNetSample(self._nowPerfMs() - tFallback, 'Atelier · Bereit');
+                    } else {
+                        self._recordNetFailure();
+                    }
+                });
+            })
+            .catch(function () {
+                self._recordNetFailure();
+            })
+            .finally(function () {
+                self._pingProbeInFlight = false;
+            });
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._startAtelierPingLoop = function () {
+        var self = this;
+        this._stopAtelierPingLoop();
+        this._probeSoloAtelierPing();
+        this._pingProbeTimer = setInterval(function () {
+            self._probeSoloAtelierPing();
+        }, 10000);
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._stopAtelierPingLoop = function () {
+        if (this._pingProbeTimer) {
+            clearInterval(this._pingProbeTimer);
+            this._pingProbeTimer = null;
+        }
+        this._pingProbeInFlight = false;
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype.toggleFullscreen = function () {
@@ -1647,11 +1904,26 @@
         var stopOverlayRay = function (ev) {
             ev.stopPropagation();
         };
-        var uiBlocks = root.querySelectorAll('.sf-lobby-settings-backdrop, .sf-lobby-floating-card, .sf-lobby-topbar, .sf-lobby-gold-crest-bar, .sf-lobby-chat-panel, .sf-lobby-bottom-pill, .sf-lobby-portal-pill');
+        var uiBlocks = root.querySelectorAll('.sf-lobby-settings-backdrop, .sf-lobby-floating-card, .sf-lobby-topbar, .sf-lobby-gold-crest-bar, .sf-lobby-chat-panel, .sf-lobby-bottom-pill, .sf-lobby-portal-pill, .sf-lobby-ping-anchor');
         for (var ub = 0; ub < uiBlocks.length; ub++) {
             uiBlocks[ub].addEventListener('pointerdown', stopOverlayRay);
             uiBlocks[ub].addEventListener('mousedown', stopOverlayRay);
             uiBlocks[ub].addEventListener('click', stopOverlayRay);
+        }
+
+        var pingAnchorEl = root.querySelector('[data-lobby-ping-anchor]');
+        var pingDotBtn = root.querySelector('[data-lobby-ping-dot]');
+        if (pingDotBtn && pingAnchorEl) {
+            pingDotBtn.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                self.pingTooltipOpen = !self.pingTooltipOpen;
+                if (self.pingTooltipOpen) pingAnchorEl.classList.add('is-open');
+                else pingAnchorEl.classList.remove('is-open');
+                self._renderPingHud();
+            });
+            pingAnchorEl.addEventListener('mouseenter', function () {
+                self._renderPingHud();
+            });
         }
 
         root.querySelector('[data-lobby-solo-toggle]').addEventListener('click', function () {
@@ -2019,6 +2291,8 @@
         document.addEventListener('webkitfullscreenchange', this._boundFullscreenChange);
         document.addEventListener('click', this._boundOutsideClick);
         window.addEventListener('pagehide', this._boundPageHide);
+        window.addEventListener('beforeunload', this._boundPageHide);
+        document.addEventListener('livewire:navigating', this._boundLivewireNavigating);
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._setInstanceMenuOpen = function (openFlag) {
@@ -2313,6 +2587,7 @@
         if (this._productTransitionTimer) clearTimeout(this._productTransitionTimer);
         this._productTransitionTimer = setTimeout(function () {
             self._productTransitioning = false;
+            stopPrewarmAndForceLobbySilence();
             window.location.href = prod.product_url;
         }, 680);
     };
@@ -2466,6 +2741,7 @@
                 this._activeSyncZone = 'heroes';
                 this._joinLobby();
             }
+            this._renderPingHud();
             return;
         }
 
@@ -2473,13 +2749,16 @@
         this._activeSyncZone = 'gallery';
         this._setInstanceMenuOpen(false);
         this._stopSyncLoop();
+        this.netStats.tickHz = 'Atelier · Bereit';
         this.peers = [];
         if (facade) {
             facade.updatePeers([]);
         }
+        this._renderPingHud();
+        this._probeSoloAtelierPing();
 
         if (wasInHeroes && this.lobbyAuth && !this.soloMode && facade) {
-            var st = facade.getHudSnapshot();
+            var st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
             fetch('/funkenwerk-welt/lobby/sync', {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -2493,9 +2772,13 @@
                     x: st.x,
                     y: st.y,
                     z: st.z,
+                    vx: st.vx || 0,
+                    vz: st.vz || 0,
                     rot_y: st.rot_y,
                     speed: st.speed,
+                    jumping: Boolean(st.jumping),
                     zone: 'gallery',
+                    emote: st.emote || null,
                     combo_seq: 0,
                     combo_stage: 0
                 })
@@ -2507,7 +2790,9 @@
         var self = this;
         var facade = getFacade(this);
         if (!facade || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
-        var st = facade.getHudSnapshot();
+        var st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
+        var t0 = this._nowPerfMs();
+        this._lastSyncSentAtMs = t0;
 
         fetch('/funkenwerk-welt/lobby/join', {
             method: 'POST',
@@ -2521,6 +2806,8 @@
                 x: st.x,
                 y: st.y,
                 z: st.z,
+                vx: st.vx || 0,
+                vz: st.vz || 0,
                 rot_y: st.rot_y,
                 speed: st.speed,
                 jumping: Boolean(st.jumping),
@@ -2531,6 +2818,7 @@
             })
         })
             .then(function (r) {
+                var rtt = self._nowPerfMs() - t0;
                 return r.json().catch(function () { return null; }).then(function (b) {
                     if (r.status === 401 || r.status === 403) {
                         self._stopSyncLoop();
@@ -2540,12 +2828,20 @@
                         }
                         return null;
                     }
+                    if (r.ok) {
+                        self._recordNetSample(rtt, '6,0 Hz');
+                    } else {
+                        self._recordNetFailure();
+                    }
                     return r.ok ? b : null;
                 });
             })
             .then(function (data) {
                 if (!data || !data.ok || !self.isOpen || self.currentZone !== 'heroes') return;
                 self.lobbyAuth = Boolean(data.authenticated);
+                if (data.tick_interval_ms) {
+                    self.netStats.tickIntervalMs = Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165));
+                }
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || 1;
                 if (data.hard_cap) self.instanceCapacity = Number(data.hard_cap) || 20;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
@@ -2561,11 +2857,92 @@
                     self._ingestSyncMessages(data.messages);
                 }
                 self._syncHudState();
+                self._renderPingHud();
                 if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
                     self._startSyncLoop();
                 }
             })
-            .catch(function () {});
+            .catch(function () {
+                self._recordNetFailure();
+            });
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._computeAdaptiveSyncDelayMs = function (st) {
+        var speed = st ? (Number(st.speed) || 0) : 0;
+        var jumping = Boolean(st && st.jumping);
+        var hasPeers = Array.isArray(this.peers) && this.peers.length > 0;
+        var isActive = speed > 0.05 || jumping || hasPeers;
+        this.netStats.tickHz = isActive ? '6,0 Hz' : 'Ruhe-Puls';
+        return isActive ? 165 : 450;
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._scheduleNextSyncTick = function (overrideDelayMs) {
+        var self = this;
+        if (this._syncTimer) {
+            clearTimeout(this._syncTimer);
+            this._syncTimer = null;
+        }
+        if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
+        var facade = getFacade(this);
+        var st = facade ? (typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot()) : null;
+        var delay = typeof overrideDelayMs === 'number' ? overrideDelayMs : this._computeAdaptiveSyncDelayMs(st);
+        this._syncTimer = setTimeout(function () {
+            self._syncTimer = null;
+            self._runSyncTick();
+        }, delay);
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._requestImmediateSync = function () {
+        var self = this;
+        if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
+        if (this._syncInFlight) {
+            this._syncPendingImmediate = true;
+            return;
+        }
+        var elapsed = this._nowPerfMs() - (this._lastSyncSentAtMs || 0);
+        if (elapsed < 75) {
+            this._syncPendingImmediate = true;
+            var waitMs = Math.max(8, Math.ceil(75 - elapsed));
+            this._scheduleNextSyncTick(waitMs);
+            return;
+        }
+        this._syncPendingImmediate = false;
+        if (this._syncTimer) {
+            clearTimeout(this._syncTimer);
+            this._syncTimer = null;
+        }
+        this._runSyncTick();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._checkUrgentWatchState = function () {
+        if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') {
+            this._lastWatchSyncSnap = null;
+            return;
+        }
+        var facade = getFacade(this);
+        if (!facade) return;
+        var st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
+        if (!st) return;
+
+        var moving = (Number(st.speed) || 0) > 0.08;
+        var jumping = Boolean(st.jumping);
+        var emote = st.emote || null;
+        var velAngle = moving ? Math.atan2(Number(st.vx) || 0, Number(st.vz) || 0) : 0;
+
+        if (!this._lastWatchSyncSnap) {
+            this._lastWatchSyncSnap = { moving: moving, jumping: jumping, emote: emote, velAngle: velAngle };
+            return;
+        }
+        var prev = this._lastWatchSyncSnap;
+        var rawDiff = velAngle - prev.velAngle;
+        while (rawDiff > Math.PI) rawDiff -= Math.PI * 2;
+        while (rawDiff < -Math.PI) rawDiff += Math.PI * 2;
+        var dirChanged = moving && prev.moving && Math.abs(rawDiff) > (25 * Math.PI / 180);
+
+        if (moving !== prev.moving || (!prev.jumping && jumping) || emote !== prev.emote || dirChanged) {
+            this._lastWatchSyncSnap = { moving: moving, jumping: jumping, emote: emote, velAngle: velAngle };
+            this._requestImmediateSync();
+        }
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._startSyncLoop = function () {
@@ -2573,31 +2950,45 @@
         this._stopSyncLoop();
         if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
 
-        this._syncTimer = setInterval(function () {
-            self._runSyncTick();
-        }, 950);
+        this._urgentSyncWatchTimer = setInterval(function () {
+            self._checkUrgentWatchState();
+        }, 60);
+        this._scheduleNextSyncTick();
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._stopSyncLoop = function () {
         if (this._syncTimer) {
-            clearInterval(this._syncTimer);
+            clearTimeout(this._syncTimer);
             this._syncTimer = null;
         }
+        if (this._urgentSyncWatchTimer) {
+            clearInterval(this._urgentSyncWatchTimer);
+            this._urgentSyncWatchTimer = null;
+        }
         this._syncInFlight = false;
+        this._syncPendingImmediate = false;
+        this._lastWatchSyncSnap = null;
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._runSyncTick = function () {
         var self = this;
         var facade = getFacade(this);
-        if (!this.isOpen || !this.lobbyAuth || this.soloMode || !facade || this._syncInFlight) {
+        if (!this.isOpen || !this.lobbyAuth || this.soloMode || !facade) {
             return;
         }
         if (this.currentZone !== 'heroes') {
             this._stopSyncLoop();
             return;
         }
+        if (this._syncInFlight) {
+            this._syncPendingImmediate = true;
+            return;
+        }
         this._syncInFlight = true;
-        var st = facade.getHudSnapshot();
+        var st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
+        var t0 = this._nowPerfMs();
+        this._lastSyncSentAtMs = t0;
+        var nextDelayMode = this._computeAdaptiveSyncDelayMs(st) <= 165 ? '6,0 Hz' : 'Ruhe-Puls';
 
         fetch('/funkenwerk-welt/lobby/sync', {
             method: 'POST',
@@ -2612,6 +3003,8 @@
                 x: st.x,
                 y: st.y,
                 z: st.z,
+                vx: st.vx || 0,
+                vz: st.vz || 0,
                 rot_y: st.rot_y,
                 speed: st.speed,
                 jumping: Boolean(st.jumping),
@@ -2622,6 +3015,7 @@
             })
         })
             .then(function (r) {
+                var rtt = self._nowPerfMs() - t0;
                 return r.json().catch(function () { return null; }).then(function (b) {
                     if (r.status === 401 || r.status === 403) {
                         self._stopSyncLoop();
@@ -2631,12 +3025,20 @@
                         }
                         return null;
                     }
+                    if (r.ok) {
+                        self._recordNetSample(rtt, nextDelayMode);
+                    } else {
+                        self._recordNetFailure();
+                    }
                     return r.ok ? b : null;
                 });
             })
             .then(function (data) {
                 var f2 = getFacade(self);
                 if (!data || !data.ok || !self.isOpen || !f2 || self.currentZone !== 'heroes') return;
+                if (data.tick_interval_ms) {
+                    self.netStats.tickIntervalMs = Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165));
+                }
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || self.instanceId;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
                 if (data.peer_id && typeof f2.setLocalPeerId === 'function') {
@@ -2648,11 +3050,23 @@
                     self._ingestSyncMessages(data.messages);
                 }
                 self._syncHudState();
+                self._renderPingHud();
                 if (self.instanceMenuOpen) self._renderInstanceList();
             })
-            .catch(function () {})
+            .catch(function () {
+                self._recordNetFailure();
+            })
             .finally(function () {
                 self._syncInFlight = false;
+                if (!self.isOpen || !self.lobbyAuth || self.soloMode || self.currentZone !== 'heroes') {
+                    return;
+                }
+                if (self._syncPendingImmediate) {
+                    self._syncPendingImmediate = false;
+                    self._requestImmediateSync();
+                } else {
+                    self._scheduleNextSyncTick();
+                }
             });
     };
 
@@ -2667,8 +3081,9 @@
             this._activeSyncZone = 'heroes';
             this._syncHudState();
         }
-        var st = facade.getHudSnapshot();
+        var st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
         this._setInstanceMenuOpen(false);
+        var t0 = this._nowPerfMs();
 
         fetch('/funkenwerk-welt/lobby/switch', {
             method: 'POST',
@@ -2683,11 +3098,16 @@
                 x: st.x,
                 y: st.y,
                 z: st.z,
+                vx: st.vx || 0,
+                vz: st.vz || 0,
                 rot_y: st.rot_y,
+                speed: st.speed,
+                jumping: Boolean(st.jumping),
                 zone: 'heroes'
             })
         })
             .then(function (r) {
+                var rtt = self._nowPerfMs() - t0;
                 return r.json().catch(function () { return null; }).then(function (b) {
                     if (r.status === 401 || r.status === 403) {
                         self._stopSyncLoop();
@@ -2696,6 +3116,11 @@
                             fGate.handleSanctumHttpResponse(r.status, b, 'heroes');
                         }
                         return null;
+                    }
+                    if (r.ok) {
+                        self._recordNetSample(rtt, '6,0 Hz');
+                    } else {
+                        self._recordNetFailure();
                     }
                     return r.ok ? b : null;
                 });
@@ -2708,11 +3133,14 @@
                 self.peers = Array.isArray(data.peers) ? data.peers : [];
                 f2.switchInstance(self.peers);
                 self._syncHudState();
+                self._renderPingHud();
                 if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
                     self._startSyncLoop();
                 }
             })
-            .catch(function () {});
+            .catch(function () {
+                self._recordNetFailure();
+            });
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._sendLeaveBeacon = function () {
@@ -2770,6 +3198,14 @@
                 preEl.preload = 'auto';
                 preEl.volume = 0.025;
                 window.__sfPrewarmLobbyBgmEl = preEl;
+                ensurePrewarmRegistryAndRegister(preEl);
+                window.__sfLobbyAudioGraceUntil = Date.now() + 1200;
+                var self = this;
+                setTimeout(function () {
+                    if (!self.isOpen && window.__sfPrewarmLobbyBgmEl === preEl) {
+                        stopPrewarmAndForceLobbySilence();
+                    }
+                }, 1500);
                 var p = preEl.play();
                 if (p && typeof p.catch === 'function') p.catch(function () {});
             }
@@ -2813,6 +3249,7 @@
                 self._syncRealtimeHud();
             }, 120);
         }
+        this._startAtelierPingLoop();
 
         var existingFacade = getFacade(this);
         if (existingFacade) {
@@ -2853,7 +3290,12 @@
 
         Promise.all([showroomReq, heroesReq, modReq])
             .then(function (results) {
-                if (!self.isOpen || seq !== self._openSeq) return;
+                if (!self.isOpen || seq !== self._openSeq) {
+                    if (!self.isOpen) {
+                        stopPrewarmAndForceLobbySilence();
+                    }
+                    return;
+                }
                 var shopJson = results[0];
                 var heroesJson = results[1];
                 var mod = results[2];
@@ -2968,6 +3410,10 @@
                         self.currentZone = zone;
                         self._handleZoneSyncTransition(zone);
                         self._syncHudState();
+                        self._renderPingHud();
+                    },
+                    onLocalUrgentSyncNeeded: function () {
+                        self._requestImmediateSync();
                     },
                     onAuthGatePrompt: function (zone, accessState) {
                         self._setSanctumGateOpen(true, 'heroes', accessState);
@@ -3018,6 +3464,7 @@
                 }
             })
             .catch(function () {
+                stopPrewarmAndForceLobbySilence();
                 if (self.loadingEl) {
                     var txt = self.loadingEl.querySelector('[data-lobby-loading-text]');
                     if (txt) txt.textContent = '3D-Atelier konnte auf diesem Gerät nicht geladen werden.';
@@ -3026,8 +3473,17 @@
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype.close = function () {
-        if (!this.isOpen) return;
+        if (!this.isOpen) {
+            stopPrewarmAndForceLobbySilence();
+            return;
+        }
         this._stopSyncLoop();
+        this._stopAtelierPingLoop();
+        this.pingTooltipOpen = false;
+        if (this.modalEl) {
+            var pAnc = this.modalEl.querySelector('[data-lobby-ping-anchor]');
+            if (pAnc) pAnc.classList.remove('is-open');
+        }
         if (this._activeSyncZone === 'heroes') {
             this._sendLeaveBeacon();
         }
@@ -3052,6 +3508,9 @@
         if (this.modalEl) {
             var ivoryEl = this.modalEl.querySelector('[data-lobby-ivory-transition]');
             if (ivoryEl) ivoryEl.classList.remove('is-fading');
+            this.modalEl.classList.remove('is-open');
+            this.modalEl.classList.add('is-closed');
+            this.modalEl.style.display = 'none';
         }
 
         if (this._audioUnsub) {
@@ -3079,28 +3538,19 @@
         if (this._audio && typeof this._audio.setLobbyActive === 'function') {
             this._audio.setLobbyActive(false);
         }
-        if (typeof window !== 'undefined' && window.__sfPrewarmLobbyBgmEl) {
-            try {
-                window.__sfPrewarmLobbyBgmEl.pause();
-                window.__sfPrewarmLobbyBgmEl.volume = 0;
-            } catch (e) {}
-        }
         var facade = getFacade(this);
         if (facade) {
             facade.destroy();
             setFacade(this, null);
         }
-        if (this.modalEl) {
-            this.modalEl.classList.remove('is-open');
-            this.modalEl.classList.add('is-closed');
-            this.modalEl.style.display = 'none';
-        }
+        stopPrewarmAndForceLobbySilence();
         document.documentElement.style.overflow = this.prevHtmlOverflow;
         document.body.style.overflow = this.prevBodyOverflow;
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype.dispose = function () {
         this.close();
+        stopPrewarmAndForceLobbySilence();
         if (this._fsResizeTimer) {
             clearTimeout(this._fsResizeTimer);
             this._fsResizeTimer = null;
@@ -3110,6 +3560,8 @@
         document.removeEventListener('webkitfullscreenchange', this._boundFullscreenChange);
         document.removeEventListener('click', this._boundOutsideClick);
         window.removeEventListener('pagehide', this._boundPageHide);
+        window.removeEventListener('beforeunload', this._boundPageHide);
+        document.removeEventListener('livewire:navigating', this._boundLivewireNavigating);
         if (this.modalEl && this.modalEl.parentNode) {
             this.modalEl.parentNode.removeChild(this.modalEl);
         }

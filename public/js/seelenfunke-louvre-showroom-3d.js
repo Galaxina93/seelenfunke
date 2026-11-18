@@ -4,7 +4,7 @@
  * On-Demand ES-Modul: 0 KB Initial-Last auf /shop & /mein-konto, 0 % CPU/GPU nach dem Schliessen.
  */
 
-import { getLobbyAudioInstance, SeelenfunkeLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v3';
+import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v6';
 
 const TWO_PI = Math.PI * 2;
 const PROXIMITY_FOCUS_ENTER = 3.4;
@@ -1352,6 +1352,139 @@ export const SF_LOBBY_SCOPED_CSS = `
     box-shadow: 0 4px 10px rgba(17, 24, 39, 0.10);
     cursor: help;
 }
+@keyframes sfLobbyPingPulse {
+    0% { transform: scale(1); opacity: 0.38; }
+    70% { transform: scale(1.85); opacity: 0; }
+    100% { transform: scale(1.85); opacity: 0; }
+}
+.sf-lobby-ping-anchor {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 34;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+}
+.sf-lobby-ping-dot {
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    margin: 0;
+    border-radius: 999px;
+    background: #FFFFFF;
+    border: 1.5px solid #C5A059;
+    box-shadow: 0 4px 10px rgba(17, 24, 39, 0.14);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    outline: none;
+}
+.sf-lobby-ping-core {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    display: block;
+    position: relative;
+    z-index: 2;
+    background: #10B981;
+    transition: background-color 160ms ease;
+}
+.sf-lobby-ping-pulse {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #10B981;
+    opacity: 0.34;
+    animation: sfLobbyPingPulse 2.4s ease-out infinite;
+    pointer-events: none;
+}
+.sf-lobby-ping-dot.is-optimal .sf-lobby-ping-core,
+.sf-lobby-ping-dot.is-optimal .sf-lobby-ping-pulse { background: #10B981; }
+.sf-lobby-ping-dot.is-good .sf-lobby-ping-core,
+.sf-lobby-ping-dot.is-good .sf-lobby-ping-pulse { background: #D97706; }
+.sf-lobby-ping-dot.is-delayed .sf-lobby-ping-core,
+.sf-lobby-ping-dot.is-delayed .sf-lobby-ping-pulse { background: #DC2626; }
+.sf-lobby-ping-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: -56px;
+    width: 214px;
+    background: #FAF8F5;
+    border: 1px solid #C5A059;
+    border-radius: 14px;
+    padding: 10px 12px;
+    box-shadow: 0 14px 32px rgba(17, 24, 39, 0.15);
+    color: #111827;
+    box-sizing: border-box;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+    pointer-events: none;
+    z-index: 40;
+}
+.sf-lobby-ping-anchor:hover .sf-lobby-ping-tooltip,
+.sf-lobby-ping-anchor:focus-within .sf-lobby-ping-tooltip,
+.sf-lobby-ping-anchor.is-open .sf-lobby-ping-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+.sf-lobby-ping-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid rgba(197, 160, 89, 0.28);
+    font-size: 11.5px;
+    font-weight: 800;
+    color: #111827;
+}
+.sf-lobby-ping-badge {
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.35;
+    white-space: nowrap;
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    color: #065F46;
+}
+.sf-lobby-ping-badge.is-good {
+    background: #FFFBEB;
+    border-color: #FDE68A;
+    color: #92400E;
+}
+.sf-lobby-ping-badge.is-delayed {
+    background: #FEF2F2;
+    border-color: #FECACA;
+    color: #B91C1C;
+}
+.sf-lobby-ping-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #4B5563;
+}
+.sf-lobby-ping-row strong {
+    font-weight: 800;
+    color: #111827;
+    white-space: nowrap;
+}
 .sf-lobby-sanctum-list {
     display: flex;
     flex-direction: column;
@@ -1489,6 +1622,7 @@ export const SF_LOBBY_SCOPED_CSS = `
     .sf-lobby-topright-stack { top: 62px; right: 10px; gap: 6px; }
     .sf-lobby-minimap-wrap { width: 138px; height: 138px; }
     .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; }
+    .sf-lobby-ping-tooltip { right: -48px; width: 202px; }
 }
 @media (max-width: 767px) {
     .sf-lobby-zone-badge { padding: 4px 8px; font-size: 10px; }
@@ -1517,7 +1651,7 @@ export function ensureLobbyScopedStyles() {
         styleEl.id = 'sf-3d-lobby-scoped-css';
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
         (document.head || document.documentElement).appendChild(styleEl);
-    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-atelier-star-card') === -1) {
+    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-lobby-ping-anchor') === -1) {
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
     }
 }
@@ -3661,6 +3795,8 @@ class SeelenfunkeLouvreShowroom3D {
         this.onAtelierStarStationFocusChange = typeof options.onAtelierStarStationFocusChange === 'function' ? options.onAtelierStarStationFocusChange : null;
         this.onTeleportTransition = typeof options.onTeleportTransition === 'function' ? options.onTeleportTransition : null;
         this.onPlayerHudChange = typeof options.onPlayerHudChange === 'function' ? options.onPlayerHudChange : null;
+        this.onLocalUrgentSyncNeeded = typeof options.onLocalUrgentSyncNeeded === 'function' ? options.onLocalUrgentSyncNeeded : null;
+        this._lastUrgentSyncSnap = null;
 
         this.THREE = null;
         this.renderer = null;
@@ -3828,6 +3964,8 @@ class SeelenfunkeLouvreShowroom3D {
             smoothInputRight: 0.0,
             velX: 0.0,
             velZ: 0.0,
+            worldVx: 0.0,
+            worldVz: 0.0,
             smoothTurnRate: 0.0,
             autoTarget: null,
             autoLookAt: null,
@@ -10373,6 +10511,9 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.wallFlipVz = wnZ * 6.5;
             this.player.velX = this.player.wallFlipVx;
             this.player.velZ = this.player.wallFlipVz;
+            this.player.worldVx = this.player.wallFlipVx;
+            this.player.worldVz = this.player.wallFlipVz;
+            this.player.currentSpeed = Math.hypot(this.player.worldVx, this.player.worldVz);
             this.player.isSomersault = true;
             this.player.somersaultDir = -1;
             this.player.somersaultDuration = 0.62;
@@ -10385,6 +10526,7 @@ class SeelenfunkeLouvreShowroom3D {
                 wnZ
             );
             if (this.audio) this.audio.playJump(true);
+            this._notifyLocalUrgentSync('wall_flip');
             return true;
         }
 
@@ -10407,6 +10549,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.somersaultDuration = 0.52;
             this.player.somersaultProgress = 0.0;
             if (this.audio) this.audio.playJump(false);
+            this._notifyLocalUrgentSync('jump');
             return true;
         }
 
@@ -10421,6 +10564,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.somersaultProgress = 0.0;
             this._spawnDoubleJumpBurst(this.player.x, (this.player.y || 0) + 0.12, this.player.z);
             if (this.audio) this.audio.playJump(true);
+            this._notifyLocalUrgentSync('double_jump');
             return true;
         }
 
@@ -10673,6 +10817,7 @@ class SeelenfunkeLouvreShowroom3D {
             clap: 3.2,
         };
         this.player.emoteTimer = durations[name] || 3.0;
+        this._notifyLocalUrgentSync('emote');
         return true;
     }
 
@@ -10737,19 +10882,86 @@ class SeelenfunkeLouvreShowroom3D {
         const rawYaw = this.player.yaw || 0;
         const normYaw = Math.atan2(Math.sin(rawYaw), Math.cos(rawYaw));
         const activeEmote = (this.player.emote && (this.player.emoteTimer || 0) > 0) ? String(this.player.emote) : null;
+        const cleanSpeed = Number((this.player.currentSpeed || 0).toFixed(3));
+        const cleanVx = (!this.player.isWallClinging && cleanSpeed >= 0.02)
+            ? Number(clamp(this.player.worldVx || 0, -9.5, 9.5).toFixed(3))
+            : 0;
+        const cleanVz = (!this.player.isWallClinging && cleanSpeed >= 0.02)
+            ? Number(clamp(this.player.worldVz || 0, -9.5, 9.5).toFixed(3))
+            : 0;
         return {
             x: Number((this.player.x || 0).toFixed(3)),
             y: Number((this.player.y || 0).toFixed(3)),
             z: Number((this.player.z || 0).toFixed(3)),
+            vx: cleanVx,
+            vz: cleanVz,
             rot_y: Number(normYaw.toFixed(3)),
             rotY: Number(normYaw.toFixed(3)),
-            speed: Number((this.player.currentSpeed || 0).toFixed(3)),
+            speed: cleanSpeed,
             zone: this.getCurrentZone(),
-            jumping: Boolean(this.player.isJumping || (this.player.y || 0) > 0.02),
+            jumping: Boolean(this.player.isJumping || this.player.isWallClinging || (this.player.y || 0) > 0.02),
             emote: activeEmote,
             combo_seq: 0,
             combo_stage: 0,
         };
+    }
+
+    _notifyLocalUrgentSync(reason = 'state_change') {
+        if (this.destroyed || this.soloMode || !this.onLocalUrgentSyncNeeded || this.getCurrentZone() !== 'heroes') {
+            return;
+        }
+        const st = this.getLocalSyncState();
+        const moving = st.speed > 0.08;
+        this._lastUrgentSyncSnap = {
+            moving,
+            jumping: st.jumping,
+            emote: st.emote || null,
+            velAngle: moving ? Math.atan2(st.vx, st.vz) : (this._lastUrgentSyncSnap ? this._lastUrgentSyncSnap.velAngle : st.rot_y),
+            speed: st.speed,
+        };
+        this.onLocalUrgentSyncNeeded(reason, st);
+    }
+
+    _evaluateLocalUrgentSync() {
+        if (this.destroyed || this.soloMode || !this.onLocalUrgentSyncNeeded || this.getCurrentZone() !== 'heroes') {
+            this._lastUrgentSyncSnap = null;
+            return;
+        }
+        const st = this.getLocalSyncState();
+        const moving = st.speed > 0.08;
+        const velAngle = moving ? Math.atan2(st.vx, st.vz) : 0;
+
+        if (!this._lastUrgentSyncSnap) {
+            this._lastUrgentSyncSnap = {
+                moving,
+                jumping: st.jumping,
+                emote: st.emote || null,
+                velAngle,
+                speed: st.speed,
+            };
+            return;
+        }
+
+        const prev = this._lastUrgentSyncSnap;
+        const moveToggled = moving !== prev.moving;
+        const jumpStarted = (!prev.jumping && st.jumping) || (prev.jumping && !st.jumping);
+        const emoteChanged = (st.emote || null) !== (prev.emote || null);
+        const dirTurned = moving && prev.moving && Math.abs(shortestAngleDiff(prev.velAngle, velAngle)) > (25 * Math.PI / 180);
+        const sprintToggled = moving && prev.moving && Math.abs(st.speed - prev.speed) > 2.4;
+
+        if (moveToggled || jumpStarted || emoteChanged || dirTurned || sprintToggled) {
+            this._lastUrgentSyncSnap = {
+                moving,
+                jumping: st.jumping,
+                emote: st.emote || null,
+                velAngle,
+                speed: st.speed,
+            };
+            this.onLocalUrgentSyncNeeded(
+                jumpStarted ? 'jump' : (emoteChanged ? 'emote' : (moveToggled ? 'move_toggle' : 'direction')),
+                st
+            );
+        }
     }
 
     setLocalPeerId(peerId) {
@@ -10883,17 +11095,18 @@ class SeelenfunkeLouvreShowroom3D {
             incomingIds.add(pid);
 
             let peer = this.peers.get(pid);
-            const maxPeerX = this.pantheonHalfW - 0.6;
-            let tx = clamp(Number(pData.x) || 0, -this.pantheonHalfW + 0.6, maxPeerX);
-            let tz = clamp(Number(pData.z) || 8.4, this.pantheonMinZ + 0.8, this.hallSouthZ - 1.0);
-            if (peerZone === 'heroes' && tz > this.hallNorthZ - 2.0) {
-                tz = this.pantheonCenterZ + 8.5;
-            }
+            const minPeerX = -this.pantheonHalfW + 0.42;
+            const maxPeerX = this.pantheonHalfW - 0.42;
+            const minPeerZ = this.pantheonMinZ + 0.42;
+            const maxPeerZ = this.heroesEntryZ + 0.6;
+            let tx = clamp(Number(pData.x) || 0, minPeerX, maxPeerX);
+            let tz = clamp(Number(pData.z) || (this.pantheonCenterZ + 8.5), minPeerZ, maxPeerZ);
             const ty = clamp(Number(pData.y) || 0, -1.5, 9.5);
             const tYaw = Number(pData.rot_y ?? pData.rotY) || 0;
             const reportedSpeed = Math.max(0, Number(pData.speed) || 0);
-            const wSeq = parseInt(pData.combo_seq ?? pData.weapon_seq, 10) || 0;
-            const cStage = clamp(parseInt(pData.combo_stage, 10) || 1, 1, 4);
+            const isPeerJumping = Boolean(pData.jumping);
+            const hasExplicitVx = pData.vx !== undefined && pData.vx !== null && Number.isFinite(Number(pData.vx));
+            const hasExplicitVz = pData.vz !== undefined && pData.vz !== null && Number.isFinite(Number(pData.vz));
             const peerLvl = clamp(parseInt(pData.level, 10) || 1, 1, 10);
 
             if (!peer) {
@@ -10940,8 +11153,10 @@ class SeelenfunkeLouvreShowroom3D {
                     targetY: ty,
                     targetZ: tz,
                     targetYaw: tYaw,
-                    vx: Number.isFinite(Number(pData.vx)) ? Number(pData.vx) : 0,
-                    vz: Number.isFinite(Number(pData.vz)) ? Number(pData.vz) : 0,
+                    vx: hasExplicitVx ? clamp(Number(pData.vx), -9.5, 9.5) : 0,
+                    vz: hasExplicitVz ? clamp(Number(pData.vz), -9.5, 9.5) : 0,
+                    jumping: isPeerJumping,
+                    packetTime: this.elapsedTime,
                     lastPacketAt: this.elapsedTime,
                     reportedSpeed,
                     emote: pData.emote ? String(pData.emote) : null,
@@ -10957,15 +11172,24 @@ class SeelenfunkeLouvreShowroom3D {
                 };
                 this.peers.set(pid, peer);
             } else {
-                const dtPacket = Math.max(0.18, Math.min(2.2, this.elapsedTime - (peer.lastPacketAt || (this.elapsedTime - 0.95))));
-                const inferredVx = clamp((tx - peer.targetX) / dtPacket, -8.8, 8.8);
-                const inferredVz = clamp((tz - peer.targetZ) / dtPacket, -8.8, 8.8);
-                peer.vx = Number.isFinite(Number(pData.vx))
-                    ? clamp(Number(pData.vx), -8.8, 8.8)
+                const dtPacket = Math.max(0.06, Math.min(1.2, this.elapsedTime - (peer.packetTime || peer.lastPacketAt || (this.elapsedTime - 0.165))));
+                const distJump = Math.hypot(tx - peer.x, tz - peer.z);
+                if (distJump > 4.5) {
+                    peer.x = tx;
+                    peer.y = ty;
+                    peer.z = tz;
+                    peer.yaw = tYaw;
+                }
+                const inferredVx = distJump > 4.5 ? 0 : clamp((tx - peer.targetX) / dtPacket, -9.5, 9.5);
+                const inferredVz = distJump > 4.5 ? 0 : clamp((tz - peer.targetZ) / dtPacket, -9.5, 9.5);
+                peer.vx = hasExplicitVx
+                    ? (reportedSpeed > 0.04 || isPeerJumping ? clamp(Number(pData.vx), -9.5, 9.5) : 0)
                     : (reportedSpeed > 0.08 ? inferredVx : 0);
-                peer.vz = Number.isFinite(Number(pData.vz))
-                    ? clamp(Number(pData.vz), -8.8, 8.8)
+                peer.vz = hasExplicitVz
+                    ? (reportedSpeed > 0.04 || isPeerJumping ? clamp(Number(pData.vz), -9.5, 9.5) : 0)
                     : (reportedSpeed > 0.08 ? inferredVz : 0);
+                peer.jumping = isPeerJumping;
+                peer.packetTime = this.elapsedTime;
                 peer.lastPacketAt = this.elapsedTime;
                 peer.targetX = tx;
                 peer.targetY = ty;
@@ -10989,36 +11213,51 @@ class SeelenfunkeLouvreShowroom3D {
     _updatePeersKinematics(dt) {
         if (this.peers.size === 0) return;
 
-        // Sanfte Positions-Nachfuehrung (~4.2) + Velocity-Extrapolation: 0 Stop-and-Go-Ruckeln bei 950 ms Sync!
-        const smooth = 1.0 - Math.exp(-dt * 4.2);
-        const blendSmooth = 1.0 - Math.exp(-dt * 7.5);
-        const strideFrequency = 4.48;
-        const maxPeerX = this.pantheonHalfW - 0.6;
+        // 60-FPS AAA-Dead-Reckoning (Vorwaertsintegration + knackige Fehlerkorrektur ohne Gummiband-Nachhaengen!)
+        const ySmooth = 1.0 - Math.exp(-dt * 18.0);
+        const yawSmooth = 1.0 - Math.exp(-dt * 16.0);
+        const blendSmooth = 1.0 - Math.exp(-dt * 11.5);
+        const minPeerX = -this.pantheonHalfW + 0.42;
+        const maxPeerX = this.pantheonHalfW - 0.42;
+        const minPeerZ = this.pantheonMinZ + 0.42;
+        const maxPeerZ = this.heroesEntryZ + 0.6;
 
         this.peers.forEach((peer, pid) => {
             const prevX = peer.x;
             const prevZ = peer.z;
 
-            const sincePacket = Math.max(0, this.elapsedTime - (peer.lastPacketAt || this.elapsedTime));
-            const extrapFactor = sincePacket < 1.05 ? (1.0 - (sincePacket / 1.05) * 0.45) : 0.0;
-            const predX = clamp(peer.targetX + (peer.vx || 0) * Math.min(sincePacket, 0.95) * extrapFactor, -maxPeerX, maxPeerX);
-            const predZ = clamp(peer.targetZ + (peer.vz || 0) * Math.min(sincePacket, 0.95) * extrapFactor, this.pantheonMinZ + 0.8, this.hallNorthZ - 2.0);
+            const sincePacket = clamp(this.elapsedTime - (peer.lastPacketAt || this.elapsedTime), 0, 0.38);
+            const predX = clamp(peer.targetX + (peer.vx || 0) * sincePacket, minPeerX, maxPeerX);
+            const predZ = clamp(peer.targetZ + (peer.vz || 0) * sincePacket, minPeerZ, maxPeerZ);
 
-            peer.x = lerp(peer.x, predX, smooth);
-            peer.y = lerp(peer.y, peer.targetY, smooth);
-            peer.z = lerp(peer.z, predZ, smooth);
-            peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, smooth);
+            const advFactor = sincePacket < 0.32 ? 0.65 : 0;
+            const stepAdvX = clamp(peer.x + (peer.vx || 0) * dt * advFactor, minPeerX, maxPeerX);
+            const stepAdvZ = clamp(peer.z + (peer.vz || 0) * dt * advFactor, minPeerZ, maxPeerZ);
+            const posBlend = 1.0 - Math.exp(-dt * (peer.reportedSpeed > 0.08 ? 13.5 : 18.0));
 
-            // Lauf-Animation orientiert sich strikt an echter Bewegungsdistanz (kein starrer 1.9s-Timer!)
+            peer.x = lerp(stepAdvX, predX, posBlend);
+            peer.z = lerp(stepAdvZ, predZ, posBlend);
+            if (peer.reportedSpeed <= 0.04 && Math.hypot(predX - peer.x, predZ - peer.z) < 0.004) {
+                peer.x = predX;
+                peer.z = predZ;
+            }
+            peer.y = lerp(peer.y, peer.targetY, ySmooth);
+            peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, yawSmooth);
+
+            // Lauf-Animation orientiert sich an echter Distanz und stoppt punktgenau bei reportedSpeed == 0
             const stepDist = Math.hypot(peer.x - prevX, peer.z - prevZ);
             const measuredSpeed = stepDist / Math.max(0.001, dt);
-            const effectiveSpeed = measuredSpeed;
+            const effectiveSpeed = (peer.reportedSpeed <= 0.04 && Math.hypot(predX - peer.x, predZ - peer.z) < 0.05)
+                ? 0
+                : Math.max(measuredSpeed, sincePacket < 0.32 ? peer.reportedSpeed * 0.90 : 0);
 
             const floorOffset = this._computeFloorBaseY(peer.x, peer.z);
             const support = { shadowY: 0 };
             const aboveGround = Math.max(0, peer.y - support.shadowY);
-            const airBlend = clamp(aboveGround / 0.26, 0, 1);
-            const peerSprint = effectiveSpeed > 6.4 ? 1.0 : 0.0;
+            const airBlend = peer.jumping ? Math.max(0.38, clamp(aboveGround / 0.24, 0, 1)) : clamp(aboveGround / 0.26, 0, 1);
+            const peerSprintBoost = clamp((effectiveSpeed - 5.2) / 3.6, 0, 1.0);
+            const peerSprint = effectiveSpeed > 6.2 ? 1.0 : 0.0;
+            const strideFrequency = 4.48 + 0.72 * peerSprintBoost;
 
             peer.root.position.set(peer.x, floorOffset + peer.y, peer.z);
             peer.root.rotation.y = peer.yaw;
@@ -11128,14 +11367,20 @@ class SeelenfunkeLouvreShowroom3D {
             j.sparkCrest.rotation.y = this.elapsedTime * 1.4;
 
             if (peer.builtRecord && peer.builtRecord.skinnedRig) {
-                const peerState = airBlend > 0.25 ? 'jump' : (mb > 0.18 ? 'run' : 'idle');
-                this._syncSkinnedFunkiBones(peer.builtRecord.skinnedRig, j, 0, {
+                const skinnedRig = peer.builtRecord.skinnedRig;
+                const peerState = (peer.jumping || airBlend > 0.25) ? 'jump' : (mb > 0.18 ? 'run' : 'idle');
+                this._syncSkinnedFunkiBones(skinnedRig, j, 0, {
                     dt,
                     speed: effectiveSpeed,
-                    vy: 0,
+                    vy: (peer.targetY - peer.y) * 8.0,
                     turnRate: 0,
                     animState: peerState,
+                    sprintBoost: peerSprintBoost,
                 });
+                if (skinnedRig.actions && skinnedRig.actions.run && effectiveSpeed > 6.2) {
+                    const peerSprintTimeScale = clamp(effectiveSpeed / 5.2, 1.18, 1.72);
+                    skinnedRig.actions.run.setEffectiveTimeScale(peerSprintTimeScale);
+                }
             }
 
             if (peer.nameplateSprite) {
@@ -12719,8 +12964,17 @@ class SeelenfunkeLouvreShowroom3D {
             if (this.player.landSquash < 0.003) this.player.landSquash = 0;
         }
 
+        const safeDt = Math.max(0.001, dt);
         const stepDist = Math.hypot(this.player.x - prevX, this.player.z - prevZ);
-        this.player.currentSpeed = stepDist / Math.max(0.001, dt);
+        this.player.currentSpeed = stepDist / safeDt;
+        if (this.player.isWallClinging || this.player.currentSpeed < 0.02) {
+            this.player.worldVx = 0;
+            this.player.worldVz = 0;
+        } else {
+            this.player.worldVx = clamp((this.player.x - prevX) / safeDt, -9.5, 9.5);
+            this.player.worldVz = clamp((this.player.z - prevZ) / safeDt, -9.5, 9.5);
+        }
+        this._evaluateLocalUrgentSync();
 
         const yawDiff = shortestAngleDiff(prevYaw, this.player.yaw);
         const rawTurnRate = clamp(yawDiff / Math.max(0.004, dt), -14.0, 14.0);
@@ -13183,6 +13437,9 @@ export function createLouvreShowroom(options) {
         triggerEmote(name) {
             return engine.triggerEmote(name);
         },
+        getLocalSyncState() {
+            return Object.freeze(engine.getLocalSyncState());
+        },
         getHudSnapshot() {
             const sync = engine.getLocalSyncState();
             return Object.freeze({
@@ -13193,6 +13450,8 @@ export function createLouvreShowroom(options) {
                 x: sync.x,
                 y: sync.y,
                 z: sync.z,
+                vx: sync.vx,
+                vz: sync.vz,
                 rot_y: sync.rot_y,
                 rotY: sync.rotY,
                 speed: sync.speed,
