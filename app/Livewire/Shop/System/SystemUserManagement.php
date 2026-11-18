@@ -64,6 +64,7 @@ class SystemUserManagement extends Component
         'vat_id' => '',
         'internal_note' => '',
         'is_verified' => true,
+        'mmorpg_access_enabled' => false,
         'funken_balance' => 0,
         'funken_total_earned' => 0,
         'funki_level' => 1,
@@ -128,6 +129,7 @@ class SystemUserManagement extends Component
             'vat_id' => '',
             'internal_note' => '',
             'is_verified' => true,
+            'mmorpg_access_enabled' => false,
             'funken_balance' => 0,
             'funken_total_earned' => 0,
             'funki_level' => 1,
@@ -154,6 +156,7 @@ class SystemUserManagement extends Component
             'formData.vat_id' => 'nullable|string|max:50',
             'formData.internal_note' => 'nullable|string|max:5000',
             'formData.is_verified' => 'boolean',
+            'formData.mmorpg_access_enabled' => 'nullable|boolean',
             'formData.funken_balance' => 'nullable|integer|min:0|max:1000000',
             'formData.funken_total_earned' => 'nullable|integer|min:0|max:1000000',
             'formData.funki_level' => 'nullable|integer|min:1|max:10',
@@ -166,13 +169,17 @@ class SystemUserManagement extends Component
             'employee' => Employee::class,
         };
 
-        $user = $class::create([
+        $createPayload = [
             'first_name' => $this->formData['first_name'],
             'last_name' => $this->formData['last_name'],
             'email' => $this->formData['email'],
             'password' => Hash::make($this->formData['password']),
             'email_verified_at' => ($this->createType === 'customer' && $this->formData['is_verified']) ? now() : null,
-        ]);
+        ];
+        if ($this->createType === 'customer') {
+            $createPayload['mmorpg_access_enabled'] = (bool) ($this->formData['mmorpg_access_enabled'] ?? false);
+        }
+        $user = $class::create($createPayload);
 
         if (method_exists($user, 'profile')) {
             $profile = $user->profile()->firstOrCreate([]);
@@ -278,6 +285,9 @@ class SystemUserManagement extends Component
             'is_verified' => $this->editingType === 'customer'
                 ? (!is_null($model->email_verified_at) || !is_null($model->profile->email_verified_at ?? null))
                 : !is_null($model->profile->email_verified_at ?? null),
+            'mmorpg_access_enabled' => ($type === 'customer' && $model instanceof Customer)
+                ? (bool) ($model->mmorpg_access_enabled ?? false)
+                : false,
             'funken_balance' => (int) ($gamification->funken_balance ?? 0),
             'funken_total_earned' => (int) ($gamification->funken_total_earned ?? 0),
             'funki_level' => max(1, min(10, (int) ($gamification->level ?? $gamification->funki_level ?? 1))),
@@ -504,6 +514,57 @@ class SystemUserManagement extends Component
         $this->resetErrorBag();
     }
 
+    public function toggleMmorpgAccess(string $customerId): void
+    {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        /** @var Customer $customer */
+        $customer = Customer::withTrashed()->findOrFail($customerId);
+        $oldState = (bool) $customer->mmorpg_access_enabled;
+        $newState = !$oldState;
+
+        $customer->update([
+            'mmorpg_access_enabled' => $newState,
+        ]);
+
+        if ($this->editingType === 'customer' && (string) $this->editingId === (string) $customer->id) {
+            $this->formData['mmorpg_access_enabled'] = $newState;
+        }
+
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+        SystemLog::create([
+            'type' => 'system',
+            'action_id' => $newState ? 'user:mmorpg_access_granted' : 'user:mmorpg_access_revoked',
+            'title' => $newState ? 'MMORPG-Zugang freigeschaltet' : 'MMORPG-Zugang gesperrt',
+            'message' => sprintf(
+                "MMORPG-Zugang für '%s' wurde von %s %s.",
+                $customer->email,
+                $adminEmail,
+                $newState ? 'freigeschaltet' : 'gesperrt'
+            ),
+            'status' => $newState ? 'success' : 'warning',
+            'payload' => [
+                'actor' => $adminEmail,
+                'user_id' => (string) $customer->id,
+                'target_user' => $customer->email,
+                'mmorpg_access_enabled' => $newState,
+                'changes' => [
+                    'mmorpg_access_enabled' => [
+                        'old' => $oldState,
+                        'new' => $newState,
+                    ],
+                ],
+            ],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        session()->flash('message', $newState ? 'MMORPG-Zugang freigeschaltet.' : 'MMORPG-Zugang gesperrt.');
+        $this->dispatch('notify', message: $newState ? 'MMORPG-Zugang freigeschaltet.' : 'MMORPG-Zugang gesperrt.', type: 'success');
+    }
+
     public function saveInline()
     {
         if (!in_array($this->editingType, ['admin', 'customer', 'employee'], true)) {
@@ -526,6 +587,7 @@ class SystemUserManagement extends Component
             'formData.vat_id' => 'nullable|string|max:50',
             'formData.internal_note' => 'nullable|string|max:5000',
             'formData.is_verified' => 'boolean',
+            'formData.mmorpg_access_enabled' => 'nullable|boolean',
             'formData.funken_balance' => 'nullable|integer|min:0|max:1000000',
             'formData.funken_total_earned' => 'nullable|integer|min:0|max:1000000',
             'formData.funki_level' => 'nullable|integer|min:1|max:10',
@@ -573,6 +635,7 @@ class SystemUserManagement extends Component
             $userUpdate['email_verified_at'] = $this->formData['is_verified']
                 ? ($model->email_verified_at ?? now())
                 : null;
+            $userUpdate['mmorpg_access_enabled'] = (bool) ($this->formData['mmorpg_access_enabled'] ?? false);
         }
 
         $model->update($userUpdate);

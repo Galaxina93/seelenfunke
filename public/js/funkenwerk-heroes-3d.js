@@ -5,72 +5,14 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v2';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v3';
 
     var KEYBIND_ACTIONS = [
         { key: 'jump', label: 'Sprung' },
-        { key: 'strike', label: '1 · Funken-Hieb' },
-        { key: 'sprint', label: '2 · Licht-Sprint' },
-        { key: 'titanJump', label: '3 · Aufwind-Impuls' },
-        { key: 'shield', label: '4 · Aegis-Schild' },
-        { key: 'burst', label: '5 · Seelen-Nova' },
         { key: 'moveForward', label: 'Vorwärts' },
         { key: 'moveLeft', label: 'Links' },
         { key: 'moveBack', label: 'Zurück' },
         { key: 'moveRight', label: 'Rechts' }
-    ];
-
-    var ABILITY_BAR_DEFS = [
-        {
-            slot: 1,
-            testIdAttr: 'data-testid="ability-slot-1-btn"',
-            actionKey: 'strike',
-            name: 'Funken-Hieb',
-            manaText: '0 Mana',
-            cdText: 'Kombo 1-4',
-            desc: '4-stufige Nahkampf-Kombo mit goldenem Wirbel und Finisher-Druckwelle.',
-            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.5 4.5L9.5 16.5"/><path d="M17.5 4.5H21.5V8.5"/><path d="M6.5 14.5L13.5 21.5"/><path d="M5 23L9.5 18.5"/><path d="M18.5 12.5C21 15 21.5 18.8 19.2 21.5" stroke-opacity="0.62"/></svg>'
-        },
-        {
-            slot: 2,
-            testIdAttr: 'data-testid="ability-slot-2-btn"',
-            actionKey: 'sprint',
-            name: 'Licht-Sprint',
-            manaText: '18 Mana',
-            cdText: '10 s Abklingzeit',
-            desc: 'Erhöht dein Lauftempo 4,5 Sekunden lang um 55 % mit goldener Funkenspur.',
-            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 10.5H15.5C17.7 10.5 19.2 9 19.2 7.2C19.2 5.5 17.8 4.3 16.2 4.3C14.8 4.3 13.7 5.2 13.5 6.5"/><path d="M3.5 15H20.5C22.6 15 24.2 16.5 24.2 18.5C24.2 20.4 22.7 21.8 20.9 21.8C19.3 21.8 18.1 20.8 17.9 19.4"/><path d="M6.5 19.5H13.5"/><circle cx="22" cy="9.5" r="1.3" fill="currentColor" stroke="none"/></svg>'
-        },
-        {
-            slot: 3,
-            testIdAttr: 'data-testid="ability-slot-3-btn"',
-            actionKey: 'titanJump',
-            name: 'Aufwind-Impuls',
-            manaText: '22 Mana',
-            cdText: '8 s Abklingzeit',
-            desc: 'Katapultiert dich kraftvoll in die Höhe zum Überwinden weiter Schluchten und Ringe.',
-            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4.5L8.2 11.2H11.8V18.5H16.2V11.2H19.8L14 4.5Z"/><path d="M7 21.2C9.2 19.6 11.5 19 14 19C16.5 19 18.8 19.6 21 21.2"/><path d="M9.5 24C11 23.1 12.4 22.7 14 22.7C15.6 22.7 17 23.1 18.5 24" stroke-opacity="0.65"/></svg>'
-        },
-        {
-            slot: 4,
-            testIdAttr: 'data-testid="ability-slot-4-btn"',
-            actionKey: 'shield',
-            name: 'Aegis-Schild',
-            manaText: '25 Mana',
-            cdText: '15 s Abklingzeit',
-            desc: 'Schützt 6,5 s vor Schockwellen und katapultiert dich bei Lava-Kontakt einmalig hoch hinaus, bevor das Schild zerbricht.',
-            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3.8L22 7.2V13.6C22 18.6 18.6 22.5 14 24.4C9.4 22.5 6 18.6 6 13.6V7.2L14 3.8Z"/><path d="M14 8.2L15.6 11.8L19.4 13.4L15.6 15L14 18.6L12.4 15L8.6 13.4L12.4 11.8L14 8.2Z" stroke-width="1.4"/></svg>'
-        },
-        {
-            slot: 5,
-            testIdAttr: 'data-testid="ability-slot-5-btn"',
-            actionKey: 'burst',
-            name: 'Seelen-Nova',
-            manaText: '30 Mana',
-            cdText: '20 s Abklingzeit',
-            desc: 'Entfesselt eine radiale 24K-Gold-Energiewelle und löst nahe Gefahrenringe im Umkreis auf.',
-            svg: '<svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="14" r="3.6"/><circle cx="14" cy="14" r="8.2" stroke-dasharray="2.6 2.6"/><path d="M14 2.8V5.8M14 22.2V25.2M2.8 14H5.8M22.2 14H25.2M6.1 6.1L8.2 8.2M19.8 19.8L21.9 21.9M21.9 6.1L19.8 8.2M8.2 19.8L6.1 21.9"/></svg>'
-        }
     ];
 
     var STANDALONE_SCOPED_CSS = [
@@ -84,7 +26,7 @@
         '.sf-lobby-nav-pill { pointer-events: auto; background: rgba(255,255,255,0.95); border: 1px solid rgba(197,160,89,0.45); border-radius: 999px; padding: 4px; box-shadow: 0 8px 24px rgba(17,24,39,0.08); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; max-width: 100%; box-sizing: border-box; }',
         '.sf-lobby-zone-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px; border-radius: 999px; background: #FAF8F5; color: #111827; border: 1px solid rgba(197,160,89,0.40); font-size: 12px; font-weight: 800; line-height: 1.2; letter-spacing: 0.01em; white-space: nowrap; pointer-events: none; cursor: default; }',
         '.sf-lobby-stages-btn { appearance: none; border: 1px solid rgba(197,160,89,0.55); border-radius: 999px; padding: 6px 12px; font-size: 11px; font-weight: 800; line-height: 1.2; background: #FAF8F5; color: #111827; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }',
-        '.sf-lobby-actions { pointer-events: auto; display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; }',
+        '.sf-lobby-actions { pointer-events: auto; display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-right: 244px; }',
         '.sf-lobby-pill-btn { appearance: none; background: rgba(255,255,255,0.95); color: #111827; border: 1px solid rgba(197,160,89,0.48); border-radius: 999px; padding: 7px 12px; font-size: 12px; font-weight: 800; line-height: 1.2; box-shadow: 0 8px 24px rgba(17,24,39,0.08); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }',
         '.sf-lobby-pill-btn:hover { background: #FFFFFF; border-color: #C5A059; }',
         '.sf-lobby-pill-btn.is-gold { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }',
@@ -125,27 +67,13 @@
         '.sf-lobby-hero-me { margin-left: auto; padding: 2px 7px; border-radius: 999px; background: #FAF8F5; border: 1px solid #C5A059; font-size: 9px; font-weight: 900; color: #9A7738; }',
         '.sf-lobby-hero-stats { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }',
         '.sf-lobby-hero-chip { padding: 3px 8px; border-radius: 8px; background: #FAF8F5; border: 1px solid rgba(197,160,89,0.38); font-size: 11px; font-weight: 700; color: #111827; }',
-        '.sf-lobby-portal-pill { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: rgba(255,255,255,0.97); color: #111827; border: 1px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.14); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }',
-        '.sf-lobby-lava-chest-card { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 999px; background: rgba(255,255,255,0.98); color: #111827; border: 1.5px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.16); font-size: 12px; font-weight: 800; white-space: nowrap; cursor: pointer; text-decoration: none; }',
-        '.sf-lobby-lava-chest-card.is-cta { background: #C5A059; color: #FFFFFF; }',
-        '.sf-lobby-lava-chest-card.is-cta:hover { background: #B38E46; }',
-        '.sf-lobby-unit-frame { pointer-events: auto; display: inline-flex; align-items: center; gap: 9px; padding: 6px 13px 6px 7px; border-radius: 999px; background: rgba(255,255,255,0.96); border: 1px solid rgba(197,160,89,0.55); box-shadow: 0 8px 24px rgba(17,24,39,0.08); color: #111827; }',
-        '.sf-lobby-unit-avatar { width: 32px; height: 32px; border-radius: 999px; background: #FAF8F5; border: 1.5px solid #C5A059; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #9A7738; flex-shrink: 0; }',
-        '.sf-lobby-unit-meta { display: flex; flex-direction: column; gap: 3px; min-width: 134px; }',
-        '.sf-lobby-unit-mana-row { display: flex; align-items: center; gap: 6px; }',
-        '.sf-lobby-unit-mana-label { font-size: 9.5px; font-weight: 900; letter-spacing: 0.06em; text-transform: uppercase; color: #1D4ED8; line-height: 1; flex-shrink: 0; }',
-        '.sf-lobby-unit-mana-track { flex: 1 1 auto; height: 6px; border-radius: 999px; background: rgba(29,78,216,0.16); border: 1px solid rgba(29,78,216,0.26); overflow: hidden; }',
-        '.sf-lobby-unit-mana-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%); transition: width 160ms ease; }',
-        '.sf-lobby-unit-mana-val { font-size: 9.5px; font-weight: 800; color: #1E40AF; line-height: 1; flex-shrink: 0; font-variant-numeric: tabular-nums; }',
-        '.sf-lobby-topright-stack { position: absolute; top: 60px; right: 18px; z-index: 25; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }',
-        '.sf-lobby-vital-hud { pointer-events: auto; width: 180px; padding: 8px 11px 7px; border-radius: 16px; background: rgba(255,255,255,0.96); border: 1.5px solid #C5A059; box-shadow: 0 10px 26px rgba(17,24,39,0.12); display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; }',
-        '.sf-lobby-vital-hearts { display: flex; align-items: center; justify-content: space-between; gap: 3px; }',
-        '.sf-lobby-heart-icon { width: 21px; height: 21px; display: inline-flex; align-items: center; justify-content: center; transition: transform 220ms cubic-bezier(0.22,1,0.36,1), opacity 220ms ease; }',
-        '.sf-lobby-heart-icon svg { width: 100%; height: 100%; display: block; overflow: visible; }',
-        '.sf-lobby-heart-icon.is-shattering { animation: sfHeartShatter 520ms cubic-bezier(0.22,1,0.36,1); }',
-        '@keyframes sfHeartShatter { 0% { transform: scale(1.28) rotate(-8deg); filter: brightness(1.3); } 45% { transform: scale(0.72) rotate(10deg); } 100% { transform: scale(1) rotate(0deg); filter: none; } }',
-        '.sf-lobby-demote-banner { position: absolute; top: 68px; left: 50%; transform: translateX(-50%); z-index: 42; padding: 9px 18px; border-radius: 999px; background: rgba(255,255,255,0.98); border: 1.5px solid #DC2626; color: #991B1B; font-size: 12.5px; font-weight: 800; box-shadow: 0 14px 32px rgba(17,24,39,0.18); white-space: nowrap; pointer-events: none; }',
-        '.sf-lobby-minimap-wrap { position: relative; width: 180px; height: 180px; z-index: 25; pointer-events: auto; display: flex; align-items: center; justify-content: center; }',
+        '.sf-lobby-portal-pill { pointer-events: auto; appearance: none; display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; background: rgba(255,255,255,0.97); color: #111827; border: 1px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.14); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; cursor: pointer; }',
+        '.sf-lobby-portal-pill:hover { background: #FFFFFF; border-color: #B38E46; }',
+        '.sf-lobby-unit-frame { pointer-events: auto; display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px 7px 8px; border-radius: 999px; background: rgba(255,255,255,0.96); border: 1.5px solid rgba(197,160,89,0.60); box-shadow: 0 8px 24px rgba(17,24,39,0.08); color: #111827; }',
+        '.sf-lobby-unit-avatar { width: 34px; height: 34px; border-radius: 999px; background: #FAF8F5; border: 1.5px solid #C5A059; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #9A7738; flex-shrink: 0; }',
+        '.sf-lobby-unit-meta { display: flex; align-items: center; gap: 10px; }',
+        '.sf-lobby-topright-stack { position: absolute; top: 14px; right: 18px; z-index: 25; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }',
+        '.sf-lobby-minimap-wrap { position: relative; width: 232px; height: 232px; z-index: 25; pointer-events: auto; display: flex; align-items: center; justify-content: center; }',
         '.sf-lobby-minimap-canvas { width: 100%; height: 100%; border-radius: 999px; background: rgba(255,255,255,0.96); border: 2.5px solid #C5A059; box-shadow: 0 12px 30px rgba(17,24,39,0.16), 0 0 0 3px rgba(255,255,255,0.72); display: block; }',
         '.sf-lobby-minimap-time { position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); padding: 2px 10px; border-radius: 999px; background: #FFFFFF; border: 1px solid #C5A059; color: #111827; font-size: 10.5px; font-weight: 800; line-height: 1.25; white-space: nowrap; box-shadow: 0 4px 12px rgba(17,24,39,0.12); cursor: help; }',
         '.sf-lobby-exhibit-step-row { margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(197,160,89,0.22); display: flex; align-items: center; justify-content: space-between; gap: 4px; }',
@@ -165,27 +93,12 @@
         '.sf-lobby-pwd-eye:hover { color: #111827; background: #FAF6EE; }',
         '.sf-lobby-inline-error { padding: 7px 10px; border-radius: 9px; background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; font-size: 11.5px; font-weight: 700; }',
         '.sf-lobby-inline-check { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #111827; cursor: pointer; }',
-        '.sf-lobby-gold-crest-bar { position: absolute; left: 0; right: 0; bottom: 0; min-height: 62px; padding: 6px 20px calc(8px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgba(250,248,245,0.88) 0%, rgba(255,255,255,0.98) 38%, #FAF6EE 100%); border-top: 2px solid #C5A059; box-shadow: 0 -8px 28px rgba(17,24,39,0.09), 0 1px 0 rgba(255,255,255,0.9) inset; display: flex; align-items: center; justify-content: center; z-index: 26; pointer-events: auto; box-sizing: border-box; }',
+        '.sf-lobby-gold-crest-bar { position: absolute; left: 0; right: 0; bottom: 0; min-height: 56px; padding: 6px 20px calc(8px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(180deg, rgba(250,248,245,0.88) 0%, rgba(255,255,255,0.98) 38%, #FAF6EE 100%); border-top: 2px solid #C5A059; box-shadow: 0 -8px 28px rgba(17,24,39,0.09), 0 1px 0 rgba(255,255,255,0.9) inset; display: flex; align-items: center; justify-content: center; z-index: 26; pointer-events: auto; box-sizing: border-box; }',
         '.sf-lobby-gold-crest-bar::before { content: ""; position: absolute; top: 3px; left: 18px; right: 18px; height: 1px; background: linear-gradient(90deg, transparent 0%, rgba(197,160,89,0.55) 18%, rgba(197,160,89,0.85) 50%, rgba(197,160,89,0.55) 82%, transparent 100%); pointer-events: none; }',
-        '.sf-lobby-copyright { position: absolute; left: 20px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: #7C6334; white-space: nowrap; pointer-events: none; }',
-        '.sf-lobby-abilities-dock { position: relative; display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 27; pointer-events: auto; }',
-        '.sf-ability-btn { position: relative; width: 48px; height: 48px; border-radius: 13px; background: #FFFFFF; border: 1.5px solid rgba(197,160,89,0.68); color: #8A692C; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 14px rgba(17,24,39,0.08), 0 0 0 1px rgba(250,246,238,0.9) inset; transition: transform 0.14s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease; padding: 0; }',
-        '.sf-ability-btn:hover { border-color: #C5A059; transform: translateY(-2px); background: #FAF6EE; color: #6E501B; }',
-        '.sf-ability-btn.is-active { border-color: #C5A059; background: #FAF3E3; color: #78561C; box-shadow: 0 6px 18px rgba(197,160,89,0.34); }',
-        '.sf-ability-btn.is-cooldown { opacity: 0.56; border-color: rgba(156,163,175,0.55); color: #6B7280; }',
-        '.sf-ability-svg { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; pointer-events: none; }',
-        '.sf-ability-svg svg { width: 100%; height: 100%; display: block; }',
-        '.sf-ability-key { position: absolute; top: 3px; left: 5px; font-size: 9px; font-weight: 900; color: #6B7280; line-height: 1; pointer-events: none; }',
-        '.sf-ability-cd { position: absolute; bottom: 3px; right: 4px; font-size: 9px; font-weight: 800; color: #FFFFFF; background: rgba(17,24,39,0.88); padding: 1px 4px; border-radius: 5px; line-height: 1; pointer-events: none; }',
-        '.sf-ability-combo-badge { position: absolute; top: -6px; right: -6px; background: #C5A059; color: #FFFFFF; font-size: 9px; font-weight: 900; padding: 2px 5px; border-radius: 999px; border: 1.5px solid #FFFFFF; line-height: 1; box-shadow: 0 3px 8px rgba(17,24,39,0.18); pointer-events: none; }',
-        '.sf-ability-tooltip { position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%) translateY(4px); width: 224px; padding: 10px 12px; border-radius: 13px; background: rgba(255,255,255,0.98); border: 1px solid #C5A059; box-shadow: 0 14px 32px rgba(17,24,39,0.16); color: #111827; text-align: left; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 140ms ease, transform 140ms ease; z-index: 60; box-sizing: border-box; white-space: normal; }',
-        '.sf-ability-btn:hover .sf-ability-tooltip, .sf-ability-btn:focus-visible .sf-ability-tooltip { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }',
-        '.sf-ability-tooltip-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }',
-        '.sf-ability-tooltip-name { font-size: 12px; font-weight: 800; color: #111827; }',
-        '.sf-ability-tooltip-key { padding: 1px 6px; border-radius: 5px; background: #FAF6EE; border: 1px solid rgba(197,160,89,0.5); font-size: 9.5px; font-weight: 800; color: #8A692C; }',
-        '.sf-ability-tooltip-meta { display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 800; color: #1D4ED8; margin-bottom: 5px; }',
-        '.sf-ability-tooltip-cd { color: #6B7280; }',
-        '.sf-ability-tooltip-desc { margin: 0; font-size: 10.5px; font-weight: 500; line-height: 1.36; color: #374151; }',
+        '.sf-lobby-copyright { position: absolute; left: 20px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: #7C6334; white-space: nowrap; pointer-events: none; }',
+        '.sf-lobby-gear-btn { appearance: none; background: #FFFFFF; color: #111827; border: 1.5px solid rgba(197,160,89,0.65); border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; box-shadow: 0 6px 16px rgba(17,24,39,0.08); }',
+        '.sf-lobby-gear-btn:hover, .sf-lobby-gear-btn.is-active { border-color: #C5A059; background: #FAF6EE; }',
+        '.sf-outer-gate-banner { background: #FAF8F5; border: 1px solid rgba(197,160,89,0.48); border-radius: 14px; padding: 14px 16px; text-align: center; font-size: 14px; font-weight: 800; color: #111827; }',
         '.sf-lobby-settings-backdrop { position: absolute; inset: 0; z-index: 48; background: rgba(17,24,39,0.24); display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto; box-sizing: border-box; }',
         '.sf-lobby-settings-card { width: 392px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 40px); overflow-y: auto; background: #FFFFFF; color: #111827; border: 1px solid rgba(197,160,89,0.55); border-radius: 20px; padding: 18px 20px; box-shadow: 0 22px 52px rgba(17,24,39,0.18); display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; }',
         '.sf-lobby-settings-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid rgba(197,160,89,0.28); }',
@@ -202,13 +115,15 @@
         '.sf-lobby-stick-wrap { display: none; position: absolute; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 14px; z-index: 25; }',
         '.sf-lobby-stick { width: 78px; height: 78px; border-radius: 999px; background: rgba(255,255,255,0.90); border: 1.5px solid rgba(197,160,89,0.58); box-shadow: 0 10px 26px rgba(17,24,39,0.12); display: flex; align-items: center; justify-content: center; position: relative; touch-action: none; cursor: pointer; }',
         '.sf-lobby-stick-knob { width: 32px; height: 32px; border-radius: 999px; background: #C5A059; border: 2px solid #FFFFFF; box-shadow: 0 4px 12px rgba(17,24,39,0.18); pointer-events: none; }',
-        '.sf-lobby-bottom-stack { position: absolute; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; z-index: 24; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; }',
+        '.sf-lobby-bottom-stack { position: absolute; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); left: 12px; right: 12px; z-index: 24; display: flex; flex-direction: column; align-items: center; gap: 7px; pointer-events: none; }',
         '.sf-lobby-bottom-pill { pointer-events: auto; display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.95); border: 1px solid rgba(197,160,89,0.48); box-shadow: 0 10px 28px rgba(17,24,39,0.12); max-width: 100%; box-sizing: border-box; }',
         '.sf-lobby-step-btn { appearance: none; padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(197,160,89,0.40); background: #FAF8F5; color: #111827; font-size: 11px; font-weight: 800; cursor: pointer; white-space: nowrap; }',
         '.sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }',
-        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; } .sf-lobby-stick { width: 70px; height: 70px; } .sf-lobby-topright-stack { top: 56px; right: 12px; gap: 6px; } .sf-lobby-vital-hud { width: 148px; padding: 6px 8px; } .sf-lobby-heart-icon { width: 17px; height: 17px; } .sf-lobby-minimap-wrap { width: 136px; height: 136px; } .sf-ability-btn { width: 44px; height: 44px; border-radius: 11px; } .sf-ability-svg { width: 21px; height: 21px; } .sf-ability-tooltip { display: none; } }',
-        '@media (max-width: 767px) { .sf-lobby-topbar { padding: 8px 10px; gap: 6px; } .sf-lobby-zone-badge { padding: 5px 9px; font-size: 11px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 9px; font-size: 11px; } .sf-lobby-kbd { display: none !important; } .sf-lobby-copyright { font-size: 9.5px; left: 10px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } }',
-        '@media (max-width: 559px) { .sf-lobby-topright-stack { top: 92px; right: 10px; gap: 5px; } .sf-lobby-vital-hud { width: 132px; padding: 5px 7px; } .sf-lobby-heart-icon { width: 15px; height: 15px; } .sf-lobby-minimap-wrap { width: 116px; height: 116px; } .sf-lobby-unit-meta { min-width: 112px; } .sf-lobby-gold-crest-bar { min-height: 56px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; } .sf-lobby-copyright { left: 10px; font-size: 9px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; } .sf-lobby-abilities-dock { gap: 6px; } .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; } .sf-ability-svg { width: 19px; height: 19px; } .sf-ability-key { display: none; } .sf-lobby-floating-card { width: 266px; padding: 12px 13px 10px; } .sf-lobby-prod-title { font-size: 13.5px; } }'
+        '.sf-lobby-chat-panel { position: absolute; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); right: 16px; z-index: 28; pointer-events: auto; }',
+        '.sf-lobby-chat-box { width: 292px; max-width: calc(100vw - 24px); background: rgba(255,255,255,0.97); border: 1.5px solid #C5A059; border-radius: 16px; padding: 10px 12px; box-shadow: 0 14px 34px rgba(17,24,39,0.14); display: flex; flex-direction: column; gap: 8px; box-sizing: border-box; }',
+        '@media (max-width: 900px), (pointer: coarse) { .sf-lobby-topbar { padding: 8px 10px; gap: 6px; } .sf-lobby-actions { margin-right: 0; } .sf-lobby-unit-frame { padding: 5px 11px 5px 6px; gap: 7px; } .sf-lobby-unit-avatar { width: 30px; height: 30px; font-size: 11px; } .sf-lobby-stick-wrap { display: block; bottom: calc(66px + env(safe-area-inset-bottom, 0px)); left: 10px; } .sf-lobby-stick { width: 68px; height: 68px; } .sf-lobby-topright-stack { top: 62px; right: 10px; gap: 6px; } .sf-lobby-minimap-wrap { width: 138px; height: 138px; } .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; } }',
+        '@media (max-width: 767px) { .sf-lobby-zone-badge { padding: 4px 8px; font-size: 10px; } .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 5px 8px; font-size: 11px; } .sf-lobby-kbd, .sf-lobby-copyright { display: none !important; } .sf-lobby-keybind-grid { grid-template-columns: 1fr; } .sf-lobby-gold-crest-bar { min-height: 52px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: center; } }',
+        '@media (max-width: 480px) { .sf-lobby-topright-stack { top: 64px; right: 8px; } .sf-lobby-stick-wrap { bottom: calc(62px + env(safe-area-inset-bottom, 0px)); left: 8px; } .sf-lobby-stick { width: 64px; height: 64px; } .sf-lobby-floating-card { width: 266px; padding: 12px 13px 10px; } .sf-lobby-prod-title { font-size: 13.5px; } }'
     ].join('\n');
 
     var FALLBACK_LOBBY_PRODUCTS = [
@@ -244,7 +159,6 @@
         }
     ];
 
-    // Private Closure-Speicher (0 Zugriff aus Browser-Konsole / window!)
     var privateFacadeMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
     var fallbackPrivateFacade = null;
 
@@ -269,8 +183,16 @@
             styleTag.id = 'sf-3d-lobby-scoped-css';
             styleTag.textContent = STANDALONE_SCOPED_CSS;
             (document.head || document.documentElement).appendChild(styleTag);
-        } else if (!existing.textContent || existing.textContent.indexOf('.sf-lobby-vital-hud') === -1) {
+        } else if (!existing.textContent || existing.textContent.indexOf('.sf-outer-gate-banner') === -1) {
             existing.textContent = STANDALONE_SCOPED_CSS;
+        }
+    }
+
+    function dispatchLivewireAuthSync() {
+        if (typeof window !== 'undefined' && window.Livewire && typeof window.Livewire.dispatch === 'function') {
+            window.Livewire.dispatch('auth-status-changed');
+            window.Livewire.dispatch('cart-updated');
+            window.Livewire.dispatch('wishlist-updated');
         }
     }
 
@@ -285,19 +207,6 @@
             document.head.appendChild(meta);
         }
         meta.setAttribute('content', clean);
-    }
-
-    function buildRubyHeartSvg(isFilled) {
-        if (isFilled) {
-            return '<svg viewBox="0 0 24 24" aria-hidden="true">'
-                + '<path d="M12 21.2L10.4 19.7C5.1 14.9 2 12.1 2 8.4C2 5.4 4.4 3 7.4 3C9.2 3 10.9 3.9 12 5.2C13.1 3.9 14.8 3 16.6 3C19.6 3 22 5.4 22 8.4C22 12.1 18.9 14.9 13.6 19.7L12 21.2Z" fill="#DC2626" stroke="#C5A059" stroke-width="1.55" stroke-linejoin="round"/>'
-                + '<path d="M12 5.4L9.2 9.4L12 19.4L14.8 9.4L12 5.4Z" fill="#EF4444" fill-opacity="0.45"/>'
-                + '<path d="M6.2 6.1C7.1 5.1 8.5 4.9 9.5 5.4" fill="none" stroke="#FEE2E2" stroke-width="1.35" stroke-linecap="round"/>'
-                + '</svg>';
-        }
-        return '<svg viewBox="0 0 24 24" aria-hidden="true">'
-            + '<path d="M12 21.2L10.4 19.7C5.1 14.9 2 12.1 2 8.4C2 5.4 4.4 3 7.4 3C9.2 3 10.9 3.9 12 5.2C13.1 3.9 14.8 3 16.6 3C19.6 3 22 5.4 22 8.4C22 12.1 18.9 14.9 13.6 19.7L12 21.2Z" fill="#1F2937" fill-opacity="0.22" stroke="#9CA3AF" stroke-width="1.35" stroke-linejoin="round"/>'
-            + '</svg>';
     }
 
     function getActiveFullscreenElement() {
@@ -338,7 +247,6 @@
         this.floatingProductWrap = null;
         this.floatingHeroWrap = null;
         this.floatingPortalWrap = null;
-        this.floatingLavaChestWrap = null;
         this.floatingOuterGateWrap = null;
         this.minimapCanvasEl = null;
 
@@ -346,7 +254,7 @@
         this._audio = null;
         this._audioUnsub = null;
         this._syncTimer = null;
-        this._abilityTimer = null;
+        this._hudTimer = null;
         this._syncInFlight = false;
         this._activeSyncZone = null;
         this._openSeq = 0;
@@ -369,9 +277,11 @@
             level_models: {},
             heroes: []
         };
-        this.funkiInfo = { is_guest: false, level: 2, name: '', weapon: null, player_id: null };
+        this.funkiInfo = { is_guest: false, level: 2, name: '', player_id: null };
 
         this.lobbyAuth = false;
+        this.mmorpgCanEnter = false;
+        this.mmorpgEnterUrl = '/funkenreich/enter';
         this.soloMode = false;
         this.instanceId = 1;
         this.instanceCapacity = 20;
@@ -381,25 +291,25 @@
 
         this.settingsOpen = false;
         this.sanctumGateOpen = false;
+        this.outerGateModalOpen = false;
+        this.chatOpen = false;
+        this.chatMessages = [];
+        this.unreadChatCount = 0;
+        this._seenMessageIds = {};
+        this._loggedInDuringSession = false;
         this.sanctumGateZone = 'heroes';
         this.sanctumExpandedStep = '';
-        this.inlineLoginEmail = '';
-        this.inlineLoginPassword = '';
         this.inlineLoginShowPassword = false;
         this.inlineLoginTwoFactorRequired = false;
-        this.inlineLoginTwoFactorCode = '';
-        this.inlineMagicAcceptTerms = false;
-        this.inlineMagicRankingOptIn = true;
         this.inlineAuthBusy = false;
         this.inlineAuthError = '';
         this.sanctumGateState = {
             canEnter: false,
             reason: 'login_required',
-            checks: { login: false, order: false, magic: false },
+            checks: { login: false, magic: false },
             loginUrl: '/login',
             dashboardUrl: '/dashboard'
         };
-        this.masterKeyModalOpen = false;
         this.environmentInfo = {
             season_key: 'autumn',
             season_label: 'Herbst',
@@ -410,36 +320,24 @@
         this.playerHud = {
             isAuthenticated: false,
             canEnterSanctums: false,
+            mmorpgCanEnter: false,
+            mmorpgEnterUrl: '/funkenreich/enter',
             name: 'Funki',
             level: 2,
             levelTitle: 'Lehrling',
             funkenBalance: 0,
-            mana: 100,
-            maxMana: 100,
-            hearts: 6,
-            maxHearts: 6,
-            lastHeartLostSeq: 0,
-            lastHeartLostIndex: -1,
-            demoteBannerText: '',
-            giftVoucherUrl: '/produkt/geschenkgutschein'
+            statusHintText: ''
         };
-        this._lastSeenHeartLostSeq = 0;
-        this._heartShatterIdx = -1;
-        this._heartShatterTimer = null;
+
         this.keybindingsExpanded = false;
         this.listeningKeyAction = '';
         this.userSettings = {
-            volume: 50,
+            volume: 5,
             cameraSensitivity: 100,
             useRealName: false,
             graphicsQuality: 'high'
         };
         this.keybindings = {
-            strike: 'Digit1',
-            sprint: 'Digit2',
-            titanJump: 'Digit3',
-            shield: 'Digit4',
-            burst: 'Digit5',
             jump: 'Space',
             moveForward: 'KeyW',
             moveLeft: 'KeyA',
@@ -449,21 +347,11 @@
         this._productTransitionTimer = null;
         this._productTransitioning = false;
         this.audioState = {
-            bgmVolume: 50,
+            bgmVolume: 5,
             bgmMuted: false,
-            sfxVolume: 50,
+            sfxVolume: 5,
             sfxMuted: false,
             allMuted: false
-        };
-        this.lavaChestState = {
-            level: 1,
-            rewardPreview: 5,
-            nearChest: false,
-            isAuthenticated: false,
-            claimedToday: false,
-            claiming: false,
-            canClaim: false,
-            statusMessage: ''
         };
 
         this.stickActive = false;
@@ -499,8 +387,8 @@
                 }
                 if (self.sanctumGateOpen) {
                     self._setSanctumGateOpen(false);
-                } else if (self.masterKeyModalOpen) {
-                    self._setMasterKeyModalOpen(false);
+                } else if (self.outerGateModalOpen) {
+                    self._setOuterGateModalOpen(false);
                 } else if (self.settingsOpen) {
                     self._setSettingsOpen(false);
                 } else if (self.instanceMenuOpen) {
@@ -514,7 +402,7 @@
             var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
             if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
-            if (!self.settingsOpen && (code === 'KeyF' || key === 'f' || key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            if (!self.settingsOpen && !self.outerGateModalOpen && (code === 'KeyF' || key === 'f' || key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
                 var fBound = false;
                 for (var k in self.keybindings) {
                     if (Object.prototype.hasOwnProperty.call(self.keybindings, k) && self.keybindings[k] === 'KeyF') {
@@ -596,50 +484,17 @@
         root.className = 'sf-lobby-modal is-closed';
         root.setAttribute('role', 'dialog');
         root.setAttribute('aria-modal', 'true');
-        root.setAttribute('aria-label', 'Mein Seelenfunke 3D-Lobby und Halle der Helden');
+        root.setAttribute('aria-label', 'Mein Seelenfunke 3D-Atelier und Halle der Helden');
         root.style.cssText = 'position:fixed !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;height:100dvh !important;z-index:2147483000 !important;background:#FAF8F5 !important;overflow:hidden !important;margin:0 !important;padding:0 !important;';
-
-        var abilityButtonsHtml = [];
-        for (var ai = 0; ai < ABILITY_BAR_DEFS.length; ai++) {
-            var ad = ABILITY_BAR_DEFS[ai];
-            abilityButtonsHtml.push(
-                '<button type="button" data-ability-slot="' + ad.slot + '" ' + ad.testIdAttr + ' class="sf-ability-btn" aria-label="' + ad.name + '">',
-                '  <span class="sf-ability-svg">' + ad.svg + '</span>',
-                '  <span data-ability-key="' + ad.actionKey + '" class="sf-ability-key">' + ad.slot + '</span>',
-                '  <span data-ability-cd="' + ad.slot + '" class="sf-ability-cd" style="display:none;"></span>',
-                (ad.slot === 1 ? '  <span data-ability-combo-badge class="sf-ability-combo-badge" style="display:none;">x1</span>' : ''),
-                '  <div class="sf-ability-tooltip" role="tooltip">',
-                '    <div class="sf-ability-tooltip-head">',
-                '      <span class="sf-ability-tooltip-name">' + ad.name + '</span>',
-                '      <span data-ability-tooltip-key="' + ad.actionKey + '" class="sf-ability-tooltip-key">Taste ' + ad.slot + '</span>',
-                '    </div>',
-                '    <div class="sf-ability-tooltip-meta">',
-                '      <span>' + ad.manaText + '</span>',
-                '      <span class="sf-ability-tooltip-cd">· ' + ad.cdText + '</span>',
-                '    </div>',
-                '    <p class="sf-ability-tooltip-desc">' + ad.desc + '</p>',
-                '  </div>',
-                '</button>'
-            );
-        }
 
         root.innerHTML = [
             '<div class="sf-lobby-topbar">',
             '  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:none;">',
             '    <div data-lobby-unit-frame data-testid="lobby-player-unit-frame" class="sf-lobby-unit-frame">',
             '      <span class="sf-lobby-unit-avatar">✦</span>',
-            '      <div class="sf-lobby-unit-meta">',
-            '        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;line-height:1.15;">',
-            '          <span data-lobby-unit-name style="max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Funki</span>',
-            '          <span data-lobby-unit-stats style="color:#9A7738;">Stufe 2 · ✨ 0</span>',
-            '        </div>',
-            '        <div class="sf-lobby-unit-mana-row">',
-            '          <span class="sf-lobby-unit-mana-label">Mana</span>',
-            '          <div class="sf-lobby-unit-mana-track">',
-            '            <div data-lobby-unit-mana class="sf-lobby-unit-mana-fill" style="width:100%;"></div>',
-            '          </div>',
-            '          <span data-lobby-unit-mana-val class="sf-lobby-unit-mana-val">100</span>',
-            '        </div>',
+            '      <div class="sf-lobby-unit-meta" style="font-size:11.5px;font-weight:800;line-height:1.2;">',
+            '        <span data-lobby-unit-name style="max-width:128px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Funki</span>',
+            '        <span data-lobby-unit-stats style="color:#9A7738;white-space:nowrap;">Stufe 2 · ✨ 0</span>',
             '      </div>',
             '    </div>',
             '    <div class="sf-lobby-nav-pill">',
@@ -665,45 +520,20 @@
             '        </form>',
             '      </div>',
             '    </div>',
-            '    <button type="button" data-lobby-audio-mute data-testid="lobby-audio-mute-btn" class="sf-lobby-pill-btn" title="Ton umschalten">🔊</button>',
-            '    <button type="button" data-lobby-settings-toggle data-testid="louvre-settings-btn" class="sf-lobby-pill-btn" title="Einstellungen">⚙️</button>',
-            '    <button type="button" data-lobby-fullscreen data-testid="lobby-fullscreen-btn" class="sf-lobby-pill-btn" title="Vollbild umschalten (Taste F)">⛶ Vollbild</button>',
-            '    <button type="button" data-lobby-close data-testid="lobby-close-btn" class="sf-lobby-close-btn" title="3D-Lobby schließen (Esc)">',
-            '      <span>✕ Schließen</span>',
-            '      <span class="sf-lobby-kbd">Esc</span>',
-            '    </button>',
             '  </div>',
             '</div>',
             '<div class="sf-lobby-stage">',
             '  <canvas data-lobby-canvas class="sf-lobby-canvas"></canvas>',
             '  <div data-lobby-ivory-transition class="sf-lobby-ivory-transition"></div>',
-            '  <div data-lobby-demote-banner data-testid="lobby-lava-demote-banner" class="sf-lobby-demote-banner" style="display:none;"></div>',
             '  <div class="sf-lobby-topright-stack">',
-            '    <div data-lobby-vital-hud data-testid="lobby-vital-hud" class="sf-lobby-vital-hud">',
-            '      <div data-lobby-vital-hearts class="sf-lobby-vital-hearts" aria-label="Lebensherzen">',
-            '        <span data-heart-slot="0" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
-            '        <span data-heart-slot="1" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
-            '        <span data-heart-slot="2" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
-            '        <span data-heart-slot="3" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
-            '        <span data-heart-slot="4" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
-            '        <span data-heart-slot="5" class="sf-lobby-heart-icon">' + buildRubyHeartSvg(true) + '</span>',
-            '      </div>',
-            '      <div class="sf-lobby-unit-mana-row">',
-            '        <span class="sf-lobby-unit-mana-label">Mana</span>',
-            '        <div class="sf-lobby-unit-mana-track">',
-            '          <div data-lobby-vital-mana class="sf-lobby-unit-mana-fill" style="width:100%;"></div>',
-            '        </div>',
-            '        <span data-lobby-vital-mana-val class="sf-lobby-unit-mana-val">100/100</span>',
-            '      </div>',
-            '    </div>',
             '    <div data-lobby-minimap data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">',
-            '      <canvas data-lobby-minimap-canvas width="180" height="180" class="sf-lobby-minimap-canvas"></canvas>',
+            '      <canvas data-lobby-minimap-canvas width="232" height="232" class="sf-lobby-minimap-canvas"></canvas>',
             '      <span data-lobby-minimap-time class="sf-lobby-minimap-time" title="Herbst">12:00</span>',
             '    </div>',
             '  </div>',
             '  <div data-lobby-loading class="sf-lobby-loading">',
             '    <div class="sf-lobby-spinner"></div>',
-            '    <span data-lobby-loading-text class="sf-lobby-loading-label">3D-Lobby wird geöffnet</span>',
+            '    <span data-lobby-loading-text class="sf-lobby-loading-label">3D-Atelier wird geöffnet</span>',
             '  </div>',
             '  <div data-lobby-product-card data-testid="louvre-floating-space-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
             '    <div data-lobby-product-inner class="sf-lobby-floating-card"></div>',
@@ -714,14 +544,20 @@
             '    <div class="sf-lobby-floating-arrow"></div>',
             '  </div>',
             '  <div data-lobby-portal-card data-testid="lobby-guest-portal-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
-            '    <button type="button" data-lobby-portal-pill class="sf-lobby-portal-pill" style="cursor:pointer;">🔒 Halle der Helden · Voraussetzungen →</button>',
-            '  </div>',
-            '  <div data-lobby-lava-chest-card data-testid="lobby-lava-chest-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
-            '    <div data-lobby-lava-chest-inner style="display:flex;flex-direction:column;align-items:center;gap:6px;"></div>',
-            '    <div class="sf-lobby-floating-arrow"></div>',
+            '    <button type="button" data-lobby-portal-pill class="sf-lobby-portal-pill">🔒 Halle der Helden · Voraussetzungen →</button>',
             '  </div>',
             '  <div data-lobby-outer-gate-card data-testid="lobby-outer-gate-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
-            '    <div class="sf-lobby-portal-pill">🔒 Tor zur Außenwelt · Bald geöffnet</div>',
+            '    <button type="button" data-outer-gate-pill class="sf-lobby-portal-pill">✨ Tor zur Außenwelt · Hier entsteht ein MMORPG</button>',
+            '  </div>',
+            '  <div data-lobby-outer-gate-modal data-testid="lobby-outer-gate-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
+            '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Tor zur Außenwelt">',
+            '      <div class="sf-lobby-settings-head">',
+            '        <h3 class="sf-lobby-settings-title"><span>✨</span><span>Tor zur Außenwelt</span></h3>',
+            '        <button type="button" data-outer-gate-close style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;" aria-label="Schließen">&times;</button>',
+            '      </div>',
+            '      <div class="sf-outer-gate-banner">Hier entsteht ein MMORPG</div>',
+            '      <div data-outer-gate-cta-wrap style="display:flex;flex-direction:column;gap:8px;"></div>',
+            '    </div>',
             '  </div>',
             '  <div data-lobby-sanctum-modal data-testid="lobby-sanctum-gate-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
             '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Zugangsvoraussetzungen">',
@@ -744,31 +580,15 @@
             '          <div data-sanctum-login-error class="sf-lobby-inline-error" style="display:none;"></div>',
             '          <button type="submit" data-sanctum-login-submit data-testid="sanctum-inline-login-submit" class="sf-lobby-prod-cta" style="margin-top:2px;border:none;">Anmelden</button>',
             '        </form>',
-            '        <div data-sanctum-row="order" data-testid="sanctum-check-order" class="sf-lobby-sanctum-row is-clickable"><span>Mindestens 1 Bestellung</span><span data-sanctum-chk="order" class="sf-lobby-sanctum-check">✕</span></div>',
             '        <div data-sanctum-row="magic" data-testid="sanctum-check-magic" class="sf-lobby-sanctum-row is-clickable"><span>✨ Magie aktivieren</span><span data-sanctum-chk="magic" class="sf-lobby-sanctum-check">✕</span></div>',
             '        <div data-sanctum-magic-panel data-testid="sanctum-inline-magic-panel" class="sf-lobby-inline-panel" style="display:none;">',
-            '          <label class="sf-lobby-inline-check"><input type="checkbox" data-sanctum-magic-terms data-testid="sanctum-magic-terms-checkbox" style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;"><span>Teilnahmebedingungen akzeptieren</span></label>',
+            '          <label class="sf-lobby-inline-check"><input type="checkbox" data-sanctum-magic-terms data-testid="sanctum-magic-terms-checkbox" checked style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;"><span>Teilnahmebedingungen akzeptieren</span></label>',
             '          <label class="sf-lobby-inline-check"><input type="checkbox" data-sanctum-magic-ranking data-testid="sanctum-magic-ranking-checkbox" checked style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;"><span>In der Halle der Helden sichtbar</span></label>',
             '          <div data-sanctum-magic-error class="sf-lobby-inline-error" style="display:none;"></div>',
-            '          <button type="button" data-sanctum-magic-submit data-testid="sanctum-inline-magic-submit" class="sf-lobby-prod-cta" style="margin-top:2px;border:none;opacity:0.55;cursor:not-allowed;" disabled>✨ Magie aktivieren</button>',
+            '          <button type="button" data-sanctum-magic-submit data-testid="sanctum-inline-magic-submit" class="sf-lobby-prod-cta" style="margin-top:2px;border:none;cursor:pointer;">✨ Magie aktivieren</button>',
             '        </div>',
             '      </div>',
             '      <div data-sanctum-cta-wrap></div>',
-            '    </div>',
-            '  </div>',
-            '  <div data-lobby-master-key-modal data-testid="lobby-master-key-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
-            '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Manufaktur-Meisterschlüssel">',
-            '      <div class="sf-lobby-settings-head">',
-            '        <h3 class="sf-lobby-settings-title"><span>🔑</span><span>Manufaktur-Meisterschlüssel</span></h3>',
-            '        <button type="button" data-master-key-close style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;" aria-label="Schließen">&times;</button>',
-            '      </div>',
-            '      <div class="sf-lobby-sanctum-list">',
-            '        <div class="sf-lobby-sanctum-row is-done"><span>Magma-Stufen 6 bis 10</span><span class="sf-lobby-sanctum-check">✓</span></div>',
-            '      </div>',
-            '      <div style="display:flex;flex-direction:column;gap:8px;">',
-            '        <a href="/shop" class="sf-lobby-prod-cta" style="margin-top:0;">Unikat im Shop gestalten →</a>',
-            '        <a data-master-key-voucher href="/produkt/geschenkgutschein" class="sf-lobby-step-btn" style="text-align:center;text-decoration:none;padding:9px 14px;border-radius:12px;">15,00 € Gutschein sichern →</a>',
-            '      </div>',
             '    </div>',
             '  </div>',
             '  <div data-lobby-settings-modal data-testid="lobby-settings-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
@@ -780,9 +600,18 @@
             '      <div class="sf-lobby-settings-section">',
             '        <div class="sf-lobby-settings-row">',
             '          <span class="sf-lobby-settings-label">Lautstärke</span>',
-            '          <span data-lobby-volume-label style="font-size:11px;font-weight:800;color:#9A7738;">50 %</span>',
+            '          <div style="display:flex;align-items:center;gap:8px;">',
+            '            <span data-lobby-volume-label style="font-size:11px;font-weight:800;color:#9A7738;">5 %</span>',
+            '            <button type="button" data-lobby-settings-mute data-testid="lobby-settings-mute-btn" class="sf-lobby-step-btn is-active" style="padding:4px 10px;font-size:10.5px;">🔊 Ton an</button>',
+            '          </div>',
             '        </div>',
-            '        <input type="range" min="0" max="100" step="1" value="50" data-lobby-volume-slider data-testid="lobby-settings-volume-slider" class="sf-lobby-slider" aria-label="Lautstärke">',
+            '        <input type="range" min="0" max="100" step="1" value="5" data-lobby-volume-slider data-testid="lobby-settings-volume-slider" class="sf-lobby-slider" aria-label="Lautstärke">',
+            '      </div>',
+            '      <div class="sf-lobby-settings-section">',
+            '        <div class="sf-lobby-settings-row">',
+            '          <span class="sf-lobby-settings-label">Vollbild</span>',
+            '          <button type="button" data-lobby-settings-fullscreen data-testid="lobby-settings-fullscreen-btn" class="sf-lobby-step-btn">Vollbild aktivieren</button>',
+            '        </div>',
             '      </div>',
             '      <div class="sf-lobby-settings-section">',
             '        <div class="sf-lobby-settings-row">',
@@ -817,8 +646,8 @@
             '        <div data-lobby-keybind-grid class="sf-lobby-keybind-grid" style="display:none;"></div>',
             '      </div>',
             '      <div style="display:flex;align-items:center;gap:8px;padding-top:2px;">',
-            '        <button type="button" data-lobby-settings-resume class="sf-lobby-prod-cta" style="margin-top:0;flex:1;border:none;cursor:pointer;">Weiterspielen</button>',
-            '        <button type="button" data-lobby-settings-leave class="sf-lobby-step-btn" style="padding:9px 14px;border-radius:12px;">Lobby verlassen</button>',
+            '        <button type="button" data-lobby-settings-resume class="sf-lobby-prod-cta" style="margin-top:0;flex:1;border:none;cursor:pointer;">Weiter umsehen</button>',
+            '        <button type="button" data-lobby-settings-leave data-testid="lobby-settings-exit-btn" class="sf-lobby-step-btn" style="padding:9px 14px;border-radius:12px;">Atelier verlassen</button>',
             '      </div>',
             '    </div>',
             '  </div>',
@@ -837,11 +666,27 @@
             '      <button type="button" data-hero-my-place class="sf-lobby-step-btn is-active">⭐ Mein Platz</button>',
             '    </div>',
             '  </div>',
+            '  <div data-lobby-chat-panel class="sf-lobby-chat-panel" style="display:none;">',
+            '    <button type="button" data-lobby-chat-toggle class="sf-lobby-pill-btn">💬 Chat <span data-lobby-chat-unread style="display:none;padding:1px 6px;border-radius:999px;background:#C5A059;color:#FFFFFF;font-size:10px;font-weight:900;">0</span></button>',
+            '    <div data-lobby-chat-box class="sf-lobby-chat-box" style="display:none;margin-top:6px;">',
+            '      <div style="display:flex;align-items:center;justify-content:space-between;">',
+            '        <span style="font-size:12px;font-weight:900;color:#111827;">Hallen-Chat</span>',
+            '        <button type="button" data-lobby-chat-close style="appearance:none;border:none;background:transparent;font-size:15px;font-weight:900;color:#6B7280;cursor:pointer;">&times;</button>',
+            '      </div>',
+            '      <div data-lobby-chat-messages style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;font-size:11.5px;"></div>',
+            '      <form data-lobby-chat-form style="display:flex;gap:6px;">',
+            '        <input type="text" data-lobby-chat-input maxlength="120" placeholder="Nachricht..." class="sf-lobby-inline-input" style="padding:6px 9px;font-size:12px;">',
+            '        <button type="submit" class="sf-lobby-instance-submit" style="flex:0 0 auto;padding:6px 11px;">Senden</button>',
+            '      </form>',
+            '    </div>',
+            '  </div>',
             '  <div data-testid="lobby-gold-crest-bar" class="sf-lobby-gold-crest-bar">',
             '    <span class="sf-lobby-copyright">© Mein-Seelenfunke</span>',
-            '    <div data-lobby-abilities-dock data-testid="louvre-abilities-dock" class="sf-lobby-abilities-dock">',
-            abilityButtonsHtml.join(''),
-            '    </div>',
+            '    <button type="button" data-lobby-settings-toggle data-testid="louvre-settings-btn" class="sf-lobby-gear-btn" title="Einstellungen (Esc)" aria-label="Einstellungen">',
+            '      <span>⚙️</span>',
+            '      <span>Einstellungen</span>',
+            '      <span class="sf-lobby-kbd">Esc</span>',
+            '    </button>',
             '  </div>',
             '</div>'
         ].join('');
@@ -854,23 +699,85 @@
         this.floatingProductWrap = root.querySelector('[data-lobby-product-card]');
         this.floatingHeroWrap = root.querySelector('[data-lobby-hero-card]');
         this.floatingPortalWrap = root.querySelector('[data-lobby-portal-card]');
-        this.floatingLavaChestWrap = root.querySelector('[data-lobby-lava-chest-card]');
         this.floatingOuterGateWrap = root.querySelector('[data-lobby-outer-gate-card]');
         this.stickZoneEl = root.querySelector('[data-lobby-stick]');
         this.stickKnobEl = root.querySelector('[data-lobby-stick-knob]');
 
         this._bindModalUiEvents();
         this._renderKeybindingsList();
-        this._renderLavaChestCard();
+        this._renderOuterGateModal();
         this._renderSanctumGateModal();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._setOuterGateModalOpen = function (flag, incomingMmorpgState) {
+        this.outerGateModalOpen = Boolean(flag);
+        var facade = getFacade(this);
+        if (this.outerGateModalOpen && facade && typeof facade.releasePointerLock === 'function') {
+            facade.releasePointerLock();
+        }
+        var resolved = incomingMmorpgState || (facade && typeof facade.getMmorpgAccessState === 'function' ? facade.getMmorpgAccessState() : null);
+        if (resolved && typeof resolved === 'object') {
+            if (resolved.canEnter !== undefined) {
+                this.mmorpgCanEnter = Boolean(resolved.canEnter);
+            }
+            if (resolved.enterUrl) {
+                this.mmorpgEnterUrl = String(resolved.enterUrl);
+            }
+        }
+        this._renderOuterGateModal();
+        if (this.modalEl) {
+            var modal = this.modalEl.querySelector('[data-lobby-outer-gate-modal]');
+            if (modal) {
+                modal.style.display = this.outerGateModalOpen ? 'flex' : 'none';
+            }
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderOuterGateModal = function () {
+        if (!this.modalEl) return;
+        var wrap = this.modalEl.querySelector('[data-outer-gate-cta-wrap]');
+        if (!wrap) return;
+        while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+
+        var self = this;
+        if (this.mmorpgCanEnter) {
+            var enterBtn = document.createElement('button');
+            enterBtn.type = 'button';
+            enterBtn.setAttribute('data-testid', 'outer-gate-enter-mmorpg-btn');
+            enterBtn.className = 'sf-lobby-prod-cta';
+            enterBtn.style.cssText = 'margin-top:0;border:none;cursor:pointer;';
+            enterBtn.textContent = '✨ Spielwelt betreten (game.mein-seelenfunke.de) →';
+            enterBtn.addEventListener('click', function () {
+                window.location.href = self.mmorpgEnterUrl || '/funkenreich/enter';
+            });
+            wrap.appendChild(enterBtn);
+
+            var closeSecondary = document.createElement('button');
+            closeSecondary.type = 'button';
+            closeSecondary.className = 'sf-lobby-step-btn';
+            closeSecondary.style.cssText = 'padding:9px 14px;border-radius:12px;width:100%;';
+            closeSecondary.textContent = 'Schließen';
+            closeSecondary.addEventListener('click', function () {
+                self._setOuterGateModalOpen(false);
+            });
+            wrap.appendChild(closeSecondary);
+        } else {
+            var okBtn = document.createElement('button');
+            okBtn.type = 'button';
+            okBtn.className = 'sf-lobby-prod-cta';
+            okBtn.style.cssText = 'margin-top:0;border:none;cursor:pointer;';
+            okBtn.textContent = 'Verstanden';
+            okBtn.addEventListener('click', function () {
+                self._setOuterGateModalOpen(false);
+            });
+            wrap.appendChild(okBtn);
+        }
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._setSanctumGateOpen = function (flag, zone, incomingState) {
         this.sanctumGateOpen = Boolean(flag);
         this.inlineAuthError = '';
-        if (zone) {
-            this.sanctumGateZone = (zone === 'lava') ? 'lava' : 'heroes';
-        }
+        this.sanctumGateZone = 'heroes';
         var facade = getFacade(this);
         if (this.sanctumGateOpen && facade && typeof facade.releasePointerLock === 'function') {
             facade.releasePointerLock();
@@ -882,7 +789,6 @@
                 reason: resolved.reason || 'login_required',
                 checks: {
                     login: Boolean(resolved.checks && resolved.checks.login),
-                    order: Boolean(resolved.checks && resolved.checks.order),
                     magic: Boolean(resolved.checks && resolved.checks.magic)
                 },
                 loginUrl: resolved.loginUrl || '/login',
@@ -892,7 +798,7 @@
         if (this.sanctumGateOpen) {
             if (!this.sanctumGateState.checks.login) {
                 this.sanctumExpandedStep = 'login';
-            } else if (this.sanctumGateState.checks.order && !this.sanctumGateState.checks.magic) {
+            } else if (!this.sanctumGateState.checks.magic) {
                 this.sanctumExpandedStep = 'magic';
             } else {
                 this.sanctumExpandedStep = '';
@@ -907,21 +813,16 @@
         }
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._focusNearestVitrineFromModal = function () {
-        this._setSanctumGateOpen(false);
-        if (this._audio) this._audio.playUiClick();
-        var facade = getFacade(this);
-        if (facade && typeof facade.focusNearestExhibit === 'function') {
-            facade.focusNearestExhibit();
-        } else if (facade && typeof facade.focusExhibit === 'function') {
-            facade.focusExhibit(this.activeIndex || 0, false);
-        }
-    };
-
     SeelenfunkeUnifiedLobbyHost.prototype._applyLiveAccountPayload = function (body) {
         if (!body || typeof body !== 'object') return;
         if (body.csrf_token) {
             updateCsrfMetaToken(body.csrf_token);
+        }
+        if (body.mmorpg_can_enter !== undefined) {
+            this.mmorpgCanEnter = Boolean(body.mmorpg_can_enter);
+        }
+        if (body.mmorpg_enter_url) {
+            this.mmorpgEnterUrl = String(body.mmorpg_enter_url);
         }
         if (body.player_funki && typeof body.player_funki === 'object') {
             this.funkiInfo = body.player_funki;
@@ -939,7 +840,6 @@
                 reason: sa.block_reason || null,
                 checks: {
                     login: Boolean(sa.is_authenticated),
-                    order: Boolean(sa.has_completed_order),
                     magic: Boolean(sa.gamification_active)
                 },
                 loginUrl: sa.login_url || '/login',
@@ -955,7 +855,6 @@
                     reason: nextAccess.reason || null,
                     checks: {
                         login: Boolean(nextAccess.checks && nextAccess.checks.login),
-                        order: Boolean(nextAccess.checks && nextAccess.checks.order),
                         magic: Boolean(nextAccess.checks && nextAccess.checks.magic)
                     },
                     loginUrl: nextAccess.loginUrl || '/login',
@@ -967,8 +866,8 @@
             }
         }
         this._syncHudState();
-        this._syncAbilityHud();
-        this._renderLavaChestCard();
+        this._syncRealtimeHud();
+        this._renderOuterGateModal();
         this._renderSanctumGateModal();
     };
 
@@ -1031,17 +930,13 @@
                     if (pwdInp) pwdInp.value = '';
                     if (tfaInp) tfaInp.value = '';
                     self.inlineLoginTwoFactorRequired = false;
+                    self._loggedInDuringSession = true;
+                    dispatchLivewireAuthSync();
                     self._applyLiveAccountPayload(body);
 
                     if (self.sanctumGateState.canEnter) {
                         self.sanctumExpandedStep = '';
-                        self._renderSanctumGateModal();
-                        setTimeout(function () {
-                            self._setSanctumGateOpen(false);
-                        }, 440);
-                    } else if (!self.sanctumGateState.checks.order) {
-                        self.sanctumExpandedStep = '';
-                        self._renderSanctumGateModal();
+                        self._setSanctumGateOpen(false);
                     } else if (!self.sanctumGateState.checks.magic) {
                         self.sanctumExpandedStep = 'magic';
                         self._renderSanctumGateModal();
@@ -1097,12 +992,10 @@
                 }
                 if (body.status === 'magic_activated' || body.success) {
                     body.play_awaken_fx = true;
-                    self._applyLiveAccountPayload(body);
                     self.sanctumExpandedStep = '';
-                    self._renderSanctumGateModal();
-                    setTimeout(function () {
-                        self._setSanctumGateOpen(false);
-                    }, 480);
+                    self._setSanctumGateOpen(false);
+                    self._applyLiveAccountPayload(body);
+                    dispatchLivewireAuthSync();
                     return;
                 }
                 self.inlineAuthError = body.message || 'Aktivierung nicht möglich.';
@@ -1115,33 +1008,15 @@
             });
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._setMasterKeyModalOpen = function (flag) {
-        this.masterKeyModalOpen = Boolean(flag);
-        var facade = getFacade(this);
-        if (this.masterKeyModalOpen && facade && typeof facade.releasePointerLock === 'function') {
-            facade.releasePointerLock();
-        }
-        if (this.modalEl) {
-            var modal = this.modalEl.querySelector('[data-lobby-master-key-modal]');
-            if (modal) {
-                modal.style.display = this.masterKeyModalOpen ? 'flex' : 'none';
-            }
-            var vLink = this.modalEl.querySelector('[data-master-key-voucher]');
-            if (vLink && this.playerHud && this.playerHud.giftVoucherUrl) {
-                vLink.href = this.playerHud.giftVoucherUrl;
-            }
-        }
-    };
-
     SeelenfunkeUnifiedLobbyHost.prototype._renderSanctumGateModal = function () {
         if (!this.modalEl) return;
         var root = this.modalEl;
         var iconEl = root.querySelector('[data-sanctum-icon]');
         var titleEl = root.querySelector('[data-sanctum-title]');
-        if (iconEl) iconEl.textContent = this.sanctumGateZone === 'lava' ? '🌋' : '🏛️';
-        if (titleEl) titleEl.textContent = this.sanctumGateZone === 'lava' ? 'Magma-Welt' : 'Halle der Helden';
+        if (iconEl) iconEl.textContent = '🏛️';
+        if (titleEl) titleEl.textContent = 'Halle der Helden';
 
-        var st = this.sanctumGateState || { checks: { login: false, order: false, magic: false }, loginUrl: '/login', dashboardUrl: '/dashboard' };
+        var st = this.sanctumGateState || { checks: { login: false, magic: false }, loginUrl: '/login', dashboardUrl: '/dashboard' };
         var checks = st.checks || {};
         var syncRow = function (key, done) {
             var row = root.querySelector('[data-sanctum-row="' + key + '"]');
@@ -1160,7 +1035,6 @@
             }
         };
         syncRow('login', Boolean(checks.login));
-        syncRow('order', Boolean(checks.order));
         syncRow('magic', Boolean(checks.magic));
 
         var loginPanel = root.querySelector('[data-sanctum-login-panel]');
@@ -1183,7 +1057,7 @@
 
         var magicPanel = root.querySelector('[data-sanctum-magic-panel]');
         if (magicPanel) {
-            var showMagic = (Boolean(checks.login) && Boolean(checks.order) && !checks.magic && this.sanctumExpandedStep === 'magic');
+            var showMagic = (Boolean(checks.login) && !checks.magic && this.sanctumExpandedStep === 'magic');
             magicPanel.style.display = showMagic ? 'flex' : 'none';
             var magErr = root.querySelector('[data-sanctum-magic-error]');
             if (magErr) {
@@ -1212,35 +1086,29 @@
             loginBtn.setAttribute('data-testid', 'sanctum-gate-cta-btn');
             loginBtn.className = 'sf-lobby-prod-cta';
             loginBtn.style.cssText = 'margin-top:2px;border:none;cursor:pointer;';
-            loginBtn.textContent = 'Anmelden →';
+            loginBtn.textContent = 'Anmelden';
             loginBtn.addEventListener('click', function () {
                 self.sanctumExpandedStep = 'login';
                 self.inlineAuthError = '';
                 self._renderSanctumGateModal();
             });
             ctaWrap.appendChild(loginBtn);
-        } else if (checks.login && !checks.order) {
-            var shopBtn = document.createElement('button');
-            shopBtn.type = 'button';
-            shopBtn.setAttribute('data-testid', 'sanctum-gate-cta-btn');
-            shopBtn.className = 'sf-lobby-prod-cta';
-            shopBtn.style.cssText = 'margin-top:2px;border:none;cursor:pointer;';
-            shopBtn.textContent = 'Kollektion ansehen';
-            shopBtn.addEventListener('click', function () {
-                self._focusNearestVitrineFromModal();
-            });
-            ctaWrap.appendChild(shopBtn);
-        } else if (checks.login && checks.order && !checks.magic && this.sanctumExpandedStep !== 'magic') {
+        } else if (checks.login && !checks.magic && this.sanctumExpandedStep !== 'magic') {
             var magicBtn = document.createElement('button');
             magicBtn.type = 'button';
             magicBtn.setAttribute('data-testid', 'sanctum-gate-cta-btn');
             magicBtn.className = 'sf-lobby-prod-cta';
             magicBtn.style.cssText = 'margin-top:2px;border:none;cursor:pointer;';
-            magicBtn.textContent = '✨ Magie aktivieren →';
+            magicBtn.textContent = '✨ Magie aktivieren';
             magicBtn.addEventListener('click', function () {
-                self.sanctumExpandedStep = 'magic';
-                self.inlineAuthError = '';
-                self._renderSanctumGateModal();
+                var tChk = root.querySelector('[data-sanctum-magic-terms]');
+                if (tChk && tChk.checked) {
+                    self._submitInlineActivateMagic();
+                } else {
+                    self.sanctumExpandedStep = 'magic';
+                    self.inlineAuthError = '';
+                    self._renderSanctumGateModal();
+                }
             });
             ctaWrap.appendChild(magicBtn);
         }
@@ -1356,62 +1224,6 @@
         }
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._renderLavaChestCard = function () {
-        if (!this.modalEl) return;
-        var inner = this.modalEl.querySelector('[data-lobby-lava-chest-inner]');
-        if (!inner) return;
-        while (inner.firstChild) inner.removeChild(inner.firstChild);
-
-        var self = this;
-        var st = this.lavaChestState || {};
-
-        if (!this.lobbyAuth) {
-            var loginBtn = document.createElement('button');
-            loginBtn.type = 'button';
-            loginBtn.className = 'sf-lobby-lava-chest-card';
-            loginBtn.textContent = '🔒 Anmelden →';
-            loginBtn.addEventListener('click', function () {
-                self._setSanctumGateOpen(true, 'lava');
-            });
-            inner.appendChild(loginBtn);
-            return;
-        }
-
-        if (st.claimedToday) {
-            var donePill = document.createElement('div');
-            donePill.className = 'sf-lobby-lava-chest-card';
-            donePill.textContent = sanitizeText(st.statusMessage || 'Heute bereits geöffnet ✓');
-            inner.appendChild(donePill);
-            return;
-        }
-
-        var rewardVal = st.rewardPreview || 5;
-        var titleBadge = document.createElement('span');
-        titleBadge.style.cssText = 'pointer-events:none;padding:4px 11px;border-radius:999px;background:rgba(255,255,255,0.96);border:1px solid rgba(197,160,89,0.55);font-size:11px;font-weight:800;color:#111827;';
-        titleBadge.textContent = 'Magma-Truhe · +' + rewardVal + ' ✨ Funken';
-        inner.appendChild(titleBadge);
-
-        var claimBtn = document.createElement('button');
-        claimBtn.type = 'button';
-        claimBtn.className = 'sf-lobby-lava-chest-card is-cta';
-        claimBtn.disabled = Boolean(st.claiming);
-        claimBtn.textContent = st.claiming ? 'Truhe wird geöffnet...' : 'Truhe öffnen';
-        claimBtn.addEventListener('click', function () {
-            var facade = getFacade(self);
-            if (facade && typeof facade.claimLavaChest === 'function') {
-                facade.claimLavaChest();
-            }
-        });
-        inner.appendChild(claimBtn);
-
-        if (st.statusMessage && !st.claiming) {
-            var note = document.createElement('span');
-            note.style.cssText = 'pointer-events:none;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.95);border:1px solid rgba(197,160,89,0.5);font-size:11px;font-weight:700;color:#111827;';
-            note.textContent = sanitizeText(st.statusMessage);
-            inner.appendChild(note);
-        }
-    };
-
     SeelenfunkeUnifiedLobbyHost.prototype._renderMinimap = function () {
         var canvas = this.minimapCanvasEl;
         var facade = getFacade(this);
@@ -1421,8 +1233,8 @@
         var snap = facade.getMinimapState();
         if (!snap) return;
 
-        var w = canvas.width || 180;
-        var h = canvas.height || 180;
+        var w = canvas.width || 232;
+        var h = canvas.height || 232;
         var sc = w / 180;
         var cx = w * 0.5;
         var cy = h * 0.5;
@@ -1434,7 +1246,7 @@
         ctx.arc(cx, cy, rad + 5 * sc, 0, Math.PI * 2);
         ctx.clip();
 
-        ctx.fillStyle = snap.zone === 'lava' ? '#FBF5EC' : '#FAF8F5';
+        ctx.fillStyle = '#FAF8F5';
         ctx.fillRect(0, 0, w, h);
 
         ctx.strokeStyle = 'rgba(197,160,89,0.28)';
@@ -1482,56 +1294,21 @@
         ctx.restore();
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._syncAbilityHud = function () {
+    SeelenfunkeUnifiedLobbyHost.prototype._syncRealtimeHud = function () {
         var facade = getFacade(this);
-        if (!this.modalEl || !facade || typeof facade.getAbilityState !== 'function') return;
+        if (!this.modalEl || !facade) return;
         var root = this.modalEl;
-        var dock = root.querySelector('[data-lobby-abilities-dock]');
-        if (dock) {
-            dock.style.display = 'flex';
-        }
-
-        var st = facade.getAbilityState();
-        var setSlotUi = function (slotNum, activeFlag, cdSec) {
-            var btn = root.querySelector('[data-ability-slot="' + slotNum + '"]');
-            var cdEl = root.querySelector('[data-ability-cd="' + slotNum + '"]');
-            if (btn) {
-                if (activeFlag) btn.classList.add('is-active');
-                else btn.classList.remove('is-active');
-                if (cdSec > 0) btn.classList.add('is-cooldown');
-                else btn.classList.remove('is-cooldown');
-            }
-            if (cdEl) {
-                if (cdSec > 0) {
-                    cdEl.style.display = 'inline-block';
-                    cdEl.textContent = Math.ceil(cdSec) + 's';
-                } else {
-                    cdEl.style.display = 'none';
-                }
-            }
-        };
-
-        setSlotUi(1, Boolean(st.combo && st.combo.active), st.combo ? st.combo.cooldown : 0);
-        setSlotUi(2, Boolean(st.sprint && st.sprint.active), st.sprint ? st.sprint.cooldown : 0);
-        setSlotUi(3, false, st.titanJump ? st.titanJump.cooldown : 0);
-        setSlotUi(4, Boolean(st.shield && st.shield.active), st.shield ? st.shield.cooldown : 0);
-        setSlotUi(5, false, st.burst ? st.burst.cooldown : 0);
-
-        var comboStage = (st.combo && st.combo.stage) ? st.combo.stage : 0;
-        var badge = root.querySelector('[data-ability-combo-badge]');
-        if (badge) {
-            if (comboStage > 0) {
-                badge.style.display = 'inline-block';
-                badge.textContent = 'x' + comboStage;
-            } else {
-                badge.style.display = 'none';
-            }
-        }
 
         if (typeof facade.getPlayerHudState === 'function') {
             var pHud = facade.getPlayerHudState();
             if (pHud) {
                 this.playerHud = pHud;
+                if (pHud.mmorpgCanEnter !== undefined) {
+                    this.mmorpgCanEnter = Boolean(pHud.mmorpgCanEnter);
+                }
+                if (pHud.mmorpgEnterUrl) {
+                    this.mmorpgEnterUrl = String(pHud.mmorpgEnterUrl);
+                }
                 if (pHud.environment) {
                     this.environmentInfo = pHud.environment;
                 }
@@ -1539,57 +1316,9 @@
         }
         var uName = root.querySelector('[data-lobby-unit-name]');
         var uStats = root.querySelector('[data-lobby-unit-stats]');
-        var uMana = root.querySelector('[data-lobby-unit-mana]');
-        var uManaVal = root.querySelector('[data-lobby-unit-mana-val]');
-        var vMana = root.querySelector('[data-lobby-vital-mana]');
-        var vManaVal = root.querySelector('[data-lobby-vital-mana-val]');
-        var demoteEl = root.querySelector('[data-lobby-demote-banner]');
         if (uName && this.playerHud) uName.textContent = sanitizeText(this.playerHud.name || 'Funki');
         if (uStats && this.playerHud) uStats.textContent = 'Stufe ' + (this.playerHud.level || 2) + ' · ✨ ' + (this.playerHud.funkenBalance || 0);
-        if (this.playerHud) {
-            var curMana = (typeof this.playerHud.mana === 'number') ? Math.round(this.playerHud.mana) : 100;
-            var maxMana = Math.max(1, this.playerHud.maxMana || 100);
-            var pct = Math.max(0, Math.min(100, Math.round((curMana / maxMana) * 100)));
-            if (uMana) uMana.style.width = pct + '%';
-            if (uManaVal) uManaVal.textContent = String(curMana);
-            if (vMana) vMana.style.width = pct + '%';
-            if (vManaVal) vManaVal.textContent = curMana + '/' + maxMana;
 
-            if (this.playerHud.lastHeartLostSeq && this.playerHud.lastHeartLostSeq !== this._lastSeenHeartLostSeq) {
-                this._lastSeenHeartLostSeq = this.playerHud.lastHeartLostSeq;
-                this._heartShatterIdx = typeof this.playerHud.lastHeartLostIndex === 'number' ? this.playerHud.lastHeartLostIndex : -1;
-                var selfRef = this;
-                if (this._heartShatterTimer) clearTimeout(this._heartShatterTimer);
-                this._heartShatterTimer = setTimeout(function () {
-                    selfRef._heartShatterIdx = -1;
-                }, 560);
-            }
-
-            var curHearts = (typeof this.playerHud.hearts === 'number') ? clampInt(this.playerHud.hearts, 0, 6) : 6;
-            for (var hi = 0; hi < 6; hi++) {
-                var hSlot = root.querySelector('[data-heart-slot="' + hi + '"]');
-                if (hSlot) {
-                    var filled = (hi < curHearts);
-                    if (hSlot.getAttribute('data-filled') !== (filled ? '1' : '0')) {
-                        hSlot.setAttribute('data-filled', filled ? '1' : '0');
-                        hSlot.innerHTML = (this._mod && typeof this._mod.getLobbyHeartSvgMarkup === 'function')
-                            ? this._mod.getLobbyHeartSvgMarkup(filled)
-                            : buildRubyHeartSvg(filled);
-                    }
-                    if (this._heartShatterIdx === hi) hSlot.classList.add('is-shattering');
-                    else hSlot.classList.remove('is-shattering');
-                }
-            }
-
-            if (demoteEl) {
-                if (this.playerHud.demoteBannerText) {
-                    demoteEl.style.display = 'block';
-                    demoteEl.textContent = sanitizeText(this.playerHud.demoteBannerText);
-                } else {
-                    demoteEl.style.display = 'none';
-                }
-            }
-        }
         var mTime = root.querySelector('[data-lobby-minimap-time]');
         if (mTime && this.environmentInfo) {
             mTime.textContent = this.environmentInfo.server_time || '12:00';
@@ -1640,18 +1369,18 @@
         var root = this.modalEl;
         if (!root) return;
 
-        // Punkt 11: Rechtsklick-Kontextmenue in allen Sprechblasen, Modals & der gesamten 3D-Lobby unterbinden
         root.addEventListener('contextmenu', function (ev) {
             ev.preventDefault();
         });
-
-        root.querySelector('[data-lobby-close]').addEventListener('click', function () {
-            self.close();
-        });
-
-        root.querySelector('[data-lobby-fullscreen]').addEventListener('click', function () {
-            self.toggleFullscreen();
-        });
+        var stopOverlayRay = function (ev) {
+            ev.stopPropagation();
+        };
+        var uiBlocks = root.querySelectorAll('.sf-lobby-settings-backdrop, .sf-lobby-floating-card, .sf-lobby-topbar, .sf-lobby-gold-crest-bar, .sf-lobby-chat-panel, .sf-lobby-bottom-pill, .sf-lobby-portal-pill');
+        for (var ub = 0; ub < uiBlocks.length; ub++) {
+            uiBlocks[ub].addEventListener('pointerdown', stopOverlayRay);
+            uiBlocks[ub].addEventListener('mousedown', stopOverlayRay);
+            uiBlocks[ub].addEventListener('click', stopOverlayRay);
+        }
 
         root.querySelector('[data-lobby-solo-toggle]').addEventListener('click', function () {
             if (!self.lobbyAuth) return;
@@ -1673,17 +1402,31 @@
             self._syncHudState();
         });
 
-        root.querySelector('[data-lobby-audio-mute]').addEventListener('click', function () {
-            if (self._audio && typeof self._audio.toggleQuickMute === 'function') {
-                self.audioState = self._audio.toggleQuickMute();
-                self._syncHudState();
-            }
-        });
+        var settingsMuteBtn = root.querySelector('[data-lobby-settings-mute]');
+        if (settingsMuteBtn) {
+            settingsMuteBtn.addEventListener('click', function () {
+                if (self._audio && typeof self._audio.toggleQuickMute === 'function') {
+                    self.audioState = self._audio.toggleQuickMute();
+                    self._syncHudState();
+                }
+            });
+        }
 
-        root.querySelector('[data-lobby-settings-toggle]').addEventListener('click', function () {
-            if (self._audio) self._audio.playUiClick();
-            self._setSettingsOpen(!self.settingsOpen);
-        });
+        var settingsFsBtn = root.querySelector('[data-lobby-settings-fullscreen]');
+        if (settingsFsBtn) {
+            settingsFsBtn.addEventListener('click', function () {
+                self.toggleFullscreen();
+            });
+        }
+
+        var setToggleBtn = root.querySelector('[data-lobby-settings-toggle]');
+        if (setToggleBtn) {
+            setToggleBtn.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+            setToggleBtn.addEventListener('click', function () {
+                if (self._audio) self._audio.playUiClick();
+                self._setSettingsOpen(!self.settingsOpen);
+            });
+        }
 
         root.querySelector('[data-lobby-settings-close]').addEventListener('click', function () {
             self._setSettingsOpen(false);
@@ -1706,6 +1449,27 @@
         if (portalPillBtn) {
             portalPillBtn.addEventListener('click', function () {
                 self._setSanctumGateOpen(true, 'heroes');
+            });
+        }
+
+        var outerGatePill = root.querySelector('[data-outer-gate-pill]');
+        if (outerGatePill) {
+            outerGatePill.addEventListener('click', function () {
+                self._setOuterGateModalOpen(true);
+            });
+        }
+        var outerGateClose = root.querySelector('[data-outer-gate-close]');
+        if (outerGateClose) {
+            outerGateClose.addEventListener('click', function () {
+                self._setOuterGateModalOpen(false);
+            });
+        }
+        var outerGateModal = root.querySelector('[data-lobby-outer-gate-modal]');
+        if (outerGateModal) {
+            outerGateModal.addEventListener('click', function (ev) {
+                if (ev.target === ev.currentTarget) {
+                    self._setOuterGateModalOpen(false);
+                }
             });
         }
 
@@ -1733,14 +1497,6 @@
                 }
             });
         }
-        var rowOrder = root.querySelector('[data-sanctum-row="order"]');
-        if (rowOrder) {
-            rowOrder.addEventListener('click', function () {
-                if (!(self.sanctumGateState.checks && self.sanctumGateState.checks.order)) {
-                    self._focusNearestVitrineFromModal();
-                }
-            });
-        }
         var rowMagic = root.querySelector('[data-sanctum-row="magic"]');
         if (rowMagic) {
             rowMagic.addEventListener('click', function () {
@@ -1748,13 +1504,46 @@
                 if (!ch.login) {
                     self.sanctumExpandedStep = 'login';
                     self._renderSanctumGateModal();
-                } else if (!ch.order) {
-                    self._focusNearestVitrineFromModal();
                 } else if (!ch.magic) {
                     self.sanctumExpandedStep = (self.sanctumExpandedStep === 'magic') ? '' : 'magic';
                     self.inlineAuthError = '';
                     self._renderSanctumGateModal();
                 }
+            });
+        }
+
+        var chatToggle = root.querySelector('[data-lobby-chat-toggle]');
+        var chatClose = root.querySelector('[data-lobby-chat-close]');
+        var chatBox = root.querySelector('[data-lobby-chat-box]');
+        var chatUnread = root.querySelector('[data-lobby-chat-unread]');
+        var syncChatBoxVis = function () {
+            if (chatBox) chatBox.style.display = self.chatOpen ? 'flex' : 'none';
+            if (self.chatOpen) {
+                self.unreadChatCount = 0;
+                if (chatUnread) chatUnread.style.display = 'none';
+            }
+        };
+        if (chatToggle) {
+            chatToggle.addEventListener('click', function () {
+                self.chatOpen = !self.chatOpen;
+                syncChatBoxVis();
+            });
+        }
+        if (chatClose) {
+            chatClose.addEventListener('click', function () {
+                self.chatOpen = false;
+                syncChatBoxVis();
+            });
+        }
+        var chatForm = root.querySelector('[data-lobby-chat-form]');
+        if (chatForm) {
+            chatForm.addEventListener('submit', function (ev) {
+                ev.preventDefault();
+                var inp = root.querySelector('[data-lobby-chat-input]');
+                var msg = inp ? String(inp.value || '').trim() : '';
+                if (!msg) return;
+                if (inp) inp.value = '';
+                self._sendInstanceChatMessage(msg);
             });
         }
         var loginForm = root.querySelector('[data-sanctum-login-panel]');
@@ -1786,21 +1575,6 @@
         if (magicSubmit) {
             magicSubmit.addEventListener('click', function () {
                 self._submitInlineActivateMagic();
-            });
-        }
-
-        var mkClose = root.querySelector('[data-master-key-close]');
-        if (mkClose) {
-            mkClose.addEventListener('click', function () {
-                self._setMasterKeyModalOpen(false);
-            });
-        }
-        var mkModal = root.querySelector('[data-lobby-master-key-modal]');
-        if (mkModal) {
-            mkModal.addEventListener('click', function (ev) {
-                if (ev.target === ev.currentTarget) {
-                    self._setMasterKeyModalOpen(false);
-                }
             });
         }
 
@@ -1901,21 +1675,6 @@
             var targetId = clampInt(inp ? inp.value : 1, 1, 50);
             self.switchInstance(targetId);
         });
-
-        var abilityBtns = root.querySelectorAll('[data-ability-slot]');
-        for (var ab = 0; ab < abilityBtns.length; ab++) {
-            abilityBtns[ab].addEventListener('pointerdown', function (ev) {
-                ev.stopPropagation();
-            });
-            abilityBtns[ab].addEventListener('click', function (ev) {
-                var sl = parseInt(ev.currentTarget.getAttribute('data-ability-slot'), 10);
-                var facade = getFacade(self);
-                if (facade && typeof facade.triggerAbility === 'function') {
-                    facade.triggerAbility(sl);
-                    self._syncAbilityHud();
-                }
-            });
-        }
 
         var slotBtns = root.querySelectorAll('[data-hero-slot]');
         for (var s = 0; s < slotBtns.length; s++) {
@@ -2046,9 +1805,7 @@
 
         var zoneBadge = root.querySelector('[data-lobby-current-zone-badge]');
         if (zoneBadge) {
-            zoneBadge.textContent = this.currentZone === 'heroes'
-                ? '🏛️ Halle der Helden'
-                : (this.currentZone === 'lava' ? '🌋 Magma-Welt' : '🛍️ Kollektion');
+            zoneBadge.textContent = this.currentZone === 'heroes' ? '🏛️ Halle der Helden' : '🛍️ Kollektion';
         }
 
         var stagesBtn = root.querySelector('[data-lobby-stages-btn]');
@@ -2072,22 +1829,23 @@
             soloLbl.textContent = this.soloMode ? 'Solo' : 'Live';
         }
 
-        var muteBtn = root.querySelector('[data-lobby-audio-mute]');
+        var muteBtn = root.querySelector('[data-lobby-settings-mute]');
+        var isSoundMuted = Boolean(this.audioState.allMuted || this.userSettings.volume <= 0);
         if (muteBtn) {
-            muteBtn.textContent = (this.audioState.allMuted || this.userSettings.volume <= 0) ? '🔇' : '🔊';
-            if (!this.audioState.allMuted && this.userSettings.volume > 0) muteBtn.classList.add('is-gold');
-            else muteBtn.classList.remove('is-gold');
+            muteBtn.textContent = isSoundMuted ? '🔇 Stumm' : '🔊 Ton an';
+            if (!isSoundMuted) muteBtn.classList.add('is-active');
+            else muteBtn.classList.remove('is-active');
         }
 
         var setBtn = root.querySelector('[data-lobby-settings-toggle]');
         if (setBtn) {
-            if (this.settingsOpen) setBtn.classList.add('is-gold');
-            else setBtn.classList.remove('is-gold');
+            if (this.settingsOpen) setBtn.classList.add('is-active');
+            else setBtn.classList.remove('is-active');
         }
 
         var volLbl = root.querySelector('[data-lobby-volume-label]');
         var volSlider = root.querySelector('[data-lobby-volume-slider]');
-        if (volLbl) volLbl.textContent = this.userSettings.volume + ' %';
+        if (volLbl) volLbl.textContent = isSoundMuted ? 'Stumm' : (this.userSettings.volume + ' %');
         if (volSlider) volSlider.value = String(this.userSettings.volume);
 
         var camLbl = root.querySelector('[data-lobby-camera-label]');
@@ -2110,22 +1868,11 @@
             else gfxBal.classList.remove('is-active');
         }
 
-        var keyMapEls = root.querySelectorAll('[data-ability-key]');
-        for (var km = 0; km < keyMapEls.length; km++) {
-            var actName = keyMapEls[km].getAttribute('data-ability-key');
-            keyMapEls[km].textContent = this._keyLabel(actName);
-        }
-        var ttKeyEls = root.querySelectorAll('[data-ability-tooltip-key]');
-        for (var tk = 0; tk < ttKeyEls.length; tk++) {
-            var ttAct = ttKeyEls[tk].getAttribute('data-ability-tooltip-key');
-            ttKeyEls[tk].textContent = 'Taste ' + this._keyLabel(ttAct);
-        }
-
-        var fsBtn = root.querySelector('[data-lobby-fullscreen]');
+        var fsBtn = root.querySelector('[data-lobby-settings-fullscreen]');
         if (fsBtn) {
-            fsBtn.textContent = this.isFullscreen ? '🗗 Teilbild' : '⛶ Vollbild';
-            if (this.isFullscreen) fsBtn.classList.add('is-gold');
-            else fsBtn.classList.remove('is-gold');
+            fsBtn.textContent = this.isFullscreen ? 'Vollbild beenden' : 'Vollbild aktivieren';
+            if (this.isFullscreen) fsBtn.classList.add('is-active');
+            else fsBtn.classList.remove('is-active');
         }
 
         var instWrap = root.querySelector('[data-lobby-instance-wrap]');
@@ -2150,6 +1897,125 @@
         if (btmHeroes) {
             btmHeroes.style.display = (this.currentZone === 'heroes') ? 'inline-flex' : 'none';
         }
+        var chatPanel = root.querySelector('[data-lobby-chat-panel]');
+        if (chatPanel) {
+            chatPanel.style.display = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode) ? 'block' : 'none';
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._ingestSyncMessages = function (messages) {
+        if (!Array.isArray(messages) || messages.length === 0) return;
+        var facade = getFacade(this);
+        var changed = false;
+        for (var i = 0; i < messages.length; i++) {
+            var m = messages[i];
+            if (!m || !m.text) continue;
+            var mid = String(m.id || ((m.peer_id || m.player_id || '') + ':' + (m.ts || '') + ':' + m.text));
+            if (this._seenMessageIds[mid]) continue;
+            this._seenMessageIds[mid] = true;
+            var peerKey = String(m.peer_id || m.player_id || '');
+            this.chatMessages.push({
+                id: mid,
+                peer_id: peerKey,
+                sender: sanitizeText(m.display_name || m.sender || 'Funki'),
+                text: sanitizeText(m.text)
+            });
+            if (this.chatMessages.length > 35) this.chatMessages.shift();
+            if (facade && peerKey && typeof facade.showChatBubble === 'function') {
+                facade.showChatBubble(peerKey, m.text);
+            }
+            if (!this.chatOpen) {
+                this.unreadChatCount += 1;
+            }
+            changed = true;
+        }
+        if (changed) this._renderChatMessages();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderChatMessages = function () {
+        if (!this.modalEl) return;
+        var box = this.modalEl.querySelector('[data-lobby-chat-messages]');
+        var unreadEl = this.modalEl.querySelector('[data-lobby-chat-unread]');
+        if (unreadEl) {
+            if (!this.chatOpen && this.unreadChatCount > 0) {
+                unreadEl.style.display = 'inline-block';
+                unreadEl.textContent = String(this.unreadChatCount);
+            } else {
+                unreadEl.style.display = 'none';
+            }
+        }
+        if (!box) return;
+        while (box.firstChild) box.removeChild(box.firstChild);
+        var self = this;
+        for (var i = 0; i < this.chatMessages.length; i++) {
+            (function (msg) {
+                var row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:6px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.28);border-radius:9px;padding:4px 7px;';
+                var txt = document.createElement('span');
+                txt.style.cssText = 'color:#111827;word-break:break-word;';
+                txt.textContent = msg.sender + ': ' + msg.text;
+                row.appendChild(txt);
+                if (msg.peer_id && msg.peer_id !== 'self') {
+                    var rep = document.createElement('button');
+                    rep.type = 'button';
+                    rep.title = 'Spieler melden';
+                    rep.style.cssText = 'appearance:none;border:none;background:transparent;font-size:10px;color:#9CA3AF;cursor:pointer;flex-shrink:0;';
+                    rep.textContent = '⚑';
+                    rep.addEventListener('click', function () {
+                        self._reportInstancePeer(msg.peer_id);
+                    });
+                    row.appendChild(rep);
+                }
+                box.appendChild(row);
+            })(this.chatMessages[i]);
+        }
+        box.scrollTop = box.scrollHeight;
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._sendInstanceChatMessage = function (rawMessage) {
+        var self = this;
+        var clean = sanitizeText(rawMessage).slice(0, 120);
+        if (!clean || !this.lobbyAuth) return;
+        fetch('/funkenwerk-welt/lobby/chat', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken()
+            },
+            body: JSON.stringify({ message: clean })
+        })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                var f = getFacade(self);
+                if (data && data.message && typeof data.message === 'object') {
+                    if (data.message.peer_id && f && typeof f.setLocalPeerId === 'function') {
+                        f.setLocalPeerId(data.message.peer_id);
+                    }
+                    self._ingestSyncMessages([data.message]);
+                } else if (f && typeof f.showChatBubble === 'function') {
+                    f.showChatBubble('self', clean);
+                }
+            })
+            .catch(function () {});
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._reportInstancePeer = function (peerId) {
+        if (!peerId || !this.lobbyAuth) return;
+        fetch('/funkenwerk-welt/lobby/report', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken()
+            },
+            body: JSON.stringify({
+                target_peer_id: String(peerId),
+                target_player_id: String(peerId)
+            })
+        }).catch(function () {});
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._startProductTransition = function (prod) {
@@ -2188,8 +2054,6 @@
         if (!prod) return;
 
         var self = this;
-
-        // Zeile 1: Edle Serif-Ueberschrift + Preis-Badge ("ab 29,90 €")
         var row1 = document.createElement('div');
         row1.className = 'sf-lobby-prod-row1';
 
@@ -2208,7 +2072,6 @@
         }
         inner.appendChild(row1);
 
-        // Zeile 2: Maximal 1 bis 2 kurze Zeilen Kern-Info (line-clamp: 2, 0 Aufzaehlungs-Overload!)
         var rawSummary = sanitizeText(prod.short_description || '');
         if (!rawSummary && Array.isArray(prod.benefits) && prod.benefits.length > 0) {
             rawSummary = sanitizeText(prod.benefits.slice(0, 2).join(' · '));
@@ -2220,7 +2083,6 @@
             inner.appendChild(summary);
         }
 
-        // Edler goldener Hauptbutton + ~680 ms Kamera- & Elfenbein-Gold-Uebergangssequenz
         var link = document.createElement('a');
         link.href = prod.product_url || '/shop';
         link.className = 'sf-lobby-prod-cta';
@@ -2321,7 +2183,7 @@
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._handleZoneSyncTransition = function (nextZone) {
-        var z = String(nextZone || 'gallery').toLowerCase();
+        var z = String(nextZone || 'gallery').toLowerCase() === 'heroes' ? 'heroes' : 'gallery';
         var facade = getFacade(this);
 
         if (z === 'heroes') {
@@ -2335,9 +2197,8 @@
             return;
         }
 
-        // Solo-Zone ('gallery', 'lava'): Peers sofort leeren, Timer stoppen & Heldenhallen-Platz freigeben!
         var wasInHeroes = (this._activeSyncZone === 'heroes' || Boolean(this._syncTimer));
-        this._activeSyncZone = z;
+        this._activeSyncZone = 'gallery';
         this._setInstanceMenuOpen(false);
         this._stopSyncLoop();
         this.peers = [];
@@ -2362,9 +2223,9 @@
                     z: st.z,
                     rot_y: st.rot_y,
                     speed: st.speed,
-                    zone: z,
-                    combo_seq: st.combo_seq,
-                    combo_stage: st.combo_stage
+                    zone: 'gallery',
+                    combo_seq: 0,
+                    combo_stage: 0
                 })
             }).catch(function () {});
         }
@@ -2390,9 +2251,11 @@
                 z: st.z,
                 rot_y: st.rot_y,
                 speed: st.speed,
+                jumping: Boolean(st.jumping),
                 zone: 'heroes',
-                combo_seq: st.combo_seq,
-                combo_stage: st.combo_stage
+                emote: st.emote || null,
+                combo_seq: 0,
+                combo_stage: 0
             })
         })
             .then(function (r) {
@@ -2417,7 +2280,13 @@
                 self.peers = Array.isArray(data.peers) ? data.peers : [];
                 var f2 = getFacade(self);
                 if (f2) {
+                    if (data.peer_id && typeof f2.setLocalPeerId === 'function') {
+                        f2.setLocalPeerId(data.peer_id);
+                    }
                     f2.updatePeers(self.peers);
+                }
+                if (Array.isArray(data.messages)) {
+                    self._ingestSyncMessages(data.messages);
                 }
                 self._syncHudState();
                 if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
@@ -2434,7 +2303,7 @@
 
         this._syncTimer = setInterval(function () {
             self._runSyncTick();
-        }, 1800);
+        }, 950);
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._stopSyncLoop = function () {
@@ -2473,9 +2342,11 @@
                 z: st.z,
                 rot_y: st.rot_y,
                 speed: st.speed,
+                jumping: Boolean(st.jumping),
                 zone: 'heroes',
-                combo_seq: st.combo_seq,
-                combo_stage: st.combo_stage
+                emote: st.emote || null,
+                combo_seq: 0,
+                combo_stage: 0
             })
         })
             .then(function (r) {
@@ -2496,8 +2367,14 @@
                 if (!data || !data.ok || !self.isOpen || !f2 || self.currentZone !== 'heroes') return;
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || self.instanceId;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
+                if (data.peer_id && typeof f2.setLocalPeerId === 'function') {
+                    f2.setLocalPeerId(data.peer_id);
+                }
                 self.peers = Array.isArray(data.peers) ? data.peers : [];
                 f2.updatePeers(self.peers);
+                if (Array.isArray(data.messages)) {
+                    self._ingestSyncMessages(data.messages);
+                }
                 self._syncHudState();
                 if (self.instanceMenuOpen) self._renderInstanceList();
             })
@@ -2597,15 +2474,16 @@
         }
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._startLobbyMusicFromGestureSync = function () {
+    SeelenfunkeUnifiedLobbyHost.prototype._startLobbyMusicFromGestureSync = function (targetZone) {
+        var cleanZone = (targetZone === 'heroes' || targetZone === 'hall' || targetZone === 'my_place') ? 'heroes' : 'gallery';
         if (this._audio && typeof this._audio.startLobbyMusicFromGesture === 'function') {
-            this.audioState = this._audio.startLobbyMusicFromGesture();
+            this.audioState = this._audio.startLobbyMusicFromGesture(cleanZone);
             return;
         }
         if (typeof window !== 'undefined' && typeof window.getSeelenfunkeLobbyAudio === 'function') {
             this._audio = window.getSeelenfunkeLobbyAudio({ isAuthenticated: this.lobbyAuth });
             if (this._audio && typeof this._audio.startLobbyMusicFromGesture === 'function') {
-                this.audioState = this._audio.startLobbyMusicFromGesture();
+                this.audioState = this._audio.startLobbyMusicFromGesture(cleanZone);
                 return;
             }
         }
@@ -2613,25 +2491,15 @@
             var rawExplicit = localStorage.getItem('sf_lobby_bgm_explicit_muted');
             var rawVol = localStorage.getItem('sf_funki_audio_volume');
             var explicitMuted = (rawExplicit === '1' || rawExplicit === 'true') || rawVol === '0';
-            sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
-            if (!explicitMuted) {
+            if (!explicitMuted && typeof Audio !== 'undefined') {
                 localStorage.setItem('sf_funki_audio_muted', '0');
-                localStorage.setItem('sf_funki_bgm_muted', '0');
-                if (window.SfFunkiBgm) {
-                    if ((window.SfFunkiBgm.volume || 0) <= 0) {
-                        window.SfFunkiBgm.setVolume(50, false);
-                    }
-                    window.SfFunkiBgm.setMuted(false, false);
-                    window.SfFunkiBgm.onModalOpen();
-                } else if (typeof Audio !== 'undefined') {
-                    var preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3');
-                    preEl.loop = true;
-                    preEl.preload = 'auto';
-                    preEl.volume = 0.25;
-                    window.__sfPrewarmLobbyBgmEl = preEl;
-                    var p = preEl.play();
-                    if (p && typeof p.catch === 'function') p.catch(function () {});
-                }
+                var preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3');
+                preEl.loop = true;
+                preEl.preload = 'auto';
+                preEl.volume = 0.025;
+                window.__sfPrewarmLobbyBgmEl = preEl;
+                var p = preEl.play();
+                if (p && typeof p.catch === 'function') p.catch(function () {});
             }
         } catch (e) {}
     };
@@ -2639,12 +2507,9 @@
     SeelenfunkeUnifiedLobbyHost.prototype.open = function (initialMode) {
         var self = this;
         var mode = String(initialMode || 'lobby').toLowerCase();
-        var startZone = (mode === 'lava')
-            ? 'lava'
-            : ((mode === 'hall' || mode === 'heroes' || mode === 'my_place') ? mode : 'gallery');
+        var startZone = (mode === 'hall' || mode === 'heroes' || mode === 'my_place') ? mode : 'gallery';
 
-        // User-Gesture-Token zu 100 % synchron im Klick-Event sichern (VOR fetch / import)!
-        this._startLobbyMusicFromGestureSync();
+        this._startLobbyMusicFromGestureSync(startZone);
 
         this._ensureModalDom();
         if (!this.isOpen) {
@@ -2657,7 +2522,7 @@
         this.isFullscreen = Boolean(getActiveFullscreenElement());
         this.settingsOpen = false;
         this.sanctumGateOpen = false;
-        this.masterKeyModalOpen = false;
+        this.outerGateModalOpen = false;
         this.listeningKeyAction = '';
         this._openSeq += 1;
         var seq = this._openSeq;
@@ -2669,12 +2534,12 @@
         this.stagesMode = 'live';
         this._setSettingsOpen(false);
         this._setSanctumGateOpen(false);
-        this._setMasterKeyModalOpen(false);
+        this._setOuterGateModalOpen(false);
 
-        if (!this._abilityTimer) {
-            this._abilityTimer = setInterval(function () {
-                self._syncAbilityHud();
-            }, 90);
+        if (!this._hudTimer) {
+            this._hudTimer = setInterval(function () {
+                self._syncRealtimeHud();
+            }, 120);
         }
 
         var existingFacade = getFacade(this);
@@ -2683,7 +2548,7 @@
                 existingFacade.setZone('heroes', true);
                 existingFacade.focusMyHeroPlace();
             } else {
-                existingFacade.setZone(startZone, true);
+                existingFacade.setZone(startZone === 'hall' ? 'heroes' : startZone, true);
             }
             existingFacade.resize();
             this._handleZoneSyncTransition(this.currentZone);
@@ -2742,6 +2607,16 @@
                     self.environmentInfo = shopJson.environment;
                 }
 
+                self.mmorpgCanEnter = Boolean(
+                    (shopJson && shopJson.mmorpg_can_enter)
+                    || (rawPlayer && rawPlayer.mmorpg_can_enter)
+                );
+                if (shopJson && shopJson.mmorpg_enter_url) {
+                    self.mmorpgEnterUrl = String(shopJson.mmorpg_enter_url);
+                } else if (rawPlayer && rawPlayer.mmorpg_enter_url) {
+                    self.mmorpgEnterUrl = String(rawPlayer.mmorpg_enter_url);
+                }
+
                 var isAuth = Boolean(
                     (rawPlayer && rawPlayer.is_authenticated)
                     || (self.funkiInfo && !self.funkiInfo.is_guest)
@@ -2760,7 +2635,7 @@
                     self._audio = mod.getLobbyAudioInstance({ isAuthenticated: isAuth });
                     self._audio.setSfxVolume(self.userSettings.volume);
                     self._audio.setSfxMuted(self.userSettings.volume <= 0);
-                    self.audioState = self._audio.startLobbyMusicFromGesture();
+                    self.audioState = self._audio.startLobbyMusicFromGesture((startZone === 'my_place' || startZone === 'hall') ? 'heroes' : startZone);
                     if (self._audioUnsub) self._audioUnsub();
                     self._audioUnsub = self._audio.onChange(function (snap) {
                         self.audioState = snap;
@@ -2768,19 +2643,8 @@
                     });
                 }
 
-                var lavaInfo = (shopJson && shopJson.lava_parkour) ? shopJson.lava_parkour : null;
-                self.lavaChestState = {
-                    level: 1,
-                    rewardPreview: 5,
-                    nearChest: false,
-                    isAuthenticated: isAuth,
-                    claimedToday: Boolean(lavaInfo && lavaInfo.claimed_today),
-                    claiming: false,
-                    canClaim: Boolean(isAuth && !(lavaInfo && lavaInfo.claimed_today)),
-                    statusMessage: ''
-                };
-                self._renderLavaChestCard();
                 self._renderKeybindingsList();
+                self._renderOuterGateModal();
 
                 if (self.loadingEl) {
                     self.loadingEl.style.display = 'none';
@@ -2791,24 +2655,24 @@
                     floatingCardEl: self.floatingProductWrap,
                     floatingHeroCardEl: self.floatingHeroWrap,
                     floatingPortalCardEl: self.floatingPortalWrap,
-                    floatingLavaChestEl: self.floatingLavaChestWrap,
                     floatingOuterGateEl: self.floatingOuterGateWrap,
                     products: self.products,
                     environment: shopJson ? shopJson.environment : null,
                     player: rawPlayer,
                     heroesPayload: self.heroesPayload,
                     playerFunki: self.funkiInfo,
-                    lavaParkour: lavaInfo,
+                    mmorpgCanEnter: self.mmorpgCanEnter,
+                    mmorpgEnterUrl: self.mmorpgEnterUrl,
                     audio: self._audio || undefined,
                     isAuthenticatedCustomer: isAuth,
-                    initialZone: startZone === 'my_place' ? 'heroes' : startZone,
+                    initialZone: (startZone === 'my_place' || startZone === 'hall') ? 'heroes' : startZone,
                     onFocusProductChange: function (prod, idx) {
                         self.focusedProduct = prod || null;
                         if (typeof idx === 'number' && idx >= 0) {
                             self.activeIndex = idx;
                         }
                         self._renderFloatingProductCard(self.focusedProduct);
-                        self._syncAbilityHud();
+                        self._syncRealtimeHud();
                         self._syncHudState();
                     },
                     onFocusHeroChange: function (heroInfo) {
@@ -2828,24 +2692,24 @@
                         self._syncHudState();
                     },
                     onAuthGatePrompt: function (zone, accessState) {
-                        self._setSanctumGateOpen(true, zone, accessState);
+                        self._setSanctumGateOpen(true, 'heroes', accessState);
                     },
-                    onMasterKeyPromptChange: function (flag) {
-                        if (flag) {
-                            self._setMasterKeyModalOpen(true);
-                        }
+                    onOuterGateModalOpen: function (mmorpgState) {
+                        self._setOuterGateModalOpen(true, mmorpgState);
                     },
                     onPlayerHudChange: function (hud) {
                         if (hud) {
                             self.playerHud = hud;
+                            if (hud.mmorpgCanEnter !== undefined) {
+                                self.mmorpgCanEnter = Boolean(hud.mmorpgCanEnter);
+                            }
+                            if (hud.mmorpgEnterUrl) {
+                                self.mmorpgEnterUrl = String(hud.mmorpgEnterUrl);
+                            }
                             if (hud.environment) {
                                 self.environmentInfo = hud.environment;
                             }
                         }
-                    },
-                    onLavaChestStateChange: function (state) {
-                        self.lavaChestState = state;
-                        self._renderLavaChestCard();
                     },
                     onSelectProduct: function (prod) {
                         self._startProductTransition(prod);
@@ -2865,7 +2729,7 @@
 
                 self._activeSyncZone = null;
                 self._syncHudState();
-                self._syncAbilityHud();
+                self._syncRealtimeHud();
                 if (isAuth && self.sanctumGateState.canEnter && self.currentZone === 'heroes') {
                     self._handleZoneSyncTransition('heroes');
                 }
@@ -2873,7 +2737,7 @@
             .catch(function () {
                 if (self.loadingEl) {
                     var txt = self.loadingEl.querySelector('[data-lobby-loading-text]');
-                    if (txt) txt.textContent = '3D-Lobby konnte auf diesem Gerät nicht geladen werden.';
+                    if (txt) txt.textContent = '3D-Atelier konnte auf diesem Gerät nicht geladen werden.';
                 }
             });
     };
@@ -2889,9 +2753,13 @@
         this.instanceMenuOpen = false;
         this.settingsOpen = false;
         this.sanctumGateOpen = false;
-        this.masterKeyModalOpen = false;
+        this.outerGateModalOpen = false;
         this.listeningKeyAction = '';
         this.peers = [];
+        if (this._loggedInDuringSession) {
+            this._loggedInDuringSession = false;
+            dispatchLivewireAuthSync();
+        }
 
         if (this._productTransitionTimer) {
             clearTimeout(this._productTransitionTimer);
@@ -2907,9 +2775,9 @@
             this._audioUnsub();
             this._audioUnsub = null;
         }
-        if (this._abilityTimer) {
-            clearInterval(this._abilityTimer);
-            this._abilityTimer = null;
+        if (this._hudTimer) {
+            clearInterval(this._hudTimer);
+            this._hudTimer = null;
         }
 
         if (getActiveFullscreenElement()) {

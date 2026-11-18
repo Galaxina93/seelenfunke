@@ -529,6 +529,46 @@ case "$1" in
         )
         exit $?
         ;;
+    funkenreich-deploy|deploy-funkenreich|--funkenreich-deploy)
+        require_local "funkenreich-deploy"
+        (
+            set -e
+            FR_SRC="/home/ubuntuxina/meine-projekte/funkenreich"
+            FR_SSH_KEY="/home/ubuntuxina/.ssh/id_ed25519"
+            FR_SSH_TARGET="kontakt@mein-seelenfunke.de@a-lc6tkm@ssh.altgemeinde.project.host"
+            FR_REMOTE_DIR="/home/p-g27wim/html/funkenreich-game"
+
+            if [ ! -d "$FR_SRC/public" ] || [ ! -d "$FR_SRC/app" ]; then
+                echo "❌ Fehler: Quellverzeichnis '$FR_SRC' unvollständig!"
+                exit 1
+            fi
+
+            echo "🚀 Rolle 'Das Funkenreich' ($FR_SRC) auf $FR_REMOTE_DIR (a-xu1n7n / game.mein-seelenfunke.de) aus..."
+            rsync -az --delete \
+                --exclude='/.env' \
+                --exclude='/.git/' \
+                --exclude='/_preserved_snapshot/' \
+                --exclude='/tests/' \
+                --exclude='/storage/database/*.sqlite*' \
+                --exclude='/storage/sessions/*' \
+                --exclude='/storage/nonces/*' \
+                --exclude='/storage/logs/*' \
+                -e "ssh -i $FR_SSH_KEY -o BatchMode=yes -o ConnectTimeout=15" \
+                "$FR_SRC/" "$FR_SSH_TARGET:$FR_REMOTE_DIR/"
+
+            ssh -i "$FR_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=15 "$FR_SSH_TARGET" \
+                "mkdir -p '$FR_REMOTE_DIR/storage/database' '$FR_REMOTE_DIR/storage/sessions' '$FR_REMOTE_DIR/storage/nonces' '$FR_REMOTE_DIR/storage/logs' && chmod 775 '$FR_REMOTE_DIR/storage' '$FR_REMOTE_DIR/storage/database' '$FR_REMOTE_DIR/storage/sessions' '$FR_REMOTE_DIR/storage/nonces' '$FR_REMOTE_DIR/storage/logs' && chmod 600 '$FR_REMOTE_DIR/.env'"
+
+            HTTP_UP="$(curl -s -o /dev/null -w '%{http_code}' https://game.mein-seelenfunke.de/up)"
+            if [ "$HTTP_UP" != "200" ]; then
+                echo "❌ Health-Check https://game.mein-seelenfunke.de/up fehlgeschlagen (HTTP $HTTP_UP)!"
+                exit 1
+            fi
+
+            echo "✅ Funkenreich-Deploy auf https://game.mein-seelenfunke.de erfolgreich abgeschlossen (Health /up = HTTP 200)!"
+        )
+        exit $?
+        ;;
     cache)
         echo "🧹 Leere alle Framework-Caches restlos aus..."
         $PREFIX_DEFAULT php artisan optimize:clear

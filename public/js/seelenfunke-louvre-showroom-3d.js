@@ -1,10 +1,10 @@
 /*!
- * Mein-Seelenfunke · Vereinte 3D-User-Lobby (Louvre-Produktgalerie + Goldene Halle der Helden + 10-Stufen Magma-Welt)
- * 60-FPS Three.js Engine: InstancedMesh, 24-Bone SkinnedMesh mit Hand-/Finger- & Umhang-Physik, Jahreszeiten, Tor zur Aussenwelt & Portal-Hub.
+ * Mein-Seelenfunke · Edles 3D-Produkt-Atelier & Goldene Halle der Helden
+ * 60-FPS Three.js Engine: InstancedMesh, 24-Bone SkinnedMesh mit Hand-/Finger- & Umhang-Physik, Jahreszeiten & Tor zur Aussenwelt.
  * On-Demand ES-Modul: 0 KB Initial-Last auf /shop & /mein-konto, 0 % CPU/GPU nach dem Schliessen.
  */
 
-import { getLobbyAudioInstance, SeelenfunkeLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261117v6';
+import { getLobbyAudioInstance, SeelenfunkeLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v3';
 
 const TWO_PI = Math.PI * 2;
 const PROXIMITY_FOCUS_ENTER = 3.4;
@@ -12,15 +12,10 @@ const PROXIMITY_FOCUS_LEAVE = 3.75;
 const HERO_FOCUS_ENTER = 3.85;
 const HERO_FOCUS_LEAVE = 4.35;
 
-export const LOBBY_KEYBINDINGS_STORAGE_KEY = 'sf_lobby_keybindings_v3';
-export const LOBBY_SETTINGS_STORAGE_KEY = 'sf_lobby_user_settings_v1';
+export const LOBBY_KEYBINDINGS_STORAGE_KEY = 'sf_lobby_keybindings_v4';
+export const LOBBY_SETTINGS_STORAGE_KEY = 'sf_lobby_user_settings_v2';
 
 export const DEFAULT_LOBBY_KEYBINDINGS = {
-    strike: 'Digit1',
-    sprint: 'Digit2',
-    titanJump: 'Digit3',
-    shield: 'Digit4',
-    burst: 'Digit5',
     jump: 'Space',
     moveForward: 'KeyW',
     moveLeft: 'KeyA',
@@ -28,51 +23,8 @@ export const DEFAULT_LOBBY_KEYBINDINGS = {
     moveRight: 'KeyD',
 };
 
-export const LOBBY_ABILITY_DEFINITIONS = Object.freeze([
-    Object.freeze({
-        slot: 1,
-        actionKey: 'strike',
-        name: 'Funken-Hieb',
-        costLabel: '0 Mana · 4er-Kombo',
-        cdLabel: 'Sofort / 1,8 s nach Schlag 4',
-        desc: 'Schlägt mit bis zu 4 Kombo-Stufen zu und entfesselt beim 4. Treffer einen Luft-Bodenschlag.',
-    }),
-    Object.freeze({
-        slot: 2,
-        actionKey: 'sprint',
-        name: 'Licht-Sprint',
-        costLabel: '18 Mana',
-        cdLabel: '10 s Abklingzeit',
-        desc: 'Erhöht dein Lauftempo 4,5 s lang um 55 % für weite Präzisionssprünge.',
-    }),
-    Object.freeze({
-        slot: 3,
-        actionKey: 'titanJump',
-        name: 'Aufwind-Impuls',
-        costLabel: '22 Mana',
-        cdLabel: '8 s Abklingzeit',
-        desc: 'Katapultiert dich sofort kraftvoll in die Höhe zum Überwinden weiter Schluchten und Ebenen.',
-    }),
-    Object.freeze({
-        slot: 4,
-        actionKey: 'shield',
-        name: 'Aegis-Schild',
-        costLabel: '25 Mana',
-        cdLabel: '15 s Abklingzeit',
-        desc: 'Schützt 6,5 s vor Geysiren und Gefahrenringen. Bei Lava-Kontakt katapultiert dich das Schild hoch und zerbricht.',
-    }),
-    Object.freeze({
-        slot: 5,
-        actionKey: 'burst',
-        name: 'Seelen-Nova',
-        costLabel: '30 Mana',
-        cdLabel: '20 s Abklingzeit',
-        desc: 'Entfesselt eine goldene Druckwelle rund um Funki und neutralisiert nahe Gefahrenringe.',
-    }),
-]);
-
 export const DEFAULT_LOBBY_USER_SETTINGS = {
-    volume: 50,
+    volume: 5,
     cameraSensitivity: 100,
     useRealName: false,
     graphicsQuality: 'high',
@@ -99,11 +51,6 @@ export function loadLobbyUserSettings() {
                     out.graphicsQuality = parsed.graphicsQuality;
                 }
             }
-        } else {
-            const legacyVol = localStorage.getItem('sf_lobby_sfx_volume');
-            if (legacyVol !== null && legacyVol !== '' && Number.isFinite(Number(legacyVol))) {
-                out.volume = Math.max(0, Math.min(100, Math.round(Number(legacyVol))));
-            }
         }
     } catch (e) {}
     return out;
@@ -111,7 +58,7 @@ export function loadLobbyUserSettings() {
 
 export function saveLobbyUserSettings(partial) {
     const merged = Object.assign(loadLobbyUserSettings(), partial || {});
-    merged.volume = Math.max(0, Math.min(100, Math.round(Number(merged.volume ?? 50))));
+    merged.volume = Math.max(0, Math.min(100, Math.round(Number(merged.volume ?? 5))));
     merged.cameraSensitivity = Math.max(50, Math.min(150, Math.round(Number(merged.cameraSensitivity ?? 100))));
     merged.useRealName = Boolean(merged.useRealName);
     merged.graphicsQuality = merged.graphicsQuality === 'balanced' ? 'balanced' : 'high';
@@ -184,58 +131,6 @@ export function resolveLobbyEnvironment(rawEnv) {
         holiday_label: holidayLabel,
         server_time: serverTime,
     };
-}
-
-export function computeLavaSCurveAnchors(rawLevel) {
-    const lvl = Math.max(1, Math.min(10, parseInt(rawLevel, 10) || 1));
-    const dir = (lvl % 2 === 1) ? 1.0 : -1.0;
-    const ampZ = +(7.5 + (lvl - 1) * 0.55).toFixed(2);
-    return {
-        rel_cp1: {
-            stage: 1,
-            rel_x: +(18.5 + (lvl - 1) * 0.60).toFixed(2),
-            rel_y: +(0.85 + (lvl - 1) * 0.14).toFixed(2),
-            rel_z: +(dir * ampZ).toFixed(2),
-        },
-        rel_cp2: {
-            stage: 2,
-            rel_x: +(37.5 + (lvl - 1) * 1.15).toFixed(2),
-            rel_y: +(1.95 + (lvl - 1) * 0.22).toFixed(2),
-            rel_z: +(-dir * (ampZ + 0.80)).toFixed(2),
-        },
-        rel_chest: {
-            rel_x: +(55.5 + (lvl - 1) * 1.65).toFixed(2),
-            rel_y: +(3.20 + (lvl - 1) * 0.28).toFixed(2),
-            rel_z: +(dir * (2.40 + (lvl % 3) * 1.10)).toFixed(2),
-        },
-    };
-}
-
-const DEFAULT_LAVA_LEVEL_CONFIGS = [
-    Object.assign({ level: 1, title: 'Funkensteg', requires_master_key: false, first_clear_reward: 5, daily_reward: 2 }, computeLavaSCurveAnchors(1)),
-    Object.assign({ level: 2, title: 'Glutpendel', requires_master_key: false, first_clear_reward: 8, daily_reward: 2 }, computeLavaSCurveAnchors(2)),
-    Object.assign({ level: 3, title: 'Bröckelnde Essen', requires_master_key: false, first_clear_reward: 10, daily_reward: 3 }, computeLavaSCurveAnchors(3)),
-    Object.assign({ level: 4, title: 'Geysir-Schlucht', requires_master_key: false, first_clear_reward: 12, daily_reward: 4 }, computeLavaSCurveAnchors(4)),
-    Object.assign({ level: 5, title: 'Wächter-Prüfung', requires_master_key: false, first_clear_reward: 15, daily_reward: 4 }, computeLavaSCurveAnchors(5)),
-    Object.assign({ level: 6, title: 'Tiefenschmiede-Tor', requires_master_key: true, first_clear_reward: 20, daily_reward: 4 }, computeLavaSCurveAnchors(6)),
-    Object.assign({ level: 7, title: 'Obsidian-Ambosse', requires_master_key: true, first_clear_reward: 25, daily_reward: 5 }, computeLavaSCurveAnchors(7)),
-    Object.assign({ level: 8, title: 'Runen-Kaskade', requires_master_key: true, first_clear_reward: 30, daily_reward: 5 }, computeLavaSCurveAnchors(8)),
-    Object.assign({ level: 9, title: 'Flammen-Krone', requires_master_key: true, first_clear_reward: 35, daily_reward: 5 }, computeLavaSCurveAnchors(9)),
-    Object.assign({ level: 10, title: 'Thron des Seelenfunkens', requires_master_key: true, first_clear_reward: 50, daily_reward: 6 }, computeLavaSCurveAnchors(10)),
-];
-
-export function getLobbyHeartSvgMarkup(isFilled = true) {
-    if (isFilled) {
-        return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">'
-            + '<path d="M12 20.6L10.55 19.28C5.4 14.61 2 11.53 2 7.75C2 4.67 4.42 2.25 7.5 2.25C9.24 2.25 10.91 3.06 12 4.34C13.09 3.06 14.76 2.25 16.5 2.25C19.58 2.25 22 4.67 22 7.75C22 11.53 18.6 14.61 13.45 19.29L12 20.6Z" fill="#DC2626" stroke="#C5A059" stroke-width="1.45" stroke-linejoin="round"/>'
-            + '<path d="M7.35 4.55C5.55 4.55 4.25 5.82 4.25 7.55C4.25 8.42 4.62 9.25 5.25 10.02L8.95 5.18C8.46 4.78 7.92 4.55 7.35 4.55Z" fill="#FCA5A5" opacity="0.72"/>'
-            + '<path d="M12 5.4L14.2 8.2L12 18.4" stroke="#991B1B" stroke-width="0.85" stroke-linecap="round" opacity="0.45"/>'
-            + '</svg>';
-    }
-    return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden="true">'
-        + '<path d="M12 20.6L10.55 19.28C5.4 14.61 2 11.53 2 7.75C2 4.67 4.42 2.25 7.5 2.25C9.24 2.25 10.91 3.06 12 4.34C13.09 3.06 14.76 2.25 16.5 2.25C19.58 2.25 22 4.67 22 7.75C22 11.53 18.6 14.61 13.45 19.29L12 20.6Z" fill="#1F2937" fill-opacity="0.22" stroke="#9CA3AF" stroke-width="1.35" stroke-linejoin="round"/>'
-        + '<path d="M10.5 6.2L13.1 10.4L10.8 13.2L12.8 17.2" stroke="#6B7280" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" opacity="0.68"/>'
-        + '</svg>';
 }
 
 export function loadLobbyKeybindings() {
@@ -360,49 +255,6 @@ function createBoiserieWallPlaneGeo(THREE, widthMeters, heightMeters, panelRepea
 
 const TOTAL_HERO_DISPLAY_SLOTS = 29;
 
-export function getLobbyAbilitySvgMarkup(slot) {
-    const s = parseInt(slot, 10) || 1;
-    if (s === 1) {
-        // [1] Funken-Hieb: Edle Manufaktur-Goldklinge mit geschwungenem Licht-Hiebbogen & Diamantfunke
-        return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
-            + '<path d="M5.5 21.5C8.5 11.8 15.2 6.2 23.2 5.2" stroke="#C5A059" stroke-width="2.2" stroke-linecap="round" opacity="0.55"/>'
-            + '<path d="M21.8 4.8L10.6 16.0L12.0 17.4L23.2 6.2L23.6 4.4L21.8 4.8Z" fill="#C5A059" stroke="#785A28" stroke-width="1.1" stroke-linejoin="round"/>'
-            + '<path d="M8.6 14.4L13.6 19.4" stroke="#111827" stroke-width="2.0" stroke-linecap="round"/>'
-            + '<path d="M10.4 17.6L6.6 21.4" stroke="#785A28" stroke-width="2.3" stroke-linecap="round"/>'
-            + '<path d="M19.5 12.2L20.6 9.8L21.7 12.2L24.1 13.3L21.7 14.4L20.6 16.8L19.5 14.4L17.1 13.3L19.5 12.2Z" fill="#D97706"/>'
-            + '</svg>';
-    }
-    if (s === 2) {
-        // [2] Licht-Sprint: Gefluegelter Gold-Impuls mit dreifachem Tempo-Schweif
-        return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
-            + '<path d="M4.5 10.5H13.5M3.5 14.5H11.5M5.5 18.5H12.5" stroke="#1D4ED8" stroke-width="1.8" stroke-linecap="round" opacity="0.78"/>'
-            + '<path d="M12.2 19.8L16.4 8.2L23.8 6.4L19.8 13.6L24.2 14.4L14.4 22.2L15.8 16.6L12.2 19.8Z" fill="#C5A059" stroke="#785A28" stroke-width="1.15" stroke-linejoin="round"/>'
-            + '</svg>';
-    }
-    if (s === 3) {
-        // [3] Aufwind-Impuls: Doppelter Gold-Aufwind-Chevron ueber elliptischem Druckring
-        return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
-            + '<ellipse cx="14" cy="21.5" rx="7.5" ry="2.4" stroke="#1D4ED8" stroke-width="1.6" opacity="0.72"/>'
-            + '<path d="M8.5 13.5L14 7.8L19.5 13.5" stroke="#785A28" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
-            + '<path d="M14 4.8L19.8 10.8H16.2V18.2H11.8V10.8H8.2L14 4.8Z" fill="#C5A059" stroke="#785A28" stroke-width="1.1" stroke-linejoin="round"/>'
-            + '</svg>';
-    }
-    if (s === 4) {
-        // [4] Aegis-Schild: Facettierter Wappenschild mit Saphir-Gold-Kristallkern
-        return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
-            + '<path d="M14 4.2L22.2 7.4V13.8C22.2 18.8 18.7 22.6 14 24.4C9.3 22.6 5.8 18.8 5.8 13.8V7.4L14 4.2Z" fill="#FAF3E3" stroke="#C5A059" stroke-width="1.9" stroke-linejoin="round"/>'
-            + '<path d="M14 6.8L19.6 9.0V13.6C19.6 17.2 17.2 19.9 14 21.4C10.8 19.9 8.4 17.2 8.4 13.6V9.0L14 6.8Z" fill="#C5A059" opacity="0.28"/>'
-            + '<path d="M14 8.8L16.8 13.8L14 18.8L11.2 13.8L14 8.8Z" fill="#1D4ED8" stroke="#C5A059" stroke-width="1.1"/>'
-            + '</svg>';
-    }
-    // [5] Seelen-Nova: Achtstrahliger Supernova-Kristallstern mit Gold-Druckwellen-Ring
-    return '<svg class="sf-ability-svg" viewBox="0 0 28 28" fill="none" aria-hidden="true">'
-        + '<circle cx="14" cy="14" r="9.2" stroke="#C5A059" stroke-width="1.35" stroke-dasharray="2.4 2.2" opacity="0.82"/>'
-        + '<path d="M14 3.8L16.3 10.6L23.2 11.7L17.4 15.6L19.2 22.4L14 18.2L8.8 22.4L10.6 15.6L4.8 11.7L11.7 10.6L14 3.8Z" fill="#C5A059" stroke="#785A28" stroke-width="1.1" stroke-linejoin="round"/>'
-        + '<circle cx="14" cy="14" r="2.5" fill="#FFFDF7"/>'
-        + '</svg>';
-}
-
 export const SF_LOBBY_SCOPED_CSS = `
 [x-cloak] { display: none !important; }
 @keyframes sfLobbySpin { to { transform: rotate(360deg); } }
@@ -515,6 +367,7 @@ export const SF_LOBBY_SCOPED_CSS = `
     align-items: center;
     gap: 7px;
     flex-wrap: wrap;
+    margin-right: 244px;
 }
 .sf-lobby-pill-btn {
     appearance: none;
@@ -1168,153 +1021,42 @@ export const SF_LOBBY_SCOPED_CSS = `
     letter-spacing: 0.16em;
     pointer-events: none;
 }
-.sf-lobby-abilities-dock {
-    justify-self: center;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    pointer-events: auto;
-}
-.sf-ability-btn {
+.sf-lobby-gear-btn {
     position: relative;
-    width: 50px;
-    height: 50px;
-    border-radius: 14px;
-    background: linear-gradient(180deg, #FFFFFF 0%, #FAF6EE 100%);
-    border: 1.5px solid rgba(197, 160, 89, 0.68);
-    color: #111827;
-    display: flex;
+    justify-self: center;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    padding: 0;
-    box-shadow: 0 5px 14px rgba(17, 24, 39, 0.10), inset 0 1px 0 #FFFFFF;
-    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-}
-.sf-ability-btn:hover {
-    border-color: #C5A059;
-    transform: translateY(-2px);
-    background: #FFFFFF;
-    box-shadow: 0 8px 20px rgba(197, 160, 89, 0.28);
-}
-.sf-ability-btn.is-active {
-    border-color: #C5A059;
-    background: #FAF3E3;
-    box-shadow: 0 6px 20px rgba(197, 160, 89, 0.40);
-}
-.sf-ability-btn.is-cooldown {
-    opacity: 0.54;
-    border-color: rgba(156, 163, 175, 0.58);
-}
-.sf-ability-svg {
-    width: 27px;
-    height: 27px;
-    display: block;
-    pointer-events: none;
-}
-.sf-ability-key {
-    position: absolute;
-    top: 3px;
-    left: 5px;
-    font-size: 9px;
-    font-weight: 900;
-    color: #785A28;
-    line-height: 1;
-    pointer-events: none;
-}
-.sf-ability-cd {
-    position: absolute;
-    bottom: 3px;
-    right: 4px;
-    font-size: 9px;
-    font-weight: 800;
-    color: #FFFFFF;
-    background: rgba(17, 24, 39, 0.88);
-    padding: 1px 4px;
-    border-radius: 5px;
-    line-height: 1;
-    pointer-events: none;
-}
-.sf-ability-combo-badge {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background: #C5A059;
-    color: #FFFFFF;
-    font-size: 9px;
-    font-weight: 900;
-    padding: 2px 5px;
-    border-radius: 999px;
-    border: 1.5px solid #FFFFFF;
-    line-height: 1;
-    box-shadow: 0 3px 8px rgba(17, 24, 39, 0.18);
-    pointer-events: none;
-}
-.sf-ability-tooltip {
-    position: absolute;
-    bottom: calc(100% + 12px);
-    left: 50%;
-    transform: translateX(-50%) translateY(4px);
-    width: 224px;
-    padding: 10px 12px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.98);
-    border: 1.5px solid rgba(197, 160, 89, 0.72);
-    box-shadow: 0 14px 34px rgba(17, 24, 39, 0.16);
-    text-align: left;
-    pointer-events: none;
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
-    z-index: 40;
-}
-.sf-ability-btn:hover .sf-ability-tooltip,
-.sf-ability-btn:focus-visible .sf-ability-tooltip {
-    opacity: 1;
-    visibility: visible;
-    transform: translateX(-50%) translateY(0);
-}
-.sf-ability-tooltip-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     gap: 6px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    background: #FFFFFF;
+    border: 1.5px solid rgba(197, 160, 89, 0.72);
+    color: #111827;
     font-size: 12px;
     font-weight: 800;
-    color: #111827;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(17, 24, 39, 0.08);
+    transition: border-color 0.15s ease, transform 0.12s ease, background 0.15s ease;
+    pointer-events: auto;
 }
-.sf-ability-tooltip-key {
-    padding: 1px 6px;
-    border-radius: 6px;
+.sf-lobby-gear-btn:hover,
+.sf-lobby-gear-btn.is-active {
+    border-color: #C5A059;
     background: #FAF6EE;
-    border: 1px solid rgba(197, 160, 89, 0.50);
-    font-size: 9.5px;
-    font-weight: 900;
-    color: #785A28;
+    transform: translateY(-1px);
 }
-.sf-ability-tooltip-meta {
-    margin-top: 4px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    font-size: 10px;
+.sf-outer-gate-banner {
+    background: #FAF8F5;
+    border: 1.5px solid #C5A059;
+    border-radius: 14px;
+    padding: 14px 16px;
+    text-align: center;
+    font-size: 14px;
     font-weight: 800;
-}
-.sf-ability-tooltip-mana {
-    color: #1D4ED8;
-}
-.sf-ability-tooltip-cd {
-    color: #6B7280;
-}
-.sf-ability-tooltip-desc {
-    margin-top: 5px;
-    font-size: 10.5px;
-    font-weight: 600;
-    line-height: 1.35;
-    color: #374151;
-    white-space: normal;
+    color: #111827;
+    letter-spacing: 0.01em;
 }
 .sf-lobby-settings-backdrop {
     position: absolute;
@@ -1425,52 +1167,28 @@ export const SF_LOBBY_SCOPED_CSS = `
     color: #9A7738;
     white-space: nowrap;
 }
-.sf-lobby-lava-chest-card {
-    pointer-events: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.97);
-    color: #111827;
-    border: 1.5px solid #C5A059;
-    box-shadow: 0 14px 32px rgba(17, 24, 39, 0.16);
-    font-size: 12px;
-    font-weight: 800;
-    white-space: nowrap;
-    cursor: pointer;
-    text-decoration: none;
-}
-.sf-lobby-lava-chest-card.is-cta {
-    background: #C5A059;
-    color: #FFFFFF;
-}
-.sf-lobby-lava-chest-card.is-cta:hover {
-    background: #B38E46;
-}
 .sf-lobby-unit-frame {
     pointer-events: auto;
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 13px 6px 7px;
-    border-radius: 999px;
+    padding: 7px 13px 7px 8px;
+    border-radius: 18px;
     background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(197, 160, 89, 0.55);
+    border: 1.5px solid rgba(197, 160, 89, 0.60);
     box-shadow: 0 8px 24px rgba(17, 24, 39, 0.09);
     color: #111827;
 }
 .sf-lobby-unit-avatar {
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     border-radius: 999px;
     background: #FAF8F5;
     border: 1.5px solid #C5A059;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 900;
     color: #9A7738;
     flex-shrink: 0;
@@ -1478,45 +1196,12 @@ export const SF_LOBBY_SCOPED_CSS = `
 .sf-lobby-unit-meta {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    min-width: 126px;
-}
-.sf-lobby-unit-mana-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.sf-lobby-unit-mana-label {
-    font-size: 9.5px;
-    font-weight: 900;
-    letter-spacing: 0.03em;
-    color: #1D4ED8;
-    line-height: 1;
-    white-space: nowrap;
-}
-.sf-lobby-unit-mana-track {
-    flex: 1;
-    min-width: 64px;
-    height: 6px;
-    border-radius: 999px;
-    background: rgba(29, 78, 216, 0.16);
-    overflow: hidden;
-}
-.sf-lobby-unit-mana-fill {
-    height: 100%;
-    border-radius: 999px;
-    background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%);
-    transition: width 160ms ease;
-}
-@keyframes sfHeartShatter {
-    0% { transform: scale(1.22) rotate(0deg); opacity: 1; }
-    35% { transform: scale(1.36) rotate(-10deg); opacity: 0.92; }
-    70% { transform: scale(0.78) rotate(12deg); opacity: 0.48; }
-    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    gap: 2px;
+    min-width: 120px;
 }
 .sf-lobby-topright-stack {
     position: absolute;
-    top: 58px;
+    top: 14px;
     right: 18px;
     z-index: 25;
     display: flex;
@@ -1525,67 +1210,10 @@ export const SF_LOBBY_SCOPED_CSS = `
     gap: 9px;
     pointer-events: none;
 }
-.sf-lobby-vital-hud {
-    pointer-events: auto;
-    width: 188px;
-    padding: 8px 11px 7px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.96);
-    border: 1.5px solid rgba(197, 160, 89, 0.62);
-    box-shadow: 0 10px 26px rgba(17, 24, 39, 0.11), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    box-sizing: border-box;
-    color: #111827;
-}
-.sf-lobby-vital-hearts {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 3px;
-}
-.sf-lobby-heart-icon {
-    width: 18px;
-    height: 18px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: transform 160ms ease, opacity 160ms ease;
-}
-.sf-lobby-heart-icon svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-}
-.sf-lobby-heart-icon.is-lost {
-    opacity: 0.62;
-}
-.sf-lobby-heart-icon.is-shattering {
-    animation: sfHeartShatter 480ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.sf-lobby-demote-banner {
-    position: absolute;
-    top: 62px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 42;
-    padding: 8px 16px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.98);
-    border: 1.5px solid #DC2626;
-    box-shadow: 0 14px 32px rgba(17, 24, 39, 0.16);
-    color: #991B1B;
-    font-size: 12px;
-    font-weight: 800;
-    white-space: nowrap;
-    pointer-events: none;
-}
 .sf-lobby-minimap-wrap {
     position: relative;
-    width: 180px;
-    height: 180px;
+    width: 232px;
+    height: 232px;
     z-index: 25;
     pointer-events: auto;
     display: flex;
@@ -1745,44 +1373,32 @@ export const SF_LOBBY_SCOPED_CSS = `
     cursor: pointer;
 }
 @media (max-width: 900px), (pointer: coarse) {
-    .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; }
-    .sf-lobby-stick { width: 72px; height: 72px; }
-    .sf-lobby-topright-stack { top: 56px; right: 12px; gap: 7px; }
-    .sf-lobby-vital-hud { width: 162px; padding: 6px 9px; }
-    .sf-lobby-heart-icon { width: 16px; height: 16px; }
-    .sf-lobby-minimap-wrap { width: 136px; height: 136px; }
-    .sf-ability-tooltip { display: none !important; }
+    .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
+    .sf-lobby-actions { margin-right: 0; }
+    .sf-lobby-unit-frame { padding: 5px 10px 5px 6px; gap: 7px; border-radius: 15px; }
+    .sf-lobby-unit-avatar { width: 34px; height: 34px; font-size: 12px; }
+    .sf-lobby-unit-meta { min-width: 108px; gap: 2px; }
+    .sf-lobby-stick-wrap { display: block; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); left: 10px; }
+    .sf-lobby-stick { width: 68px; height: 68px; }
+    .sf-lobby-topright-stack { top: 62px; right: 10px; gap: 6px; }
+    .sf-lobby-minimap-wrap { width: 138px; height: 138px; }
+    .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; }
 }
 @media (max-width: 767px) {
-    .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
-    .sf-lobby-unit-frame { padding: 4px 10px 4px 5px; gap: 7px; }
-    .sf-lobby-unit-avatar { width: 26px; height: 26px; font-size: 11px; }
-    .sf-lobby-unit-meta { min-width: 102px; }
-    .sf-lobby-zone-badge { padding: 4px 9px; font-size: 10.5px; }
-    .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 5px 9px; font-size: 11px; }
-    .sf-lobby-kbd, .sf-lobby-hide-sm, .sf-lobby-crest-ornament { display: none !important; }
-    .sf-lobby-topright-stack { top: 54px; right: 10px; gap: 6px; }
-    .sf-lobby-vital-hud { width: 148px; padding: 5px 8px; gap: 4px; }
-    .sf-lobby-heart-icon { width: 14px; height: 14px; }
-    .sf-lobby-minimap-wrap { width: 116px; height: 116px; }
-    .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; }
-    .sf-lobby-chat-panel { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); right: 10px; }
+    .sf-lobby-zone-badge { padding: 4px 8px; font-size: 10px; }
+    .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 5px 8px; font-size: 11px; }
+    .sf-lobby-kbd, .sf-lobby-hide-sm, .sf-lobby-crest-ornament, .sf-lobby-crest-brand { display: none !important; }
+    .sf-lobby-chat-panel { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); right: 10px; }
     .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 20px); }
     .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
-    .sf-lobby-gold-crest-bar { grid-template-columns: auto 1fr; padding: 5px 12px calc(6px + env(safe-area-inset-bottom, 0px)); min-height: 58px; gap: 8px; }
-    .sf-lobby-abilities-dock { justify-self: end; gap: 6px; }
-    .sf-ability-btn { width: 42px; height: 42px; border-radius: 11px; }
-    .sf-ability-svg { width: 22px; height: 22px; }
-    .sf-ability-key { font-size: 8px; top: 2px; left: 4px; }
+    .sf-lobby-gold-crest-bar { display: flex; align-items: center; justify-content: center; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); min-height: 54px; gap: 6px; }
 }
 @media (max-width: 480px) {
-    .sf-lobby-topright-stack { top: 90px; right: 8px; }
-    .sf-lobby-gold-crest-bar { display: flex; flex-direction: column-reverse; align-items: center; justify-content: center; gap: 3px; padding: 5px 8px calc(5px + env(safe-area-inset-bottom, 0px)); min-height: 60px; }
-    .sf-lobby-abilities-dock { width: 100%; justify-content: center; gap: 6px; }
-    .sf-lobby-crest-brand { font-size: 9.5px; opacity: 0.88; line-height: 1; }
-    .sf-lobby-stick-wrap { bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 10px; }
-    .sf-lobby-stick { width: 66px; height: 66px; }
-    .sf-lobby-bottom-stack { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+    .sf-lobby-topright-stack { top: 64px; right: 8px; }
+    .sf-lobby-unit-meta { min-width: 100px; }
+    .sf-lobby-stick-wrap { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 8px; }
+    .sf-lobby-stick { width: 64px; height: 64px; }
+    .sf-lobby-bottom-stack { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); }
     .sf-lobby-floating-card { width: 266px; padding: 11px 13px 10px; }
 }
 `;
@@ -1795,7 +1411,7 @@ export function ensureLobbyScopedStyles() {
         styleEl.id = 'sf-3d-lobby-scoped-css';
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
         (document.head || document.documentElement).appendChild(styleEl);
-    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-lobby-vital-hud') === -1) {
+    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-outer-gate-banner') === -1) {
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
     }
 }
@@ -3550,13 +3166,76 @@ function buildSpeechBubbleTexture(THREE, rawText) {
     return tex;
 }
 
+function buildSeelenfunkeHoloTexture(THREE, disposables) {
+    const S = 128;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, S, S);
+
+    const rad = ctx.createRadialGradient(S * 0.5, S * 0.5, 1, S * 0.5, S * 0.5, S * 0.48);
+    rad.addColorStop(0.0, 'rgba(255, 255, 255, 0.95)');
+    rad.addColorStop(0.28, 'rgba(254, 240, 138, 0.72)');
+    rad.addColorStop(0.62, 'rgba(103, 232, 249, 0.32)');
+    rad.addColorStop(1.0, 'rgba(103, 232, 249, 0.0)');
+    ctx.fillStyle = rad;
+    ctx.fillRect(0, 0, S, S);
+
+    ctx.save();
+    ctx.translate(S * 0.5, S * 0.5);
+    for (let a = 0; a < 2; a++) {
+        ctx.rotate(Math.PI * 0.25 + a * Math.PI * 0.5);
+        const rayG = ctx.createLinearGradient(-S * 0.46, 0, S * 0.46, 0);
+        rayG.addColorStop(0.0, 'rgba(103, 232, 249, 0.0)');
+        rayG.addColorStop(0.35, 'rgba(103, 232, 249, 0.58)');
+        rayG.addColorStop(0.5, 'rgba(254, 240, 138, 0.95)');
+        rayG.addColorStop(0.65, 'rgba(103, 232, 249, 0.58)');
+        rayG.addColorStop(1.0, 'rgba(103, 232, 249, 0.0)');
+        ctx.fillStyle = rayG;
+        ctx.fillRect(-S * 0.46, -2.5, S * 0.92, 5.0);
+    }
+    ctx.restore();
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    applySrgbColorSpace(THREE, tex);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+function createArchPortalVeilGeometry(THREE, halfW, springY, archRadius = halfW, segments = 32) {
+    const r = Math.max(0.05, Number(archRadius) || Number(halfW) || 1.0);
+    const hw = Math.max(0.05, Number(halfW) || r);
+    const sy = Math.max(0.0, Number(springY) || 1.0);
+    const shape = new THREE.Shape();
+    shape.moveTo(-hw, 0);
+    shape.lineTo(hw, 0);
+    shape.lineTo(r, sy);
+    shape.absarc(0, sy, r, 0, Math.PI, false);
+    shape.lineTo(-hw, 0);
+    shape.closePath();
+
+    const geo = new THREE.ShapeGeometry(shape, segments);
+    const pos = geo.attributes.position;
+    const uv = geo.attributes.uv;
+    const maxSpanW = Math.max(hw, r) * 2.0;
+    const totalH = Math.max(0.05, sy + r);
+    for (let i = 0; i < pos.count; i++) {
+        uv.setXY(i, (pos.getX(i) / maxSpanW) + 0.5, pos.getY(i) / totalH);
+    }
+    uv.needsUpdate = true;
+    return geo;
+}
+
 class SeelenfunkeLouvreShowroom3D {
     constructor(options = {}) {
         this.canvas = options.canvas;
         this.floatingCardEl = options.floatingCardEl || null;
         this.floatingHeroCardEl = options.floatingHeroCardEl || null;
         this.floatingPortalCardEl = options.floatingPortalCardEl || null;
-        this.floatingLavaChestEl = options.floatingLavaChestEl || null;
         this.floatingOuterGateEl = options.floatingOuterGateEl || null;
 
         this.products = Array.isArray(options.products) ? options.products : [];
@@ -3602,14 +3281,9 @@ class SeelenfunkeLouvreShowroom3D {
             || DEFAULT_FUNKI_GLB_URLS[initLevel]
             || DEFAULT_FUNKI_GLB_URLS[2]
         );
-        const initLavaCfg = (options.lavaParkour && typeof options.lavaParkour === 'object') ? options.lavaParkour : {};
 
-        const initHearts = clamp(
-            parseInt(initLavaCfg.hearts ?? initLavaCfg.current_hearts ?? (rawPlayerObj && rawPlayerObj.hearts) ?? 6, 10) || 6,
-            0,
-            6
-        );
-        const initMaxHearts = Math.max(1, parseInt(initLavaCfg.max_hearts ?? 6, 10) || 6);
+        this.mmorpgCanEnter = Boolean(options.mmorpgCanEnter ?? (rawPlayerObj && rawPlayerObj.mmorpg_can_enter));
+        this.mmorpgEnterUrl = String(options.mmorpgEnterUrl || (rawPlayerObj && rawPlayerObj.mmorpg_enter_url) || '/funkenreich/enter');
 
         this.playerProfile = {
             isAuthenticated: this.isAuthenticatedCustomer,
@@ -3621,19 +3295,10 @@ class SeelenfunkeLouvreShowroom3D {
             funkenBalance: initBalance,
             displayedFunkenBalance: initBalance,
             funkenTotalEarned: initTotal,
-            masterKeyUnlocked: Boolean((rawPlayerObj && rawPlayerObj.master_key_unlocked) || initLavaCfg.master_key_unlocked),
-            giftVoucherUrl: String((rawPlayerObj && rawPlayerObj.gift_voucher_url) || '/produkt/geschenkgutschein'),
-            mana: 100.0,
-            maxMana: 100.0,
-            hearts: initHearts > 0 ? initHearts : 6,
-            maxHearts: initMaxHearts,
-            lastHeartLostSeq: 0,
-            lastHeartLostIndex: -1,
-            demoteBannerText: '',
+            statusHintText: '',
         };
 
-        // Strikte 3-Stufen-Zugangsvoraussetzung fuer 'Halle der Helden' & 'Magma-Welt':
-        // 1. Angemeldet  2. Mindestens eine Bestellung  3. Magie aktiviert (Produkte anschauen darf weiterhin jeder!)
+        // 2-Stufen-Zugangsvoraussetzung fuer 'Halle der Helden': 1. Angemeldet  2. Magie aktiviert
         this.sanctumAccess = {
             isAuthenticated: this.isAuthenticatedCustomer,
             hasCompletedOrder: Boolean(rawPlayerObj && (rawPlayerObj.has_completed_order ?? false)),
@@ -3663,7 +3328,7 @@ class SeelenfunkeLouvreShowroom3D {
 
         const rawInitialZone = String(options.initialZone || 'gallery').toLowerCase();
         this._requestedInitialZone = rawInitialZone;
-        this.initialZone = (rawInitialZone === 'heroes' || rawInitialZone === 'hall' || rawInitialZone === 'my_place' || (rawInitialZone === 'lava' && this.canEnterSanctums))
+        this.initialZone = (rawInitialZone === 'heroes' || rawInitialZone === 'hall' || rawInitialZone === 'my_place')
             ? rawInitialZone
             : 'gallery';
 
@@ -3676,9 +3341,8 @@ class SeelenfunkeLouvreShowroom3D {
         this.onPortalGatePromptChange = typeof options.onPortalGatePromptChange === 'function' ? options.onPortalGatePromptChange : null;
         const rawAuthGateCb = typeof options.onAuthGatePrompt === 'function' ? options.onAuthGatePrompt : null;
         this.onAuthGatePrompt = rawAuthGateCb ? (zone) => rawAuthGateCb(zone, this.getSanctumAccessState()) : null;
-        this.onMasterKeyPromptChange = typeof options.onMasterKeyPromptChange === 'function' ? options.onMasterKeyPromptChange : null;
         this.onOuterGatePromptChange = typeof options.onOuterGatePromptChange === 'function' ? options.onOuterGatePromptChange : null;
-        this.onLavaChestStateChange = typeof options.onLavaChestStateChange === 'function' ? options.onLavaChestStateChange : null;
+        this.onOuterGateModalOpen = typeof options.onOuterGateModalOpen === 'function' ? options.onOuterGateModalOpen : null;
         this.onTeleportTransition = typeof options.onTeleportTransition === 'function' ? options.onTeleportTransition : null;
         this.onPlayerHudChange = typeof options.onPlayerHudChange === 'function' ? options.onPlayerHudChange : null;
 
@@ -3693,18 +3357,14 @@ class SeelenfunkeLouvreShowroom3D {
         this.outdoorWeatherGroup = null;
         this.outdoorWeatherPosAttr = null;
         this.outdoorWeatherMeta = [];
-        this.eastMagmaPortalVeilMat = null;
-        this.eastMagmaNicheFloorMat = null;
-        this.eastPortalNichePads = [];
-        this.eastPortalNicheEmberAttr = null;
-        this.eastPortalNicheEmberMeta = [];
         this.westOuterGateGroup = null;
         this.westGateHitMeshes = [];
         this.westGateFocused = false;
+        this._westOuterGateArmed = true;
+        this._outerGatePromptPendingTimer = 0;
         this._outerGateCardScreenX = -9999;
         this._outerGateCardScreenY = -9999;
         this._outerGateCardVisible = false;
-        this._magmaAuthGateTriggered = false;
         this._heroesAuthGateTriggered = false;
         this._gateRepulseTimer = 0;
         this._gateRepulseDuration = 0.38;
@@ -3713,8 +3373,6 @@ class SeelenfunkeLouvreShowroom3D {
         this._gateRepulseInputDampTimer = 0;
         this._gatePromptCooldown = 0;
         this._gatePromptPendingTimer = 0;
-        this._demoteBannerTimer = 0;
-        this._epicGatePromptOpen = false;
         this.teleportFovBoost = 0;
         this._portalWalkCd = 0;
 
@@ -3725,7 +3383,6 @@ class SeelenfunkeLouvreShowroom3D {
         this.skinnedFunkiCache = new Map();
         this.skinnedFunkiPromises = new Map();
         this.heroDynamicDisposables = [];
-        this.lavaRoomDisposables = [];
         this._monumentGeneration = 0;
         this.abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
 
@@ -3750,148 +3407,11 @@ class SeelenfunkeLouvreShowroom3D {
         this.pantheonMinZ = -70.0;
         this.currentZone = 'gallery';
 
-        // 10-Stufen Jump-&-Run Magma-Welt (zone = 'lava', 44.0 m Breite Z in [-24.0, +20.0], Laenge bis X = 104.0 m)
-        this.lavaPortalZ = -2.0;
-        this.lavaPortalHalfSpan = 2.85;
-        this.lavaChamberMinX = 3.5;
-        this.lavaChamberMaxX = 104.0;
-        this.lavaChamberMinZ = -24.0;
-        this.lavaChamberMaxZ = 20.0;
-        this.lavaBalconyMaxX = 19.0;
-        this.lavaRoomOrigin = { x: 16.5, y: 0.004, z: -2.0 };
-        this.lavaSurfaceY = -1.35;
-        this.lavaGroup = null;
-        this.lavaRoomDynamicGroup = null;
-        this.lavaLakeShaderMat = null;
-        this.lavaPlatforms = [];
-        this.lavaGeysers = [];
-        this.lavaUpdrafts = [];
-        this.lavaRotatingRings = [];
-        this.lavaShockRings = [];
-        this.lavaHubPortals = [];
-        this.lavaHubPortalHitMeshes = [];
-        this.lavaNextRoomPortal = null;
-        this.lavaNextRoomHitMeshes = [];
-        this.lavaReturnPortalWorld = null;
-        this.lavaEpicGate = null;
-        this.lavaEpicGateHitMeshes = [];
-        this.lavaCheckpointRings = {};
-        this.lavaPortalHitMeshes = [];
-        this.lavaChestHitMeshes = [];
-        this.lavaReturnHitMeshes = [];
-        this.lavaEmberPosAttr = null;
-        this.lavaEmberMeta = [];
-        this.lavaChestRoot = null;
-        this.lavaChestLidPivot = null;
-        this.lavaChestGlowMesh = null;
-        this.lavaChestWobbleTimer = 0;
-        this.lavaChestBurstPending = false;
-        this.collectibleSparks = [];
-        this._sparkCollectCombo = 0;
         this._exhibitTransition = null;
         this._lastHeroesRefreshMs = 0;
         this._heroesRefreshInFlight = false;
         this._lastRightTapMs = 0;
         this._touchSwipeStart = null;
-
-        const rawLevels = Array.isArray(initLavaCfg.levels) && initLavaCfg.levels.length > 0
-            ? initLavaCfg.levels
-            : DEFAULT_LAVA_LEVEL_CONFIGS;
-        const mergedDailyClaimedSet = new Set();
-        if (Array.isArray(initLavaCfg.daily_claimed_levels)) {
-            initLavaCfg.daily_claimed_levels.forEach((v) => {
-                const n = parseInt(v, 10);
-                if (n >= 1 && n <= 10) mergedDailyClaimedSet.add(n);
-            });
-        }
-        if (Array.isArray(initLavaCfg.daily_cleared_levels)) {
-            initLavaCfg.daily_cleared_levels.forEach((v) => {
-                const n = parseInt(v, 10);
-                if (n >= 1 && n <= 10) mergedDailyClaimedSet.add(n);
-            });
-        }
-        if (initLavaCfg.claimed_today) {
-            mergedDailyClaimedSet.add(1);
-        }
-
-        this.lavaLevels = [];
-        for (let li = 1; li <= 10; li++) {
-            const found = rawLevels.find((item) => Number(item && item.level) === li) || null;
-            const defCfg = computeLavaSCurveAnchors(li);
-            const fallbackMeta = DEFAULT_LAVA_LEVEL_CONFIGS[li - 1];
-            if (found && (found.claimed_today || found.daily_claimed)) {
-                mergedDailyClaimedSet.add(li);
-            }
-            this.lavaLevels.push({
-                level: li,
-                title: sanitizeDisplayText((found && found.title) || fallbackMeta.title),
-                requires_master_key: found && found.requires_master_key !== undefined ? Boolean(found.requires_master_key) : (li >= 6),
-                first_clear_reward: Math.max(0, parseInt((found && found.first_clear_reward) ?? fallbackMeta.first_clear_reward, 10) || 0),
-                daily_reward: Math.max(0, parseInt((found && found.daily_reward) ?? fallbackMeta.daily_reward, 10) || 2),
-                rel_cp1: {
-                    stage: 1,
-                    rel_x: (found && found.rel_cp1 && Number.isFinite(Number(found.rel_cp1.rel_x))) ? Number(found.rel_cp1.rel_x) : defCfg.rel_cp1.rel_x,
-                    rel_y: (found && found.rel_cp1 && Number.isFinite(Number(found.rel_cp1.rel_y))) ? Number(found.rel_cp1.rel_y) : defCfg.rel_cp1.rel_y,
-                    rel_z: (found && found.rel_cp1 && Number.isFinite(Number(found.rel_cp1.rel_z))) ? Number(found.rel_cp1.rel_z) : defCfg.rel_cp1.rel_z,
-                },
-                rel_cp2: {
-                    stage: 2,
-                    rel_x: (found && found.rel_cp2 && Number.isFinite(Number(found.rel_cp2.rel_x))) ? Number(found.rel_cp2.rel_x) : defCfg.rel_cp2.rel_x,
-                    rel_y: (found && found.rel_cp2 && Number.isFinite(Number(found.rel_cp2.rel_y))) ? Number(found.rel_cp2.rel_y) : defCfg.rel_cp2.rel_y,
-                    rel_z: (found && found.rel_cp2 && Number.isFinite(Number(found.rel_cp2.rel_z))) ? Number(found.rel_cp2.rel_z) : defCfg.rel_cp2.rel_z,
-                },
-                rel_chest: {
-                    rel_x: (found && found.rel_chest && Number.isFinite(Number(found.rel_chest.rel_x))) ? Number(found.rel_chest.rel_x) : defCfg.rel_chest.rel_x,
-                    rel_y: (found && found.rel_chest && Number.isFinite(Number(found.rel_chest.rel_y))) ? Number(found.rel_chest.rel_y) : defCfg.rel_chest.rel_y,
-                    rel_z: (found && found.rel_chest && Number.isFinite(Number(found.rel_chest.rel_z))) ? Number(found.rel_chest.rel_z) : defCfg.rel_chest.rel_z,
-                },
-            });
-        }
-
-        this.currentLavaLevel = 1;
-        this.lavaProgress = {
-            highestUnlockedLevel: clamp(parseInt(initLavaCfg.highest_unlocked_level, 10) || 1, 1, 10),
-            unlockedPortals: Array.isArray(initLavaCfg.unlocked_portals) ? initLavaCfg.unlocked_portals.map((v) => Number(v)) : [],
-            firstClearedLevels: Array.isArray(initLavaCfg.first_cleared_levels) ? initLavaCfg.first_cleared_levels.map((v) => Number(v)) : [],
-            dailyClearedLevels: Array.from(mergedDailyClaimedSet),
-            dailySparksEarned: Math.max(0, parseInt(initLavaCfg.daily_sparks_earned, 10) || 0),
-            dailySparksCap: Math.max(5, parseInt(initLavaCfg.daily_sparks_cap, 10) || 50),
-        };
-
-        const lvl1ClaimedToday = this.lavaProgress.dailyClearedLevels.indexOf(1) !== -1;
-        this.lavaChestOpenProgress = lvl1ClaimedToday ? 1.0 : 0.0;
-        this.lavaChestOpenTarget = this.lavaChestOpenProgress;
-        this.lavaRun = {
-            level: 1,
-            runId: initLavaCfg.run_id ? String(initLavaCfg.run_id) : null,
-            lifeNonce: initLavaCfg.life_nonce ? String(initLavaCfg.life_nonce) : '',
-            committed: false,
-            _commitPromise: null,
-            hitIframeTimer: 0,
-            starting: false,
-            startedClientMs: 0,
-            _startPromise: null,
-            _cp1Promise: null,
-            _cp2Promise: null,
-            cp1World: { x: 35.0, y: 0.854, z: 5.5 },
-            cp2World: { x: 54.0, y: 1.954, z: -10.3 },
-            chestWorld: { x: 72.0, y: 3.204, z: 1.5 },
-            cp1Reached: false,
-            cp1Sent: false,
-            cp1PendingTimer: 0,
-            cp1ClientMs: 0,
-            cp1ConfirmedMs: 0,
-            cp2Reached: false,
-            cp2Sent: false,
-            cp2PendingTimer: 0,
-            cp2ClientMs: 0,
-            cp2ConfirmedMs: 0,
-            claimToken: null,
-            claiming: false,
-            claimedToday: lvl1ClaimedToday,
-            statusMessage: '',
-            nearChest: false,
-        };
 
         this.steles = [];
         this.exhibitLoadQueue = [];
@@ -3918,6 +3438,9 @@ class SeelenfunkeLouvreShowroom3D {
         this.pedestalSparkMeta = [];
         this.pedestalSparkPosAttr = null;
         this.sparkSpriteTex = null;
+        this.seelenfunkeHoloTex = null;
+        this._magicAwakenChoreo = null;
+        this._statusHintTimer = 0;
         this.stagesPreviewMode = 'live'; // 'live' | '1-5' | '6-10'
 
         this.activeIndex = 0;
@@ -3940,10 +3463,6 @@ class SeelenfunkeLouvreShowroom3D {
         this._portalCardScreenY = -9999;
         this._portalCardVisible = false;
 
-        this._lavaChestCardScreenX = -9999;
-        this._lavaChestCardScreenY = -9999;
-        this._lavaChestCardVisible = false;
-
         this.player = {
             root: null,
             joints: null,
@@ -3957,7 +3476,6 @@ class SeelenfunkeLouvreShowroom3D {
             isJumping: false,
             jumpCount: 0,
             coyoteTimer: 0,
-            standingPlatform: null,
             isSomersault: false,
             somersaultProgress: 0.0,
             somersaultDuration: 0.52,
@@ -3973,43 +3491,15 @@ class SeelenfunkeLouvreShowroom3D {
             currentSpeed: 0,
             autoTarget: null,
             autoLookAt: null,
-            weaponActionSeq: 0,
-            weaponSwingTimer: 0,
-            weaponCooldown: 0,
-            punchSwingTimer: 0,
-            punchCooldown: 0,
-            punchCombo: 0,
-            comboStage: 0,
-            comboWindowTimer: 0,
-            comboAnimTimer: 0,
-            comboAnimDuration: 0,
-            comboActiveStage: 0,
-            comboCooldown: 0,
-            comboSeq: 0,
-            comboLeapY: 0,
-            comboSpinYaw: 0,
-            comboFinisherSlammed: false,
             bubbleSprite: null,
             bubbleTex: null,
             bubbleMat: null,
             bubbleExpiresAt: 0,
-            sprintTimer: 0,
-            sprintCooldown: 0,
-            sprintSparkAcc: 0,
-            titanJumpCooldown: 0,
-            highJumpActive: false,
-            shieldTimer: 0,
-            shieldCooldown: 0,
-            shieldMesh: null,
-            burstCooldown: 0,
-            knockbackVx: 0,
-            knockbackVz: 0,
             emote: null,
             emoteTimer: 0,
         };
 
         this.freePedestalCrests = [];
-        this.lavaReturnPortalWorld = null;
         this._heroesNeedsLiveRefresh = false;
 
         this._avatarShared = null;
@@ -4148,25 +3638,24 @@ class SeelenfunkeLouvreShowroom3D {
         this._buildSeasonalSkyAndOutdoorWeather(isMobile);
         this._buildSeasonalIndoorAccents();
         this._buildWestOuterWorldGate();
-        this._buildEastMagmaEntrancePortal();
         this._buildGoldenHonorPortalAndPromenade();
         this._buildHallOfHeroes();
-        this._buildLavaChamberAndParkour();
         const coreTexturesPromise = this._loadPhotorealisticTextures(24.0, totalGalleryLength, promWidth, promTotalLen);
         this._populateHeroesMonuments();
         this._buildExhibitSteles(baySpacing);
         const playerReadyPromise = this._buildPlayerCharacter();
         this._bindEvents();
 
+        const resolvedInitAudioZone = ((this.initialZone === 'heroes' || this.initialZone === 'hall' || this.initialZone === 'my_place') && this.canEnterSanctums)
+            ? 'heroes'
+            : 'gallery';
         if (this.audio && typeof this.audio.onLobbyOpen === 'function') {
-            this.audio.onLobbyOpen(this.isAuthenticatedCustomer);
+            this.audio.onLobbyOpen(this.isAuthenticatedCustomer, resolvedInitAudioZone);
         }
 
         this.resize();
 
-        if (this.initialZone === 'lava' && this.canEnterSanctums) {
-            this.goToZone('lava', true);
-        } else if ((this.initialZone === 'heroes' || this.initialZone === 'hall' || this.initialZone === 'my_place') && this.canEnterSanctums) {
+        if ((this.initialZone === 'heroes' || this.initialZone === 'hall' || this.initialZone === 'my_place') && this.canEnterSanctums) {
             if (this.initialZone === 'my_place') {
                 this.goToZone('heroes', true);
                 this.goToMyHeroPlace();
@@ -4183,12 +3672,11 @@ class SeelenfunkeLouvreShowroom3D {
             if (
                 !this.canEnterSanctums
                 && this.onAuthGatePrompt
-                && (this._requestedInitialZone === 'lava'
-                    || this._requestedInitialZone === 'heroes'
+                && (this._requestedInitialZone === 'heroes'
                     || this._requestedInitialZone === 'hall'
                     || this._requestedInitialZone === 'my_place')
             ) {
-                this.onAuthGatePrompt(this._requestedInitialZone === 'lava' ? 'lava' : 'heroes');
+                this.onAuthGatePrompt('heroes');
             }
         }
 
@@ -4250,18 +3738,17 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     _syncZoneGroupVisibility() {
-        const inLava = (this.currentZone === 'lava');
-        if (this.lavaGroup) {
-            this.lavaGroup.visible = inLava;
-        }
         if (this.galleryGroup) {
-            this.galleryGroup.visible = !inLava;
+            this.galleryGroup.visible = true;
         }
         if (this.pantheonGroup) {
-            this.pantheonGroup.visible = !inLava;
+            this.pantheonGroup.visible = true;
         }
         if (this.outdoorWeatherGroup) {
-            this.outdoorWeatherGroup.visible = !inLava;
+            this.outdoorWeatherGroup.visible = true;
+        }
+        if (this.audio && typeof this.audio.setZone === 'function') {
+            this.audio.setZone(this.currentZone);
         }
     }
 
@@ -4781,9 +4268,6 @@ class SeelenfunkeLouvreShowroom3D {
 
         const galleryMinZ = centerZ - totalLength * 0.5;
         const galleryMaxZ = centerZ + totalLength * 0.5;
-        const lavaOpenMinZ = this.lavaPortalZ - this.lavaPortalHalfSpan;
-        const lavaOpenMaxZ = this.lavaPortalZ + this.lavaPortalHalfSpan;
-        const lavaOpenH = 5.45;
         const westGateHalfSpan = 2.65;
         const westOpenMinZ = -westGateHalfSpan;
         const westOpenMaxZ = westGateHalfSpan;
@@ -4846,40 +4330,22 @@ class SeelenfunkeLouvreShowroom3D {
                 westLintel.position.set(wx - 0.26, westOpenH + westLintelH * 0.5, 0.0);
                 this.galleryGroup.add(westLintel);
             } else {
-                const northLen = Math.max(0.5, lavaOpenMinZ - galleryMinZ);
-                const southLen = Math.max(0.5, galleryMaxZ - lavaOpenMaxZ);
-                const northCenterZ = (galleryMinZ + lavaOpenMinZ) * 0.5;
-                const southCenterZ = (lavaOpenMaxZ + galleryMaxZ) * 0.5;
-
-                [
-                    { len: northLen, cz: northCenterZ, minZ: galleryMinZ, maxZ: lavaOpenMinZ },
-                    { len: southLen, cz: southCenterZ, minZ: lavaOpenMaxZ, maxZ: galleryMaxZ },
-                ].forEach((seg) => {
-                    const segBack = new THREE.Mesh(
-                        this._trackDisposable(new THREE.BoxGeometry(0.55, wallH + 0.35, seg.len)),
-                        this.mats.limestoneArch
-                    );
-                    segBack.position.set(wx + 0.28, (wallH + 0.35) * 0.5, seg.cz);
-                    this.galleryGroup.add(segBack);
-
-                    const segFace = new THREE.Mesh(
-                        this._trackDisposable(createBoiserieWallPlaneGeo(THREE, seg.len, wallH, 7.8)),
-                        this.mats.boiserieWall
-                    );
-                    segFace.position.set(wx - 0.025, wallH * 0.5, seg.cz);
-                    segFace.rotation.y = -Math.PI * 0.5;
-                    this.galleryGroup.add(segFace);
-
-                    addRoundedWallSkirting(wx, seg.minZ, seg.maxZ, -1);
-                });
-
-                const lintelH = Math.max(0.5, (wallH + 0.35) - lavaOpenH);
-                const eastLintel = new THREE.Mesh(
-                    this._trackDisposable(new THREE.BoxGeometry(0.58, lintelH, this.lavaPortalHalfSpan * 2 + 0.2)),
+                const eastBack = new THREE.Mesh(
+                    this._trackDisposable(new THREE.BoxGeometry(0.55, wallH + 0.35, totalLength)),
                     this.mats.limestoneArch
                 );
-                eastLintel.position.set(wx + 0.26, lavaOpenH + lintelH * 0.5, this.lavaPortalZ);
-                this.galleryGroup.add(eastLintel);
+                eastBack.position.set(wx + 0.28, (wallH + 0.35) * 0.5, centerZ);
+                this.galleryGroup.add(eastBack);
+
+                const eastFace = new THREE.Mesh(
+                    this._trackDisposable(createBoiserieWallPlaneGeo(THREE, totalLength, wallH, 7.8)),
+                    this.mats.boiserieWall
+                );
+                eastFace.position.set(wx - 0.025, wallH * 0.5, centerZ);
+                eastFace.rotation.y = -Math.PI * 0.5;
+                this.galleryGroup.add(eastFace);
+
+                addRoundedWallSkirting(wx, galleryMinZ, galleryMaxZ, -1);
             }
 
             const cornice = new THREE.Mesh(corniceUpperGeo, this.mats.limestoneArch);
@@ -4908,9 +4374,6 @@ class SeelenfunkeLouvreShowroom3D {
         for (let i = 0; i < pierCountSide; i++) {
             const pz = this.hallNorthZ + 2.5 + i * ((totalLength - 5.0) / Math.max(1, pierCountSide - 1));
             [-hallW * 0.5 + 0.20, hallW * 0.5 - 0.20].forEach((px) => {
-                if (px > 0 && Math.abs(pz - this.lavaPortalZ) < (this.lavaPortalHalfSpan + 0.85)) {
-                    return;
-                }
                 if (px < 0 && Math.abs(pz - 0.0) < (westGateHalfSpan + 0.85)) {
                     return;
                 }
@@ -5202,7 +4665,7 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     _updateSeasonalOutdoorWeather() {
-        if (!this.outdoorWeatherPosAttr || this.outdoorWeatherMeta.length === 0 || this.currentZone === 'lava') {
+        if (!this.outdoorWeatherPosAttr || this.outdoorWeatherMeta.length === 0) {
             return;
         }
         const t = this.elapsedTime;
@@ -5514,6 +4977,36 @@ class SeelenfunkeLouvreShowroom3D {
         spillPlane.position.set(2.35, 0.007, 0);
         this.westOuterGateGroup.add(spillPlane);
 
+        const outerGateFriezeTex = buildLouvreFriezeTexture(
+            THREE,
+            this.maxAniso,
+            'Tor zur Außenwelt',
+            'Hier entsteht ein MMORPG',
+            this.disposables
+        );
+        const outerGateFriezeMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+            map: outerGateFriezeTex,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+            depthWrite: true,
+        }));
+        const outerFriezeY = springY + halfSpan + 0.42;
+        const outerFriezeBack = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.22, 1.16, 5.2)),
+            this.mats.goldMatcapBright
+        );
+        outerFriezeBack.position.set(0.24, outerFriezeY, 0);
+        this.westOuterGateGroup.add(outerFriezeBack);
+
+        const outerFriezePlane = new THREE.Mesh(
+            this._trackDisposable(new THREE.PlaneGeometry(4.96, 1.00)),
+            outerGateFriezeMat
+        );
+        outerFriezePlane.rotation.y = Math.PI * 0.5;
+        outerFriezePlane.position.set(0.24 + 0.11 + 0.028, outerFriezeY, 0);
+        this.westOuterGateGroup.add(outerFriezePlane);
+
         const gateHitProxy = new THREE.Mesh(
             this._trackDisposable(new THREE.BoxGeometry(0.85, 5.6, halfSpan * 2)),
             this._trackDisposable(new THREE.MeshBasicMaterial({ visible: false }))
@@ -5522,405 +5015,6 @@ class SeelenfunkeLouvreShowroom3D {
         gateHitProxy.userData = { isWestOuterGate: true };
         this.westOuterGateGroup.add(gateHitProxy);
         this.westGateHitMeshes.push(gateHitProxy);
-    }
-
-    /**
-     * Punkt 4: Edles Marmor-/Obsidian-Saeulenportal an der Ostwand der Galerie (X = 11.92, Z = -2.0)
-     * mit 2-Schichten-Durchblick (60 FPS):
-     * 1) ~2.6 m tiefe Parallax-Vulkan-Nische (Lavasee-Bodenstreifen, Basalt-Silhouetten, Schwebeplatten-Schemen & aufsteigende rote Glut-Funken)
-     * 2) Halbtransparenter Obsidian-Schwarz & Karmesin-Blutglut Portal-Shader (alpha innen 0.56..0.74, am Rand 0.94, maxY <= 6.5 m).
-     */
-    _buildEastMagmaEntrancePortal() {
-        const THREE = this.THREE;
-        const pGroup = new THREE.Group();
-        pGroup.position.set(11.92, 0, this.lavaPortalZ);
-        this.galleryGroup.add(pGroup);
-
-        const halfSpan = this.lavaPortalHalfSpan;
-        const springY = 3.45;
-        const nicheDepth = 2.64;
-        const nicheHalfW = halfSpan + 0.18;
-        const nicheTopY = 6.38;
-
-        const obsidianShellMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-            color: 0x060508,
-        }));
-        const basaltSilhouetteMat = this._trackDisposable(new THREE.MeshStandardMaterial({
-            color: 0x0c090d,
-            emissive: 0x2a0808,
-            emissiveIntensity: 0.35,
-            roughness: 0.72,
-            metalness: 0.16,
-        }));
-        const crimsonRimMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-            color: 0xdc2626,
-            transparent: true,
-            opacity: 0.72,
-        }));
-
-        // 1. Dunkle ~2.6 m tiefe Vulkan-Nischenhuelle hinter der Wandebene (0 Lichtleck, maxY <= 6.45 m)
-        const backWall = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(0.16, nicheTopY + 0.3, nicheHalfW * 2 + 0.32)),
-            obsidianShellMat
-        );
-        backWall.position.set(nicheDepth, (nicheTopY - 0.15) * 0.5, 0);
-        pGroup.add(backWall);
-
-        [-nicheHalfW, nicheHalfW].forEach((sz) => {
-            const sideWall = new THREE.Mesh(
-                this._trackDisposable(new THREE.BoxGeometry(nicheDepth + 0.12, nicheTopY + 0.3, 0.16)),
-                obsidianShellMat
-            );
-            sideWall.position.set(nicheDepth * 0.5, (nicheTopY - 0.15) * 0.5, sz);
-            pGroup.add(sideWall);
-        });
-
-        const ceilingCap = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(nicheDepth + 0.18, 0.16, nicheHalfW * 2 + 0.32)),
-            obsidianShellMat
-        );
-        ceilingCap.position.set(nicheDepth * 0.5, nicheTopY, 0);
-        pGroup.add(ceilingCap);
-
-        const bottomBed = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(nicheDepth + 0.18, 0.22, nicheHalfW * 2 + 0.32)),
-            obsidianShellMat
-        );
-        bottomBed.position.set(nicheDepth * 0.5, -0.10, 0);
-        pGroup.add(bottomBed);
-
-        // Schimmernder Lavasee-Bodenstreifen in der Tiefe der Nische
-        this.eastMagmaNicheFloorMat = this._trackDisposable(new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0.0 },
-            },
-            vertexShader: [
-                'varying vec2 vUv;',
-                'void main() {',
-                '    vUv = uv;',
-                '    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-                '}',
-            ].join('\n'),
-            fragmentShader: [
-                'uniform float uTime;',
-                'varying vec2 vUv;',
-                'void main() {',
-                '    vec2 q = vUv * vec2(4.2, 6.4);',
-                '    float w1 = sin(q.x * 2.4 - uTime * 1.15 + sin(q.y * 2.1 + uTime * 0.7));',
-                '    float w2 = cos(q.y * 3.3 + uTime * 0.95 - cos(q.x * 2.8));',
-                '    float crack = smoothstep(0.18, 0.88, 0.5 + 0.28 * w1 + 0.22 * w2);',
-                '    vec3 crust = vec3(0.024, 0.020, 0.031);',
-                '    vec3 darkRed = vec3(0.498, 0.114, 0.114);',
-                '    vec3 bloodGlow = vec3(0.863, 0.149, 0.149);',
-                '    vec3 col = mix(crust, darkRed, crack);',
-                '    col = mix(col, bloodGlow, smoothstep(0.68, 0.96, crack) * 0.85);',
-                '    float edgeFade = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.78, vUv.x);',
-                '    gl_FragColor = vec4(col * (0.45 + 0.55 * edgeFade), 1.0);',
-                '}',
-            ].join('\n'),
-        }));
-
-        const nicheLavaFloor = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(nicheDepth - 0.16, nicheHalfW * 2 - 0.12)),
-            this.eastMagmaNicheFloorMat
-        );
-        nicheLavaFloor.rotation.x = -Math.PI * 0.5;
-        nicheLavaFloor.position.set(nicheDepth * 0.5 + 0.04, 0.028, 0);
-        pGroup.add(nicheLavaFloor);
-
-        // Dezenter roter Horizont-Glimmer an der Nischen-Rueckwand
-        const backGlowMat = this._trackDisposable(new THREE.ShaderMaterial({
-            transparent: true,
-            depthWrite: false,
-            uniforms: { uTime: { value: 0.0 } },
-            vertexShader: [
-                'varying vec2 vUv;',
-                'void main() {',
-                '    vUv = uv;',
-                '    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-                '}',
-            ].join('\n'),
-            fragmentShader: [
-                'uniform float uTime;',
-                'varying vec2 vUv;',
-                'void main() {',
-                '    float h = smoothstep(0.72, 0.0, vUv.y);',
-                '    float pulse = 0.82 + 0.18 * sin(uTime * 1.4 + vUv.x * 4.0);',
-                '    vec3 crimson = mix(vec3(0.024, 0.020, 0.031), vec3(0.498, 0.114, 0.114), h * pulse);',
-                '    gl_FragColor = vec4(crimson, h * 0.72);',
-                '}',
-            ].join('\n'),
-        }));
-        this._eastPortalBackGlowMat = backGlowMat;
-        const backGlowPlane = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(nicheHalfW * 2 - 0.16, 4.4)),
-            backGlowMat
-        );
-        backGlowPlane.rotation.y = -Math.PI * 0.5;
-        backGlowPlane.position.set(nicheDepth - 0.10, 2.20, 0);
-        pGroup.add(backGlowPlane);
-
-        // Mini-Basalt-Silhouetten in gestaffelter Tiefe fuer echte Parallax-Wirkung aus der Lobby
-        const spireGeo = this._trackDisposable(new THREE.CylinderGeometry(0.24, 0.38, 1.0, 6));
-        const spireConfigs = [
-            { x: 0.78, z: -2.05, h: 2.35, s: 0.92 },
-            { x: 0.92, z: 1.98, h: 2.05, s: 0.86 },
-            { x: 1.54, z: -1.58, h: 3.15, s: 1.08 },
-            { x: 1.72, z: 1.52, h: 2.85, s: 1.02 },
-            { x: 2.28, z: -0.95, h: 3.75, s: 1.18 },
-            { x: 2.36, z: 1.05, h: 3.45, s: 1.12 },
-        ];
-        for (let si = 0; si < spireConfigs.length; si++) {
-            const sc = spireConfigs[si];
-            const sp = new THREE.Mesh(spireGeo, basaltSilhouetteMat);
-            sp.scale.set(sc.s, sc.h, sc.s);
-            sp.position.set(sc.x, sc.h * 0.5, sc.z);
-            sp.rotation.y = si * 0.62;
-            pGroup.add(sp);
-        }
-
-        // Dunkle Schwebeplatten-Schemen im Hintergrund der Nische
-        this.eastPortalNichePads = [];
-        const silPadGeo = this._trackDisposable(new THREE.CylinderGeometry(0.46, 0.38, 0.14, 18));
-        const silPadRimGeo = this._trackDisposable(new THREE.TorusGeometry(0.46, 0.018, 8, 24));
-        silPadRimGeo.rotateX(Math.PI * 0.5);
-        const padDefs = [
-            { x: 0.95, y: 1.18, z: -0.78, s: 0.95, ph: 0.0 },
-            { x: 1.62, y: 1.92, z: 0.68, s: 0.86, ph: 1.7 },
-            { x: 2.22, y: 2.68, z: -0.18, s: 0.78, ph: 3.2 },
-        ];
-        for (let pi = 0; pi < padDefs.length; pi++) {
-            const pd = padDefs[pi];
-            const pHolder = new THREE.Group();
-            pHolder.position.set(pd.x, pd.y, pd.z);
-            pHolder.scale.setScalar(pd.s);
-            const slab = new THREE.Mesh(silPadGeo, basaltSilhouetteMat);
-            const rim = new THREE.Mesh(silPadRimGeo, pi === 1 ? this.mats.goldMatcapBrushed : crimsonRimMat);
-            rim.position.y = 0.04;
-            pHolder.add(slab, rim);
-            pGroup.add(pHolder);
-            this.eastPortalNichePads.push({ group: pHolder, mesh: pHolder, baseY: pd.y, baseZ: pd.z, ph: pd.ph, phase: pd.ph });
-        }
-
-        // Langsam aufsteigende rote Glut-Funken in der Vulkan-Nische
-        const nEmberCount = 28;
-        const nEmberPos = new Float32Array(nEmberCount * 3);
-        const nEmberCol = new Float32Array(nEmberCount * 3);
-        this.eastPortalNicheEmberMeta = [];
-        const nRng = mulberry32(20261119);
-        for (let ei = 0; ei < nEmberCount; ei++) {
-            const bx = 0.42 + nRng() * (nicheDepth - 0.68);
-            const bz = -(halfSpan - 0.42) + nRng() * ((halfSpan - 0.42) * 2);
-            const ph = nRng();
-            const spd = 0.09 + nRng() * 0.12;
-            const sway = 0.14 + nRng() * 0.22;
-            this.eastPortalNicheEmberMeta.push({ bx, bz, ex: bx, ez: bz, ph, spd, sway });
-            nEmberPos[ei * 3] = bx;
-            nEmberPos[ei * 3 + 1] = 0.15 + ph * 4.8;
-            nEmberPos[ei * 3 + 2] = bz;
-
-            const bright = (ei % 4 === 0);
-            nEmberCol[ei * 3] = bright ? 0.96 : 0.86;
-            nEmberCol[ei * 3 + 1] = bright ? 0.34 : 0.15;
-            nEmberCol[ei * 3 + 2] = bright ? 0.18 : 0.15;
-        }
-        const nEmberGeo = this._trackDisposable(new THREE.BufferGeometry());
-        this.eastPortalNicheEmberAttr = new THREE.BufferAttribute(nEmberPos, 3);
-        nEmberGeo.setAttribute('position', this.eastPortalNicheEmberAttr);
-        nEmberGeo.setAttribute('color', new THREE.BufferAttribute(nEmberCol, 3));
-        const nEmberMat = this._trackDisposable(new THREE.PointsMaterial({
-            size: 0.16,
-            map: this.sparkSpriteTex || null,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.88,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-        }));
-        const nEmberPts = new THREE.Points(nEmberGeo, nEmberMat);
-        nEmberPts.frustumCulled = false;
-        pGroup.add(nEmberPts);
-
-        // 2. Halbtransparenter Obsidian-Schwarz (#060508) & Karmesin-Blutglut (#7F1D1D, #DC2626) Portal-Schleier
-        // Innen durchscheinend (alpha ~ 0.56..0.74), am Bogenrand sanft auf 0.94 verdichtend!
-        this.eastMagmaPortalVeilMat = this._trackDisposable(new THREE.ShaderMaterial({
-            transparent: true,
-            depthWrite: false,
-            side: THREE.DoubleSide,
-            uniforms: {
-                uTime: { value: 0.0 },
-            },
-            vertexShader: [
-                'varying vec2 vUv;',
-                'void main() {',
-                '    vUv = uv;',
-                '    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
-                '}',
-            ].join('\n'),
-            fragmentShader: [
-                'uniform float uTime;',
-                'varying vec2 vUv;',
-                'void main() {',
-                '    vec2 p = (vUv - vec2(0.5, 0.45)) * vec2(2.0, 2.15);',
-                '    float heatX = sin(vUv.y * 13.0 - uTime * 1.85) * 0.032 + cos(vUv.y * 7.0 + uTime * 1.1) * 0.018;',
-                '    float heatY = cos(vUv.x * 11.0 - uTime * 1.45) * 0.026;',
-                '    vec2 q = p + vec2(heatX, heatY);',
-                '    float r = length(q);',
-                '    float ang = atan(q.y, q.x);',
-                '    float swirl = sin(r * 6.8 - uTime * 1.42 + sin(ang * 3.0 + uTime * 0.62) * 1.55);',
-                '    float tendrils = cos(q.y * 5.8 - uTime * 1.35 + sin(q.x * 6.4 + uTime * 0.8) * 1.25);',
-                '    float rift = 1.0 - abs(sin(q.x * 4.6 + swirl * 0.85 - uTime * 0.55));',
-                '    float fissure = smoothstep(0.66, 0.97, rift * 0.78 + tendrils * 0.26);',
-                '    float smoke = 0.5 + 0.30 * swirl + 0.20 * tendrils;',
-                '    vec3 obsidianBlack = vec3(0.024, 0.020, 0.031);', // #060508
-                '    vec3 deepCrimson   = vec3(0.498, 0.114, 0.114);', // #7F1D1D
-                '    vec3 bloodEmber    = vec3(0.863, 0.149, 0.149);', // #DC2626
-                '    float innerMask = smoothstep(1.06, 0.14, r);',
-                '    vec3 col = mix(obsidianBlack, deepCrimson, smoothstep(0.30, 0.78, smoke) * innerMask * 0.88);',
-                '    col = mix(col, bloodEmber, fissure * (0.42 + 0.52 * innerMask));',
-                '    float rimMask = smoothstep(0.64, 1.02, r);',
-                '    float innerAlpha = mix(0.56, 0.74, clamp(smoke * 0.72 + (1.0 - fissure) * 0.28, 0.0, 1.0));',
-                '    float alpha = mix(innerAlpha, 0.94, rimMask);',
-                '    gl_FragColor = vec4(col, alpha);',
-                '}',
-            ].join('\n'),
-        }));
-
-        const veilShape = new THREE.Shape();
-        veilShape.moveTo(-(halfSpan - 0.18), 0);
-        veilShape.lineTo(halfSpan - 0.18, 0);
-        veilShape.lineTo(halfSpan - 0.18, springY);
-        veilShape.absarc(0, springY, halfSpan - 0.18, 0, Math.PI, false);
-        veilShape.closePath();
-        const veilGeo = this._trackDisposable(new THREE.ShapeGeometry(veilShape, 32));
-        const vPos = veilGeo.attributes.position;
-        const vUv = veilGeo.attributes.uv;
-        const totalVeilH = springY + (halfSpan - 0.18);
-        const totalVeilW = (halfSpan - 0.18) * 2;
-        for (let vi = 0; vi < vPos.count; vi++) {
-            vUv.setXY(vi, (vPos.getX(vi) / totalVeilW) + 0.5, vPos.getY(vi) / totalVeilH);
-        }
-        vUv.needsUpdate = true;
-
-        const veilMesh = new THREE.Mesh(veilGeo, this.eastMagmaPortalVeilMat);
-        veilMesh.rotation.y = -Math.PI * 0.5;
-        veilMesh.position.set(0.02, 0.02, 0);
-        veilMesh.renderOrder = 4;
-        pGroup.add(veilMesh);
-
-        const colGeo = this._trackDisposable(new THREE.CylinderGeometry(0.32, 0.36, springY, 20));
-        const ringGeo = this._trackDisposable(new THREE.TorusGeometry(0.38, 0.085, 10, 24));
-        ringGeo.rotateX(Math.PI * 0.5);
-
-        [-halfSpan, halfSpan].forEach((cz) => {
-            const col = new THREE.Mesh(colGeo, this.mats.neroPedestal);
-            col.position.set(-0.08, springY * 0.5, cz);
-            pGroup.add(col);
-
-            const bRing = new THREE.Mesh(ringGeo, this.mats.goldMatcapBright);
-            bRing.position.set(-0.08, 0.14, cz);
-            pGroup.add(bRing);
-
-            const mRing = new THREE.Mesh(ringGeo, this.mats.goldMatcapBrushed);
-            mRing.position.set(-0.08, springY * 0.5, cz);
-            pGroup.add(mRing);
-
-            const cRing = new THREE.Mesh(ringGeo, this.mats.goldMatcapBright);
-            cRing.position.set(-0.08, springY, cz);
-            pGroup.add(cRing);
-        });
-
-        const obsidianArch = new THREE.Mesh(
-            this._trackDisposable(new THREE.TorusGeometry(halfSpan, 0.25, 14, 44, Math.PI)),
-            this.mats.neroPedestal
-        );
-        obsidianArch.rotation.y = -Math.PI * 0.5;
-        obsidianArch.position.set(-0.08, springY, 0);
-        pGroup.add(obsidianArch);
-
-        const goldArchRing = new THREE.Mesh(
-            this._trackDisposable(new THREE.TorusGeometry(halfSpan - 0.16, 0.10, 12, 44, Math.PI)),
-            this.mats.goldMatcapBright
-        );
-        goldArchRing.rotation.y = -Math.PI * 0.5;
-        goldArchRing.position.set(-0.16, springY, 0);
-        pGroup.add(goldArchRing);
-
-        const lavaFriezeTex = buildLouvreFriezeTexture(
-            THREE,
-            this.maxAniso,
-            'MAGMA-PRÜFUNG',
-            '10 RÄUME · PORTAL-HUB',
-            this.disposables
-        );
-        const lavaFriezeMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-            map: lavaFriezeTex,
-            polygonOffset: true,
-            polygonOffsetFactor: -2,
-            polygonOffsetUnits: -2,
-            depthWrite: true,
-        }));
-        const friezeY = springY + halfSpan + 0.56;
-        const lavaFriezeBack = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(0.22, 1.16, 5.2)),
-            this.mats.goldMatcapBright
-        );
-        lavaFriezeBack.position.set(-0.24, friezeY, 0);
-        pGroup.add(lavaFriezeBack);
-
-        const lavaFriezePlane = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(4.96, 1.00)),
-            lavaFriezeMat
-        );
-        lavaFriezePlane.rotation.y = -Math.PI * 0.5;
-        lavaFriezePlane.position.set(-0.24 - 0.11 - 0.028, friezeY, 0);
-        pGroup.add(lavaFriezePlane);
-
-        const portalProxy = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(0.9, 5.6, halfSpan * 2)),
-            this._trackDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-        );
-        portalProxy.position.set(-0.12, 2.8, 0);
-        portalProxy.userData = { isLavaPortal: true };
-        pGroup.add(portalProxy);
-        this.eastLavaPortalProxy = portalProxy;
-        this.lavaPortalHitMeshes.push(portalProxy);
-    }
-
-    _updateEastMagmaPortalPreview(dt) {
-        const t = this.elapsedTime;
-        if (this.eastMagmaPortalVeilMat && this.eastMagmaPortalVeilMat.uniforms) {
-            this.eastMagmaPortalVeilMat.uniforms.uTime.value = t;
-        }
-        if (this.eastMagmaNicheFloorMat && this.eastMagmaNicheFloorMat.uniforms) {
-            this.eastMagmaNicheFloorMat.uniforms.uTime.value = t;
-        }
-        if (this._eastPortalBackGlowMat && this._eastPortalBackGlowMat.uniforms) {
-            this._eastPortalBackGlowMat.uniforms.uTime.value = t;
-        }
-        if (this.eastPortalNichePads && this.eastPortalNichePads.length > 0) {
-            for (let pi = 0; pi < this.eastPortalNichePads.length; pi++) {
-                const np = this.eastPortalNichePads[pi];
-                const padObj = np && (np.group || np.mesh);
-                if (!padObj || !padObj.position) continue;
-                const phase = Number(np.ph ?? np.phase ?? 0);
-                padObj.position.y = (Number(np.baseY) || 0) + Math.sin(t * 1.55 + phase) * 0.08;
-                padObj.position.z = (Number(np.baseZ) || 0) + Math.cos(t * 1.15 + phase) * 0.16;
-            }
-        }
-        if (this.eastPortalNicheEmberAttr && this.eastPortalNicheEmberMeta && this.eastPortalNicheEmberMeta.length > 0) {
-            const arr = this.eastPortalNicheEmberAttr.array;
-            for (let ei = 0; ei < this.eastPortalNicheEmberMeta.length; ei++) {
-                const em = this.eastPortalNicheEmberMeta[ei];
-                if (!em) continue;
-                const u = (((Number(em.ph) || 0) + t * (Number(em.spd) || 0)) % 1 + 1) % 1;
-                const e3 = ei * 3;
-                arr[e3] = Number(em.bx ?? em.ex ?? 0);
-                arr[e3 + 1] = 0.08 + u * 4.95;
-                arr[e3 + 2] = Number(em.bz ?? em.ez ?? 0) + Math.sin(t * 1.8 + (Number(em.ph) || 0) * TWO_PI) * (Number(em.sway) || 0);
-            }
-            this.eastPortalNicheEmberAttr.needsUpdate = true;
-        }
     }
 
     /**
@@ -5974,21 +5068,48 @@ class SeelenfunkeLouvreShowroom3D {
         this.galleryGroup.add(promFloor);
         this.walkableFloorMeshes.push(promFloor);
 
+        const carpetSouthZ = this.hallNorthZ + 1.65;
+        const carpetNorthZ = this.pantheonCenterZ + 18.65;
+        const carpetLen = Math.max(4.0, carpetSouthZ - carpetNorthZ);
+        const carpetCenterZ = (carpetSouthZ + carpetNorthZ) * 0.5;
+        this.mats.honorCarpetVelvet = this._trackDisposable(new THREE.MeshStandardMaterial({
+            color: 0x133b5c,
+            roughness: 0.72,
+            metalness: 0.04,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -4,
+        }));
         const carpetStrip = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(2.6, this.promenadeLength + 3.2)),
-            this.mats.sapphireTrim
+            this._trackDisposable(new THREE.BoxGeometry(2.6, 0.014, carpetLen)),
+            this.mats.honorCarpetVelvet
         );
-        carpetStrip.rotation.x = -Math.PI * 0.5;
-        carpetStrip.position.set(0, 0.008, promCenterZ);
+        carpetStrip.position.set(0, 0.029, carpetCenterZ);
+        carpetStrip.renderOrder = 3;
         this.galleryGroup.add(carpetStrip);
 
-        [-1.34, 1.34, -this.portalHalfW + 0.12, this.portalHalfW - 0.12].forEach((gx) => {
-            const gLine = new THREE.Mesh(
-                this._trackDisposable(new THREE.BoxGeometry(0.11, 0.012, this.promenadeLength + 3.2)),
-                this.mats.goldMatcapBright
-            );
-            gLine.position.set(gx, 0.014, promCenterZ);
+        const carpetSideGoldGeo = this._trackDisposable(new THREE.BoxGeometry(0.11, 0.018, carpetLen));
+        [-1.34, 1.34].forEach((gx) => {
+            const gLine = new THREE.Mesh(carpetSideGoldGeo, this.mats.goldMatcapBright);
+            gLine.position.set(gx, 0.029, carpetCenterZ);
+            gLine.renderOrder = 3;
             this.galleryGroup.add(gLine);
+        });
+
+        const carpetEndGoldGeo = this._trackDisposable(new THREE.BoxGeometry(2.82, 0.018, 0.12));
+        [carpetSouthZ, carpetNorthZ].forEach((ez) => {
+            const endBar = new THREE.Mesh(carpetEndGoldGeo, this.mats.goldMatcapBright);
+            endBar.position.set(0, 0.029, ez);
+            endBar.renderOrder = 3;
+            this.galleryGroup.add(endBar);
+        });
+
+        const promOuterGoldGeo = this._trackDisposable(new THREE.BoxGeometry(0.11, 0.012, this.promenadeLength + 3.2));
+        [-this.portalHalfW + 0.12, this.portalHalfW - 0.12].forEach((gx) => {
+            const gOuter = new THREE.Mesh(promOuterGoldGeo, this.mats.goldMatcapBright);
+            gOuter.position.set(gx, 0.022, promCenterZ);
+            gOuter.renderOrder = 2;
+            this.galleryGroup.add(gOuter);
         });
 
         const balustradeGeo = this._trackDisposable(new THREE.BoxGeometry(0.36, 1.02, this.promenadeLength));
@@ -6435,2582 +5556,6 @@ class SeelenfunkeLouvreShowroom3D {
         this.pantheonGroup.add(this.pantheonDynamicGroup);
     }
 
-    _isLavaPortalUnlocked(levelNum) {
-        const lvl = clamp(parseInt(levelNum, 10) || 1, 1, 10);
-        if (lvl <= 1) return true;
-        if (Array.isArray(this.lavaProgress.unlockedPortals) && this.lavaProgress.unlockedPortals.indexOf(lvl) !== -1) {
-            return true;
-        }
-        return lvl <= (this.lavaProgress.highestUnlockedLevel || 1);
-    }
-
-    getLavaLevelConfig(levelNum) {
-        const lvl = clamp(parseInt(levelNum, 10) || 1, 1, 10);
-        return this.lavaLevels[lvl - 1] || DEFAULT_LAVA_LEVEL_CONFIGS[lvl - 1] || DEFAULT_LAVA_LEVEL_CONFIGS[0];
-    }
-
-    _getCurrentLavaAnchors() {
-        const lvl = clamp(parseInt(this.currentLavaLevel, 10) || 1, 1, 10);
-        const cfg = this.getLavaLevelConfig(lvl);
-        const fallback = computeLavaSCurveAnchors(lvl);
-        const ox = this.lavaRoomOrigin.x;
-        const oy = this.lavaRoomOrigin.y;
-        const oz = this.lavaRoomOrigin.z;
-
-        const cp1RelX = (cfg.rel_cp1 && Number.isFinite(Number(cfg.rel_cp1.rel_x))) ? Number(cfg.rel_cp1.rel_x) : fallback.rel_cp1.rel_x;
-        const cp1RelY = (cfg.rel_cp1 && Number.isFinite(Number(cfg.rel_cp1.rel_y))) ? Number(cfg.rel_cp1.rel_y) : fallback.rel_cp1.rel_y;
-        const cp1RelZ = (cfg.rel_cp1 && Number.isFinite(Number(cfg.rel_cp1.rel_z))) ? Number(cfg.rel_cp1.rel_z) : fallback.rel_cp1.rel_z;
-
-        const cp2RelX = (cfg.rel_cp2 && Number.isFinite(Number(cfg.rel_cp2.rel_x))) ? Number(cfg.rel_cp2.rel_x) : fallback.rel_cp2.rel_x;
-        const cp2RelY = (cfg.rel_cp2 && Number.isFinite(Number(cfg.rel_cp2.rel_y))) ? Number(cfg.rel_cp2.rel_y) : fallback.rel_cp2.rel_y;
-        const cp2RelZ = (cfg.rel_cp2 && Number.isFinite(Number(cfg.rel_cp2.rel_z))) ? Number(cfg.rel_cp2.rel_z) : fallback.rel_cp2.rel_z;
-
-        const chestRelX = (cfg.rel_chest && Number.isFinite(Number(cfg.rel_chest.rel_x))) ? Number(cfg.rel_chest.rel_x) : fallback.rel_chest.rel_x;
-        const chestRelY = (cfg.rel_chest && Number.isFinite(Number(cfg.rel_chest.rel_y))) ? Number(cfg.rel_chest.rel_y) : fallback.rel_chest.rel_y;
-        const chestRelZ = (cfg.rel_chest && Number.isFinite(Number(cfg.rel_chest.rel_z))) ? Number(cfg.rel_chest.rel_z) : fallback.rel_chest.rel_z;
-
-        return {
-            cfg,
-            origin: { x: ox, y: oy, z: oz },
-            cp1: {
-                x: Number((ox + cp1RelX).toFixed(3)),
-                y: Number((oy + cp1RelY).toFixed(3)),
-                z: Number((oz + cp1RelZ).toFixed(3)),
-            },
-            cp2: {
-                x: Number((ox + cp2RelX).toFixed(3)),
-                y: Number((oy + cp2RelY).toFixed(3)),
-                z: Number((oz + cp2RelZ).toFixed(3)),
-            },
-            chest: {
-                x: Number((ox + chestRelX).toFixed(3)),
-                y: Number((oy + chestRelY).toFixed(3)),
-                z: Number((oz + chestRelZ).toFixed(3)),
-            },
-        };
-    }
-
-    /**
-     * Echte Kinematik-Prueffunktion fuer horizontale Kanten-zu-Kanten-Maximalweite:
-     * GRAVITY = 15.2, moveSpeed = 5.2 (8.06 Sprint), vy1 = 5.8, vy2 = 5.85, vyAether = 11.6, Fuss-Puffer +0.48 m.
-     */
-    _computeMaxReachableHorizontalGap(dy = 0, useSprint = false, useAether = false) {
-        const GRAVITY = 15.2;
-        const horizSpeed = useSprint ? 8.06 : 5.2;
-        const vy1 = useAether ? 11.6 : 5.8;
-        const vy2 = 5.85;
-        const footBuffer = 0.48;
-        const targetDy = Number(dy) || 0;
-
-        const t1 = vy1 / GRAVITY;
-        const h1 = (vy1 * vy1) / (2.0 * GRAVITY);
-        const t2 = vy2 / GRAVITY;
-        const hMax = h1 + (vy2 * vy2) / (2.0 * GRAVITY);
-
-        if (targetDy > hMax - 0.08) {
-            return 0;
-        }
-        const fallDist = Math.max(0.02, hMax - targetDy);
-        const tFall = Math.sqrt((2.0 * fallDist) / GRAVITY);
-        const totalAirTime = t1 + t2 + tFall;
-        return horizSpeed * totalAirTime + footBuffer;
-    }
-
-    /**
-     * Mathematischer S-Kurven-Machbarkeits-Garant fuer alle Zwischenplatten eines Abschnitts:
-     * Jede Luecke (inkl. bewegter Pendel-Platten!) liegt garantiert zwischen 62 % und 78 % der Maximalweite
-     * (bzw. bis 75 % bei Sprint-/Aether-Pflichtspruengen von einer statischen Mana-Regenerations-Insel!).
-     */
-    _verifyAndClampJumpReachability(startAnchor, interNodes, endAnchor, lvl = 1, actIdx = 1) {
-        if (!Array.isArray(interNodes) || interNodes.length === 0) return interNodes;
-
-        const all = [startAnchor].concat(interNodes).concat([endAnchor]);
-        const segCount = all.length - 1;
-        const minChamberZ = this.lavaChamberMinZ + 4.5;
-        const maxChamberZ = this.lavaChamberMaxZ - 4.5;
-
-        const chordDx = endAnchor.x - startAnchor.x;
-        const chordDz = endAnchor.z - startAnchor.z;
-        const chordLen = Math.max(1.0, Math.hypot(chordDx, chordDz));
-        const perpX = -chordDz / chordLen;
-        const perpZ = chordDx / chordLen;
-
-        // 1. Vertikale Stufenhoehe jedes Einzelsprungs pruefen (nie > 1.35 m pro Sprung)
-        for (let i = 1; i < all.length - 1; i++) {
-            const u = i / segCount;
-            const idealY = lerp(startAnchor.y, endAnchor.y, u);
-            all[i].y = clamp(all[i].y, idealY - 0.35, idealY + 0.35);
-            const prevTop = all[i - 1].y - (all[i - 1].ampY || 0);
-            if ((all[i].y + (all[i].ampY || 0)) - prevTop > 1.35) {
-                all[i].y = prevTop + 1.25 - (all[i].ampY || 0);
-            }
-        }
-
-        // 2. Ziel-Korridor [62 %, 78 %] (bzw. [62 %, 75 %] bei Sprint/Aether von statischer Insel!) pro Sprung bestimmen
-        const computeSegBounds = (idx) => {
-            const a = all[idx];
-            const b = all[idx + 1];
-            const dyWorst = (b.y + (b.ampY || 0) * 0.5) - (a.y - (a.ampY || 0) * 0.5);
-            const canUseManaFromStatic = (idx === 0) && Boolean(a.isStaticSafeIsland) && lvl >= 4;
-            const useSprint = Boolean(b.requiresSprint && canUseManaFromStatic);
-            const useAether = Boolean(b.requiresAether && canUseManaFromStatic) || dyWorst > 1.75;
-            const maxGap = this._computeMaxReachableHorizontalGap(dyWorst, useSprint, useAether);
-            const upperFrac = (useSprint || useAether) ? 0.75 : 0.78;
-            const rA = a.effRadius || a.r || 1.0;
-            const rB = b.effRadius || b.r || 1.0;
-            const swingAssist = 0.35 * (Math.hypot(a.ampX || 0, a.ampZ || 0) + Math.hypot(b.ampX || 0, b.ampZ || 0));
-            return {
-                maxGap,
-                minEdge: 0.62 * maxGap,
-                maxEdge: upperFrac * maxGap,
-                targetEdge: lerp(0.62, upperFrac, 0.54) * maxGap,
-                radiiSum: rA + rB + swingAssist,
-                rawRadiiSum: rA + rB,
-            };
-        };
-
-        // Pruefe ob erster Sprung von statischer Insel Sprint nutzen soll, falls die Gesamtstrecke weit ist
-        let sumMaxCenterNoSprint = 0;
-        for (let s = 0; s < segCount; s++) {
-            const sb = computeSegBounds(s);
-            sumMaxCenterNoSprint += sb.maxEdge + sb.radiiSum;
-        }
-        if (chordLen > sumMaxCenterNoSprint * 0.96 && startAnchor.isStaticSafeIsland && lvl >= 4) {
-            all[1].requiresSprint = true;
-        }
-
-        // 3. S-Kurven-Auslenkung skalieren, damit Gesamtbogenlaenge exakt in [sumMinCenter, sumMaxCenter] faellt
-        const baseOffsets = interNodes.map((n, k) => {
-            const u = (k + 1) / segCount;
-            const basePx = lerp(startAnchor.x, endAnchor.x, u);
-            const basePz = lerp(startAnchor.z, endAnchor.z, u);
-            return (n.x - basePx) * perpX + (n.z - basePz) * perpZ;
-        });
-
-        let sumMinC = 0;
-        let sumMaxC = 0;
-        let sumTargetC = 0;
-        const boundsArr = [];
-        for (let s = 0; s < segCount; s++) {
-            const bnd = computeSegBounds(s);
-            boundsArr.push(bnd);
-            sumMinC += bnd.minEdge + bnd.radiiSum;
-            sumMaxC += bnd.maxEdge + bnd.radiiSum;
-            sumTargetC += bnd.targetEdge + bnd.radiiSum;
-        }
-
-        const evalArcLength = (latScale) => {
-            let total = 0;
-            let px = startAnchor.x;
-            let pz = startAnchor.z;
-            for (let k = 0; k < interNodes.length; k++) {
-                const u = (k + 1) / segCount;
-                const off = baseOffsets[k] * latScale;
-                const nx = lerp(startAnchor.x, endAnchor.x, u) + perpX * off;
-                const nz = clamp(lerp(startAnchor.z, endAnchor.z, u) + perpZ * off, minChamberZ, maxChamberZ);
-                total += Math.hypot(nx - px, nz - pz);
-                px = nx;
-                pz = nz;
-            }
-            total += Math.hypot(endAnchor.x - px, endAnchor.z - pz);
-            return total;
-        };
-
-        let curLen = evalArcLength(1.0);
-        let bestScale = 1.0;
-        if (curLen > sumMaxC * 0.97) {
-            let lo = 0.0;
-            let hi = 1.0;
-            for (let it = 0; it < 16; it++) {
-                const mid = (lo + hi) * 0.5;
-                if (evalArcLength(mid) > sumTargetC) hi = mid;
-                else lo = mid;
-            }
-            bestScale = (lo + hi) * 0.5;
-        } else if (curLen < sumMinC * 1.03) {
-            // S-Bogen verbreitern, damit kein Sprung unter 62 % faellt!
-            for (let k = 0; k < baseOffsets.length; k++) {
-                if (Math.abs(baseOffsets[k]) < 1.2) {
-                    const sign = ((k + actIdx) % 2 === 0) ? 1 : -1;
-                    baseOffsets[k] = sign * 2.8;
-                }
-            }
-            let lo = 1.0;
-            let hi = 4.2;
-            for (let it = 0; it < 16; it++) {
-                const mid = (lo + hi) * 0.5;
-                if (evalArcLength(mid) < sumTargetC) lo = mid;
-                else hi = mid;
-            }
-            bestScale = (lo + hi) * 0.5;
-        }
-
-        for (let k = 0; k < interNodes.length; k++) {
-            const u = (k + 1) / segCount;
-            const off = baseOffsets[k] * bestScale;
-            interNodes[k].x = lerp(startAnchor.x, endAnchor.x, u) + perpX * off;
-            interNodes[k].z = clamp(lerp(startAnchor.z, endAnchor.z, u) + perpZ * off, minChamberZ, maxChamberZ);
-        }
-
-        // 4. Iterative Feder-Entspannung entlang des Bogens, damit JEDES Einzelsegment strikt in [62 %, upperFrac] sitzt
-        for (let iter = 0; iter < 36; iter++) {
-            for (let s = 0; s < segCount; s++) {
-                const a = all[s];
-                const b = all[s + 1];
-                const bnd = computeSegBounds(s);
-                const dx = b.x - a.x;
-                const dz = b.z - a.z;
-                const dist = Math.max(0.01, Math.hypot(dx, dz));
-                const edgeGap = dist - bnd.radiiSum;
-                const rawEdgeGap = dist - bnd.rawRadiiSum;
-
-                let desiredDist = dist;
-                if (edgeGap < bnd.minEdge) {
-                    desiredDist = bnd.minEdge + bnd.radiiSum + 0.04;
-                } else if (edgeGap > bnd.maxEdge) {
-                    desiredDist = bnd.maxEdge + bnd.radiiSum - 0.04;
-                }
-                if (rawEdgeGap > bnd.maxGap * 0.90) {
-                    desiredDist = Math.min(desiredDist, bnd.maxGap * 0.88 + bnd.rawRadiiSum);
-                }
-
-                const diff = desiredDist - dist;
-                if (Math.abs(diff) > 0.004) {
-                    const ux = dx / dist;
-                    const uz = dz / dist;
-                    const aMovable = (s > 0);
-                    const bMovable = (s + 1 < all.length - 1);
-                    if (aMovable && bMovable) {
-                        a.x -= ux * diff * 0.5;
-                        a.z = clamp(a.z - uz * diff * 0.5, minChamberZ, maxChamberZ);
-                        b.x += ux * diff * 0.5;
-                        b.z = clamp(b.z + uz * diff * 0.5, minChamberZ, maxChamberZ);
-                    } else if (aMovable) {
-                        a.x -= ux * diff * 0.85;
-                        a.z = clamp(a.z - uz * diff * 0.85, minChamberZ, maxChamberZ);
-                    } else if (bMovable) {
-                        b.x += ux * diff * 0.85;
-                        b.z = clamp(b.z + uz * diff * 0.85, minChamberZ, maxChamberZ);
-                    }
-                }
-            }
-        }
-
-        return interNodes;
-    }
-
-    _trackLavaRoomDisposable(res) {
-        if (res && this.lavaRoomDisposables) {
-            this.lavaRoomDisposables.push(res);
-        }
-        return res;
-    }
-
-    _clearLavaRoomDynamicAssets() {
-        this._syncRemainingFloorSparksToHud();
-        if (this.walkableFloorMeshes && this.walkableFloorMeshes.length > 0) {
-            this.walkableFloorMeshes = this.walkableFloorMeshes.filter((m) => !(m && m.userData && m.userData.isRoomDynamic));
-        }
-        if (this.lavaReturnHitMeshes && this.lavaReturnHitMeshes.length > 0) {
-            this.lavaReturnHitMeshes = this.lavaReturnHitMeshes.filter((m) => !(m && m.userData && m.userData.isRoomDynamic));
-        }
-        if (this.lavaRoomDynamicGroup) {
-            while (this.lavaRoomDynamicGroup.children.length > 0) {
-                this.lavaRoomDynamicGroup.remove(this.lavaRoomDynamicGroup.children[0]);
-            }
-        }
-        if (this.lavaRoomDisposables && this.lavaRoomDisposables.length > 0) {
-            for (let i = 0; i < this.lavaRoomDisposables.length; i++) {
-                const d = this.lavaRoomDisposables[i];
-                if (d && typeof d.dispose === 'function') {
-                    d.dispose();
-                }
-            }
-            this.lavaRoomDisposables = [];
-        }
-        this.lavaPlatforms = [];
-        this.lavaGeysers = [];
-        this.lavaUpdrafts = [];
-        this.lavaRotatingRings = [];
-        this.lavaShockRings = [];
-        this.lavaCheckpointRings = {};
-        this.lavaChestHitMeshes = [];
-        this.lavaNextRoomHitMeshes = [];
-        this.lavaEpicGateHitMeshes = [];
-        this.lavaNextRoomPortal = null;
-        this.lavaReturnPortalWorld = null;
-        this.lavaEpicGate = null;
-        this.lavaChestRoot = null;
-        this.lavaChestLidPivot = null;
-        this.lavaChestGlowMesh = null;
-        this.lavaChestWobbleTimer = 0;
-        this.lavaChestBurstPending = false;
-    }
-
-    /**
-     * Bereich 3 (Magma-Welt, zone = 'lava', komplett gekapselt in this.lavaGroup):
-     * - 0 schwarzer Dachkasten ueber dem Louvre-Glasdach (lavaGroup.visible = (currentZone === 'lava'))
-     * - Eingangs-Vorraum mit halbkreisfoermiger Schnellreise-Portal-Galerie fuer Raum 2 bis 10
-     * - Modularer 10-Stufen Jump-&-Run-Generator (Raum 1 bis 10), Episches Tor vor Raum 6 & Wackel-Truhe + Boden-Funken!
-     */
-    _buildLavaChamberAndParkour() {
-        const THREE = this.THREE;
-        this.lavaGroup = new THREE.Group();
-        this.lavaGroup.visible = (this.currentZone === 'lava');
-        this.scene.add(this.lavaGroup);
-
-        const basaltDarkMat = this.mats.lavaCavernNero || this.mats.neroPedestal;
-        const basaltPolishedMat = this._trackDisposable(new THREE.MeshStandardMaterial({
-            color: 0x181412,
-            roughness: 0.34,
-            metalness: 0.16,
-            envMapIntensity: 0.90,
-        }));
-        const magmaUnderglowMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-            color: 0xd96b1e,
-        }));
-        this._lavaBasaltPolishedMat = basaltPolishedMat;
-        this._lavaMagmaUnderglowMat = magmaUnderglowMat;
-
-        const chamCenterX = (this.lavaChamberMinX + this.lavaChamberMaxX) * 0.5;
-        const chamCenterZ = (this.lavaChamberMinZ + this.lavaChamberMaxZ) * 0.5;
-        const chamW = this.lavaChamberMaxX - this.lavaChamberMinX;
-        const chamD = this.lavaChamberMaxZ - this.lavaChamberMinZ;
-        const wallTopY = 10.6;
-        const fullWallBottomY = -3.4;
-        const fullWallTopY = 36.0;
-        const fullWallH = fullWallTopY - fullWallBottomY;
-        const fullWallCenterY = (fullWallBottomY + fullWallTopY) * 0.5;
-
-        this.lavaLakeShaderMat = this._trackDisposable(new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0.0 },
-            },
-            vertexShader: [
-                'uniform float uTime;',
-                'varying vec2 vUv;',
-                'varying float vWave;',
-                'void main() {',
-                '    vUv = uv;',
-                '    vec3 p = position;',
-                '    float w1 = sin(p.x * 0.40 + uTime * 1.12) * cos(p.y * 0.36 - uTime * 0.82);',
-                '    float w2 = sin((p.x + p.y) * 0.72 - uTime * 1.48) * 0.5;',
-                '    vWave = w1 * 0.65 + w2 * 0.35;',
-                '    p.z += vWave * 0.08;',
-                '    gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);',
-                '}',
-            ].join('\n'),
-            fragmentShader: [
-                'uniform float uTime;',
-                'varying vec2 vUv;',
-                'varying float vWave;',
-                'float hash21(vec2 p) {',
-                '    p = fract(p * vec2(123.34, 456.21));',
-                '    p += dot(p, p + 45.32);',
-                '    return fract(p.x * p.y);',
-                '}',
-                'float noise2(vec2 p) {',
-                '    vec2 i = floor(p);',
-                '    vec2 f = fract(p);',
-                '    f = f * f * (3.0 - 2.0 * f);',
-                '    float a = hash21(i);',
-                '    float b = hash21(i + vec2(1.0, 0.0));',
-                '    float c = hash21(i + vec2(0.0, 1.0));',
-                '    float d = hash21(i + vec2(1.0, 1.0));',
-                '    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
-                '}',
-                'void main() {',
-                '    vec2 uvScaled = vUv * vec2(24.0, 14.5);',
-                '    vec2 flow = uvScaled + vec2(uTime * 0.14, sin(uTime * 0.30 + uvScaled.x * 0.38) * 0.24);',
-                '    float n1 = noise2(flow);',
-                '    float n2 = noise2(flow * 2.35 - vec2(uTime * 0.20, uTime * 0.11));',
-                '    float n3 = noise2(flow * 4.8 + vec2(0.0, uTime * 0.26));',
-                '    float magmaField = n1 * 0.52 + n2 * 0.33 + n3 * 0.15 + vWave * 0.12;',
-                '    float ridge = 1.0 - abs(n2 * 2.0 - 1.0);',
-                '    float vein = smoothstep(0.64, 0.93, ridge * 0.74 + magmaField * 0.42);',
-                '    vec3 basaltCrust = vec3(0.072, 0.056, 0.052);',
-                '    vec3 deepMagma   = vec3(0.560, 0.130, 0.088);',
-                '    vec3 emberOrange = vec3(0.900, 0.375, 0.110);',
-                '    vec3 goldVein    = vec3(0.890, 0.715, 0.340);',
-                '    float crustMask = smoothstep(0.35, 0.62, magmaField);',
-                '    vec3 col = mix(basaltCrust, deepMagma, crustMask);',
-                '    col = mix(col, emberOrange, smoothstep(0.56, 0.84, magmaField) * 0.85);',
-                '    col = mix(col, goldVein, vein * 0.72);',
-                '    gl_FragColor = vec4(col, 1.0);',
-                '}',
-            ].join('\n'),
-        }));
-
-        const lavaLakeMesh = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(chamW + 4.0, chamD + 4.0, 52, 24)),
-            this.lavaLakeShaderMat
-        );
-        lavaLakeMesh.rotation.x = -Math.PI * 0.5;
-        lavaLakeMesh.position.set(chamCenterX, this.lavaSurfaceY, chamCenterZ);
-        this.lavaGroup.add(lavaLakeMesh);
-
-        const northSouthWallGeo = this._trackDisposable(new THREE.BoxGeometry(chamW + 1.2, fullWallH, 0.92));
-        const underglowStripGeo = this._trackDisposable(new THREE.BoxGeometry(chamW - 0.8, 0.20, 0.12));
-        [this.lavaChamberMinZ - 0.46, this.lavaChamberMaxZ + 0.46].forEach((wz, sIdx) => {
-            const wMesh = new THREE.Mesh(northSouthWallGeo, basaltDarkMat);
-            wMesh.position.set(chamCenterX, fullWallCenterY, wz);
-            this.lavaGroup.add(wMesh);
-
-            const glowBar = new THREE.Mesh(underglowStripGeo, magmaUnderglowMat);
-            glowBar.position.set(
-                chamCenterX,
-                this.lavaSurfaceY + 0.15,
-                sIdx === 0 ? (this.lavaChamberMinZ + 0.15) : (this.lavaChamberMaxZ - 0.15)
-            );
-            this.lavaGroup.add(glowBar);
-        });
-
-        [this.lavaChamberMinX - 0.46, this.lavaChamberMaxX + 0.46].forEach((wx) => {
-            const endWall = new THREE.Mesh(
-                this._trackDisposable(new THREE.BoxGeometry(0.92, fullWallH, chamD + 2.0)),
-                basaltDarkMat
-            );
-            endWall.position.set(wx, fullWallCenterY, chamCenterZ);
-            this.lavaGroup.add(endWall);
-        });
-
-        const vaultRadius = chamD * 0.52;
-        const cavernVault = new THREE.Mesh(
-            this._trackDisposable(new THREE.CylinderGeometry(vaultRadius, vaultRadius, chamW + 0.8, 30, 1, true, 0, Math.PI)),
-            this._trackDisposable(new THREE.MeshStandardMaterial({
-                color: 0x151210,
-                roughness: 0.68,
-                metalness: 0.10,
-                side: THREE.DoubleSide,
-            }))
-        );
-        cavernVault.rotation.z = Math.PI * 0.5;
-        cavernVault.position.set(chamCenterX, wallTopY, chamCenterZ);
-        this.lavaGroup.add(cavernVault);
-
-        const cavernRoofCap = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(chamW + 1.2, 1.2, chamD + 2.6)),
-            basaltDarkMat
-        );
-        cavernRoofCap.position.set(chamCenterX, wallTopY + vaultRadius + 0.45, chamCenterZ);
-        this.lavaGroup.add(cavernRoofCap);
-
-        const bayCount = 11;
-        const pilasterBottomY = -2.30;
-        const pilasterH = wallTopY - pilasterBottomY;
-        const pilasterCenterY = (pilasterBottomY + wallTopY) * 0.5;
-        const goldStripBottomY = -1.20;
-        const goldStripTopY = wallTopY - 0.24;
-        const goldStripH = goldStripTopY - goldStripBottomY;
-        const goldStripCenterY = (goldStripBottomY + goldStripTopY) * 0.5;
-        const pilasterOffsetFromWall = 0.28;
-        const ribSpanHalfZ = (chamD * 0.5) - pilasterOffsetFromWall;
-
-        const pilasterGeo = this._trackDisposable(new THREE.BoxGeometry(0.58, pilasterH, 0.44));
-        const pilasterGoldGeo = this._trackDisposable(new THREE.BoxGeometry(0.18, goldStripH, 0.08));
-        const pilasterCapGeo = this._trackDisposable(new THREE.BoxGeometry(0.72, 0.28, 0.56));
-        const vaultArchGeo = this._trackDisposable(new THREE.TorusGeometry(ribSpanHalfZ, 0.15, 10, 32, Math.PI));
-
-        const pilasterInst = new THREE.InstancedMesh(pilasterGeo, basaltPolishedMat, bayCount * 2);
-        const pilasterGoldInst = new THREE.InstancedMesh(pilasterGoldGeo, this.mats.goldBrushed, bayCount * 2);
-        const pilasterCapInst = new THREE.InstancedMesh(pilasterCapGeo, this.mats.goldBrushed, bayCount * 2);
-        const vaultArchInst = new THREE.InstancedMesh(vaultArchGeo, this.mats.goldBrushed, bayCount);
-        const dummy = new THREE.Object3D();
-
-        for (let bi = 0; bi < bayCount; bi++) {
-            const bx = lerp(this.lavaChamberMinX + 3.2, this.lavaChamberMaxX - 3.2, bi / (bayCount - 1));
-            [-1, 1].forEach((sideSign, sideIdx) => {
-                const idx = bi * 2 + sideIdx;
-                const bz = sideSign < 0
-                    ? (this.lavaChamberMinZ + pilasterOffsetFromWall)
-                    : (this.lavaChamberMaxZ - pilasterOffsetFromWall);
-                const bzGold = sideSign < 0 ? (bz + 0.27) : (bz - 0.27);
-
-                dummy.position.set(bx, pilasterCenterY, bz);
-                dummy.rotation.set(0, 0, 0);
-                dummy.scale.set(1, 1, 1);
-                dummy.updateMatrix();
-                pilasterInst.setMatrixAt(idx, dummy.matrix);
-
-                dummy.position.set(bx, goldStripCenterY, bzGold);
-                dummy.updateMatrix();
-                pilasterGoldInst.setMatrixAt(idx, dummy.matrix);
-
-                dummy.position.set(bx, wallTopY - 0.14, bz);
-                dummy.updateMatrix();
-                pilasterCapInst.setMatrixAt(idx, dummy.matrix);
-            });
-
-            dummy.position.set(bx, wallTopY, chamCenterZ);
-            dummy.rotation.set(0, Math.PI * 0.5, 0);
-            dummy.scale.set(1.0, (vaultRadius - 0.16) / ribSpanHalfZ, 1.0);
-            dummy.updateMatrix();
-            vaultArchInst.setMatrixAt(bi, dummy.matrix);
-        }
-        pilasterInst.instanceMatrix.needsUpdate = true;
-        pilasterGoldInst.instanceMatrix.needsUpdate = true;
-        pilasterCapInst.instanceMatrix.needsUpdate = true;
-        vaultArchInst.instanceMatrix.needsUpdate = true;
-        this.lavaGroup.add(pilasterInst, pilasterGoldInst, pilasterCapInst, vaultArchInst);
-
-        // Reine unerreichbare Felsreliefs ganz aussen direkt an der Kavernenwand (|Z + 2.0| >= 21.0 m, 0 Kollisionsflaeche!)
-        const hexColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.84, 0.88, 1.0, 6));
-        const hexFootRingGeo = this._trackDisposable(new THREE.RingGeometry(0.84, 1.18, 6));
-        hexFootRingGeo.rotateX(-Math.PI * 0.5);
-        const colPlacements = [];
-        const rng = mulberry32(20261118);
-        for (let ci = 0; ci < 14; ci++) {
-            const cx = lerp(21.5, 100.0, ci / 13);
-            const northZ = clamp(-23.65 + rng() * 0.55, -23.65, -23.05);
-            const southZ = clamp(19.05 + rng() * 0.55, 19.05, 19.65);
-            colPlacements.push([cx, northZ, 3.2 + rng() * 4.2]);
-            colPlacements.push([cx, southZ, 3.2 + rng() * 4.2]);
-        }
-        const hexColInst = new THREE.InstancedMesh(hexColGeo, basaltPolishedMat, colPlacements.length);
-        const hexGlowInst = new THREE.InstancedMesh(hexFootRingGeo, magmaUnderglowMat, colPlacements.length);
-        for (let ci = 0; ci < colPlacements.length; ci++) {
-            const [cx, cz, ch] = colPlacements[ci];
-            const colBaseY = -2.40;
-            const totalH = (this.lavaSurfaceY - colBaseY) + ch;
-            dummy.position.set(cx, colBaseY + totalH * 0.5, cz);
-            dummy.rotation.set(0, ci * 0.52, 0);
-            dummy.scale.set(1, totalH, 1);
-            dummy.updateMatrix();
-            hexColInst.setMatrixAt(ci, dummy.matrix);
-
-            dummy.position.set(cx, this.lavaSurfaceY + 0.038, cz);
-            dummy.rotation.set(0, ci * 0.52, 0);
-            dummy.scale.set(1, 1, 1);
-            dummy.updateMatrix();
-            hexGlowInst.setMatrixAt(ci, dummy.matrix);
-        }
-        hexColInst.instanceMatrix.needsUpdate = true;
-        hexGlowInst.instanceMatrix.needsUpdate = true;
-        this.lavaGroup.add(hexColInst, hexGlowInst);
-
-        // 3. Eingangs-Vorraum mit Schnellreise-Portal-Hub (Raum 2 bis 10) & Louvre-Rueckkehrportal (0 % Z-Fighting durch echte Stufen!)
-        const hubMinX = 4.6;
-        const hubMaxX = this.lavaBalconyMaxX;
-        const hubMinZ = -11.4;
-        const hubMaxZ = 7.4;
-        const hubW = hubMaxX - hubMinX;
-        const hubD = hubMaxZ - hubMinZ;
-        const hubCenterX = (hubMinX + hubMaxX) * 0.5;
-        const hubCenterZ = (hubMinZ + hubMaxZ) * 0.5;
-
-        const hubBlock = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(hubW - 0.08, 1.60, hubD - 0.08)),
-            basaltPolishedMat
-        );
-        hubBlock.position.set(hubCenterX, -0.916, hubCenterZ);
-        this.lavaGroup.add(hubBlock);
-
-        const hubFloor = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(hubW, 0.12, hubD)),
-            this.mats.neroPedestal
-        );
-        hubFloor.position.set(hubCenterX, -0.056, hubCenterZ);
-        hubFloor.userData = { isFloor: true, isLavaWalkable: true, surfaceY: 0.004 };
-        this.lavaGroup.add(hubFloor);
-        this.walkableFloorMeshes.push(hubFloor);
-
-        const hubRimGold = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(hubW + 0.18, 0.10, hubD + 0.18)),
-            this.mats.goldBrushed
-        );
-        hubRimGold.position.set(hubCenterX, -0.096, hubCenterZ);
-        this.lavaGroup.add(hubRimGold);
-
-        const hubCompassRing = new THREE.Mesh(
-            this._trackDisposable(new THREE.TorusGeometry(2.72, 0.036, 8, 48)),
-            this.mats.goldMatcapBrushed
-        );
-        hubCompassRing.rotation.x = Math.PI * 0.5;
-        hubCompassRing.position.set(11.4, 0.042, -2.0);
-        this.lavaGroup.add(hubCompassRing);
-
-        [hubMinZ + 0.16, hubMaxZ - 0.16].forEach((rz) => {
-            const rail = new THREE.Mesh(
-                this._trackDisposable(new THREE.BoxGeometry(hubW - 0.3, 0.90, 0.26)),
-                basaltPolishedMat
-            );
-            rail.position.set(hubCenterX, 0.45, rz);
-            this.lavaGroup.add(rail);
-
-            const railCap = new THREE.Mesh(
-                this._trackDisposable(new THREE.BoxGeometry(hubW - 0.2, 0.09, 0.34)),
-                this.mats.goldBrushed
-            );
-            railCap.position.set(hubCenterX, 0.92, rz);
-            this.lavaGroup.add(railCap);
-        });
-
-        const westRetGroup = new THREE.Group();
-        westRetGroup.position.set(5.25, 0.004, -2.0);
-        westRetGroup.rotation.y = Math.PI * 0.5;
-        this.lavaGroup.add(westRetGroup);
-
-        const westRetColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.22, 0.25, 3.6, 20));
-        const westRetColRingGeo = this._trackDisposable(new THREE.TorusGeometry(0.27, 0.055, 10, 24));
-        [-1.55, 1.55].forEach((sx) => {
-            const col = new THREE.Mesh(westRetColGeo, this.mats.limestoneArch || this.mats.neroPedestal);
-            col.position.set(sx, 1.80, 0);
-            westRetGroup.add(col);
-
-            const rBase = new THREE.Mesh(westRetColRingGeo, this.mats.goldMatcapBright);
-            rBase.rotation.x = Math.PI * 0.5;
-            rBase.position.set(sx, 0.08, 0);
-            westRetGroup.add(rBase);
-
-            const rCap = new THREE.Mesh(westRetColRingGeo, this.mats.goldMatcapBright);
-            rCap.rotation.x = Math.PI * 0.5;
-            rCap.position.set(sx, 3.56, 0);
-            westRetGroup.add(rCap);
-        });
-
-        const westRetArch = new THREE.Mesh(
-            this._trackDisposable(new THREE.TorusGeometry(1.55, 0.14, 12, 36, Math.PI)),
-            this.mats.goldMatcapBright
-        );
-        westRetArch.position.y = 3.58;
-        westRetGroup.add(westRetArch);
-
-        const westRetVeil = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(2.86, 3.55)),
-            this._trackDisposable(new THREE.MeshBasicMaterial({
-                color: 0xfef3c7,
-                transparent: true,
-                opacity: 0.28,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            }))
-        );
-        westRetVeil.position.set(0, 1.80, -0.02);
-        westRetGroup.add(westRetVeil);
-
-        const westRetTex = buildLightModeMiniPlaqueTexture(THREE, this.maxAniso, 'LOUVRE-GALERIE', this.disposables);
-        const westRetPlaqueMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-            map: westRetTex,
-            polygonOffset: true,
-            polygonOffsetFactor: -2,
-            polygonOffsetUnits: -2,
-            depthWrite: true,
-        }));
-        const westRetPlaqueBack = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(2.36, 0.44, 0.08)),
-            this.mats.goldMatcapBright
-        );
-        westRetPlaqueBack.position.set(0, 4.95, 0.08);
-        westRetGroup.add(westRetPlaqueBack);
-
-        const westRetPlaqueFront = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(2.26, 0.36)),
-            westRetPlaqueMat
-        );
-        westRetPlaqueFront.position.set(0, 4.95, 0.148);
-        westRetGroup.add(westRetPlaqueFront);
-
-        const westRetHit = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(3.1, 4.2, 1.0)),
-            this._trackDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-        );
-        westRetHit.position.set(0, 2.1, 0);
-        westRetHit.userData = { isLavaReturnPortal: true };
-        westRetGroup.add(westRetHit);
-        this.lavaReturnHitMeshes.push(westRetHit);
-
-        this.lavaHubPortals = [];
-        this.lavaHubPortalHitMeshes = [];
-        const hubArchColGeo = this._trackDisposable(new THREE.CylinderGeometry(0.11, 0.13, 1.92, 14));
-        const hubArchRingGeo = this._trackDisposable(new THREE.TorusGeometry(0.74, 0.075, 10, 28, Math.PI));
-        const hubBaseDiscGeo = this._trackDisposable(new THREE.CylinderGeometry(0.86, 0.94, 0.08, 24));
-        const hubFloorRuneGeo = this._trackDisposable(new THREE.TorusGeometry(0.64, 0.024, 8, 28));
-        const hubSignBackGeo = this._trackDisposable(new THREE.BoxGeometry(1.42, 0.34, 0.07));
-        const hubSignFaceGeo = this._trackDisposable(new THREE.PlaneGeometry(1.34, 0.27));
-        const hubVeilGeo = this._trackDisposable(new THREE.PlaneGeometry(1.32, 2.25));
-        const hubHitGeo = this._trackDisposable(new THREE.BoxGeometry(1.68, 2.85, 0.95));
-
-        const hubSlots = [
-            { level: 2, x: 7.2, z: -8.9 },
-            { level: 3, x: 9.8, z: -9.8 },
-            { level: 4, x: 12.6, z: -9.9 },
-            { level: 5, x: 15.3, z: -9.0 },
-            { level: 6, x: 16.2, z: 5.0 },
-            { level: 7, x: 13.7, z: 5.9 },
-            { level: 8, x: 11.2, z: 6.0 },
-            { level: 9, x: 8.7, z: 5.7 },
-            { level: 10, x: 6.4, z: 4.7 },
-        ];
-
-        for (let hi = 0; hi < hubSlots.length; hi++) {
-            const slot = hubSlots[hi];
-            const pGrp = new THREE.Group();
-            pGrp.position.set(slot.x, 0.004, slot.z);
-            pGrp.rotation.y = Math.atan2(11.4 - slot.x, -2.0 - slot.z);
-            this.lavaGroup.add(pGrp);
-
-            const pBase = new THREE.Mesh(hubBaseDiscGeo, this.mats.neroPedestal);
-            pBase.position.y = 0.040;
-            pGrp.add(pBase);
-
-            const runeMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-                color: 0x4b5563,
-                polygonOffset: true,
-                polygonOffsetFactor: -2,
-                polygonOffsetUnits: -2,
-            }));
-            const runeMesh = new THREE.Mesh(hubFloorRuneGeo, runeMat);
-            runeMesh.rotation.x = Math.PI * 0.5;
-            runeMesh.position.y = 0.118;
-            pGrp.add(runeMesh);
-
-            const archMat = this._trackDisposable(new THREE.MeshStandardMaterial({
-                color: 0x3f3a34,
-                roughness: 0.36,
-                metalness: 0.62,
-                envMapIntensity: 0.95,
-            }));
-            [-0.74, 0.74].forEach((px) => {
-                const col = new THREE.Mesh(hubArchColGeo, archMat);
-                col.position.set(px, 1.02, 0);
-                pGrp.add(col);
-            });
-            const archTop = new THREE.Mesh(hubArchRingGeo, archMat);
-            archTop.position.y = 1.98;
-            pGrp.add(archTop);
-
-            const veilMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-                color: 0xc5a059,
-                transparent: true,
-                opacity: 0.0,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            }));
-            const veilMesh = new THREE.Mesh(hubVeilGeo, veilMat);
-            veilMesh.position.set(0, 1.24, 0);
-            pGrp.add(veilMesh);
-
-            const signTex = buildLightModeMiniPlaqueTexture(THREE, this.maxAniso, `RAUM ${slot.level}`, this.disposables);
-            const signMat = this._trackDisposable(new THREE.MeshBasicMaterial({
-                map: signTex,
-                polygonOffset: true,
-                polygonOffsetFactor: -2,
-                polygonOffsetUnits: -2,
-                depthWrite: true,
-            }));
-            const signBack = new THREE.Mesh(hubSignBackGeo, archMat);
-            signBack.position.set(0, 2.92, 0.04);
-            pGrp.add(signBack);
-
-            const signFront = new THREE.Mesh(hubSignFaceGeo, signMat);
-            signFront.position.set(0, 2.92, 0.102);
-            pGrp.add(signFront);
-
-            const hitMesh = new THREE.Mesh(
-                hubHitGeo,
-                this._trackDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-            );
-            hitMesh.position.set(0, 1.45, 0.12);
-            hitMesh.userData = { isLavaHubPortal: true, targetLevel: slot.level };
-            pGrp.add(hitMesh);
-            this.lavaHubPortalHitMeshes.push(hitMesh);
-
-            this.lavaHubPortals.push({
-                level: slot.level,
-                x: slot.x,
-                z: slot.z,
-                group: pGrp,
-                runeMat,
-                archMat,
-                veilMat,
-                veilMesh,
-                unlocked: false,
-            });
-        }
-
-        this.lavaRoomDynamicGroup = new THREE.Group();
-        this.lavaGroup.add(this.lavaRoomDynamicGroup);
-
-        const emberCount = 96;
-        const emberPositions = new Float32Array(emberCount * 3);
-        const emberColors = new Float32Array(emberCount * 3);
-        this.lavaEmberMeta = [];
-        for (let ei = 0; ei < emberCount; ei++) {
-            const bx = 18.0 + rng() * 82.0;
-            const bz = -21.5 + rng() * 39.0;
-            const ph = rng();
-            const spd = 0.08 + rng() * 0.14;
-            const sway = 0.35 + rng() * 0.75;
-            this.lavaEmberMeta.push({ bx, bz, ph, spd, sway });
-            emberPositions[ei * 3] = bx;
-            emberPositions[ei * 3 + 1] = this.lavaSurfaceY + ph * 8.6;
-            emberPositions[ei * 3 + 2] = bz;
-
-            const isGold = (ei % 3 === 0);
-            emberColors[ei * 3] = 1.0;
-            emberColors[ei * 3 + 1] = isGold ? 0.82 : 0.44;
-            emberColors[ei * 3 + 2] = isGold ? 0.36 : 0.12;
-        }
-        const emberGeo = this._trackDisposable(new THREE.BufferGeometry());
-        this.lavaEmberPosAttr = new THREE.BufferAttribute(emberPositions, 3);
-        emberGeo.setAttribute('position', this.lavaEmberPosAttr);
-        emberGeo.setAttribute('color', new THREE.BufferAttribute(emberColors, 3));
-        const emberMat = this._trackDisposable(new THREE.PointsMaterial({
-            size: 0.22,
-            map: this.sparkSpriteTex || null,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.84,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-        }));
-        const emberPoints = new THREE.Points(emberGeo, emberMat);
-        emberPoints.frustumCulled = false;
-        this.lavaGroup.add(emberPoints);
-
-        this._refreshLavaHubPortals();
-        this._loadLavaRoom(this.currentLavaLevel || 1, { silent: true });
-    }
-
-    _refreshLavaHubPortals() {
-        for (let i = 0; i < this.lavaHubPortals.length; i++) {
-            const hp = this.lavaHubPortals[i];
-            const unlocked = this._isLavaPortalUnlocked(hp.level);
-            hp.unlocked = unlocked;
-            if (unlocked) {
-                hp.archMat.color.setHex(0xc5a059);
-                hp.archMat.roughness = 0.24;
-                hp.archMat.metalness = 0.82;
-                hp.runeMat.color.setHex(0xfde68a);
-                hp.veilMat.color.setHex(0xd4af37);
-                hp.veilMat.opacity = 0.36;
-                hp.veilMesh.visible = true;
-            } else {
-                hp.archMat.color.setHex(0x2d2926);
-                hp.archMat.roughness = 0.52;
-                hp.archMat.metalness = 0.32;
-                hp.runeMat.color.setHex(0x4b5563);
-                hp.veilMat.opacity = 0.0;
-                hp.veilMesh.visible = false;
-            }
-        }
-        if (this.lavaNextRoomPortal) {
-            const nextUnlocked = this._isLavaPortalUnlocked(this.lavaNextRoomPortal.targetLevel);
-            this.lavaNextRoomPortal.unlocked = nextUnlocked;
-            this.lavaNextRoomPortal.archMat.color.setHex(nextUnlocked ? 0xc5a059 : 0x3b3530);
-            this.lavaNextRoomPortal.veilMat.opacity = nextUnlocked ? 0.38 : 0.08;
-        }
-        if (this.lavaEpicGate) {
-            const hasKey = Boolean(this.playerProfile.masterKeyUnlocked);
-            if (hasKey && !this.lavaEpicGate.unlocked) {
-                this.lavaEpicGate.unlocked = true;
-                this.lavaEpicGate.targetOpen = 1.0;
-                if (this.lavaEpicGate.padlockGroup) {
-                    this.lavaEpicGate.padlockGroup.visible = false;
-                }
-                if (this.audio && typeof this.audio.playEpicGateOpen === 'function') {
-                    this.audio.playEpicGateOpen();
-                }
-            }
-        }
-    }
-
-    _loadLavaRoom(rawLevel, options = {}) {
-        if (!this.THREE || !this.lavaRoomDynamicGroup) return;
-        const THREE = this.THREE;
-        const lvl = clamp(parseInt(rawLevel, 10) || 1, 1, 10);
-
-        this._clearPendingLavaTimers();
-        this._clearLavaRoomDynamicAssets();
-
-        this.currentLavaLevel = lvl;
-        const anchors = this._getCurrentLavaAnchors();
-        const cfg = anchors.cfg;
-        const isClaimedToday = this.lavaProgress.dailyClearedLevels.indexOf(lvl) !== -1;
-
-        const prevLifeNonce = (this.lavaRun && this.lavaRun.lifeNonce) ? this.lavaRun.lifeNonce : null;
-        this.lavaRun = {
-            level: lvl,
-            runId: null,
-            lifeNonce: prevLifeNonce,
-            committed: false,
-            hitIframeTimer: 0,
-            starting: false,
-            startedClientMs: 0,
-            _startPromise: null,
-            _cp1Promise: null,
-            _cp2Promise: null,
-            cp1Reached: false,
-            cp1Sent: false,
-            cp1ClientMs: 0,
-            cp1ConfirmedMs: 0,
-            cp1PendingTimer: 0,
-            cp2Reached: false,
-            cp2Sent: false,
-            cp2ClientMs: 0,
-            cp2ConfirmedMs: 0,
-            cp2PendingTimer: 0,
-            claimToken: null,
-            claimedToday: isClaimedToday,
-            claiming: false,
-            nearChest: false,
-            statusMessage: '',
-        };
-        this.lavaChestOpenProgress = isClaimedToday ? 1.0 : 0.0;
-        this.lavaChestOpenTarget = this.lavaChestOpenProgress;
-
-        const roomGateGroup = new THREE.Group();
-        roomGateGroup.position.set(18.4, 0.004, -2.0);
-        roomGateGroup.rotation.y = -Math.PI * 0.5;
-        this.lavaRoomDynamicGroup.add(roomGateGroup);
-
-        const gatePillarGeo = this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.28, 0.32, 4.5, 20));
-        const gateCollarGeo = this._trackLavaRoomDisposable(new THREE.TorusGeometry(0.35, 0.065, 10, 24));
-        [-2.15, 2.15].forEach((gx) => {
-            const p = new THREE.Mesh(gatePillarGeo, this.mats.neroPedestal);
-            p.position.set(gx, 2.25, 0);
-            roomGateGroup.add(p);
-
-            const bRing = new THREE.Mesh(gateCollarGeo, this.mats.goldMatcapBright);
-            bRing.rotation.x = Math.PI * 0.5;
-            bRing.position.set(gx, 0.09, 0);
-            roomGateGroup.add(bRing);
-
-            const cRing = new THREE.Mesh(gateCollarGeo, this.mats.goldMatcapBright);
-            cRing.rotation.x = Math.PI * 0.5;
-            cRing.position.set(gx, 4.46, 0);
-            roomGateGroup.add(cRing);
-        });
-
-        const gateArch = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.TorusGeometry(2.15, 0.16, 12, 38, Math.PI)),
-            this.mats.goldMatcapBright
-        );
-        gateArch.position.y = 4.48;
-        roomGateGroup.add(gateArch);
-
-        const roomBannerText = `RAUM ${lvl} · ${String(cfg.title || '').toUpperCase()}`;
-        const roomBannerTex = buildLightModeMiniPlaqueTexture(THREE, this.maxAniso, roomBannerText, this.lavaRoomDisposables);
-        const roomBannerMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-            map: roomBannerTex,
-            polygonOffset: true,
-            polygonOffsetFactor: -2,
-            polygonOffsetUnits: -2,
-            depthWrite: true,
-        }));
-        const bannerBack = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(3.86, 0.54, 0.10)),
-            this.mats.goldMatcapBright
-        );
-        bannerBack.position.set(0, 6.95, 0.10);
-        roomGateGroup.add(bannerBack);
-
-        const bannerFront = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.PlaneGeometry(3.72, 0.44)),
-            roomBannerMat
-        );
-        bannerFront.position.set(0, 6.95, 0.178);
-        roomGateGroup.add(bannerFront);
-
-        // Kolossales Obsidian-Gold-Tor mit riesigem schwerem Schloss vor Raum 6
-        if (lvl === 6 || (cfg.requires_master_key && !this.playerProfile.masterKeyUnlocked)) {
-            const epicGroup = new THREE.Group();
-            epicGroup.position.set(18.4, 0.004, -2.0);
-            epicGroup.rotation.y = -Math.PI * 0.5;
-            this.lavaRoomDynamicGroup.add(epicGroup);
-
-            const hasKey = Boolean(this.playerProfile.masterKeyUnlocked);
-            const leftPivot = new THREE.Group();
-            leftPivot.position.set(-2.02, 0, 0);
-            const rightPivot = new THREE.Group();
-            rightPivot.position.set(2.02, 0, 0);
-            epicGroup.add(leftPivot, rightPivot);
-
-            const leafGeo = this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.98, 4.42, 0.18));
-            const leafFrameGeo = this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.74, 3.96, 0.22));
-            const leafBarGeo = this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.036, 0.036, 4.10, 10));
-
-            [leftPivot, rightPivot].forEach((piv, sIdx) => {
-                const dir = sIdx === 0 ? 1 : -1;
-                const cx = dir * 1.00;
-                const slab = new THREE.Mesh(leafGeo, this.mats.neroPedestal);
-                slab.position.set(cx, 2.22, 0);
-                piv.add(slab);
-
-                const goldRelief = new THREE.Mesh(leafFrameGeo, this.mats.goldBrushed);
-                goldRelief.position.set(cx, 2.22, 0);
-                piv.add(goldRelief);
-
-                const innerObsidian = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.48, 3.68, 0.25)),
-                    this.mats.neroPedestal
-                );
-                innerObsidian.position.set(cx, 2.22, 0);
-                piv.add(innerObsidian);
-
-                for (let bi = -2; bi <= 2; bi++) {
-                    const bar = new THREE.Mesh(leafBarGeo, this.mats.goldMatcapBright);
-                    bar.position.set(cx + bi * 0.28, 2.22, 0.14);
-                    piv.add(bar);
-                }
-            });
-
-            const padlockGroup = new THREE.Group();
-            padlockGroup.position.set(0, 2.15, 0.26);
-            padlockGroup.visible = !hasKey;
-            epicGroup.add(padlockGroup);
-
-            const lockBody = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.86, 0.96, 0.34)),
-                this.mats.goldMatcapBright
-            );
-            padlockGroup.add(lockBody);
-
-            const shackle = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(0.28, 0.085, 12, 26, Math.PI)),
-                this.mats.goldMatcapBrushed
-            );
-            shackle.position.set(0, 0.50, 0);
-            padlockGroup.add(shackle);
-
-            const keyhole = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.CircleGeometry(0.11, 20)),
-                this.mats.neroPedestal
-            );
-            keyhole.position.set(0, 0.06, 0.185);
-            padlockGroup.add(keyhole);
-
-            const keyholeSlot = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.PlaneGeometry(0.09, 0.26)),
-                this.mats.neroPedestal
-            );
-            keyholeSlot.position.set(0, -0.10, 0.186);
-            padlockGroup.add(keyholeSlot);
-
-            const gateHit = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(4.3, 4.8, 0.9)),
-                this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-            );
-            gateHit.position.set(0, 2.4, 0);
-            gateHit.userData = { isEpicMasterGate: true };
-            epicGroup.add(gateHit);
-            this.lavaEpicGateHitMeshes.push(gateHit);
-
-            const initOpen = hasKey ? 1.0 : 0.0;
-            leftPivot.rotation.y = initOpen * 1.32;
-            rightPivot.rotation.y = -initOpen * 1.32;
-
-            this.lavaEpicGate = {
-                x: 18.4,
-                z: -2.0,
-                unlocked: hasKey,
-                openProgress: initOpen,
-                targetOpen: initOpen,
-                leftPivot,
-                rightPivot,
-                padlockGroup,
-            };
-        }
-
-        const addDiscPad = (padCfg) => {
-            const grp = new THREE.Group();
-            grp.position.set(padCfg.x, padCfg.y, padCfg.z);
-            this.lavaRoomDynamicGroup.add(grp);
-
-            const isCrumble = padCfg.type === 'crumble';
-            const h = padCfg.h || 0.38;
-            const cyl = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.CylinderGeometry(padCfg.r, padCfg.r * 0.86, h, 24)),
-                this.mats.neroPedestal
-            );
-            cyl.position.y = -h * 0.5;
-            grp.add(cyl);
-
-            let warnRingMat = null;
-            if (isCrumble) {
-                warnRingMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ color: 0xd97706 }));
-            }
-
-            const rim = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(padCfg.r - 0.02, padCfg.checkpoint ? 0.068 : 0.044, 10, 32)),
-                padCfg.checkpoint ? this.mats.goldMatcapBright : (warnRingMat || this.mats.goldBrushed)
-            );
-            rim.rotation.x = Math.PI * 0.5;
-            rim.position.y = -0.045;
-            grp.add(rim);
-
-            const centerInlay = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(padCfg.r * 0.58, 0.022, 8, isCrumble ? 6 : 28)),
-                warnRingMat || this.mats.goldMatcapBrushed
-            );
-            centerInlay.rotation.x = Math.PI * 0.5;
-            centerInlay.position.y = 0.022;
-            grp.add(centerInlay);
-
-            if (padCfg.checkpoint) {
-                const cpMedallion = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.CylinderGeometry(padCfg.r * 0.48, padCfg.r * 0.52, 0.038, 28)),
-                    this.mats.neroPedestal
-                );
-                cpMedallion.position.y = 0.019;
-                grp.add(cpMedallion);
-
-                const runeGroup = new THREE.Group();
-                runeGroup.position.y = 0.056;
-                const outerRuneMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                    color: 0xfde68a,
-                    polygonOffset: true,
-                    polygonOffsetFactor: -2,
-                    polygonOffsetUnits: -2,
-                }));
-                const outerRune = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.TorusGeometry(padCfg.r * 0.36, 0.020, 8, 32)),
-                    outerRuneMat
-                );
-                outerRune.rotation.x = Math.PI * 0.5;
-                runeGroup.add(outerRune);
-
-                const runeStar = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.TorusGeometry(padCfg.r * 0.18, 0.016, 6, 6)),
-                    outerRuneMat
-                );
-                runeStar.rotation.x = Math.PI * 0.5;
-                runeGroup.add(runeStar);
-                grp.add(runeGroup);
-
-                this.lavaCheckpointRings[padCfg.checkpoint] = {
-                    group: runeGroup,
-                    mat: outerRuneMat,
-                    activated: false,
-                };
-            }
-
-            const topHit = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.CircleGeometry(padCfg.r, 24)),
-                this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-            );
-            topHit.rotation.x = -Math.PI * 0.5;
-            topHit.position.y = 0.006;
-            topHit.userData = { isFloor: true, isLavaWalkable: true, isRoomDynamic: true, surfaceY: padCfg.y };
-            grp.add(topHit);
-            this.walkableFloorMeshes.push(topHit);
-
-            const rec = {
-                shape: 'disc',
-                type: padCfg.type || 'static',
-                checkpoint: padCfg.checkpoint || 0,
-                group: grp,
-                warnRingMat,
-                baseX: padCfg.x,
-                baseY: padCfg.y,
-                baseZ: padCfg.z,
-                x: padCfg.x,
-                y: padCfg.y,
-                z: padCfg.z,
-                dx: 0,
-                dy: 0,
-                dz: 0,
-                r: padCfg.r,
-                ampX: padCfg.ampX || 0,
-                ampY: padCfg.ampY || 0,
-                ampZ: padCfg.ampZ || 0,
-                freq: padCfg.freq || 1.25,
-                phase: padCfg.phase || 0,
-                sinkDelay: padCfg.sinkDelay || clamp(0.52 - lvl * 0.022, 0.28, 0.50),
-                steppedOn: false,
-                crumbleSoundPlayed: false,
-                crumbleTimer: 0,
-                sunk: false,
-            };
-            this.lavaPlatforms.push(rec);
-            return rec;
-        };
-
-        const addBoxPad = (padCfg) => {
-            const grp = new THREE.Group();
-            grp.position.set(padCfg.x, padCfg.y, padCfg.z);
-            this.lavaRoomDynamicGroup.add(grp);
-
-            const w = padCfg.halfW * 2;
-            const d = padCfg.halfD * 2;
-            const h = padCfg.h || 0.42;
-            const box = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(w, h, d)),
-                this.mats.neroPedestal
-            );
-            box.position.y = -h * 0.5;
-            grp.add(box);
-
-            // Echte 4.5 cm Stufentrennung (Oberkante trim = -0.045 vs. Oberkante box = 0.000 -> 0 % Z-Fighting!)
-            const trim = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(w + 0.16, 0.12, d + 0.16)),
-                this.mats.goldBrushed
-            );
-            trim.position.y = -0.105;
-            grp.add(trim);
-
-            const topHit = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.PlaneGeometry(w, d)),
-                this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-            );
-            topHit.rotation.x = -Math.PI * 0.5;
-            topHit.position.y = 0.006;
-            topHit.userData = { isFloor: true, isLavaWalkable: true, isRoomDynamic: true, surfaceY: padCfg.y };
-            grp.add(topHit);
-            this.walkableFloorMeshes.push(topHit);
-
-            const rec = {
-                shape: 'box',
-                type: padCfg.type || 'static',
-                checkpoint: 0,
-                isTreasureIsland: Boolean(padCfg.isTreasureIsland),
-                group: grp,
-                warnRingMat: null,
-                baseX: padCfg.x,
-                baseY: padCfg.y,
-                baseZ: padCfg.z,
-                x: padCfg.x,
-                y: padCfg.y,
-                z: padCfg.z,
-                dx: 0,
-                dy: 0,
-                dz: 0,
-                halfW: padCfg.halfW,
-                halfD: padCfg.halfD,
-                ampX: padCfg.ampX || 0,
-                ampY: padCfg.ampY || 0,
-                ampZ: padCfg.ampZ || 0,
-                freq: padCfg.freq || 1.15,
-                phase: padCfg.phase || 0,
-                steppedOn: false,
-                crumbleSoundPlayed: false,
-                crumbleTimer: 0,
-                sunk: false,
-            };
-            this.lavaPlatforms.push(rec);
-            return rec;
-        };
-
-        const addGeyser = (gx, gz, maxTopY, phaseOffset) => {
-            const gRoot = new THREE.Group();
-            gRoot.position.set(gx, this.lavaSurfaceY, gz);
-            this.lavaRoomDynamicGroup.add(gRoot);
-
-            const boilMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                color: 0xd9531e,
-                transparent: true,
-                opacity: 0.42,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            }));
-            const boilRing = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.RingGeometry(0.32, 1.16, 28)),
-                boilMat
-            );
-            boilRing.rotation.x = -Math.PI * 0.5;
-            boilRing.position.y = 0.04;
-            gRoot.add(boilRing);
-
-            const plumeGroup = new THREE.Group();
-            plumeGroup.visible = false;
-            gRoot.add(plumeGroup);
-
-            const outerPlumeMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                color: 0xf97316,
-                transparent: true,
-                opacity: 0.78,
-                side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-            }));
-            const innerPlumeMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                color: 0xfde68a,
-                transparent: true,
-                opacity: 0.90,
-                side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-            }));
-
-            const outerCyl = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.42, 0.92, 1.0, 14, 1, true)),
-                outerPlumeMat
-            );
-            outerCyl.position.y = 0.5;
-            const innerCyl = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.20, 0.46, 1.0, 10, 1, true)),
-                innerPlumeMat
-            );
-            innerCyl.position.y = 0.5;
-            const crestGem = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.OctahedronGeometry(0.38, 0)),
-                innerPlumeMat
-            );
-            crestGem.position.y = 1.0;
-            plumeGroup.add(outerCyl, innerCyl, crestGem);
-
-            this.lavaGeysers.push({
-                x: gx,
-                z: gz,
-                maxTopY,
-                phaseOffset,
-                boilRing,
-                boilMat,
-                plumeGroup,
-                eruptFactor: 0,
-                currentTopY: this.lavaSurfaceY,
-                shieldDeflectCd: 0,
-            });
-        };
-
-        const addUpdraft = (ux, uz, baseY, topY, radius = 1.25) => {
-            const uRoot = new THREE.Group();
-            uRoot.position.set(ux, baseY, uz);
-            this.lavaRoomDynamicGroup.add(uRoot);
-
-            const spanH = Math.max(1.8, topY - baseY);
-            const windMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                color: 0xfde68a,
-                transparent: true,
-                opacity: 0.24,
-                side: THREE.DoubleSide,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-            }));
-            const windCyl = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.CylinderGeometry(radius * 0.85, radius, spanH, 18, 1, true)),
-                windMat
-            );
-            windCyl.position.y = spanH * 0.5;
-            uRoot.add(windCyl);
-
-            const swirlRings = [];
-            for (let ri = 0; ri < 3; ri++) {
-                const rMesh = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.TorusGeometry(radius * (0.72 + ri * 0.08), 0.025, 8, 24)),
-                    this.mats.goldMatcapBright
-                );
-                rMesh.rotation.x = Math.PI * 0.5;
-                uRoot.add(rMesh);
-                swirlRings.push(rMesh);
-            }
-
-            this.lavaUpdrafts.push({
-                x: ux,
-                z: uz,
-                baseY,
-                topY,
-                spanH,
-                radius,
-                group: uRoot,
-                swirlRings,
-                soundCd: 0,
-            });
-        };
-
-        const addRotatingRing = (rx, ry, rz, radius, speed) => {
-            const rGrp = new THREE.Group();
-            rGrp.position.set(rx, ry, rz);
-            this.lavaRoomDynamicGroup.add(rGrp);
-
-            const ringTorus = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(radius, 0.095, 10, 36)),
-                this.mats.goldMatcapBright
-            );
-            rGrp.add(ringTorus);
-
-            const innerObs = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(radius * 0.88, 0.055, 8, 32)),
-                this.mats.neroPedestal
-            );
-            innerObs.rotation.y = Math.PI * 0.25;
-            rGrp.add(innerObs);
-
-            this.lavaRotatingRings.push({
-                group: rGrp,
-                speed: speed || 0.9,
-            });
-        };
-
-        // Punkt 6: Echte gefaehrliche Goldene & Schwarze Ausbreitungs-Schockwellen-Ringe (springbar, sonst Knockback + Mana-Abzug!)
-        const addShockRingEmitter = (ringCfg) => {
-            const kind = ringCfg.kind === 'black' ? 'black' : 'gold';
-            const rRoot = new THREE.Group();
-            rRoot.position.set(ringCfg.x, ringCfg.y + 0.055, ringCfg.z);
-            this.lavaRoomDynamicGroup.add(rRoot);
-
-            const beaconMesh = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.OctahedronGeometry(0.14, 0)),
-                kind === 'black' ? this.mats.neroPedestal : this.mats.beaconGold
-            );
-            beaconMesh.position.y = 0.14;
-            rRoot.add(beaconMesh);
-
-            const beaconRim = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(0.20, 0.022, 8, 24)),
-                this.mats.goldMatcapBright
-            );
-            beaconRim.rotation.x = Math.PI * 0.5;
-            beaconRim.position.y = 0.015;
-            rRoot.add(beaconRim);
-
-            const ringHolder = new THREE.Group();
-            ringHolder.visible = false;
-            rRoot.add(ringHolder);
-
-            const coreMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                color: kind === 'black' ? 0x090b10 : 0xf5c451,
-                transparent: true,
-                opacity: 0.96,
-            }));
-            const rimMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                color: kind === 'black' ? 0xd97706 : 0xfff5cc,
-                transparent: true,
-                opacity: 0.90,
-            }));
-
-            const coreTorus = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(1.0, kind === 'black' ? 0.062 : 0.048, 10, 48)),
-                coreMat
-            );
-            coreTorus.rotation.x = Math.PI * 0.5;
-            ringHolder.add(coreTorus);
-
-            const innerRazor = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(0.94, 0.022, 8, 48)),
-                rimMat
-            );
-            innerRazor.rotation.x = Math.PI * 0.5;
-            ringHolder.add(innerRazor);
-
-            const maxRadius = Math.max(1.4, Number(ringCfg.maxRadius) || 2.5);
-            const speed = Math.max(1.5, Number(ringCfg.speed) || 2.6);
-            const restGap = Math.max(0.45, Number(ringCfg.restGap) || 0.85);
-            const cycleDuration = (maxRadius / speed) + restGap;
-
-            this.lavaShockRings.push({
-                x: ringCfg.x,
-                y: ringCfg.y,
-                z: ringCfg.z,
-                kind,
-                maxRadius,
-                speed,
-                restGap,
-                cycleDuration,
-                phaseOffset: Number(ringCfg.phaseOffset) || 0,
-                isTreasureGuard: Boolean(ringCfg.isTreasureGuard),
-                currentRadius: 0,
-                active: false,
-                paused: false,
-                suppressedTimer: 0,
-                lastHitCycle: -1,
-                group: rRoot,
-                ringHolder,
-                beaconMesh,
-                coreMat,
-                rimMat,
-            });
-        };
-
-        const roomDir = (lvl % 2 === 1) ? 1.0 : -1.0;
-        const buildActSpan = (startAnchor, endAnchor, stepCount, actIdx, arcSign) => {
-            const baseRadius = clamp(1.14 - (lvl - 1) * 0.032, 0.84, 1.14);
-            const sinkDelay = clamp(0.50 - lvl * 0.020, 0.28, 0.48);
-            const draftNodes = [];
-            const minSafeZ = this.lavaRoomOrigin.z - 13.5;
-            const maxSafeZ = this.lavaRoomOrigin.z + 13.5;
-
-            for (let si = 1; si <= stepCount; si++) {
-                const u = si / (stepCount + 1);
-                const rawPx = lerp(startAnchor.x, endAnchor.x, u);
-                const rawPy = lerp(startAnchor.y, endAnchor.y, u) + Math.sin(u * Math.PI * 2.0 + actIdx) * (0.08 + lvl * 0.012);
-                // Geschwungener S-Kurven-/Zick-Zack-Bogen quer durch die 44 m breite Magma-Kaverne (rel_z bis +-13.5 m)
-                const archBow = Math.sin(u * Math.PI) * arcSign * (2.6 + Math.min(lvl, 9) * 0.24);
-                const zigAlt = ((si + actIdx) % 2 === 0 ? 1 : -1) * (1.25 + Math.min(lvl, 9) * 0.12);
-                const rawPz = clamp(lerp(startAnchor.z, endAnchor.z, u) + archBow + zigAlt, minSafeZ, maxSafeZ);
-
-                let padType = 'static';
-                let ampX = 0;
-                let ampY = 0;
-                let ampZ = 0;
-                const dirFlip = ((si + actIdx) % 2 === 0) ? 1 : -1;
-                const freq = (1.36 + lvl * 0.068) * dirFlip;
-                const phase = si * 1.25 + actIdx * 1.70;
-
-                if (si % 2 === 0) {
-                    padType = 'pendulum';
-                    ampZ = 1.05 + Math.min(lvl, 10) * 0.085;
-                    if (lvl >= 4) {
-                        ampX = 0.34 + Math.min(lvl, 10) * 0.035;
-                    }
-                    if (lvl >= 6 && actIdx >= 2) {
-                        ampY = 0.22 + (lvl - 6) * 0.025;
-                    }
-                } else if ((lvl >= 2 && si > 1) || (lvl === 1 && actIdx === 2 && si === 3)) {
-                    padType = 'crumble';
-                }
-
-                draftNodes.push({
-                    x: rawPx,
-                    y: rawPy,
-                    z: rawPz,
-                    r: baseRadius,
-                    effRadius: baseRadius,
-                    type: padType,
-                    isStaticSafeIsland: padType === 'static',
-                    ampX,
-                    ampY,
-                    ampZ,
-                    freq,
-                    phase,
-                    sinkDelay,
-                });
-            }
-
-            const verifiedNodes = this._verifyAndClampJumpReachability(startAnchor, draftNodes, endAnchor, lvl, actIdx);
-
-            for (let vi = 0; vi < verifiedNodes.length; vi++) {
-                const nd = verifiedNodes[vi];
-                addDiscPad({
-                    x: nd.x,
-                    y: nd.y,
-                    z: nd.z,
-                    r: nd.r,
-                    type: nd.type,
-                    ampX: nd.ampX,
-                    ampY: nd.ampY,
-                    ampZ: nd.ampZ,
-                    freq: nd.freq,
-                    phase: nd.phase,
-                    sinkDelay: nd.sinkDelay,
-                });
-
-                if (vi === Math.floor(verifiedNodes.length * 0.5) && (actIdx >= 2 || lvl >= 2)) {
-                    addShockRingEmitter({
-                        x: nd.x,
-                        y: nd.y,
-                        z: nd.z,
-                        kind: ((actIdx + lvl) % 2 === 0) ? 'black' : 'gold',
-                        maxRadius: clamp(2.35 + lvl * 0.09, 2.35, 3.25),
-                        speed: clamp(2.40 + lvl * 0.11, 2.40, 3.55),
-                        restGap: clamp(1.05 - lvl * 0.04, 0.58, 1.05),
-                        phaseOffset: actIdx * 1.1 + vi * 0.65,
-                    });
-                }
-
-                if (lvl >= 5 && vi === Math.floor(verifiedNodes.length * 0.5)) {
-                    addRotatingRing(nd.x, nd.y + 1.08, nd.z, nd.r + 0.92, (actIdx % 2 === 0 ? 1 : -1) * (1.05 + lvl * 0.08));
-                }
-            }
-
-            if (lvl >= 2 && (actIdx >= 2 || lvl >= 4)) {
-                const midNode = verifiedNodes[Math.floor(verifiedNodes.length * 0.5)] || startAnchor;
-                const gx = midNode.x + 1.85;
-                const gz = midNode.z + (actIdx % 2 === 0 ? -1.45 : 1.45);
-                addGeyser(gx, gz, Math.max(startAnchor.y, endAnchor.y) + 2.55, actIdx * 1.45 + lvl * 0.35);
-            }
-            if (lvl >= 7 && actIdx >= 2) {
-                const firstNode = verifiedNodes[0] || startAnchor;
-                addGeyser(firstNode.x + 1.75, firstNode.z + (actIdx % 2 === 0 ? 1.55 : -1.55), Math.max(startAnchor.y, endAnchor.y) + 2.45, actIdx * 2.15 + 0.8);
-            }
-            if (lvl >= 6 && actIdx >= 2) {
-                const upNode = verifiedNodes[0] || startAnchor;
-                addUpdraft(upNode.x + 1.65, upNode.z, this.lavaSurfaceY + 0.2, Math.max(startAnchor.y, endAnchor.y) + 2.8, 1.32);
-            }
-        };
-
-        const startEdgeX = this.lavaBalconyMaxX;
-        const cp1 = anchors.cp1;
-        const cp2 = anchors.cp2;
-        const chest = anchors.chest;
-
-        // 7 bis 10 Zwischenplatten pro Raum: Balkon->CP1 (2..3), CP1->CP2 quer durch den Raum (3..4), CP2->Schatzinsel (2..3)
-        const countAct1 = lvl <= 4 ? 2 : 3;
-        const countAct2 = lvl <= 3 ? 3 : 4;
-        const countAct3 = lvl <= 5 ? 2 : 3;
-
-        const balconyTakeoffZ = clamp(-2.0 + roomDir * 2.6, -7.8, 3.8);
-        buildActSpan(
-            { x: startEdgeX, y: 0.004, z: balconyTakeoffZ, effRadius: 0.25, isStaticSafeIsland: true },
-            { x: cp1.x, y: cp1.y, z: cp1.z, effRadius: 1.64, isStaticSafeIsland: true },
-            countAct1,
-            1,
-            roomDir
-        );
-        addDiscPad({ x: cp1.x, y: cp1.y, z: cp1.z, r: 1.64, type: 'static', checkpoint: 1, h: 0.58 });
-        addShockRingEmitter({
-            x: cp1.x,
-            y: cp1.y,
-            z: cp1.z,
-            kind: 'gold',
-            maxRadius: 2.15,
-            speed: clamp(2.35 + lvl * 0.11, 2.35, 3.45),
-            restGap: clamp(1.15 - lvl * 0.04, 0.65, 1.15),
-            phaseOffset: 0.35,
-        });
-
-        buildActSpan(
-            { x: cp1.x, y: cp1.y, z: cp1.z, effRadius: 1.64, isStaticSafeIsland: true },
-            { x: cp2.x, y: cp2.y, z: cp2.z, effRadius: 1.60, isStaticSafeIsland: true },
-            countAct2,
-            2,
-            -roomDir
-        );
-        addDiscPad({ x: cp2.x, y: cp2.y, z: cp2.z, r: 1.60, type: 'static', checkpoint: 2, h: 0.62 });
-        addShockRingEmitter({
-            x: cp2.x,
-            y: cp2.y,
-            z: cp2.z,
-            kind: 'black',
-            maxRadius: 2.20,
-            speed: clamp(2.25 + lvl * 0.12, 2.25, 3.45),
-            restGap: clamp(1.10 - lvl * 0.04, 0.62, 1.10),
-            phaseOffset: 1.25,
-        });
-
-        // Grosszuegiges Sanktuariums-Plateau (11.6 m x 11.2 m) rund um die Truhe; Truhe exakt auf Server-S-Kurven-Anker!
-        const islandHalfW = 5.80;
-        const islandHalfD = 5.60;
-        const islandCenterOffsetX = 2.95; // Vorderkante bei chest.x - 2.85, Rueckkante bis chest.x + 8.75!
-        const islandLandingX = (chest.x + islandCenterOffsetX) - islandHalfW;
-        const islandLandingZ = clamp(lerp(cp2.z, chest.z, 0.82), chest.z - islandHalfD + 1.2, chest.z + islandHalfD - 1.2);
-        buildActSpan(
-            { x: cp2.x, y: cp2.y, z: cp2.z, effRadius: 1.60, isStaticSafeIsland: true },
-            { x: islandLandingX, y: chest.y, z: islandLandingZ, effRadius: 0.35, isStaticSafeIsland: true },
-            countAct3,
-            3,
-            roomDir
-        );
-
-        const islandRec = addBoxPad({
-            x: chest.x + islandCenterOffsetX,
-            y: chest.y,
-            z: chest.z,
-            halfW: islandHalfW,
-            halfD: islandHalfD,
-            h: Math.max(4.5, chest.y - this.lavaSurfaceY + 0.8),
-            type: 'static',
-            isTreasureIsland: true,
-        });
-
-        // Waechter-Schockwellen vor der Truhe (pausieren automatisch, sobald die Truhe heute geoeffnet wurde -> entspanntes Funken-Sammeln!)
-        addShockRingEmitter({
-            x: chest.x - 1.10,
-            y: chest.y,
-            z: chest.z,
-            kind: 'black',
-            maxRadius: 3.15,
-            speed: clamp(2.25 + lvl * 0.11, 2.25, 3.35),
-            restGap: 0.95,
-            phaseOffset: 0.20,
-            isTreasureGuard: true,
-        });
-        if (lvl >= 3) {
-            addShockRingEmitter({
-                x: chest.x - 1.10,
-                y: chest.y,
-                z: chest.z,
-                kind: 'gold',
-                maxRadius: 3.35,
-                speed: clamp(2.65 + lvl * 0.12, 2.65, 3.75),
-                restGap: 1.05,
-                phaseOffset: 1.45,
-                isTreasureGuard: true,
-            });
-        }
-
-        if (lvl === 10) {
-            const throneGroup = new THREE.Group();
-            throneGroup.position.set(chest.x + 6.55 - islandRec.x, 0.0, chest.z - islandRec.z);
-            throneGroup.rotation.y = -Math.PI * 0.5;
-            islandRec.group.add(throneGroup);
-
-            const dais = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.CylinderGeometry(1.75, 2.05, 0.36, 8)),
-                this.mats.goldMatcapBrushed
-            );
-            dais.position.y = 0.22;
-            throneGroup.add(dais);
-
-            const throneBack = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.62, 3.35, 0.32)),
-                this.mats.neroPedestal
-            );
-            throneBack.position.set(0, 1.89, -0.45);
-            throneGroup.add(throneBack);
-
-            const throneHalo = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(1.22, 0.09, 12, 36)),
-                this.mats.goldMatcapBright
-            );
-            throneHalo.position.set(0, 3.29, -0.42);
-            throneGroup.add(throneHalo);
-
-            const crownStar = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.OctahedronGeometry(0.42, 0)),
-                this.mats.beaconGold
-            );
-            crownStar.position.set(0, 3.29, -0.40);
-            throneGroup.add(crownStar);
-
-            [-2.8, 2.8].forEach((tz) => {
-                const col = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.24, 0.28, 4.2, 16)),
-                    this.mats.goldMatcapBrushed
-                );
-                col.position.set(tz, 2.14, -0.3);
-                throneGroup.add(col);
-            });
-        }
-
-        const chestRoot = new THREE.Group();
-        chestRoot.position.set(chest.x - islandRec.x, 0.0, chest.z - islandRec.z);
-        chestRoot.rotation.y = -Math.PI * 0.5;
-        islandRec.group.add(chestRoot);
-        this.lavaChestRoot = chestRoot;
-
-        const chestAo = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.PlaneGeometry(2.1, 1.8)),
-            this.mats.contactShadow
-        );
-        chestAo.rotation.x = -Math.PI * 0.5;
-        chestAo.position.y = 0.005;
-        chestRoot.add(chestAo);
-
-        // Abgestufter 24K-Gold-Sockel (+0.036 m Bodenfreiheit + 0.12 m Hoehe -> 0 % Z-Fighting mit dem Insel-Deck!)
-        const chestPlinth = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.42, 0.12, 1.08)),
-            this.mats.goldMatcapBrushed
-        );
-        chestPlinth.position.y = 0.096;
-        chestRoot.add(chestPlinth);
-
-        const chestBody = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.06, 0.52, 0.72)),
-            this.mats.neroPedestal
-        );
-        chestBody.position.y = 0.416;
-        chestRoot.add(chestBody);
-
-        [-0.42, 0.0, 0.42].forEach((bx) => {
-            const strap = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.08, 0.53, 0.77)),
-                this.mats.goldMatcapBright
-            );
-            strap.position.set(bx, 0.421, 0);
-            chestRoot.add(strap);
-        });
-
-        const lockCrest = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.20, 0.22, 0.06)),
-            this.mats.goldMatcapBright
-        );
-        lockCrest.position.set(0, 0.576, 0.39);
-        chestRoot.add(lockCrest);
-
-        this.lavaChestGlowMesh = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.94, 0.08, 0.60)),
-            this.mats.beaconGold
-        );
-        this.lavaChestGlowMesh.position.set(0, 0.646, 0);
-        this.lavaChestGlowMesh.visible = !isClaimedToday;
-        chestRoot.add(this.lavaChestGlowMesh);
-
-        for (let gi = 0; gi < 5; gi++) {
-            const gem = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.OctahedronGeometry(0.085, 0)),
-                this.mats.goldChampagne
-            );
-            gem.position.set(-0.28 + gi * 0.14, 0.686 + (gi % 2) * 0.03, (gi % 2 === 0 ? 0.06 : -0.06));
-            chestRoot.add(gem);
-        }
-
-        this.lavaChestLidPivot = new THREE.Group();
-        this.lavaChestLidPivot.position.set(0, 0.676, -0.36);
-        chestRoot.add(this.lavaChestLidPivot);
-
-        const lidBox = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.08, 0.20, 0.74)),
-            this.mats.neroPedestal
-        );
-        lidBox.position.set(0, 0.10, 0.36);
-        this.lavaChestLidPivot.add(lidBox);
-
-        const lidArch = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.36, 0.36, 1.08, 16, 1, false, 0, Math.PI)),
-            this.mats.neroPedestal
-        );
-        lidArch.rotation.z = Math.PI * 0.5;
-        lidArch.rotation.y = Math.PI * 0.5;
-        lidArch.scale.set(1.0, 0.58, 1.0);
-        lidArch.position.set(0, 0.20, 0.36);
-        this.lavaChestLidPivot.add(lidArch);
-
-        [-0.42, 0.0, 0.42].forEach((bx) => {
-            const lidStrap = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(0.085, 0.32, 0.78)),
-                this.mats.goldMatcapBright
-            );
-            lidStrap.position.set(bx, 0.16, 0.36);
-            this.lavaChestLidPivot.add(lidStrap);
-        });
-        this.lavaChestLidPivot.rotation.x = -this.lavaChestOpenProgress * 1.18;
-
-        const chestHitProxy = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.85, 1.65, 1.65)),
-            this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-        );
-        chestHitProxy.position.set(0, 0.78, 0);
-        chestHitProxy.userData = { isLavaChest: true };
-        chestRoot.add(chestHitProxy);
-        this.lavaChestHitMeshes.push(chestHitProxy);
-
-        // Punkt 10: Beide goldenen Tore 6.20 m nach hinten (6.95 m Radialabstand zur Truhe!) fuer maximales Freifeld beim Funken-Sammeln!
-        const portalBackOffsetX = 6.20;
-        const portalSideOffsetZ = 3.15;
-
-        if (lvl < 10) {
-            const nextLvl = lvl + 1;
-            const nextUnlocked = this._isLavaPortalUnlocked(nextLvl);
-            const nextWorldX = chest.x + portalBackOffsetX;
-            const nextWorldZ = chest.z - portalSideOffsetZ;
-            const nextGroup = new THREE.Group();
-            nextGroup.position.set(nextWorldX - islandRec.x, 0.0, nextWorldZ - islandRec.z);
-            nextGroup.rotation.y = -Math.PI * 0.34;
-            islandRec.group.add(nextGroup);
-
-            const nextArchMat = this._trackLavaRoomDisposable(new THREE.MeshStandardMaterial({
-                color: nextUnlocked ? 0xc5a059 : 0x3b3530,
-                roughness: 0.28,
-                metalness: 0.76,
-            }));
-            const nArch = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.TorusGeometry(0.96, 0.085, 10, 28, Math.PI)),
-                nextArchMat
-            );
-            nArch.position.y = 1.48;
-            nextGroup.add(nArch);
-
-            [-0.96, 0.96].forEach((nx) => {
-                const nCol = new THREE.Mesh(
-                    this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.085, 0.105, 1.48, 12)),
-                    nextArchMat
-                );
-                nCol.position.set(nx, 0.74, 0);
-                nextGroup.add(nCol);
-            });
-
-            const nextVeilMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                color: 0xd4af37,
-                transparent: true,
-                opacity: nextUnlocked ? 0.38 : 0.08,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            }));
-            const nextVeil = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.PlaneGeometry(1.76, 2.20)),
-                nextVeilMat
-            );
-            nextVeil.position.y = 1.15;
-            nextGroup.add(nextVeil);
-
-            const nextSignTex = buildLightModeMiniPlaqueTexture(THREE, this.maxAniso, `RAUM ${nextLvl}`, this.lavaRoomDisposables);
-            const nextSignMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                map: nextSignTex,
-                polygonOffset: true,
-                polygonOffsetFactor: -2,
-                polygonOffsetUnits: -2,
-                depthWrite: true,
-            }));
-            const nextSignBack = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.48, 0.34, 0.06)),
-                nextArchMat
-            );
-            nextSignBack.position.set(0, 2.66, 0.03);
-            nextGroup.add(nextSignBack);
-
-            const nextSignFront = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.PlaneGeometry(1.40, 0.27)),
-                nextSignMat
-            );
-            nextSignFront.position.set(0, 2.66, 0.086);
-            nextGroup.add(nextSignFront);
-
-            const nextHit = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.BoxGeometry(2.0, 2.5, 0.85)),
-                this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-            );
-            nextHit.position.y = 1.25;
-            nextHit.userData = { isLavaNextRoomPortal: true, targetLevel: nextLvl };
-            nextGroup.add(nextHit);
-            this.lavaNextRoomHitMeshes.push(nextHit);
-
-            this.lavaNextRoomPortal = {
-                targetLevel: nextLvl,
-                worldX: nextWorldX,
-                worldZ: nextWorldZ,
-                unlocked: nextUnlocked,
-                archMat: nextArchMat,
-                veilMat: nextVeilMat,
-            };
-        }
-
-        const retWorldX = chest.x + portalBackOffsetX;
-        const retWorldZ = chest.z + portalSideOffsetZ;
-        this.lavaReturnPortalWorld = { x: retWorldX, z: retWorldZ };
-
-        const returnArchGroup = new THREE.Group();
-        returnArchGroup.position.set(retWorldX - islandRec.x, 0.0, retWorldZ - islandRec.z);
-        returnArchGroup.rotation.y = -Math.PI * 0.66;
-        islandRec.group.add(returnArchGroup);
-
-        const retArch = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.TorusGeometry(0.98, 0.085, 10, 28, Math.PI)),
-            this.mats.goldMatcapBright
-        );
-        retArch.position.y = 1.48;
-        returnArchGroup.add(retArch);
-
-        [-0.98, 0.98].forEach((rx) => {
-            const rCol = new THREE.Mesh(
-                this._trackLavaRoomDisposable(new THREE.CylinderGeometry(0.085, 0.105, 1.48, 12)),
-                this.mats.goldMatcapBrushed
-            );
-            rCol.position.set(rx, 0.74, 0);
-            returnArchGroup.add(rCol);
-        });
-
-        const retVeil = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.PlaneGeometry(1.78, 2.20)),
-            this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-                color: 0xfef3c7,
-                transparent: true,
-                opacity: 0.28,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            }))
-        );
-        retVeil.position.y = 1.15;
-        returnArchGroup.add(retVeil);
-
-        const retSignTex = buildLightModeMiniPlaqueTexture(THREE, this.maxAniso, 'ZURÜCK · HUB', this.lavaRoomDisposables);
-        const retSignMat = this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({
-            map: retSignTex,
-            polygonOffset: true,
-            polygonOffsetFactor: -2,
-            polygonOffsetUnits: -2,
-            depthWrite: true,
-        }));
-        const retSignBack = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(1.56, 0.34, 0.06)),
-            this.mats.goldMatcapBright
-        );
-        retSignBack.position.set(0, 2.66, 0.03);
-        returnArchGroup.add(retSignBack);
-
-        const retSignFront = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.PlaneGeometry(1.48, 0.27)),
-            retSignMat
-        );
-        retSignFront.position.set(0, 2.66, 0.086);
-        returnArchGroup.add(retSignFront);
-
-        const retProxy = new THREE.Mesh(
-            this._trackLavaRoomDisposable(new THREE.BoxGeometry(2.05, 2.45, 0.85)),
-            this._trackLavaRoomDisposable(new THREE.MeshBasicMaterial({ visible: false }))
-        );
-        retProxy.position.y = 1.25;
-        retProxy.userData = { isLavaReturnPortal: true, returnToHub: true, isRoomDynamic: true };
-        returnArchGroup.add(retProxy);
-        this.lavaReturnHitMeshes.push(retProxy);
-
-        this._refreshLavaHubPortals();
-        this._notifyLavaChestUi();
-
-        if (!options.silent && this.currentZone === 'lava' && this.isAuthenticatedCustomer) {
-            if (!cfg.requires_master_key || this.playerProfile.masterKeyUnlocked) {
-                this._startLavaParkourRun(true);
-            }
-        }
-    }
-
-    teleportToLavaRoom(rawTargetLevel) {
-        if (this.destroyed || !this.running) return false;
-        const targetLvl = clamp(parseInt(rawTargetLevel, 10) || 1, 1, 10);
-
-        if (!this.canEnterSanctums) {
-            if (this.onAuthGatePrompt) this.onAuthGatePrompt('lava');
-            return false;
-        }
-        if (!this._isLavaPortalUnlocked(targetLvl)) {
-            if (this.audio && typeof this.audio.playGateLocked === 'function') {
-                this.audio.playGateLocked();
-            }
-            return false;
-        }
-
-        if (this.audio && typeof this.audio.playTeleporter === 'function') {
-            this.audio.playTeleporter();
-        }
-        this.teleportFovBoost = 7.5;
-        if (this.onTeleportTransition) {
-            this.onTeleportTransition({ zone: 'lava', level: targetLvl });
-        }
-
-        if (this.currentZone !== 'lava') {
-            this.currentZone = 'lava';
-            this._syncZoneGroupVisibility();
-            if (this.onZoneChange) this.onZoneChange('lava');
-        }
-
-        this._loadLavaRoom(targetLvl, { silent: false });
-
-        this.player.x = 16.5;
-        this.player.y = 0.004;
-        this.player.groundY = 0.004;
-        this.player.z = -2.0;
-        this.player.vy = 0;
-        this.player.isJumping = false;
-        this.player.jumpCount = 0;
-        this.player.standingPlatform = null;
-        this.player.autoTarget = null;
-        this.player.autoLookAt = null;
-        this.player.yaw = Math.PI * 0.5;
-        this.camControl.desiredYaw = -Math.PI * 0.5;
-        this.camControl.yaw = -Math.PI * 0.5;
-        if (this.camControl.lookAtCurrent) {
-            this.camControl.lookAtCurrent.set(16.5, 1.44, -2.0);
-        }
-
-        this._spawnAbilityBurst(16.5, 0.12, -2.0, 'sprint');
-
-        const cfg = this.getLavaLevelConfig(targetLvl);
-        if (cfg.requires_master_key && !this.playerProfile.masterKeyUnlocked) {
-            if (this.onMasterKeyPromptChange) {
-                this.onMasterKeyPromptChange(true);
-            }
-        }
-        return true;
-    }
-
-    _spawnCollectibleFloorSparks(cx, cy, cz, rawAwardedSparks, targetBalance) {
-        if (!this.scene || !this.THREE) return;
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const totalVal = Math.max(0, parseInt(rawAwardedSparks, 10) || 0);
-        const count = clamp(totalVal > 0 ? totalVal : 6, 5, 16);
-
-        let remainingVal = totalVal;
-        for (let i = 0; i < count; i++) {
-            const share = (i === count - 1)
-                ? remainingVal
-                : Math.max(0, Math.round(remainingVal / (count - i)));
-            remainingVal = Math.max(0, remainingVal - share);
-
-            const holder = new THREE.Group();
-            holder.position.set(cx, cy + 0.62, cz);
-
-            const coreMat = new THREE.MeshBasicMaterial({
-                color: new THREE.Color(i % 2 === 0 ? '#FFE89E' : '#D4AF37'),
-                transparent: true,
-                opacity: 0.98,
-            });
-            const coreMesh = new THREE.Mesh(shared.geos.sparkDiamond, coreMat);
-            coreMesh.scale.setScalar(1.42);
-            holder.add(coreMesh);
-
-            const haloMat = new THREE.MeshBasicMaterial({
-                color: new THREE.Color('#C5A059'),
-                transparent: true,
-                opacity: 0.52,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-            });
-            const haloRing = new THREE.Mesh(shared.geos.baseRing, haloMat);
-            haloRing.rotation.x = -Math.PI * 0.5;
-            haloRing.scale.setScalar(0.32);
-            haloRing.position.y = -0.10;
-            holder.add(haloRing);
-
-            this.scene.add(holder);
-
-            const ang = (i / count) * TWO_PI + (i % 3) * 0.21;
-            const landDist = 1.25 + (i % 4) * 0.34;
-            const flightTime = 0.62 + (i % 3) * 0.08;
-            const vx = (Math.cos(ang) * landDist) / flightTime;
-            const vz = (Math.sin(ang) * landDist) / flightTime;
-            const vy = 4.1 + (i % 3) * 0.75;
-
-            this.collectibleSparks.push({
-                group: holder,
-                coreMesh,
-                coreMat,
-                haloMat,
-                x: cx,
-                y: cy + 0.62,
-                z: cz,
-                vx,
-                vy,
-                vz,
-                floorY: cy + 0.16,
-                landed: false,
-                bounced: false,
-                phase: i * 0.65,
-                sparkValue: share,
-                finalTargetBalance: (i === count - 1 && typeof targetBalance === 'number') ? targetBalance : null,
-            });
-        }
-    }
-
-    _syncRemainingFloorSparksToHud() {
-        if (!this.collectibleSparks || this.collectibleSparks.length === 0) return;
-        for (let i = 0; i < this.collectibleSparks.length; i++) {
-            const sp = this.collectibleSparks[i];
-            if (sp.group && sp.group.parent) sp.group.parent.remove(sp.group);
-            if (sp.coreMat) sp.coreMat.dispose();
-            if (sp.haloMat) sp.haloMat.dispose();
-        }
-        this.collectibleSparks = [];
-        this._sparkCollectCombo = 0;
-        if (this.playerProfile.displayedFunkenBalance !== this.playerProfile.funkenBalance) {
-            this.playerProfile.displayedFunkenBalance = this.playerProfile.funkenBalance;
-            this._emitPlayerHudUpdate();
-        }
-    }
-
-    _updateCollectibleFloorSparks(dt) {
-        if (!this.collectibleSparks || this.collectibleSparks.length === 0) return;
-        const t = this.elapsedTime;
-
-        for (let i = this.collectibleSparks.length - 1; i >= 0; i--) {
-            const sp = this.collectibleSparks[i];
-            sp.coreMesh.rotation.y = t * 3.4 + sp.phase;
-            sp.coreMesh.rotation.x = Math.sin(t * 2.2 + sp.phase) * 0.25;
-
-            if (!sp.landed) {
-                sp.vy -= 13.8 * dt;
-                sp.x += sp.vx * dt;
-                sp.y += sp.vy * dt;
-                sp.z += sp.vz * dt;
-                if (sp.y <= sp.floorY) {
-                    sp.y = sp.floorY;
-                    if (!sp.bounced && Math.abs(sp.vy) > 1.4) {
-                        sp.bounced = true;
-                        sp.vy = Math.abs(sp.vy) * 0.34;
-                        sp.vx *= 0.38;
-                        sp.vz *= 0.38;
-                    } else {
-                        sp.landed = true;
-                        sp.vx = 0;
-                        sp.vy = 0;
-                        sp.vz = 0;
-                    }
-                }
-            } else {
-                // Bleibt glitzernd auf dem Boden liegen, bis der Spieler darueberlaeuft (sanfter Magnetzug ab 2.35 m)
-                const targetY = this.player.y + 0.88;
-                const dx = this.player.x - sp.x;
-                const dy = targetY - sp.y;
-                const dz = this.player.z - sp.z;
-                const distXZ = Math.hypot(dx, dz);
-
-                if (distXZ < 2.35 && Math.abs(this.player.y - (sp.floorY - 0.16)) < 2.2) {
-                    const pullSpeed = lerp(15.5, 4.8, clamp(distXZ / 2.35, 0, 1));
-                    const dist3 = Math.max(0.001, Math.hypot(dx, dy, dz));
-                    sp.x += (dx / dist3) * pullSpeed * dt;
-                    sp.y += (dy / dist3) * pullSpeed * dt;
-                    sp.z += (dz / dist3) * pullSpeed * dt;
-
-                    if (dist3 < 0.52) {
-                        if (sp.group.parent) sp.group.parent.remove(sp.group);
-                        if (sp.coreMat) sp.coreMat.dispose();
-                        if (sp.haloMat) sp.haloMat.dispose();
-                        this.collectibleSparks.splice(i, 1);
-
-                        this._sparkCollectCombo = (this._sparkCollectCombo + 1) % 12;
-                        if (this.audio && typeof this.audio.playSparkCollect === 'function') {
-                            this.audio.playSparkCollect(this._sparkCollectCombo);
-                        }
-                        if (sp.sparkValue > 0) {
-                            this.playerProfile.displayedFunkenBalance = Math.min(
-                                this.playerProfile.funkenBalance,
-                                this.playerProfile.displayedFunkenBalance + sp.sparkValue
-                            );
-                        }
-                        if (this.collectibleSparks.length === 0) {
-                            this.playerProfile.displayedFunkenBalance = this.playerProfile.funkenBalance;
-                            this._sparkCollectCombo = 0;
-                        }
-                        this._emitPlayerHudUpdate();
-                        continue;
-                    }
-                } else {
-                    sp.y = sp.floorY + Math.sin(t * 3.2 + sp.phase) * 0.045;
-                }
-            }
-
-            sp.group.position.set(sp.x, sp.y, sp.z);
-        }
-    }
-
-    _updateLavaChamber(dt) {
-        const t = this.elapsedTime;
-        if (this.lavaLakeShaderMat && this.lavaLakeShaderMat.uniforms) {
-            this.lavaLakeShaderMat.uniforms.uTime.value = t;
-        }
-
-        // Schnellreise-Portale im Vorraum sanft pulsieren lassen
-        for (let hi = 0; hi < this.lavaHubPortals.length; hi++) {
-            const hp = this.lavaHubPortals[hi];
-            if (hp.unlocked && hp.veilMesh.visible) {
-                hp.veilMat.opacity = 0.28 + Math.sin(t * 2.6 + hi * 0.7) * 0.10;
-            }
-        }
-
-        // Episches Tor vor Raum 6 majestaetisch aufschwingen lassen
-        if (this.lavaEpicGate) {
-            const eg = this.lavaEpicGate;
-            eg.openProgress = lerp(eg.openProgress, eg.targetOpen, 1.0 - Math.exp(-dt * 2.8));
-            eg.leftPivot.rotation.y = eg.openProgress * 1.32;
-            eg.rightPivot.rotation.y = -eg.openProgress * 1.32;
-            if (eg.padlockGroup && eg.padlockGroup.visible) {
-                eg.padlockGroup.rotation.z = Math.sin(t * 1.8) * 0.03;
-            }
-        }
-
-        for (let i = 0; i < this.lavaPlatforms.length; i++) {
-            const p = this.lavaPlatforms[i];
-            const prevX = p.x;
-            const prevY = p.y;
-            const prevZ = p.z;
-
-            if (p.type === 'pendulum') {
-                const wave = Math.sin(t * p.freq + p.phase);
-                p.x = p.baseX + wave * p.ampX;
-                p.y = p.baseY + wave * (p.ampY || 0);
-                p.z = p.baseZ + wave * p.ampZ;
-                p.dx = p.x - prevX;
-                p.dy = p.y - prevY;
-                p.dz = p.z - prevZ;
-                p.group.position.set(p.x, p.y, p.z);
-            } else if (p.type === 'crumble') {
-                p.dx = 0;
-                p.dz = 0;
-                if (p.steppedOn) {
-                    if (!p.crumbleSoundPlayed) {
-                        p.crumbleSoundPlayed = true;
-                        if (this.audio && typeof this.audio.playCrumbleTick === 'function') {
-                            this.audio.playCrumbleTick();
-                        }
-                    }
-                    p.crumbleTimer += dt;
-                    const sinkDelay = p.sinkDelay || 0.45;
-                    const sinkEnd = sinkDelay + 0.36;
-                    const riseStart = sinkEnd + 2.05;
-                    const riseEnd = riseStart + 0.70;
-                    if (p.crumbleTimer < sinkDelay) {
-                        p.y = p.baseY;
-                        p.dy = 0;
-                        p.sunk = false;
-                        const vib = Math.sin(t * 62.0) * 0.052;
-                        const vibZ = Math.cos(t * 53.0) * 0.044;
-                        p.group.position.set(p.baseX + vib, p.baseY, p.baseZ + vibZ);
-                        if (p.warnRingMat) {
-                            p.warnRingMat.color.setHex((Math.floor(t * 18) % 2 === 0) ? 0xfde68a : 0xf97316);
-                        }
-                    } else if (p.crumbleTimer < sinkEnd) {
-                        const uSink = clamp((p.crumbleTimer - sinkDelay) / 0.36, 0, 1);
-                        p.y = lerp(p.baseY, p.baseY - 1.85, uSink * uSink);
-                        p.dy = p.y - prevY;
-                        p.sunk = (p.y < p.baseY - 0.46);
-                        p.group.position.set(p.baseX, p.y, p.baseZ);
-                        if (p.warnRingMat) p.warnRingMat.color.setHex(0xea580c);
-                    } else if (p.crumbleTimer < riseStart) {
-                        p.y = p.baseY - 1.85;
-                        p.dy = 0;
-                        p.sunk = true;
-                        p.group.position.set(p.baseX, p.y, p.baseZ);
-                    } else if (p.crumbleTimer < riseEnd) {
-                        const uRise = clamp((p.crumbleTimer - riseStart) / 0.70, 0, 1);
-                        const smoothRise = uRise * uRise * (3.0 - 2.0 * uRise);
-                        p.y = lerp(p.baseY - 1.85, p.baseY, smoothRise);
-                        p.dy = p.y - prevY;
-                        p.sunk = (uRise < 0.72);
-                        p.group.position.set(p.baseX, p.y, p.baseZ);
-                        if (p.warnRingMat) p.warnRingMat.color.setHex(0xd97706);
-                    } else {
-                        p.y = p.baseY;
-                        p.dy = 0;
-                        p.steppedOn = false;
-                        p.crumbleSoundPlayed = false;
-                        p.crumbleTimer = 0;
-                        p.sunk = false;
-                        p.group.position.set(p.baseX, p.baseY, p.baseZ);
-                        if (p.warnRingMat) p.warnRingMat.color.setHex(0xd97706);
-                    }
-                } else {
-                    p.y = p.baseY;
-                    p.dy = 0;
-                    p.sunk = false;
-                    p.group.position.set(p.baseX, p.baseY, p.baseZ);
-                }
-            } else {
-                p.dx = 0;
-                p.dy = 0;
-                p.dz = 0;
-            }
-        }
-
-        for (let gi = 0; gi < this.lavaGeysers.length; gi++) {
-            const g = this.lavaGeysers[gi];
-            if (g.shieldDeflectCd > 0) {
-                g.shieldDeflectCd = Math.max(0, g.shieldDeflectCd - dt);
-            }
-            const cyc = ((t + g.phaseOffset) % 3.90 + 3.90) % 3.90;
-            if (cyc < 2.20) {
-                g.eruptFactor = 0;
-                g.currentTopY = this.lavaSurfaceY;
-                g.plumeGroup.visible = false;
-                g.boilMat.color.setHex(0xb45309);
-                g.boilMat.opacity = 0.34;
-                const calmPulse = 0.92 + Math.sin(t * 2.5 + gi) * 0.06;
-                g.boilRing.scale.set(calmPulse, calmPulse, 1);
-            } else if (cyc < 2.80) {
-                const warnU = (cyc - 2.20) / 0.60;
-                g.eruptFactor = 0;
-                g.currentTopY = this.lavaSurfaceY;
-                g.plumeGroup.visible = false;
-                g.boilMat.color.setHex((Math.floor(t * 16) % 2 === 0) ? 0xfde68a : 0xf97316);
-                g.boilMat.opacity = 0.55 + warnU * 0.42;
-                const warnScale = 1.0 + warnU * 0.42;
-                g.boilRing.scale.set(warnScale, warnScale, 1);
-            } else {
-                const erU = (cyc - 2.80) / 1.10;
-                const envelope = Math.sin(clamp(erU, 0, 1) * Math.PI);
-                g.eruptFactor = envelope;
-                const totalSpanH = Math.max(0.5, g.maxTopY - this.lavaSurfaceY);
-                const curH = Math.max(0.15, totalSpanH * Math.pow(envelope, 0.65));
-                g.currentTopY = this.lavaSurfaceY + curH;
-                g.plumeGroup.visible = true;
-                g.plumeGroup.scale.set(0.86 + envelope * 0.24, curH, 0.86 + envelope * 0.24);
-                g.plumeGroup.rotation.y = t * 4.2 + gi;
-                g.boilMat.color.setHex(0xfde68a);
-                g.boilMat.opacity = 0.95;
-                g.boilRing.scale.set(1.38, 1.38, 1);
-            }
-        }
-
-        // Thermische Aufwinde (Raum 6+) & rotierende Gold-Obsidian-Ringe (Raum 8+)
-        for (let ui = 0; ui < this.lavaUpdrafts.length; ui++) {
-            const up = this.lavaUpdrafts[ui];
-            if (up.soundCd > 0) up.soundCd = Math.max(0, up.soundCd - dt);
-            for (let ri = 0; ri < up.swirlRings.length; ri++) {
-                const uPhase = ((t * 0.68 + ri / up.swirlRings.length + ui * 0.3) % 1 + 1) % 1;
-                const rm = up.swirlRings[ri];
-                rm.position.y = uPhase * up.spanH;
-                const sc = 0.85 + Math.sin(uPhase * Math.PI) * 0.25;
-                rm.scale.set(sc, sc, 1);
-            }
-            if (this.currentZone === 'lava') {
-                const dUp = Math.hypot(this.player.x - up.x, this.player.z - up.z);
-                if (dUp <= up.radius && this.player.y >= up.baseY - 0.5 && this.player.y <= up.topY) {
-                    this.player.isJumping = true;
-                    this.player.vy = Math.min(7.8, Math.max(this.player.vy + 18.5 * dt, 4.4));
-                    if (up.soundCd <= 0 && this.audio && typeof this.audio.playUpdraftWhoosh === 'function') {
-                        up.soundCd = 1.1;
-                        this.audio.playUpdraftWhoosh();
-                    }
-                }
-            }
-        }
-
-        for (let ri = 0; ri < this.lavaRotatingRings.length; ri++) {
-            const rr = this.lavaRotatingRings[ri];
-            rr.group.rotation.z = t * rr.speed;
-            rr.group.rotation.x = Math.sin(t * 0.7 + ri) * 0.28;
-        }
-
-        // Punkt 6: Goldene & Schwarze Ausbreitungs-Ringe animieren (Waechter-Ringe vor der Truhe ruhen nach Tages-Oeffnung!)
-        for (let sri = 0; sri < this.lavaShockRings.length; sri++) {
-            const sr = this.lavaShockRings[sri];
-            if (sr.beaconMesh) {
-                sr.beaconMesh.rotation.y = t * 2.4 + sri;
-            }
-            if (sr.suppressedTimer > 0) {
-                sr.suppressedTimer = Math.max(0, sr.suppressedTimer - dt);
-                sr.active = false;
-                sr.ringHolder.visible = false;
-                continue;
-            }
-            if (sr.isTreasureGuard && this.lavaRun.claimedToday) {
-                sr.paused = true;
-                sr.active = false;
-                sr.ringHolder.visible = false;
-                continue;
-            }
-            sr.paused = false;
-            const totalElapsed = t + sr.phaseOffset;
-            const cycleIdx = Math.floor(totalElapsed / sr.cycleDuration);
-            const inCyc = totalElapsed - cycleIdx * sr.cycleDuration;
-            const activeSpan = sr.maxRadius / sr.speed;
-
-            if (inCyc < activeSpan) {
-                const uRing = clamp(inCyc / activeSpan, 0, 1);
-                const rad = Math.max(0.18, uRing * sr.maxRadius);
-                sr.currentRadius = rad;
-                sr.cycleIdx = cycleIdx;
-                sr.active = true;
-                sr.ringHolder.visible = true;
-                sr.ringHolder.scale.set(rad, 1.0, rad);
-                const fadeOut = 1.0 - Math.pow(uRing, 3.2);
-                sr.coreMat.opacity = clamp(0.96 * fadeOut, 0.08, 0.96);
-                sr.rimMat.opacity = clamp(0.92 * fadeOut, 0.06, 0.92);
-            } else {
-                sr.active = false;
-                sr.currentRadius = 0;
-                sr.ringHolder.visible = false;
-            }
-        }
-
-        [1, 2].forEach((cpNum) => {
-            const ringRec = this.lavaCheckpointRings[cpNum];
-            if (!ringRec || !ringRec.group) return;
-            const isActive = cpNum === 1 ? Boolean(this.lavaRun.cp1Reached) : Boolean(this.lavaRun.cp2Reached);
-            if (isActive !== ringRec.activated) {
-                ringRec.activated = isActive;
-                ringRec.mat.color.setHex(isActive ? 0x34d399 : 0xfde68a);
-            }
-            const pulse = isActive ? (1.06 + Math.sin(t * 5.2 + cpNum) * 0.08) : (1.0 + Math.sin(t * 2.2 + cpNum) * 0.03);
-            ringRec.group.scale.set(pulse, 1, pulse);
-            ringRec.group.rotation.y = t * (isActive ? 1.35 : 0.42);
-        });
-
-        if (this.lavaEmberPosAttr && this.lavaEmberMeta.length > 0) {
-            const arr = this.lavaEmberPosAttr.array;
-            for (let ei = 0; ei < this.lavaEmberMeta.length; ei++) {
-                const em = this.lavaEmberMeta[ei];
-                const u = ((em.ph + t * em.spd) % 1 + 1) % 1;
-                const e3 = ei * 3;
-                arr[e3] = em.bx + Math.sin(t * 1.4 + em.ph * TWO_PI) * em.sway;
-                arr[e3 + 1] = this.lavaSurfaceY + u * 8.8;
-                arr[e3 + 2] = em.bz + Math.cos(t * 1.2 + em.ph * TWO_PI) * em.sway * 0.6;
-            }
-            this.lavaEmberPosAttr.needsUpdate = true;
-        }
-
-        // Wackel-Truhe -> Aufspringen -> Funken-Explosion auf den Boden!
-        if (this.lavaChestWobbleTimer > 0) {
-            this.lavaChestWobbleTimer = Math.max(0, this.lavaChestWobbleTimer - dt);
-            if (this.lavaChestRoot) {
-                const wob = Math.sin((0.56 - this.lavaChestWobbleTimer) * 46.0) * 0.14 * (this.lavaChestWobbleTimer / 0.56 + 0.2);
-                const bounce = Math.abs(Math.sin((0.56 - this.lavaChestWobbleTimer) * 23.0)) * 0.07;
-                this.lavaChestRoot.rotation.z = wob;
-                this.lavaChestRoot.position.y = bounce;
-            }
-            if (this.lavaChestWobbleTimer <= 0 && this.lavaChestBurstPending) {
-                this.lavaChestBurstPending = false;
-                if (this.lavaChestRoot) {
-                    this.lavaChestRoot.rotation.z = 0;
-                    this.lavaChestRoot.position.y = 0;
-                }
-                this.lavaChestOpenTarget = 1.0;
-                const anchors = this._getCurrentLavaAnchors();
-                if (this.audio && typeof this.audio.playChestBurstOpen === 'function') {
-                    this.audio.playChestBurstOpen();
-                } else if (this.audio) {
-                    this.audio.playChestOpenFanfare();
-                }
-                this._spawnChestFountainBurst(anchors.chest.x, anchors.chest.y + 0.65, anchors.chest.z);
-                this._spawnCollectibleFloorSparks(
-                    anchors.chest.x,
-                    anchors.chest.y,
-                    anchors.chest.z,
-                    this._pendingChestSparksCount || 5,
-                    this._pendingSparkTargetBalance
-                );
-            }
-        } else {
-            this.lavaChestOpenTarget = this.lavaRun.claimedToday ? 1.0 : 0.0;
-        }
-
-        this.lavaChestOpenProgress = lerp(this.lavaChestOpenProgress, this.lavaChestOpenTarget, 1.0 - Math.exp(-dt * 7.2));
-        if (this.lavaChestLidPivot) {
-            this.lavaChestLidPivot.rotation.x = -this.lavaChestOpenProgress * 1.18;
-        }
-        if (this.lavaChestGlowMesh) {
-            this.lavaChestGlowMesh.visible = this.lavaChestOpenProgress > 0.04 || !this.lavaRun.claimedToday;
-        }
-
-        this._updateCollectibleFloorSparks(dt);
-
-        if (this.audio && typeof this.audio.updateLavaAmbience === 'function') {
-            const distToPortal = this.currentZone === 'lava'
-                ? 0.0
-                : (this.currentZone === 'gallery'
-                    ? Math.hypot(this.player.x - 11.92, this.player.z - this.lavaPortalZ)
-                    : 999.0);
-            this.audio.updateLavaAmbience(distToPortal, this.running && !this.destroyed);
-        }
-    }
-
-    _evaluateLavaSupportAt(x, z, footY) {
-        if (x >= 4.55 && x <= this.lavaBalconyMaxX + 0.16 && z >= -11.45 && z <= 7.45) {
-            return { supported: true, surfaceY: 0.004, platform: null, shadowY: 0.004 };
-        }
-
-        let bestPlat = null;
-        let bestSurfaceY = -999;
-        let highestShadowY = this.lavaSurfaceY + 0.02;
-
-        for (let i = 0; i < this.lavaPlatforms.length; i++) {
-            const p = this.lavaPlatforms[i];
-            if (p.sunk) continue;
-
-            let inside = false;
-            if (p.shape === 'disc') {
-                inside = Math.hypot(x - p.x, z - p.z) <= (p.r + 0.24);
-            } else {
-                inside = Math.abs(x - p.x) <= (p.halfW + 0.22) && Math.abs(z - p.z) <= (p.halfD + 0.22);
-            }
-            if (!inside) continue;
-
-            if (p.y <= footY + 0.35 && p.y > highestShadowY) {
-                highestShadowY = p.y;
-            }
-            if (footY >= p.y - 0.38 && p.y > bestSurfaceY) {
-                bestSurfaceY = p.y;
-                bestPlat = p;
-            }
-        }
-
-        if (bestPlat) {
-            return {
-                supported: true,
-                surfaceY: bestSurfaceY,
-                platform: bestPlat,
-                shadowY: bestSurfaceY,
-            };
-        }
-
-        return {
-            supported: false,
-            surfaceY: -999,
-            platform: null,
-            shadowY: highestShadowY,
-        };
-    }
-
-    _clearPendingLavaTimers() {
-        if (this.lavaRun.cp1PendingTimer) {
-            clearTimeout(this.lavaRun.cp1PendingTimer);
-            this.lavaRun.cp1PendingTimer = 0;
-        }
-        if (this.lavaRun.cp2PendingTimer) {
-            clearTimeout(this.lavaRun.cp2PendingTimer);
-            this.lavaRun.cp2PendingTimer = 0;
-        }
-    }
-
     _readCsrfToken() {
         if (typeof document === 'undefined') return '';
         const m = document.querySelector('meta[name="csrf-token"]');
@@ -9025,7 +5570,7 @@ class SeelenfunkeLouvreShowroom3D {
 
     _computeSanctumAccess() {
         const a = this.sanctumAccess || {};
-        const clientOk = Boolean(a.isAuthenticated && a.hasCompletedOrder && a.gamificationActive);
+        const clientOk = Boolean(a.isAuthenticated && a.gamificationActive);
         if (a.serverCanEnter === null || a.serverCanEnter === undefined) {
             return clientOk;
         }
@@ -9033,27 +5578,24 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Zugangs-Checkliste (Anmelden -> Bestellung -> Magie aktivieren) fuer das helle Voraussetzungs-Modal.
+     * Zugangs-Checkliste (Angemeldet -> Magie aktivieren) fuer das helle Voraussetzungs-Modal (keine Bestellpflicht!).
      */
     getSanctumAccessState() {
         const a = this.sanctumAccess || {};
         let reason = null;
         if (!a.isAuthenticated) {
             reason = 'login_required';
-        } else if (!a.hasCompletedOrder) {
-            reason = 'order_required';
         } else if (!a.gamificationActive) {
             reason = 'magic_activation_required';
         }
         if (!this.canEnterSanctums && !reason) {
-            reason = a.serverReason || 'login_required';
+            reason = (a.serverReason && a.serverReason !== 'order_required') ? a.serverReason : 'magic_activation_required';
         }
         return {
             canEnter: Boolean(this.canEnterSanctums),
             reason: this.canEnterSanctums ? null : reason,
             checks: {
                 login: Boolean(a.isAuthenticated),
-                order: Boolean(a.hasCompletedOrder),
                 magic: Boolean(a.gamificationActive),
             },
             loginUrl: a.loginUrl || '/login',
@@ -9062,10 +5604,10 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Faengt HTTP 401/403 der Magma- & Lobby-API ab (login_required | order_required | magic_activation_required | MASTER_KEY_REQUIRED).
+     * Faengt HTTP 401/403 der Lobby-API ab (login_required | order_required | magic_activation_required).
      * Gesperrte Antworten liefern body = null zurueck, damit 0 Folge-Requests ausgeloest werden.
      */
-    _interceptSanctumResponse(res, targetZone = 'lava') {
+    _interceptSanctumResponse(res, targetZone = 'heroes') {
         const status = res ? Number(res.status) || 0 : 0;
         const body = res ? res.body : null;
         if (status !== 401 && status !== 403) {
@@ -9084,9 +5626,6 @@ class SeelenfunkeLouvreShowroom3D {
             this._handleSanctumForbidden(reason, targetZone);
             return { status, body: null };
         }
-        if (code === 'MASTER_KEY_REQUIRED' && this.onMasterKeyPromptChange) {
-            this.onMasterKeyPromptChange(true);
-        }
         return { status, body };
     }
 
@@ -9094,7 +5633,7 @@ class SeelenfunkeLouvreShowroom3D {
      * Backend meldet HTTP 403 (login_required | order_required | magic_activation_required):
      * Zugang lokal sperren, Spieler sanft in die Galerie zurueckfuehren & Voraussetzungs-Modal zeigen.
      */
-    _handleSanctumForbidden(rawReason, targetZone = 'lava') {
+    _handleSanctumForbidden(rawReason, targetZone = 'heroes') {
         const reason = String(rawReason || '');
         if (reason === 'login_required') {
             this.sanctumAccess.isAuthenticated = false;
@@ -9114,90 +5653,209 @@ class SeelenfunkeLouvreShowroom3D {
         }
         this._emitPlayerHudUpdate();
         if (this.onAuthGatePrompt) {
-            this.onAuthGatePrompt(targetZone === 'heroes' ? 'heroes' : 'lava');
+            this.onAuthGatePrompt('heroes');
         }
+    }
+
+    getMmorpgAccessState() {
+        return {
+            canEnter: Boolean(this.mmorpgCanEnter),
+            enterUrl: this.mmorpgEnterUrl || '/funkenreich/enter',
+        };
     }
 
     getPlayerHudState() {
         return {
             isAuthenticated: Boolean(this.isAuthenticatedCustomer),
             canEnterSanctums: Boolean(this.canEnterSanctums),
+            mmorpgCanEnter: Boolean(this.mmorpgCanEnter),
+            mmorpgEnterUrl: this.mmorpgEnterUrl || '/funkenreich/enter',
             name: this.playerProfile.name,
             level: this.playerProfile.level,
             levelTitle: this.playerProfile.levelTitle,
             funkenBalance: this.playerProfile.displayedFunkenBalance,
             funkenActualBalance: this.playerProfile.funkenBalance,
             funkenTotalEarned: this.playerProfile.funkenTotalEarned,
-            masterKeyUnlocked: Boolean(this.playerProfile.masterKeyUnlocked),
-            giftVoucherUrl: this.playerProfile.giftVoucherUrl,
-            mana: Math.round(this.playerProfile.mana),
-            maxMana: this.playerProfile.maxMana,
-            hearts: clamp(parseInt(this.playerProfile.hearts ?? 6, 10), 0, this.playerProfile.maxHearts || 6),
-            maxHearts: this.playerProfile.maxHearts || 6,
-            lastHeartLostSeq: this.playerProfile.lastHeartLostSeq || 0,
-            lastHeartLostIndex: this.playerProfile.lastHeartLostIndex ?? -1,
-            demoteBannerText: this.playerProfile.demoteBannerText || '',
-            lifeNonce: (this.lavaRun && this.lavaRun.lifeNonce) ? this.lavaRun.lifeNonce : null,
-            currentLavaLevel: this.currentLavaLevel,
-            currentLavaTitle: this.getLavaLevelConfig(this.currentLavaLevel).title,
+            statusHintText: this.playerProfile.statusHintText || '',
             environment: this.environmentInfo,
         };
     }
 
+    _disposeMagicAwakenChoreo() {
+        const ch = this._magicAwakenChoreo;
+        if (!ch) return;
+        if (this.scene && ch.group) {
+            this.scene.remove(ch.group);
+        }
+        if (ch.ringOuterMat) ch.ringOuterMat.dispose();
+        if (ch.ringInnerMat) ch.ringInnerMat.dispose();
+        if (ch.sparkMatA) ch.sparkMatA.dispose();
+        if (ch.sparkMatB) ch.sparkMatB.dispose();
+        this._magicAwakenChoreo = null;
+        if (this.player) {
+            this.player.awakenLiftY = 0;
+            this.player.awakenPoseWeight = 0;
+        }
+    }
+
     _spawnMagicAwakenAura() {
         if (!this.scene || !this.THREE || !this.player) return;
+        this._disposeMagicAwakenChoreo();
+
         const THREE = this.THREE;
         const shared = this._ensureAvatarSharedPool();
         const px = this.player.x || 0;
-        const py = (this.player.y || 0) + this._computeFloorBaseY(px, this.player.z || 0);
         const pz = this.player.z || 0;
+        const py = (this.player.y || 0) + this._computeFloorBaseY(px, pz);
 
         const group = new THREE.Group();
-        group.position.set(px, py + 0.08, pz);
-        const ringMat = new THREE.MeshBasicMaterial({
+        group.position.set(px, py + 0.04, pz);
+
+        // 2 expandierende 24K-Gold-Bodenringe
+        const ringOuterMat = new THREE.MeshBasicMaterial({
             color: new THREE.Color('#C5A059'),
             transparent: true,
             opacity: 0.96,
             side: THREE.DoubleSide,
             depthWrite: false,
         });
-        const ringMesh = new THREE.Mesh(shared.geos.whirlRing, ringMat);
-        ringMesh.rotation.x = -Math.PI * 0.5;
-        group.add(ringMesh);
+        const ringInnerMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#FDE047'),
+            transparent: true,
+            opacity: 0.92,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+        });
+        const ringOuter = new THREE.Mesh(shared.geos.whirlRing, ringOuterMat);
+        ringOuter.rotation.x = -Math.PI * 0.5;
+        ringOuter.scale.setScalar(0.35);
+        group.add(ringOuter);
 
-        const sparks = [];
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#FFF8DC'),
+        const ringInner = new THREE.Mesh(shared.geos.shockwaveRing, ringInnerMat);
+        ringInner.rotation.x = -Math.PI * 0.5;
+        ringInner.position.y = 0.015;
+        ringInner.scale.setScalar(0.28);
+        group.add(ringInner);
+
+        // Doppelte goldene Doppel-Helix-Funkenspirale (2 Straenge x 24 Funken = 48 Funken)
+        const sparkMatA = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#FDE047'),
             transparent: true,
             opacity: 0.98,
             depthWrite: false,
         });
-        for (let i = 0; i < 28; i++) {
-            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
-            const ang = (i / 28) * TWO_PI;
-            const r0 = 0.35 + (i % 3) * 0.14;
-            sm.scale.setScalar(1.25);
-            sm.position.set(Math.cos(ang) * r0, 0.12 + (i % 4) * 0.18, Math.sin(ang) * r0);
-            group.add(sm);
-            sparks.push({
-                mesh: sm,
-                vx: Math.cos(ang) * (1.2 + (i % 4) * 0.35),
-                vy: 3.2 + (i % 4) * 0.72,
-                vz: Math.sin(ang) * (1.2 + (i % 4) * 0.35),
-            });
-        }
-        this.scene.add(group);
-        this.weaponBursts.push({
-            group,
-            slashMesh: ringMesh,
-            arcMat: ringMat,
-            sparkMat,
-            sparks,
-            age: 0,
-            duration: 0.96,
-            maxRingScale: 2.25,
-            isRemote: false,
+        const sparkMatB = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#FFFBEB'),
+            transparent: true,
+            opacity: 0.96,
+            depthWrite: false,
         });
+        const helixSparks = [];
+        const perStrand = 24;
+        for (let strand = 0; strand < 2; strand++) {
+            const mat = strand === 0 ? sparkMatA : sparkMatB;
+            const strandOffset = strand * Math.PI;
+            for (let i = 0; i < perStrand; i++) {
+                const frac = i / perStrand;
+                const sm = new THREE.Mesh(shared.geos.seelenfunkeStar || shared.geos.sparkDiamond, mat);
+                sm.scale.setScalar(shared.geos.seelenfunkeStar ? 0.24 : 1.15);
+                group.add(sm);
+                helixSparks.push({
+                    mesh: sm,
+                    strandOffset,
+                    frac,
+                });
+            }
+        }
+
+        this.scene.add(group);
+
+        const keepFp = Boolean(this.camControl && this.camControl.desiredDistance < 0.55);
+        const origDist = keepFp ? 3.2 : clamp(this.camControl.desiredDistance || 4.8, 2.8, 6.2);
+        const origPitch = clamp(this.camControl.desiredPitch || 0.20, 0.08, 0.45);
+        if (!keepFp && this.camControl) {
+            this.camControl.desiredDistance = Math.min(origDist, 2.85);
+            this.camControl.desiredPitch = 0.14;
+        }
+
+        this._magicAwakenChoreo = {
+            elapsed: 0,
+            duration: 1.45,
+            baseYaw: this.player.yaw || 0,
+            origDist,
+            origPitch,
+            keepFp,
+            group,
+            ringOuter,
+            ringInner,
+            ringOuterMat,
+            ringInnerMat,
+            sparkMatA,
+            sparkMatB,
+            helixSparks,
+        };
+    }
+
+    _updateMagicAwakenChoreo(dt) {
+        const ch = this._magicAwakenChoreo;
+        if (!ch) return;
+        ch.elapsed += dt;
+        const u = clamp(ch.elapsed / ch.duration, 0, 1);
+        if (u >= 1.0) {
+            if (!ch.keepFp && this.camControl) {
+                this.camControl.desiredDistance = ch.origDist;
+                this.camControl.desiredPitch = ch.origPitch;
+            }
+            this.player.yaw = ch.baseYaw;
+            this._disposeMagicAwakenChoreo();
+            return;
+        }
+
+        const smoothU = u * u * (3.0 - 2.0 * u);
+        const bell = Math.sin(u * Math.PI);
+        const px = this.player.x || 0;
+        const pz = this.player.z || 0;
+        const py = (this.player.y || 0) + this._computeFloorBaseY(px, pz);
+
+        // Funki schwebt 0.42 m empor + 360-Grad-Drehung + leicht erhobene Arme
+        this.player.awakenLiftY = bell * 0.42;
+        this.player.awakenPoseWeight = bell;
+        this.player.yaw = ch.baseYaw + smoothU * TWO_PI;
+
+        ch.group.position.set(px, py + 0.04, pz);
+
+        // 2 expandierende 24K-Gold-Bodenringe
+        const sOuter = lerp(0.35, 2.65, 1.0 - Math.pow(1.0 - u, 2.2));
+        const uInner = clamp((u - 0.14) / 0.86, 0, 1);
+        const sInner = lerp(0.25, 2.20, 1.0 - Math.pow(1.0 - uInner, 2.2));
+        ch.ringOuter.scale.setScalar(sOuter);
+        ch.ringOuter.rotation.z = u * 2.2;
+        ch.ringInner.scale.setScalar(sInner);
+        ch.ringInner.rotation.z = -u * 2.8;
+
+        const fade = u < 0.72 ? 1.0 : clamp((1.0 - u) / 0.28, 0, 1);
+        ch.ringOuterMat.opacity = 0.94 * fade;
+        ch.ringInnerMat.opacity = (u > 0.12 ? 0.90 : 0.0) * fade;
+        ch.sparkMatA.opacity = 0.98 * fade;
+        ch.sparkMatB.opacity = 0.94 * fade;
+
+        // Aufsteigende Doppel-Helix-Funkenspirale rund um Funki
+        for (let i = 0; i < ch.helixSparks.length; i++) {
+            const hs = ch.helixSparks[i];
+            const hProg = (hs.frac + u * 1.35) % 1.0;
+            const yLocal = 0.08 + hProg * 2.45;
+            const radius = lerp(0.68, 0.42, hProg) + 0.08 * Math.sin(u * Math.PI);
+            const theta = hs.strandOffset + hProg * TWO_PI * 2.4 + u * TWO_PI * 1.6;
+            hs.mesh.position.set(Math.cos(theta) * radius, yLocal, Math.sin(theta) * radius);
+            hs.mesh.rotation.y = theta + u * 6.0;
+            hs.mesh.rotation.z = u * 4.0;
+        }
+
+        if (!ch.keepFp && this.camControl && u > 0.76) {
+            const backU = clamp((u - 0.76) / 0.24, 0, 1);
+            this.camControl.desiredDistance = lerp(2.85, ch.origDist, backU);
+            this.camControl.desiredPitch = lerp(0.14, ch.origPitch, backU);
+        }
     }
 
     focusNearestExhibit() {
@@ -9221,7 +5879,7 @@ class SeelenfunkeLouvreShowroom3D {
 
     /**
      * Live-Synchronisation nach In-Game-Login oder 1-Klick-Magie-Aktivierung OHNE Seiten-Reload:
-     * Aktualisiert Sperr-Proxies, laedt nahtlos das echte Kunden-Level-.glb nach, setzt Herzen & Raumfortschritt.
+     * Aktualisiert Sperr-Proxies, MMORPG-Freigabe und laedt nahtlos das echte Kunden-Level-.glb nach.
      */
     applyLiveAccountUpdate(payload = {}) {
         if (this.destroyed || !payload || typeof payload !== 'object') {
@@ -9234,9 +5892,21 @@ class SeelenfunkeLouvreShowroom3D {
         const pf = (payload.player_funki && typeof payload.player_funki === 'object')
             ? payload.player_funki
             : ((payload.playerFunki && typeof payload.playerFunki === 'object') ? payload.playerFunki : null);
-        const lp = (payload.lava_parkour && typeof payload.lava_parkour === 'object')
-            ? payload.lava_parkour
-            : ((payload.lavaParkour && typeof payload.lavaParkour === 'object') ? payload.lavaParkour : null);
+
+        if (payload.mmorpg_can_enter !== undefined) {
+            this.mmorpgCanEnter = Boolean(payload.mmorpg_can_enter);
+        } else if (payload.mmorpgCanEnter !== undefined) {
+            this.mmorpgCanEnter = Boolean(payload.mmorpgCanEnter);
+        } else if (pf && pf.mmorpg_can_enter !== undefined) {
+            this.mmorpgCanEnter = Boolean(pf.mmorpg_can_enter);
+        }
+        if (payload.mmorpg_enter_url) {
+            this.mmorpgEnterUrl = String(payload.mmorpg_enter_url);
+        } else if (payload.mmorpgEnterUrl) {
+            this.mmorpgEnterUrl = String(payload.mmorpgEnterUrl);
+        } else if (pf && pf.mmorpg_enter_url) {
+            this.mmorpgEnterUrl = String(pf.mmorpg_enter_url);
+        }
 
         if (pf) {
             this.playerFunki = Object.assign({}, this.playerFunki || {}, pf);
@@ -9269,14 +5939,10 @@ class SeelenfunkeLouvreShowroom3D {
         if (this.portalBarrierGroup) {
             this.portalBarrierGroup.visible = !this.canEnterSanctums;
         }
-        if (this.eastLavaPortalProxy) {
-            this.eastLavaPortalProxy.visible = false;
-        }
         if (this.canEnterSanctums) {
             this._setPortalGateFocused(false);
             this.pinnedPortalGate = false;
             this._heroesAuthGateTriggered = false;
-            this._magmaAuthGateTriggered = false;
         }
 
         if (this.audio && typeof this.audio.setAuthenticated === 'function') {
@@ -9296,97 +5962,8 @@ class SeelenfunkeLouvreShowroom3D {
             if (pf.funken_total_earned !== undefined) {
                 this.playerProfile.funkenTotalEarned = Math.max(0, parseInt(pf.funken_total_earned, 10) || 0);
             }
-            if (pf.master_key_unlocked !== undefined) {
-                this.playerProfile.masterKeyUnlocked = Boolean(pf.master_key_unlocked);
-            }
-            if (pf.gift_voucher_url) {
-                this.playerProfile.giftVoucherUrl = String(pf.gift_voucher_url);
-            }
-            if (pf.hearts !== undefined) {
-                this.playerProfile.hearts = clamp(parseInt(pf.hearts, 10), 0, this.playerProfile.maxHearts || 6);
-            }
             const nextModelUrl = pf.glb_url || pf.model_url || DEFAULT_FUNKI_GLB_URLS[nextLvl];
             this.upgradePlayerModel(nextLvl, nextModelUrl);
-
-            // Waffen-Effekt aktualisieren falls ein neues Schwert/Stab ausgeruestet ist
-            if (this.player && this.player.builtRecord && pf.weapon && typeof pf.weapon === 'object') {
-                const nextWep = this._buildWeaponAttachment(pf.weapon);
-                if (nextWep) {
-                    const prevWep = this.player.builtRecord.weaponMesh;
-                    if (prevWep && prevWep.parent) {
-                        prevWep.parent.remove(prevWep);
-                    }
-                    this.player.builtRecord.weaponMesh = nextWep;
-                    const activeRig = this.player.builtRecord.skinnedRig;
-                    if (activeRig && activeRig.rightHandWeaponSocket) {
-                        activeRig.rightHandWeaponSocket.add(nextWep);
-                    } else if (this.player.joints && this.player.joints.wristPivotL) {
-                        this.player.joints.wristPivotL.add(nextWep);
-                    }
-                }
-            }
-        }
-
-        if (lp) {
-            if (typeof lp.hearts === 'number') {
-                this.playerProfile.hearts = clamp(parseInt(lp.hearts, 10), 0, this.playerProfile.maxHearts || 6);
-            }
-            if (typeof lp.max_hearts === 'number') {
-                this.playerProfile.maxHearts = clamp(parseInt(lp.max_hearts, 10) || 6, 1, 10);
-            }
-            if (lp.master_key_unlocked !== undefined) {
-                this.playerProfile.masterKeyUnlocked = Boolean(lp.master_key_unlocked);
-            }
-            if (typeof lp.highest_unlocked_level === 'number') {
-                this.lavaProgress.highestUnlockedLevel = clamp(parseInt(lp.highest_unlocked_level, 10) || 1, 1, 10);
-            }
-            if (Array.isArray(lp.unlocked_portals)) {
-                this.lavaProgress.unlockedPortals = lp.unlocked_portals.map((v) => Number(v));
-            }
-            if (Array.isArray(lp.first_cleared_levels)) {
-                this.lavaProgress.firstClearedLevels = lp.first_cleared_levels.map((v) => Number(v));
-            }
-            if (Array.isArray(lp.daily_cleared_levels || lp.daily_claimed_levels)) {
-                this.lavaProgress.dailyClearedLevels = (lp.daily_cleared_levels || lp.daily_claimed_levels).map((v) => Number(v));
-            }
-            if (Array.isArray(lp.levels) && lp.levels.length > 0) {
-                this.lavaLevels = lp.levels.map((raw, idx) => {
-                    const lvl = clamp(parseInt(raw.level, 10) || (idx + 1), 1, 10);
-                    const def = DEFAULT_LAVA_LEVEL_CONFIGS[lvl - 1] || computeLavaSCurveAnchors(lvl);
-                    return {
-                        level: lvl,
-                        title: sanitizeDisplayText(raw.title || def.title),
-                        requires_master_key: Boolean(raw.requires_master_key ?? (lvl >= 6)),
-                        first_clear_reward: parseInt(raw.first_clear_reward ?? def.first_clear_reward, 10) || def.first_clear_reward,
-                        daily_reward: parseInt(raw.daily_reward ?? def.daily_reward, 10) || def.daily_reward,
-                        rel_cp1: {
-                            rel_x: Number((raw.rel_cp1 && raw.rel_cp1.rel_x) ?? def.rel_cp1.rel_x),
-                            rel_y: Number((raw.rel_cp1 && raw.rel_cp1.rel_y) ?? def.rel_cp1.rel_y),
-                            rel_z: Number((raw.rel_cp1 && raw.rel_cp1.rel_z) ?? def.rel_cp1.rel_z),
-                        },
-                        rel_cp2: {
-                            rel_x: Number((raw.rel_cp2 && raw.rel_cp2.rel_x) ?? def.rel_cp2.rel_x),
-                            rel_y: Number((raw.rel_cp2 && raw.rel_cp2.rel_y) ?? def.rel_cp2.rel_y),
-                            rel_z: Number((raw.rel_cp2 && raw.rel_cp2.rel_z) ?? def.rel_cp2.rel_z),
-                        },
-                        rel_chest: {
-                            rel_x: Number((raw.rel_chest && raw.rel_chest.rel_x) ?? def.rel_chest.rel_x),
-                            rel_y: Number((raw.rel_chest && raw.rel_chest.rel_y) ?? def.rel_chest.rel_y),
-                            rel_z: Number((raw.rel_chest && raw.rel_chest.rel_z) ?? def.rel_chest.rel_z),
-                        },
-                    };
-                });
-            }
-            if (lp.life_nonce) {
-                this.lavaRun.lifeNonce = String(lp.life_nonce);
-            }
-            const targetStartLvl = clamp(parseInt(lp.current_level || lp.highest_unlocked_level || this.currentLavaLevel || 1, 10) || 1, 1, 10);
-            this._refreshLavaHubPortals();
-            if (this.lavaRoomDynamicGroup && targetStartLvl !== this.currentLavaLevel) {
-                this._loadLavaRoom(targetStartLvl, { silent: true });
-            }
-        } else {
-            this._refreshLavaHubPortals();
         }
 
         if (payload.play_awaken_fx || payload.status === 'magic_activated') {
@@ -9398,30 +5975,13 @@ class SeelenfunkeLouvreShowroom3D {
 
         this._heroesNeedsLiveRefresh = true;
         this._emitPlayerHudUpdate();
-        this._notifyLavaChestUi();
         return this.getSanctumAccessState();
     }
 
-    _notifyLavaChestUi() {
-        if (this.onLavaChestStateChange) {
-            this.onLavaChestStateChange(this.getLavaChestState());
-        }
-    }
-
-    getLavaChestState() {
-        const cfg = this.getLavaLevelConfig(this.currentLavaLevel);
-        const firstCleared = this.lavaProgress.firstClearedLevels.indexOf(this.currentLavaLevel) !== -1;
-        return {
-            level: this.currentLavaLevel,
-            levelTitle: cfg.title,
-            rewardPreview: firstCleared ? cfg.daily_reward : (cfg.first_clear_reward + cfg.daily_reward),
-            nearChest: Boolean(this.lavaRun.nearChest),
-            isAuthenticated: Boolean(this.isAuthenticatedCustomer),
-            claimedToday: Boolean(this.lavaRun.claimedToday),
-            claiming: Boolean(this.lavaRun.claiming),
-            canClaim: Boolean(this.isAuthenticatedCustomer && !this.lavaRun.claimedToday && !this.lavaRun.claiming),
-            statusMessage: this.lavaRun.statusMessage || '',
-        };
+    _showStatusHint(text, durationSec = 2.1) {
+        this.playerProfile.statusHintText = sanitizeDisplayText(text || '');
+        this._statusHintTimer = Math.max(0.4, Number(durationSec) || 2.1);
+        this._emitPlayerHudUpdate();
     }
 
     _delayMs(ms) {
@@ -9436,678 +5996,12 @@ class SeelenfunkeLouvreShowroom3D {
         return (typeof performance !== 'undefined') ? performance.now() : Date.now();
     }
 
-    _startLavaParkourRun(forceRestart = false) {
-        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function') {
-            return Promise.resolve(null);
-        }
-        const activeLvl = this.currentLavaLevel;
-        const cfg = this.getLavaLevelConfig(activeLvl);
-        if (cfg.requires_master_key && !this.playerProfile.masterKeyUnlocked) {
-            return Promise.resolve(null);
-        }
-        if (this.lavaRun.starting && this.lavaRun._startPromise && this.lavaRun.level === activeLvl) {
-            return this.lavaRun._startPromise;
-        }
-        const runAgeMs = this.lavaRun.startedClientMs > 0
-            ? (this._nowClientMs() - this.lavaRun.startedClientMs)
-            : 0;
-        if (!forceRestart && this.lavaRun.runId && this.lavaRun.level === activeLvl && runAgeMs < 720000) {
-            return Promise.resolve(this.lavaRun.runId);
-        }
-
-        this._clearPendingLavaTimers();
-        this.lavaRun.level = activeLvl;
-        this.lavaRun.starting = true;
-        this.lavaRun.runId = null;
-        this.lavaRun.committed = false;
-        this.lavaRun._cp1Promise = null;
-        this.lavaRun._cp2Promise = null;
-        this.lavaRun.cp1Reached = false;
-        this.lavaRun.cp1Sent = false;
-        this.lavaRun.cp1ConfirmedMs = 0;
-        this.lavaRun.cp2Reached = false;
-        this.lavaRun.cp2Sent = false;
-        this.lavaRun.cp2ConfirmedMs = 0;
-        this.lavaRun.claimToken = null;
-
-        const startProm = fetch('/funkenwerk-welt/lava-parkour/start', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': this._readCsrfToken(),
-            },
-            body: JSON.stringify({
-                level: activeLvl,
-            }),
-        })
-            .then((r) => r.json().catch(() => null).then((b) => this._interceptSanctumResponse({ status: r.status, body: b }).body))
-            .then((body) => {
-                this.lavaRun.starting = false;
-                if (this.destroyed || !body || this.currentLavaLevel !== activeLvl) return null;
-                if (body.claimed_today !== undefined) {
-                    this.lavaRun.claimedToday = Boolean(body.claimed_today);
-                }
-                if (typeof body.hearts === 'number') {
-                    this.playerProfile.hearts = clamp(parseInt(body.hearts, 10), 0, this.playerProfile.maxHearts || 6);
-                }
-                if (body.life_nonce !== undefined && body.life_nonce !== null) {
-                    this.lavaRun.lifeNonce = String(body.life_nonce);
-                }
-                if ((body.success || body.ok) && body.run_id) {
-                    this.lavaRun.runId = String(body.run_id);
-                    this.lavaRun.startedClientMs = this._nowClientMs();
-                    this.lavaRun.cp1ClientMs = 0;
-                    this.lavaRun.cp2ClientMs = 0;
-                }
-                this._emitPlayerHudUpdate();
-                this._notifyLavaChestUi();
-                return this.lavaRun.runId;
-            })
-            .catch(() => {
-                this.lavaRun.starting = false;
-                return null;
-            });
-
-        this.lavaRun._startPromise = startProm;
-        return startProm;
-    }
-
-    _commitLavaParkourRun() {
-        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function' || this.lavaRun.committed) {
-            return Promise.resolve(false);
-        }
-        this.lavaRun.committed = true;
-        const activeLvl = this.currentLavaLevel;
-        const ensureStart = this.lavaRun.runId
-            ? Promise.resolve(this.lavaRun.runId)
-            : (this.lavaRun._startPromise || this._startLavaParkourRun(false));
-
-        return ensureStart.then((activeRunId) => {
-            if (this.destroyed || !activeRunId || this.currentLavaLevel !== activeLvl) return false;
-            return fetch('/funkenwerk-welt/lava-parkour/commit', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': this._readCsrfToken(),
-                },
-                body: JSON.stringify({
-                    run_id: activeRunId,
-                }),
-            })
-                .then((r) => r.json().catch(() => null).then((b) => this._interceptSanctumResponse({ status: r.status, body: b }).body))
-                .then((body) => {
-                    if (this.destroyed || !body) return false;
-                    if (typeof body.hearts === 'number') {
-                        this.playerProfile.hearts = clamp(parseInt(body.hearts, 10), 0, this.playerProfile.maxHearts || 6);
-                        this._emitPlayerHudUpdate();
-                    }
-                    if (body.life_nonce !== undefined && body.life_nonce !== null) {
-                        this.lavaRun.lifeNonce = String(body.life_nonce);
-                    }
-                    return Boolean(body.success || body.ok || body.status === 'committed');
-                })
-                .catch(() => false);
-        });
-    }
-
-    _sendLavaParkourLeave() {
-        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function') {
-            return Promise.resolve(false);
-        }
-        const runIdToLeave = this.lavaRun && this.lavaRun.runId ? String(this.lavaRun.runId) : '';
-        if (!runIdToLeave) {
-            return Promise.resolve(false);
-        }
-        const relX = Number(((this.player.x || 16.5) - this.lavaRoomOrigin.x).toFixed(3));
-        this.lavaRun.runId = null;
-        this.lavaRun.committed = false;
-        this.lavaRun._startPromise = null;
-
-        return fetch('/funkenwerk-welt/lava-parkour/leave', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': this._readCsrfToken(),
-            },
-            body: JSON.stringify({
-                run_id: runIdToLeave,
-                rel_x: relX,
-            }),
-        })
-            .then((r) => r.json().catch(() => null))
-            .then((body) => {
-                if (!this.destroyed && body && typeof body.hearts === 'number') {
-                    this.playerProfile.hearts = clamp(parseInt(body.hearts, 10), 0, this.playerProfile.maxHearts || 6);
-                    this._emitPlayerHudUpdate();
-                }
-                return true;
-            })
-            .catch(() => false);
-    }
-
-    _reportLavaParkourHit(cause = 'lava', usedShield = false) {
-        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function') {
-            return Promise.resolve(null);
-        }
-        const activeLvl = this.currentLavaLevel;
-        const ensureRun = this.lavaRun.runId
-            ? Promise.resolve(this.lavaRun.runId)
-            : Promise.resolve(this.lavaRun._startPromise || '');
-
-        return ensureRun.then((resolvedRunId) => {
-            if (this.destroyed) return null;
-            return fetch('/funkenwerk-welt/lava-parkour/hit', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                    'X-CSRF-TOKEN': this._readCsrfToken(),
-                },
-                body: JSON.stringify({
-                    run_id: resolvedRunId || this.lavaRun.runId || '',
-                    level: activeLvl,
-                    cause: String(cause || 'lava'),
-                    used_shield: Boolean(usedShield),
-                }),
-            })
-                .then((r) => r.json().catch(() => null).then((b) => this._interceptSanctumResponse({ status: r.status, body: b }).body))
-                .then((body) => {
-                    if (this.destroyed || !body) return null;
-
-                    if (body.status === 'shield_saved') {
-                        if (typeof body.hearts === 'number') {
-                            this.playerProfile.hearts = clamp(parseInt(body.hearts, 10), 0, this.playerProfile.maxHearts || 6);
-                        }
-                        if (body.life_nonce !== undefined && body.life_nonce !== null) {
-                            this.lavaRun.lifeNonce = String(body.life_nonce);
-                        }
-                        this._emitPlayerHudUpdate();
-                        return body;
-                    }
-
-                    if (body.status === 'level_demoted') {
-                        const demotedLvl = clamp(
-                            parseInt(body.demoted_to_level ?? body.current_level ?? Math.max(1, activeLvl - 1), 10) || 1,
-                            1,
-                            10
-                        );
-                        if (typeof body.highest_unlocked_level === 'number') {
-                            this.lavaProgress.highestUnlockedLevel = clamp(parseInt(body.highest_unlocked_level, 10) || 1, 1, 10);
-                        }
-                        if (Array.isArray(body.unlocked_portals)) {
-                            this.lavaProgress.unlockedPortals = body.unlocked_portals.map((v) => Number(v));
-                        }
-                        this.playerProfile.hearts = (typeof body.hearts === 'number')
-                            ? clamp(parseInt(body.hearts, 10), 1, this.playerProfile.maxHearts || 6)
-                            : (this.playerProfile.maxHearts || 6);
-                        this.playerProfile.demoteBannerText = `Alle Herzen verloren · Zurück auf Raum ${demotedLvl}`;
-                        this._demoteBannerTimer = 4.2;
-
-                        if (this.audio && typeof this.audio.playLevelDemoted === 'function') {
-                            this.audio.playLevelDemoted();
-                        }
-
-                        this._loadLavaRoom(demotedLvl, { silent: true });
-                        if (body.run_id) {
-                            this.lavaRun.runId = String(body.run_id);
-                            this.lavaRun.startedClientMs = this._nowClientMs();
-                            this.lavaRun.committed = false;
-                        }
-                        if (body.life_nonce !== undefined && body.life_nonce !== null) {
-                            this.lavaRun.lifeNonce = String(body.life_nonce);
-                        }
-                        if (!this.lavaRun.runId) {
-                            this._startLavaParkourRun(true);
-                        }
-
-                        this.player.x = 16.5;
-                        this.player.y = 0.004;
-                        this.player.groundY = 0.004;
-                        this.player.z = -2.0;
-                        this.player.vy = 0;
-                        this.player.isJumping = false;
-                        this.player.jumpCount = 0;
-                        this.player.standingPlatform = null;
-                        this.player.yaw = Math.PI * 0.5;
-                        this._emitPlayerHudUpdate();
-                        return body;
-                    }
-
-                    if (typeof body.hearts === 'number') {
-                        this.playerProfile.hearts = clamp(parseInt(body.hearts, 10), 0, this.playerProfile.maxHearts || 6);
-                    }
-                    if (body.run_id) {
-                        this.lavaRun.runId = String(body.run_id);
-                        this.lavaRun.startedClientMs = this._nowClientMs();
-                        this.lavaRun.committed = false;
-                        this.lavaRun.cp1Reached = false;
-                        this.lavaRun.cp1Sent = false;
-                        this.lavaRun._cp1Promise = null;
-                        this.lavaRun.cp2Reached = false;
-                        this.lavaRun.cp2Sent = false;
-                        this.lavaRun._cp2Promise = null;
-                        this.lavaRun.claimToken = null;
-                    }
-                    if (body.life_nonce !== undefined && body.life_nonce !== null) {
-                        this.lavaRun.lifeNonce = String(body.life_nonce);
-                    }
-                    this._emitPlayerHudUpdate();
-                    return body;
-                })
-                .catch(() => null);
-        });
-    }
-
-    _triggerLavaCheckpoint(stage, touchX, touchY, touchZ) {
-        const anchors = this._getCurrentLavaAnchors();
-        const activeLvl = this.currentLavaLevel;
-
-        if (stage === 1 && !this.lavaRun.cp1Reached) {
-            this.lavaRun.cp1Reached = true;
-            this._spawnAbilityBurst(anchors.cp1.x, anchors.cp1.y + 0.08, anchors.cp1.z, 'sprint');
-            if (this.audio && typeof this.audio.playPortalPass === 'function') this.audio.playPortalPass();
-        } else if (stage === 2 && !this.lavaRun.cp2Reached) {
-            this.lavaRun.cp2Reached = true;
-            this._spawnAbilityBurst(anchors.cp2.x, anchors.cp2.y + 0.08, anchors.cp2.z, 'shield');
-            if (this.audio && typeof this.audio.playPortalPass === 'function') this.audio.playPortalPass();
-        }
-
-        if (!this.isAuthenticatedCustomer || typeof fetch !== 'function') {
-            return Promise.resolve(false);
-        }
-
-        if (stage === 1) {
-            if (this.lavaRun._cp1Promise) return this.lavaRun._cp1Promise;
-            this.lavaRun.cp1Sent = true;
-
-            const runCp1 = (allowFreshRestart = true) => {
-                const ensureStart = this.lavaRun.runId
-                    ? Promise.resolve(this.lavaRun.runId)
-                    : (this.lavaRun._startPromise || this._startLavaParkourRun(false));
-
-                return ensureStart.then((activeRunId) => {
-                    if (this.destroyed || !activeRunId || this.currentLavaLevel !== activeLvl) return false;
-                    const elapsed = this._nowClientMs() - (this.lavaRun.startedClientMs || this._nowClientMs());
-                    const waitBeforeCp1 = Math.max(0, 2880 - elapsed);
-                    return this._delayMs(waitBeforeCp1).then(() => {
-                        if (this.destroyed || !this.lavaRun.runId || this.currentLavaLevel !== activeLvl) return false;
-                        const rawX = Number.isFinite(Number(touchX)) ? Number(touchX) : anchors.cp1.x;
-                        const rawY = Number.isFinite(Number(touchY)) ? Number(touchY) : anchors.cp1.y;
-                        const rawZ = Number.isFinite(Number(touchZ)) ? Number(touchZ) : anchors.cp1.z;
-                        const relX = rawX - anchors.origin.x;
-                        const relY = rawY - anchors.origin.y;
-                        const relZ = rawZ - anchors.origin.z;
-
-                        return fetch('/funkenwerk-welt/lava-parkour/checkpoint', {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': this._readCsrfToken(),
-                            },
-                            body: JSON.stringify({
-                                run_id: this.lavaRun.runId,
-                                life_nonce: this.lavaRun.lifeNonce || '',
-                                level: activeLvl,
-                                stage: 1,
-                                rel_x: Number(relX.toFixed(3)),
-                                rel_y: Number(relY.toFixed(3)),
-                                rel_z: Number(relZ.toFixed(3)),
-                                x: Number(rawX.toFixed(3)),
-                                y: Number(rawY.toFixed(3)),
-                                z: Number(rawZ.toFixed(3)),
-                            }),
-                        })
-                            .then((r) => r.json().then((b) => this._interceptSanctumResponse({ status: r.status, body: b })).catch(() => ({ status: r.status, body: null })))
-                            .then(({ status, body }) => {
-                                if (this.destroyed || !body || this.currentLavaLevel !== activeLvl) return false;
-                                if (body.life_nonce !== undefined && body.life_nonce !== null) {
-                                    this.lavaRun.lifeNonce = String(body.life_nonce);
-                                }
-                                if (body.success || body.ok) {
-                                    const doneMs = this._nowClientMs();
-                                    this.lavaRun.cp1ClientMs = doneMs;
-                                    this.lavaRun.cp1ConfirmedMs = doneMs;
-                                    return true;
-                                }
-                                if (status === 422 && body.retryable === true) {
-                                    const retryWait = (Number(body.wait_ms) || 550) + 60;
-                                    return this._delayMs(retryWait).then(() => runCp1(false));
-                                }
-                                if (allowFreshRestart && status === 422) {
-                                    const keepCp1 = this.lavaRun.cp1Reached;
-                                    const keepCp2 = this.lavaRun.cp2Reached;
-                                    return this._startLavaParkourRun(true).then(() => {
-                                        this.lavaRun.cp1Reached = keepCp1;
-                                        this.lavaRun.cp2Reached = keepCp2;
-                                        return runCp1(false);
-                                    });
-                                }
-                                return false;
-                            });
-                    });
-                }).catch(() => false);
-            };
-
-            this.lavaRun._cp1Promise = runCp1(true);
-            return this.lavaRun._cp1Promise;
-        }
-
-        if (this.lavaRun._cp2Promise) return this.lavaRun._cp2Promise;
-        this.lavaRun.cp2Sent = true;
-
-        const runCp2 = (allowRetry = true) => {
-            if (!this.lavaRun._cp1Promise) {
-                this._triggerLavaCheckpoint(1, anchors.cp1.x, anchors.cp1.y, anchors.cp1.z);
-            }
-            return Promise.resolve(this.lavaRun._cp1Promise).then((cp1Ok) => {
-                if (this.destroyed || !cp1Ok || !this.lavaRun.runId || this.currentLavaLevel !== activeLvl) return false;
-                const elapsedAfterCp1 = this._nowClientMs() - (this.lavaRun.cp1ConfirmedMs || this._nowClientMs());
-                const waitBeforeCp2 = Math.max(0, 2880 - elapsedAfterCp1);
-                return this._delayMs(waitBeforeCp2).then(() => {
-                    if (this.destroyed || !this.lavaRun.runId || this.currentLavaLevel !== activeLvl) return false;
-                    const rawX = Number.isFinite(Number(touchX)) ? Number(touchX) : anchors.cp2.x;
-                    const rawY = Number.isFinite(Number(touchY)) ? Number(touchY) : anchors.cp2.y;
-                    const rawZ = Number.isFinite(Number(touchZ)) ? Number(touchZ) : anchors.cp2.z;
-                    const relX = rawX - anchors.origin.x;
-                    const relY = rawY - anchors.origin.y;
-                    const relZ = rawZ - anchors.origin.z;
-
-                    return fetch('/funkenwerk-welt/lava-parkour/checkpoint', {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json',
-                            'X-CSRF-TOKEN': this._readCsrfToken(),
-                        },
-                        body: JSON.stringify({
-                            run_id: this.lavaRun.runId,
-                            life_nonce: this.lavaRun.lifeNonce || '',
-                            level: activeLvl,
-                            stage: 2,
-                            rel_x: Number(relX.toFixed(3)),
-                            rel_y: Number(relY.toFixed(3)),
-                            rel_z: Number(relZ.toFixed(3)),
-                            x: Number(rawX.toFixed(3)),
-                            y: Number(rawY.toFixed(3)),
-                            z: Number(rawZ.toFixed(3)),
-                        }),
-                    })
-                        .then((r) => r.json().then((b) => this._interceptSanctumResponse({ status: r.status, body: b })).catch(() => ({ status: r.status, body: null })))
-                        .then(({ status, body }) => {
-                            if (this.destroyed || !body || this.currentLavaLevel !== activeLvl) return false;
-                            if (body.life_nonce !== undefined && body.life_nonce !== null) {
-                                this.lavaRun.lifeNonce = String(body.life_nonce);
-                            }
-                            if ((body.success || body.ok) && body.claim_token) {
-                                const doneMs = this._nowClientMs();
-                                this.lavaRun.cp2ClientMs = doneMs;
-                                this.lavaRun.cp2ConfirmedMs = doneMs;
-                                this.lavaRun.claimToken = String(body.claim_token);
-                                return true;
-                            }
-                            if (allowRetry && status === 422 && body.retryable === true) {
-                                const retryWait = (Number(body.wait_ms) || 550) + 60;
-                                return this._delayMs(retryWait).then(() => runCp2(false));
-                            }
-                            return false;
-                        });
-                });
-            }).catch(() => false);
-        };
-
-        this.lavaRun._cp2Promise = runCp2(true);
-        return this.lavaRun._cp2Promise;
-    }
-
-    claimLavaChest() {
-        if (this.destroyed || !this.running) return Promise.resolve(false);
-        if (!this.isAuthenticatedCustomer) {
-            if (this.onAuthGatePrompt) {
-                this.onAuthGatePrompt('lava');
-            }
-            return Promise.resolve(false);
-        }
-        if (this.lavaRun.claimedToday || this.lavaRun.claiming) {
-            return Promise.resolve(false);
-        }
-
-        const anchors = this._getCurrentLavaAnchors();
-        const activeLvl = this.currentLavaLevel;
-        const distToChest = Math.hypot(this.player.x - anchors.chest.x, this.player.z - anchors.chest.z);
-        if (distToChest > 4.4) {
-            return Promise.resolve(false);
-        }
-
-        this.lavaRun.claiming = true;
-        this.lavaRun.statusMessage = 'Truhe entriegelt...';
-        this._notifyLavaChestUi();
-
-        const syncChain = Promise.resolve(this.lavaRun._startPromise)
-            .then(() => {
-                if (this.lavaRun.cp1Reached && !this.lavaRun._cp1Promise) {
-                    return this._triggerLavaCheckpoint(1, anchors.cp1.x, anchors.cp1.y, anchors.cp1.z);
-                }
-                return this.lavaRun._cp1Promise;
-            })
-            .then(() => {
-                if (this.lavaRun.cp2Reached && !this.lavaRun._cp2Promise) {
-                    return this._triggerLavaCheckpoint(2, anchors.cp2.x, anchors.cp2.y, anchors.cp2.z);
-                }
-                return this.lavaRun._cp2Promise;
-            });
-
-        const sendClaimPost = (allowRetryOn422) => {
-            if (this.destroyed || this.currentLavaLevel !== activeLvl) return Promise.resolve(false);
-            if (!this.lavaRun.runId || !this.lavaRun.claimToken) {
-                this.lavaRun.claiming = false;
-                this.lavaRun.statusMessage = 'Bitte absolviere beide Checkpoints.';
-                this._notifyLavaChestUi();
-                return Promise.resolve(false);
-            }
-
-            const nowMs = this._nowClientMs();
-            const waitAfterCp2 = this.lavaRun.cp2ConfirmedMs > 0
-                ? Math.max(0, 1500 - (nowMs - this.lavaRun.cp2ConfirmedMs))
-                : 0;
-            const waitTotal = this.lavaRun.startedClientMs > 0
-                ? Math.max(0, 8550 - (nowMs - this.lavaRun.startedClientMs))
-                : 0;
-            const initialWait = Math.max(waitAfterCp2, waitTotal);
-
-            return this._delayMs(initialWait).then(() => {
-                if (this.destroyed || this.currentLavaLevel !== activeLvl) return false;
-                const rawX = Number.isFinite(Number(this.player.x)) ? Number(this.player.x) : anchors.chest.x;
-                const rawY = Number.isFinite(Number(this.player.y)) ? Number(this.player.y || anchors.chest.y) : anchors.chest.y;
-                const rawZ = Number.isFinite(Number(this.player.z)) ? Number(this.player.z) : anchors.chest.z;
-                const relX = rawX - anchors.origin.x;
-                const relY = rawY - anchors.origin.y;
-                const relZ = rawZ - anchors.origin.z;
-
-                return fetch('/funkenwerk-welt/lava-parkour/claim', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': this._readCsrfToken(),
-                    },
-                    body: JSON.stringify({
-                        run_id: this.lavaRun.runId || '',
-                        life_nonce: this.lavaRun.lifeNonce || '',
-                        level: activeLvl,
-                        claim_token: this.lavaRun.claimToken || '',
-                        rel_x: Number(relX.toFixed(3)),
-                        rel_y: Number(relY.toFixed(3)),
-                        rel_z: Number(relZ.toFixed(3)),
-                        x: Number(rawX.toFixed(3)),
-                        y: Number(rawY.toFixed(3)),
-                        z: Number(rawZ.toFixed(3)),
-                    }),
-                })
-                    .then((r) => r.json().then((b) => this._interceptSanctumResponse({ status: r.status, body: b })).catch(() => ({ status: r.status, body: null })))
-                    .then(({ status, body }) => {
-                        if (this.destroyed || !body || this.currentLavaLevel !== activeLvl) {
-                            this.lavaRun.claiming = false;
-                            this._notifyLavaChestUi();
-                            return false;
-                        }
-                        if (allowRetryOn422 && status === 422 && body.retryable === true) {
-                            const retryMs = (Number(body.wait_ms) || 650) + 60;
-                            return this._delayMs(retryMs).then(() => sendClaimPost(false));
-                        }
-
-                        this.lavaRun.claiming = false;
-                        if (body.already_claimed || body.claimed_today) {
-                            this.lavaRun.claimedToday = true;
-                            this.lavaChestOpenTarget = 1.0;
-                        }
-                        if (body.success || body.ok) {
-                            this.lavaRun.claimedToday = true;
-                            const awarded = Math.max(0, parseInt(body.sparks_awarded ?? 5, 10) || 0);
-                            if (typeof body.funken_balance === 'number') {
-                                this.playerProfile.funkenBalance = Math.max(0, parseInt(body.funken_balance, 10) || 0);
-                            } else {
-                                this.playerProfile.funkenBalance += awarded;
-                            }
-                            if (typeof body.funken_total_earned === 'number') {
-                                this.playerProfile.funkenTotalEarned = Math.max(0, parseInt(body.funken_total_earned, 10) || 0);
-                            }
-                            if (body.master_key_unlocked !== undefined) {
-                                this.playerProfile.masterKeyUnlocked = Boolean(body.master_key_unlocked);
-                            }
-                            if (typeof body.highest_unlocked_level === 'number') {
-                                this.lavaProgress.highestUnlockedLevel = clamp(parseInt(body.highest_unlocked_level, 10) || 1, 1, 10);
-                            } else if (activeLvl < 10) {
-                                this.lavaProgress.highestUnlockedLevel = Math.max(this.lavaProgress.highestUnlockedLevel, activeLvl + 1);
-                            }
-                            if (Array.isArray(body.unlocked_portals)) {
-                                this.lavaProgress.unlockedPortals = body.unlocked_portals.map((v) => Number(v));
-                            } else if (activeLvl < 10 && this.lavaProgress.unlockedPortals.indexOf(activeLvl + 1) === -1) {
-                                this.lavaProgress.unlockedPortals.push(activeLvl + 1);
-                            }
-                            if (Array.isArray(body.first_cleared_levels)) {
-                                this.lavaProgress.firstClearedLevels = body.first_cleared_levels.map((v) => Number(v));
-                            }
-                            if (Array.isArray(body.daily_claimed_levels)) {
-                                this.lavaProgress.dailyClearedLevels = body.daily_claimed_levels.map((v) => Number(v));
-                            } else if (Array.isArray(body.daily_cleared_levels)) {
-                                this.lavaProgress.dailyClearedLevels = body.daily_cleared_levels.map((v) => Number(v));
-                            } else if (this.lavaProgress.dailyClearedLevels.indexOf(activeLvl) === -1) {
-                                this.lavaProgress.dailyClearedLevels.push(activeLvl);
-                            }
-
-                            this._heroesNeedsLiveRefresh = true;
-                            this._refreshLavaHubPortals();
-
-                            this._pendingChestSparksCount = Math.max(5, awarded || 5);
-                            this._pendingSparkTargetBalance = this.playerProfile.funkenBalance;
-                            this.lavaChestWobbleTimer = 0.56;
-                            this.lavaChestBurstPending = true;
-                            if (this.audio && typeof this.audio.playChestWobble === 'function') {
-                                this.audio.playChestWobble();
-                            }
-
-                            if (body.player_level && Number(body.player_level) !== this.playerProfile.level) {
-                                this.upgradePlayerModel(Number(body.player_level), body.model_url || null);
-                            } else {
-                                this._emitPlayerHudUpdate();
-                            }
-
-                            this.lavaRun.statusMessage = sanitizeDisplayText(body.message || `+${awarded} Funken!`);
-                            this._notifyLavaChestUi();
-                            return true;
-                        }
-                        if (status === 422 && !body.retryable) {
-                            this.lavaRun.runId = null;
-                            this.lavaRun._startPromise = null;
-                            this.lavaRun._cp1Promise = null;
-                            this.lavaRun._cp2Promise = null;
-                            this.lavaRun.claimToken = null;
-                        }
-                        this.lavaRun.statusMessage = sanitizeDisplayText(body.message || 'Bitte absolviere beide Checkpoints.');
-                        this._notifyLavaChestUi();
-                        return false;
-                    })
-                    .catch(() => {
-                        this.lavaRun.claiming = false;
-                        this.lavaRun.statusMessage = 'Verbindung fehlgeschlagen.';
-                        this._notifyLavaChestUi();
-                        return false;
-                    });
-            });
-        };
-
-        return syncChain.then(() => sendClaimPost(true));
-    }
-
-    _spawnLavaSplashBurst(x, y, z) {
-        if (!this.scene || !this.THREE) return;
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        const ringMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#D9531E'),
-            transparent: true,
-            opacity: 0.92,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-        const ringMesh = new THREE.Mesh(shared.geos.baseRing, ringMat);
-        ringMesh.rotation.x = -Math.PI * 0.5;
-        ringMesh.scale.setScalar(1.25);
-        group.add(ringMesh);
-
-        const sparks = [];
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#FDE68A'),
-            transparent: true,
-            opacity: 0.95,
-            depthWrite: false,
-        });
-        for (let i = 0; i < 16; i++) {
-            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
-            const ang = (i / 16) * TWO_PI;
-            const spd = 1.6 + (i % 4) * 0.5;
-            sm.position.set(Math.cos(ang) * 0.25, 0.1, Math.sin(ang) * 0.25);
-            group.add(sm);
-            sparks.push({
-                mesh: sm,
-                vx: Math.cos(ang) * spd,
-                vy: 2.8 + (i % 3) * 0.85,
-                vz: Math.sin(ang) * spd,
-            });
-        }
-        this.scene.add(group);
-        this.weaponBursts.push({
-            group,
-            slashMesh: ringMesh,
-            arcMat: ringMat,
-            sparkMat,
-            sparks,
-            age: 0,
-            duration: 0.68,
-            isRemote: false,
-        });
-    }
-
     _spawnChestFountainBurst(x, y, z) {
         if (!this.scene || !this.THREE) return;
         const THREE = this.THREE;
         const shared = this._ensureAvatarSharedPool();
         const group = new THREE.Group();
-        group.position.set(x, y, z);
+        group.position.set(Number(x) || 0, Number(y) || 0, Number(z) || 0);
 
         const ringMat = new THREE.MeshBasicMaterial({
             color: new THREE.Color('#D4AF37'),
@@ -10129,10 +6023,11 @@ class SeelenfunkeLouvreShowroom3D {
             depthWrite: false,
         });
         for (let i = 0; i < 32; i++) {
-            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
+            const useStar = Boolean(shared.geos.seelenfunkeStar && i % 2 === 0);
+            const sm = new THREE.Mesh(useStar ? shared.geos.seelenfunkeStar : shared.geos.sparkDiamond, sparkMat);
             const ang = (i / 32) * TWO_PI;
             const spd = 1.2 + (i % 5) * 0.52;
-            sm.scale.setScalar(1.25);
+            sm.scale.setScalar(useStar ? 0.28 : 1.25);
             sm.position.set(0, 0.05, 0);
             group.add(sm);
             sparks.push({
@@ -10153,106 +6048,6 @@ class SeelenfunkeLouvreShowroom3D {
             duration: 1.05,
             isRemote: false,
         });
-    }
-
-    _respawnAtLavaBalcony(forceBalcony = false) {
-        this._spawnLavaSplashBurst(this.player.x, this.lavaSurfaceY + 0.12, this.player.z);
-        if (this.audio) this.audio.playLavaSplash();
-
-        for (let pi = 0; pi < this.lavaPlatforms.length; pi++) {
-            const p = this.lavaPlatforms[pi];
-            if (p.type === 'crumble') {
-                p.steppedOn = false;
-                p.crumbleSoundPlayed = false;
-                p.crumbleTimer = 0;
-                p.sunk = false;
-                p.y = p.baseY;
-                p.dy = 0;
-                p.group.position.set(p.baseX, p.baseY, p.baseZ);
-                if (p.warnRingMat) p.warnRingMat.color.setHex(0xd97706);
-            }
-        }
-
-        const anchors = this._getCurrentLavaAnchors();
-        let rx = 16.8;
-        let ry = 0.004;
-        let rz = -2.0;
-        if (!forceBalcony) {
-            if (this.lavaRun.cp2Reached) {
-                rx = anchors.cp2.x;
-                ry = anchors.cp2.y;
-                rz = anchors.cp2.z;
-            } else if (this.lavaRun.cp1Reached) {
-                rx = anchors.cp1.x;
-                ry = anchors.cp1.y;
-                rz = anchors.cp1.z;
-            }
-        } else {
-            this.lavaRun.committed = false;
-            this.lavaRun.cp1Reached = false;
-            this.lavaRun.cp1Sent = false;
-            this.lavaRun._cp1Promise = null;
-            this.lavaRun.cp2Reached = false;
-            this.lavaRun.cp2Sent = false;
-            this.lavaRun._cp2Promise = null;
-            this.lavaRun.claimToken = null;
-        }
-
-        this.player.x = rx;
-        this.player.y = ry;
-        this.player.groundY = ry;
-        this.player.z = rz;
-        this.player.vy = 0.0;
-        this.player.isJumping = false;
-        this.player.highJumpActive = false;
-        this.player.jumpCount = 0;
-        this.player.coyoteTimer = 0.12;
-        this.player.standingPlatform = null;
-        this.player.isSomersault = false;
-        this.player.somersaultProgress = 0.0;
-        this.player.landSquash = 0.20;
-        this.player.autoTarget = null;
-        this.player.autoLookAt = null;
-        this.player.yaw = Math.PI * 0.5;
-
-        this._spawnLavaSplashBurst(rx, ry + 0.10, rz);
-
-        if (!forceBalcony && !this.lavaRun.cp1Reached && !this.lavaRun.cp2Reached && !this.lavaRun.runId) {
-            this._startLavaParkourRun(true);
-        }
-    }
-
-    /**
-     * Rueckkehr vom Schatz-Plateau in den Eingangs-Vorraum (Schnellreise-Portal-Hub) mit edler Teleporter-Blende.
-     */
-    _returnToLavaHub() {
-        if (this.destroyed || this.currentZone !== 'lava') return;
-        this._syncRemainingFloorSparksToHud();
-        if (this.audio && typeof this.audio.playTeleporter === 'function') {
-            this.audio.playTeleporter();
-        }
-        this.teleportFovBoost = 6.5;
-        if (this.onTeleportTransition) {
-            this.onTeleportTransition({ zone: 'lava', level: 0 });
-        }
-        this.player.x = 12.6;
-        this.player.y = 0.004;
-        this.player.groundY = 0.004;
-        this.player.z = -2.0;
-        this.player.vy = 0;
-        this.player.isJumping = false;
-        this.player.jumpCount = 0;
-        this.player.standingPlatform = null;
-        this.player.autoTarget = null;
-        this.player.autoLookAt = null;
-        this.player.yaw = -Math.PI * 0.5;
-        this.camControl.desiredYaw = Math.PI * 0.5;
-        this.camControl.yaw = Math.PI * 0.5;
-        if (this.camControl.lookAtCurrent) {
-            this.camControl.lookAtCurrent.set(12.6, 1.44, -2.0);
-        }
-        this._refreshLavaHubPortals();
-        this._spawnAbilityBurst(12.6, 0.12, -2.0, 'sprint');
     }
 
     _sanitizeStandingFunkiUrl(lvl, candidateUrl) {
@@ -10409,11 +6204,10 @@ class SeelenfunkeLouvreShowroom3D {
         const motionRig = new THREE.Group();
         root.add(motionRig);
 
-        const heroWeapon = (hero && hero.weapon && typeof hero.weapon === 'object') ? hero.weapon : null;
         const heroModelUrlForRig = this._resolveFunkiModelUrl(lvl, hero || null);
         const avatarBuilt = this._createArticulatedAvatarInstance(
             lvl,
-            heroWeapon,
+            null,
             false,
             heroModelUrlForRig,
             this.heroDynamicDisposables
@@ -11377,9 +7171,69 @@ class SeelenfunkeLouvreShowroom3D {
                 metalness: 0.12,
                 envMapIntensity: 0.72,
             })),
+            seelenfunkeGold: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xfde047,
+                emissive: 0xf59e0b,
+                emissiveIntensity: 0.62,
+                roughness: 0.14,
+                metalness: 0.88,
+                envMapIntensity: 1.45,
+            })),
+            seelenfunkeOrbit: this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xfde047,
+                transparent: true,
+                opacity: 0.84,
+                depthWrite: false,
+            })),
+            seelenfunkeWhiteCore: this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+            })),
+            rubyPotionCore: this._trackDisposable(new THREE.MeshStandardMaterial({
+                color: 0xdc2626,
+                emissive: 0x991b1b,
+                emissiveIntensity: 0.65,
+                roughness: 0.12,
+                metalness: 0.16,
+                envMapIntensity: 1.35,
+            })),
+            rubyPotionGlass: this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xfca5a5,
+                transparent: true,
+                opacity: 0.46,
+                depthWrite: false,
+            })),
         };
 
+        // 1:1 Website-Seelenfunken 4-Strahlen-Gold-Kristall-Stern:
+        // Pfad: 0,1 -> 0.22,0.22 -> 1,0 -> 0.22,-0.22 -> 0,-1 -> -0.22,-0.22 -> -1,0 -> -0.22,0.22
+        const sfStarShape = new THREE.Shape();
+        sfStarShape.moveTo(0, 1);
+        sfStarShape.lineTo(0.22, 0.22);
+        sfStarShape.lineTo(1, 0);
+        sfStarShape.lineTo(0.22, -0.22);
+        sfStarShape.lineTo(0, -1);
+        sfStarShape.lineTo(-0.22, -0.22);
+        sfStarShape.lineTo(-1, 0);
+        sfStarShape.lineTo(-0.22, 0.22);
+        sfStarShape.closePath();
+        const sfStarGeo = this._trackDisposable(new THREE.ExtrudeGeometry(sfStarShape, {
+            depth: 0.16,
+            bevelEnabled: true,
+            bevelThickness: 0.045,
+            bevelSize: 0.04,
+            bevelSegments: 2,
+        }));
+        sfStarGeo.translate(0, 0, -0.08);
+        sfStarGeo.scale(0.22, 0.22, 0.22);
+
         const geos = {
+            seelenfunkeStar: sfStarGeo,
+            seelenfunkeCore: this._trackDisposable(new THREE.OctahedronGeometry(0.068, 1)),
+            seelenfunkeOrbitA: this._trackDisposable(new THREE.TorusGeometry(0.26, 0.0085, 8, 32)),
+            seelenfunkeOrbitB: this._trackDisposable(new THREE.TorusGeometry(0.31, 0.0070, 8, 32)),
+            potionVialBulb: this._trackDisposable(new THREE.SphereGeometry(0.064, 14, 12)),
+            potionVialShell: this._trackDisposable(new THREE.SphereGeometry(0.074, 14, 12)),
+            potionVialNeck: this._trackDisposable(new THREE.CylinderGeometry(0.024, 0.032, 0.056, 10)),
             footShadow: this._trackDisposable(new THREE.PlaneGeometry(1.18, 1.18)),
             baseRing: this._trackDisposable(new THREE.RingGeometry(0.34, 0.385, 32)),
             beltRing: this._trackDisposable(new THREE.TorusGeometry(0.215, 0.022, 10, 28)),
@@ -12109,57 +7963,6 @@ class SeelenfunkeLouvreShowroom3D {
         }
     }
 
-    _buildWeaponAttachment(weaponInfo) {
-        if (!weaponInfo || typeof weaponInfo !== 'object') return null;
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const { mats, geos } = shared;
-        const effectType = String(weaponInfo.effect_type || 'gold_blade');
-
-        // Schwertgriff sauber im geschlossenen rechten Faust-Zentrum ausgerichtet; Klinge zeigt schraeg nach vorn (+Z) und oben (+Y), leicht nach aussen (-X)
-        const wGroup = new THREE.Group();
-        wGroup.position.set(-0.012, 0.0, 0.018);
-        wGroup.rotation.set(Math.PI * 0.34, -0.06, 0.12);
-
-        if (effectType === 'sapphire_staff') {
-            const shaft = new THREE.Mesh(geos.weaponStaffShaft, mats.gold24k);
-            shaft.position.y = 0.18;
-            const orb = new THREE.Mesh(geos.weaponStaffOrb, mats.sapphireCrystal);
-            orb.position.y = 0.56;
-            const halo = new THREE.Mesh(geos.crownHalo, mats.goldBright);
-            halo.scale.setScalar(0.68);
-            halo.position.y = 0.56;
-            wGroup.add(shaft, orb, halo);
-        } else if (effectType === 'emerald_bow') {
-            const bow = new THREE.Mesh(geos.weaponBowArc, mats.gold24k);
-            bow.rotation.z = -Math.PI * 0.46;
-            bow.rotation.y = Math.PI * 0.5;
-            const chord = new THREE.Mesh(geos.weaponChord, mats.emeraldCrystal);
-            chord.position.set(0, 0, -0.03);
-            const gem = new THREE.Mesh(geos.buckleGem, mats.emeraldCrystal);
-            gem.scale.setScalar(1.4);
-            gem.position.set(0, 0, 0.21);
-            wGroup.add(bow, chord, gem);
-        } else {
-            const bladeMat = effectType === 'cosmos_blade' ? mats.cosmosGold : mats.goldBright;
-            const hilt = new THREE.Mesh(geos.weaponHilt, mats.suitDark);
-            const guard = new THREE.Mesh(geos.weaponGuard, mats.gold24k);
-            guard.position.y = 0.08;
-            const blade = new THREE.Mesh(geos.weaponBlade, bladeMat);
-            blade.scale.set(1.0, 1.0, 0.34);
-            blade.position.y = 0.37;
-            wGroup.add(hilt, guard, blade);
-
-            if (effectType === 'cosmos_blade') {
-                const crest = new THREE.Mesh(geos.crestSmall, mats.cosmosGold);
-                crest.position.y = 0.12;
-                wGroup.add(crest);
-            }
-        }
-
-        return wGroup;
-    }
-
     /**
      * Erzeugt den Funki-Charakter (Stufe 1 bis 10) mit edlem 3D-Exoskelett, Hand-/Finger-Gelenken,
      * 22-Bone SkinnedMesh, Umhang-Spring-Physik und 0 Roboter-Fallback-Meshes!
@@ -12432,8 +8235,7 @@ class SeelenfunkeLouvreShowroom3D {
             }
         });
 
-        // Waffe niemals an das ausgeblendete +X Exoskelett im Rumpf haengen, sondern an den echten -X rightHandWeaponSocket des SkinnedMesh!
-        const weaponMesh = this._buildWeaponAttachment(weaponInfo);
+        const weaponMesh = null;
 
         const builtRecord = {
             root,
@@ -12516,16 +8318,12 @@ class SeelenfunkeLouvreShowroom3D {
 
     _buildPlayerCharacter() {
         const lvl = clamp(parseInt(this.playerProfile.level, 10) || 1, 1, 10);
-        // Punkt 6: Jeder Spieler (auch Gaeste & Level 1!) fuehrt die edle goldene Funken-Klinge in der rechten Hand!
-        const weaponInfo = (this.playerFunki && this.playerFunki.weapon && typeof this.playerFunki.weapon === 'object')
-            ? this.playerFunki.weapon
-            : { effect_type: 'gold_blade', accent_hex: '#C5A059' };
         const rawPlayerUrl = this.playerProfile.modelUrl
             || (this.playerFunki && (this.playerFunki.glb_url || this.playerFunki.model_url))
             || this._resolveFunkiModelUrl(lvl, null);
         const playerModelUrl = this._sanitizeStandingFunkiUrl(lvl, rawPlayerUrl);
 
-        const built = this._createArticulatedAvatarInstance(lvl, weaponInfo, true, playerModelUrl);
+        const built = this._createArticulatedAvatarInstance(lvl, null, true, playerModelUrl);
         built.root.visible = false;
         built.root.position.set(this.player.x, this.player.y, this.player.z);
         built.root.rotation.y = this.player.yaw;
@@ -12534,25 +8332,6 @@ class SeelenfunkeLouvreShowroom3D {
         this.player.builtRecord = built;
         this.player.root = built.root;
         this.player.joints = built.joints;
-
-        // Facettierte 24K-Gold-Schutzsphaere (#C5A059) fuer Taste 3
-        const shieldGeo = this._trackDisposable(new this.THREE.IcosahedronGeometry(1.24, 1));
-        const shieldMat = this._trackDisposable(new this.THREE.MeshStandardMaterial({
-            color: 0xC5A059,
-            emissive: 0x8A6D3B,
-            emissiveIntensity: 0.36,
-            transparent: true,
-            opacity: 0.34,
-            roughness: 0.18,
-            metalness: 0.68,
-            flatShading: true,
-            depthWrite: false,
-        }));
-        const shieldMesh = new this.THREE.Mesh(shieldGeo, shieldMat);
-        shieldMesh.position.set(0, 0.92, 0);
-        shieldMesh.visible = false;
-        built.root.add(shieldMesh);
-        this.player.shieldMesh = shieldMesh;
 
         return built.readyPromise || Promise.resolve();
     }
@@ -12604,6 +8383,12 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     _computeFloorBaseY(x, z) {
+        // 0. Erhabener Saphir-Samtlaeufer mit 24K-Goldkanten (Oberkante 0.036 m)
+        const carpetSouthZ = this.hallNorthZ + 1.65;
+        const carpetNorthZ = this.pantheonCenterZ + 18.65;
+        if (Math.abs(x) <= 1.41 && z <= carpetSouthZ && z >= carpetNorthZ) {
+            return 0.036;
+        }
         // 1. Halle der Helden (Nord-Rotunde, 46.8 m Breite -> bis |x| <= 25.0 m): feste Marmorboden-Standhoehe 0.026 m!
         const heroesRotundaHalfX = Math.max(this.pantheonHalfW || 23.4, 23.4) + 1.6;
         if (z <= this.heroesEntryZ + 0.6 && Math.abs(x) <= heroesRotundaHalfX) {
@@ -12683,18 +8468,17 @@ class SeelenfunkeLouvreShowroom3D {
         const j = this.player.joints;
         if (!this.player.root || !j) return;
 
-        const inLava = (this.player.z > this.hallNorthZ - 1.5) && (this.player.x > this.hallHalfW + 1.1);
         const floorOffset = this._computeFloorBaseY(this.player.x, this.player.z);
         const basePlayerY = this.player.y || 0;
-        const comboLeap = this.player.comboLeapY || 0;
-        const visualY = basePlayerY + comboLeap;
+        const awakenLift = this.player.awakenLiftY || 0;
+        const visualY = basePlayerY + awakenLift;
         const heightAboveSupport = Math.max(0, visualY - shadowSurfaceY);
         const airBlend = clamp(heightAboveSupport / 0.26, 0, 1);
         const squash = this.player.landSquash || 0;
-        const sprintBoost = this.player.sprintTimer > 0 ? 1.0 : 0.0;
+        const sprintBoost = 0.0;
 
         this.player.root.position.set(this.player.x, floorOffset + visualY, this.player.z);
-        this.player.root.rotation.y = this.player.yaw + (this.player.comboSpinYaw || 0);
+        this.player.root.rotation.y = this.player.yaw;
         this.player.root.rotation.x = 0;
 
         const strideFrequency = 4.48;
@@ -12704,7 +8488,7 @@ class SeelenfunkeLouvreShowroom3D {
             if (halfCycle !== this.player.lastStepHalfCycle && stepDist > 0.015) {
                 this.player.lastStepHalfCycle = halfCycle;
                 if (this.audio) {
-                    this.audio.playFootstep(inLava ? 'basalt' : 'marble');
+                    this.audio.playFootstep('marble');
                 }
             }
         }
@@ -12816,91 +8600,6 @@ class SeelenfunkeLouvreShowroom3D {
         j.torsoPivot.rotation.y = -Math.sin(phaseL) * (0.095 + 0.035 * sprintBoost) * mb - idleSway * 0.032;
         j.torsoPivot.rotation.z = this.player.turnBank + Math.sin(phaseL) * 0.024 * mb + idleSway * 0.016;
 
-        // 4-Stufen Kombo-Angriff Kinematik (Schlag 1..4: die Klinge sitzt in der anatomisch RECHTEN Hand auf -X = shoulderPivotL/elbowPivotL/wristPivotL!)
-        if (this.player.comboAnimTimer > 0 && this.player.comboAnimDuration > 0) {
-            const elapsed = this.player.comboAnimDuration - this.player.comboAnimTimer;
-            const prog = clamp(elapsed / this.player.comboAnimDuration, 0, 1);
-            const arc = Math.sin(prog * Math.PI);
-            const st = this.player.comboActiveStage;
-
-            if (st === 1) {
-                // Schlag 1 (0.34s): Schneller scharfer Rechts-Hieb mit dem Schwertarm (-X)
-                j.torsoPivot.rotation.y += 0.44 * arc;
-                j.torsoPivot.rotation.x += 0.14 * arc;
-                j.shoulderPivotL.rotation.x = -1.62 * arc;
-                j.shoulderPivotL.rotation.y = 0.46 * Math.cos(prog * Math.PI) * arc;
-                j.shoulderPivotL.rotation.z = -0.28 * arc;
-                j.elbowPivotL.rotation.x = -0.22 * arc;
-                j.wristPivotL.rotation.x = 0.52 * prog * arc;
-                j.fingerCurlL.rotation.z = -0.68 * arc;
-            } else if (st === 2) {
-                // Schlag 2 (0.38s): Kraftvoller Aufwaerts-Rueckhandschnitt des rechten Schwertarms (-X) mit Oberkoerper-Konter
-                j.torsoPivot.rotation.y -= 0.48 * arc;
-                j.torsoPivot.rotation.x -= 0.18 * arc;
-                j.shoulderPivotL.rotation.x = -2.02 * arc;
-                j.shoulderPivotL.rotation.y = -0.52 * Math.cos(prog * Math.PI) * arc;
-                j.shoulderPivotL.rotation.z = -0.34 * arc;
-                j.elbowPivotL.rotation.x = -0.52 * (1.0 - prog * 0.5) * arc;
-                j.wristPivotL.rotation.x = 0.42 * arc;
-                j.fingerCurlL.rotation.z = -0.68 * arc;
-            } else if (st === 3) {
-                // Schlag 3 (0.46s): Rasante 360-Grad-Wirbel-Attacke mit weit gefuehrter Klinge
-                j.torsoPivot.rotation.x += 0.16 * arc;
-                j.shoulderPivotL.rotation.x = -1.45 * arc;
-                j.shoulderPivotR.rotation.x = -1.45 * arc;
-                j.shoulderPivotL.rotation.z = -1.18 * arc;
-                j.shoulderPivotR.rotation.z = 1.18 * arc;
-                j.elbowPivotL.rotation.x = -0.12;
-                j.elbowPivotR.rotation.x = -0.12;
-                j.wristPivotL.rotation.x = 0.56 * arc;
-            } else if (st === 4) {
-                // Schlag 4 (0.78s): Phase A (0..0.40s Luftsprung + Ueberkopf-Aufladen), Phase B (0.40..0.55s Meteor-Hieb), Phase C (0.55..0.78s Bodenschlag)
-                if (elapsed < 0.40) {
-                    const chargeU = clamp(elapsed / 0.40, 0, 1);
-                    j.torsoPivot.rotation.x = -0.26 * chargeU;
-                    j.shoulderPivotL.rotation.x = -2.65 * chargeU;
-                    j.shoulderPivotR.rotation.x = -2.65 * chargeU;
-                    j.shoulderPivotL.rotation.z = -0.32 * chargeU;
-                    j.shoulderPivotR.rotation.z = 0.32 * chargeU;
-                    j.wristPivotL.rotation.x = -0.22 * chargeU;
-                    j.kneePivotL.rotation.x = 0.72 * chargeU;
-                    j.kneePivotR.rotation.x = 0.52 * chargeU;
-                } else if (elapsed < 0.55) {
-                    const diveU = clamp((elapsed - 0.40) / 0.15, 0, 1);
-                    j.torsoPivot.rotation.x = lerp(-0.26, 0.65, diveU);
-                    j.shoulderPivotL.rotation.x = lerp(-2.65, -1.28, diveU);
-                    j.shoulderPivotR.rotation.x = lerp(-2.65, -0.65, diveU);
-                    j.wristPivotL.rotation.x = 0.64 * diveU;
-                    j.fingerCurlL.rotation.z = -0.75;
-                } else {
-                    const slamFade = 1.0 - clamp((elapsed - 0.55) / 0.23, 0, 1);
-                    j.pelvisPivot.position.y -= 0.22 * slamFade;
-                    j.torsoPivot.rotation.x = 0.58 * slamFade;
-                    j.hipPivotL.rotation.x = -0.68 * slamFade;
-                    j.hipPivotR.rotation.x = -0.68 * slamFade;
-                    j.kneePivotL.rotation.x = 1.05 * slamFade;
-                    j.kneePivotR.rotation.x = 1.05 * slamFade;
-                    j.shoulderPivotL.rotation.x = -1.18 * slamFade;
-                    j.shoulderPivotR.rotation.x = -0.55 * slamFade;
-                    j.wristPivotL.rotation.x = 0.55 * slamFade;
-                }
-            }
-        } else if (this.player.weaponSwingTimer > 0) {
-            const pSwing = 1.0 - (this.player.weaponSwingTimer / 0.52);
-            const arc = Math.sin(clamp(pSwing, 0, 1) * Math.PI);
-            const sweep = Math.cos(clamp(pSwing, 0, 1) * Math.PI);
-            j.shoulderPivotL.rotation.x = -1.22 * arc;
-            j.shoulderPivotL.rotation.y = 0.56 * sweep * arc;
-            j.shoulderPivotL.rotation.z = -0.34 * arc;
-            j.elbowPivotL.rotation.x = -0.40 * arc;
-            j.wristPivotL.rotation.x = 0.46 * arc;
-        } else if (this.player.punchSwingTimer > 0) {
-            const pPunch = 1.0 - (this.player.punchSwingTimer / 0.35);
-            const punchArc = Math.sin(clamp(pPunch, 0, 1) * Math.PI);
-            j.torsoPivot.rotation.y += 0.32 * punchArc;
-            j.shoulderPivotL.rotation.x = -1.55 * punchArc;
-        }
-
         if (this.player.isSomersault) {
             j.shoulderPivotL.rotation.x -= 1.35 * somersaultTuck;
             j.shoulderPivotR.rotation.x -= 1.35 * somersaultTuck;
@@ -12964,24 +8663,23 @@ class SeelenfunkeLouvreShowroom3D {
             }
         }
 
-        // Exoskelett Fersen-Schubduesen & Reaktor-Rotation bei Sprint, Hochsprung & Kombo-4-Sprung!
-        const hasPlayerSkinnedGlb = Boolean(this.player.builtRecord && this.player.builtRecord.skinnedRig);
-        const thrustersLit = !hasPlayerSkinnedGlb && Boolean(
-            this.player.sprintTimer > 0
-            || (this.player.highJumpActive && this.player.vy > -1.5)
-            || (this.player.comboActiveStage === 4 && this.player.comboAnimTimer > 0.22)
-        );
+        if ((this.player.awakenPoseWeight || 0) > 0.001) {
+            const aw = clamp(this.player.awakenPoseWeight, 0, 1);
+            j.shoulderPivotL.rotation.x = lerp(j.shoulderPivotL.rotation.x, -1.08, aw);
+            j.shoulderPivotR.rotation.x = lerp(j.shoulderPivotR.rotation.x, -1.08, aw);
+            j.shoulderPivotL.rotation.z = lerp(j.shoulderPivotL.rotation.z, -0.52, aw);
+            j.shoulderPivotR.rotation.z = lerp(j.shoulderPivotR.rotation.z, 0.52, aw);
+            j.elbowPivotL.rotation.x = lerp(j.elbowPivotL.rotation.x, -0.34, aw);
+            j.elbowPivotR.rotation.x = lerp(j.elbowPivotR.rotation.x, -0.34, aw);
+            j.torsoPivot.rotation.x = lerp(j.torsoPivot.rotation.x, -0.10, aw);
+        }
+
         if (j.thrusterFlameL && j.thrusterFlameR) {
-            j.thrusterFlameL.visible = thrustersLit;
-            j.thrusterFlameR.visible = thrustersLit;
-            if (thrustersLit) {
-                const fScale = 0.85 + Math.sin(this.elapsedTime * 38.0) * 0.22;
-                j.thrusterFlameL.scale.set(1.0, fScale, 1.0);
-                j.thrusterFlameR.scale.set(1.0, fScale, 1.0);
-            }
+            j.thrusterFlameL.visible = false;
+            j.thrusterFlameR.visible = false;
         }
         if (j.reactorRing) {
-            j.reactorRing.rotation.z = this.elapsedTime * (thrustersLit ? 4.5 : 1.1);
+            j.reactorRing.rotation.z = this.elapsedTime * 1.1;
         }
 
         // Punkt 2: Exakte 0-mm-Boden-Buendigkeit der tieferen Schuhsohle auf groundY + 0.004!
@@ -13030,13 +8728,8 @@ class SeelenfunkeLouvreShowroom3D {
         j.headPivot.rotation.x = this.player.headPitch;
         j.headPivot.rotation.z = -this.player.headYaw * 0.12;
 
-        const isCastingOrStriking = Boolean(
-            this.player.comboAnimTimer > 0
-            || this.player.weaponSwingTimer > 0
-            || this.player.punchSwingTimer > 0
-            || this.player.shieldTimer > 5.5
-        );
-        const animState = isCastingOrStriking
+        const isAwakening = Boolean((this.player.awakenPoseWeight || 0) > 0.05);
+        const animState = isAwakening
             ? 'cast'
             : (airBlend > 0.25 ? 'jump' : (mb > 0.18 ? 'run' : 'idle'));
 
@@ -13262,6 +8955,7 @@ class SeelenfunkeLouvreShowroom3D {
             }
             this.pedestalSparkPosAttr.needsUpdate = true;
         }
+
     }
 
     getUserSettings() {
@@ -13365,101 +9059,6 @@ class SeelenfunkeLouvreShowroom3D {
         return false;
     }
 
-    triggerStrikeAction() {
-        return this.triggerComboStrike();
-    }
-
-    triggerWeaponAction() {
-        return this.triggerComboStrike();
-    }
-
-    _applyForwardLunge(meters) {
-        if (meters <= 0) return;
-        // Auf kleinen Lava-Sprungplatten keinen ungewollten Absturz-Vorstoss erzwingen
-        if (this.player.x > this.lavaBalconyMaxX - 0.5 && this.player.x < 63.8) {
-            return;
-        }
-        const nx = this.player.x + Math.sin(this.player.yaw) * meters;
-        const nz = this.player.z + Math.cos(this.player.yaw) * meters;
-        const resolved = this._resolveCollisions(nx, nz);
-        this.player.x = resolved.x;
-        this.player.z = resolved.z;
-    }
-
-    triggerComboStrike() {
-        if (!this.running || this.destroyed) return false;
-        if (this.player.comboCooldown > 0) return false;
-
-        // Kurze Mindest-Kadenz (0.20 s), damit schnelles Ketten von 1->2->3->4 knackig & kontrolliert greift
-        if (this.player.comboAnimTimer > 0) {
-            const elapsedInSwing = this.player.comboAnimDuration - this.player.comboAnimTimer;
-            if (elapsedInSwing < 0.20 || this.player.comboActiveStage === 4) {
-                return false;
-            }
-        }
-
-        let nextStage = 1;
-        if (this.player.comboWindowTimer > 0 && this.player.comboStage >= 1 && this.player.comboStage < 4) {
-            nextStage = this.player.comboStage + 1;
-        }
-
-        this.player.emote = null;
-        this.player.emoteTimer = 0;
-        this.player.comboActiveStage = nextStage;
-        this.player.comboSeq += 1;
-        this.player.weaponActionSeq += 1;
-        this.player.punchCombo = (nextStage - 1) % 2;
-
-        const baseY = (this.player.y || 0) + (this.player.comboLeapY || 0);
-        const w = (!this.playerFunki.is_guest && this.playerFunki.weapon) ? this.playerFunki.weapon : null;
-        const accentHex = (w && w.accent_hex) ? w.accent_hex : '#C5A059';
-
-        if (nextStage === 1) {
-            // Schlag 1 (0.34 s): Schneller scharfer Rechts-Hieb + 0.25m Vorstoss
-            this.player.comboStage = 1;
-            this.player.comboWindowTimer = 2.5;
-            this.player.comboAnimDuration = 0.34;
-            this.player.comboAnimTimer = 0.34;
-            this.player.comboSpinYaw = 0;
-            this._applyForwardLunge(0.25);
-            this._spawnUnarmedPunchBurst(this.player.x, baseY + 1.0, this.player.z, this.player.yaw, 0, accentHex);
-            if (this.audio) this.audio.playComboStrike(1);
-        } else if (nextStage === 2) {
-            // Schlag 2 (0.38 s): Kraftvoller Links-Aufwaertshaken + 0.35m Vorstoss + doppelter Gold-Sichelbogen + 10 Funken
-            this.player.comboStage = 2;
-            this.player.comboWindowTimer = 2.5;
-            this.player.comboAnimDuration = 0.38;
-            this.player.comboAnimTimer = 0.38;
-            this.player.comboSpinYaw = 0;
-            this._applyForwardLunge(0.35);
-            this._spawnComboStage2Burst(this.player.x, baseY + 1.04, this.player.z, this.player.yaw, accentHex);
-            if (this.audio) this.audio.playComboStrike(2);
-        } else if (nextStage === 3) {
-            // Schlag 3 (0.46 s): Rasante 360-Grad-Wirbel-Attacke + Wirbel-Ring (r = 1.85 m) + 18 Funken
-            this.player.comboStage = 3;
-            this.player.comboWindowTimer = 2.5;
-            this.player.comboAnimDuration = 0.46;
-            this.player.comboAnimTimer = 0.46;
-            this.player.comboSpinYaw = 0.001;
-            this._spawnComboStage3WhirlBurst(this.player.x, baseY + 0.92, this.player.z, accentHex);
-            if (this.audio) this.audio.playComboStrike(3);
-        } else {
-            // Schlag 4 (0.78 s, Finisher): Luftsprung (2.35 m) + Meteor-Sturzflug + Radiale Funkenexplosion (r = 4.6 m), danach 1.8 s Cooldown!
-            this.player.comboStage = 0;
-            this.player.comboWindowTimer = 0;
-            this.player.comboAnimDuration = 0.78;
-            this.player.comboAnimTimer = 0.78;
-            this.player.comboCooldown = 1.8;
-            this.player.comboLeapY = 0.02;
-            this.player.comboSpinYaw = 0;
-            this.player.comboFinisherSlammed = false;
-            this._spawnAbilityBurst(this.player.x, baseY + 0.18, this.player.z, 'jump');
-            if (this.audio) this.audio.playComboStrike(4);
-        }
-
-        return true;
-    }
-
     _spawnDoubleJumpBurst(x, y, z) {
         if (!this.scene || !this.THREE) return;
         if (this.weaponBursts.length >= 14) {
@@ -13470,7 +9069,7 @@ class SeelenfunkeLouvreShowroom3D {
         const THREE = this.THREE;
         const shared = this._ensureAvatarSharedPool();
         const group = new THREE.Group();
-        group.position.set(x, y, z);
+        group.position.set(Number(x) || 0, Number(y) || 0, Number(z) || 0);
 
         const ringMat = new THREE.MeshBasicMaterial({
             color: new THREE.Color('#C5A059'),
@@ -13518,252 +9117,6 @@ class SeelenfunkeLouvreShowroom3D {
         });
     }
 
-    _spawnUnarmedPunchBurst(x, y, z, yaw, combo, accentHex = '#C5A059') {
-        if (!this.scene || !this.THREE) return;
-        if (this.weaponBursts.length >= 14) {
-            const oldest = this.weaponBursts.shift();
-            if (oldest) this._disposeWeaponBurst(oldest);
-        }
-
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const group = new THREE.Group();
-        const forwardOffset = 0.56;
-        const sideOffset = combo === 0 ? 0.16 : -0.16;
-        group.position.set(
-            x + Math.sin(yaw) * forwardOffset + Math.cos(yaw) * sideOffset,
-            y,
-            z + Math.cos(yaw) * forwardOffset - Math.sin(yaw) * sideOffset
-        );
-        group.rotation.y = yaw;
-
-        const arcMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(accentHex),
-            transparent: true,
-            opacity: 0.90,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-        const arcMesh = new THREE.Mesh(shared.geos.slashArc, arcMat);
-        arcMesh.rotation.x = Math.PI * 0.45;
-        arcMesh.scale.set(0.62, 0.62, 0.62);
-        group.add(arcMesh);
-
-        const sparks = [];
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#FFF8E1'),
-            transparent: true,
-            opacity: 0.95,
-            depthWrite: false,
-        });
-
-        for (let i = 0; i < 6; i++) {
-            const spread = -0.5 + (i / 5) * 1.0;
-            const sMesh = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
-            sMesh.scale.setScalar(0.78);
-            sMesh.position.set(Math.sin(spread) * 0.16, (i % 2 === 0 ? 0.05 : -0.04), Math.cos(spread) * 0.16);
-            group.add(sMesh);
-            sparks.push({
-                mesh: sMesh,
-                vx: Math.sin(spread) * 1.9,
-                vy: 0.40 + (i % 3) * 0.22,
-                vz: Math.cos(spread) * 2.4,
-            });
-        }
-
-        this.scene.add(group);
-        this.weaponBursts.push({
-            group,
-            slashMesh: arcMesh,
-            arcMat,
-            sparkMat,
-            sparks,
-            age: 0,
-            duration: 0.34,
-            isRemote: false,
-        });
-    }
-
-    _spawnComboStage2Burst(x, y, z, yaw, accentHex = '#C5A059') {
-        if (!this.scene || !this.THREE) return;
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const group = new THREE.Group();
-        group.position.set(x + Math.sin(yaw) * 0.62, y, z + Math.cos(yaw) * 0.62);
-        group.rotation.y = yaw;
-
-        const arcMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(accentHex),
-            transparent: true,
-            opacity: 0.94,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-        const twinGroup = new THREE.Group();
-        const arcA = new THREE.Mesh(shared.geos.slashArc, arcMat);
-        arcA.rotation.x = Math.PI * 0.28;
-        arcA.rotation.y = 0.35;
-        arcA.scale.setScalar(0.82);
-
-        const arcB = new THREE.Mesh(shared.geos.slashArc, arcMat);
-        arcB.rotation.x = Math.PI * 0.18;
-        arcB.rotation.y = -0.32;
-        arcB.scale.setScalar(0.68);
-        twinGroup.add(arcA, arcB);
-        group.add(twinGroup);
-
-        const sparks = [];
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#FFF5CC'),
-            transparent: true,
-            opacity: 0.96,
-            depthWrite: false,
-        });
-        for (let i = 0; i < 10; i++) {
-            const ang = -0.75 + (i / 9) * 1.5;
-            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
-            sm.scale.setScalar(0.92);
-            sm.position.set(Math.sin(ang) * 0.24, 0.04, Math.cos(ang) * 0.24);
-            group.add(sm);
-            sparks.push({
-                mesh: sm,
-                vx: Math.sin(ang) * 2.4,
-                vy: 1.45 + (i % 3) * 0.45,
-                vz: Math.cos(ang) * 2.8,
-            });
-        }
-
-        this.scene.add(group);
-        this.weaponBursts.push({
-            group,
-            slashMesh: twinGroup,
-            arcMat,
-            sparkMat,
-            sparks,
-            age: 0,
-            duration: 0.40,
-            isRemote: false,
-        });
-    }
-
-    _spawnComboStage3WhirlBurst(x, y, z, accentHex = '#D4AF37') {
-        if (!this.scene || !this.THREE) return;
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        const arcMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(accentHex),
-            transparent: true,
-            opacity: 0.92,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-        // Wirbel-Ring bis r = 1.85 m
-        const whirlMesh = new THREE.Mesh(shared.geos.whirlRing, arcMat);
-        whirlMesh.rotation.x = -Math.PI * 0.5;
-        whirlMesh.scale.setScalar(0.75);
-        group.add(whirlMesh);
-
-        const sparks = [];
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#FFF6D6'),
-            transparent: true,
-            opacity: 0.96,
-            depthWrite: false,
-        });
-        for (let i = 0; i < 18; i++) {
-            const ang = (i / 18) * TWO_PI;
-            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
-            sm.position.set(Math.cos(ang) * 0.85, (i % 2 === 0 ? 0.08 : -0.06), Math.sin(ang) * 0.85);
-            group.add(sm);
-            sparks.push({
-                mesh: sm,
-                vx: Math.cos(ang + 0.55) * 3.6,
-                vy: 0.65 + (i % 3) * 0.35,
-                vz: Math.sin(ang + 0.55) * 3.6,
-            });
-        }
-
-        this.scene.add(group);
-        this.weaponBursts.push({
-            group,
-            slashMesh: whirlMesh,
-            arcMat,
-            sparkMat,
-            sparks,
-            age: 0,
-            duration: 0.48,
-            maxRingScale: 1.05,
-            isRemote: false,
-        });
-    }
-
-    _spawnComboFinisherExplosion(x, y, z) {
-        if (!this.scene || !this.THREE) return;
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        const arcMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#D4AF37'),
-            transparent: true,
-            opacity: 0.96,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-
-        // Doppelte goldene Druckwelle (expandiert auf r = 4.6 m!)
-        const waveHolder = new THREE.Group();
-        const outerWave = new THREE.Mesh(shared.geos.shockwaveRing, arcMat);
-        outerWave.rotation.x = -Math.PI * 0.5;
-        const innerWave = new THREE.Mesh(shared.geos.shockwaveRing, arcMat);
-        innerWave.rotation.x = -Math.PI * 0.5;
-        innerWave.scale.setScalar(0.62);
-        waveHolder.add(outerWave, innerWave);
-        group.add(waveHolder);
-
-        const sparks = [];
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#FFF8DC'),
-            transparent: true,
-            opacity: 0.98,
-            depthWrite: false,
-        });
-
-        // 36 fliegende 24K-Gold-Diamantfunken!
-        for (let i = 0; i < 36; i++) {
-            const ang = (i / 36) * TWO_PI + (i % 2) * 0.06;
-            const tier = i % 3;
-            const spd = 4.2 + tier * 1.65;
-            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
-            sm.scale.setScalar(1.35);
-            sm.position.set(Math.cos(ang) * 0.32, 0.08, Math.sin(ang) * 0.32);
-            group.add(sm);
-            sparks.push({
-                mesh: sm,
-                vx: Math.cos(ang) * spd,
-                vy: 1.85 + tier * 1.15,
-                vz: Math.sin(ang) * spd,
-            });
-        }
-
-        this.scene.add(group);
-        this.weaponBursts.push({
-            group,
-            slashMesh: waveHolder,
-            arcMat,
-            sparkMat,
-            sparks,
-            age: 0,
-            duration: 0.76,
-            maxRingScale: 4.6,
-            isRemote: false,
-        });
-    }
-
     _spawnAbilityBurst(x, y, z, type) {
         if (!this.scene || !this.THREE) return;
         if (this.weaponBursts.length >= 16) {
@@ -13774,7 +9127,7 @@ class SeelenfunkeLouvreShowroom3D {
         const THREE = this.THREE;
         const shared = this._ensureAvatarSharedPool();
         const group = new THREE.Group();
-        group.position.set(x, y, z);
+        group.position.set(Number(x) || 0, Number(y) || 0, Number(z) || 0);
 
         const colorHex = (type === 'shield' || type === 'highJump') ? '#D4AF37' : '#C5A059';
         const ringMat = new THREE.MeshBasicMaterial({
@@ -13838,75 +9191,6 @@ class SeelenfunkeLouvreShowroom3D {
         });
     }
 
-    _shatterAegisShield(x, y, z) {
-        this.player.shieldTimer = 0;
-        if (this.player.shieldMesh) {
-            this.player.shieldMesh.visible = false;
-        }
-        this.camControl.shakeTimer = Math.max(this.camControl.shakeTimer || 0, 0.16);
-        if (this.audio && typeof this.audio.playShieldShatter === 'function') {
-            this.audio.playShieldShatter();
-        }
-
-        if (!this.scene || !this.THREE) return;
-        if (this.weaponBursts.length >= 16) {
-            const oldest = this.weaponBursts.shift();
-            if (oldest) this._disposeWeaponBurst(oldest);
-        }
-
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        const ringMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#60A5FA'),
-            transparent: true,
-            opacity: 0.96,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-        const ringMesh = new THREE.Mesh(shared.geos.shockwaveRing, ringMat);
-        ringMesh.rotation.x = -Math.PI * 0.5;
-        ringMesh.scale.setScalar(0.85);
-        group.add(ringMesh);
-
-        const sparks = [];
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color('#FDE68A'),
-            transparent: true,
-            opacity: 0.98,
-            depthWrite: false,
-        });
-        for (let i = 0; i < 24; i++) {
-            const ang = (i / 24) * TWO_PI + (i % 3) * 0.14;
-            const spd = 2.8 + (i % 4) * 0.85;
-            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
-            sm.scale.setScalar(1.42);
-            sm.position.set(Math.cos(ang) * 0.52, (i % 3 - 1) * 0.18, Math.sin(ang) * 0.52);
-            group.add(sm);
-            sparks.push({
-                mesh: sm,
-                vx: Math.cos(ang) * spd,
-                vy: 2.2 + (i % 4) * 0.95,
-                vz: Math.sin(ang) * spd,
-            });
-        }
-
-        this.scene.add(group);
-        this.weaponBursts.push({
-            group,
-            slashMesh: ringMesh,
-            arcMat: ringMat,
-            sparkMat,
-            sparks,
-            age: 0,
-            duration: 0.62,
-            maxRingScale: 2.45,
-            isRemote: false,
-        });
-    }
-
     /**
      * Punkt 1: Kinoreife ~680 ms Uebergangssequenz beim Klick auf "Jetzt gestalten"
      * (Kamera gleitet sanft auf das beleuchtete Exponat zu + goldene Funken steigen auf + edler Klang).
@@ -13941,197 +9225,25 @@ class SeelenfunkeLouvreShowroom3D {
         return true;
     }
 
-    /**
-     * Tasten 1-5 Spezialfaehigkeiten in der goldenen Zierleiste (100 % konsistent in /shop und /dashboard!):
-     * Slot 1 (Digit1 / KeyG): Funken-Hieb (4er-Kombo, 0 Mana)
-     * Slot 2 (Digit2): Licht-Sprint (+55 % = 8.06 m/s fuer 4.5 s, 18 Mana, Cooldown 10 s)
-     * Slot 3 (Digit3): Aufwind-Impuls (vy = 11.6, ~2.6x Sprunghoehe, 22 Mana, Cooldown 8 s)
-     * Slot 4 (Digit4): Aegis-Schild (24K-Gold-Schutzsphaere fuer 6.5 s + Lava-Bounce & Schockwellen-Block, 25 Mana, Cooldown 15 s)
-     * Slot 5 (Digit5): Seelen-Nova (radiale 24K-Gold-Druckwelle r = 4.6 m + loest nahe Schockwellen auf, 30 Mana, Cooldown 20 s)
-     */
-    triggerAbility(slot) {
-        if (!this.running || this.destroyed) return false;
-        slot = parseInt(slot, 10);
-
-        if (slot === 1) {
-            return this.triggerComboStrike();
-        }
-
-        const hasMana = (cost) => (this.playerProfile.mana || 0) >= cost;
-        const consumeMana = (cost) => {
-            this.playerProfile.mana = clamp((this.playerProfile.mana || 0) - cost, 0, this.playerProfile.maxMana || 100);
-            this._emitPlayerHudUpdate();
-        };
-
-        if (slot === 2) {
-            if (this.player.sprintCooldown > 0 || !hasMana(18)) return false;
-            this.player.sprintTimer = 4.5;
-            this.player.sprintCooldown = 10.0;
-            consumeMana(18);
-            this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.08, this.player.z, 'sprint');
-            if (this.audio) this.audio.playSprint();
-            return true;
-        }
-        if (slot === 3) {
-            if (this.player.titanJumpCooldown > 0 || !hasMana(22)) return false;
-            this.player.titanJumpCooldown = 8.0;
-            this.player.isJumping = true;
-            this.player.highJumpActive = true;
-            this.player.jumpCount = 1;
-            this.player.coyoteTimer = 0;
-            this.player.standingPlatform = null;
-            this.player.vy = 11.6;
-            this.player.isSomersault = false;
-            this.player.somersaultProgress = 0.0;
-            consumeMana(22);
-            this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.10, this.player.z, 'highJump');
-            if (this.audio) this.audio.playHighJump();
-            return true;
-        }
-        if (slot === 4) {
-            if (this.player.shieldCooldown > 0 || !hasMana(25)) return false;
-            this.player.shieldTimer = 6.5;
-            this.player.shieldCooldown = 15.0;
-            if (this.player.shieldMesh) this.player.shieldMesh.visible = true;
-            consumeMana(25);
-            this._spawnAbilityBurst(this.player.x, (this.player.y || 0) + 0.8, this.player.z, 'shield');
-            if (this.audio) this.audio.playShield();
-            return true;
-        }
-        if (slot === 5) {
-            if (this.player.burstCooldown > 0 || !hasMana(30)) return false;
-            this.player.burstCooldown = 20.0;
-            this.camControl.shakeTimer = 0.12;
-            consumeMana(30);
-            this._spawnComboFinisherExplosion(this.player.x, (this.player.y || 0) + 0.08, this.player.z);
-            if (this.currentZone === 'lava' && this.lavaShockRings && this.lavaShockRings.length > 0) {
-                for (let sri = 0; sri < this.lavaShockRings.length; sri++) {
-                    const sr = this.lavaShockRings[sri];
-                    if (Math.hypot(this.player.x - sr.x, this.player.z - sr.z) <= 5.4) {
-                        sr.suppressedTimer = 2.4;
-                        sr.active = false;
-                        if (sr.ringHolder) sr.ringHolder.visible = false;
-                    }
-                }
-            }
-            if (this.audio) this.audio.playComboFinisherImpact();
-            return true;
-        }
-        return false;
-    }
-
     triggerEmote(name) {
         if (!this.running || this.destroyed || !name) return false;
-        const validEmotes = ['dance', 'wave', 'bow', 'cheer', 'sit', 'clap'];
+        const validEmotes = ['dance', 'wave', 'bow', 'cheer', 'spark', 'sit', 'clap'];
         if (validEmotes.indexOf(name) === -1) return false;
+        if (name === 'spark') {
+            this._spawnDoubleJumpBurst(this.player.x || 0, (this.player.y || 0) + 0.15, this.player.z || 0);
+        }
         this.player.emote = name;
         const durations = {
             dance: 8.0,
             wave: 2.8,
             bow: 2.4,
             cheer: 3.0,
+            spark: 2.4,
             sit: 999.0,
             clap: 3.2,
         };
         this.player.emoteTimer = durations[name] || 3.0;
         return true;
-    }
-
-    getAbilityState() {
-        const displayStage = this.player.comboActiveStage === 4 && this.player.comboAnimTimer > 0
-            ? 4
-            : (this.player.comboWindowTimer > 0 ? this.player.comboStage : 0);
-        return Object.freeze({
-            sprint: Object.freeze({
-                active: this.player.sprintTimer > 0,
-                timer: this.player.sprintTimer,
-                cooldown: this.player.sprintCooldown,
-                maxCd: 10.0,
-            }),
-            titanJump: Object.freeze({
-                cooldown: this.player.titanJumpCooldown,
-                maxCd: 8.0,
-            }),
-            shield: Object.freeze({
-                active: this.player.shieldTimer > 0,
-                timer: this.player.shieldTimer,
-                cooldown: this.player.shieldCooldown,
-                maxCd: 15.0,
-            }),
-            burst: Object.freeze({
-                cooldown: this.player.burstCooldown,
-                maxCd: 20.0,
-            }),
-            combo: Object.freeze({
-                stage: displayStage,
-                windowTimer: this.player.comboWindowTimer,
-                active: this.player.comboAnimTimer > 0,
-                cooldown: this.player.comboCooldown,
-                maxCd: 1.8,
-            }),
-        });
-    }
-    _spawnWeaponBurst(x, y, z, yaw, accentHex, effectType, isRemote) {
-        if (!this.scene || !this.THREE) return;
-        if (isRemote && (this.focusProtected || this.soloMode || this.fpsEstimate < 40.0)) {
-            return;
-        }
-        if (this.weaponBursts.length >= 12) {
-            const oldest = this.weaponBursts.shift();
-            if (oldest) this._disposeWeaponBurst(oldest);
-        }
-
-        const THREE = this.THREE;
-        const shared = this._ensureAvatarSharedPool();
-        const group = new THREE.Group();
-        group.position.set(x + Math.sin(yaw) * 0.42, y, z + Math.cos(yaw) * 0.42);
-        group.rotation.y = yaw;
-
-        const arcMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(accentHex || '#C5A059'),
-            transparent: true,
-            opacity: 0.88,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-        });
-        const slashMesh = new THREE.Mesh(shared.geos.slashArc, arcMat);
-        slashMesh.rotation.x = Math.PI * 0.42;
-        slashMesh.rotation.z = effectType === 'sapphire_staff' ? 0.0 : -0.36;
-        group.add(slashMesh);
-
-        const sparks = [];
-        const sparkCount = isRemote ? 5 : 8;
-        const sparkMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(accentHex || '#E6C687'),
-            transparent: true,
-            opacity: 0.95,
-            depthWrite: false,
-        });
-
-        for (let i = 0; i < sparkCount; i++) {
-            const angle = -0.75 + (i / Math.max(1, sparkCount - 1)) * 1.5;
-            const sMesh = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
-            sMesh.position.set(Math.sin(angle) * 0.45, (i % 2 === 0 ? 0.06 : -0.05), Math.cos(angle) * 0.45);
-            group.add(sMesh);
-            sparks.push({
-                mesh: sMesh,
-                vx: Math.sin(angle) * (1.6 + (i % 3) * 0.35),
-                vy: 0.45 + (i % 3) * 0.25,
-                vz: Math.cos(angle) * (1.8 + (i % 2) * 0.4),
-            });
-        }
-
-        this.scene.add(group);
-        this.weaponBursts.push({
-            group,
-            slashMesh,
-            arcMat,
-            sparkMat,
-            sparks,
-            age: 0,
-            duration: 0.46,
-            isRemote: Boolean(isRemote),
-        });
     }
 
     _disposeWeaponBurst(burst) {
@@ -14146,6 +9258,10 @@ class SeelenfunkeLouvreShowroom3D {
     _updateWeaponBursts(dt) {
         for (let i = this.weaponBursts.length - 1; i >= 0; i--) {
             const b = this.weaponBursts[i];
+            if (!b || !b.slashMesh || !b.arcMat || !b.sparkMat) {
+                this.weaponBursts.splice(i, 1);
+                continue;
+            }
             if (b.isRemote && (this.focusProtected || this.soloMode)) {
                 this._disposeWeaponBurst(b);
                 this.weaponBursts.splice(i, 1);
@@ -14181,15 +9297,8 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     getCurrentZone() {
-        // Die Magma-Welt ist eine gekapselte Zone: Verlassen ausschliesslich ueber Rueckkehr-Portale (goToZone)
-        if (this.currentZone === 'lava') {
-            return 'lava';
-        }
         if (this.player.z < (this.hallNorthZ - 4.0)) {
             return 'heroes';
-        }
-        if (this.canEnterSanctums && this.player.x > this.hallHalfW + 1.1) {
-            return 'lava';
         }
         return 'gallery';
     }
@@ -14197,19 +9306,24 @@ class SeelenfunkeLouvreShowroom3D {
     getLocalSyncState() {
         const rawYaw = this.player.yaw || 0;
         const normYaw = Math.atan2(Math.sin(rawYaw), Math.cos(rawYaw));
+        const activeEmote = (this.player.emote && (this.player.emoteTimer || 0) > 0) ? String(this.player.emote) : null;
         return {
             x: Number((this.player.x || 0).toFixed(3)),
-            y: Number(((this.player.y || 0) + (this.player.comboLeapY || 0)).toFixed(3)),
+            y: Number((this.player.y || 0).toFixed(3)),
             z: Number((this.player.z || 0).toFixed(3)),
             rot_y: Number(normYaw.toFixed(3)),
             rotY: Number(normYaw.toFixed(3)),
             speed: Number((this.player.currentSpeed || 0).toFixed(3)),
             zone: this.getCurrentZone(),
             jumping: Boolean(this.player.isJumping || (this.player.y || 0) > 0.02),
-            weaponActionSeq: this.player.weaponActionSeq || 0,
-            combo_seq: this.player.comboSeq || 0,
-            combo_stage: this.player.comboActiveStage || 0,
+            emote: activeEmote,
+            combo_seq: 0,
+            combo_stage: 0,
         };
+    }
+
+    setLocalPeerId(peerId) {
+        this._localPeerId = peerId ? String(peerId) : null;
     }
 
     setSoloMode(flag) {
@@ -14234,12 +9348,17 @@ class SeelenfunkeLouvreShowroom3D {
 
     showChatBubble(playerId, text) {
         if (this.destroyed || !this.THREE || !text) return;
-        if (this.focusProtected || this.soloMode || this.mutedPlayerIds.has(playerId)) return;
+        const rawId = playerId ? String(playerId) : '';
+        if (this.focusProtected || this.soloMode || (rawId && this.mutedPlayerIds.has(rawId))) return;
 
         const THREE = this.THREE;
-        const myPid = this.playerFunki && this.playerFunki.player_id ? this.playerFunki.player_id : null;
+        const myPid = this.playerFunki && this.playerFunki.player_id ? String(this.playerFunki.player_id) : null;
+        const myPeerId = this._localPeerId ? String(this._localPeerId) : null;
+        const isMe = rawId === 'self'
+            || (myPid && rawId === myPid)
+            || (myPeerId && rawId === myPeerId);
 
-        if (myPid && playerId === myPid && this.player.root) {
+        if (isMe && this.player.root) {
             if (this.player.bubbleTex) this.player.bubbleTex.dispose();
             const tex = buildSpeechBubbleTexture(THREE, text);
             if (!this.player.bubbleSprite) {
@@ -14261,7 +9380,14 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         if (this.getCurrentZone() !== 'heroes') return;
-        const peer = this.peers.get(String(playerId));
+        let peer = this.peers.get(rawId);
+        if (!peer) {
+            this.peers.forEach((p) => {
+                if (!peer && (p.peerId === rawId || p.legacyPlayerId === rawId)) {
+                    peer = p;
+                }
+            });
+        }
         if (!peer || !peer.root) return;
 
         if (peer.bubbleTex) peer.bubbleTex.dispose();
@@ -14341,17 +9467,14 @@ class SeelenfunkeLouvreShowroom3D {
             const peerLvl = clamp(parseInt(pData.level, 10) || 1, 1, 10);
 
             if (!peer) {
-                const weapon = (pData.weapon && typeof pData.weapon === 'object')
-                    ? pData.weapon
-                    : { effect_type: 'gold_blade', accent_hex: '#C5A059' };
-                const built = this._createArticulatedAvatarInstance(peerLvl, weapon, false);
+                const built = this._createArticulatedAvatarInstance(peerLvl, null, false);
                 const floorOffset = this._computeFloorBaseY(tx, tz);
                 built.root.position.set(tx, floorOffset + ty, tz);
                 built.root.rotation.y = tYaw;
 
                 const fallbackClass = peerLvl >= 9 ? 'KLASSE S' : (peerLvl >= 6 ? 'KLASSE A' : (peerLvl >= 3 ? 'KLASSE B' : 'KLASSE C'));
-                const classLabel = (weapon && weapon.class_label) ? weapon.class_label : (pData.ship_class || fallbackClass);
-                const accentHex = (weapon && weapon.accent_hex) ? weapon.accent_hex : '#C5A059';
+                const classLabel = pData.ship_class || fallbackClass;
+                const accentHex = '#C5A059';
                 const nameplateTex = buildPeerNameplateTexture(
                     THREE,
                     pData.display_name || 'Funki',
@@ -14373,6 +9496,8 @@ class SeelenfunkeLouvreShowroom3D {
 
                 peer = {
                     playerId: pid,
+                    peerId: pData.peer_id ? String(pData.peer_id) : pid,
+                    legacyPlayerId: pData.player_id ? String(pData.player_id) : pid,
                     level: peerLvl,
                     builtRecord: built,
                     root: built.root,
@@ -14385,14 +9510,13 @@ class SeelenfunkeLouvreShowroom3D {
                     targetY: ty,
                     targetZ: tz,
                     targetYaw: tYaw,
+                    vx: Number.isFinite(Number(pData.vx)) ? Number(pData.vx) : 0,
+                    vz: Number.isFinite(Number(pData.vz)) ? Number(pData.vz) : 0,
+                    lastPacketAt: this.elapsedTime,
                     reportedSpeed,
-                    reportedMoveTimer: reportedSpeed > 0.08 ? 1.9 : 0,
+                    emote: pData.emote ? String(pData.emote) : null,
                     walkPhase: 0,
                     moveBlend: 0,
-                    weaponSeq: wSeq,
-                    weaponSwingTimer: 0,
-                    accentHex,
-                    effectType: (weapon && weapon.effect_type) ? weapon.effect_type : 'gold_blade',
                     nameplateSprite,
                     nameplateTex,
                     nameplateMat,
@@ -14403,34 +9527,24 @@ class SeelenfunkeLouvreShowroom3D {
                 };
                 this.peers.set(pid, peer);
             } else {
+                const dtPacket = Math.max(0.18, Math.min(2.2, this.elapsedTime - (peer.lastPacketAt || (this.elapsedTime - 0.95))));
+                const inferredVx = clamp((tx - peer.targetX) / dtPacket, -8.8, 8.8);
+                const inferredVz = clamp((tz - peer.targetZ) / dtPacket, -8.8, 8.8);
+                peer.vx = Number.isFinite(Number(pData.vx))
+                    ? clamp(Number(pData.vx), -8.8, 8.8)
+                    : (reportedSpeed > 0.08 ? inferredVx : 0);
+                peer.vz = Number.isFinite(Number(pData.vz))
+                    ? clamp(Number(pData.vz), -8.8, 8.8)
+                    : (reportedSpeed > 0.08 ? inferredVz : 0);
+                peer.lastPacketAt = this.elapsedTime;
                 peer.targetX = tx;
                 peer.targetY = ty;
                 peer.targetZ = tz;
                 peer.targetYaw = tYaw;
                 peer.reportedSpeed = reportedSpeed;
-                if (reportedSpeed > 0.08) {
-                    peer.reportedMoveTimer = 1.9;
-                }
-
-                if (wSeq > peer.weaponSeq) {
-                    peer.weaponSeq = wSeq;
-                    if (!this.mutedPlayerIds.has(pid) && !this.focusProtected) {
-                        peer.weaponSwingTimer = 0.52;
-                        if (cStage === 4) {
-                            this._spawnComboFinisherExplosion(peer.x, peer.y + 0.08, peer.z);
-                        } else {
-                            this._spawnWeaponBurst(
-                                peer.x,
-                                peer.y + 1.06,
-                                peer.z,
-                                peer.yaw,
-                                peer.accentHex,
-                                peer.effectType,
-                                true
-                            );
-                        }
-                    }
-                }
+                peer.emote = pData.emote ? String(pData.emote) : null;
+                if (pData.peer_id) peer.peerId = String(pData.peer_id);
+                if (pData.player_id) peer.legacyPlayerId = String(pData.player_id);
             }
         }
 
@@ -14445,30 +9559,33 @@ class SeelenfunkeLouvreShowroom3D {
     _updatePeersKinematics(dt) {
         if (this.peers.size === 0) return;
 
-        const smooth = 1.0 - Math.exp(-dt * 8.5);
+        // Sanfte Positions-Nachfuehrung (~4.2) + Velocity-Extrapolation: 0 Stop-and-Go-Ruckeln bei 950 ms Sync!
+        const smooth = 1.0 - Math.exp(-dt * 4.2);
+        const blendSmooth = 1.0 - Math.exp(-dt * 7.5);
         const strideFrequency = 4.48;
+        const maxPeerX = this.pantheonHalfW - 0.6;
 
         this.peers.forEach((peer, pid) => {
             const prevX = peer.x;
             const prevZ = peer.z;
 
-            peer.x = lerp(peer.x, peer.targetX, smooth);
+            const sincePacket = Math.max(0, this.elapsedTime - (peer.lastPacketAt || this.elapsedTime));
+            const extrapFactor = sincePacket < 1.05 ? (1.0 - (sincePacket / 1.05) * 0.45) : 0.0;
+            const predX = clamp(peer.targetX + (peer.vx || 0) * Math.min(sincePacket, 0.95) * extrapFactor, -maxPeerX, maxPeerX);
+            const predZ = clamp(peer.targetZ + (peer.vz || 0) * Math.min(sincePacket, 0.95) * extrapFactor, this.pantheonMinZ + 0.8, this.hallNorthZ - 2.0);
+
+            peer.x = lerp(peer.x, predX, smooth);
             peer.y = lerp(peer.y, peer.targetY, smooth);
-            peer.z = lerp(peer.z, peer.targetZ, smooth);
+            peer.z = lerp(peer.z, predZ, smooth);
             peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, smooth);
 
-            if (peer.reportedMoveTimer > 0) {
-                peer.reportedMoveTimer = Math.max(0, peer.reportedMoveTimer - dt);
-            }
-
+            // Lauf-Animation orientiert sich strikt an echter Bewegungsdistanz (kein starrer 1.9s-Timer!)
             const stepDist = Math.hypot(peer.x - prevX, peer.z - prevZ);
             const measuredSpeed = stepDist / Math.max(0.001, dt);
-            const activeReportedSpeed = peer.reportedMoveTimer > 0 ? peer.reportedSpeed : 0;
-            const effectiveSpeed = Math.max(measuredSpeed, activeReportedSpeed * 0.65);
+            const effectiveSpeed = measuredSpeed;
 
-            const inLava = (peer.z > this.hallNorthZ - 1.5) && (peer.x > this.hallHalfW + 1.1);
             const floorOffset = this._computeFloorBaseY(peer.x, peer.z);
-            const support = inLava ? this._evaluateLavaSupportAt(peer.x, peer.z, peer.y) : { shadowY: 0 };
+            const support = { shadowY: 0 };
             const aboveGround = Math.max(0, peer.y - support.shadowY);
             const airBlend = clamp(aboveGround / 0.26, 0, 1);
             const peerSprint = effectiveSpeed > 6.4 ? 1.0 : 0.0;
@@ -14476,13 +9593,12 @@ class SeelenfunkeLouvreShowroom3D {
             peer.root.position.set(peer.x, floorOffset + peer.y, peer.z);
             peer.root.rotation.y = peer.yaw;
 
-            if ((stepDist > 0.0002 || effectiveSpeed > 0.08) && airBlend < 0.65) {
-                const cycleAdvance = stepDist > 0.0004 ? stepDist : (effectiveSpeed * dt);
-                peer.walkPhase = (peer.walkPhase + cycleAdvance * strideFrequency) % TWO_PI;
+            if (stepDist > 0.00035 && airBlend < 0.65) {
+                peer.walkPhase = (peer.walkPhase + stepDist * strideFrequency) % TWO_PI;
             }
 
-            const targetBlend = effectiveSpeed > 0.08 ? clamp(effectiveSpeed / 4.6, 0.28, 1.0) : 0.0;
-            peer.moveBlend = lerp(peer.moveBlend, targetBlend, smooth);
+            const targetBlend = effectiveSpeed > 0.14 ? clamp(effectiveSpeed / 4.6, 0.24, 1.0) : 0.0;
+            peer.moveBlend = lerp(peer.moveBlend, targetBlend, blendSmooth);
 
             const mb = peer.moveBlend * (1.0 - airBlend * 0.65);
             const idlePeer = (1.0 - mb) * (1.0 - airBlend);
@@ -14505,20 +9621,10 @@ class SeelenfunkeLouvreShowroom3D {
             j.elbowPivotR.rotation.x = -0.18 - 0.32 * Math.max(0, Math.sin(pL)) * mb;
             j.wristPivotR.rotation.x = -0.08 * Math.cos(pL) * mb;
 
-            if (peer.weaponSwingTimer > 0) {
-                peer.weaponSwingTimer = Math.max(0, peer.weaponSwingTimer - dt);
-                const pSwing = 1.0 - (peer.weaponSwingTimer / 0.52);
-                const arc = Math.sin(clamp(pSwing, 0, 1) * Math.PI);
-                j.shoulderPivotL.rotation.x = -1.24 * arc;
-                j.shoulderPivotL.rotation.z = -0.32 * arc;
-                j.elbowPivotL.rotation.x = -0.38 * arc;
-                j.wristPivotL.rotation.x = 0.44 * arc;
-            } else {
-                j.shoulderPivotL.rotation.x = -0.42 * Math.sin(pR) * mb - 0.36 * airBlend;
-                j.shoulderPivotL.rotation.z = -0.08;
-                j.elbowPivotL.rotation.x = -0.18 - 0.32 * Math.max(0, Math.sin(pR)) * mb;
-                j.wristPivotL.rotation.x = -0.08 * Math.cos(pR) * mb;
-            }
+            j.shoulderPivotL.rotation.x = -0.42 * Math.sin(pR) * mb - 0.36 * airBlend;
+            j.shoulderPivotL.rotation.z = -0.08;
+            j.elbowPivotL.rotation.x = -0.18 - 0.32 * Math.max(0, Math.sin(pR)) * mb;
+            j.wristPivotL.rotation.x = -0.08 * Math.cos(pR) * mb;
 
             const bounce = Math.cos(2.0 * pL) * 0.024 * mb;
             j.pelvisPivot.position.y = 0.776 + bounce - 0.014 * mb + idleBreathPeer;
@@ -14527,6 +9633,43 @@ class SeelenfunkeLouvreShowroom3D {
             j.pelvisPivot.rotation.z = -Math.sin(pL) * 0.030 * mb;
             j.torsoPivot.rotation.x = (0.08 + 0.10 * peerSprint) * mb + idleBreathPeer;
             j.torsoPivot.rotation.y = -Math.sin(pL) * 0.085 * mb;
+
+            if (peer.emote && mb < 0.25) {
+                const em = peer.emote;
+                if (em === 'wave') {
+                    j.shoulderPivotR.rotation.x = -2.35;
+                    j.shoulderPivotR.rotation.z = 0.35;
+                    j.elbowPivotR.rotation.x = -0.35;
+                    j.wristPivotR.rotation.z = Math.sin(this.elapsedTime * 12.0) * 0.45;
+                } else if (em === 'dance') {
+                    const dT = this.elapsedTime * 7.5;
+                    j.pelvisPivot.position.y += Math.abs(Math.sin(dT)) * 0.05;
+                    j.shoulderPivotL.rotation.x = -1.2 + Math.sin(dT) * 0.5;
+                    j.shoulderPivotR.rotation.x = -1.2 - Math.sin(dT) * 0.5;
+                } else if (em === 'cheer') {
+                    const cT = this.elapsedTime * 10.0;
+                    j.pelvisPivot.position.y += Math.abs(Math.sin(cT * 0.5)) * 0.10;
+                    j.shoulderPivotL.rotation.x = -2.45;
+                    j.shoulderPivotR.rotation.x = -2.45;
+                } else if (em === 'bow') {
+                    j.torsoPivot.rotation.x += 0.72;
+                    j.headPivot.rotation.x = 0.30;
+                } else if (em === 'sit') {
+                    j.pelvisPivot.position.y = 0.22;
+                    j.hipPivotL.rotation.x = -1.55;
+                    j.hipPivotR.rotation.x = -1.55;
+                    j.kneePivotL.rotation.x = 1.65;
+                    j.kneePivotR.rotation.x = 1.65;
+                } else if (em === 'clap') {
+                    const clT = this.elapsedTime * 14.0;
+                    j.shoulderPivotL.rotation.x = -1.25;
+                    j.shoulderPivotR.rotation.x = -1.25;
+                    j.shoulderPivotL.rotation.z = -0.45 - Math.sin(clT) * 0.18;
+                    j.shoulderPivotR.rotation.z = 0.45 + Math.sin(clT) * 0.18;
+                    j.elbowPivotL.rotation.x = -0.7;
+                    j.elbowPivotR.rotation.x = -0.7;
+                }
+            }
 
             if (j.thrusterFlameL && j.thrusterFlameR) {
                 const peerThrusters = !(peer.builtRecord && peer.builtRecord.skinnedRig) && peerSprint > 0;
@@ -14555,9 +9698,7 @@ class SeelenfunkeLouvreShowroom3D {
             j.sparkCrest.rotation.y = this.elapsedTime * 1.4;
 
             if (peer.builtRecord && peer.builtRecord.skinnedRig) {
-                const peerState = peer.weaponSwingTimer > 0
-                    ? 'cast'
-                    : (airBlend > 0.25 ? 'jump' : (mb > 0.18 ? 'run' : 'idle'));
+                const peerState = airBlend > 0.25 ? 'jump' : (mb > 0.18 ? 'run' : 'idle');
                 this._syncSkinnedFunkiBones(peer.builtRecord.skinnedRig, j, 0, {
                     dt,
                     speed: effectiveSpeed,
@@ -14729,26 +9870,60 @@ class SeelenfunkeLouvreShowroom3D {
             this._hideProjectedElement(this.floatingPortalCardEl, '_portalCard');
         }
 
-        // 4. Schwebender Schatztruhen-Button auf der aktuellen Magma-Schatzinsel (Raum 1..10)
-        if (this.lavaRun.nearChest && this.floatingLavaChestEl && this.currentZone === 'lava') {
-            const anchors = this._getCurrentLavaAnchors();
-            this._projectElementToWorld(
-                this.floatingLavaChestEl,
-                anchors.chest.x,
-                anchors.chest.y + 1.15,
-                anchors.chest.z,
-                '_lavaChestCard'
-            );
-        } else {
-            this._hideProjectedElement(this.floatingLavaChestEl, '_lavaChestCard');
-        }
-
-        // 5. Schwebender Hinweis am verschlossenen West-Prunktor zur Aussenwelt
+        // 4. Schwebender Hinweis am monumentalen West-Prunktor ("Tor zur Außenwelt · Hier entsteht ein MMORPG")
         if (this.westGateFocused && this.floatingOuterGateEl && this.currentZone === 'gallery') {
             this._projectElementToWorld(this.floatingOuterGateEl, -11.65, 2.75, 0.0, '_outerGateCard');
         } else {
             this._hideProjectedElement(this.floatingOuterGateEl, '_outerGateCard');
         }
+    }
+
+    openOuterGateModalFromWorld() {
+        if (this.destroyed || !this.running) return false;
+        this.releasePointerLock();
+        if (this.audio && typeof this.audio.playUiSwitch === 'function') {
+            this.audio.playUiSwitch();
+        } else if (this.audio && typeof this.audio.playGateLocked === 'function') {
+            this.audio.playGateLocked();
+        }
+        if (this.onOuterGateModalOpen) {
+            this.onOuterGateModalOpen(this.getMmorpgAccessState());
+            return true;
+        }
+        return false;
+    }
+
+    _triggerOuterGateRepulse() {
+        if (this._gateRepulseTimer > 0.04) return;
+
+        this._gateRepulseDuration = 0.28;
+        this._gateRepulseTimer = 0.28;
+        this._gateRepulseInputDampTimer = 0.28;
+        this._gateRepulseDirX = 1.0;
+        this._gateRepulseDirZ = 0.0;
+
+        this.player.autoTarget = null;
+        this.player.autoLookAt = null;
+        this.walkTargetTimer = 0;
+        this.player.isJumping = true;
+        this.player.jumpCount = 1;
+        this.player.vy = 2.65;
+
+        this._spawnDoubleJumpBurst(-10.65, 1.10, this.player.z || 0);
+        if (this.audio && typeof this.audio.playGateLocked === 'function') {
+            this.audio.playGateLocked();
+        }
+        this._setWestOuterGateFocused(true);
+
+        if (this._outerGatePromptPendingTimer) {
+            clearTimeout(this._outerGatePromptPendingTimer);
+        }
+        this._outerGatePromptPendingTimer = setTimeout(() => {
+            this._outerGatePromptPendingTimer = 0;
+            if (!this.destroyed && this.running) {
+                this.openOuterGateModalFromWorld();
+            }
+        }, 140);
     }
 
     _bindEvents() {
@@ -14790,13 +9965,14 @@ class SeelenfunkeLouvreShowroom3D {
         if (!this.running) return;
         const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
         if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-        if (e.target && e.target.closest && e.target.closest('[data-testid="lobby-settings-modal"]')) {
+        if (e.target && e.target.closest && e.target.closest('[data-testid="lobby-settings-modal"], [data-testid="lobby-sanctum-gate-modal"], [data-testid="lobby-outer-gate-modal"]')) {
             return;
         }
 
         const code = e.code || e.key;
-        this.keys[code] = true;
         const kb = this.keybindings;
+
+        this.keys[code] = true;
 
         if (matchesActionKey(code, kb.jump) || (kb.jump === 'Space' && e.key === ' ')) {
             e.preventDefault();
@@ -14804,36 +9980,7 @@ class SeelenfunkeLouvreShowroom3D {
             return;
         }
 
-        if (matchesActionKey(code, kb.strike) || code === 'KeyG') {
-            e.preventDefault();
-            this.triggerAbility(1);
-            return;
-        }
-        if (matchesActionKey(code, kb.sprint)) {
-            e.preventDefault();
-            this.triggerAbility(2);
-            return;
-        }
-        if (matchesActionKey(code, kb.titanJump)) {
-            e.preventDefault();
-            this.triggerAbility(3);
-            return;
-        }
-        if (matchesActionKey(code, kb.shield)) {
-            e.preventDefault();
-            this.triggerAbility(4);
-            return;
-        }
-        if (matchesActionKey(code, kb.burst)) {
-            e.preventDefault();
-            this.triggerAbility(5);
-            return;
-        }
         if (code === 'Enter' || code === 'KeyE') {
-            if (this.lavaRun.nearChest) {
-                this.claimLavaChest();
-                return;
-            }
             if (this.focusedSteleIndex >= 0 && this.steles[this.focusedSteleIndex]) {
                 const prod = this.steles[this.focusedSteleIndex].product;
                 if (this.onSelectProduct) {
@@ -14841,6 +9988,11 @@ class SeelenfunkeLouvreShowroom3D {
                 } else if (prod && prod.product_url) {
                     window.location.href = prod.product_url;
                 }
+                return;
+            }
+            if (this.currentZone === 'gallery' && this.westGateFocused) {
+                e.preventDefault();
+                this.openOuterGateModalFromWorld();
             }
         }
     }
@@ -14850,13 +10002,6 @@ class SeelenfunkeLouvreShowroom3D {
         this.keys[code] = false;
     }
 
-    /**
-     * MMO-Maussteuerung:
-     * - Linke + Rechte Maustaste gleichzeitig halten ((e.buttons & 3) === 3): Dauerlauf vorwaerts in Kamerarichtung + Mitlenken!
-     * - Nur Linke Maustaste ziehen (>= 7 px): Freie Orbit-Kamera (mit geoeffnetem vertikalem Blickwinkel nach oben fuer Kuppeln & Glasdach!).
-     * - Nur Linke Maustaste klicken (< 7 px): Interaktion oder Click-to-Walk mit goldenem Zielring (KEIN Schlag auf Linksklick!).
-     * - Nur Rechte Maustaste ziehen: Dreht Kamera + Blickrichtung geschmeidig.
-     */
     _syncMouseChordFromButtons(buttonsMask) {
         if (typeof buttonsMask !== 'number') return;
         this.camControl.mouseLeftDown = (buttonsMask & 1) === 1;
@@ -14870,6 +10015,11 @@ class SeelenfunkeLouvreShowroom3D {
 
     _onPointerDown(e) {
         if (!this.running) return;
+        if (e && e.target && e.target !== this.canvas && typeof e.target.closest === 'function') {
+            if (e.target.closest('.sf-lobby-settings-backdrop, .sf-lobby-floating-card, .sf-lobby-topbar, .sf-lobby-gold-crest-bar, .sf-lobby-chat-panel, .sf-lobby-instance-popover, .sf-lobby-bottom-pill')) {
+                return;
+            }
+        }
         if (e.pointerType === 'mouse' || e.pointerType === undefined) {
             if (typeof e.buttons === 'number' && e.buttons > 0) {
                 this._syncMouseChordFromButtons(e.buttons);
@@ -14957,7 +10107,6 @@ class SeelenfunkeLouvreShowroom3D {
             return;
         }
 
-        // Leichtgewichtiger Raycast-Hover fuer cursor: pointer ueber interaktiven Objekten
         this._hoverTickCounter = (this._hoverTickCounter + 1) % 3;
         if (this._hoverTickCounter !== 0 || !this.camera || !this.canvas) return;
 
@@ -14966,17 +10115,10 @@ class SeelenfunkeLouvreShowroom3D {
         this.pointerNdc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
         this.raycaster.setFromCamera(this.pointerNdc, this.camera);
 
-        const targets = (this.currentZone === 'lava')
-            ? this.lavaChestHitMeshes
-                .concat(this.lavaHubPortalHitMeshes)
-                .concat(this.lavaNextRoomHitMeshes)
-                .concat(this.lavaEpicGateHitMeshes)
-                .concat(this.lavaReturnHitMeshes)
-            : this.interactiveHitMeshes
-                .concat(this.canEnterSanctums ? [] : this.portalHitMeshes)
-                .concat(this.heroInteractiveHitMeshes)
-                .concat(this.canEnterSanctums ? [] : this.lavaPortalHitMeshes)
-                .concat(this.westGateHitMeshes);
+        const targets = this.interactiveHitMeshes
+            .concat(this.canEnterSanctums ? [] : this.portalHitMeshes)
+            .concat(this.heroInteractiveHitMeshes)
+            .concat(this.westGateHitMeshes);
 
         if (targets.length > 0 && this.raycaster.intersectObjects(targets, false).length > 0) {
             this.canvas.style.cursor = 'pointer';
@@ -15035,9 +10177,7 @@ class SeelenfunkeLouvreShowroom3D {
     _onWheel(e) {
         if (!this.running) return;
         e.preventDefault();
-        const maxDist = this.currentZone === 'heroes'
-            ? 10.5
-            : (this.currentZone === 'lava' ? 9.8 : 7.8);
+        const maxDist = this.currentZone === 'heroes' ? 10.5 : 7.8;
         if (e.deltaY < 0) {
             let next = this.camControl.desiredDistance * 0.88 - 0.14;
             if (next < 0.95) next = 0;
@@ -15090,9 +10230,7 @@ class SeelenfunkeLouvreShowroom3D {
             const dist = Math.hypot(dx, dy);
             const scale = this.camControl.pinchDist / Math.max(8, dist);
             this.camControl.pinchDist = dist;
-            const maxDist = this.currentZone === 'heroes'
-                ? 10.5
-                : (this.currentZone === 'lava' ? 9.8 : 7.8);
+            const maxDist = this.currentZone === 'heroes' ? 10.5 : 7.8;
             if (scale < 0.996) {
                 let next = scale < 0.90
                     ? (this.camControl.desiredDistance * 0.88 - 0.14)
@@ -15119,143 +10257,55 @@ class SeelenfunkeLouvreShowroom3D {
         this.pointerNdc.y = -((clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
         this.raycaster.setFromCamera(this.pointerNdc, this.camera);
 
-        if (this.currentZone === 'lava') {
-            // 1. Magma-Schatztruhe auf der Schatz-Insel (Raum 1..10)
-            if (this.lavaChestHitMeshes.length > 0) {
-                const chestHits = this.raycaster.intersectObjects(this.lavaChestHitMeshes, false);
-                if (chestHits.length > 0) {
-                    const anchors = this._getCurrentLavaAnchors();
-                    if (Math.hypot(this.player.x - anchors.chest.x, this.player.z - anchors.chest.z) < 3.6) {
-                        this.claimLavaChest();
-                    } else if (this.player.x >= anchors.chest.x - 3.6) {
-                        this.player.autoTarget = { x: anchors.chest.x - 1.35, z: anchors.chest.z };
-                        this.player.autoLookAt = { x: anchors.chest.x, z: anchors.chest.z };
-                    }
-                    return;
+        // 1. Monumentales Tor zur Aussenwelt an der Westwand ("Hier entsteht ein MMORPG")
+        if (this.westGateHitMeshes.length > 0) {
+            const wgHits = this.raycaster.intersectObjects(this.westGateHitMeshes, false);
+            if (wgHits.length > 0) {
+                this._setWestOuterGateFocused(true);
+                if (this.currentZone === 'gallery') {
+                    this.player.autoTarget = { x: -8.95, z: 0.0 };
+                    this.player.autoLookAt = { x: -11.92, z: 0.0 };
                 }
-            }
-
-            // 2. Schnellreise-Portal-Hub im Vorraum (Raum 2..10)
-            if (this.lavaHubPortalHitMeshes.length > 0) {
-                const hubHits = this.raycaster.intersectObjects(this.lavaHubPortalHitMeshes, false);
-                if (hubHits.length > 0) {
-                    const targetLvl = hubHits[0].object.userData && hubHits[0].object.userData.targetLevel;
-                    if (targetLvl) {
-                        this.teleportToLavaRoom(targetLvl);
-                    }
-                    return;
-                }
-            }
-
-            // 3. Naechster-Raum-Portal auf der Schatzinsel
-            if (this.lavaNextRoomHitMeshes.length > 0) {
-                const nextHits = this.raycaster.intersectObjects(this.lavaNextRoomHitMeshes, false);
-                if (nextHits.length > 0) {
-                    const targetLvl = nextHits[0].object.userData && nextHits[0].object.userData.targetLevel;
-                    if (targetLvl) {
-                        this.teleportToLavaRoom(targetLvl);
-                    }
-                    return;
-                }
-            }
-
-            // 4. Episches Meister-Tor vor Raum 6
-            if (this.lavaEpicGateHitMeshes.length > 0) {
-                const gateHits = this.raycaster.intersectObjects(this.lavaEpicGateHitMeshes, false);
-                if (gateHits.length > 0 && !this.playerProfile.masterKeyUnlocked) {
-                    if (this.audio && typeof this.audio.playGateLocked === 'function') {
-                        this.audio.playGateLocked();
-                    }
-                    if (this.onMasterKeyPromptChange) {
-                        this.onMasterKeyPromptChange(true);
-                    }
-                    return;
-                }
-            }
-
-            // 5. Rueckkehr-Portale in die Galerie
-            if (this.lavaReturnHitMeshes.length > 0) {
-                const retHits = this.raycaster.intersectObjects(this.lavaReturnHitMeshes, false);
-                if (retHits.length > 0) {
-                    const retData = retHits[0].object.userData || {};
-                    if (retData.returnToHub) {
-                        this._returnToLavaHub();
-                    } else {
-                        this._sendLavaParkourLeave();
-                        this.goToZone('gallery', true);
-                    }
-                    return;
-                }
-            }
-        } else {
-            // 1. Verschlossenes Prunktor zur Aussenwelt an der Westwand
-            if (this.westGateHitMeshes.length > 0) {
-                const wgHits = this.raycaster.intersectObjects(this.westGateHitMeshes, false);
-                if (wgHits.length > 0) {
-                    if (this.audio && typeof this.audio.playGateLocked === 'function') {
-                        this.audio.playGateLocked();
-                    }
-                    this._setWestOuterGateFocused(true);
-                    if (this.currentZone === 'gallery') {
-                        this.player.autoTarget = { x: -9.6, z: 0.0 };
-                        this.player.autoLookAt = { x: -11.92, z: 0.0 };
-                    }
-                    return;
-                }
-            }
-
-            // 2. Magma-Eingangsportal an der Galerie-Ostwand (NUR als Gast ein Klick-Trigger; berechtigte Spieler haben 0 Raycast-Blocker!)
-            if (!this.canEnterSanctums && this.lavaPortalHitMeshes.length > 0) {
-                const lpHits = this.raycaster.intersectObjects(this.lavaPortalHitMeshes, false);
-                if (lpHits.length > 0) {
-                    this.goToZone('lava', false);
-                    return;
-                }
-            }
-
-            // 3. Top-5-Heldenpodeste oder Ehren-Stelen in der Halle der Helden
-            if (this.heroInteractiveHitMeshes.length > 0 && this.canEnterSanctums) {
-                const heroHits = this.raycaster.intersectObjects(this.heroInteractiveHitMeshes, false);
-                if (heroHits.length > 0) {
-                    const slot = heroHits[0].object.userData.heroSlot;
-                    this.goToHeroSlot(slot);
-                    return;
-                }
-            }
-
-            // 4. Ehrenportal als Gast (berechtigte Spieler laufen frei hindurch!)
-            if (!this.canEnterSanctums && this.portalHitMeshes.length > 0) {
-                const portalHits = this.raycaster.intersectObjects(this.portalHitMeshes, false);
-                if (portalHits.length > 0) {
-                    this.goToZone('heroes', false);
-                    return;
-                }
-            }
-
-            // 5. Produkt-Podeste in der Eingangshalle
-            if (this.interactiveHitMeshes.length > 0) {
-                const steleHits = this.raycaster.intersectObjects(this.interactiveHitMeshes, false);
-                if (steleHits.length > 0) {
-                    const idx = steleHits[0].object.userData.steleIndex;
-                    this.goToExhibit(idx, false);
-                    return;
-                }
+                this.openOuterGateModalFromWorld();
+                return;
             }
         }
 
-        // Click-to-Walk auf begehbare Boeden
+        // 2. Top-5-Heldenpodeste oder Ehren-Stelen in der Halle der Helden
+        if (this.heroInteractiveHitMeshes.length > 0 && this.canEnterSanctums) {
+            const heroHits = this.raycaster.intersectObjects(this.heroInteractiveHitMeshes, false);
+            if (heroHits.length > 0) {
+                const slot = heroHits[0].object.userData.heroSlot;
+                this.goToHeroSlot(slot);
+                return;
+            }
+        }
+
+        // 3. Ehrenportal als Gast (berechtigte Spieler laufen frei hindurch!)
+        if (!this.canEnterSanctums && this.portalHitMeshes.length > 0) {
+            const portalHits = this.raycaster.intersectObjects(this.portalHitMeshes, false);
+            if (portalHits.length > 0) {
+                this.goToZone('heroes', false);
+                return;
+            }
+        }
+
+        // 4. Produkt-Podeste im 3D-Produkt-Atelier
+        if (this.interactiveHitMeshes.length > 0) {
+            const steleHits = this.raycaster.intersectObjects(this.interactiveHitMeshes, false);
+            if (steleHits.length > 0) {
+                const idx = steleHits[0].object.userData.steleIndex;
+                this.goToExhibit(idx, false);
+                return;
+            }
+        }
+
+        // 5. Click-to-Walk auf begehbare Boeden
         if (this.walkableFloorMeshes.length > 0) {
             const floorHits = this.raycaster.intersectObjects(this.walkableFloorMeshes, false);
             if (floorHits.length > 0) {
-                const hit = floorHits[0];
-                const pt = hit.point;
-                const isLavaTarget = this.currentZone === 'lava'
-                    || Boolean(hit.object.userData && hit.object.userData.isLavaWalkable);
-                if (isLavaTarget && this.currentZone !== 'lava') return;
-
-                const targetPos = isLavaTarget
-                    ? { x: clamp(pt.x, 5.2, this.lavaChamberMaxX - 1.2), z: clamp(pt.z, this.lavaChamberMinZ + 1.0, this.lavaChamberMaxZ - 1.0) }
-                    : this._resolveCollisions(pt.x, pt.z);
+                const pt = floorHits[0].point;
+                const targetPos = this._resolveCollisions(pt.x, pt.z);
 
                 this.pinnedSteleIndex = -1;
                 this.pinnedHeroSlot = -1;
@@ -15264,9 +10314,7 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.autoLookAt = null;
 
                 if (this.clickMoveRing) {
-                    const ringY = isLavaTarget
-                        ? (pt.y + 0.024)
-                        : (targetPos.z < this.hallNorthZ - 0.5 ? 0.036 : 0.018);
+                    const ringY = targetPos.z < this.hallNorthZ - 0.5 ? 0.036 : 0.018;
                     this.clickMoveRing.position.set(targetPos.x, ringY, targetPos.z);
                     this.walkTargetTimer = 1.35;
                 }
@@ -15276,91 +10324,12 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Wechselt sanft oder sofort zwischen 'gallery', 'heroes' und 'lava' (inkl. Login-Gating & Zonen-Kapselung).
+     * Wechselt sanft oder sofort zwischen 'gallery' und 'heroes' (inkl. Login-Gating).
      */
     goToZone(targetZone, instant = false) {
         const keepFp = Boolean(this.running && this.camControl.desiredDistance < 0.55);
         const raw = String(targetZone || 'gallery').toLowerCase();
-        const cleanZone = raw === 'lava'
-            ? 'lava'
-            : ((raw === 'heroes' || raw === 'hall') ? 'heroes' : 'gallery');
-
-        if (cleanZone === 'lava') {
-            this.pinnedSteleIndex = -1;
-            this.pinnedHeroSlot = -1;
-            this.pinnedPortalGate = false;
-            this._setFocusedSteleIndex(-1);
-            this._setFocusedHeroSlot(-1);
-            this._setPortalGateFocused(false);
-            this._setWestOuterGateFocused(false);
-
-            // Login-Gating fuer Gaeste am Ost-Portal zur Magma-Welt
-            if (!this.canEnterSanctums) {
-                this.player.autoTarget = { x: 9.2, z: this.lavaPortalZ };
-                this.player.autoLookAt = { x: 11.92, z: this.lavaPortalZ };
-                this.camControl.desiredYaw = -Math.PI * 0.5;
-                this.camControl.desiredPitch = keepFp ? 0.04 : 0.18;
-                this.camControl.desiredDistance = keepFp ? 0 : 4.2;
-                if (this.audio && typeof this.audio.playGateLocked === 'function') {
-                    this.audio.playGateLocked();
-                }
-                if (this.onAuthGatePrompt) {
-                    this.onAuthGatePrompt('lava');
-                }
-                if (this.currentZone !== 'gallery') {
-                    this.currentZone = 'gallery';
-                    this._syncZoneGroupVisibility();
-                    if (this.onZoneChange) this.onZoneChange('gallery');
-                }
-                return;
-            }
-
-            const destX = 16.5;
-            const destZ = -2.0;
-
-            if (this.running && this.currentZone !== 'lava') {
-                if (this.audio && typeof this.audio.playTeleporter === 'function') {
-                    this.audio.playTeleporter();
-                }
-                this.teleportFovBoost = 6.5;
-                if (this.onTeleportTransition) {
-                    this.onTeleportTransition({ zone: 'lava', level: this.currentLavaLevel || 1 });
-                }
-            }
-
-            this.player.x = destX;
-            this.player.y = 0.004;
-            this.player.groundY = 0.004;
-            this.player.z = destZ;
-            this.player.vy = 0;
-            this.player.isJumping = false;
-            this.player.jumpCount = 0;
-            this.player.standingPlatform = null;
-            this.player.yaw = Math.PI * 0.5;
-            this.player.autoTarget = null;
-            this.player.autoLookAt = null;
-            this.camControl.yaw = -Math.PI * 0.5;
-            this.camControl.desiredYaw = -Math.PI * 0.5;
-            this.camControl.pitch = keepFp ? 0.06 : 0.24;
-            this.camControl.desiredPitch = keepFp ? 0.06 : 0.24;
-            this.camControl.distance = keepFp ? 0 : 5.0;
-            this.camControl.desiredDistance = keepFp ? 0 : 5.0;
-            if (this.camControl.lookAtCurrent) {
-                this.camControl.lookAtCurrent.set(destX, 1.44, destZ);
-            }
-
-            if (this.currentZone !== 'lava') {
-                this.currentZone = 'lava';
-                this._syncZoneGroupVisibility();
-                if (this.onZoneChange) this.onZoneChange('lava');
-            } else {
-                this._syncZoneGroupVisibility();
-            }
-
-            this._refreshLavaHubPortals();
-            this._startLavaParkourRun(false);
-            return;
-        }
+        const cleanZone = (raw === 'heroes' || raw === 'hall') ? 'heroes' : 'gallery';
 
         if (cleanZone === 'heroes') {
             this._setWestOuterGateFocused(false);
@@ -15396,14 +10365,13 @@ class SeelenfunkeLouvreShowroom3D {
             this.pinnedHeroSlot = -1;
             this._setFocusedSteleIndex(-1);
 
-            if (instant || this.currentZone === 'lava' || this.player.x > this.hallHalfW || Math.abs(this.player.z - destZ) > 18.0) {
+            if (instant || this.player.x > this.hallHalfW || Math.abs(this.player.z - destZ) > 18.0) {
                 this.player.x = destX;
                 this.player.y = 0;
                 this.player.groundY = 0;
                 this.player.vy = 0;
                 this.player.isJumping = false;
                 this.player.jumpCount = 0;
-                this.player.standingPlatform = null;
                 this.player.z = destZ;
                 this.player.yaw = Math.PI;
                 this.player.autoTarget = null;
@@ -15436,27 +10404,21 @@ class SeelenfunkeLouvreShowroom3D {
             return;
         }
 
-        // Zurueck in die Produkt-Eingangshalle ('gallery')
-        this._syncRemainingFloorSparksToHud();
+        // Zurueck in das 3D-Produkt-Atelier ('gallery')
         this.pinnedHeroSlot = -1;
         this.pinnedPortalGate = false;
         this._setFocusedHeroSlot(-1);
         this._setPortalGateFocused(false);
 
-        const wasInLava = (this.currentZone === 'lava');
         const galleryDestX = 0;
         const galleryDestZ = this.hallSouthZ - 4.2;
-        if (instant || wasInLava || this.player.x > 12.2 || Math.abs(this.player.z - galleryDestZ) > 18.0) {
-            if (wasInLava && this.running && this.audio && typeof this.audio.playPortalPass === 'function') {
-                this.audio.playPortalPass();
-            }
+        if (instant || this.player.x > 12.2 || Math.abs(this.player.z - galleryDestZ) > 18.0) {
             this.player.x = galleryDestX;
             this.player.y = 0;
             this.player.groundY = 0;
             this.player.vy = 0;
             this.player.isJumping = false;
             this.player.jumpCount = 0;
-            this.player.standingPlatform = null;
             this.player.z = galleryDestZ;
             this.player.yaw = Math.PI;
             this.player.autoTarget = null;
@@ -15486,9 +10448,6 @@ class SeelenfunkeLouvreShowroom3D {
         }
     }
 
-    /**
-     * Laeuft direkt zu einem Ehrenpodest (#1..#5) oder einer Ehren-Stele (#6+) und zeigt die schwebenden Helden-Stats.
-     */
     goToHeroSlot(slotNumber) {
         if (!this.canEnterSanctums) {
             this.goToZone('heroes', false);
@@ -15500,7 +10459,7 @@ class SeelenfunkeLouvreShowroom3D {
         const anchor = this.heroSlotAnchors[slot] || this.heroSlotAnchors[1];
         if (!anchor) return;
 
-        if (this.currentZone === 'lava' || this.player.z > this.hallNorthZ - 3.0 || this.player.x > this.hallHalfW) {
+        if (this.player.z > this.hallNorthZ - 3.0 || this.player.x > this.hallHalfW) {
             this.player.x = 0;
             this.player.y = 0;
             this.player.groundY = 0;
@@ -15557,7 +10516,7 @@ class SeelenfunkeLouvreShowroom3D {
         if (this.steles.length === 0) return;
 
         const keepFp = Boolean(this.running && this.camControl.desiredDistance < 0.55);
-        if (this.currentZone === 'lava' || this.player.z < this.hallNorthZ - 2.0 || this.player.x > this.hallHalfW + 1.1) {
+        if (this.player.z < this.hallNorthZ - 2.0 || this.player.x > this.hallHalfW + 1.1) {
             this.goToZone('gallery', true);
         }
 
@@ -15620,14 +10579,13 @@ class SeelenfunkeLouvreShowroom3D {
         return best;
     }
 
-    _spawnGateRepulseFieldBurst(targetZone = 'heroes') {
+    _spawnGateRepulseFieldBurst() {
         if (!this.scene || !this.THREE) return;
         const THREE = this.THREE;
         const shared = this._ensureAvatarSharedPool();
-        const isLava = (targetZone === 'lava');
-        const gx = isLava ? 10.65 : (this.player.x || 0);
+        const gx = this.player.x || 0;
         const gy = 1.15;
-        const gz = isLava ? (this.player.z || -2.0) : (this.hallNorthZ + 0.45);
+        const gz = this.hallNorthZ + 0.45;
 
         const group = new THREE.Group();
         group.position.set(gx, gy, gz);
@@ -15640,9 +10598,6 @@ class SeelenfunkeLouvreShowroom3D {
             depthWrite: false,
         });
         const ringMesh = new THREE.Mesh(shared.geos.shockwaveRing, ringMat);
-        if (isLava) {
-            ringMesh.rotation.y = Math.PI * 0.5;
-        }
         group.add(ringMesh);
 
         const sparks = [];
@@ -15656,23 +10611,13 @@ class SeelenfunkeLouvreShowroom3D {
             const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
             const ang = (i / 18) * TWO_PI;
             const r0 = 0.25;
-            if (isLava) {
-                sm.position.set(0, Math.sin(ang) * r0, Math.cos(ang) * r0);
-                sparks.push({
-                    mesh: sm,
-                    vx: -(1.4 + (i % 3) * 0.6),
-                    vy: Math.sin(ang) * 1.65,
-                    vz: Math.cos(ang) * 1.65,
-                });
-            } else {
-                sm.position.set(Math.cos(ang) * r0, Math.sin(ang) * r0, 0);
-                sparks.push({
-                    mesh: sm,
-                    vx: Math.cos(ang) * 1.65,
-                    vy: Math.sin(ang) * 1.65,
-                    vz: 1.4 + (i % 3) * 0.6,
-                });
-            }
+            sm.position.set(Math.cos(ang) * r0, Math.sin(ang) * r0, 0);
+            sparks.push({
+                mesh: sm,
+                vx: Math.cos(ang) * 1.65,
+                vy: Math.sin(ang) * 1.65,
+                vz: 1.4 + (i % 3) * 0.6,
+            });
             group.add(sm);
         }
 
@@ -15690,24 +10635,14 @@ class SeelenfunkeLouvreShowroom3D {
         });
     }
 
-    /**
-     * Punkte 2 & 3: Physischer Rueckstoss (~3.1 m ueber ~0.38 s + kleiner Huepfer vy = 4.1) vor gesperrten Toren
-     * inkl. Schutzfeld-Impulsring, playGateRepulse() und verzogertem Voraussetzungs-Modal (~170 ms, 1.4 s Re-Trigger-Sperre).
-     */
-    _triggerSanctumGateRepulse(targetZone = 'heroes') {
-        const cleanZone = targetZone === 'lava' ? 'lava' : 'heroes';
+    _triggerSanctumGateRepulse() {
         if (this._gateRepulseTimer > 0.04) return;
 
         this._gateRepulseDuration = 0.38;
         this._gateRepulseTimer = 0.38;
         this._gateRepulseInputDampTimer = 0.38;
-        if (cleanZone === 'lava') {
-            this._gateRepulseDirX = -1.0;
-            this._gateRepulseDirZ = 0.0;
-        } else {
-            this._gateRepulseDirX = 0.0;
-            this._gateRepulseDirZ = 1.0;
-        }
+        this._gateRepulseDirX = 0.0;
+        this._gateRepulseDirZ = 1.0;
 
         this.player.autoTarget = null;
         this.player.autoLookAt = null;
@@ -15718,7 +10653,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.player.vy = 4.1;
         this.camControl.shakeTimer = 0.11;
 
-        this._spawnGateRepulseFieldBurst(cleanZone);
+        this._spawnGateRepulseFieldBurst();
         if (this.audio && typeof this.audio.playGateRepulse === 'function') {
             this.audio.playGateRepulse();
         } else if (this.audio && typeof this.audio.playGateLocked === 'function') {
@@ -15733,87 +10668,24 @@ class SeelenfunkeLouvreShowroom3D {
             this._gatePromptPendingTimer = setTimeout(() => {
                 this._gatePromptPendingTimer = 0;
                 if (!this.destroyed && !this.canEnterSanctums && this.onAuthGatePrompt) {
-                    this.onAuthGatePrompt(cleanZone);
+                    this.onAuthGatePrompt('heroes');
                 }
             }, 170);
         }
     }
 
     /**
-     * Nahtlose 3-Zonen-Kollisionsaufloesung (Produktgalerie inkl. verschlossenem West-Tor + Ehrenportal/Promenade + Pantheon-Rotunde + 10-Raum Magma-Welt!).
+     * Nahtlose 2-Zonen-Kollisionsaufloesung (3D-Produkt-Atelier inkl. Tor zur Aussenwelt + Ehrenportal/Promenade + Goldene Halle der Helden).
      */
     _resolveCollisions(nx, nz) {
         let x = nx;
         let z = clamp(nz, this.pantheonMinZ + 1.0, this.hallSouthZ - 1.3);
 
-        const lavaDoorClearHalfZ = this.lavaPortalHalfSpan - 0.50;
-        const inLavaPassageZ = Math.abs(z + 2.0) <= 2.35;
-        const inSouthernWingZ = (z > this.hallNorthZ - 1.5) && (this.player.z > this.hallNorthZ - 1.5);
-
-        // Punkte 2 & 3: Unberechtigte Spieler (!canEnterSanctums) an der Ost-Schwelle (x > 9.55 && |z + 2.0| <= 2.35) physisch zurueckwerfen!
-        if (!this.canEnterSanctums && inSouthernWingZ && inLavaPassageZ && x > 9.55) {
-            x = 9.55;
-            this._triggerSanctumGateRepulse('lava');
-        } else if (x < 9.15) {
-            this._magmaAuthGateTriggered = false;
-        }
-
-        // Zone 3: Magma-Welt & nahtloser Portal-Durchgang an der Galerie-Ostwand (canEnterSanctums === true: 0 Sperrwand!)
-        const inLavaZone = (this.currentZone === 'lava');
-        if (inLavaZone || (this.canEnterSanctums && inSouthernWingZ && x > this.hallHalfW - 0.95 && (this.player.x > this.hallHalfW - 1.2 || inLavaPassageZ))) {
-            if (inLavaZone) {
-                // Westliche Vorraum-Kante (Rueckkehr-Portal "LOUVRE-GALERIE" bei X = 5.25)
-                x = Math.max(x, 4.95);
-            }
-            if (x < 12.45 && !inLavaZone) {
-                z = clamp(z, this.lavaPortalZ - lavaDoorClearHalfZ, this.lavaPortalZ + lavaDoorClearHalfZ);
-            } else if (x <= this.lavaBalconyMaxX - 0.15 && (this.player.y || 0) <= 0.6) {
-                // Im Eingangs-Vorraum (inkl. halbkreisfoermiger Portal-Hub-Galerie) sicher vor seitlichem Absturz schuetzen
-                z = clamp(z, -10.95, 6.95);
-            } else {
-                z = clamp(z, this.lavaChamberMinZ + 0.9, this.lavaChamberMaxZ - 0.9);
-            }
-
-            // Kolossales Episches Tor vor Raum 6 blockiert den Durchgang ohne Meister-Schluessel!
-            if (this.lavaEpicGate && !this.lavaEpicGate.unlocked && x > 17.55) {
-                x = 17.55;
-                if (!this._epicGatePromptOpen) {
-                    this._epicGatePromptOpen = true;
-                    if (this.audio && typeof this.audio.playGateLocked === 'function') {
-                        this.audio.playGateLocked();
-                    }
-                    if (this.onMasterKeyPromptChange) {
-                        this.onMasterKeyPromptChange(true);
-                    }
-                }
-            } else if (x < 16.9) {
-                this._epicGatePromptOpen = false;
-            }
-
-            x = Math.min(x, this.lavaChamberMaxX - 1.2);
-
-            // Kollisionsschutz direkt am Kern der 3D-Schatztruhe auf der Schatzinsel
-            const anchors = this._getCurrentLavaAnchors();
-            if ((this.player.y || 0) >= anchors.chest.y - 0.6) {
-                const cdx = x - anchors.chest.x;
-                const cdz = z - anchors.chest.z;
-                const cDist = Math.hypot(cdx, cdz);
-                if (cDist < 0.85 && cDist > 0.0001) {
-                    x += (cdx / cDist) * (0.85 - cDist);
-                    z += (cdz / cDist) * (0.85 - cDist);
-                }
-            }
-
-            this._collisionOut.x = x;
-            this._collisionOut.z = z;
-            return this._collisionOut;
-        }
-
-        // Punkte 2 & 3: Unberechtigte Spieler (!canEnterSanctums) an der Nord-Schwelle (z < hallNorthZ + 1.15 && |x| <= 4.25) physisch zurueckwerfen!
+        // Unberechtigte Spieler (!canEnterSanctums) an der Nord-Schwelle zur Halle der Helden sanft abweisen
         if (!this.canEnterSanctums && z < this.hallNorthZ + 1.15) {
             z = this.hallNorthZ + 1.15;
             if (Math.abs(x) <= 4.25) {
-                this._triggerSanctumGateRepulse('heroes');
+                this._triggerSanctumGateRepulse();
             }
         } else if (z > this.hallNorthZ + 1.65) {
             this._heroesAuthGateTriggered = false;
@@ -15822,9 +10694,16 @@ class SeelenfunkeLouvreShowroom3D {
         const portalClearHalfW = this.portalHalfW - 0.55;
 
         if (z >= this.hallNorthZ + 0.9) {
-            // Zone 1: Produktgalerie (Westwand mit verschlossenem Prunktor bei X = -11.92 geschlossen, Ostwand offen bei Magma-Portal fuer Kunden)
+            // Zone 1: 3D-Produkt-Atelier (geschlossene Ostwand, West-Schwelle am "Tor zur Außenwelt" bei X = -9.45)
+            if (Math.abs(z) <= 2.65 && x < -9.45) {
+                x = -9.45;
+                if (this._westOuterGateArmed) {
+                    this._westOuterGateArmed = false;
+                    this._triggerOuterGateRepulse();
+                }
+            }
             const minWestX = -this.hallHalfW + 1.0;
-            const maxEastX = (this.canEnterSanctums && inLavaPassageZ) ? 12.6 : (this.hallHalfW - 1.0);
+            const maxEastX = this.hallHalfW - 1.0;
             x = clamp(x, minWestX, maxEastX);
             if (z < this.hallNorthZ + 1.15 && Math.abs(x) > portalClearHalfW && this.player.z >= this.hallNorthZ + 0.9) {
                 z = this.hallNorthZ + 1.15;
@@ -15897,11 +10776,6 @@ class SeelenfunkeLouvreShowroom3D {
         const instantFps = 1.0 / Math.max(0.001, dt);
         this.fpsEstimate = lerp(this.fpsEstimate, clamp(instantFps, 15, 120), 0.08);
 
-        // Magma-Welt (nur aktiv sichtbar in zone 'lava'), Ost-Portal-Tiefenvorschau, Jahreszeiten-Himmel & sanfter Teleport-FOV-Glide
-        this._updateLavaChamber(dt);
-        if (this.currentZone !== 'lava') {
-            this._updateEastMagmaPortalPreview(dt);
-        }
         this._updateSeasonalOutdoorWeather(dt);
         this._updateTeleportFovGlide(dt);
         if (this._portalWalkCd > 0) {
@@ -15913,118 +10787,15 @@ class SeelenfunkeLouvreShowroom3D {
         if (this._gateRepulseInputDampTimer > 0) {
             this._gateRepulseInputDampTimer = Math.max(0, this._gateRepulseInputDampTimer - dt);
         }
-        if (this.lavaRun && this.lavaRun.hitIframeTimer > 0) {
-            this.lavaRun.hitIframeTimer = Math.max(0, this.lavaRun.hitIframeTimer - dt);
-        }
-        if (this._demoteBannerTimer > 0) {
-            this._demoteBannerTimer = Math.max(0, this._demoteBannerTimer - dt);
-            if (this._demoteBannerTimer <= 0 && this.playerProfile.demoteBannerText) {
-                this.playerProfile.demoteBannerText = '';
+        if (this._statusHintTimer > 0) {
+            this._statusHintTimer = Math.max(0, this._statusHintTimer - dt);
+            if (this._statusHintTimer <= 0 && this.playerProfile.statusHintText) {
+                this.playerProfile.statusHintText = '';
                 this._emitPlayerHudUpdate();
             }
         }
-
-        // Fluessiger Mana-Balken: sanfte Regeneration (+6 / s), HUD nur bei ganzzahliger Aenderung benachrichtigen (0 Event-Flut)
-        if (this.playerProfile.mana < this.playerProfile.maxMana) {
-            const prevManaInt = Math.round(this.playerProfile.mana);
-            this.playerProfile.mana = Math.min(this.playerProfile.maxMana, this.playerProfile.mana + dt * 6.0);
-            if (Math.round(this.playerProfile.mana) !== prevManaInt) {
-                this._emitPlayerHudUpdate();
-            }
-        }
-
-        // Mitnahme des Spielers auf beweglichen Horizontal-/Vertikal-Springplatten!
-        if (this.player.standingPlatform && !this.player.isJumping && !this.player.standingPlatform.sunk) {
-            this.player.x += this.player.standingPlatform.dx || 0;
-            this.player.y += this.player.standingPlatform.dy || 0;
-            this.player.groundY = this.player.y;
-            this.player.z += this.player.standingPlatform.dz || 0;
-        }
-
-        if (this.player.weaponCooldown > 0) {
-            this.player.weaponCooldown = Math.max(0, this.player.weaponCooldown - dt);
-        }
-        if (this.player.weaponSwingTimer > 0) {
-            this.player.weaponSwingTimer = Math.max(0, this.player.weaponSwingTimer - dt);
-        }
-        if (this.player.punchCooldown > 0) {
-            this.player.punchCooldown = Math.max(0, this.player.punchCooldown - dt);
-        }
-        if (this.player.punchSwingTimer > 0) {
-            this.player.punchSwingTimer = Math.max(0, this.player.punchSwingTimer - dt);
-        }
-        if (this.player.comboCooldown > 0) {
-            this.player.comboCooldown = Math.max(0, this.player.comboCooldown - dt);
-        }
-        if (this.player.comboWindowTimer > 0) {
-            this.player.comboWindowTimer = Math.max(0, this.player.comboWindowTimer - dt);
-            if (this.player.comboWindowTimer <= 0) {
-                this.player.comboStage = 0;
-            }
-        }
-
-        // 4-Stufen Kombo-Animation & Finisher-Phasen A/B/C aktualisieren
-        if (this.player.comboAnimTimer > 0) {
-            this.player.comboAnimTimer = Math.max(0, this.player.comboAnimTimer - dt);
-            const elapsed = this.player.comboAnimDuration - this.player.comboAnimTimer;
-            const st = this.player.comboActiveStage;
-
-            if (st === 3) {
-                const u3 = clamp(elapsed / Math.max(0.01, this.player.comboAnimDuration), 0, 1);
-                this.player.comboSpinYaw = u3 * TWO_PI;
-            } else if (st === 4) {
-                if (elapsed < 0.40) {
-                    // Phase A (0..0.40s): 2.35 m Katapult-Sprung in die Luft
-                    this.player.comboLeapY = Math.sin((elapsed / 0.40) * Math.PI * 0.5) * 2.35;
-                } else if (elapsed < 0.55) {
-                    // Phase B (0.40..0.55s): Steiler Meteor-Sturzflug auf den Boden
-                    const diveU = clamp((elapsed - 0.40) / 0.15, 0, 1);
-                    this.player.comboLeapY = 2.35 * (1.0 - diveU * diveU);
-                } else {
-                    // Phase C (0.55..0.78s): Radiale Funkenexplosion (r = 4.6 m) + Kamera-Impakt + Sub-Bass-Einschlag!
-                    this.player.comboLeapY = 0;
-                    if (!this.player.comboFinisherSlammed) {
-                        this.player.comboFinisherSlammed = true;
-                        this.player.landSquash = 0.28;
-                        this.camControl.shakeTimer = 0.14;
-                        this._spawnComboFinisherExplosion(this.player.x, (this.player.y || 0) + 0.06, this.player.z);
-                        if (this.audio) this.audio.playComboFinisherImpact();
-                    }
-                }
-            }
-
-            if (this.player.comboAnimTimer <= 0) {
-                this.player.comboActiveStage = 0;
-                this.player.comboLeapY = 0;
-                this.player.comboSpinYaw = 0;
-            }
-        }
-
-        if (this.player.sprintCooldown > 0) {
-            this.player.sprintCooldown = Math.max(0, this.player.sprintCooldown - dt);
-        }
-        if (this.player.sprintTimer > 0) {
-            this.player.sprintTimer = Math.max(0, this.player.sprintTimer - dt);
-        }
-        if (this.player.titanJumpCooldown > 0) {
-            this.player.titanJumpCooldown = Math.max(0, this.player.titanJumpCooldown - dt);
-        }
-        if (this.player.shieldCooldown > 0) {
-            this.player.shieldCooldown = Math.max(0, this.player.shieldCooldown - dt);
-        }
-        if (this.player.shieldTimer > 0) {
-            this.player.shieldTimer = Math.max(0, this.player.shieldTimer - dt);
-            if (this.player.shieldMesh) {
-                this.player.shieldMesh.visible = true;
-                this.player.shieldMesh.rotation.y += dt * 1.5;
-                const sPulse = 1.0 + Math.sin(this.elapsedTime * 6) * 0.04;
-                this.player.shieldMesh.scale.set(sPulse, sPulse, sPulse);
-            }
-        } else if (this.player.shieldMesh && this.player.shieldMesh.visible) {
-            this.player.shieldMesh.visible = false;
-        }
-        if (this.player.burstCooldown > 0) {
-            this.player.burstCooldown = Math.max(0, this.player.burstCooldown - dt);
+        if (this._magicAwakenChoreo) {
+            this._updateMagicAwakenChoreo(dt);
         }
         if (this.player.emoteTimer > 0) {
             this.player.emoteTimer = Math.max(0, this.player.emoteTimer - dt);
@@ -16066,8 +10837,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.pinnedPortalGate = false;
         }
 
-        // Taste 2 (Funken-Sprint): +55 % Tempo = 8.06 m/s (Basis 5.2 m/s)
-        const moveSpeed = (this.player.sprintTimer > 0) ? 8.06 : 5.2;
+        const moveSpeed = 5.2;
         let vx = 0;
         let vz = 0;
 
@@ -16109,18 +10879,6 @@ class SeelenfunkeLouvreShowroom3D {
         const prevZ = this.player.z;
         const prevYaw = this.player.yaw;
 
-        // Punkt 6: Abklingender Knockback-Impuls aus Goldenen/Schwarzen Magma-Schockwellen-Ringen
-        const kbMag = Math.hypot(this.player.knockbackVx || 0, this.player.knockbackVz || 0);
-        if (kbMag > 0.05) {
-            const dampKb = Math.exp(-dt * 6.4);
-            this.player.knockbackVx *= dampKb;
-            this.player.knockbackVz *= dampKb;
-        } else {
-            this.player.knockbackVx = 0;
-            this.player.knockbackVz = 0;
-        }
-
-        // Punkte 2 & 3: Sanfter physischer Tor-Rueckstoss (~3.1 m ueber ~0.38 s) + 0.38 s Input-Daempfung Richtung gesperrtes Tor
         let gateRepVx = 0;
         let gateRepVz = 0;
         if (this._gateRepulseInputDampTimer > 0) {
@@ -16133,15 +10891,15 @@ class SeelenfunkeLouvreShowroom3D {
         if (this._gateRepulseTimer > 0) {
             const repDur = Math.max(0.05, this._gateRepulseDuration || 0.38);
             const repRatio = clamp(this._gateRepulseTimer / repDur, 0, 1);
-            const repSpeed = (6.20 / repDur) * repRatio;
+            const repSpeed = (4.60 / repDur) * repRatio;
             gateRepVx = this._gateRepulseDirX * repSpeed;
             gateRepVz = this._gateRepulseDirZ * repSpeed;
             this._gateRepulseTimer = Math.max(0, this._gateRepulseTimer - dt);
         }
 
-        if (this.player.isMoving || kbMag > 0.05 || (gateRepVx !== 0 || gateRepVz !== 0)) {
-            const totalVx = vx + (this.player.knockbackVx || 0) + gateRepVx;
-            const totalVz = vz + (this.player.knockbackVz || 0) + gateRepVz;
+        if (this.player.isMoving || (gateRepVx !== 0 || gateRepVz !== 0)) {
+            const totalVx = vx + gateRepVx;
+            const totalVz = vz + gateRepVz;
             const nextPos = this._resolveCollisions(
                 this.player.x + totalVx * dt,
                 this.player.z + totalVz * dt
@@ -16153,301 +10911,45 @@ class SeelenfunkeLouvreShowroom3D {
                 const moveYaw = Math.atan2(vx, vz);
                 this.player.yaw = lerpAngle(this.player.yaw, moveYaw, 1.0 - Math.exp(-13.5 * dt));
             }
+        }
 
-            // Goldene Fersen-Funken beim aktiven Funken-Sprint!
-            if (this.player.sprintTimer > 0 && !this.player.isJumping && this.player.isMoving) {
-                this.player.sprintSparkAcc += dt;
-                if (this.player.sprintSparkAcc >= 0.14) {
-                    this.player.sprintSparkAcc = 0;
-                    this._spawnDoubleJumpBurst(this.player.x, (this.player.y || 0) + 0.05, this.player.z);
+        // Ebene Boden- & Sprung-Physik in Produkt-Atelier, Ehrenpromenade & Halle der Helden (y = 0)
+        this.player.groundY = 0;
+        if (this.player.isJumping || this.player.y > 0) {
+            this.player.vy -= 15.2 * dt;
+            this.player.y += this.player.vy * dt;
+
+            if (this.player.isSomersault) {
+                this.player.somersaultProgress += dt / Math.max(0.01, this.player.somersaultDuration);
+                if (this.player.somersaultProgress >= 1.0) {
+                    this.player.somersaultProgress = 1.0;
+                    this.player.isSomersault = false;
                 }
+            }
+
+            if (this.player.y <= 0) {
+                this.player.y = 0;
+                this.player.vy = 0;
+                this.player.isJumping = false;
+                this.player.highJumpActive = false;
+                this.player.jumpCount = 0;
+                this.player.isSomersault = false;
+                this.player.somersaultProgress = 0.0;
+                this.player.landSquash = 0.18;
             }
         }
 
-        // Vertikale Physik, Plattform-Oberkanten-Landung & 110 ms Coyote-Time!
-        let shadowSurfaceY = 0.0;
-        const inLavaChamber = (this.currentZone === 'lava');
-
-        if (inLavaChamber) {
-            const prevY = this.player.y || 0;
-            const supBefore = this._evaluateLavaSupportAt(this.player.x, this.player.z, prevY);
-            shadowSurfaceY = supBefore.shadowY;
-
-            if (!this.player.isJumping) {
-                if (supBefore.supported && Math.abs(prevY - supBefore.surfaceY) <= 0.36) {
-                    this.player.y = supBefore.surfaceY;
-                    this.player.groundY = supBefore.surfaceY;
-                    this.player.coyoteTimer = 0.11;
-                    this.player.standingPlatform = supBefore.platform;
-                    if (supBefore.platform && supBefore.platform.type === 'crumble') {
-                        supBefore.platform.steppedOn = true;
-                    }
-                } else {
-                    // Von Plattform-Kante getreten -> 110 ms Coyote-Time bleibt fuer fairen Absprung erhalten!
-                    this.player.isJumping = true;
-                    this.player.standingPlatform = null;
-                    this.player.vy = 0;
-                }
+        // Tor zur Aussenwelt (Westwand X = -11.92, Z = 0.0): schwebender Hinweis bei Annaeherung & Re-Arm beim Zuruecktreten
+        if (this.currentZone === 'gallery') {
+            if (this.player.x > -8.15) {
+                this._westOuterGateArmed = true;
             }
-
-            if (this.player.isJumping) {
-                if (this.player.coyoteTimer > 0) {
-                    this.player.coyoteTimer = Math.max(0, this.player.coyoteTimer - dt);
-                }
-                const oldY = this.player.y;
-                this.player.vy -= 15.2 * dt;
-                this.player.y += this.player.vy * dt;
-
-                if (this.player.isSomersault) {
-                    this.player.somersaultProgress += dt / Math.max(0.01, this.player.somersaultDuration);
-                    if (this.player.somersaultProgress >= 1.0) {
-                        this.player.somersaultProgress = 1.0;
-                        this.player.isSomersault = false;
-                    }
-                }
-
-                // Pruefe Landung auf Plattform-Oberkante im Sinkflug
-                if (this.player.vy <= 0) {
-                    const supAfter = this._evaluateLavaSupportAt(this.player.x, this.player.z, Math.max(oldY, this.player.y));
-                    shadowSurfaceY = supAfter.shadowY;
-                    if (supAfter.supported && oldY >= supAfter.surfaceY - 0.24 && this.player.y <= supAfter.surfaceY + 0.08) {
-                        this.player.y = supAfter.surfaceY;
-                        this.player.groundY = supAfter.surfaceY;
-                        this.player.vy = 0;
-                        this.player.isJumping = false;
-                        this.player.highJumpActive = false;
-                        this.player.jumpCount = 0;
-                        this.player.coyoteTimer = 0.11;
-                        this.player.standingPlatform = supAfter.platform;
-                        this.player.isSomersault = false;
-                        this.player.somersaultProgress = 0.0;
-                        this.player.landSquash = 0.18;
-                        if (supAfter.platform && supAfter.platform.type === 'crumble') {
-                            supAfter.platform.steppedOn = true;
-                        }
-                    }
-                } else {
-                    const supAir = this._evaluateLavaSupportAt(this.player.x, this.player.z, this.player.y);
-                    shadowSurfaceY = supAir.shadowY;
-                }
-
-                // Punkte 7 & 8: Aegis-Schild [4] Lava-Bounce (0 Herzverlust + hit(used_shield:true)) vs. ungeschuetzter Sturz (-1 Herz + Respawn am Balkon + hit(used_shield:false))!
-                if (this.player.y < -0.90) {
-                    if (this.player.shieldTimer > 0) {
-                        this.player.y = -0.74;
-                        this.player.vy = 14.5;
-                        this.player.isJumping = true;
-                        this.player.highJumpActive = true;
-                        this.player.jumpCount = 1;
-                        this.player.standingPlatform = null;
-                        this.player.isSomersault = false;
-                        this.player.somersaultProgress = 0.0;
-                        this._spawnLavaSplashBurst(this.player.x, this.lavaSurfaceY + 0.14, this.player.z);
-                        this._shatterAegisShield(this.player.x, this.lavaSurfaceY + 0.42, this.player.z);
-                        this._reportLavaParkourHit('lava', true);
-                    } else {
-                        this.player.knockbackVx = 0;
-                        this.player.knockbackVz = 0;
-                        if ((this.lavaRun.hitIframeTimer || 0) <= 0) {
-                            this.lavaRun.hitIframeTimer = 1.2;
-                            const curHearts = clamp(parseInt(this.playerProfile.hearts ?? 6, 10), 0, this.playerProfile.maxHearts || 6);
-                            const nextHearts = Math.max(0, curHearts - 1);
-                            this.playerProfile.lastHeartLostIndex = nextHearts;
-                            this.playerProfile.lastHeartLostSeq = (this.playerProfile.lastHeartLostSeq || 0) + 1;
-                            this.playerProfile.hearts = nextHearts;
-                            if (this.audio && typeof this.audio.playHeartLost === 'function') {
-                                this.audio.playHeartLost(nextHearts);
-                            }
-                            this._emitPlayerHudUpdate();
-                            this._respawnAtLavaBalcony(true);
-                            this._reportLavaParkourHit('lava', false);
-                        } else {
-                            this._respawnAtLavaBalcony(true);
-                        }
-                        shadowSurfaceY = this.player.groundY || 0.004;
-                    }
-                }
+            const nearOuterGate = (this.player.x < -7.2 && Math.abs(this.player.z) < 3.5);
+            if (nearOuterGate !== this.westGateFocused) {
+                this._setWestOuterGateFocused(nearOuterGate);
             }
-
-            // Punkt 6 & Punkt 9: Goldene & Schwarze Schockwellen-Ringe (springbar ab +0.56 m; sonst Knockback + Mana-Abzug oder Aegis-Schild-Bruch!)
-            for (let sri = 0; sri < this.lavaShockRings.length; sri++) {
-                const sr = this.lavaShockRings[sri];
-                if (!sr.active || sr.paused || sr.lastHitCycle === sr.cycleIdx) continue;
-                const distRing = Math.hypot(this.player.x - sr.x, this.player.z - sr.z);
-                if (Math.abs(distRing - sr.currentRadius) <= 0.42
-                    && (this.player.y || 0) >= sr.y - 0.45
-                    && ((this.player.y || 0) - sr.y) < 0.56) {
-                    sr.lastHitCycle = sr.cycleIdx;
-                    if (this.player.shieldTimer > 0) {
-                        sr.suppressedTimer = 1.4;
-                        sr.active = false;
-                        if (sr.ringHolder) sr.ringHolder.visible = false;
-                        this._shatterAegisShield(this.player.x, (this.player.y || 0) + 0.88, this.player.z);
-                    } else {
-                        const outX = distRing > 0.05 ? ((this.player.x - sr.x) / distRing) : -1.0;
-                        const outZ = distRing > 0.05 ? ((this.player.z - sr.z) / distRing) : 0.0;
-                        if (sr.kind === 'black') {
-                            this.player.knockbackVx = outX * 9.8;
-                            this.player.knockbackVz = outZ * 9.8;
-                            this.player.vy = Math.max(this.player.vy || 0, 3.35);
-                            this.playerProfile.mana = clamp((this.playerProfile.mana || 0) - 28, 0, this.playerProfile.maxMana || 100);
-                            this.camControl.shakeTimer = 0.18;
-                        } else {
-                            const latX = -outZ * 0.45;
-                            const latZ = outX * 0.45;
-                            this.player.knockbackVx = (outX * 0.88 + latX) * 7.8;
-                            this.player.knockbackVz = (outZ * 0.88 + latZ) * 7.8;
-                            this.player.vy = Math.max(this.player.vy || 0, 3.55);
-                            this.playerProfile.mana = clamp((this.playerProfile.mana || 0) - 12, 0, this.playerProfile.maxMana || 100);
-                            this.camControl.shakeTimer = 0.12;
-                        }
-                        this.player.isJumping = true;
-                        this.player.standingPlatform = null;
-                        this._emitPlayerHudUpdate();
-                        if (this.audio && typeof this.audio.playShockRingHit === 'function') {
-                            this.audio.playShockRingHit(sr.kind);
-                        }
-                    }
-                }
-            }
-
-            // Rhythmische Magma-Geysire: Mit Aegis-Schild [4] Katapult-Bounce + Schild-Bruch; ohne Schild Reset zum letzten Checkpoint!
-            for (let gi = 0; gi < this.lavaGeysers.length; gi++) {
-                const gy = this.lavaGeysers[gi];
-                if (gy.eruptFactor > 0.34 && this.player.y <= gy.currentTopY) {
-                    const dGeyser = Math.hypot(this.player.x - gy.x, this.player.z - gy.z);
-                    if (dGeyser < 0.96) {
-                        if (this.player.shieldTimer > 0) {
-                            this.player.vy = Math.max(this.player.vy || 0, 12.2);
-                            this.player.isJumping = true;
-                            this.player.standingPlatform = null;
-                            this._shatterAegisShield(this.player.x, (this.player.y || 0) + 0.9, this.player.z);
-                            break;
-                        } else {
-                            this.player.knockbackVx = 0;
-                            this.player.knockbackVz = 0;
-                            this._respawnAtLavaBalcony();
-                            shadowSurfaceY = this.player.groundY || 0.004;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Automatische Server-Run-Kopplung im aktiven Raum N (Start -> Commit ab x > 19.35 -> CP1 -> CP2 -> Schatztruhe) exakt an den S-Kurven-Ankern
-            const lavaAnchors = this._getCurrentLavaAnchors();
-            const pyNow = this.player.y || 0;
-            if (this.player.x > this.lavaBalconyMaxX + 0.2 && !this.lavaRun.runId && !this.lavaRun.starting) {
-                this._startLavaParkourRun(false);
-            }
-            if (this.player.x > 19.35 && !this.lavaRun.committed) {
-                this._commitLavaParkourRun();
-            }
-            if (Math.hypot(this.player.x - lavaAnchors.cp1.x, this.player.z - lavaAnchors.cp1.z) <= 2.35
-                && pyNow >= lavaAnchors.cp1.y - 0.65 && pyNow <= lavaAnchors.cp1.y + 2.7) {
-                this._triggerLavaCheckpoint(1, this.player.x, pyNow, this.player.z);
-            }
-            if (this.lavaRun.cp1Reached
-                && Math.hypot(this.player.x - lavaAnchors.cp2.x, this.player.z - lavaAnchors.cp2.z) <= 2.35
-                && pyNow >= lavaAnchors.cp2.y - 0.65 && pyNow <= lavaAnchors.cp2.y + 2.7) {
-                this._triggerLavaCheckpoint(2, this.player.x, pyNow, this.player.z);
-            }
-
-            if (!this.player.isJumping && this._portalWalkCd <= 0) {
-                // Schnellreise-Portal-Hub im Vorraum: freigeschaltete Portale per Durchschreiten (gesperrte bleiben dunkel)
-                if (this.player.x <= this.lavaBalconyMaxX + 0.2) {
-                    for (let hpi = 0; hpi < this.lavaHubPortals.length; hpi++) {
-                        const hp = this.lavaHubPortals[hpi];
-                        if (Math.hypot(this.player.x - hp.x, this.player.z - hp.z) < 0.72) {
-                            this._portalWalkCd = 1.6;
-                            if (hp.unlocked) {
-                                this.teleportToLavaRoom(hp.level);
-                            } else if (this.audio && typeof this.audio.playGateLocked === 'function') {
-                                this.audio.playGateLocked();
-                            }
-                            break;
-                        }
-                    }
-                    // Rueckkehr-Portal "LOUVRE-GALERIE" im Vorraum (friedliches Verlassen -> POST /lava-parkour/leave)
-                    if (this._portalWalkCd <= 0 && this.player.x < 5.95 && Math.abs(this.player.z - (-2.0)) < 1.45) {
-                        this._portalWalkCd = 1.6;
-                        this._sendLavaParkourLeave();
-                        this.goToZone('gallery', true);
-                    }
-                }
-
-                // Schatz-Plateau: Naechster-Raum-Portal & Rueckkehr-Portal (Schnellreise-Hub) per Durchschreiten
-                if (this.currentZone === 'lava' && this._portalWalkCd <= 0 && pyNow >= lavaAnchors.chest.y - 0.6) {
-                    const np = this.lavaNextRoomPortal;
-                    if (np && Math.hypot(this.player.x - np.worldX, this.player.z - np.worldZ) < 0.78) {
-                        this._portalWalkCd = 1.6;
-                        if (np.unlocked) {
-                            this.teleportToLavaRoom(np.targetLevel);
-                        } else if (this.audio && typeof this.audio.playGateLocked === 'function') {
-                            this.audio.playGateLocked();
-                        }
-                    } else {
-                        const retX = this.lavaReturnPortalWorld ? this.lavaReturnPortalWorld.x : (lavaAnchors.chest.x + 6.20);
-                        const retZ = this.lavaReturnPortalWorld ? this.lavaReturnPortalWorld.z : (lavaAnchors.chest.z + 3.15);
-                        if (Math.hypot(this.player.x - retX, this.player.z - retZ) < 0.84) {
-                            this._portalWalkCd = 1.6;
-                            this._returnToLavaHub();
-                        }
-                    }
-                }
-            }
-
-            const nearChestNow = this.currentZone === 'lava'
-                && pyNow >= lavaAnchors.chest.y - 0.8
-                && Math.hypot(this.player.x - lavaAnchors.chest.x, this.player.z - lavaAnchors.chest.z) < 3.6;
-            if (nearChestNow !== this.lavaRun.nearChest) {
-                this.lavaRun.nearChest = nearChestNow;
-                if (!nearChestNow) {
-                    this.lavaRun.statusMessage = '';
-                }
-                this._notifyLavaChestUi();
-            }
-        } else {
-            // Ebene Boden-Physik in Galerie, Ehrenpromenade & Halle der Helden (y = 0)
-            this.player.groundY = 0;
-            this.player.standingPlatform = null;
-            if (this.lavaRun.nearChest) {
-                this.lavaRun.nearChest = false;
-                this._notifyLavaChestUi();
-            }
-            if (this.player.isJumping || this.player.y > 0) {
-                this.player.vy -= 15.2 * dt;
-                this.player.y += this.player.vy * dt;
-
-                if (this.player.isSomersault) {
-                    this.player.somersaultProgress += dt / Math.max(0.01, this.player.somersaultDuration);
-                    if (this.player.somersaultProgress >= 1.0) {
-                        this.player.somersaultProgress = 1.0;
-                        this.player.isSomersault = false;
-                    }
-                }
-
-                if (this.player.y <= 0) {
-                    this.player.y = 0;
-                    this.player.vy = 0;
-                    this.player.isJumping = false;
-                    this.player.highJumpActive = false;
-                    this.player.jumpCount = 0;
-                    this.player.isSomersault = false;
-                    this.player.somersaultProgress = 0.0;
-                    this.player.landSquash = 0.18;
-                }
-            }
-
-            // Verschlossenes Prunktor zur Aussenwelt (Westwand X = -11.92, Z = 0.0): edles Hinweis-Element bei Annaeherung
-            if (this.currentZone === 'gallery') {
-                const nearOuterGate = (this.player.x < -7.4 && Math.abs(this.player.z) < 3.4);
-                if (nearOuterGate !== this.westGateFocused) {
-                    this._setWestOuterGateFocused(nearOuterGate);
-                }
-            } else if (this.westGateFocused) {
-                this._setWestOuterGateFocused(false);
-            }
+        } else if (this.westGateFocused) {
+            this._setWestOuterGateFocused(false);
         }
 
         if (this.player.landSquash > 0) {
@@ -16461,31 +10963,23 @@ class SeelenfunkeLouvreShowroom3D {
         if (yawDiff < -Math.PI) yawDiff += TWO_PI;
         const turnRate = yawDiff / dt;
 
-        // Zonen-Tracking ('gallery' <-> 'heroes' <-> 'lava') live fuer HUD & strikte Zonen-Sichtbarkeit (0 schwarzer Dachkasten!)
         const activeZoneNow = this.getCurrentZone();
         if (activeZoneNow !== this.currentZone) {
-            if (activeZoneNow === 'lava') {
-                // Durchschreiten des Ost-Magma-Portals -> edle Teleporter-Blende direkt in den Eingangs-Vorraum
-                this.goToZone('lava', false);
-            } else {
-                this.currentZone = activeZoneNow;
-                this._syncZoneGroupVisibility();
-                if (activeZoneNow === 'heroes') {
-                    this.refreshHeroesData(false);
-                }
-                if (this.onZoneChange) {
-                    this.onZoneChange(activeZoneNow);
-                }
+            this.currentZone = activeZoneNow;
+            this._syncZoneGroupVisibility();
+            if (activeZoneNow === 'heroes') {
+                this.refreshHeroesData(false);
+            }
+            if (this.onZoneChange) {
+                this.onZoneChange(activeZoneNow);
             }
         }
 
-        // Gast-Lichtschranke am Ehrenportal pruefen
         if (!this.canEnterSanctums) {
             const nearGate = (activeZoneNow === 'gallery' && this.player.z < this.hallNorthZ + 4.2 && Math.abs(this.player.x) < this.portalHalfW + 0.8) || this.pinnedPortalGate;
             this._setPortalGateFocused(nearGate);
         }
 
-        // Proximity-Fokus fuer Produkt-Exponate ('gallery') & Top-5-Heldenpodeste ('heroes')
         let nearestGaze = null;
         if (activeZoneNow === 'gallery') {
             this._setFocusedHeroSlot(-1);
@@ -16509,7 +11003,7 @@ class SeelenfunkeLouvreShowroom3D {
                     this._setFocusedSteleIndex(-1);
                 }
             }
-        } else if (activeZoneNow === 'heroes') {
+        } else {
             this._setFocusedSteleIndex(-1);
             const nearHeroGaze = this._findNearestHeroPedestal(5.4);
             if (nearHeroGaze) {
@@ -16534,17 +11028,9 @@ class SeelenfunkeLouvreShowroom3D {
                     this._setFocusedHeroSlot(-1);
                 }
             }
-        } else {
-            this._setFocusedSteleIndex(-1);
-            this._setFocusedHeroSlot(-1);
-            if (this.lavaRun.nearChest) {
-                const gazeAnchors = this._getCurrentLavaAnchors();
-                nearestGaze = { x: gazeAnchors.chest.x, z: gazeAnchors.chest.z };
-            }
         }
 
-        // Kinematik & 60-FPS Animationen
-        this._updatePlayerKinematics(dt, stepDist, turnRate, nearestGaze, shadowSurfaceY);
+        this._updatePlayerKinematics(dt, stepDist, turnRate, nearestGaze, 0);
         this._updatePeersKinematics(dt);
         this._updateHeroPedestalAnimations(this.elapsedTime);
         this._updateWeaponBursts(dt);
@@ -16564,7 +11050,6 @@ class SeelenfunkeLouvreShowroom3D {
             this.walkTargetRing.material.opacity = clamp(this.walkTargetTimer * 0.65, 0, 0.78);
         }
 
-        // Gedaempfte Verfolgerkamera & butterweiche Egoperspektive (First-Person ab distance < 0.55)
         const camDamp = 1.0 - Math.exp(-9.5 * dt);
         this.camControl.yaw = lerpAngle(this.camControl.yaw, this.camControl.desiredYaw, camDamp);
         this.camControl.pitch = lerp(this.camControl.pitch, this.camControl.desiredPitch, camDamp);
@@ -16585,9 +11070,8 @@ class SeelenfunkeLouvreShowroom3D {
             );
         }
 
-        const baseSupportY = inLavaChamber ? (this.player.groundY || 0) : 0;
-        const jumpOffsetY = Math.max(0, (this.player.y || 0) - baseSupportY);
-        const targetLookY = 1.42 + baseSupportY + jumpOffsetY * 0.42 + (this.player.comboLeapY || 0) * 0.32;
+        const jumpOffsetY = Math.max(0, this.player.y || 0);
+        const targetLookY = 1.42 + jumpOffsetY * 0.42 + (this.player.awakenLiftY || 0) * 0.55;
         this.camControl.lookAtCurrent.x = lerp(this.camControl.lookAtCurrent.x, this.player.x, camDamp);
         this.camControl.lookAtCurrent.y = lerp(this.camControl.lookAtCurrent.y, targetLookY, camDamp);
         this.camControl.lookAtCurrent.z = lerp(this.camControl.lookAtCurrent.z, this.player.z, camDamp);
@@ -16601,11 +11085,11 @@ class SeelenfunkeLouvreShowroom3D {
             const fwdX = -Math.sin(this.camControl.yaw) * cosPitch;
             const fwdY = -Math.sin(this.camControl.pitch);
             const fwdZ = -Math.cos(this.camControl.yaw) * cosPitch;
-            const fpFloorY = inLavaChamber ? 0 : this._computeFloorBaseY(this.player.x, this.player.z);
+            const fpFloorY = this._computeFloorBaseY(this.player.x, this.player.z);
             const fpBob = (this.player.currentSpeed > 0.25 && !this.player.isJumping)
                 ? Math.sin((this.player.walkPhase || 0) * 2.0) * 0.016
                 : 0;
-            const eyeY = fpFloorY + (this.player.y || 0) + (this.player.comboLeapY || 0) + 1.56 + fpBob + shakeOffset;
+            const eyeY = fpFloorY + (this.player.y || 0) + 1.56 + fpBob + shakeOffset;
 
             this.camera.position.set(this.player.x, eyeY, this.player.z);
             this.camera.lookAt(
@@ -16619,29 +11103,20 @@ class SeelenfunkeLouvreShowroom3D {
             const rawCamY = this.camControl.lookAtCurrent.y + Math.sin(this.camControl.pitch) * this.camControl.distance + shakeOffset;
             const rawCamZ = this.camControl.lookAtCurrent.z + Math.cos(this.camControl.yaw) * horizDist;
 
-            if (activeZoneNow === 'lava') {
-                this.camera.position.set(
-                    clamp(rawCamX, 4.7, this.lavaChamberMaxX - 0.6),
-                    clamp(rawCamY, 0.65, 11.2),
-                    clamp(rawCamZ, this.lavaChamberMinZ + 0.6, this.lavaChamberMaxZ - 0.6)
-                );
-            } else {
-                const maxBoundX = activeZoneNow === 'heroes'
-                    ? (this.pantheonHalfW - 0.4)
-                    : (this.player.z < this.hallNorthZ + 0.5 ? (this.portalHalfW - 0.25) : (this.hallHalfW - 0.65));
-                const maxBoundY = activeZoneNow === 'heroes' ? 19.5 : 11.5;
-                const minBoundZ = this.canEnterSanctums ? (this.pantheonMinZ + 0.6) : (this.hallNorthZ + 0.75);
+            const maxBoundX = activeZoneNow === 'heroes'
+                ? (this.pantheonHalfW - 0.4)
+                : (this.player.z < this.hallNorthZ + 0.5 ? (this.portalHalfW - 0.25) : (this.hallHalfW - 0.65));
+            const maxBoundY = activeZoneNow === 'heroes' ? 19.5 : 11.5;
+            const minBoundZ = this.canEnterSanctums ? (this.pantheonMinZ + 0.6) : (this.hallNorthZ + 0.75);
 
-                this.camera.position.set(
-                    clamp(rawCamX, -maxBoundX, maxBoundX),
-                    clamp(rawCamY, 0.85, maxBoundY),
-                    clamp(rawCamZ, minBoundZ, this.hallSouthZ - 0.55)
-                );
-            }
+            this.camera.position.set(
+                clamp(rawCamX, -maxBoundX, maxBoundX),
+                clamp(rawCamY, 0.85, maxBoundY),
+                clamp(rawCamZ, minBoundZ, this.hallSouthZ - 0.55)
+            );
             this.camera.lookAt(this.camControl.lookAtCurrent);
         }
 
-        // Punkt 1: Sanfter Kameraglide zum beleuchteten Exponat waehrend der ~680 ms Produkt-Uebergangssequenz
         if (this._exhibitTransition) {
             const tr = this._exhibitTransition;
             tr.elapsed += dt;
@@ -16683,15 +11158,11 @@ class SeelenfunkeLouvreShowroom3D {
             this.camera.updateProjectionMatrix();
         }
 
-        // Strikte Pixel-Ratio-Begrenzung (Hoch: max. 1.5 | Ausgewogen: 1.0) gegen 4K/Retina-Fillrate-Einbrueche
         const isBalancedQuality = Boolean(this.userSettings && this.userSettings.graphicsQuality === 'balanced');
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isBalancedQuality ? 1.0 : 1.5));
         this.renderer.setSize(w, h, false);
     }
 
-    /**
-     * Gibt den Pointer-Lock sauber frei (ESC-Menue, Lobby verlassen).
-     */
     releasePointerLock() {
         try {
             if (typeof document !== 'undefined' && document.pointerLockElement && typeof document.exitPointerLock === 'function') {
@@ -16703,21 +11174,13 @@ class SeelenfunkeLouvreShowroom3D {
         this._resetMouseButtons();
     }
 
-    /**
-     * Schlanker Minimap-Snapshot (0 Allokations-Flut: wird nur auf Anfrage der HUD-Schleife erzeugt).
-     */
     getMinimapState() {
         const zone = this.currentZone;
         let minX;
         let maxX;
         let minZ;
         let maxZ;
-        if (zone === 'lava') {
-            minX = 4.6;
-            maxX = Math.min(this.lavaChamberMaxX, this._getCurrentLavaAnchors().chest.x + 9.2);
-            minZ = this.lavaChamberMinZ;
-            maxZ = this.lavaChamberMaxZ;
-        } else if (zone === 'heroes') {
+        if (zone === 'heroes') {
             minX = -this.pantheonHalfW;
             maxX = this.pantheonHalfW;
             minZ = this.pantheonMinZ;
@@ -16741,23 +11204,13 @@ class SeelenfunkeLouvreShowroom3D {
                 markers.push({ type: 'exhibit', u: p.u, v: p.v, active: i === this.focusedSteleIndex });
             }
             const wg = toUv(-11.92, 0.0);
-            markers.push({ type: 'gate', u: wg.u, v: wg.v, active: false });
-            const lp = toUv(11.92, this.lavaPortalZ);
-            markers.push({ type: 'portal', u: lp.u, v: lp.v, active: this.canEnterSanctums });
+            markers.push({ type: 'gate', u: wg.u, v: wg.v, active: Boolean(this.mmorpgCanEnter) });
         } else if (zone === 'heroes') {
             for (let i = 0; i < this.heroPedestals.length; i++) {
                 const ped = this.heroPedestals[i];
                 const p = toUv(ped.worldX, ped.worldZ);
                 markers.push({ type: 'hero', u: p.u, v: p.v, active: ped.slot === this.focusedHeroSlot });
             }
-        } else if (zone === 'lava') {
-            const a = this._getCurrentLavaAnchors();
-            const c1 = toUv(a.cp1.x, a.cp1.z);
-            const c2 = toUv(a.cp2.x, a.cp2.z);
-            const ch = toUv(a.chest.x, a.chest.z);
-            markers.push({ type: 'checkpoint', u: c1.u, v: c1.v, active: Boolean(this.lavaRun.cp1Reached) });
-            markers.push({ type: 'checkpoint', u: c2.u, v: c2.v, active: Boolean(this.lavaRun.cp2Reached) });
-            markers.push({ type: 'chest', u: ch.u, v: ch.v, active: !this.lavaRun.claimedToday });
         }
         const me = toUv(this.player.x || 0, this.player.z || 0);
         return {
@@ -16773,13 +11226,11 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     destroy() {
+        this._disposeMagicAwakenChoreo();
         this.running = false;
         this.destroyed = true;
         this._monumentGeneration += 1;
-        this._clearPendingLavaTimers();
         this.releasePointerLock();
-        this._syncRemainingFloorSparksToHud();
-        this._clearLavaRoomDynamicAssets();
 
         if (this.audio && typeof this.audio.onLobbyClose === 'function') {
             this.audio.onLobbyClose();
@@ -16797,6 +11248,10 @@ class SeelenfunkeLouvreShowroom3D {
             clearTimeout(this._gatePromptPendingTimer);
             this._gatePromptPendingTimer = 0;
         }
+        if (this._outerGatePromptPendingTimer) {
+            clearTimeout(this._outerGatePromptPendingTimer);
+            this._outerGatePromptPendingTimer = 0;
+        }
         if (this.abortController) {
             try {
                 this.abortController.abort();
@@ -16810,7 +11265,6 @@ class SeelenfunkeLouvreShowroom3D {
             this.floatingCardEl,
             this.floatingHeroCardEl,
             this.floatingPortalCardEl,
-            this.floatingLavaChestEl,
             this.floatingOuterGateEl,
         ].forEach((el) => {
             if (el) {
@@ -16822,7 +11276,6 @@ class SeelenfunkeLouvreShowroom3D {
         this.floatingCardEl = null;
         this.floatingHeroCardEl = null;
         this.floatingPortalCardEl = null;
-        this.floatingLavaChestEl = null;
         this.floatingOuterGateEl = null;
 
         if (this._fsResizeTimer) {
@@ -16892,15 +11345,9 @@ class SeelenfunkeLouvreShowroom3D {
         this.exhibitLoadQueue = [];
         this.steles = [];
         this.heroPedestals = [];
-        this.lavaPlatforms = [];
         this.interactiveHitMeshes = [];
         this.heroInteractiveHitMeshes = [];
         this.portalHitMeshes = [];
-        this.lavaPortalHitMeshes = [];
-        this.lavaChestHitMeshes = [];
-        this.lavaReturnHitMeshes = [];
-        this.lavaHubPortalHitMeshes = [];
-        this.lavaHubPortals = [];
         this.westGateHitMeshes = [];
         this.walkableFloorMeshes = [];
         this.charFollowLights = null;
@@ -16920,7 +11367,7 @@ export function createLouvreShowroom(options) {
     const engine = new SeelenfunkeLouvreShowroom3D(options);
     engine.init();
 
-    // Manipulationssichere eingefrorene Fassade: 0 Zugriff auf engine, player, scene, camera, lavaRun, cooldowns oder x/y/z!
+    // Manipulationssichere eingefrorene Fassade fuer das ruhige Shop-Atelier & die Halle der Helden
     return Object.freeze({
         open(zone) {
             engine.goToZone(zone || 'gallery', true);
@@ -16949,24 +11396,11 @@ export function createLouvreShowroom(options) {
         triggerJump() {
             return engine.triggerJump();
         },
-        triggerAbility(slot) {
-            return engine.triggerAbility(slot);
-        },
-        triggerWeapon() {
-            return engine.triggerStrikeAction();
-        },
-        triggerStrikeAction() {
-            return engine.triggerStrikeAction();
-        },
         triggerEmote(name) {
             return engine.triggerEmote(name);
         },
-        getAbilityState() {
-            return engine.getAbilityState();
-        },
         getHudSnapshot() {
             const sync = engine.getLocalSyncState();
-            const chest = engine.getLavaChestState();
             return Object.freeze({
                 zone: engine.getCurrentZone(),
                 isFirstPerson: Boolean(engine.camControl && engine.camControl.distance < 0.55),
@@ -16979,11 +11413,9 @@ export function createLouvreShowroom(options) {
                 rotY: sync.rotY,
                 speed: sync.speed,
                 jumping: sync.jumping,
-                weaponActionSeq: sync.weaponActionSeq,
-                combo_seq: sync.combo_seq,
-                combo_stage: sync.combo_stage,
-                lavaChest: Object.freeze(chest),
+                emote: sync.emote,
                 player: Object.freeze(engine.getPlayerHudState()),
+                mmorpg: Object.freeze(engine.getMmorpgAccessState()),
                 settings: Object.freeze(engine.getUserSettings()),
                 keybindings: Object.freeze(engine.getKeybindings()),
             });
@@ -17018,11 +11450,14 @@ export function createLouvreShowroom(options) {
         cyclePreviewHeroLevel() {
             return engine.cycleStagesPreviewMode();
         },
-        claimLavaChest() {
-            return engine.claimLavaChest();
+        openOuterGateModal() {
+            return engine.openOuterGateModalFromWorld();
         },
-        teleportToLavaRoom(level) {
-            return engine.teleportToLavaRoom(level);
+        getMmorpgAccessState() {
+            return Object.freeze(engine.getMmorpgAccessState());
+        },
+        setLocalPeerId(peerId) {
+            engine.setLocalPeerId(peerId);
         },
         getPlayerHudState() {
             return Object.freeze(engine.getPlayerHudState());
@@ -17037,7 +11472,7 @@ export function createLouvreShowroom(options) {
             return engine.focusNearestExhibit();
         },
         handleSanctumHttpResponse(status, body, zone = 'heroes') {
-            return engine._interceptSanctumResponse({ status, body }, zone === 'lava' ? 'lava' : 'heroes');
+            return engine._interceptSanctumResponse({ status, body }, zone === 'heroes' ? 'heroes' : 'gallery');
         },
         getMinimapState() {
             return engine.getMinimapState();

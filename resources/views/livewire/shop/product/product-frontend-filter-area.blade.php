@@ -751,6 +751,7 @@
                 display: inline-flex;
                 align-items: center;
                 gap: 7px;
+                margin-right: 244px;
                 flex-wrap: wrap;
             }
             .sf-lobby-pill-btn {
@@ -1241,48 +1242,74 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                gap: 10px;
+                gap: 9px;
                 z-index: 27;
                 pointer-events: auto;
             }
             .sf-ability-btn {
                 position: relative;
-                width: 48px;
-                height: 48px;
-                border-radius: 13px;
-                background: #FFFFFF;
-                border: 1.5px solid rgba(197, 160, 89, 0.68);
-                color: #8A692C;
+                width: 46px;
+                height: 46px;
+                border-radius: 12px;
+                background: #121318;
+                border: 1.5px solid rgba(197, 160, 89, 0.82);
+                color: #FDE68A;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
-                box-shadow: 0 4px 14px rgba(17, 24, 39, 0.08), 0 0 0 1px rgba(250, 246, 238, 0.9) inset;
-                transition: transform 0.14s ease, border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+                box-shadow: 0 6px 16px rgba(17, 24, 39, 0.18);
+                transition: transform 0.14s ease, border-color 0.15s ease, box-shadow 0.15s ease;
                 padding: 0;
             }
             .sf-ability-btn:hover {
                 border-color: #C5A059;
                 transform: translateY(-2px);
-                background: #FAF6EE;
-                color: #6E501B;
+                box-shadow: 0 8px 20px rgba(197, 160, 89, 0.34);
             }
             .sf-ability-btn.is-active {
-                border-color: #C5A059;
-                background: #FAF3E3;
-                color: #78561C;
-                box-shadow: 0 6px 18px rgba(197, 160, 89, 0.34);
+                border-color: #FDE68A;
+                box-shadow: 0 0 0 2px rgba(197, 160, 89, 0.45), 0 6px 18px rgba(197, 160, 89, 0.38);
             }
             .sf-ability-btn.is-cooldown {
-                opacity: 0.56;
                 border-color: rgba(156, 163, 175, 0.55);
-                color: #6B7280;
+            }
+            .sf-ability-btn.is-cooldown::after,
+            .sf-item-slot-btn.is-cooldown::after {
+                content: "";
+                position: absolute;
+                inset: 0;
+                border-radius: inherit;
+                background: rgba(10, 12, 18, 0.68);
+                z-index: 2;
+                pointer-events: none;
+            }
+            .sf-slot-media {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                border-radius: inherit;
+                overflow: hidden;
+                display: block;
+                pointer-events: none;
+                z-index: 1;
+            }
+            .sf-slot-icon-img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                border-radius: inherit;
+                display: block;
+                pointer-events: none;
             }
             .sf-ability-svg {
-                width: 24px;
-                height: 24px;
+                width: 22px;
+                height: 22px;
                 display: inline-flex;
                 align-items: center;
+                position: relative;
+                z-index: 2;
                 justify-content: center;
                 pointer-events: none;
             }
@@ -1294,11 +1321,15 @@
             .sf-ability-key {
                 position: absolute;
                 top: 3px;
-                left: 5px;
+                left: 3px;
+                background: rgba(15, 18, 25, 0.82);
+                color: #FDE68A;
+                padding: 1px 4px;
+                border-radius: 5px;
                 font-size: 9px;
                 font-weight: 900;
-                color: #6B7280;
-                line-height: 1;
+                line-height: 1.05;
+                z-index: 3;
                 pointer-events: none;
             }
             .sf-ability-cd {
@@ -1308,9 +1339,10 @@
                 font-size: 9px;
                 font-weight: 800;
                 color: #FFFFFF;
-                background: rgba(17, 24, 39, 0.88);
+                background: rgba(17, 24, 39, 0.90);
                 padding: 1px 4px;
                 border-radius: 5px;
+                z-index: 4;
                 line-height: 1;
                 pointer-events: none;
             }
@@ -1326,6 +1358,7 @@
                 border-radius: 999px;
                 border: 1.5px solid #FFFFFF;
                 line-height: 1;
+                z-index: 5;
                 box-shadow: 0 3px 8px rgba(17, 24, 39, 0.18);
                 pointer-events: none;
             }
@@ -1498,40 +1531,21 @@
                 color: #9A7738;
                 white-space: nowrap;
             }
-            .sf-lobby-lava-chest-card {
-                pointer-events: auto;
-                display: inline-flex;
-                align-items: center;
-                gap: 8px;
-                padding: 10px 16px;
-                border-radius: 999px;
-                background: rgba(255, 255, 255, 0.98);
-                color: #111827;
-                border: 1.5px solid #C5A059;
-                box-shadow: 0 14px 32px rgba(17, 24, 39, 0.16);
-                font-size: 12px;
-                font-weight: 800;
-                white-space: nowrap;
-                cursor: pointer;
-                text-decoration: none;
-            }
-            .sf-lobby-lava-chest-card.is-cta { background: #C5A059; color: #FFFFFF; }
-            .sf-lobby-lava-chest-card.is-cta:hover { background: #B38E46; }
             .sf-lobby-unit-frame {
                 pointer-events: auto;
                 display: inline-flex;
                 align-items: center;
-                gap: 9px;
-                padding: 6px 13px 6px 7px;
+                gap: 10px;
+                padding: 7px 14px 7px 8px;
                 border-radius: 999px;
                 background: rgba(255, 255, 255, 0.96);
-                border: 1px solid rgba(197, 160, 89, 0.55);
+                border: 1.5px solid rgba(197, 160, 89, 0.60);
                 box-shadow: 0 8px 24px rgba(17, 24, 39, 0.08);
                 color: #111827;
             }
             .sf-lobby-unit-avatar {
-                width: 32px;
-                height: 32px;
+                width: 34px;
+                height: 34px;
                 border-radius: 999px;
                 background: #FAF8F5;
                 border: 1.5px solid #C5A059;
@@ -1545,49 +1559,15 @@
             }
             .sf-lobby-unit-meta {
                 display: flex;
-                flex-direction: column;
-                gap: 3px;
-                min-width: 134px;
-            }
-            .sf-lobby-unit-mana-row {
-                display: flex;
                 align-items: center;
-                gap: 6px;
-            }
-            .sf-lobby-unit-mana-label {
-                font-size: 9.5px;
-                font-weight: 900;
-                letter-spacing: 0.06em;
-                text-transform: uppercase;
-                color: #1D4ED8;
-                line-height: 1;
-                flex-shrink: 0;
-            }
-            .sf-lobby-unit-mana-track {
-                flex: 1 1 auto;
-                height: 6px;
-                border-radius: 999px;
-                background: rgba(29, 78, 216, 0.16);
-                border: 1px solid rgba(29, 78, 216, 0.26);
-                overflow: hidden;
-            }
-            .sf-lobby-unit-mana-fill {
-                height: 100%;
-                border-radius: 999px;
-                background: linear-gradient(90deg, #1d4ed8 0%, #38bdf8 100%);
-                transition: width 160ms ease;
-            }
-            .sf-lobby-unit-mana-val {
-                font-size: 9.5px;
+                gap: 8px;
+                font-size: 11.5px;
                 font-weight: 800;
-                color: #1E40AF;
-                line-height: 1;
-                flex-shrink: 0;
-                font-variant-numeric: tabular-nums;
+                line-height: 1.2;
             }
             .sf-lobby-topright-stack {
                 position: absolute;
-                top: 60px;
+                top: 14px;
                 right: 18px;
                 z-index: 25;
                 display: flex;
@@ -1596,68 +1576,21 @@
                 gap: 8px;
                 pointer-events: none;
             }
-            .sf-lobby-vital-hud {
-                pointer-events: auto;
-                width: 180px;
-                padding: 8px 11px 7px;
-                border-radius: 16px;
-                background: rgba(255, 255, 255, 0.96);
-                border: 1.5px solid #C5A059;
-                box-shadow: 0 10px 26px rgba(17, 24, 39, 0.12);
-                display: flex;
-                flex-direction: column;
-                gap: 6px;
-                box-sizing: border-box;
-            }
-            .sf-lobby-vital-hearts {
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 3px;
-            }
-            .sf-lobby-heart-icon {
-                width: 21px;
-                height: 21px;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 220ms ease;
-            }
-            .sf-lobby-heart-icon svg {
-                width: 100%;
-                height: 100%;
-                display: block;
-                overflow: visible;
-            }
-            .sf-lobby-heart-icon.is-shattering {
-                animation: sfHeartShatter 520ms cubic-bezier(0.22, 1, 0.36, 1);
-            }
-            @keyframes sfHeartShatter {
-                0% { transform: scale(1.28) rotate(-8deg); filter: brightness(1.3); }
-                45% { transform: scale(0.72) rotate(10deg); }
-                100% { transform: scale(1) rotate(0deg); filter: none; }
-            }
-            .sf-lobby-demote-banner {
-                position: absolute;
-                top: 68px;
-                left: 50%;
-                transform: translateX(-50%);
-                z-index: 42;
-                padding: 9px 18px;
-                border-radius: 999px;
-                background: rgba(255, 255, 255, 0.98);
-                border: 1.5px solid #DC2626;
-                color: #991B1B;
-                font-size: 12.5px;
+            .sf-outer-gate-banner {
+                padding: 16px 14px;
+                border-radius: 14px;
+                background: #FAF8F5;
+                border: 1.5px solid rgba(197, 160, 89, 0.55);
+                text-align: center;
+                font-size: 15px;
                 font-weight: 800;
-                box-shadow: 0 14px 32px rgba(17, 24, 39, 0.18);
-                white-space: nowrap;
-                pointer-events: none;
+                color: #111827;
+                letter-spacing: 0.01em;
             }
             .sf-lobby-minimap-wrap {
                 position: relative;
-                width: 180px;
-                height: 180px;
+                width: 232px;
+                height: 232px;
                 z-index: 25;
                 pointer-events: auto;
                 display: flex;
@@ -1800,6 +1733,29 @@
                 font-weight: 700;
                 color: #111827;
                 cursor: pointer;
+            .sf-lobby-inline-terms-box {
+                position: relative;
+                padding: 9px 11px;
+                border-radius: 12px;
+                background: #FFFFFF;
+                border: 1px solid rgba(197, 160, 89, 0.35);
+                transition: background-color 160ms ease, border-color 160ms ease;
+            }
+            .sf-lobby-inline-terms-box.is-checked {
+                background: #FAF6EE;
+                border-color: rgba(197, 160, 89, 0.65);
+            }
+            .sf-lobby-prod-cta.is-locked,
+            .sf-lobby-prod-cta.is-locked:hover {
+                background: #E5E7EB !important;
+                color: #6B7280 !important;
+                border: 1px solid #D1D5DB !important;
+                box-shadow: none !important;
+                opacity: 0.72;
+                filter: grayscale(1);
+                cursor: not-allowed !important;
+                transform: none !important;
+            }
             }
             .sf-lobby-stick-wrap { display: none; position: absolute; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 14px; z-index: 25; }
             .sf-lobby-stick {
@@ -1865,40 +1821,52 @@
                 white-space: nowrap;
             }
             .sf-lobby-step-btn:hover { background: #F5EFE2; }
+            .sf-lobby-gear-btn {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 7px 14px;
+                border-radius: 999px;
+                background: #FAF8F5;
+                border: 1.5px solid rgba(197, 160, 89, 0.65);
+                color: #111827;
+                font-size: 11.5px;
+                font-weight: 800;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08);
+                transition: transform 0.14s ease, border-color 0.15s ease, background-color 0.15s ease;
+            }
+            .sf-lobby-gear-btn:hover { border-color: #C5A059; background: #FFFFFF; transform: translateY(-1px); }
+            .sf-lobby-gear-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
             .sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
             @media (max-width: 900px), (pointer: coarse) {
-                .sf-lobby-stick-wrap { display: block; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); left: 12px; }
-                .sf-lobby-stick { width: 70px; height: 70px; }
-                .sf-lobby-topright-stack { top: 56px; right: 12px; gap: 6px; }
-                .sf-lobby-vital-hud { width: 148px; padding: 6px 8px; }
-                .sf-lobby-heart-icon { width: 17px; height: 17px; }
-                .sf-lobby-minimap-wrap { width: 136px; height: 136px; }
-                .sf-ability-btn { width: 44px; height: 44px; border-radius: 11px; }
-                .sf-ability-svg { width: 21px; height: 21px; }
-                .sf-ability-tooltip { display: none; }
+                .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
+                .sf-lobby-actions { margin-right: 0; }
+                .sf-lobby-unit-frame { padding: 5px 11px 5px 6px; gap: 7px; }
+                .sf-lobby-unit-avatar { width: 30px; height: 30px; font-size: 11.5px; }
+                .sf-lobby-unit-meta { font-size: 11px; gap: 6px; }
+                .sf-lobby-stick-wrap { display: block; bottom: calc(68px + env(safe-area-inset-bottom, 0px)); left: 10px; }
+                .sf-lobby-stick { width: 68px; height: 68px; }
+                .sf-lobby-topright-stack { top: 62px; right: 10px; gap: 6px; }
+                .sf-lobby-minimap-wrap { width: 138px; height: 138px; }
+                .sf-lobby-minimap-time { font-size: 9.5px; padding: 1px 7px; }
             }
             @media (max-width: 767px) {
-                .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
-                .sf-lobby-zone-badge { padding: 5px 9px; font-size: 11px; }
-                .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 6px 9px; font-size: 11px; }
-                .sf-lobby-kbd, .sf-lobby-hide-sm { display: none !important; }
-                .sf-lobby-chat-panel { bottom: calc(70px + env(safe-area-inset-bottom, 0px)); right: 10px; }
+                .sf-lobby-zone-badge { padding: 4px 8px; font-size: 10px; }
+                .sf-lobby-pill-btn, .sf-lobby-close-btn { padding: 5px 8px; font-size: 11px; }
+                .sf-lobby-kbd, .sf-lobby-hide-sm, .sf-lobby-copyright { display: none !important; }
+                .sf-lobby-chat-panel { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); right: 10px; }
                 .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 20px); }
-                .sf-lobby-copyright { font-size: 9.5px; left: 10px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+                .sf-lobby-gold-crest-bar { min-height: 50px; padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; }
                 .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
             }
             @media (max-width: 559px) {
-                .sf-lobby-topright-stack { top: 92px; right: 10px; gap: 5px; }
-                .sf-lobby-vital-hud { width: 132px; padding: 5px 7px; }
-                .sf-lobby-heart-icon { width: 15px; height: 15px; }
-                .sf-lobby-minimap-wrap { width: 116px; height: 116px; }
-                .sf-lobby-unit-meta { min-width: 112px; }
-                .sf-lobby-gold-crest-bar { min-height: 56px; padding: 5px 8px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; }
-                .sf-lobby-copyright { left: 10px; font-size: 9px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
-                .sf-lobby-abilities-dock { gap: 6px; }
-                .sf-ability-btn { width: 40px; height: 40px; border-radius: 10px; }
-                .sf-ability-svg { width: 19px; height: 19px; }
-                .sf-ability-key { display: none; }
+                .sf-lobby-topright-stack { top: 64px; right: 8px; gap: 5px; }
+                .sf-lobby-minimap-wrap { width: 138px; height: 138px; }
+                .sf-lobby-stick-wrap { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); left: 8px; }
+                .sf-lobby-stick { width: 64px; height: 64px; }
                 .sf-lobby-floating-card { width: 266px; padding: 12px 13px 10px; }
                 .sf-lobby-prod-title { font-size: 13.5px; }
             }
@@ -1919,28 +1887,21 @@
                 {{-- Edle schwebende Light-Mode HUD-Leiste (Spieler-Frame oben links + Aktionen oben rechts) --}}
                 <div class="sf-lobby-topbar">
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;pointer-events:none;">
-                        <div class="sf-lobby-unit-frame" data-testid="lobby-player-unit-frame">
+                        <div class="sf-lobby-unit-frame"
+                             @pointerdown.stop
+                             @mousedown.stop
+                             @click.stop
+                             data-testid="lobby-player-unit-frame">
                             <span class="sf-lobby-unit-avatar">✦</span>
                             <div class="sf-lobby-unit-meta">
-                                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:800;line-height:1.15;">
-                                    <span style="max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-                                          x-text="playerHud.name || 'Funki'"></span>
-                                    <span style="color:#9A7738;"
-                                          x-text="'Stufe ' + (playerHud.level || 2) + ' · ✨ ' + (playerHud.funkenBalance || 0)"></span>
-                                </div>
-                                <div class="sf-lobby-unit-mana-row">
-                                    <span class="sf-lobby-unit-mana-label">Mana</span>
-                                    <div class="sf-lobby-unit-mana-track">
-                                        <div class="sf-lobby-unit-mana-fill"
-                                             :style="'width:' + Math.max(0, Math.min(100, Math.round(((playerHud.mana ?? 100) / Math.max(1, playerHud.maxMana || 100)) * 100))) + '%'"></div>
-                                    </div>
-                                    <span class="sf-lobby-unit-mana-val"
-                                          x-text="Math.round(playerHud.mana ?? 100)">100</span>
-                                </div>
+                                <span style="max-width:128px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                                      x-text="playerHud.name || 'Funki'"></span>
+                                <span style="color:#9A7738;white-space:nowrap;"
+                                      x-text="'Stufe ' + (playerHud.level || 2) + ' · ✨ ' + (playerHud.funkenBalance || 0)"></span>
                             </div>
                         </div>
 
-                        <div class="sf-lobby-nav-pill">
+                        <div class="sf-lobby-nav-pill" @pointerdown.stop @mousedown.stop @click.stop>
                             <span class="sf-lobby-zone-badge"
                                   data-testid="lobby-current-zone-badge"
                                   x-text="currentZoneLabel()">🛍️ Kollektion</span>
@@ -1954,7 +1915,7 @@
                         </div>
                     </div>
 
-                    <div class="sf-lobby-actions">
+                    <div class="sf-lobby-actions" @pointerdown.stop @mousedown.stop>
                         <span x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode && focusedProduct !== null"
                               class="sf-lobby-badge sf-lobby-hide-sm">
                             <span style="color:#C5A059;">&#10003;</span>
@@ -2026,39 +1987,6 @@
                                   style="padding:2px 6px;border-radius:999px;background:#C5A059;color:#FFFFFF;font-size:10px;font-weight:900;line-height:1;"
                                   x-text="unreadChatCount"></span>
                         </button>
-
-                        <button type="button"
-                                data-testid="lobby-audio-mute-btn"
-                                @click="toggleQuickMute()"
-                                :class="!audioState.allMuted ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
-                                :title="audioState.allMuted ? 'Ton aktivieren' : 'Ton stummschalten'">
-                            <span x-text="audioState.allMuted ? '🔇' : '🔊'"></span>
-                        </button>
-
-                        <button type="button"
-                                data-testid="louvre-settings-btn"
-                                @click="toggleSettingsModal()"
-                                :class="settingsOpen ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
-                                title="Einstellungen">
-                            <span>⚙️</span>
-                        </button>
-
-                        <button type="button"
-                                data-testid="lobby-fullscreen-btn"
-                                @click="toggleFullscreen()"
-                                :class="isFullscreen ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
-                                title="Vollbild umschalten (Taste F)">
-                            <span x-text="isFullscreen ? '🗗 Teilbild' : '⛶ Vollbild'"></span>
-                        </button>
-
-                        <button type="button"
-                                data-testid="lobby-close-btn"
-                                @click="closeShowroom()"
-                                class="sf-lobby-close-btn"
-                                title="Zurück zum Shop (Esc)">
-                            <span>✕ Schließen</span>
-                            <span class="sf-lobby-kbd">Esc</span>
-                        </button>
                     </div>
                 </div>
 
@@ -2069,38 +1997,14 @@
                     {{-- Kinoreife Elfenbein-Gold-Blende beim Klick auf "Jetzt gestalten" --}}
                     <div class="sf-lobby-ivory-transition" :class="{ 'is-fading': productTransitionActive }"></div>
 
-                    {{-- Praegnantes Demotion-Banner bei 0/6 verlorenen Magma-Herzen --}}
-                    <div x-show="playerHud.demoteBannerText && playerHud.demoteBannerText !== ''"
-                         x-cloak
-                         data-testid="lobby-lava-demote-banner"
-                         class="sf-lobby-demote-banner"
-                         x-text="playerHud.demoteBannerText"></div>
-
-                    {{-- Oben rechts ueber der 180x180 Minimap: 6 rubinrote Lebensherzen + saphirblauer Mana-Balken --}}
+                    {{-- Oben rechts: Runde 232x232 Light-Mode Minimap (mobil kompakt 138px) --}}
                     <div x-show="!isLoading && loadError === ''"
+                         @mousedown.stop
+                         @click.stop
                          @pointerdown.stop
                          class="sf-lobby-topright-stack">
-                        <div data-testid="lobby-vital-hud" class="sf-lobby-vital-hud">
-                            <div class="sf-lobby-vital-hearts" aria-label="Lebensherzen">
-                                <template x-for="hIdx in [0, 1, 2, 3, 4, 5]" :key="hIdx">
-                                    <span class="sf-lobby-heart-icon"
-                                          :class="{ 'is-shattering': heartShatterIdx === hIdx }"
-                                          x-html="heartSvgMarkup(hIdx < (playerHud.hearts ?? 6))"></span>
-                                </template>
-                            </div>
-                            <div class="sf-lobby-unit-mana-row">
-                                <span class="sf-lobby-unit-mana-label">Mana</span>
-                                <div class="sf-lobby-unit-mana-track">
-                                    <div class="sf-lobby-unit-mana-fill"
-                                         :style="'width:' + Math.max(0, Math.min(100, Math.round(((playerHud.mana ?? 100) / Math.max(1, playerHud.maxMana || 100)) * 100))) + '%'"></div>
-                                </div>
-                                <span class="sf-lobby-unit-mana-val"
-                                      x-text="Math.round(playerHud.mana ?? 100) + '/' + (playerHud.maxMana || 100)">100/100</span>
-                            </div>
-                        </div>
-
                         <div data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">
-                            <canvas x-ref="minimapCanvas" width="180" height="180" class="sf-lobby-minimap-canvas"></canvas>
+                            <canvas x-ref="minimapCanvas" width="232" height="232" class="sf-lobby-minimap-canvas"></canvas>
                             <span class="sf-lobby-minimap-time"
                                   :title="minimapTooltip()"
                                   x-text="environmentInfo.server_time || '12:00'"></span>
@@ -2213,69 +2117,96 @@
                         </button>
                     </div>
 
-                    {{-- Schwebendes World-Space Schatztruhen-Schild (Bereich 3: 10-Stufen Magma-Welt) --}}
-                    <div x-ref="floatingLavaChestCard"
-                         data-testid="lobby-lava-chest-card"
-                         style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
-                         class="sf-lobby-floating-anchor">
-                        <div @pointerdown.stop style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                            <template x-if="!isCustomerAuthenticated()">
-                                <button type="button"
-                                        @click="openSanctumGateModal('lava')"
-                                        class="sf-lobby-lava-chest-card">
-                                    <span>🔒</span>
-                                    <span>Anmelden &rarr;</span>
-                                </button>
-                            </template>
-                            <template x-if="isCustomerAuthenticated() && lavaChestState.claimedToday">
-                                <div class="sf-lobby-lava-chest-card">
-                                    <span style="color:#C5A059;">&#10003;</span>
-                                    <span x-text="lavaChestState.statusMessage || 'Heute bereits geöffnet ✓'"></span>
-                                </div>
-                            </template>
-                            <template x-if="isCustomerAuthenticated() && !lavaChestState.claimedToday">
-                                <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                                    <div class="sf-lobby-lava-chest-card" style="cursor:default;">
-                                        <span x-text="'Magma-Truhe · +' + (lavaChestState.rewardPreview || 5) + ' ✨ Funken'">Magma-Truhe · +5 ✨ Funken</span>
-                                    </div>
-                                    <button type="button"
-                                            @click="claimLavaChest()"
-                                            :disabled="lavaChestState.claiming"
-                                            class="sf-lobby-lava-chest-card is-cta">
-                                        <span x-text="lavaChestState.claiming ? 'Truhe wird geöffnet...' : 'Truhe öffnen'"></span>
-                                    </button>
-                                </div>
-                            </template>
-                            <span x-show="lavaChestState.statusMessage !== '' && !lavaChestState.claimedToday && !lavaChestState.claiming"
-                                  style="pointer-events:none;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.95);border:1px solid rgba(197,160,89,0.5);font-size:11px;font-weight:700;color:#111827;"
-                                  x-text="lavaChestState.statusMessage"></span>
-                        </div>
-                        <div class="sf-lobby-floating-arrow"></div>
-                    </div>
-
-                    {{-- Schwebendes Light-Mode Schild am verschlossenen West-Prunktor zur Aussenwelt --}}
+                    {{-- Schwebendes Light-Mode Schild am monumentalen Tor zur Aussenwelt (MMORPG-Ausblick) --}}
                     <div x-ref="floatingOuterGateCard"
                          data-testid="lobby-outer-gate-card"
                          style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
                          class="sf-lobby-floating-anchor">
-                        <div @pointerdown.stop class="sf-lobby-portal-pill">
-                            <span>🔒</span>
-                            <span>Tor zur Außenwelt · Bald geöffnet</span>
+                        <button type="button"
+                                @pointerdown.stop
+                                @click="openOuterGateModal()"
+                                class="sf-lobby-portal-pill"
+                                style="cursor:pointer;">
+                            <span>✨</span>
+                            <span>Tor zur Außenwelt · Hier entsteht ein MMORPG</span>
+                        </button>
+                    </div>
+
+                    {{-- Helles Light-Mode Modal am Tor zur Aussenwelt (Clean-Design, rollenabhaengiger 1-Klick-SSO-Uebergang) --}}
+                    <div x-show="outerGateModalOpen"
+                         x-cloak
+                         @pointerdown.stop
+                         @mousedown.stop
+                         @click.self="closeOuterGateModal()"
+                         data-testid="lobby-outer-gate-modal"
+                         class="sf-lobby-settings-backdrop">
+                        <div class="sf-lobby-settings-card"
+                             @pointerdown.stop
+                             @mousedown.stop
+                             @click.stop
+                             role="dialog"
+                             aria-label="Tor zur Außenwelt">
+                            <div class="sf-lobby-settings-head">
+                                <h3 class="sf-lobby-settings-title">
+                                    <span>✨</span>
+                                    <span>Tor zur Außenwelt</span>
+                                </h3>
+                                <button type="button"
+                                        @click="closeOuterGateModal()"
+                                        style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;"
+                                        aria-label="Schließen">&times;</button>
+                            </div>
+
+                            <div class="sf-outer-gate-banner">Hier entsteht ein MMORPG</div>
+
+                            <template x-if="mmorpgCanEnter">
+                                <div style="display:flex;flex-direction:column;gap:8px;">
+                                    <button type="button"
+                                            data-testid="outer-gate-enter-mmorpg-btn"
+                                            @click="enterFunkenreichMmorpg()"
+                                            class="sf-lobby-prod-cta"
+                                            style="margin-top:0;border:none;cursor:pointer;">
+                                        <span>✨ Spielwelt betreten (game.mein-seelenfunke.de) &rarr;</span>
+                                    </button>
+                                    <button type="button"
+                                            @click="closeOuterGateModal()"
+                                            class="sf-lobby-step-btn"
+                                            style="padding:9px 14px;border-radius:12px;">
+                                        Schließen
+                                    </button>
+                                </div>
+                            </template>
+
+                            <template x-if="!mmorpgCanEnter">
+                                <button type="button"
+                                        data-testid="outer-gate-ack-btn"
+                                        @click="closeOuterGateModal()"
+                                        class="sf-lobby-prod-cta"
+                                        style="margin-top:0;border:none;cursor:pointer;">
+                                    <span>Verstanden</span>
+                                </button>
+                            </template>
                         </div>
                     </div>
 
                     {{-- Helles Light-Mode Voraussetzungs-Modal (Rotes ✕ vs. Goldenes ✓, In-Game-Login mit Auge-Icon & 1-Klick-Magie, Clean-Design) --}}
                     <div x-show="sanctumGateOpen"
                          x-cloak
+                         @mousedown.stop
                          @pointerdown.stop
                          @click.self="closeSanctumGateModal()"
                          data-testid="lobby-sanctum-gate-modal"
                          class="sf-lobby-settings-backdrop">
-                        <div class="sf-lobby-settings-card" role="dialog" aria-label="Zugangsvoraussetzungen">
+                        <div class="sf-lobby-settings-card"
+                             @pointerdown.stop
+                             @mousedown.stop
+                             @click.stop
+                             role="dialog"
+                             aria-label="Zugangsvoraussetzungen">
                             <div class="sf-lobby-settings-head">
                                 <h3 class="sf-lobby-settings-title">
-                                    <span x-text="sanctumGateZone === 'lava' ? '🌋' : '🏛️'"></span>
-                                    <span x-text="sanctumGateZone === 'lava' ? 'Magma-Welt' : 'Halle der Helden'"></span>
+                                    <span>🏛️</span>
+                                    <span>Halle der Helden</span>
                                 </h3>
                                 <button type="button"
                                         @click="closeSanctumGateModal()"
@@ -2357,15 +2288,6 @@
                                 </template>
 
                                 <div class="sf-lobby-sanctum-row"
-                                     data-testid="sanctum-check-order"
-                                     @click="handleSanctumStepClick('order')"
-                                     :class="{ 'is-done': sanctumGateState.checks.order, 'is-clickable': !sanctumGateState.checks.order }">
-                                    <span>Mindestens 1 Bestellung</span>
-                                    <span class="sf-lobby-sanctum-check"
-                                          x-text="sanctumGateState.checks.order ? '✓' : '✕'"></span>
-                                </div>
-
-                                <div class="sf-lobby-sanctum-row"
                                      data-testid="sanctum-check-magic"
                                      @click="handleSanctumStepClick('magic')"
                                      :class="{ 'is-done': sanctumGateState.checks.magic, 'is-clickable': !sanctumGateState.checks.magic }">
@@ -2374,21 +2296,25 @@
                                           x-text="sanctumGateState.checks.magic ? '✓' : '✕'"></span>
                                 </div>
 
-                                <template x-if="sanctumGateState.checks.login && sanctumGateState.checks.order && !sanctumGateState.checks.magic && sanctumExpandedStep === 'magic'">
+                                <template x-if="sanctumGateState.checks.login && !sanctumGateState.checks.magic && sanctumExpandedStep === 'magic'">
                                     <div data-testid="sanctum-inline-magic-panel" class="sf-lobby-inline-panel">
-                                        <label class="sf-lobby-inline-check">
+                                        <label x-ref="inlineMagicTermsBox"
+                                               class="sf-lobby-inline-check sf-lobby-inline-terms-box sf-magic-thin-aura"
+                                               :class="{ 'is-checked': inlineMagicAcceptTerms }">
+                                            <span x-show="!inlineMagicAcceptTerms" class="sf-magic-thin-aura-ring" aria-hidden="true"></span>
                                             <input type="checkbox"
                                                    data-testid="sanctum-magic-terms-checkbox"
                                                    x-model="inlineMagicAcceptTerms"
-                                                   style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;">
+                                                   @change="onInlineMagicTermsChange()"
+                                                   style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;flex-shrink:0;">
                                             <span>Teilnahmebedingungen akzeptieren</span>
                                         </label>
 
-                                        <label class="sf-lobby-inline-check">
+                                        <label class="sf-lobby-inline-check" style="padding:2px 11px;">
                                             <input type="checkbox"
                                                    data-testid="sanctum-magic-ranking-checkbox"
                                                    x-model="inlineMagicRankingOptIn"
-                                                   style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;">
+                                                   style="width:16px;height:16px;accent-color:#C5A059;cursor:pointer;flex-shrink:0;">
                                             <span>In der Halle der Helden sichtbar</span>
                                         </label>
 
@@ -2397,14 +2323,18 @@
                                              class="sf-lobby-inline-error"
                                              x-text="inlineAuthError"></div>
 
+                                                x-ref="inlineMagicActivateBtn"
                                         <button type="button"
                                                 data-testid="sanctum-inline-magic-submit"
-                                                @click="submitInlineActivateMagic()"
-                                                :disabled="inlineAuthBusy || !inlineMagicAcceptTerms"
-                                                class="sf-lobby-prod-cta"
-                                                style="margin-top:2px;border:none;"
-                                                :style="(!inlineMagicAcceptTerms || inlineAuthBusy) ? 'opacity:0.55;cursor:not-allowed;margin-top:2px;border:none;' : 'margin-top:2px;border:none;'">
-                                            <span x-text="inlineAuthBusy ? 'Aktivierung...' : '✨ Magie aktivieren'"></span>
+                                                :disabled="inlineAuthBusy"
+                                                :aria-disabled="(!inlineMagicAcceptTerms || inlineAuthBusy) ? 'true' : 'false'"
+                                                @mouseenter="if (!inlineMagicAcceptTerms) nudgeInlineMagicTermsHint($el)"
+                                                @click="if (!inlineMagicAcceptTerms) { nudgeInlineMagicTermsHint($el); return; } submitInlineActivateMagic($el)"
+                                                class="sf-lobby-prod-cta sf-magic-thin-aura sf-magic-thin-aura-cta"
+                                                :class="(!inlineMagicAcceptTerms || inlineAuthBusy) ? 'is-locked bg-gray-200 text-gray-500 border border-gray-300 shadow-none opacity-55 grayscale cursor-not-allowed' : 'cursor-pointer'"
+                                                style="margin-top:2px;position:relative;overflow:hidden;">
+                                            <span x-show="inlineMagicCtaAura && inlineMagicAcceptTerms" x-cloak class="sf-magic-thin-aura-ring" aria-hidden="true"></span>
+                                            <span style="position:relative;z-index:2;" x-text="inlineAuthBusy ? 'Aktivierung...' : '✨ Magie aktivieren'"></span>
                                         </button>
                                     </div>
                                 </template>
@@ -2421,67 +2351,15 @@
                                         <span>&rarr;</span>
                                     </button>
                                 </template>
-                                <template x-if="sanctumGateState.checks.login && !sanctumGateState.checks.order">
+                                <template x-if="sanctumGateState.checks.login && !sanctumGateState.checks.magic && sanctumExpandedStep !== 'magic'">
                                     <button type="button"
-                                            @click="focusNearestLobbyVitrine()"
-                                            data-testid="sanctum-gate-cta-btn"
-                                            class="sf-lobby-prod-cta"
-                                            style="margin-top:2px;border:none;cursor:pointer;">
-                                        <span>Kollektion ansehen</span>
-                                    </button>
-                                </template>
-                                <template x-if="sanctumGateState.checks.login && sanctumGateState.checks.order && !sanctumGateState.checks.magic && sanctumExpandedStep !== 'magic'">
-                                    <button type="button"
-                                            @click="handleSanctumStepClick('magic')"
+                                            @click="triggerSanctumMagicCta()"
                                             data-testid="sanctum-gate-cta-btn"
                                             class="sf-lobby-prod-cta"
                                             style="margin-top:2px;border:none;cursor:pointer;">
                                         <span>✨ Magie aktivieren</span>
-                                        <span>&rarr;</span>
                                     </button>
                                 </template>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Helles Light-Mode Modal fuer das Epische Tor vor Magma-Raum 6 (Manufaktur-Meisterschluessel) --}}
-                    <div x-show="masterKeyModalOpen"
-                         x-cloak
-                         @pointerdown.stop
-                         @click.self="masterKeyModalOpen = false"
-                         data-testid="lobby-master-key-modal"
-                         class="sf-lobby-settings-backdrop">
-                        <div class="sf-lobby-settings-card" role="dialog" aria-label="Manufaktur-Meisterschlüssel">
-                            <div class="sf-lobby-settings-head">
-                                <h3 class="sf-lobby-settings-title">
-                                    <span>🔑</span>
-                                    <span>Manufaktur-Meisterschlüssel</span>
-                                </h3>
-                                <button type="button"
-                                        @click="masterKeyModalOpen = false"
-                                        style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;"
-                                        aria-label="Schließen">&times;</button>
-                            </div>
-
-                            <div class="sf-lobby-sanctum-list">
-                                <div class="sf-lobby-sanctum-row is-done">
-                                    <span>Magma-Stufen 6 bis 10</span>
-                                    <span class="sf-lobby-sanctum-check">✓</span>
-                                </div>
-                            </div>
-
-                            <div style="display:flex;flex-direction:column;gap:8px;">
-                                <button type="button"
-                                        @click="masterKeyModalOpen = false; closeShowroom()"
-                                        class="sf-lobby-prod-cta"
-                                        style="margin-top:0;border:none;cursor:pointer;">
-                                    <span>Unikat im Shop gestalten</span>
-                                </button>
-                                <a :href="playerHud.giftVoucherUrl || '/produkt/geschenkgutschein'"
-                                   class="sf-lobby-step-btn"
-                                   style="text-align:center;text-decoration:none;padding:9px 14px;border-radius:12px;">
-                                    15,00 € Gutschein sichern &rarr;
-                                </a>
                             </div>
                         </div>
                     </div>
@@ -2489,11 +2367,17 @@
                     {{-- Kompaktes Light-Mode ESC-Einstellungsmenü (⚙️ Gamification Clean-Design, 0 Subtexte) --}}
                     <div x-show="settingsOpen"
                          x-cloak
+                         @mousedown.stop
                          @pointerdown.stop
                          @click.self="closeSettingsModal()"
                          data-testid="lobby-settings-modal"
                          class="sf-lobby-settings-backdrop">
-                        <div class="sf-lobby-settings-card" role="dialog" aria-label="Einstellungen">
+                        <div class="sf-lobby-settings-card"
+                             @pointerdown.stop
+                             @mousedown.stop
+                             @click.stop
+                             role="dialog"
+                             aria-label="Einstellungen">
                             <div class="sf-lobby-settings-head">
                                 <h3 class="sf-lobby-settings-title">
                                     <span>⚙️</span>
@@ -2508,8 +2392,17 @@
                             <div class="sf-lobby-settings-section">
                                 <div class="sf-lobby-settings-row">
                                     <span class="sf-lobby-settings-label">Lautstärke</span>
-                                    <span style="font-size:11px;font-weight:800;color:#9A7738;"
-                                          x-text="(userSettings.volume <= 0 || audioState.allMuted) ? 'Stumm' : (userSettings.volume + ' %')"></span>
+                                    <div style="display:flex;align-items:center;gap:8px;">
+                                        <span style="font-size:11px;font-weight:800;color:#9A7738;"
+                                              x-text="(userSettings.volume <= 0 || audioState.allMuted) ? 'Stumm' : (userSettings.volume + ' %')"></span>
+                                        <button type="button"
+                                                data-testid="lobby-settings-mute-btn"
+                                                @click="toggleQuickMute()"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': !audioState.allMuted && userSettings.volume > 0 }"
+                                                style="padding:4px 10px;font-size:10.5px;"
+                                                x-text="(audioState.allMuted || userSettings.volume <= 0) ? '🔇 Stumm' : '🔊 Ton an'"></button>
+                                    </div>
                                 </div>
                                 <input type="range"
                                        min="0"
@@ -2521,6 +2414,18 @@
                                        class="sf-lobby-slider"
                                        aria-label="Lautstärke">
                             </div>
+                            <div class="sf-lobby-settings-section">
+                                <div class="sf-lobby-settings-row">
+                                    <span class="sf-lobby-settings-label">Vollbild</span>
+                                    <button type="button"
+                                            data-testid="lobby-settings-fullscreen-btn"
+                                            @click="toggleFullscreen()"
+                                            class="sf-lobby-step-btn"
+                                            :class="{ 'is-active': isFullscreen }"
+                                            x-text="isFullscreen ? 'Vollbild beenden' : 'Vollbild aktivieren'"></button>
+                                </div>
+                            </div>
+
 
                             <div class="sf-lobby-settings-section">
                                 <div class="sf-lobby-settings-row">
@@ -2609,13 +2514,14 @@
                                         @click="closeSettingsModal()"
                                         class="sf-lobby-prod-cta"
                                         style="margin-top:0;flex:1;border:none;cursor:pointer;">
-                                    Weiterspielen
+                                    Weiter erkunden
                                 </button>
+                                        data-testid="lobby-settings-exit-btn"
                                 <button type="button"
                                         @click="closeShowroom()"
                                         class="sf-lobby-step-btn"
                                         style="padding:9px 14px;border-radius:12px;">
-                                    Lobby verlassen
+                                    Atelier verlassen
                                 </button>
                             </div>
                         </div>
@@ -2623,6 +2529,8 @@
 
                     {{-- Ein-/ausklappbarer Light-Mode Raum-Chat (nur in der Multiplayer-Halle der Helden) --}}
                     <div x-show="!isLoading && loadError === '' && currentZone === 'heroes' && chatOpen && focusedProduct === null"
+                         @mousedown.stop
+                         @click.stop
                          @pointerdown.stop
                          data-testid="louvre-room-chat-panel"
                          class="sf-lobby-chat-panel"
@@ -2695,19 +2603,19 @@
                                                     <span style="padding:1px 6px;border-radius:5px;background:#FFFFFF;border:1px solid rgba(197,160,89,0.45);font-size:9px;font-weight:900;color:#9A7738;flex-shrink:0;"
                                                           x-text="msg.class_label || 'KLASSE C'"></span>
                                                 </div>
-                                                <div x-show="msg.player_id !== multiplayer.player_id" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
+                                                <div x-show="!isOwnChatMessage(msg)" style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
                                                     <button type="button"
-                                                            @click="toggleFriend(msg.player_id, msg.display_name)"
+                                                            @click="toggleFriend(msgPeerKey(msg), msg.display_name)"
                                                             style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;cursor:pointer;padding:0 3px;"
-                                                            :style="isFriend(msg.player_id) ? 'color:#C5A059;' : 'color:#4B5563;'"
-                                                            :title="isFriend(msg.player_id) ? 'Freund entfernen' : 'Als Freund hinzufügen'"
-                                                            x-text="isFriend(msg.player_id) ? '★ Freund' : '+ Freund'"></button>
+                                                            :style="isFriend(msgPeerKey(msg)) ? 'color:#C5A059;' : 'color:#4B5563;'"
+                                                            :title="isFriend(msgPeerKey(msg)) ? 'Freund entfernen' : 'Als Freund hinzufügen'"
+                                                            x-text="isFriend(msgPeerKey(msg)) ? '★ Freund' : '+ Freund'"></button>
                                                     <button type="button"
-                                                            @click="mutePeer(msg.player_id)"
+                                                            @click="mutePeer(msgPeerKey(msg))"
                                                             style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#6B7280;cursor:pointer;padding:0 3px;"
                                                             title="Spieler lokal stummschalten">Stumm</button>
                                                     <button type="button"
-                                                            @click="reportPeer(msg.player_id)"
+                                                            @click="reportPeer(msgPeerKey(msg))"
                                                             style="appearance:none;border:none;background:transparent;font-size:10px;font-weight:800;color:#DC2626;cursor:pointer;padding:0 3px;"
                                                             title="Unangemessene Nachricht melden">Melden</button>
                                                 </div>
@@ -2794,9 +2702,13 @@
                         </div>
                     </div>
 
-                    {{-- Schlanke Schnellwahl über der Zierleiste in der Halle der Helden --}}
-                    <div x-show="!isLoading && loadError === '' && currentZone === 'heroes'" class="sf-lobby-bottom-stack">
-                        <div class="sf-lobby-bottom-pill">
+                    {{-- Schlanke Schnellwahl über der Zierleiste (Halle der Helden Podeste) --}}
+                    <div x-show="!isLoading && loadError === '' && currentZone === 'heroes'"
+                         class="sf-lobby-bottom-stack">
+                        <div @pointerdown.stop
+                             @mousedown.stop
+                             @click.stop
+                             class="sf-lobby-bottom-pill">
                             <template x-for="slotNum in [1, 2, 3, 4, 5]" :key="slotNum">
                                 <button type="button"
                                         @click="focusHeroSlot(slotNum)"
@@ -2812,174 +2724,43 @@
                         </div>
                     </div>
 
-                    {{-- Goldene Zierleiste am unteren Rand: Links © Mein-Seelenfunke + Mittig 5 moderne SVG-Fähigkeiten (1 bis 5) mit Hover-Tooltips --}}
+                    {{-- Ruhige goldene Zierleiste am unteren Rand: Links © Mein-Seelenfunke + Rechts Einstellungen (Esc) --}}
                     <div x-show="!isLoading && loadError === ''"
+                         @mousedown.stop
+                         @click.stop
                          @pointerdown.stop
                          data-testid="lobby-gold-crest-bar"
-                         class="sf-lobby-gold-crest-bar">
+                         class="sf-lobby-gold-crest-bar"
+                         style="justify-content:space-between;">
                         <span class="sf-lobby-copyright">&copy; Mein-Seelenfunke</span>
 
-                        <div data-testid="louvre-abilities-dock" class="sf-lobby-abilities-dock">
-                            <button type="button"
-                                    @click="triggerAbility(1)"
-                                    data-testid="ability-slot-1-btn"
-                                    class="sf-ability-btn"
-                                    :class="{ 'is-active': abilityState.combo && abilityState.combo.active, 'is-cooldown': abilityState.combo && abilityState.combo.cooldown > 0 }"
-                                    aria-label="Funken-Hieb">
-                                <span class="sf-ability-svg">
-                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <path d="M21.5 4.5L9.5 16.5"/>
-                                        <path d="M17.5 4.5H21.5V8.5"/>
-                                        <path d="M6.5 14.5L13.5 21.5"/>
-                                        <path d="M5 23L9.5 18.5"/>
-                                        <path d="M18.5 12.5C21 15 21.5 18.8 19.2 21.5" stroke-opacity="0.62"/>
-                                    </svg>
-                                </span>
-                                <span class="sf-ability-key" x-text="keyLabel('strike')"></span>
-                                <span x-show="abilityState.combo && abilityState.combo.cooldown > 0"
-                                      class="sf-ability-cd"
-                                      x-text="Math.ceil(abilityState.combo.cooldown) + 's'"></span>
-                                <span x-show="abilityState.combo && abilityState.combo.stage > 0"
-                                      class="sf-ability-combo-badge"
-                                      x-text="'x' + abilityState.combo.stage"></span>
-                                <div class="sf-ability-tooltip" role="tooltip">
-                                    <div class="sf-ability-tooltip-head">
-                                        <span class="sf-ability-tooltip-name">Funken-Hieb</span>
-                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('strike')"></span>
-                                    </div>
-                                    <div class="sf-ability-tooltip-meta">
-                                        <span>0 Mana</span>
-                                        <span class="sf-ability-tooltip-cd">· Kombo 1-4</span>
-                                    </div>
-                                    <p class="sf-ability-tooltip-desc">4-stufige Nahkampf-Kombo mit goldenem Wirbel und Finisher-Druckwelle.</p>
-                                </div>
-                            </button>
-
-                            <button type="button"
-                                    @click="triggerAbility(2)"
-                                    data-testid="ability-slot-2-btn"
-                                    class="sf-ability-btn"
-                                    :class="{ 'is-active': abilityState.sprint.active, 'is-cooldown': abilityState.sprint.cooldown > 0 }"
-                                    aria-label="Licht-Sprint">
-                                <span class="sf-ability-svg">
-                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <path d="M4.5 10.5H15.5C17.7 10.5 19.2 9 19.2 7.2C19.2 5.5 17.8 4.3 16.2 4.3C14.8 4.3 13.7 5.2 13.5 6.5"/>
-                                        <path d="M3.5 15H20.5C22.6 15 24.2 16.5 24.2 18.5C24.2 20.4 22.7 21.8 20.9 21.8C19.3 21.8 18.1 20.8 17.9 19.4"/>
-                                        <path d="M6.5 19.5H13.5"/>
-                                        <circle cx="22" cy="9.5" r="1.3" fill="currentColor" stroke="none"/>
-                                    </svg>
-                                </span>
-                                <span class="sf-ability-key" x-text="keyLabel('sprint')"></span>
-                                <span x-show="abilityState.sprint.cooldown > 0"
-                                      class="sf-ability-cd"
-                                      x-text="Math.ceil(abilityState.sprint.cooldown) + 's'"></span>
-                                <div class="sf-ability-tooltip" role="tooltip">
-                                    <div class="sf-ability-tooltip-head">
-                                        <span class="sf-ability-tooltip-name">Licht-Sprint</span>
-                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('sprint')"></span>
-                                    </div>
-                                    <div class="sf-ability-tooltip-meta">
-                                        <span>18 Mana</span>
-                                        <span class="sf-ability-tooltip-cd">· 10 s Abklingzeit</span>
-                                    </div>
-                                    <p class="sf-ability-tooltip-desc">Erhöht dein Lauftempo 4,5 Sekunden lang um 55 % mit goldener Funkenspur.</p>
-                                </div>
-                            </button>
-
-                            <button type="button"
-                                    @click="triggerAbility(3)"
-                                    data-testid="ability-slot-3-btn"
-                                    class="sf-ability-btn"
-                                    :class="{ 'is-cooldown': abilityState.titanJump.cooldown > 0 }"
-                                    aria-label="Aufwind-Impuls">
-                                <span class="sf-ability-svg">
-                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <path d="M14 4.5L8.2 11.2H11.8V18.5H16.2V11.2H19.8L14 4.5Z"/>
-                                        <path d="M7 21.2C9.2 19.6 11.5 19 14 19C16.5 19 18.8 19.6 21 21.2"/>
-                                        <path d="M9.5 24C11 23.1 12.4 22.7 14 22.7C15.6 22.7 17 23.1 18.5 24" stroke-opacity="0.65"/>
-                                    </svg>
-                                </span>
-                                <span class="sf-ability-key" x-text="keyLabel('titanJump')"></span>
-                                <span x-show="abilityState.titanJump.cooldown > 0"
-                                      class="sf-ability-cd"
-                                      x-text="Math.ceil(abilityState.titanJump.cooldown) + 's'"></span>
-                                <div class="sf-ability-tooltip" role="tooltip">
-                                    <div class="sf-ability-tooltip-head">
-                                        <span class="sf-ability-tooltip-name">Aufwind-Impuls</span>
-                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('titanJump')"></span>
-                                    </div>
-                                    <div class="sf-ability-tooltip-meta">
-                                        <span>22 Mana</span>
-                                        <span class="sf-ability-tooltip-cd">· 8 s Abklingzeit</span>
-                                    </div>
-                                    <p class="sf-ability-tooltip-desc">Katapultiert dich kraftvoll in die Höhe zum Überwinden weiter Schluchten und Ringe.</p>
-                                </div>
-                            </button>
-
-                            <button type="button"
-                                    @click="triggerAbility(4)"
-                                    data-testid="ability-slot-4-btn"
-                                    class="sf-ability-btn"
-                                    :class="{ 'is-active': abilityState.shield.active, 'is-cooldown': abilityState.shield.cooldown > 0 }"
-                                    aria-label="Aegis-Schild">
-                                <span class="sf-ability-svg">
-                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <path d="M14 3.8L22 7.2V13.6C22 18.6 18.6 22.5 14 24.4C9.4 22.5 6 18.6 6 13.6V7.2L14 3.8Z"/>
-                                        <path d="M14 8.2L15.6 11.8L19.4 13.4L15.6 15L14 18.6L12.4 15L8.6 13.4L12.4 11.8L14 8.2Z" stroke-width="1.4"/>
-                                    </svg>
-                                </span>
-                                <span class="sf-ability-key" x-text="keyLabel('shield')"></span>
-                                <span x-show="abilityState.shield.cooldown > 0"
-                                      class="sf-ability-cd"
-                                      x-text="Math.ceil(abilityState.shield.cooldown) + 's'"></span>
-                                <div class="sf-ability-tooltip" role="tooltip">
-                                    <div class="sf-ability-tooltip-head">
-                                        <span class="sf-ability-tooltip-name">Aegis-Schild</span>
-                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('shield')"></span>
-                                    </div>
-                                    <div class="sf-ability-tooltip-meta">
-                                        <span>25 Mana</span>
-                                        <span class="sf-ability-tooltip-cd">· 15 s Abklingzeit</span>
-                                    </div>
-                                    <p class="sf-ability-tooltip-desc">Schützt 6,5 s vor Schockwellen und katapultiert dich bei Lava-Kontakt einmalig hoch hinaus, bevor das Schild zerbricht.</p>
-                                </div>
-                            </button>
-
-                            <button type="button"
-                                    @click="triggerAbility(5)"
-                                    data-testid="ability-slot-5-btn"
-                                    class="sf-ability-btn"
-                                    :class="{ 'is-cooldown': abilityState.burst.cooldown > 0 }"
-                                    aria-label="Seelen-Nova">
-                                <span class="sf-ability-svg">
-                                    <svg viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                        <circle cx="14" cy="14" r="3.6"/>
-                                        <circle cx="14" cy="14" r="8.2" stroke-dasharray="2.6 2.6"/>
-                                        <path d="M14 2.8V5.8M14 22.2V25.2M2.8 14H5.8M22.2 14H25.2M6.1 6.1L8.2 8.2M19.8 19.8L21.9 21.9M21.9 6.1L19.8 8.2M8.2 19.8L6.1 21.9"/>
-                                    </svg>
-                                </span>
-                                <span class="sf-ability-key" x-text="keyLabel('burst')"></span>
-                                <span x-show="abilityState.burst.cooldown > 0"
-                                      class="sf-ability-cd"
-                                      x-text="Math.ceil(abilityState.burst.cooldown) + 's'"></span>
-                                <div class="sf-ability-tooltip" role="tooltip">
-                                    <div class="sf-ability-tooltip-head">
-                                        <span class="sf-ability-tooltip-name">Seelen-Nova</span>
-                                        <span class="sf-ability-tooltip-key" x-text="'Taste ' + keyLabel('burst')"></span>
-                                    </div>
-                                    <div class="sf-ability-tooltip-meta">
-                                        <span>30 Mana</span>
-                                        <span class="sf-ability-tooltip-cd">· 20 s Abklingzeit</span>
-                                    </div>
-                                    <p class="sf-ability-tooltip-desc">Entfesselt eine radiale 24K-Gold-Energiewelle und löst nahe Gefahrenringe im Umkreis auf.</p>
-                                </div>
-                            </button>
-                        </div>
+                        <button type="button"
+                                @click="toggleSettingsModal()"
+                                data-testid="louvre-settings-btn"
+                                class="sf-lobby-gear-btn"
+                                :class="{ 'is-active': settingsOpen }"
+                                title="Einstellungen (Esc)"
+                                aria-label="Einstellungen">
+                            <span>⚙️ Einstellungen</span>
+                            <span style="opacity:0.75;font-size:10px;">Esc</span>
+                        </button>
                     </div>
                 </div>
             </div>
         </template>
     </div>
+    @php
+        $sfInitialAdminAuth = \Illuminate\Support\Facades\Auth::guard('admin')->check();
+        $sfInitialCustomer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
+        $sfInitialMmorpgCanEnter = $sfInitialAdminAuth || (
+            $sfInitialCustomer
+            && (!method_exists($sfInitialCustomer, 'trashed') || !$sfInitialCustomer->trashed())
+            && (!method_exists($sfInitialCustomer, 'hasVerifiedEmail') || $sfInitialCustomer->hasVerifiedEmail())
+            && !$sfInitialCustomer->needs_password_change
+            && \Illuminate\Support\Facades\Schema::hasColumn('customers', 'mmorpg_access_enabled')
+            && (bool) ($sfInitialCustomer->mmorpg_access_enabled ?? false)
+        );
+    @endphp
 
     <script>
         (function () {
@@ -3026,7 +2807,8 @@
                         is_authenticated: false,
                         solo_only: true,
                         room_id: null,
-                        sync_interval_ms: 1800,
+                        sync_interval_ms: 950,
+                        peer_id: null,
                         player_id: null,
                         display_name: null,
                         weapon: null
@@ -3053,17 +2835,12 @@
                     keybindingsExpanded: false,
                     listeningKeyAction: '',
                     userSettings: {
-                        volume: 50,
+                        volume: 5,
                         cameraSensitivity: 100,
                         useRealName: false,
                         graphicsQuality: 'high',
                     },
                     keybindings: {
-                        strike: 'Digit1',
-                        sprint: 'Digit2',
-                        titanJump: 'Digit3',
-                        shield: 'Digit4',
-                        burst: 'Digit5',
                         jump: 'Space',
                         moveForward: 'KeyW',
                         moveLeft: 'KeyA',
@@ -3071,9 +2848,9 @@
                         moveRight: 'KeyD',
                     },
                     audioState: {
-                        bgmVolume: 50,
+                        bgmVolume: 5,
                         bgmMuted: false,
-                        sfxVolume: 50,
+                        sfxVolume: 5,
                         sfxMuted: false,
                         allMuted: false,
                     },
@@ -3091,18 +2868,12 @@
                         level: 2,
                         levelTitle: 'Lehrling',
                         funkenBalance: 0,
-                        mana: 100,
-                        maxMana: 100,
-                        hearts: 6,
-                        maxHearts: 6,
-                        lastHeartLostSeq: 0,
-                        lastHeartLostIndex: -1,
-                        demoteBannerText: '',
-                        giftVoucherUrl: '/produkt/geschenkgutschein',
+                        mmorpgCanEnter: @json($sfInitialMmorpgCanEnter),
+                        mmorpgEnterUrl: '/funkenreich/enter',
                     },
-                    heartShatterIdx: -1,
-                    _lastSeenHeartLostSeq: 0,
-                    _heartShatterTimer: null,
+                    mmorpgCanEnter: @json($sfInitialMmorpgCanEnter),
+                    mmorpgEnterUrl: '/funkenreich/enter',
+                    outerGateModalOpen: false,
                     sanctumGateOpen: false,
                     sanctumGateZone: 'heroes',
                     sanctumExpandedStep: '',
@@ -3111,38 +2882,21 @@
                     inlineLoginShowPassword: false,
                     inlineLoginTwoFactorRequired: false,
                     inlineLoginTwoFactorCode: '',
+                    inlineMagicCtaAura: false,
                     inlineMagicAcceptTerms: false,
                     inlineMagicRankingOptIn: true,
                     inlineAuthBusy: false,
+                    _loggedInDuringLobbySession: false,
                     inlineAuthError: '',
                     sanctumGateState: {
                         canEnter: false,
                         reason: 'login_required',
                         checks: {
                             login: false,
-                            order: false,
                             magic: false,
                         },
                         loginUrl: '/login',
                         dashboardUrl: '/dashboard',
-                    },
-                    masterKeyModalOpen: false,
-                    lavaChestState: {
-                        level: 1,
-                        rewardPreview: 5,
-                        nearChest: false,
-                        isAuthenticated: false,
-                        claimedToday: false,
-                        claiming: false,
-                        canClaim: false,
-                        statusMessage: '',
-                    },
-                    abilityState: {
-                        sprint: { active: false, timer: 0, cooldown: 0, maxCd: 10 },
-                        titanJump: { cooldown: 0, maxCd: 8 },
-                        shield: { active: false, timer: 0, cooldown: 0, maxCd: 15 },
-                        burst: { cooldown: 0, maxCd: 20 },
-                        combo: { stage: 0, windowTimer: 0, active: false, cooldown: 0, maxCd: 1.8 },
                     },
                     _abilityPollTimer: null,
                     productTransitionActive: false,
@@ -3169,11 +2923,6 @@
                     keybindActionsList() {
                         return [
                             { key: 'jump', label: 'Sprung' },
-                            { key: 'strike', label: '1 · Funken-Hieb' },
-                            { key: 'sprint', label: '2 · Licht-Sprint' },
-                            { key: 'titanJump', label: '3 · Aufwind-Impuls' },
-                            { key: 'shield', label: '4 · Aegis-Schild' },
-                            { key: 'burst', label: '5 · Seelen-Nova' },
                             { key: 'moveForward', label: 'Vorwärts' },
                             { key: 'moveLeft', label: 'Links' },
                             { key: 'moveBack', label: 'Zurück' },
@@ -3312,31 +3061,47 @@
                         return season;
                     },
 
-                    heartSvgMarkup(isFilled) {
-                        if (privateMod && typeof privateMod.getLobbyHeartSvgMarkup === 'function') {
-                            return privateMod.getLobbyHeartSvgMarkup(Boolean(isFilled));
+                    openOuterGateModal(mmorpgState) {
+                        const facade = getFacade();
+                        if (facade && typeof facade.releasePointerLock === 'function') {
+                            facade.releasePointerLock();
                         }
-                        if (isFilled) {
-                            return '<svg viewBox="0 0 24 24" aria-hidden="true">'
-                                + '<path d="M12 21.2L10.4 19.7C5.1 14.9 2 12.1 2 8.4C2 5.4 4.4 3 7.4 3C9.2 3 10.9 3.9 12 5.2C13.1 3.9 14.8 3 16.6 3C19.6 3 22 5.4 22 8.4C22 12.1 18.9 14.9 13.6 19.7L12 21.2Z" fill="#DC2626" stroke="#C5A059" stroke-width="1.55" stroke-linejoin="round"/>'
-                                + '<path d="M12 5.4L9.2 9.4L12 19.4L14.8 9.4L12 5.4Z" fill="#EF4444" fill-opacity="0.45"/>'
-                                + '<path d="M6.2 6.1C7.1 5.1 8.5 4.9 9.5 5.4" fill="none" stroke="#FEE2E2" stroke-width="1.35" stroke-linecap="round"/>'
-                                + '</svg>';
+                        if (mmorpgState && typeof mmorpgState === 'object') {
+                            if (mmorpgState.canEnter !== undefined) {
+                                this.mmorpgCanEnter = Boolean(mmorpgState.canEnter);
+                            }
+                            if (typeof mmorpgState.enterUrl === 'string' && mmorpgState.enterUrl.trim() !== '') {
+                                this.mmorpgEnterUrl = mmorpgState.enterUrl.trim();
+                            }
+                        } else if (facade && typeof facade.getMmorpgAccessState === 'function') {
+                            const st = facade.getMmorpgAccessState();
+                            if (st) {
+                                this.mmorpgCanEnter = Boolean(st.canEnter);
+                                this.mmorpgEnterUrl = st.enterUrl || '/funkenreich/enter';
+                            }
                         }
-                        return '<svg viewBox="0 0 24 24" aria-hidden="true">'
-                            + '<path d="M12 21.2L10.4 19.7C5.1 14.9 2 12.1 2 8.4C2 5.4 4.4 3 7.4 3C9.2 3 10.9 3.9 12 5.2C13.1 3.9 14.8 3 16.6 3C19.6 3 22 5.4 22 8.4C22 12.1 18.9 14.9 13.6 19.7L12 21.2Z" fill="#1F2937" fill-opacity="0.22" stroke="#9CA3AF" stroke-width="1.35" stroke-linejoin="round"/>'
-                            + '</svg>';
+                        this.sanctumGateOpen = false;
+                        this.settingsOpen = false;
+                        this.outerGateModalOpen = true;
+                        if (privateAudio) privateAudio.playUiClick();
                     },
 
-                    _syncHudHeartAnimation(hud) {
-                        if (!hud || typeof hud !== 'object') return;
-                        if (hud.lastHeartLostSeq && hud.lastHeartLostSeq !== this._lastSeenHeartLostSeq) {
-                            this._lastSeenHeartLostSeq = hud.lastHeartLostSeq;
-                            this.heartShatterIdx = typeof hud.lastHeartLostIndex === 'number' ? hud.lastHeartLostIndex : -1;
-                            if (this._heartShatterTimer) clearTimeout(this._heartShatterTimer);
-                            this._heartShatterTimer = setTimeout(() => {
-                                this.heartShatterIdx = -1;
-                            }, 560);
+                    closeOuterGateModal() {
+                        this.outerGateModalOpen = false;
+                        if (privateAudio) privateAudio.playUiClick();
+                    },
+
+                    enterFunkenreichMmorpg() {
+                        if (!this.mmorpgCanEnter) return;
+                        const url = String(this.mmorpgEnterUrl || '/funkenreich/enter').trim() || '/funkenreich/enter';
+                        window.location.href = url;
+                    },
+
+                    dispatchLivewireAuthSync() {
+                        if (typeof window !== 'undefined' && window.Livewire && typeof window.Livewire.dispatch === 'function') {
+                            window.Livewire.dispatch('auth-status-changed');
+                            window.Livewire.dispatch('cart-updated');
+                            window.Livewire.dispatch('wishlist-updated');
                         }
                     },
 
@@ -3362,7 +3127,8 @@
                         if (facade && typeof facade.releasePointerLock === 'function') {
                             facade.releasePointerLock();
                         }
-                        this.sanctumGateZone = (zone === 'lava') ? 'lava' : 'heroes';
+                        this.outerGateModalOpen = false;
+                        this.sanctumGateZone = 'heroes';
                         this.inlineAuthError = '';
                         const resolved = incomingState
                             || (facade && typeof facade.getSanctumAccessState === 'function' ? facade.getSanctumAccessState() : null);
@@ -3372,7 +3138,6 @@
                                 reason: resolved.reason || 'login_required',
                                 checks: {
                                     login: Boolean(resolved.checks && resolved.checks.login),
-                                    order: Boolean(resolved.checks && resolved.checks.order),
                                     magic: Boolean(resolved.checks && resolved.checks.magic),
                                 },
                                 loginUrl: resolved.loginUrl || '/login',
@@ -3381,7 +3146,7 @@
                         }
                         if (!this.sanctumGateState.checks.login) {
                             this.sanctumExpandedStep = 'login';
-                        } else if (this.sanctumGateState.checks.order && !this.sanctumGateState.checks.magic) {
+                        } else if (!this.sanctumGateState.checks.magic) {
                             this.sanctumExpandedStep = 'magic';
                         } else {
                             this.sanctumExpandedStep = '';
@@ -3395,18 +3160,6 @@
                         if (privateAudio) privateAudio.playUiClick();
                     },
 
-                    focusNearestLobbyVitrine() {
-                        this.sanctumGateOpen = false;
-                        this.inlineAuthError = '';
-                        if (privateAudio) privateAudio.playUiClick();
-                        const facade = getFacade();
-                        if (facade && typeof facade.focusNearestExhibit === 'function') {
-                            facade.focusNearestExhibit();
-                        } else if (facade && typeof facade.focusExhibit === 'function') {
-                            facade.focusExhibit(this.activeIndex || 0, false);
-                        }
-                    },
-
                     handleSanctumStepClick(step) {
                         this.inlineAuthError = '';
                         if (step === 'login') {
@@ -3416,23 +3169,28 @@
                             }
                             return;
                         }
-                        if (step === 'order') {
-                            if (!this.sanctumGateState.checks.order) {
-                                this.focusNearestLobbyVitrine();
-                            }
-                            return;
-                        }
                         if (step === 'magic') {
                             if (!this.sanctumGateState.checks.login) {
                                 this.sanctumExpandedStep = 'login';
-                            } else if (!this.sanctumGateState.checks.order) {
-                                this.focusNearestLobbyVitrine();
                             } else if (!this.sanctumGateState.checks.magic) {
                                 this.sanctumExpandedStep = (this.sanctumExpandedStep === 'magic') ? '' : 'magic';
                                 if (privateAudio) privateAudio.playUiClick();
                             }
                         }
                     },
+                    triggerSanctumMagicCta() {
+                        this.inlineAuthError = '';
+                        if (!this.sanctumGateState.checks.login) {
+                            this.sanctumExpandedStep = 'login';
+                            return;
+                        }
+                        if (this.inlineMagicAcceptTerms) {
+                            this.submitInlineActivateMagic();
+                        } else {
+                            this.sanctumExpandedStep = 'magic';
+                        }
+                    },
+
 
                     applyLiveAccountResponse(body) {
                         if (!body || typeof body !== 'object') return;
@@ -3460,12 +3218,21 @@
                                 reason: sa.block_reason || null,
                                 checks: {
                                     login: Boolean(sa.is_authenticated),
-                                    order: Boolean(sa.has_completed_order),
                                     magic: Boolean(sa.gamification_active),
                                 },
                                 loginUrl: sa.login_url || this.sanctumGateState.loginUrl || '/login',
                                 dashboardUrl: sa.dashboard_url || this.sanctumGateState.dashboardUrl || '/dashboard',
                             };
+                        if (body.mmorpg_can_enter !== undefined) {
+                            this.mmorpgCanEnter = Boolean(body.mmorpg_can_enter);
+                        } else if (body.player && body.player.mmorpg_can_enter !== undefined) {
+                            this.mmorpgCanEnter = Boolean(body.player.mmorpg_can_enter);
+                        }
+                        if (typeof body.mmorpg_enter_url === 'string' && body.mmorpg_enter_url.trim() !== '') {
+                            this.mmorpgEnterUrl = body.mmorpg_enter_url.trim();
+                        } else if (body.player && typeof body.player.mmorpg_enter_url === 'string' && body.player.mmorpg_enter_url.trim() !== '') {
+                            this.mmorpgEnterUrl = body.player.mmorpg_enter_url.trim();
+                        }
                         }
 
                         const facade = getFacade();
@@ -3475,7 +3242,10 @@
                                 this.sanctumGateState = {
                                     canEnter: Boolean(nextAccess.canEnter),
                                     reason: nextAccess.reason || null,
-                                    checks: Object.assign({ login: false, order: false, magic: false }, nextAccess.checks || {}),
+                                    checks: {
+                                        login: Boolean(nextAccess.checks && nextAccess.checks.login),
+                                        magic: Boolean(nextAccess.checks && nextAccess.checks.magic),
+                                    },
                                     loginUrl: nextAccess.loginUrl || '/login',
                                     dashboardUrl: nextAccess.dashboardUrl || '/dashboard',
                                 };
@@ -3538,16 +3308,14 @@
                                 if (body.status === 'authenticated' || body.success) {
                                     this.inlineLoginPassword = '';
                                     this.inlineLoginTwoFactorCode = '';
+                                    this._loggedInDuringLobbySession = true;
+                                    this.dispatchLivewireAuthSync();
                                     this.inlineLoginTwoFactorRequired = false;
                                     this.applyLiveAccountResponse(body);
 
                                     if (this.sanctumGateState.canEnter) {
                                         this.sanctumExpandedStep = '';
-                                        setTimeout(() => {
-                                            this.sanctumGateOpen = false;
-                                        }, 440);
-                                    } else if (!this.sanctumGateState.checks.order) {
-                                        this.sanctumExpandedStep = '';
+                                        this.sanctumGateOpen = false;
                                     } else if (!this.sanctumGateState.checks.magic) {
                                         this.sanctumExpandedStep = 'magic';
                                     }
@@ -3561,8 +3329,63 @@
                             });
                     },
 
-                    submitInlineActivateMagic() {
-                        if (this.inlineAuthBusy || !this.inlineMagicAcceptTerms) return;
+                    sparkMountRoot() {
+                        const fsEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+                        if (fsEl) {
+                            return this.$refs.showroomModal || this.$refs.lobbyModalRoot || fsEl;
+                        }
+                        return document.body;
+                    },
+
+                    onInlineMagicTermsChange() {
+                        const root = this.sparkMountRoot();
+                        if (this.inlineMagicAcceptTerms) {
+                            this.inlineMagicCtaAura = false;
+                            if (privateAudio) privateAudio.playUiSwitch();
+                            if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                                window.sfSparkFlow.fly(this.$refs.inlineMagicTermsBox, this.$refs.inlineMagicActivateBtn, {
+                                    mode: 'unlock',
+                                    runKey: 'lobby-inline-magic-flow',
+                                    mountRoot: root,
+                                    onArrival: () => {
+                                        if (this.inlineMagicAcceptTerms) {
+                                            this.inlineMagicCtaAura = true;
+                                        }
+                                    },
+                                });
+                            } else {
+                                this.inlineMagicCtaAura = true;
+                            }
+                        } else {
+                            this.inlineMagicCtaAura = false;
+                            if (privateAudio) privateAudio.playUiClick();
+                            if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                                window.sfSparkFlow.fly(this.$refs.inlineMagicActivateBtn, this.$refs.inlineMagicTermsBox, {
+                                    mode: 'relock',
+                                    runKey: 'lobby-inline-magic-flow',
+                                    mountRoot: root,
+                                });
+                            }
+                        }
+                    },
+
+                    nudgeInlineMagicTermsHint(btnEl) {
+                        if (this.inlineMagicAcceptTerms || this.inlineAuthBusy) return;
+                        if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                            window.sfSparkFlow.fly(btnEl || this.$refs.inlineMagicActivateBtn, this.$refs.inlineMagicTermsBox, {
+                                mode: 'hint',
+                                cooldownKey: 'lobby-inline-magic-hint',
+                                mountRoot: this.sparkMountRoot(),
+                            });
+                        }
+                    },
+
+                    submitInlineActivateMagic(btnEl) {
+                        if (this.inlineAuthBusy) return;
+                        if (!this.inlineMagicAcceptTerms) {
+                            this.nudgeInlineMagicTermsHint(btnEl);
+                            return;
+                        }
                         this.inlineAuthBusy = true;
                         this.inlineAuthError = '';
 
@@ -3590,11 +3413,10 @@
                                     this.updateDocumentCsrfToken(body.csrf_token);
                                 }
                                 if (body.status === 'magic_activated' || body.success) {
-                                    this.applyLiveAccountResponse(Object.assign({}, body, { play_awaken_fx: true }));
                                     this.sanctumExpandedStep = '';
-                                    setTimeout(() => {
-                                        this.sanctumGateOpen = false;
-                                    }, 480);
+                                    this.sanctumGateOpen = false;
+                                    this.applyLiveAccountResponse(Object.assign({}, body, { play_awaken_fx: true }));
+                                    this.dispatchLivewireAuthSync();
                                     return;
                                 }
                                 this.inlineAuthError = body.message || 'Aktivierung nicht möglich.';
@@ -3608,13 +3430,6 @@
                     toggleQuickMute() {
                         if (privateAudio && typeof privateAudio.toggleQuickMute === 'function') {
                             this.audioState = privateAudio.toggleQuickMute();
-                        }
-                    },
-
-                    claimLavaChest() {
-                        const facade = getFacade();
-                        if (facade && typeof facade.claimLavaChest === 'function') {
-                            facade.claimLavaChest();
                         }
                     },
 
@@ -3745,7 +3560,6 @@
 
                     currentZoneLabel() {
                         if (this.currentZone === 'heroes') return '🏛️ Halle der Helden';
-                        if (this.currentZone === 'lava') return '🌋 Magma-Welt';
                         return '🛍️ Kollektion';
                     },
 
@@ -3756,9 +3570,7 @@
                     },
 
                     switchZone(targetZone) {
-                        const z = targetZone === 'lava'
-                            ? 'lava'
-                            : ((targetZone === 'heroes' || targetZone === 'hall') ? 'heroes' : 'gallery');
+                        const z = (targetZone === 'heroes' || targetZone === 'hall') ? 'heroes' : 'gallery';
                         if (privateAudio) privateAudio.playUiClick();
                         const facade = getFacade();
                         if (facade) {
@@ -3791,15 +3603,16 @@
                         }
                     },
 
-                    startLobbyMusicFromGesture() {
+                    startLobbyMusicFromGesture(targetZone = 'gallery') {
+                        const cleanZone = (targetZone === 'heroes' || targetZone === 'hall') ? 'heroes' : 'gallery';
                         if (privateAudio && typeof privateAudio.startLobbyMusicFromGesture === 'function') {
-                            this.audioState = privateAudio.startLobbyMusicFromGesture();
+                            this.audioState = privateAudio.startLobbyMusicFromGesture(cleanZone);
                             return;
                         }
                         if (typeof window !== 'undefined' && typeof window.getSeelenfunkeLobbyAudio === 'function') {
                             privateAudio = window.getSeelenfunkeLobbyAudio({ isAuthenticated: this.isCustomerAuthenticated() });
                             if (privateAudio && typeof privateAudio.startLobbyMusicFromGesture === 'function') {
-                                this.audioState = privateAudio.startLobbyMusicFromGesture();
+                                this.audioState = privateAudio.startLobbyMusicFromGesture(cleanZone);
                                 return;
                             }
                         }
@@ -3807,36 +3620,23 @@
                             const rawExplicit = localStorage.getItem('sf_lobby_bgm_explicit_muted');
                             const rawVol = localStorage.getItem('sf_funki_audio_volume');
                             const explicitMuted = (rawExplicit === '1' || rawExplicit === 'true') || rawVol === '0';
-                            sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
-                            if (!explicitMuted) {
+                            if (!explicitMuted && typeof Audio !== 'undefined') {
                                 localStorage.setItem('sf_funki_audio_muted', '0');
-                                localStorage.setItem('sf_funki_bgm_muted', '0');
-                                if (window.SfFunkiBgm) {
-                                    if ((window.SfFunkiBgm.volume || 0) <= 0) {
-                                        window.SfFunkiBgm.setVolume(50, false);
-                                    }
-                                    window.SfFunkiBgm.setMuted(false, false);
-                                    window.SfFunkiBgm.onModalOpen();
-                                } else if (typeof Audio !== 'undefined') {
-                                    const preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3');
-                                    preEl.loop = true;
-                                    preEl.preload = 'auto';
-                                    preEl.volume = 0.25;
-                                    window.__sfPrewarmLobbyBgmEl = preEl;
-                                    const p = preEl.play();
-                                    if (p && typeof p.catch === 'function') p.catch(() => {});
-                                }
+                                const preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3');
+                                preEl.loop = true;
+                                preEl.preload = 'auto';
+                                preEl.volume = 0.025;
+                                window.__sfPrewarmLobbyBgmEl = preEl;
+                                const p = preEl.play();
+                                if (p && typeof p.catch === 'function') p.catch(() => {});
                             }
                         } catch (e) {}
                     },
 
+                        const requestedZone = (initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery';
                     openShowroom(initialZone = 'gallery') {
                         // User-Gesture-Token zu 100 % synchron im Klick-Event sichern (VOR fetch / import)!
-                        this.startLobbyMusicFromGesture();
-
-                        const requestedZone = initialZone === 'lava'
-                            ? 'lava'
-                            : ((initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery');
+                        this.startLobbyMusicFromGesture(requestedZone);
                         if (this.isOpen) {
                             this.switchZone(requestedZone);
                             return;
@@ -3863,7 +3663,7 @@
                         this.instanceMenuOpen = false;
                         this.settingsOpen = false;
                         this.sanctumGateOpen = false;
-                        this.masterKeyModalOpen = false;
+                        this.outerGateModalOpen = false;
                         this.listeningKeyAction = '';
                         this.peers = [];
                         this.chatMessages = [];
@@ -3873,7 +3673,7 @@
                         this._seenMessageIds = new Set();
                         this.loadFriendsList();
                         if (!this._abilityPollTimer) {
-                            this._abilityPollTimer = setInterval(() => this.syncAbilityState(), 90);
+                            this._abilityPollTimer = setInterval(() => this.syncAbilityState(), 120);
                         }
                         this.prevHtmlOverflow = document.documentElement.style.overflow || '';
                         this.prevOverflow = document.body.style.overflow || '';
@@ -3882,7 +3682,8 @@
 
                         if (!this._pageHideBound) {
                             this._pageHideBound = () => {
-                                if (this.isOpen && this._activeSyncZone === 'heroes') {
+                                if (!this.isOpen) return;
+                                if (this._activeSyncZone === 'heroes') {
                                     this.sendLobbyLeaveBeacon();
                                 }
                             };
@@ -3909,7 +3710,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v2');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v3');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -3920,18 +3721,29 @@
                                 if (heroesJson && heroesJson.success) {
                                     this.heroesPayload = heroesJson;
                                 }
-                                this.multiplayer = payload.multiplayer || {
+                                this.multiplayer = Object.assign({
                                     enabled: false,
                                     is_authenticated: false,
                                     solo_only: true,
                                     room_id: null,
-                                    sync_interval_ms: 1800,
-                                    player_id: null
-                                };
+                                    sync_interval_ms: 950,
+                                    player_id: null,
+                                    peer_id: null
+                                }, payload.multiplayer || {});
 
                                 const rawPlayer = (payload.player && typeof payload.player === 'object') ? payload.player : null;
                                 if (payload.environment && typeof payload.environment === 'object') {
                                     this.environmentInfo = Object.assign({}, this.environmentInfo, payload.environment);
+                                if (payload.mmorpg_can_enter !== undefined) {
+                                    this.mmorpgCanEnter = Boolean(payload.mmorpg_can_enter);
+                                } else if (rawPlayer && rawPlayer.mmorpg_can_enter !== undefined) {
+                                    this.mmorpgCanEnter = Boolean(rawPlayer.mmorpg_can_enter);
+                                }
+                                if (typeof payload.mmorpg_enter_url === 'string' && payload.mmorpg_enter_url.trim() !== '') {
+                                    this.mmorpgEnterUrl = payload.mmorpg_enter_url.trim();
+                                } else if (rawPlayer && typeof rawPlayer.mmorpg_enter_url === 'string' && rawPlayer.mmorpg_enter_url.trim() !== '') {
+                                    this.mmorpgEnterUrl = rawPlayer.mmorpg_enter_url.trim();
+                                }
                                 }
 
                                 const isAuth = Boolean(
@@ -3942,21 +3754,20 @@
                                 this.soloMode = false;
                                 this.activeIndex = 0;
 
-                                const hasOrder = Boolean(rawPlayer && (rawPlayer.has_completed_order ?? false));
                                 const magicActive = Boolean(rawPlayer && rawPlayer.gamification_active);
-                                const fallbackCanEnter = Boolean(isAuth && hasOrder && magicActive);
+                                const fallbackCanEnter = Boolean(isAuth && magicActive);
                                 const resolvedCanEnter = (rawPlayer && rawPlayer.can_enter_sanctums !== undefined)
-                                    ? Boolean(rawPlayer.can_enter_sanctums && fallbackCanEnter)
+                                    ? Boolean(rawPlayer.can_enter_sanctums)
                                     : fallbackCanEnter;
                                 this.sanctumGateState = {
                                     canEnter: resolvedCanEnter,
                                     reason: resolvedCanEnter
                                         ? null
-                                        : ((rawPlayer && rawPlayer.sanctum_block_reason)
-                                            || (!isAuth ? 'login_required' : (!hasOrder ? 'order_required' : 'magic_activation_required'))),
+                                        : ((rawPlayer && rawPlayer.sanctum_block_reason && rawPlayer.sanctum_block_reason !== 'order_required')
+                                            ? rawPlayer.sanctum_block_reason
+                                            : (!isAuth ? 'login_required' : 'magic_activation_required')),
                                     checks: {
                                         login: isAuth,
-                                        order: hasOrder,
                                         magic: magicActive,
                                     },
                                     loginUrl: (rawPlayer && rawPlayer.login_url) || '/login',
@@ -3973,23 +3784,12 @@
                                     privateAudio = mod.getLobbyAudioInstance({ isAuthenticated: isAuth });
                                     privateAudio.setSfxVolume(this.userSettings.volume);
                                     privateAudio.setSfxMuted(this.userSettings.volume <= 0);
-                                    this.audioState = privateAudio.startLobbyMusicFromGesture();
+                                    this.audioState = privateAudio.startLobbyMusicFromGesture(requestedZone);
                                     if (privateAudioUnsub) privateAudioUnsub();
                                     privateAudioUnsub = privateAudio.onChange((snap) => {
                                         this.audioState = snap;
                                     });
                                 }
-
-                                this.lavaChestState = {
-                                    level: 1,
-                                    rewardPreview: 5,
-                                    nearChest: false,
-                                    isAuthenticated: isAuth,
-                                    claimedToday: Boolean(payload.lava_parkour && payload.lava_parkour.claimed_today),
-                                    claiming: false,
-                                    canClaim: Boolean(isAuth && !(payload.lava_parkour && payload.lava_parkour.claimed_today)),
-                                    statusMessage: '',
-                                };
 
                                 this.isLoading = false;
 
@@ -4010,14 +3810,14 @@
                                         floatingCardEl: this.$refs.floatingCard || null,
                                         floatingHeroCardEl: this.$refs.floatingHeroCard || null,
                                         floatingPortalCardEl: this.$refs.floatingPortalCard || null,
-                                        floatingLavaChestEl: this.$refs.floatingLavaChestCard || null,
                                         floatingOuterGateEl: this.$refs.floatingOuterGateCard || null,
                                         products: this.products,
                                         environment: payload.environment || null,
                                         player: rawPlayer,
                                         heroesPayload: this.heroesPayload,
                                         playerFunki: this.funkiInfo,
-                                        lavaParkour: payload.lava_parkour || null,
+                                        mmorpgCanEnter: this.mmorpgCanEnter,
+                                        mmorpgEnterUrl: this.mmorpgEnterUrl,
                                         audio: privateAudio || undefined,
                                         isAuthenticatedCustomer: isAuth,
                                         initialZone: requestedZone,
@@ -4045,26 +3845,22 @@
                                         onAuthGatePrompt: (zone, accessState) => {
                                             this.openSanctumGateModal(zone, accessState);
                                         },
-                                        onMasterKeyPromptChange: (flag) => {
-                                            if (flag) {
-                                                const f = getFacade();
-                                                if (f && typeof f.releasePointerLock === 'function') {
-                                                    f.releasePointerLock();
-                                                }
-                                                this.masterKeyModalOpen = true;
-                                            }
+                                        onOuterGateModalOpen: (mmorpgState) => {
+                                            this.openOuterGateModal(mmorpgState);
                                         },
                                         onPlayerHudChange: (hud) => {
                                             if (hud && typeof hud === 'object') {
-                                                this._syncHudHeartAnimation(hud);
+                                                if (hud.mmorpgCanEnter !== undefined) {
+                                                    this.mmorpgCanEnter = Boolean(hud.mmorpgCanEnter);
+                                                }
+                                                if (typeof hud.mmorpgEnterUrl === 'string' && hud.mmorpgEnterUrl.trim() !== '') {
+                                                    this.mmorpgEnterUrl = hud.mmorpgEnterUrl.trim();
+                                                }
                                                 this.playerHud = Object.assign({}, this.playerHud, hud);
                                                 if (hud.environment) {
                                                     this.environmentInfo = Object.assign({}, this.environmentInfo, hud.environment);
                                                 }
                                             }
-                                        },
-                                        onLavaChestStateChange: (state) => {
-                                            this.lavaChestState = state;
                                         },
                                         onSelectProduct: (prod) => {
                                             this.launchProductTransition(prod);
@@ -4079,7 +3875,10 @@
                                         this.sanctumGateState = {
                                             canEnter: Boolean(stAccess.canEnter),
                                             reason: stAccess.reason || null,
-                                            checks: Object.assign({ login: false, order: false, magic: false }, stAccess.checks || {}),
+                                            checks: {
+                                                login: Boolean(stAccess.checks && stAccess.checks.login),
+                                                magic: Boolean(stAccess.checks && stAccess.checks.magic),
+                                            },
                                             loginUrl: stAccess.loginUrl || '/login',
                                             dashboardUrl: stAccess.dashboardUrl || '/dashboard',
                                         };
@@ -4090,7 +3889,7 @@
                                         createdFacade.setMutedPlayers(this.mutedPlayerIds);
                                     }
 
-                                    // Ruhiges Solo-Shopping in 'gallery'/'lava': Multiplayer-Instanz startet erst beim Betreten von 'heroes'!
+                                    // Ruhiges Solo-Shopping in 'gallery': Multiplayer-Instanz startet erst beim Betreten von 'heroes'!
                                     if (isAuth && this.canEnterSanctums() && this.currentZone === 'heroes') {
                                         this.handleZoneSyncTransition('heroes');
                                     }
@@ -4130,7 +3929,7 @@
                         }
 
                         if (wasInHeroes && this.lobbyAuthenticated && !this.soloMode && facade) {
-                            const st = facade.getHudSnapshot();
+                            const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
                             fetch('/funkenwerk-welt/lobby/sync', {
                                 method: 'POST',
                                 credentials: 'same-origin',
@@ -4144,7 +3943,11 @@
                                     y: st.y,
                                     z: st.z,
                                     rot_y: st.rot_y,
+                                    jumping: Boolean(st.jumping),
                                     speed: st.speed,
+                                    emote: st.emote || null,
+                                    ability_slot: st.ability_slot || 0,
+                                    weapon_seq: st.weapon_seq || 0,
                                     zone: z,
                                     combo_seq: st.combo_seq,
                                     combo_stage: st.combo_stage
@@ -4152,13 +3955,42 @@
                             }).catch(() => {});
                         }
                     },
+                    _ingestLobbySyncMessages(rawMessages) {
+                        if (!Array.isArray(rawMessages) || rawMessages.length === 0) return;
+                        if (!this._seenMessageIds) this._seenMessageIds = new Set();
+                        const facade = getFacade();
+                        for (let i = 0; i < rawMessages.length; i++) {
+                            const m = rawMessages[i];
+                            if (!m || !m.text) continue;
+                            const mid = String(m.id || ((m.peer_id || m.player_id || '') + ':' + (m.ts || '') + ':' + m.text));
+                            if (this._seenMessageIds.has(mid)) continue;
+                            this._seenMessageIds.add(mid);
+                            const peerKey = String(m.peer_id || m.player_id || '');
+                            const normalized = {
+                                id: mid,
+                                peer_id: peerKey,
+                                player_id: String(m.player_id || peerKey),
+                                display_name: String(m.display_name || m.sender || 'Funki'),
+                                class_label: m.class_label || 'KLASSE C',
+                                text: String(m.text),
+                            };
+                            this.chatMessages = this.chatMessages.concat([normalized]).slice(-25);
+                            if (facade && peerKey && this.mutedPlayerIds.indexOf(peerKey) === -1) {
+                                facade.showChatBubble(peerKey, normalized.text);
+                            }
+                            if (!this.chatOpen && !this.isOwnChatMessage(normalized)) {
+                                this.unreadChatCount += 1;
+                            }
+                        }
+                    },
+
 
                     joinLobbyInstance() {
                         const facade = getFacade();
                         if (!this.isOpen || !facade || !this.isCustomerAuthenticated() || this.soloMode || this.currentZone !== 'heroes') {
                             return;
                         }
-                        const st = facade.getHudSnapshot();
+                        const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
                         fetch('/funkenwerk-welt/lobby/join', {
                             method: 'POST',
                             credentials: 'same-origin',
@@ -4172,7 +4004,11 @@
                                 y: st.y,
                                 z: st.z,
                                 rot_y: st.rot_y,
+                                jumping: Boolean(st.jumping),
                                 speed: st.speed,
+                                emote: st.emote || null,
+                                ability_slot: st.ability_slot || 0,
+                                weapon_seq: st.weapon_seq || 0,
                                 zone: 'heroes',
                                 combo_seq: st.combo_seq,
                                 combo_stage: st.combo_stage
@@ -4204,8 +4040,17 @@
                                 }
                                 this.peers = Array.isArray(data.peers) ? data.peers : [];
                                 const f2 = getFacade();
+                                    if (data.peer_id) {
+                                        this.multiplayer.peer_id = String(data.peer_id);
+                                        if (typeof f2.setLocalPeerId === 'function') {
+                                            f2.setLocalPeerId(data.peer_id);
+                                        }
+                                    }
                                 if (f2) {
                                     f2.updatePeers(this.peers);
+                                if (Array.isArray(data.messages)) {
+                                    this._ingestLobbySyncMessages(data.messages);
+                                }
                                 }
                                 if (this.lobbyAuthenticated && this.currentZone === 'heroes') {
                                     this.startMultiplayerLoop();
@@ -4221,7 +4066,7 @@
                         }
                         this._syncTimer = setInterval(() => {
                             this.runMultiplayerSync();
-                        }, 1800);
+                        }, 950);
                     },
 
                     stopMultiplayerLoop() {
@@ -4241,7 +4086,7 @@
                         }
 
                         this._syncInFlight = true;
-                        const st = facade.getHudSnapshot();
+                        const st = typeof facade.getLocalSyncState === 'function' ? facade.getLocalSyncState() : facade.getHudSnapshot();
 
                         fetch('/funkenwerk-welt/lobby/sync', {
                             method: 'POST',
@@ -4256,7 +4101,11 @@
                                 y: st.y,
                                 z: st.z,
                                 rot_y: st.rot_y,
+                                jumping: Boolean(st.jumping),
                                 speed: st.speed,
+                                emote: st.emote || null,
+                                ability_slot: st.ability_slot || 0,
+                                weapon_seq: st.weapon_seq || 0,
                                 zone: 'heroes',
                                 combo_seq: st.combo_seq,
                                 combo_stage: st.combo_stage
@@ -4281,8 +4130,17 @@
                                 }
                                 if (Array.isArray(data.instances)) {
                                     this.lobbyInstances = data.instances;
+                                if (data.peer_id) {
+                                    this.multiplayer.peer_id = String(data.peer_id);
+                                    if (typeof f2.setLocalPeerId === 'function') {
+                                        f2.setLocalPeerId(data.peer_id);
+                                    }
+                                }
                                 }
                                 this.peers = Array.isArray(data.peers) ? data.peers : [];
+                                if (Array.isArray(data.messages)) {
+                                    this._ingestLobbySyncMessages(data.messages);
+                                }
                                 f2.updatePeers(this.peers);
                             })
                             .catch(() => {})
@@ -4340,8 +4198,19 @@
                                 }
                                 if (Array.isArray(data.instances)) {
                                     this.lobbyInstances = data.instances;
+                                if (data.peer_id) {
+                                    this.multiplayer.peer_id = String(data.peer_id);
+                                    if (typeof f2.setLocalPeerId === 'function') {
+                                        f2.setLocalPeerId(data.peer_id);
+                                    }
+                                }
+                                this.chatMessages = [];
+                                this._seenMessageIds = new Set();
                                 }
                                 this.peers = Array.isArray(data.peers) ? data.peers : [];
+                                if (Array.isArray(data.messages)) {
+                                    this._ingestLobbySyncMessages(data.messages);
+                                }
                                 f2.switchInstance(this.peers);
                                 if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
                                     this.startMultiplayerLoop();
@@ -4398,10 +4267,29 @@
                             this.unreadChatCount = 0;
                         }
                     },
+                    msgPeerKey(msg) {
+                        if (!msg || typeof msg !== 'object') return '';
+                        return String(msg.peer_id || msg.player_id || '');
+                    },
+
+                    isOwnChatMessage(msg) {
+                        if (!msg || typeof msg !== 'object') return false;
+                        const pk = String(msg.peer_id || '');
+                        const pl = String(msg.player_id || '');
+                        if (pk && this.multiplayer.peer_id && pk === String(this.multiplayer.peer_id)) return true;
+                        if (pl && this.multiplayer.player_id && pl === String(this.multiplayer.player_id)) return true;
+                        if (pk && this.multiplayer.player_id && pk === String(this.multiplayer.player_id)) return true;
+                        return false;
+                    },
+
 
                     visibleChatMessages() {
                         if (!Array.isArray(this.chatMessages)) return [];
-                        return this.chatMessages.filter((m) => m && this.mutedPlayerIds.indexOf(m.player_id) === -1);
+                        return this.chatMessages.filter((m) => {
+                            if (!m) return false;
+                            const key = this.msgPeerKey(m);
+                            return !key || this.mutedPlayerIds.indexOf(key) === -1;
+                        });
                     },
 
                     showFeedback(text) {
@@ -4462,7 +4350,7 @@
 
                     _sendActualChatMessage(text) {
                         this.chatSending = true;
-                        fetch('/shop/showroom-chat', {
+                        fetch('/funkenwerk-welt/lobby/chat', {
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: {
@@ -4472,21 +4360,35 @@
                             },
                             body: JSON.stringify({ message: text })
                         })
-                            .then((res) => res.json().then((body) => ({ ok: res.ok, body })))
+                            .then((res) => res.json().catch(() => null).then((body) => ({ ok: res.ok, body })))
                             .then(({ ok, body }) => {
-                                if (!ok || !body || !body.success) {
+                                if (!ok || !body || !(body.ok || body.success)) {
                                     this.showFeedback((body && body.message) ? body.message : 'Nachricht konnte nicht gesendet werden.');
                                     return;
                                 }
                                 this.chatFeedback = '';
-                                if (body.entry) {
+                                const entry = body.entry || body.message_entry || null;
+                                if (entry && entry.text) {
                                     if (!this._seenMessageIds) this._seenMessageIds = new Set();
-                                    this._seenMessageIds.add(body.entry.id);
-                                    this.chatMessages = this.chatMessages.concat([body.entry]).slice(-15);
+                                    const eid = String(entry.id || ((entry.peer_id || entry.player_id || 'self') + ':' + entry.text));
+                                    this._seenMessageIds.add(eid);
+                                    const peerKey = String(entry.peer_id || entry.player_id || this.multiplayer.peer_id || '');
+                                    const normalized = {
+                                        id: eid,
+                                        peer_id: peerKey,
+                                        player_id: String(entry.player_id || peerKey),
+                                        display_name: String(entry.display_name || this.playerHud.name || 'Funki'),
+                                        class_label: entry.class_label || 'KLASSE C',
+                                        text: String(entry.text),
+                                    };
+                                    this.chatMessages = this.chatMessages.concat([normalized]).slice(-25);
                                     const facade = getFacade();
                                     if (facade) {
-                                        facade.showChatBubble(body.entry.player_id, body.entry.text);
+                                        facade.showChatBubble(peerKey || 'self', normalized.text);
                                     }
+                                if (Array.isArray(body.messages)) {
+                                    this._ingestLobbySyncMessages(body.messages);
+                                }
                                 }
                             })
                             .catch(() => {
@@ -4519,7 +4421,7 @@
 
                     isPeerOnline(playerId) {
                         if (!playerId || !Array.isArray(this.peers)) return false;
-                        return this.peers.some((p) => p && p.player_id === playerId);
+                        return this.peers.some((p) => p && (p.peer_id === playerId || p.player_id === playerId));
                     },
 
                     toggleFriend(playerId, displayName) {
@@ -4547,21 +4449,10 @@
                         this.sendChatMessage('/wave');
                     },
 
-                    triggerAbility(slot) {
-                        const facade = getFacade();
-                        if (!facade || typeof facade.triggerAbility !== 'function') return;
-                        facade.triggerAbility(slot);
-                        this.syncAbilityState();
-                    },
-
                     syncAbilityState() {
                         const facade = getFacade();
-                        if (facade && typeof facade.getAbilityState === 'function') {
-                            this.abilityState = facade.getAbilityState();
-                        }
                         if (facade && typeof facade.getPlayerHudState === 'function') {
                             const latestHud = facade.getPlayerHudState();
-                            this._syncHudHeartAnimation(latestHud);
                             this.playerHud = Object.assign({}, this.playerHud, latestHud);
                         }
                         this.renderMinimap();
@@ -4576,8 +4467,8 @@
                         const snap = facade.getMinimapState();
                         if (!snap) return;
 
-                        const w = canvas.width || 180;
-                        const h = canvas.height || 180;
+                        const w = canvas.width || 232;
+                        const h = canvas.height || 232;
                         const scale = w / 180;
                         const cx = w * 0.5;
                         const cy = h * 0.5;
@@ -4589,7 +4480,7 @@
                         ctx.arc(cx, cy, rad + 4 * scale, 0, Math.PI * 2);
                         ctx.clip();
 
-                        ctx.fillStyle = snap.zone === 'lava' ? '#FBF5EC' : '#FAF8F5';
+                        ctx.fillStyle = '#FAF8F5';
                         ctx.fillRect(0, 0, w, h);
 
                         ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
@@ -4608,7 +4499,7 @@
                             const mx = cx + (m.u - 0.5) * rad * 1.68;
                             const my = cy + (m.v - 0.5) * rad * 1.68;
                             ctx.beginPath();
-                            if (m.type === 'chest' || m.type === 'portal') {
+                            if (m.type === 'portal') {
                                 ctx.fillStyle = m.active ? '#C5A059' : '#9CA3AF';
                                 ctx.arc(mx, my, 5.2 * scale, 0, Math.PI * 2);
                             } else {
@@ -4639,7 +4530,7 @@
                     },
 
                     mutePeer(playerId) {
-                        if (!playerId || playerId === this.multiplayer.player_id) return;
+                        if (!playerId || playerId === this.multiplayer.player_id || playerId === this.multiplayer.peer_id) return;
                         if (this.mutedPlayerIds.indexOf(playerId) === -1) {
                             this.mutedPlayerIds = this.mutedPlayerIds.concat([playerId]);
                             const facade = getFacade();
@@ -4651,10 +4542,10 @@
                     },
 
                     reportPeer(playerId) {
-                        if (!playerId || playerId === this.multiplayer.player_id) return;
+                        if (!playerId || playerId === this.multiplayer.player_id || playerId === this.multiplayer.peer_id) return;
                         this.mutePeer(playerId);
 
-                        fetch('/shop/showroom-report', {
+                        fetch('/funkenwerk-welt/lobby/report', {
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: {
@@ -4662,11 +4553,14 @@
                                 'Accept': 'application/json',
                                 'X-CSRF-TOKEN': this.csrfToken()
                             },
-                            body: JSON.stringify({ target_player_id: playerId })
+                            body: JSON.stringify({
+                                target_peer_id: playerId,
+                                target_player_id: playerId
+                            })
                         })
-                            .then((res) => res.json())
+                            .then((res) => res.json().catch(() => null))
                             .then((body) => {
-                                if (body && body.success) {
+                                if (body && (body.ok || body.success)) {
                                     this.showFeedback('Meldung übermittelt und Spieler stummgeschaltet.');
                                 }
                             })
@@ -4677,14 +4571,6 @@
                         const facade = getFacade();
                         if (facade) {
                             facade.triggerJump();
-                        }
-                    },
-
-                    triggerWeapon() {
-                        const facade = getFacade();
-                        if (facade) {
-                            facade.triggerWeapon();
-                            this.syncAbilityState();
                         }
                     },
 
@@ -4720,7 +4606,7 @@
                         this.instanceMenuOpen = false;
                         this.settingsOpen = false;
                         this.sanctumGateOpen = false;
-                        this.masterKeyModalOpen = false;
+                        this.outerGateModalOpen = false;
                         this.listeningKeyAction = '';
                         this.chatOpen = false;
                         if (privateAudio && typeof privateAudio.setLobbyActive === 'function') {
@@ -4755,6 +4641,10 @@
                             setFacade(null);
                         }
                         document.documentElement.style.overflow = this.prevHtmlOverflow;
+                        if (this._loggedInDuringLobbySession) {
+                            this._loggedInDuringLobbySession = false;
+                            this.dispatchLivewireAuthSync();
+                        }
                         document.body.style.overflow = this.prevOverflow;
                     },
 
@@ -4768,12 +4658,12 @@
                             this.listeningKeyAction = '';
                             return;
                         }
-                        if (this.sanctumGateOpen) {
-                            this.closeSanctumGateModal();
+                        if (this.outerGateModalOpen) {
+                            this.closeOuterGateModal();
                             return;
                         }
-                        if (this.masterKeyModalOpen) {
-                            this.masterKeyModalOpen = false;
+                        if (this.sanctumGateOpen) {
+                            this.closeSanctumGateModal();
                             return;
                         }
                         if (this.settingsOpen) {

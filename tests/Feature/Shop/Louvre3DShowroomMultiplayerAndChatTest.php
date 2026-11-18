@@ -359,16 +359,25 @@ class Louvre3DShowroomMultiplayerAndChatTest extends TestCase
         $this->assertStringContainsString('data-testid="louvre-chat-toggle-btn"', $html);
         $this->assertStringContainsString('data-testid="louvre-room-chat-panel"', $html);
         $this->assertStringContainsString('data-testid="louvre-live-solo-toggle"', $html);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/chat', $html);
+        $this->assertStringContainsString('/funkenwerk-welt/lobby/report', $html);
+        $this->assertStringContainsString('_ingestLobbySyncMessages', $html);
+        $this->assertStringContainsString('setLocalPeerId', $html);
+        $this->assertStringNotContainsString('digital.' . 'mein-seelenfunke.de', $html);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $html);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $html);
 
         $js = (string) file_get_contents(public_path('js/seelenfunke-louvre-showroom-3d.js'));
         $this->assertStringContainsString('triggerJump()', $js);
-        $this->assertStringContainsString('triggerWeaponAction()', $js);
+        $this->assertStringContainsString('triggerEmote(', $js);
+        $this->assertStringContainsString('openOuterGateModal', $js);
         $this->assertStringContainsString('updatePeers(', $js);
         $this->assertStringContainsString('showChatBubble(', $js);
-        $this->assertStringContainsString('fpsEstimate < 40', $js);
+        $this->assertStringContainsString('getLocalSyncState', $js);
+        $this->assertStringContainsString('setLocalPeerId', $js);
+        $this->assertStringContainsString('this.fpsEstimate =', $js);
         $this->assertStringContainsString('focusProtected', $js);
+        $this->assertStringNotContainsString('digital.' . 'mein-seelenfunke.de', $js);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $js);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $js);
     }

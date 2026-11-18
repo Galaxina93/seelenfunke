@@ -126,7 +126,8 @@ namespace FunkenwerkMcp
             "list_cronjobs",
             "list_ingresses",
             "restart_stage_app",
-            "execute_stage_cronjob"
+            "execute_stage_cronjob",
+            "ensure_funkenreich_game"
         };
 
         // Multi-part public suffixes / shared hosting suffixes to prevent cross-tenant subdomain matching
@@ -2212,6 +2213,24 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                         break;
                     }
 
+                    case "ensure_funkenreich_game":
+                    {
+                        var gameSummary = await ExecuteEnsureFunkenreichGameInfraAsync(
+                            client,
+                            lease.ApiTokenUtf8,
+                            lease.Title,
+                            ct);
+                        McpSecurityGuard.AppendAuditLog("mittwald_api_broker", "ensure_funkenreich_game", "ALLOW");
+                        return new MittwaldBrokerResultDto
+                        {
+                            Status = "ok",
+                            Preset = normPreset,
+                            HttpStatus = 200,
+                            EntryTitle = lease.Title,
+                            Data = gameSummary
+                        };
+                    }
+
                     default:
                         throw new UnauthorizedAccessException($"Preset '{normPreset}' gesperrt.");
                 }
@@ -2243,8 +2262,6 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
         // =====================================================================
         // 5. PINNED SEELENFUNKE-LIVE CLI PREPARATION ENGINE (CLI-ONLY, ZERO-SECRET)
         // =====================================================================
-        private const string RetiredDigitalSubdomainHostname = "digital.mein-seelenfunke.de";
-
         internal static Func<string, string, Task<byte[]?>>? TestReadContainerEnvOverride { get; set; }
         internal static Func<Task<(bool Connected, string StatusToken)>>? TestProbeLiveMysqlPdoOverride { get; set; }
         internal static Func<ReadOnlyMemory<byte>, Task<string>>? TestWriteLiveEnvOverride { get; set; }
@@ -2532,7 +2549,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                         && (AsciiContainsIgnoreCase(auVal, "stage.mein-seelenfunke.de"u8) || AsciiContainsIgnoreCase(auVal, "www.mein-seelenfunke.de"u8)))
                         forcedOverrides["ASSET_URL"] = "https://mein-seelenfunke.de"u8.ToArray();
                     if (map.TryGetValue("SANCTUM_STATEFUL_DOMAINS", out var ssdVal)
-                        && (AsciiContainsIgnoreCase(ssdVal, "stage.mein-seelenfunke.de"u8) || AsciiContainsIgnoreCase(ssdVal, "digital.mein-seelenfunke.de"u8)))
+                        && AsciiContainsIgnoreCase(ssdVal, "stage.mein-seelenfunke.de"u8))
                         forcedOverrides["SANCTUM_STATEFUL_DOMAINS"] = "mein-seelenfunke.de,www.mein-seelenfunke.de"u8.ToArray();
                 }
 
@@ -2643,8 +2660,13 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             string subLabel,
             JsonArray existingIngresses,
             List<string> infraErrors,
-            CancellationToken ct)
+            CancellationToken ct,
+            string? targetAppUuidOverride = null)
         {
+            string targetAppUuid = string.IsNullOrWhiteSpace(targetAppUuidOverride)
+                ? McpSecurityGuard.PinnedLiveAppUuid
+                : ValidateSafeMittwaldId(targetAppUuidOverride, "targetAppUuid");
+
             var res = new SubdomainInfraResult { Hostname = hostname };
 
             JsonObject? ingObj = null;
@@ -2671,7 +2693,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                             ["path"] = "/",
                             ["target"] = new JsonObject
                             {
-                                ["installationId"] = McpSecurityGuard.PinnedLiveAppUuid
+                                ["installationId"] = targetAppUuid
                             }
                         }
                     },
@@ -2725,22 +2747,22 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             {
                 res.IngressId = ValidateSafeMittwaldId(ingObj["id"]?.GetValue<string>(), "ingressId");
 
-                bool rootPointsToLive = false;
+                bool rootPointsToTarget = false;
                 if (ingObj["paths"] is JsonArray pathsArr)
                 {
                     foreach (var pNode in pathsArr)
                     {
                         if (pNode is JsonObject po
                             && string.Equals(po["path"]?.GetValue<string>(), "/", StringComparison.Ordinal)
-                            && string.Equals(po["target"]?["installationId"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveAppUuid, StringComparison.Ordinal))
+                            && string.Equals(po["target"]?["installationId"]?.GetValue<string>(), targetAppUuid, StringComparison.Ordinal))
                         {
-                            rootPointsToLive = true;
+                            rootPointsToTarget = true;
                             break;
                         }
                     }
                 }
 
-                if (!rootPointsToLive)
+                if (!rootPointsToTarget)
                 {
                     var patchPathsArr = new JsonArray
                     {
@@ -2749,7 +2771,7 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                             ["path"] = "/",
                             ["target"] = new JsonObject
                             {
-                                ["installationId"] = McpSecurityGuard.PinnedLiveAppUuid
+                                ["installationId"] = targetAppUuid
                             }
                         }
                     };
@@ -2942,121 +2964,242 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             return res;
         }
 
-        private static async Task<(bool IngressRemoved, string RemovedIngressId, bool DnsZoneRemoved, string RemovedDnsZoneId)> RetireLegacyDigitalSubdomainInfraAsync(
+        private static async Task<JsonObject> ExecuteEnsureFunkenreichGameInfraAsync(
             HttpClient client,
-            byte[] apiTokenUtf8,
-            JsonArray? currentIngresses,
-            List<string> infraErrors,
+            ReadOnlyMemory<byte> apiTokenUtf8,
+            string leaseTitle,
             CancellationToken ct)
         {
-            bool ingressRemoved = false;
-            string removedIngressId = "";
-            bool dnsZoneRemoved = false;
-            string removedDnsZoneId = "";
+            const string gameDescription = "funkenreich-game";
+            const string gameInstallPath = "/funkenreich-game";
+            const string gameHostname = "game.mein-seelenfunke.de";
+            string projectId = McpSecurityGuard.PinnedLiveProjectId;
 
-            JsonArray? ingArr = currentIngresses;
-            if (ingArr == null)
-            {
-                var (ingSt, ingBody, ingNode) = await SendMittwaldRequestAsync(
-                    client,
-                    HttpMethod.Get,
-                    $"/v2/ingresses?projectId={Uri.EscapeDataString(McpSecurityGuard.PinnedLiveProjectId)}",
-                    apiTokenUtf8,
-                    ct);
-                if (ingSt is < 200 or >= 300 || ingNode is not JsonArray fetchedArr)
-                    throw new InvalidOperationException($"GET /v2/ingresses fehlgeschlagen (HTTP {ingSt}): {ingBody}");
-                ingArr = fetchedArr;
-            }
-
-            foreach (var item in ingArr)
-            {
-                if (item is not JsonObject io)
-                    continue;
-                string host = io["hostname"]?.GetValue<string>() ?? "";
-                if (!string.Equals(host, RetiredDigitalSubdomainHostname, StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                // Hard guard: never touch apex, www, stage, ws, bridge, or steinhauer-invest
-                if (string.Equals(host, "mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(host, McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)
-                    || host.StartsWith("stage.", StringComparison.OrdinalIgnoreCase)
-                    || host.StartsWith("ws.", StringComparison.OrdinalIgnoreCase)
-                    || host.StartsWith("api-live-bridge.", StringComparison.OrdinalIgnoreCase)
-                    || host.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new UnauthorizedAccessException($"PINNING-SPERRE: Verbotenes Ziel '{host}' beim Bereinigen von {RetiredDigitalSubdomainHostname}.");
-                }
-
-                string ingId = ValidateSafeMittwaldId(io["id"]?.GetValue<string>(), "ingressId");
-                if (string.Equals(ingId, McpSecurityGuard.PinnedLiveApexIngressUuid, StringComparison.OrdinalIgnoreCase))
-                    throw new UnauthorizedAccessException("PINNING-SPERRE: Apex-Ingress darf niemals entfernt werden.");
-
-                var (delSt, delBody, _) = await SendMittwaldRequestAsync(
-                    client,
-                    HttpMethod.Delete,
-                    $"/v2/ingresses/{ingId}",
-                    apiTokenUtf8,
-                    ct);
-                if ((delSt is < 200 or >= 300) && delSt != 404)
-                {
-                    infraErrors.Add($"DELETE /v2/ingresses/{ingId} ({RetiredDigitalSubdomainHostname}) -> HTTP {delSt}: {delBody}");
-                }
-                else
-                {
-                    ingressRemoved = delSt != 404;
-                    removedIngressId = ingId;
-                }
-            }
-
-            var (zSt, zBody, zNode) = await SendMittwaldRequestAsync(
+            var (appsSt, appsBody, appsNode) = await SendMittwaldRequestAsync(
                 client,
                 HttpMethod.Get,
-                $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones",
+                $"/v2/projects/{projectId}/app-installations",
                 apiTokenUtf8,
                 ct);
-            if (zSt is >= 200 and < 300 && zNode is JsonArray zonesArr)
+            if (appsSt is < 200 or >= 300 || appsNode is not JsonArray appsArr)
+                throw new InvalidOperationException($"GET /v2/projects/{projectId}/app-installations fehlgeschlagen (HTTP {appsSt}): {appsBody}");
+
+            JsonObject? existingGameApp = null;
+            JsonObject? stageTemplateApp = null;
+
+            foreach (var item in appsArr)
             {
-                foreach (var z in zonesArr)
+                if (item is not JsonObject ao) continue;
+                string desc = ao["description"]?.GetValue<string>() ?? "";
+                string instPath = ao["installationPath"]?.GetValue<string>() ?? "";
+                string shortId = ao["shortId"]?.GetValue<string>() ?? "";
+
+                if (string.Equals(desc, gameDescription, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(instPath, gameInstallPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (z is not JsonObject zo)
-                        continue;
-                    string dom = zo["domain"]?.GetValue<string>() ?? "";
-                    if (!string.Equals(dom, RetiredDigitalSubdomainHostname, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    string zoneId = ValidateSafeMittwaldId(zo["id"]?.GetValue<string>(), "dnsZoneId");
-                    if (string.Equals(zoneId, McpSecurityGuard.PinnedLiveRootZoneUuid, StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(dom, "mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(dom, McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)
-                        || dom.StartsWith("stage.", StringComparison.OrdinalIgnoreCase)
-                        || dom.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new UnauthorizedAccessException($"PINNING-SPERRE: Haupt-/Stage-DNS-Zone '{dom}' darf niemals entfernt werden.");
-                    }
-
-                    var (delZSt, delZBody, _) = await SendMittwaldRequestAsync(
-                        client,
-                        HttpMethod.Delete,
-                        $"/v2/dns-zones/{zoneId}",
-                        apiTokenUtf8,
-                        ct);
-                    if ((delZSt is < 200 or >= 300) && delZSt != 404)
-                    {
-                        infraErrors.Add($"DELETE /v2/dns-zones/{zoneId} ({RetiredDigitalSubdomainHostname}) -> HTTP {delZSt}: {delZBody}");
-                    }
-                    else
-                    {
-                        dnsZoneRemoved = delZSt != 404;
-                        removedDnsZoneId = zoneId;
-                    }
+                    existingGameApp = ao;
                 }
+                if (string.Equals(shortId, "a-lc6tkm", StringComparison.OrdinalIgnoreCase))
+                {
+                    stageTemplateApp = ao;
+                }
+            }
+
+            bool appCreated = false;
+            string gameAppUuid;
+
+            if (existingGameApp != null)
+            {
+                gameAppUuid = ValidateSafeMittwaldId(existingGameApp["id"]?.GetValue<string>(), "gameAppId");
             }
             else
             {
-                infraErrors.Add($"GET /v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones -> HTTP {zSt}: {zBody}");
+                string desiredAppVersionId = stageTemplateApp?["appVersion"]?["desired"]?.GetValue<string>()
+                                          ?? stageTemplateApp?["appVersion"]?["current"]?.GetValue<string>()
+                                          ?? "ff45ad04-8589-46d7-a645-0566be3eaeec";
+
+                var sysSoftMap = new JsonObject();
+                if (stageTemplateApp?["systemSoftware"] is JsonArray tplSoftArr)
+                {
+                    foreach (var sNode in tplSoftArr)
+                    {
+                        if (sNode is not JsonObject so) continue;
+                        string? swId = so["systemSoftwareId"]?.GetValue<string>();
+                        string? swVer = so["systemSoftwareVersion"]?["desired"]?.GetValue<string>()
+                                     ?? so["systemSoftwareVersion"]?["current"]?.GetValue<string>();
+                        string swPol = so["updatePolicy"]?.GetValue<string>() ?? "patchLevel";
+                        if (!string.IsNullOrWhiteSpace(swId) && !string.IsNullOrWhiteSpace(swVer))
+                        {
+                            sysSoftMap[swId!] = new JsonObject
+                            {
+                                ["systemSoftwareVersion"] = swVer,
+                                ["updatePolicy"] = swPol
+                            };
+                        }
+                    }
+                }
+
+                var createAppPayload = new JsonObject
+                {
+                    ["appVersionId"] = desiredAppVersionId,
+                    ["description"] = gameDescription,
+                    ["installationPath"] = gameInstallPath,
+                    ["updatePolicy"] = "patchLevel",
+                    ["userInputs"] = new JsonArray()
+                };
+                if (sysSoftMap.Count > 0)
+                {
+                    createAppPayload["systemSoftware"] = sysSoftMap;
+                }
+
+                byte[] createAppBytes = Encoding.UTF8.GetBytes(createAppPayload.ToJsonString());
+                var (crAppSt, crAppBody, crAppNode) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Post,
+                    $"/v2/projects/{projectId}/app-installations",
+                    apiTokenUtf8,
+                    ct,
+                    jsonBodyUtf8: createAppBytes);
+
+                if (crAppSt is < 200 or >= 300 || crAppNode is not JsonObject crAppObj)
+                    throw new InvalidOperationException($"POST /v2/projects/{projectId}/app-installations ({gameDescription}) fehlgeschlagen (HTTP {crAppSt}): {crAppBody}");
+
+                gameAppUuid = ValidateSafeMittwaldId(crAppObj["id"]?.GetValue<string>(), "gameAppId");
+                appCreated = true;
             }
 
-            return (ingressRemoved, removedIngressId, dnsZoneRemoved, removedDnsZoneId);
+            // Poll until app exists and reaches phase == ready (or max 36 * 2.5s = 90s)
+            JsonObject? currentAppJson = null;
+            string currentPhase = "pending";
+            for (int poll = 1; poll <= 36; poll++)
+            {
+                var (gaSt, _, gaNode) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Get,
+                    $"/v2/app-installations/{gameAppUuid}",
+                    apiTokenUtf8,
+                    ct);
+                if (gaSt is >= 200 and < 300 && gaNode is JsonObject gaObj)
+                {
+                    currentAppJson = gaObj;
+                    currentPhase = gaObj["phase"]?.GetValue<string>() ?? "unknown";
+                    if (string.Equals(currentPhase, "ready", StringComparison.OrdinalIgnoreCase))
+                        break;
+                }
+                if (poll < 36)
+                    await Task.Delay(2500, ct);
+            }
+
+            string docRootBefore = currentAppJson?["customDocumentRoot"]?.GetValue<string>() ?? "";
+            bool docRootPatched = false;
+            string docRootAfter = docRootBefore;
+
+            if (!string.Equals(docRootBefore, "/public", StringComparison.Ordinal))
+            {
+                byte[] patchDocBytes = Encoding.UTF8.GetBytes("{\"customDocumentRoot\":\"/public\"}");
+                var (pSt, pBody, _) = await SendMittwaldRequestAsync(
+                    client,
+                    HttpMethod.Patch,
+                    $"/v2/app-installations/{gameAppUuid}",
+                    apiTokenUtf8,
+                    ct,
+                    jsonBodyUtf8: patchDocBytes);
+                if (pSt is < 200 or >= 300)
+                    throw new InvalidOperationException($"PATCH customDocumentRoot /public auf {gameAppUuid} fehlgeschlagen (HTTP {pSt}): {pBody}");
+
+                docRootPatched = true;
+                for (int rPoll = 1; rPoll <= 12; rPoll++)
+                {
+                    var (reSt, _, reNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/app-installations/{gameAppUuid}",
+                        apiTokenUtf8,
+                        ct);
+                    if (reSt is >= 200 and < 300 && reNode is JsonObject reObj)
+                    {
+                        currentAppJson = reObj;
+                        docRootAfter = reObj["customDocumentRoot"]?.GetValue<string>() ?? "/public";
+                        currentPhase = reObj["phase"]?.GetValue<string>() ?? currentPhase;
+                        if (string.Equals(currentPhase, "ready", StringComparison.OrdinalIgnoreCase))
+                            break;
+                    }
+                    if (rPoll < 12)
+                        await Task.Delay(2000, ct);
+                }
+            }
+
+            string gameShortId = currentAppJson?["shortId"]?.GetValue<string>() ?? "";
+
+            // Ensure Virtual-Host-Ingress game.mein-seelenfunke.de + ACME TLS + managed DNS subzone
+            var (ingListSt, ingListBody, ingListNode) = await SendMittwaldRequestAsync(
+                client,
+                HttpMethod.Get,
+                $"/v2/ingresses?projectId={Uri.EscapeDataString(projectId)}",
+                apiTokenUtf8,
+                ct);
+            if (ingListSt is < 200 or >= 300 || ingListNode is not JsonArray ingArr)
+                throw new InvalidOperationException($"GET /v2/ingresses fehlgeschlagen (HTTP {ingListSt}): {ingListBody}");
+
+            var infraErrors = new List<string>();
+            var gameSubRes = await EnsurePinnedLiveSubdomainInfraAsync(
+                client,
+                apiTokenUtf8,
+                leaseTitle,
+                gameHostname,
+                "game",
+                ingArr,
+                infraErrors,
+                ct,
+                targetAppUuidOverride: gameAppUuid);
+
+            if (infraErrors.Count > 0)
+                throw new InvalidOperationException(string.Join(" || ", infraErrors));
+
+            // Wait briefly for ownership verification + ACME TLS issuance if newly created
+            if (!gameSubRes.TlsIsCreated || !gameSubRes.OwnershipVerified)
+            {
+                for (int tPoll = 1; tPoll <= 15; tPoll++)
+                {
+                    await Task.Delay(2000, ct);
+                    var (tiSt, _, tiNode) = await SendMittwaldRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/v2/ingresses/{gameSubRes.IngressId}",
+                        apiTokenUtf8,
+                        ct);
+                    if (tiSt is >= 200 and < 300 && tiNode is JsonObject tiObj)
+                    {
+                        gameSubRes.TlsAcme = tiObj["tls"]?["acme"]?.GetValue<bool>() ?? gameSubRes.TlsAcme;
+                        gameSubRes.TlsIsCreated = tiObj["tls"]?["isCreated"]?.GetValue<bool>() ?? false;
+                        gameSubRes.OwnershipVerified = tiObj["ownership"]?["verified"]?.GetValue<bool>() ?? false;
+                        if (gameSubRes.TlsIsCreated && gameSubRes.OwnershipVerified)
+                            break;
+                    }
+                }
+            }
+
+            return new JsonObject
+            {
+                ["project_id"] = projectId,
+                ["app_id"] = gameAppUuid,
+                ["app_short_id"] = gameShortId,
+                ["app_description"] = gameDescription,
+                ["app_created"] = appCreated,
+                ["app_phase"] = currentPhase,
+                ["installation_path"] = currentAppJson?["installationPath"]?.GetValue<string>() ?? gameInstallPath,
+                ["custom_document_root"] = docRootAfter,
+                ["document_root_patched"] = docRootPatched,
+                ["hostname"] = gameSubRes.Hostname,
+                ["ingress_id"] = gameSubRes.IngressId,
+                ["ingress_created"] = gameSubRes.IngressCreated,
+                ["tls_acme"] = gameSubRes.TlsAcme,
+                ["tls_is_created"] = gameSubRes.TlsIsCreated,
+                ["ownership_verified"] = gameSubRes.OwnershipVerified,
+                ["dns_zone_id"] = gameSubRes.DnsZoneId,
+                ["dns_zone_created"] = gameSubRes.DnsZoneCreated,
+                ["dns_managed_by_ingress_id"] = gameSubRes.ManagedByIngressId
+            };
         }
 
         public static async Task<JsonObject> ExecutePinnedSeelenfunkeLivePrepareAsync(
@@ -3065,8 +3208,8 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             CancellationToken ct = default)
         {
             string normStep = string.IsNullOrWhiteSpace(step) ? "all" : step.Trim().ToLowerInvariant();
-            if (normStep is not ("all" or "infra" or "env" or "cron" or "check" or "retire-digital"))
-                throw new ArgumentException($"Ungültiger --step='{McpSecurityGuard.ScrubSecrets(step)}'. Erlaubt: all, infra, env, cron, check, retire-digital.");
+            if (normStep is not ("all" or "infra" or "env" or "cron" or "check"))
+                throw new ArgumentException($"Ungültiger --step='{McpSecurityGuard.ScrubSecrets(step)}'. Erlaubt: all, infra, env, cron, check.");
 
             if (!string.IsNullOrWhiteSpace(entryTitleOrId)
                 && (entryTitleOrId.Contains("steinhauer-invest", StringComparison.OrdinalIgnoreCase)
@@ -3117,18 +3260,15 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                         client, HttpMethod.Get, $"/v2/ingresses?projectId={Uri.EscapeDataString(McpSecurityGuard.PinnedLiveProjectId)}", lease.ApiTokenUtf8, ct);
                     var cIngArr = cIngNode as JsonArray;
                     var wwwIngItem = cIngArr?.FirstOrDefault(x => string.Equals(x?["hostname"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase));
-                    var retiredDigitalIngItem = cIngArr?.FirstOrDefault(x => string.Equals(x?["hostname"]?.GetValue<string>(), RetiredDigitalSubdomainHostname, StringComparison.OrdinalIgnoreCase));
                     checkObj["ingresses_http"] = cIngSt;
                     checkObj["www_ingress_exists"] = wwwIngItem != null;
                     checkObj["www_tls_is_created"] = wwwIngItem?["tls"]?["isCreated"]?.GetValue<bool>() == true;
-                    checkObj["retired_digital_ingress_present"] = retiredDigitalIngItem != null;
 
                     var (cDnsSt, _, cDnsNode) = await SendMittwaldRequestAsync(
                         client, HttpMethod.Get, $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/dns-zones", lease.ApiTokenUtf8, ct);
                     var cDnsArr = cDnsNode as JsonArray;
                     checkObj["dns_zones_http"] = cDnsSt;
                     checkObj["www_dns_zone_exists"] = cDnsArr?.Any(x => string.Equals(x?["domain"]?.GetValue<string>(), McpSecurityGuard.PinnedLiveWwwHostname, StringComparison.OrdinalIgnoreCase)) == true;
-                    checkObj["retired_digital_dns_zone_present"] = cDnsArr?.Any(x => string.Equals(x?["domain"]?.GetValue<string>(), RetiredDigitalSubdomainHostname, StringComparison.OrdinalIgnoreCase)) == true;
 
                     var (cCronSt, _, cCronNode) = await SendMittwaldRequestAsync(
                         client, HttpMethod.Get, $"/v2/projects/{McpSecurityGuard.PinnedLiveProjectId}/cronjobs", lease.ApiTokenUtf8, ct);
@@ -3169,25 +3309,6 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     }
 
                     summary["check"] = checkObj;
-                    return summary;
-                }
-
-                if (normStep == "retire-digital")
-                {
-                    var retireErrors = new List<string>();
-                    var (ingRemoved, remIngId, dnsRemoved, remDnsId) = await RetireLegacyDigitalSubdomainInfraAsync(
-                        client, lease.ApiTokenUtf8, null, retireErrors, ct);
-                    summary["retire_digital"] = new JsonObject
-                    {
-                        ["ingress_removed"] = ingRemoved,
-                        ["removed_ingress_id"] = remIngId,
-                        ["dns_zone_removed"] = dnsRemoved,
-                        ["removed_dns_zone_id"] = remDnsId
-                    };
-                    if (retireErrors.Count > 0)
-                        throw new InvalidOperationException(string.Join(" || ", retireErrors));
-
-                    McpSecurityGuard.AppendAuditLog("mittwald_prepare_live", $"retire_digital:ing={remIngId}:dns={remDnsId}", "ALLOW");
                     return summary;
                 }
 
@@ -3281,13 +3402,6 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                         infraErrors,
                         ct);
 
-                    var (retiredIngRemoved, retiredIngId, retiredDnsRemoved, retiredDnsId) = await RetireLegacyDigitalSubdomainInfraAsync(
-                        client,
-                        lease.ApiTokenUtf8,
-                        ingArr,
-                        infraErrors,
-                        ct);
-
                     infraObj["www_hostname"] = wwwRes.Hostname;
                     infraObj["www_ingress_id"] = wwwRes.IngressId;
                     infraObj["www_ingress_created"] = wwwRes.IngressCreated;
@@ -3298,10 +3412,6 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     infraObj["dns_zone_created"] = wwwRes.DnsZoneCreated;
                     infraObj["dns_set_managed_called"] = wwwRes.DnsSetManagedCalled;
                     infraObj["dns_managed_by_ingress_id"] = wwwRes.ManagedByIngressId;
-                    infraObj["retired_digital_ingress_removed"] = retiredIngRemoved;
-                    infraObj["retired_digital_ingress_id"] = retiredIngId;
-                    infraObj["retired_digital_dns_zone_removed"] = retiredDnsRemoved;
-                    infraObj["retired_digital_dns_zone_id"] = retiredDnsId;
 
                     summary["infra"] = infraObj;
                     if (infraErrors.Count > 0)

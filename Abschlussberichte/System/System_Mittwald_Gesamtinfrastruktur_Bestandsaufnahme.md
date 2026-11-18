@@ -92,6 +92,7 @@ Für alle 9 Hostnamen ist automatisches ACME-SSL/TLS (`tls.acme = true`, `isCrea
 | 7 | **`openwebui.p-g27wim.project.space`** | `bd00c847-53fa-4d09-9261-bb8f30e6006b` | `/` | `useDefaultPage: true` *(keine App)* | Historische Test-Subdomain ohne aktiven Container (`stacks`, `services` und `volumes` im Projekt sind komplett leer) |
 | 8 | **`p-g27wim.project.space`** | `7da368d9-c025-4d55-8dea-cecaa4cb8451` | `/` | `useDefaultPage: true` (`isDefault: true`) | Automatische interne Mittwald-Systemdomain des Projekts |
 | 9 | **`www.mein-seelenfunke.de`** | `3cc5333c-5b83-46f8-8e6c-72ed843bee8a` | `/` | App **`a-bycqrf`** (`seelenfunke-live`) | Live-Subdomain-Ingress (`isCreated: true`, DNS-Zone `c24e2c43-db7b-4386-8811-d1df5b3042e5`), leitet Aufrufe per **`HTTP 301`** auf `https://mein-seelenfunke.de` weiter |
+| 10 | **`game.mein-seelenfunke.de`** | `4f10ed85-634d-413e-9d30-34ab1568c3bd` | `/` | App **`a-xu1n7n`** (`funkenreich-game`) | Eigenständige MMORPG-Subdomain für „Das Funkenreich“ (`tls.isCreated: true`, DNS-Subzone `6adc6473-742a-499a-8961-8bacd2f4694a`, Closed-Alpha HMAC-SSO-Gate) |
 
 ---
 
@@ -124,6 +125,7 @@ Im Projektverzeichnis `/home/p-g27wim/html` liegen exakt **6 physische App-Ordne
 | **`a-yeq7el`** | `seelenfunke-nodejs` | `Node.js` | `740bd870-cd0d-4ee4-b601-991c6b8ec9ea` | `/twilio-bridge` | `node server-twilio.js` | Node.js `25.9.0` (`patchLevel`) | spricht per HTTPS/REST mit `stage.mein-seelenfunke.de` |
 | **`a-bycqrf`** | `seelenfunke-live` | `PHP` | `93f33f15-d27c-4d15-9f85-155eb9adace8` | `/seelenfunke-live` | DocRoot: **`/public`** (`customDocumentRoot: "/public"`, 315 Shop-Assets, `Shop Live-Freigabe = false`) | PHP `8.4.27` (`patchLevel`), Composer `2.7.7` (`patchLevel`), MySQL-CLI `8.0.40` | `mysql_gv2avu` |
 | **`a-s4sdym`** | `steinhauer-invest` | `PHP` | `2be54dff-9651-416e-8aba-79a5b63749ff` | `/steinhauer-invest` | DocRoot: **`/public`** | PHP `8.5.12` (`patchLevel`), Node `22.23.5` (`none`), Composer `2.7.7`, MySQL-CLI `8.4.5` | `mysql_fg9zlg` |
+| **`a-xu1n7n`** | `funkenreich-game` | `PHP` | `dccfe59d-17b5-40e6-94e1-37750bc60b7d` | `/funkenreich-game` | DocRoot: **`/public`** (`customDocumentRoot: "/public"`, Closed-Alpha MMORPG „Das Funkenreich“) | PHP `8.4` (`patchLevel`) | SQLite WAL (`storage/database/funkenreich.sqlite`) + HMAC-SSO zu Shop |
 
 > [!NOTE]
 > **Native Docker-Container (`stacks` / `services` / `volumes`):** Obwohl im Tarif das Feature `container` freigeschaltet ist, sind aktuell `0` Docker-Stacks, `0` Container-Services und `0` Volumes angelegt. Die gesamte Architektur läuft schlank und wartungsarm über native mStudio Managed-Apps (`PHP`, `PHP-Worker`, `Node.js`).

@@ -24,6 +24,7 @@
     <env name="SESSION_DRIVER" value="array" force="true"/>
     <env name="TELESCOPE_ENABLED" value="false" force="true"/>
     <env name="VIEW_COMPILED_PATH" value="/tmp/sf_test_views" force="true"/>
+    <env name="FUNKENREICH_GAME_URL" value="https://game.mein-seelenfunke.de" force="true"/>
   </php>
   <source>
     <include>

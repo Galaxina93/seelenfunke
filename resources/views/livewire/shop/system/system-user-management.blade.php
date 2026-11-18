@@ -209,6 +209,17 @@
                             @endif
                         </div>
 
+                            @if(($isCreating && $createType === 'customer') || (!$isCreating && $editingType === 'customer'))
+                                <label class="flex items-center gap-4 cursor-pointer group bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner hover:border-[var(--theme-color)]/50 transition-colors">
+                                    <div class="relative flex items-center shrink-0">
+                                        <input type="checkbox" wire:model="formData.mmorpg_access_enabled" class="peer sr-only">
+                                        <div class="w-6 h-6 bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
+                                        <svg class="absolute w-4 h-4 left-1 top-1 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    </div>
+                                    <span class="text-sm font-bold text-gray-800 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">MMORPG-Zugang</span>
+                                </label>
+                            @endif
+
                         @if(!$isCreating)
                             {{-- PROFIL-, ADRESS-, GEBURTSTAGS- & DSGVO-ÄNDERUNGSPROTOKOLL (LOG) --}}
                             <div class="p-4 bg-gray-50 dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner space-y-3">
@@ -470,6 +481,11 @@
                                            wire:model="customerUploadTitle"
                                            placeholder="z. B. Echtheitszertifikat (leer = Dateiname)"
                                            class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-3.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/50">
+
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-[var(--theme-color)]/40 transition">
+                                            <input type="checkbox" wire:model="formData.mmorpg_access_enabled" class="w-4 h-4 rounded border-gray-300 dark:border-gray-700 accent-[var(--theme-color)] text-[var(--theme-color)] focus:ring-[var(--theme-color)] shrink-0">
+                                            <span class="text-xs font-bold text-gray-900 dark:text-white">MMORPG-Zugang</span>
+                                        </label>
                                 </div>
 
                                 <div class="space-y-1.5">
@@ -920,6 +936,25 @@
                                                         <x-heroicon-s-key class="w-4 h-4" />
                                                     </button>
                                                 @endif
+
+                                        @if(($user['user_type'] ?? '') === 'customer' && !$showArchive)
+                                            <div>
+                                                <button type="button"
+                                                        wire:click="toggleMmorpgAccess('{{ $user['id'] }}')"
+                                                        @class([
+                                                            'inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all cursor-pointer',
+                                                            'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' => !empty($user['mmorpg_access_enabled']),
+                                                            'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]/50 hover:text-gray-900 dark:hover:text-white' => empty($user['mmorpg_access_enabled']),
+                                                        ])>
+                                                    <span @class([
+                                                        'w-2 h-2 rounded-full shrink-0 transition-colors',
+                                                        'bg-emerald-500' => !empty($user['mmorpg_access_enabled']),
+                                                        'bg-gray-400 dark:bg-gray-600' => empty($user['mmorpg_access_enabled']),
+                                                    ])></span>
+                                                    <span>MMORPG-Zugang</span>
+                                                </button>
+                                            </div>
+                                        @endif
                                                 <button wire:click="startEdit('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)]/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Bearbeiten">
                                                     <x-heroicon-m-pencil-square class="w-4 h-4" />
                                                 </button>

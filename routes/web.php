@@ -22,3 +22,7 @@ require __DIR__ . '/partials/customer_routes.php';
 
 // Employee-Routes
 require __DIR__ . '/partials/employee_routes.php';
+
+// Funkenreich-Gateway-Routes (SSO & Live-Widerrufs-API)
+require __DIR__ . '/partials/funkenreich_gateway_routes.php';
+

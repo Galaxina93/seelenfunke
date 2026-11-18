@@ -67,6 +67,7 @@ use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notif
         'google_id',
         'email_verified_at',
         'needs_password_change',
+        'mmorpg_access_enabled',
         'temporary_password',
     ];
 
@@ -81,6 +82,7 @@ use HasFactory, HasUuids, softDeletes, AuthenticatableTrait, HasApiTokens, Notif
 
     protected $casts = [
         'needs_password_change' => 'boolean',
+        'mmorpg_access_enabled' => 'boolean',
     ];
 
     protected static function boot(): void

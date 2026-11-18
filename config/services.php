@@ -136,6 +136,11 @@ return [
         'cache_secret' => env('SYSTEM_CACHE_SECRET'),
     ],
 
+    'funkenreich' => [
+        'url' => env('FUNKENREICH_GAME_URL', 'https://game.mein-seelenfunke.de'),
+        'sso_secret' => env('FUNKENREICH_SSO_SECRET', ''),
+    ],
+
 ];
 
 

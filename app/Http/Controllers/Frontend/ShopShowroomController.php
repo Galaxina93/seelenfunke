@@ -83,6 +83,8 @@ class ShopShowroomController extends Controller
             'player_funki' => $playerFunki,
             'multiplayer' => $multiplayerPayload,
             'lava_parkour' => $lavaParkourPayload,
+            'mmorpg_can_enter' => $playerPayload['mmorpg_can_enter'] ?? false,
+            'mmorpg_enter_url' => $playerPayload['mmorpg_enter_url'] ?? '/funkenreich/enter',
             'products' => $products,
         ], 200, $this->noStoreHeaders());
     }
@@ -316,6 +318,8 @@ class ShopShowroomController extends Controller
             'success' => true,
             'status' => 'authenticated',
             'csrf_token' => csrf_token(),
+            'mmorpg_can_enter' => $playerPayload['mmorpg_can_enter'] ?? false,
+            'mmorpg_enter_url' => $playerPayload['mmorpg_enter_url'] ?? '/funkenreich/enter',
             'sanctum_access' => $sanctumAccess,
             'player' => $playerPayload,
             'player_funki' => $playerFunki,
@@ -506,6 +510,8 @@ class ShopShowroomController extends Controller
                 'has_completed_order' => false,
                 'gamification_active' => false,
                 'can_enter_sanctums' => false,
+            'mmorpg_can_enter' => $mmorpgAccess['mmorpg_can_enter'],
+            'mmorpg_enter_url' => $mmorpgAccess['mmorpg_enter_url'],
                 'csrf_token' => csrf_token(),
                 'message' => (string) ($deniedAccess['message'] ?? 'Ab deiner ersten abgeschlossenen Bestellung schaltest du die Seelenfunken-Magie frei.'),
             ], 403, $this->noStoreHeaders());
@@ -544,6 +550,8 @@ class ShopShowroomController extends Controller
             'success' => true,
             'status' => 'magic_activated',
             'csrf_token' => csrf_token(),
+            'mmorpg_can_enter' => $playerPayload['mmorpg_can_enter'] ?? false,
+            'mmorpg_enter_url' => $playerPayload['mmorpg_enter_url'] ?? '/funkenreich/enter',
             'sanctum_access' => $sanctumAccess,
             'player' => $playerPayload,
             'player_funki' => $playerFunki,
@@ -1346,6 +1354,7 @@ class ShopShowroomController extends Controller
         $giftVoucherUrl = '/produkt/geschenkgutschein';
         $levelTitles = GameConfig::getLevelTitles();
         $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
+        $mmorpgAccess = $this->resolveMmorpgAccess($customer);
 
         if ($customer !== null) {
             $profile = Schema::hasTable('customer_gamifications')
@@ -1374,6 +1383,8 @@ class ShopShowroomController extends Controller
                 'has_completed_order' => $sanctumAccess['has_completed_order'],
                 'gamification_active' => $gamificationActive,
                 'can_enter_sanctums' => $sanctumAccess['can_enter_sanctums'],
+                'mmorpg_can_enter' => $mmorpgAccess['mmorpg_can_enter'],
+                'mmorpg_enter_url' => $mmorpgAccess['mmorpg_enter_url'],
                 'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
                 'login_url' => $sanctumAccess['login_url'],
                 'dashboard_url' => $sanctumAccess['dashboard_url'],
@@ -1420,6 +1431,40 @@ class ShopShowroomController extends Controller
             'magma_prestige_points' => 0,
             'master_key_unlocked' => false,
             'gift_voucher_url' => $giftVoucherUrl,
+        ];
+    }
+
+    /**
+     * Prueft defensiv, ob der aktuelle Besucher (Admin oder in /admin/users freigeschalteter Kunde)
+     * am Tor zur Aussenwelt direkt per 1-Klick-SSO nach game.mein-seelenfunke.de wechseln darf.
+     *
+     * @return array{mmorpg_can_enter: bool, mmorpg_enter_url: string}
+     */
+    private function resolveMmorpgAccess(?Customer $customer = null): array
+    {
+        $isAdmin = Auth::guard('admin')->check();
+        /** @var Customer|null $resolvedCustomer */
+        $resolvedCustomer = $customer ?? Auth::guard('customer')->user();
+
+        $customerAllowed = false;
+        if (
+            $resolvedCustomer !== null
+            && (!method_exists($resolvedCustomer, 'trashed') || !$resolvedCustomer->trashed())
+            && (!method_exists($resolvedCustomer, 'hasVerifiedEmail') || $resolvedCustomer->hasVerifiedEmail())
+            && !$resolvedCustomer->needs_password_change
+            && Schema::hasTable('customers')
+            && Schema::hasColumn('customers', 'mmorpg_access_enabled')
+        ) {
+            $attrPresent = array_key_exists('mmorpg_access_enabled', $resolvedCustomer->getAttributes());
+            $rawVal = $attrPresent
+                ? $resolvedCustomer->getAttribute('mmorpg_access_enabled')
+                : DB::table('customers')->where('id', $resolvedCustomer->id)->value('mmorpg_access_enabled');
+            $customerAllowed = (bool) ($rawVal ?? false);
+        }
+
+        return [
+            'mmorpg_can_enter' => $isAdmin || $customerAllowed,
+            'mmorpg_enter_url' => '/funkenreich/enter',
         ];
     }
 
