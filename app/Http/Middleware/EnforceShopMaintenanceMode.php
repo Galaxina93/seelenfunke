@@ -45,6 +45,16 @@ class EnforceShopMaintenanceMode
         return !$isLiveHost;
     }
 
+    public static function isQuoteCalculatorEnabled(): bool
+    {
+        return filter_var(shop_setting('quote_calculator_enabled', true), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public static function isMaintenanceModeActive(): bool
+    {
+        return filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+    }
+
     /**
      * Zweistufiges Schutzsystem (2-Schlüssel-Prinzip):
      * - Stufe 1 (!shop_is_live): Harte Go-Live-Sperre (Fail-Closed auf mein-seelenfunke.de).
