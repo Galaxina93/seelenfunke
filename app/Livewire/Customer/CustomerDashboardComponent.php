@@ -139,7 +139,7 @@ class CustomerDashboardComponent extends Component
     public int $hallOfFameTotal = 0;
 
     // Audio-Einstellungen (BGM bgm_funki_game & UI-Sounds)
-    public int $funkiAudioVolume = 35;
+    public int $funkiAudioVolume = 5;
     public bool $funkiAudioMuted = true;
     public bool $funkiAudioKeepPlaying = false;
 
@@ -195,24 +195,35 @@ class CustomerDashboardComponent extends Component
 
         $activationResult = DB::transaction(function () use ($user, $gameService): array {
             $profile = CustomerGamification::where('customer_id', $user->id)->lockForUpdate()->firstOrFail();
-            $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($user);
-
-            if (!$sanctumAccess['has_completed_order']) {
-                return [
-                    'allowed' => false,
-                    'message' => (string) ($sanctumAccess['message'] ?? 'Ab deiner ersten abgeschlossenen Bestellung schaltest du die Seelenfunken-Magie frei.'),
-                ];
-            }
 
             $wasActive = (bool) $profile->is_active;
             $oldOptIn = (bool) $profile->ranking_opt_in;
             $oldUseReal = (bool) $profile->use_real_name;
             $profile->is_active = true;
 
-            if ((int) ($profile->magma_unlocked_level ?? 0) < 1) {
-                $profile->magma_unlocked_level = 1;
+            $progress = is_array($profile->titles_progress) ? $profile->titles_progress : [];
+            $rawCleared = $progress['lava_cleared_levels'] ?? [];
+            $maxSeq = 0;
+            if (is_array($rawCleared)) {
+                $lookup = [];
+                foreach ($rawCleared as $v) {
+                    if (is_int($v) || (is_string($v) && ctype_digit($v))) {
+                        $lookup[(int) $v] = true;
+                    }
+                }
+                for ($i = 1; $i <= 10; $i++) {
+                    if (isset($lookup[$i])) {
+                        $maxSeq = $i;
+                    } else {
+                        break;
+                    }
+                }
             }
-            if ((int) ($profile->magma_hearts ?? 0) <= 0) {
+            $permanentFloor = max(1, min(10, $maxSeq + 1));
+            $currentMagma = max(0, (int) ($profile->magma_unlocked_level ?? 0));
+            $profile->magma_unlocked_level = max($permanentFloor, min(10, $currentMagma));
+
+            if (!$wasActive || (int) ($profile->magma_hearts ?? 0) <= 0) {
                 $profile->magma_hearts = 6;
             }
 
@@ -223,7 +234,6 @@ class CustomerDashboardComponent extends Component
                 }
             }
 
-            $progress = is_array($profile->titles_progress) ? $profile->titles_progress : [];
             $progress['_audio_muted'] = true;
             $progress['_audio_keep_playing'] = false;
             $profile->titles_progress = $progress;
@@ -243,20 +253,10 @@ class CustomerDashboardComponent extends Component
             }
 
             return [
-                'allowed' => true,
                 'profile' => $profile,
                 'logged_changes' => $loggedChanges,
             ];
         });
-
-        if (empty($activationResult['allowed'])) {
-            $this->loadDashboardData($user);
-            $this->dispatch('notify', [
-                'type'    => 'error',
-                'message' => $activationResult['message'],
-            ]);
-            return;
-        }
 
         /** @var CustomerGamification $profile */
         $profile = $activationResult['profile'];
@@ -276,6 +276,7 @@ class CustomerDashboardComponent extends Component
             (int) $profile->funken_balance
         );
 
+        LobbyInstanceService::forgetCustomerCache((string) $user->id);
         FunkenwerkHeroesController::forgetPublicCache();
 
         $this->loadDashboardData($user);
@@ -308,6 +309,7 @@ class CustomerDashboardComponent extends Component
             return $prev;
         });
 
+        LobbyInstanceService::forgetCustomerCache((string) $user->id);
         FunkenwerkHeroesController::forgetPublicCache();
 
         if ($wasActive) {
@@ -317,8 +319,10 @@ class CustomerDashboardComponent extends Component
         }
 
         $this->acceptTerms = false;
+        $this->optInPublicNameOnActivate = false;
         $this->loadDashboardData($user);
         $this->dispatch('gamification-mode-changed');
+        $this->dispatch('sf-magic-deactivated');
         $this->dispatch('notify', [
             'type'    => 'info',
             'message' => 'Seelenfunken-Sammeln deaktiviert. Dein bisheriger Fortschritt, dein Funki-Level & deine Funken bleiben 100 % sicher gespeichert. Du kannst die Magie jederzeit wieder aktivieren!',
@@ -349,7 +353,7 @@ class CustomerDashboardComponent extends Component
 
         $gameService = app(GamificationService::class);
         $res = $gameService->updateAudioSettings($user, $volumePercent, $isMuted, $keepPlaying);
-        $this->funkiAudioVolume = (int) ($res['volume'] ?? 35);
+        $this->funkiAudioVolume = (int) ($res['volume'] ?? 5);
         $this->funkiAudioMuted = (bool) ($res['muted'] ?? true);
         $this->funkiAudioKeepPlaying = (bool) ($res['keep_playing'] ?? false);
     }
@@ -647,6 +651,7 @@ class CustomerDashboardComponent extends Component
             }
         } else {
             $this->isGameModeActive = false;
+            $this->hasActivatedGamification = false;
             $this->funkiLevel = 1;
             $this->displayFunkiLevel = 1;
             $this->funkenBalance = 0;
@@ -675,7 +680,7 @@ class CustomerDashboardComponent extends Component
             $this->rankingOptIn = false;
             $this->useRealName = false;
             $this->playerName = '';
-            $this->funkiAudioVolume = 35;
+            $this->funkiAudioVolume = 5;
             $this->funkiAudioMuted = true;
             $this->funkiAudioKeepPlaying = false;
             $this->heroDisplayName = trim($user->first_name . ' ' . $user->last_name) ?: ($user->first_name ?: 'Seelenfunke-Held');

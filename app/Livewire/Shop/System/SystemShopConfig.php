@@ -86,6 +86,7 @@ class SystemShopConfig extends Component
         'shop_live_unlocked',
         'maintenance_mode',
         'showroom_multiplayer_enabled',
+        'quote_calculator_enabled',
         'inventory_low_stock_threshold',
         'skip_shipping_for_digital',
         'send_order_email_to_admin',
@@ -154,8 +155,9 @@ class SystemShopConfig extends Component
         'stripe_fee_fixed_cents' => 'Kalkulatorische Fixgebühr pro Transaktion in der Produkt-Margenberechnung (Eingabe in Euro, z.B. 0.30).',
         'shop_is_live' => 'Hauptschalter für den personalisierten Manufaktur-Shop auf mein-seelenfunke.de: Gibt physische Manufaktur-Produkte und den Konfigurator live frei. Solange deaktiviert, bleibt mein-seelenfunke.de für Besucher im Vorbereitungsmodus.',
         'shop_live_unlocked' => 'Hauptschalter für den personalisierten Manufaktur-Shop auf mein-seelenfunke.de.',
-        'maintenance_mode' => 'Globaler Wartungsmodus (HTTP 503) für alle Shop-Domains: Schaltet sofort die Wartungsseite für Kunden vor. Eingeloggte Administratoren behalten vollen Vorschau-Zugriff auf alle Seiten.',
-        'showroom_multiplayer_enabled' => 'Steuert den Live-Mehrspielermodus (12er-Räume, Gamification-Waffen-Funken und moderierter Raum-Chat) für eingeloggte Kunden im 3D-Louvre-Showroom. Gäste erkunden den Showroom immer im Einzelmodus.',
+        'maintenance_mode' => 'Schaufenster-Wartungsmodus für alle Shop-Domains: Startseite, Sortiment, Produktseiten und Magazin bleiben öffentlich sichtbar (HTTP 200), während Konfigurator, Angebotskalkulator, Warenkorb und Checkout mit einem freundlichen Wartungshinweis pausiert sind.',
+        'showroom_multiplayer_enabled' => 'Steuert den Live-Mehrspielermodus (Instanzen in der Halle der Helden und moderierter Raum-Chat) für eingeloggte Kunden in der 3D-Welt. Im Solo-Modus können Kunden die Halle der Helden und die Ehrenpodeste weiterhin alleine ohne Mitspieler und ohne Chat erkunden.',
+        'quote_calculator_enabled' => 'Steuert die öffentliche Sichtbarkeit und Erreichbarkeit des B2B-Angebotskalkulators unter /calculator. Wenn deaktiviert, werden alle Kalkulator-Buttons in Navigation, Footer, Startseite und Sitemap ausgeblendet und /calculator antwortet mit HTTP 404 (direkte Angebotslinks unter /angebot/{token}/annehmen bleiben erreichbar).',
         'inventory_low_stock_threshold' => 'Ab dieser Stückzahl wird ein Produkt im Dashboard als "niedriger Bestand" markiert.',
         'skip_shipping_for_digital' => 'Wenn aktiviert, werden keine Versandkosten berechnet, sobald der Warenkorb NUR digitale Produkte enthält.',
         'send_order_email_to_admin' => 'Bestimmt, ob der Admin bei Bestelleingang eine E-Mail erhalten soll.',
@@ -241,7 +243,7 @@ class SystemShopConfig extends Component
             $this->settings[$key] = $value;
         }
 
-        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'maintenance_mode', 'showroom_multiplayer_enabled', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode', 'google_tag_enabled', 'google_shopping_require_real_photos'];
+        $boolKeys = ['is_small_business', 'prices_entered_gross', 'shop_is_live', 'shop_live_unlocked', 'maintenance_mode', 'showroom_multiplayer_enabled', 'quote_calculator_enabled', 'skip_shipping_for_digital', 'send_order_email_to_admin', 'season_auto_mode', 'google_tag_enabled', 'google_shopping_require_real_photos'];
         foreach($boolKeys as $key) {
             $this->settings[$key] = filter_var($this->settings[$key], FILTER_VALIDATE_BOOLEAN);
         }
@@ -330,6 +332,7 @@ class SystemShopConfig extends Component
             'shop_live_unlocked' => !\App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost(request()),
             'maintenance_mode' => false,
             'showroom_multiplayer_enabled' => true,
+            'quote_calculator_enabled' => true,
             'inventory_low_stock_threshold' => 5,
             'skip_shipping_for_digital' => false,
             'send_order_email_to_admin' => true,
@@ -481,6 +484,51 @@ class SystemShopConfig extends Component
         SystemSetting::updateOrCreate(
             ['key' => 'showroom_multiplayer_enabled'],
             ['value' => $enabled ? '1' : '0']
+        );
+
+        Cache::forget('global_shop_settings');
+        try {
+            $freshSettings = SystemSetting::pluck('value', 'key');
+            Cache::put('global_shop_settings', $freshSettings, 60);
+        } catch (\Throwable $e) {
+        }
+
+        if ($enabled) {
+            \App\Services\Gamification\LobbyInstanceService::forgetMultiplayerEnabledCache();
+        } else {
+            app(\App\Services\Gamification\LobbyInstanceService::class)->flushAllMultiplayerState();
+        }
+
+        $this->saved = true;
+    }
+
+    public function toggleQuoteCalculator(): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $newState = !filter_var($this->settings['quote_calculator_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN);
+        $this->settings['quote_calculator_enabled'] = $newState;
+        $this->persistQuoteCalculator($newState);
+    }
+
+    public function updatedSettingsQuoteCalculatorEnabled($value): void
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $boolState = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        $this->settings['quote_calculator_enabled'] = $boolState;
+        $this->persistQuoteCalculator($boolState);
+    }
+
+    protected function persistQuoteCalculator(bool $enabled): void
+    {
+        SystemSetting::updateOrCreate(
+            ['key' => 'quote_calculator_enabled'],
+            ['value' => $enabled ? 'true' : 'false']
         );
 
         Cache::forget('global_shop_settings');
@@ -751,6 +799,12 @@ class SystemShopConfig extends Component
             $freshSettings = SystemSetting::pluck('value', 'key');
             Cache::put('global_shop_settings', $freshSettings, 60);
         } catch (\Throwable $e) {}
+
+        if (filter_var($this->settings['showroom_multiplayer_enabled'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
+            \App\Services\Gamification\LobbyInstanceService::forgetMultiplayerEnabledCache();
+        } else {
+            app(\App\Services\Gamification\LobbyInstanceService::class)->flushAllMultiplayerState();
+        }
 
         $this->saved = true;
     }

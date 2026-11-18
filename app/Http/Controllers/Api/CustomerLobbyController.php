@@ -179,6 +179,19 @@ class CustomerLobbyController extends Controller
             return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
         }
 
+        if (!LobbyInstanceService::isMultiplayerEnabled()) {
+            if ($actor !== null) {
+                $lobby->leave($actor);
+            }
+
+            return response()->json([
+                'ok' => false,
+                'success' => false,
+                'code' => 'multiplayer_disabled',
+                'message' => 'Der Mehrspielermodus und Raum-Chat sind aktuell deaktiviert (Solo-Modus).',
+            ], 403, $this->securityHeaders());
+        }
+
         $validator = Validator::make($request->all(), [
             'target_instance' => ['required', 'integer', 'min:1', 'max:' . LobbyInstanceService::MAX_INSTANCES],
         ]);
@@ -198,10 +211,18 @@ class CustomerLobbyController extends Controller
         );
 
         if (empty($result['ok'])) {
-            return response()->json([
+            $errorPayload = [
                 'ok' => false,
                 'message' => (string) ($result['message'] ?? 'Diese Instanz ist voll (20/20).'),
-            ], (int) ($result['status'] ?? 409), $this->securityHeaders());
+            ];
+            if (array_key_exists('success', $result)) {
+                $errorPayload['success'] = (bool) $result['success'];
+            }
+            if (!empty($result['code'])) {
+                $errorPayload['code'] = (string) $result['code'];
+            }
+
+            return response()->json($errorPayload, (int) ($result['status'] ?? 409), $this->securityHeaders());
         }
 
         unset($result['status']);

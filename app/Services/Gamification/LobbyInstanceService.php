@@ -7,6 +7,7 @@ use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderRevocation;
+use App\Models\System\SystemSetting;
 use App\Services\Shop\ShowroomChatGuardService;
 use App\Services\System\SystemSecurityService;
 use Closure;
@@ -15,6 +16,7 @@ use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -41,6 +43,11 @@ class LobbyInstanceService
     public const ACTOR_CACHE_TTL_SECONDS = 30;
     public const SYNC_TICK_INTERVAL_MS = 165;
     public const INSTANCES_SUMMARY_TTL_SECONDS = 3;
+    public const MP_ENABLED_CACHE_TTL_SECONDS = 5;
+    public const MAX_CHAT_STRIKES = 3;
+    public const AUTO_MUTE_STAGE_2_SECONDS = 900;
+    public const AUTO_MUTE_STAGE_3_SECONDS = 86400;
+    public const SANCTION_CACHE_TTL_SECONDS = 7776000;
 
     /**
      * Solo-Zonen: Jeder Besucher ist hier komplett alleine unterwegs (belegt keinen Instanz-Slot).
@@ -102,6 +109,10 @@ class LobbyInstanceService
     private const CACHE_CUST_ACTOR_PREFIX = 'sf_fw_actor_v1_';
     private const CACHE_LOCK_KEY = 'sf_fw_lobby_mutex_v1';
     private const CACHE_TAMPER_LOG_PREFIX = 'sf_sec_lobby_tamper_v1_';
+    private const CACHE_MP_ENABLED_KEY = 'sf_lobby_mp_enabled_v1';
+    private const CACHE_SANCTION_PREFIX = 'sf_lobby_sanction_v1_';
+
+    private static bool $settingObserverRegistered = false;
 
     /**
      * Explizite Konsolen-Cheat-Flags, die auf allen Lobby-, Showroom- & Parkour-Endpunkten sofort mit 422 abgelehnt werden.
@@ -483,6 +494,132 @@ class LobbyInstanceService
         }
 
         return in_array(strtolower(trim($rawZone)), self::AUTH_REQUIRED_ZONES, true);
+    }
+
+    /**
+     * Prueft zuverlaessig und schnell SystemSetting ('showroom_multiplayer_enabled', Fallback true),
+     * gecacht ueber sf_lobby_mp_enabled_v1 (TTL 5s) + automatischer Eloquent-Invalidierung bei Aenderung.
+     */
+    public static function isMultiplayerEnabled(): bool
+    {
+        self::ensureSettingCacheObserverRegistered();
+
+        try {
+            $cached = Cache::get(self::CACHE_MP_ENABLED_KEY);
+            if ($cached === '1' || $cached === 1 || $cached === true) {
+                return true;
+            }
+            if ($cached === '0' || $cached === 0 || $cached === false) {
+                return false;
+            }
+
+            $enabled = true;
+            $tableName = (new SystemSetting())->getTable();
+            if (Schema::hasTable($tableName)) {
+                $raw = SystemSetting::where('key', 'showroom_multiplayer_enabled')->value('value');
+                if ($raw !== null && $raw !== '') {
+                    $enabled = filter_var($raw, FILTER_VALIDATE_BOOLEAN);
+                }
+            }
+
+            Cache::put(self::CACHE_MP_ENABLED_KEY, $enabled ? '1' : '0', self::MP_ENABLED_CACHE_TTL_SECONDS);
+
+            return $enabled;
+        } catch (\Throwable) {
+            return true;
+        }
+    }
+
+    public static function forgetMultiplayerEnabledCache(): void
+    {
+        try {
+            Cache::forget(self::CACHE_MP_ENABLED_KEY);
+        } catch (\Throwable) {
+        }
+    }
+
+    /**
+     * Vergisst sf_lobby_mp_enabled_v1, raeumt alle aktiven Heldenhallen-Instanz-Rosters/Chat-Ringpuffer
+     * aus dem Laravel-Cache und trennt offene /lobby-ws-Sockets ueber den lokalen Admin-Flush-Endpunkt.
+     */
+    public static function flushAllMultiplayerState(): void
+    {
+        try {
+            Cache::forget(self::CACHE_MP_ENABLED_KEY);
+
+            for ($id = 1; $id <= self::MAX_INSTANCES; $id++) {
+                $rosterKey = self::CACHE_INSTANCE_PREFIX . $id;
+                $rawRoster = Cache::get($rosterKey);
+                if (is_array($rawRoster)) {
+                    foreach (array_keys($rawRoster) as $pid) {
+                        $peerId = trim((string) $pid);
+                        if ($peerId !== '') {
+                            Cache::forget(self::CACHE_PLAYER_PTR_PREFIX . $peerId);
+                        }
+                    }
+                }
+                Cache::forget($rosterKey);
+                Cache::forget(self::CACHE_INST_CHAT_PREFIX . $id);
+            }
+
+            Cache::forget(self::CACHE_ACTIVE_IDS_KEY);
+            Cache::forget(self::CACHE_INSTANCES_SUMMARY_KEY);
+        } catch (\Throwable) {
+        }
+
+        try {
+            $appKey = trim((string) config('app.key', ''));
+            $ts = (string) Carbon::now()->getTimestamp();
+            $sig = $appKey !== ''
+                ? ($ts . '.' . hash_hmac('sha256', 'flush-lobby-ws:' . $ts, $appKey))
+                : '';
+
+            Http::timeout(0.4)
+                ->connectTimeout(0.25)
+                ->withHeaders([
+                    'X-Lobby-Admin-Sig' => $sig,
+                    'Accept' => 'application/json',
+                ])
+                ->post('http://127.0.0.1:8089/internal/lobby-ws/flush', [
+                    'reason' => 'multiplayer_disabled',
+                ]);
+        } catch (\Throwable) {
+            // Lokal oder ohne laufenden WS-Daemon niemals den Prozess unterbrechen
+        }
+    }
+
+    private static function ensureSettingCacheObserverRegistered(): void
+    {
+        if (self::$settingObserverRegistered) {
+            return;
+        }
+        self::$settingObserverRegistered = true;
+
+        SystemSetting::saved(static function (SystemSetting $setting): void {
+            if ($setting->key === 'showroom_multiplayer_enabled') {
+                Cache::forget(self::CACHE_MP_ENABLED_KEY);
+            }
+        });
+
+        SystemSetting::deleted(static function (SystemSetting $setting): void {
+            if ($setting->key === 'showroom_multiplayer_enabled') {
+                Cache::forget(self::CACHE_MP_ENABLED_KEY);
+            }
+        });
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function multiplayerDisabledResponse(): array
+    {
+        return [
+            'ok' => false,
+            'success' => false,
+            'status' => 403,
+            'code' => 'multiplayer_disabled',
+            'message' => 'Der Mehrspielermodus und Raum-Chat sind aktuell deaktiviert (Solo-Modus).',
+        ];
     }
 
     /**
@@ -868,11 +1005,12 @@ class LobbyInstanceService
         }
 
         $zone = self::normalizeZone($input['zone'] ?? null, 'gallery');
+        $multiplayerEnabled = self::isMultiplayerEnabled();
 
-        if (self::isSoloZone($zone)) {
+        if (self::isSoloZone($zone) || !$multiplayerEnabled) {
             $this->evictPlayerFromHeroInstances((string) $actor['peer_id']);
 
-            return $this->buildSoloModePayload($actor, $zone);
+            return $this->buildSoloModePayload($actor, $zone, !$multiplayerEnabled);
         }
 
         $peerId = (string) $actor['peer_id'];
@@ -940,6 +1078,7 @@ class LobbyInstanceService
                     'ok' => true,
                     'authenticated' => true,
                     'solo_mode' => false,
+                    'multiplayer_disabled' => false,
                     'zone' => 'heroes',
                     'instance_id' => $selectedInstance,
                     'soft_cap' => self::SOFT_CAP,
@@ -951,6 +1090,7 @@ class LobbyInstanceService
                     'peers' => $this->formatPeersList($rosters[$selectedInstance], $peerId),
                     'messages' => $this->getInstanceMessages($selectedInstance, $peerId),
                     'instances' => $this->buildInstancesOverview($rosters, $selectedInstance),
+                    'chat_moderation' => $this->getChatModerationStatusForActor($actor),
                 ];
             },
             fn (): array => $this->buildReadOnlyHeroSnapshot($actor, $peerId)
@@ -978,11 +1118,12 @@ class LobbyInstanceService
 
         $zone = self::normalizeZone($input['zone'] ?? null, 'gallery');
         $peerId = (string) $actor['peer_id'];
+        $multiplayerEnabled = self::isMultiplayerEnabled();
 
-        if (self::isSoloZone($zone)) {
+        if (self::isSoloZone($zone) || !$multiplayerEnabled) {
             $this->evictPlayerFromHeroInstances($peerId);
 
-            return $this->buildSoloModePayload($actor, $zone);
+            return $this->buildSoloModePayload($actor, $zone, !$multiplayerEnabled);
         }
 
         $now = Carbon::now()->getTimestamp();
@@ -1012,6 +1153,7 @@ class LobbyInstanceService
                     'ok' => true,
                     'authenticated' => true,
                     'solo_mode' => false,
+                    'multiplayer_disabled' => false,
                     'zone' => 'heroes',
                     'instance_id' => $targetInstanceId,
                     'soft_cap' => self::SOFT_CAP,
@@ -1023,6 +1165,7 @@ class LobbyInstanceService
                     'peers' => $this->formatPeersList($roster, $peerId),
                     'messages' => $this->getInstanceMessages($targetInstanceId, $peerId),
                     'instances' => $this->resolveFastInstancesOverviewForSync($targetInstanceId, $roster, $nowInner),
+                    'chat_moderation' => $this->getChatModerationStatusForActor($actor),
                 ];
             },
             fn (): array => $this->buildReadOnlyHeroSnapshot($actor, $peerId, $targetInstanceId)
@@ -1039,6 +1182,14 @@ class LobbyInstanceService
      */
     public function switchInstance(array $actor, int $targetInstance, array $input = []): array
     {
+        if (!self::isMultiplayerEnabled()) {
+            if (!empty($actor['peer_id'])) {
+                $this->evictPlayerFromHeroInstances((string) $actor['peer_id']);
+            }
+
+            return self::multiplayerDisabledResponse();
+        }
+
         if (array_key_exists('zone', $input) && $input['zone'] !== null && trim((string) $input['zone']) !== '') {
             $requestedZone = self::normalizeZone($input['zone'], 'heroes');
             if ($requestedZone !== 'heroes') {
@@ -1097,6 +1248,7 @@ class LobbyInstanceService
                     'status' => 200,
                     'authenticated' => true,
                     'solo_mode' => false,
+                    'multiplayer_disabled' => false,
                     'zone' => 'heroes',
                     'instance_id' => $targetInstance,
                     'soft_cap' => self::SOFT_CAP,
@@ -1108,6 +1260,7 @@ class LobbyInstanceService
                     'peers' => $this->formatPeersList($targetRoster, $peerId),
                     'messages' => $this->getInstanceMessages($targetInstance, $peerId),
                     'instances' => $this->buildInstancesOverview($rosters, $targetInstance),
+                    'chat_moderation' => $this->getChatModerationStatusForActor($actor),
                 ];
             },
             static fn (): array => [
@@ -1553,9 +1706,358 @@ class LobbyInstanceService
             return false;
         }
 
-        $until = (int) Cache::get(self::CACHE_CUST_MUTE_PREFIX . $cleanId, 0);
+        $now = Carbon::now()->getTimestamp();
+        $hash = md5($cleanId);
+        foreach ([
+            self::CACHE_CUST_MUTE_PREFIX . $cleanId,
+            self::CACHE_CUST_MUTE_PREFIX . $hash,
+            'sf_showroom_mute_' . $cleanId,
+            'sf_showroom_mute_' . $hash,
+        ] as $key) {
+            if ((int) Cache::get($key, 0) > $now) {
+                return true;
+            }
+        }
 
-        return $until > Carbon::now()->getTimestamp();
+        return false;
+    }
+
+    /**
+     * Ermittelt den aktuellen Auto-Moderations- und Sperrstatus eines Akteurs (Cache + CustomerGamification Fallback).
+     *
+     * @param array<string, mixed> $actor
+     * @return array{
+     *     strikes: int,
+     *     max_strikes: int,
+     *     is_muted: bool,
+     *     muted_until_ts: int|null,
+     *     remaining_seconds: int,
+     *     permanent_mute: bool
+     * }
+     */
+    public function getChatModerationStatusForActor(array $actor): array
+    {
+        $now = Carbon::now()->getTimestamp();
+        $state = $this->loadActorSanctionState($actor);
+
+        $strikes = max(0, (int) ($state['strikes'] ?? 0));
+        $permanentMute = !empty($state['permanent_mute']);
+        $sanctionMutedUntil = isset($state['muted_until_ts']) && is_numeric($state['muted_until_ts'])
+            ? (int) $state['muted_until_ts']
+            : null;
+
+        if ($sanctionMutedUntil !== null && $sanctionMutedUntil <= $now) {
+            $sanctionMutedUntil = null;
+        }
+
+        $customerId = $this->resolveCustomerIdFromActor($actor);
+        $reportMutedUntil = 0;
+        if ($customerId !== '') {
+            $hash = md5($customerId);
+            foreach ([
+                self::CACHE_CUST_MUTE_PREFIX . $customerId,
+                self::CACHE_CUST_MUTE_PREFIX . $hash,
+                'sf_showroom_mute_' . $customerId,
+                'sf_showroom_mute_' . $hash,
+            ] as $key) {
+                $val = Cache::get($key);
+                if (is_numeric($val) && (int) $val > $reportMutedUntil) {
+                    $reportMutedUntil = (int) $val;
+                }
+            }
+        }
+
+        if ($permanentMute) {
+            return [
+                'strikes' => $strikes,
+                'max_strikes' => self::MAX_CHAT_STRIKES,
+                'is_muted' => true,
+                'muted_until_ts' => null,
+                'remaining_seconds' => 0,
+                'permanent_mute' => true,
+            ];
+        }
+
+        $effectiveUntil = max($sanctionMutedUntil ?? 0, $reportMutedUntil > $now ? $reportMutedUntil : 0);
+        if ($effectiveUntil > $now) {
+            return [
+                'strikes' => $strikes,
+                'max_strikes' => self::MAX_CHAT_STRIKES,
+                'is_muted' => true,
+                'muted_until_ts' => $effectiveUntil,
+                'remaining_seconds' => max(1, $effectiveUntil - $now),
+                'permanent_mute' => false,
+            ];
+        }
+
+        return [
+            'strikes' => $strikes,
+            'max_strikes' => self::MAX_CHAT_STRIKES,
+            'is_muted' => false,
+            'muted_until_ts' => null,
+            'remaining_seconds' => 0,
+            'permanent_mute' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $actor
+     * @return array<string, mixed>
+     */
+    private function loadActorSanctionState(array $actor): array
+    {
+        $cacheKey = $this->sanctionCacheKeyForActor($actor);
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached) && array_key_exists('strikes', $cached)) {
+            return $cached;
+        }
+
+        $defaultState = [
+            'strikes' => 0,
+            'muted_until_ts' => null,
+            'permanent_mute' => false,
+            'last_code' => null,
+            'last_violation_at' => null,
+        ];
+
+        $customerId = $this->resolveCustomerIdFromActor($actor);
+        if ($customerId !== '' && Schema::hasTable('customer_gamifications')) {
+            try {
+                $gamification = CustomerGamification::where('customer_id', $customerId)
+                    ->first(['id', 'customer_id', 'titles_progress']);
+                $persisted = is_array($gamification?->titles_progress['chat_moderation'] ?? null)
+                    ? $gamification->titles_progress['chat_moderation']
+                    : null;
+
+                if ($persisted !== null) {
+                    $resolved = [
+                        'strikes' => max(0, (int) ($persisted['strikes'] ?? 0)),
+                        'muted_until_ts' => isset($persisted['muted_until_ts']) && is_numeric($persisted['muted_until_ts'])
+                            ? (int) $persisted['muted_until_ts']
+                            : null,
+                        'permanent_mute' => !empty($persisted['permanent_mute']),
+                        'last_code' => isset($persisted['last_code']) ? (string) $persisted['last_code'] : null,
+                        'last_violation_at' => isset($persisted['last_violation_at']) ? (string) $persisted['last_violation_at'] : null,
+                    ];
+
+                    $ttl = ($resolved['strikes'] > 0 || $resolved['permanent_mute'] || $resolved['muted_until_ts'] !== null)
+                        ? self::SANCTION_CACHE_TTL_SECONDS
+                        : 300;
+                    Cache::put($cacheKey, $resolved, $ttl);
+
+                    return $resolved;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        Cache::put($cacheKey, $defaultState, 300);
+
+        return $defaultState;
+    }
+
+    /**
+     * @param array<string, mixed> $moderation
+     * @return array<string, mixed>
+     */
+    private function buildActiveChatMuteResponse(array $moderation): array
+    {
+        $permanent = !empty($moderation['permanent_mute']);
+        $remaining = max(0, (int) ($moderation['remaining_seconds'] ?? 0));
+
+        if ($permanent) {
+            $message = 'Dein Chat-Zugang ist aufgrund von Verstößen gegen unsere Hausordnung dauerhaft gesperrt. Bitte wende dich bei Rückfragen an unseren Support.';
+        } elseif ($remaining >= 3600) {
+            $hours = max(1, (int) ceil($remaining / 3600));
+            $message = sprintf(
+                'Dein Chat-Zugang ist aufgrund von Verstößen gegen unsere Hausordnung noch für %d Std. gesperrt.',
+                $hours
+            );
+        } else {
+            $minutes = max(1, (int) ceil($remaining / 60));
+            $message = sprintf(
+                'Dein Chat-Zugang ist aufgrund von Verstößen gegen unsere Hausordnung noch für %d Min. gesperrt.',
+                $minutes
+            );
+        }
+
+        return [
+            'ok' => false,
+            'success' => false,
+            'status' => 422,
+            'code' => 'chat_muted',
+            'strike' => max(0, (int) ($moderation['strikes'] ?? 0)),
+            'max_strikes' => self::MAX_CHAT_STRIKES,
+            'muted_until_ts' => $moderation['muted_until_ts'] ?? null,
+            'remaining_seconds' => $remaining,
+            'permanent_mute' => $permanent,
+            'chat_moderation' => $moderation,
+            'message' => $message,
+        ];
+    }
+
+    /**
+     * Erhoeht den Verwarnungs-Zaehler eines Akteurs bei Wortfilter-/Link-/PII-Verstoessen und fuehrt
+     * die automatische 3-Stufen-Eskalation inkl. Persistierung und Security-Audit-Log aus.
+     *
+     * @param array<string, mixed> $actor
+     * @return array<string, mixed>
+     */
+    private function recordChatViolationAndBuildResponse(array $actor, string $filterCode, string $rawStripped): array
+    {
+        $now = Carbon::now()->getTimestamp();
+        $actorKey = (string) ($actor['actor_key'] ?? 'lobby_actor');
+        $customerId = $this->resolveCustomerIdFromActor($actor);
+
+        $current = $this->loadActorSanctionState($actor);
+        $strike = max(0, (int) ($current['strikes'] ?? 0)) + 1;
+
+        if ($strike === 1) {
+            $code = 'auto_warning_1';
+            $mutedUntilTs = null;
+            $remainingSeconds = 0;
+            $permanentMute = false;
+            $message = 'Verwarnung 1/3: Beleidigungen und unzulässige Inhalte verstoßen gegen unsere Hausordnung. Bei weiteren Verstößen wird dein Chat-Zugang automatisch gesperrt.';
+            $logAction = 'security:3d_chat_warning_1';
+            $logTitle = '3D-Chat Verwarnung (1/3)';
+            $logSeverity = 'warning';
+        } elseif ($strike === 2) {
+            $code = 'auto_mute_15m';
+            $mutedUntilTs = $now + self::AUTO_MUTE_STAGE_2_SECONDS;
+            $remainingSeconds = self::AUTO_MUTE_STAGE_2_SECONDS;
+            $permanentMute = false;
+            $message = 'Abmahnung 2/3: Wegen wiederholten Verstoßes gegen unsere Hausordnung wurde dein Chat-Zugang automatisch für 15 Minuten gesperrt.';
+            $logAction = 'security:3d_chat_auto_mute_15m';
+            $logTitle = '3D-Chat Zeitsperre 15 Min. (2/3)';
+            $logSeverity = 'warning';
+        } elseif ($strike === 3) {
+            $code = 'auto_mute_24h';
+            $mutedUntilTs = $now + self::AUTO_MUTE_STAGE_3_SECONDS;
+            $remainingSeconds = self::AUTO_MUTE_STAGE_3_SECONDS;
+            $permanentMute = false;
+            $message = 'Abmahnung 3/3: Wegen mehrfacher Verstöße gegen unsere Hausordnung wurde dein Chat-Zugang automatisch für 24 Stunden gesperrt.';
+            $logAction = 'security:3d_chat_auto_mute_24h';
+            $logTitle = '3D-Chat Zeitsperre 24 Std. (3/3)';
+            $logSeverity = 'error';
+        } else {
+            $code = 'auto_mute_permanent';
+            $mutedUntilTs = null;
+            $remainingSeconds = 0;
+            $permanentMute = true;
+            $message = 'Dein Chat-Zugang wurde aufgrund wiederholter Verstöße gegen unsere Hausordnung dauerhaft gesperrt. Bitte wende dich bei Rückfragen an unseren Support.';
+            $logAction = 'security:3d_chat_permanent_mute';
+            $logTitle = '3D-Chat Dauerhafte Sperre';
+            $logSeverity = 'error';
+        }
+
+        $newState = [
+            'strikes' => $strike,
+            'muted_until_ts' => $mutedUntilTs,
+            'permanent_mute' => $permanentMute,
+            'last_code' => $filterCode,
+            'last_violation_at' => Carbon::now()->toIso8601String(),
+        ];
+
+        Cache::put($this->sanctionCacheKeyForActor($actor), $newState, self::SANCTION_CACHE_TTL_SECONDS);
+
+        if ($customerId !== '' && Schema::hasTable('customer_gamifications')) {
+            try {
+                $gamification = CustomerGamification::where('customer_id', $customerId)->first();
+                if ($gamification !== null) {
+                    $progress = is_array($gamification->titles_progress) ? $gamification->titles_progress : [];
+                    $progress['chat_moderation'] = $newState;
+                    $gamification->titles_progress = $progress;
+                    $gamification->save();
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        $excerpt = mb_substr(
+            self::cleanZeroDashText(str_replace(['<', '>'], '', strip_tags($rawStripped))),
+            0,
+            80,
+            'UTF-8'
+        );
+
+        SystemSecurityService::logEvent(
+            $logAction,
+            $logTitle,
+            sprintf(
+                'Automatische 3D-Chat-Moderation ausgelöst (Stufe %d, Grund: %s, Akteur: %s).',
+                $strike,
+                $filterCode,
+                substr($actorKey, 0, 64)
+            ),
+            $logSeverity,
+            [
+                'category' => 'chat_moderation',
+                'filter_code' => $filterCode,
+                'sanction_code' => $code,
+                'strike' => $strike,
+                'max_strikes' => self::MAX_CHAT_STRIKES,
+                'muted_until_ts' => $mutedUntilTs,
+                'permanent_mute' => $permanentMute,
+                'actor' => substr($actorKey, 0, 64),
+                'customer_id' => $customerId !== '' ? $customerId : null,
+                'excerpt' => $excerpt,
+            ]
+        );
+
+        $moderationPayload = [
+            'strikes' => $strike,
+            'max_strikes' => self::MAX_CHAT_STRIKES,
+            'is_muted' => $permanentMute || ($mutedUntilTs !== null && $mutedUntilTs > $now),
+            'muted_until_ts' => $mutedUntilTs,
+            'remaining_seconds' => $remainingSeconds,
+            'permanent_mute' => $permanentMute,
+        ];
+
+        return [
+            'ok' => false,
+            'success' => false,
+            'status' => 422,
+            'code' => $code,
+            'strike' => $strike,
+            'max_strikes' => self::MAX_CHAT_STRIKES,
+            'muted_until_ts' => $mutedUntilTs,
+            'remaining_seconds' => $remainingSeconds,
+            'permanent_mute' => $permanentMute,
+            'chat_moderation' => $moderationPayload,
+            'message' => $message,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $actor
+     */
+    private function resolveCustomerIdFromActor(array $actor): string
+    {
+        if (isset($actor['customer_id']) && is_string($actor['customer_id']) && trim($actor['customer_id']) !== '') {
+            return trim($actor['customer_id']);
+        }
+
+        $actorKey = (string) ($actor['actor_key'] ?? '');
+        if (str_starts_with($actorKey, 'customer:')) {
+            return trim(substr($actorKey, 9));
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed> $actor
+     */
+    private function sanctionCacheKeyForActor(array $actor): string
+    {
+        $customerId = $this->resolveCustomerIdFromActor($actor);
+        if ($customerId !== '') {
+            return self::CACHE_SANCTION_PREFIX . $customerId;
+        }
+
+        $actorKey = (string) ($actor['actor_key'] ?? ($actor['peer_id'] ?? 'guest'));
+
+        return self::CACHE_SANCTION_PREFIX . md5($actorKey);
     }
 
     /**
@@ -1645,7 +2147,7 @@ class LobbyInstanceService
     {
         $peerId = (string) ($actor['peer_id'] ?? '');
         $actorKey = (string) ($actor['actor_key'] ?? '');
-        $customerId = isset($actor['customer_id']) && is_string($actor['customer_id']) ? $actor['customer_id'] : '';
+        $customerId = $this->resolveCustomerIdFromActor($actor);
 
         if ($peerId === '' || $actorKey === '') {
             return [
@@ -1655,6 +2157,10 @@ class LobbyInstanceService
                 'code' => 'login_required',
                 'message' => 'Nur eingeloggte Mitglieder können den Chat nutzen.',
             ];
+        }
+
+        if (!self::isMultiplayerEnabled()) {
+            return self::multiplayerDisabledResponse();
         }
 
         if ($this->isLobbyChatFloodRateLimited($actorKey)) {
@@ -1667,6 +2173,12 @@ class LobbyInstanceService
                 'code' => 'rate_limited',
                 'message' => 'Zu viele Chat-Anfragen in kurzer Zeit. Bitte warte einen Moment.',
             ];
+        }
+
+        // Eingangs-Sperrpruefung (VOR Wortfilter & Cooldown)
+        $moderation = $this->getChatModerationStatusForActor($actor);
+        if (!empty($moderation['is_muted'])) {
+            return $this->buildActiveChatMuteResponse($moderation);
         }
 
         if ($this->containsHtmlOrScriptPayload($rawMessage)) {
@@ -1704,16 +2216,6 @@ class LobbyInstanceService
             ];
         }
 
-        if ($this->isOnLobbyChatCooldown($actorKey)) {
-            return [
-                'ok' => false,
-                'success' => false,
-                'status' => 422,
-                'code' => 'cooldown',
-                'message' => 'Bitte warte einen kurzen Moment vor der nächsten Nachricht.',
-            ];
-        }
-
         /** @var ShowroomChatGuardService $chatGuard */
         $chatGuard = app(ShowroomChatGuardService::class);
         $guardCheckId = 'lobby_guard_' . md5($actorKey);
@@ -1727,14 +2229,29 @@ class LobbyInstanceService
         foreach ($chunks as $chunk) {
             $check = $chatGuard->inspectAndSanitize($guardCheckId, $chunk, false);
             if (!$check['allowed']) {
+                $filterCode = (string) ($check['code'] ?? 'blocked_language');
+                if (in_array($filterCode, ['blocked_language', 'blocked_link_or_pii'], true)) {
+                    return $this->recordChatViolationAndBuildResponse($actor, $filterCode, $stripped);
+                }
+
                 return [
                     'ok' => false,
                     'success' => false,
                     'status' => 422,
-                    'code' => $check['code'] ?? 'blocked_language',
+                    'code' => $filterCode,
                     'message' => $check['reason'] ?? 'Nachricht wurde blockiert.',
                 ];
             }
+        }
+
+        if ($this->isOnLobbyChatCooldown($actorKey)) {
+            return [
+                'ok' => false,
+                'success' => false,
+                'status' => 422,
+                'code' => 'cooldown',
+                'message' => 'Bitte warte einen kurzen Moment vor der nächsten Nachricht.',
+            ];
         }
 
         $cleanMessage = self::cleanZeroDashText(str_replace(['<', '>'], '', $stripped));
@@ -1765,11 +2282,11 @@ class LobbyInstanceService
         }
 
         $this->touchLobbyChatCooldown($actorKey);
-        $isShadowMuted = $customerId !== '' && $this->isCustomerShadowMuted($customerId);
+        $isShadowMuted = false;
 
         return $this->withInstanceLock(
             $instanceId,
-            function () use ($actor, $peerId, $customerId, $instanceId, $cleanMessage, $isShadowMuted): array {
+            function () use ($actor, $peerId, $customerId, $instanceId, $cleanMessage, $isShadowMuted, $moderation): array {
                 $nowMs = Carbon::now()->getTimestampMs();
                 $shipClass = (string) ($actor['ship_class'] ?? 'KLASSE C');
                 $displayName = (string) ($actor['peer_display_name'] ?? 'Funki');
@@ -1830,6 +2347,7 @@ class LobbyInstanceService
                     'shadow_muted' => $isShadowMuted,
                     'entry' => $publicEntry,
                     'messages' => $this->getInstanceMessages($instanceId, $peerId),
+                    'chat_moderation' => $moderation,
                 ];
             },
             static fn (): array => [
@@ -1866,6 +2384,20 @@ class LobbyInstanceService
         $reporterCustomerId = isset($reporterActor['customer_id']) && is_string($reporterActor['customer_id'])
             ? $reporterActor['customer_id']
             : (str_starts_with($reporterActorKey, 'customer:') ? substr($reporterActorKey, 9) : '');
+
+        if ($reporterPeerId === '' || $reporterActorKey === '') {
+            return [
+                'ok' => false,
+                'success' => false,
+                'status' => 403,
+                'code' => 'login_required',
+                'message' => 'Nur eingeloggte Mitglieder können Spieler melden.',
+            ];
+        }
+
+        if (!self::isMultiplayerEnabled()) {
+            return self::multiplayerDisabledResponse();
+        }
 
         $cleanTargetPeerId = strtolower(trim($rawTargetPeerId));
         if (!preg_match('/^[0-9a-f]{12}$/', $cleanTargetPeerId) || $cleanTargetPeerId === $reporterPeerId) {
@@ -2061,22 +2593,25 @@ class LobbyInstanceService
      * @param array<string, mixed> $actor
      * @return array<string, mixed>
      */
-    private function buildSoloModePayload(array $actor, string $zone): array
+    private function buildSoloModePayload(array $actor, string $zone, bool $multiplayerDisabled = false): array
     {
         return [
             'ok' => true,
             'authenticated' => true,
             'solo_mode' => true,
+            'multiplayer_disabled' => $multiplayerDisabled,
             'zone' => $zone,
             'instance_id' => null,
             'soft_cap' => self::SOFT_CAP,
             'hard_cap' => self::HARD_CAP,
             'server_ts_ms' => Carbon::now()->getTimestampMs(),
             'tick_interval_ms' => self::SYNC_TICK_INTERVAL_MS,
+            'ws_relay' => null,
             'player' => $this->formatPlayerSelf($actor),
             'peers' => [],
             'messages' => [],
             'instances' => [],
+            'chat_moderation' => $this->getChatModerationStatusForActor($actor),
         ];
     }
 
@@ -2700,6 +3235,10 @@ class LobbyInstanceService
      */
     public function buildWsRelayPayload(array $actor, int $instanceId): ?array
     {
+        if (!self::isMultiplayerEnabled()) {
+            return null;
+        }
+
         $peerId = strtolower(trim((string) ($actor['peer_id'] ?? '')));
         if (!preg_match('/^[0-9a-f]{12}$/', $peerId) || $instanceId < 1 || $instanceId > 64) {
             return null;
@@ -2770,6 +3309,7 @@ class LobbyInstanceService
             'ok' => true,
             'authenticated' => true,
             'solo_mode' => false,
+            'multiplayer_disabled' => false,
             'zone' => 'heroes',
             'instance_id' => $instanceId,
             'soft_cap' => self::SOFT_CAP,
@@ -2781,6 +3321,7 @@ class LobbyInstanceService
             'peers' => $this->formatPeersList($roster, $peerId),
             'messages' => $this->getInstanceMessages($instanceId, $peerId),
             'instances' => $this->buildInstancesOverview($rosters, $instanceId),
+            'chat_moderation' => $this->getChatModerationStatusForActor($actor),
         ];
     }
 

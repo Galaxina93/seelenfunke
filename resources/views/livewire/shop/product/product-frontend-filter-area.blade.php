@@ -39,8 +39,16 @@
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-20">
 
-            {{-- Schlanke Clean-Design Filter- & Suchleiste --}}
-            <div class="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-4 md:p-5 mb-12">
+            {{-- Benutzerfreundliche Clean-Design Filter- & Suchleiste (Mobil & Desktop optimiert) --}}
+            @php
+                $activeHolidayLabel = $filterHoliday !== '' ? ($availableHolidays[$filterHoliday] ?? ucfirst((string) $filterHoliday)) : null;
+                $activeCategoryObj = $filterCategory !== '' ? ($categories->firstWhere('id', (int) $filterCategory) ?? $categories->firstWhere('id', $filterCategory)) : null;
+                $activeCategoryLabel = $activeCategoryObj?->name ?? ($filterCategory !== '' ? (\App\Models\Product\ProductCategory::find($filterCategory)?->name ?? 'Kategorie') : null);
+            @endphp
+            <div x-data="{ openDropdown: null }"
+                 @click.outside="openDropdown = null"
+                 @keydown.escape.window="openDropdown = null"
+                 class="bg-white rounded-3xl shadow-xl shadow-gray-200/60 border border-gray-100 p-4 sm:p-5 mb-10 sm:mb-12 relative z-30">
 
                 <div class="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
                     {{-- Suchfeld --}}
@@ -48,45 +56,142 @@
                         <input wire:model.live.debounce.300ms="search"
                                type="text"
                                placeholder="Suche nach Name oder Eigenschaft..."
-                               class="w-full h-[44px] pl-11 pr-10 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
+                               class="w-full py-3.5 pl-12 pr-11 bg-gray-50 border border-gray-200 rounded-2xl text-sm sm:text-base font-medium text-gray-900 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all placeholder-gray-400">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-[var(--theme-color)] transition-colors">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                         </div>
                         @if($search !== '')
-                            <button wire:click="$set('search', '')" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-red-500 transition-colors" aria-label="Suche leeren">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
+                            <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center">
+                                <button type="button"
+                                        wire:click="$set('search', '')"
+                                        class="w-8 h-8 rounded-xl bg-gray-200/70 hover:bg-red-50 text-gray-500 hover:text-red-600 flex items-center justify-center transition-colors cursor-pointer"
+                                        aria-label="Suche leeren">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
                         @endif
                     </div>
 
                     @if(!empty($availableHolidays) || $categories->isNotEmpty() || (($saleCount ?? 0) > 0 || $filterSale))
-                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-                            {{-- Anlass Dropdown --}}
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                            {{-- Anlass Dropdown (Touch-optimiert + sr-only Select für A11y/Tests) --}}
                             @if(!empty($availableHolidays))
-                                <div class="relative w-full sm:w-auto sm:min-w-[175px]">
-                                    <select wire:model.live="filterHoliday" class="w-full h-[44px] pl-3.5 pr-9 py-0 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none truncate">
+                                <div class="relative w-full sm:w-auto sm:min-w-[210px]">
+                                    <select wire:model.live="filterHoliday" class="sr-only" tabindex="-1" aria-hidden="true">
                                         <option value="">Alle Anlässe</option>
                                         @foreach($availableHolidays as $val => $label)
                                             <option value="{{ $val }}">{{ $label }}</option>
                                         @endforeach
                                     </select>
-                                    <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500" aria-hidden="true">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+
+                                    <button type="button"
+                                            @click="openDropdown = openDropdown === 'holiday' ? null : 'holiday'"
+                                            :aria-expanded="openDropdown === 'holiday'"
+                                            class="w-full flex items-center justify-between gap-3 py-2.5 px-3.5 rounded-2xl border text-left transition-all cursor-pointer {{ $filterHoliday !== '' ? 'bg-[#FAF6EE] border-primary text-gray-900 shadow-xs' : 'bg-gray-50 border-gray-200 text-gray-800 hover:bg-white hover:border-gray-300' }}">
+                                        <span class="flex items-center gap-3 min-w-0">
+                                            <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors {{ $filterHoliday !== '' ? 'bg-primary text-white shadow-2xs' : 'bg-white border border-gray-200/80 text-primary' }}">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                                            </span>
+                                            <span class="text-sm font-bold truncate">
+                                                {{ $activeHolidayLabel ?? 'Alle Anlässe' }}
+                                            </span>
+                                        </span>
+                                        <span class="w-7 h-7 rounded-lg bg-white/90 border border-gray-200/70 flex items-center justify-center text-gray-500 shrink-0">
+                                            <svg class="w-4 h-4 transition-transform duration-200" :class="openDropdown === 'holiday' ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7" /></svg>
+                                        </span>
+                                    </button>
+
+                                    <div x-show="openDropdown === 'holiday'"
+                                         x-cloak
+                                         x-transition:enter="transition ease-out duration-150"
+                                         x-transition:enter-start="opacity-0 translate-y-1"
+                                         x-transition:enter-end="opacity-100 translate-y-0"
+                                         x-transition:leave="transition ease-in duration-100"
+                                         x-transition:leave-start="opacity-100 translate-y-0"
+                                         x-transition:leave-end="opacity-0 translate-y-1"
+                                         class="absolute left-0 right-0 sm:min-w-[240px] mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 p-2 z-50 max-h-72 overflow-y-auto space-y-1">
+                                        <button type="button"
+                                                wire:click="$set('filterHoliday', '')"
+                                                @click="openDropdown = null"
+                                                class="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer {{ $filterHoliday === '' ? 'bg-[#FAF6EE] text-gray-900 border border-primary/30' : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100' }}">
+                                            <span>Alle Anlässe</span>
+                                            @if($filterHoliday === '')
+                                                <svg class="w-4 h-4 text-[#C5A059] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                                            @endif
+                                        </button>
+                                        @foreach($availableHolidays as $val => $label)
+                                            @php $isHolidaySelected = mb_strtolower((string) $filterHoliday) === mb_strtolower((string) $val); @endphp
+                                            <button type="button"
+                                                    wire:click="$set('filterHoliday', '{{ $val }}')"
+                                                    @click="openDropdown = null"
+                                                    class="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer {{ $isHolidaySelected ? 'bg-[#FAF6EE] text-gray-900 border border-primary/30' : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100' }}">
+                                                <span class="truncate">{{ $label }}</span>
+                                                @if($isHolidaySelected)
+                                                    <svg class="w-4 h-4 text-[#C5A059] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                                                @endif
+                                            </button>
+                                        @endforeach
                                     </div>
                                 </div>
                             @endif
 
-                            {{-- Kategorie Dropdown --}}
+                            {{-- Kategorie Dropdown (Touch-optimiert + sr-only Select für A11y/Tests) --}}
                             @if($categories->isNotEmpty())
-                                <div class="relative w-full sm:w-auto sm:min-w-[185px]">
-                                    <select wire:model.live="filterCategory" class="w-full h-[44px] pl-3.5 pr-9 py-0 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 focus:bg-white focus:ring-2 focus:ring-[var(--theme-color-30)] focus:border-[var(--theme-color)] transition-all cursor-pointer appearance-none truncate">
+                                <div class="relative w-full sm:w-auto sm:min-w-[220px]">
+                                    <select wire:model.live="filterCategory" class="sr-only" tabindex="-1" aria-hidden="true">
                                         <option value="">Alle Kategorien</option>
                                         @foreach($categories as $cat)
                                             <option value="{{ $cat->id }}">{{ $cat->name }}</option>
                                         @endforeach
                                     </select>
-                                    <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-500" aria-hidden="true">
-                                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+
+                                    <button type="button"
+                                            @click="openDropdown = openDropdown === 'category' ? null : 'category'"
+                                            :aria-expanded="openDropdown === 'category'"
+                                            class="w-full flex items-center justify-between gap-3 py-2.5 px-3.5 rounded-2xl border text-left transition-all cursor-pointer {{ $filterCategory !== '' ? 'bg-[#FAF6EE] border-primary text-gray-900 shadow-xs' : 'bg-gray-50 border-gray-200 text-gray-800 hover:bg-white hover:border-gray-300' }}">
+                                        <span class="flex items-center gap-3 min-w-0">
+                                            <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors {{ $filterCategory !== '' ? 'bg-primary text-white shadow-2xs' : 'bg-white border border-gray-200/80 text-primary' }}">
+                                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                                            </span>
+                                            <span class="text-sm font-bold truncate">
+                                                {{ $activeCategoryLabel ?? 'Alle Kategorien' }}
+                                            </span>
+                                        </span>
+                                        <span class="w-7 h-7 rounded-lg bg-white/90 border border-gray-200/70 flex items-center justify-center text-gray-500 shrink-0">
+                                            <svg class="w-4 h-4 transition-transform duration-200" :class="openDropdown === 'category' ? 'rotate-180 text-primary' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7" /></svg>
+                                        </span>
+                                    </button>
+
+                                    <div x-show="openDropdown === 'category'"
+                                         x-cloak
+                                         x-transition:enter="transition ease-out duration-150"
+                                         x-transition:enter-start="opacity-0 translate-y-1"
+                                         x-transition:enter-end="opacity-100 translate-y-0"
+                                         x-transition:leave="transition ease-in duration-100"
+                                         x-transition:leave-start="opacity-100 translate-y-0"
+                                         x-transition:leave-end="opacity-0 translate-y-1"
+                                         class="absolute left-0 right-0 sm:min-w-[250px] mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 p-2 z-50 max-h-72 overflow-y-auto space-y-1">
+                                        <button type="button"
+                                                wire:click="$set('filterCategory', '')"
+                                                @click="openDropdown = null"
+                                                class="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer {{ $filterCategory === '' ? 'bg-[#FAF6EE] text-gray-900 border border-primary/30' : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100' }}">
+                                            <span>Alle Kategorien</span>
+                                            @if($filterCategory === '')
+                                                <svg class="w-4 h-4 text-[#C5A059] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                                            @endif
+                                        </button>
+                                        @foreach($categories as $cat)
+                                            @php $isCatSelected = (string) $filterCategory === (string) $cat->id; @endphp
+                                            <button type="button"
+                                                    wire:click="$set('filterCategory', '{{ $cat->id }}')"
+                                                    @click="openDropdown = null"
+                                                    class="w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer {{ $isCatSelected ? 'bg-[#FAF6EE] text-gray-900 border border-primary/30' : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100' }}">
+                                                <span class="truncate">{{ $cat->name }}</span>
+                                                @if($isCatSelected)
+                                                    <svg class="w-4 h-4 text-[#C5A059] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" /></svg>
+                                                @endif
+                                            </button>
+                                        @endforeach
                                     </div>
                                 </div>
                             @endif
@@ -95,11 +200,15 @@
                             @if(($saleCount ?? 0) > 0 || $filterSale)
                                 <button type="button"
                                         wire:click="toggleSaleFilter"
-                                        class="h-[44px] flex items-center justify-center gap-1.5 px-4 rounded-xl border text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer {{ $filterSale ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-gray-50 text-red-600 border-gray-200 hover:bg-red-50 hover:border-red-200' }}">
-                                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                                    <span>Angebote</span>
+                                        class="w-full sm:w-auto flex items-center justify-between sm:justify-center gap-3 py-2.5 px-3.5 sm:px-4 rounded-2xl border text-sm font-bold tracking-wide transition-all whitespace-nowrap cursor-pointer {{ $filterSale ? 'bg-red-600 text-white border-red-600 shadow-sm' : 'bg-gray-50 text-red-600 border-gray-200 hover:bg-red-50 hover:border-red-200' }}">
+                                    <span class="flex items-center gap-3">
+                                        <span class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 {{ $filterSale ? 'bg-white/20 text-white' : 'bg-white border border-red-100 text-red-600' }}">
+                                            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                                        </span>
+                                        <span class="uppercase text-xs sm:text-sm font-extrabold tracking-wider">Angebote</span>
+                                    </span>
                                     @if(($saleCount ?? 0) > 0)
-                                        <span class="px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none {{ $filterSale ? 'bg-white/20 text-white' : 'bg-red-100 text-red-600' }}">{{ $saleCount }}</span>
+                                        <span class="px-2.5 py-1 rounded-full text-xs font-black leading-none {{ $filterSale ? 'bg-white/20 text-white' : 'bg-red-100 text-red-600' }}">{{ $saleCount }}</span>
                                     @endif
                                 </button>
                             @endif
@@ -109,38 +218,38 @@
 
                 {{-- Aktive Filter anzeigen (Nur wenn etwas ausgewählt ist) --}}
                 @if($search !== '' || $filterSale || $filterCategory !== '' || $filterHoliday !== '')
-                    <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-3 animate-fade-in">
-                        <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-2">Aktive Filter:</span>
+                    <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-2.5 animate-fade-in">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-widest mr-1">Aktive Filter:</span>
 
                         @if($search !== '')
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
-                                "{{ $search }}"
-                                <button wire:click="$set('search', '')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gray-100 text-gray-800 text-xs font-bold">
+                                <span>„{{ $search }}“</span>
+                                <button type="button" wire:click="$set('search', '')" class="hover:text-red-500 cursor-pointer"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 
                         @if($filterSale)
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-bold uppercase tracking-wider border border-red-200">
-                                Nur Angebote
-                                <button wire:click="$set('filterSale', false)" class="hover:text-red-800"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-red-50 text-red-600 text-xs font-bold uppercase tracking-wider border border-red-200">
+                                <span>Nur Angebote</span>
+                                <button type="button" wire:click="$set('filterSale', false)" class="hover:text-red-800 cursor-pointer"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 
                         @if($filterHoliday !== '')
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-50 text-pink-600 text-xs font-bold uppercase tracking-wider border border-pink-100">
-                                Anlass: {{ $availableHolidays[$filterHoliday] ?? ucfirst($filterHoliday) }}
-                                <button wire:click="$set('filterHoliday', '')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#FAF6EE] text-gray-900 text-xs font-bold border border-primary/40">
+                                <span>Anlass: {{ $activeHolidayLabel }}</span>
+                                <button type="button" wire:click="$set('filterHoliday', '')" class="hover:text-red-500 cursor-pointer"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 
                         @if($filterCategory !== '')
-                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F5F1E8] text-gray-900 border border-[#D8C9A8] text-xs font-bold">
-                                Kategorie: {{ $categories->firstWhere('id', $filterCategory)->name ?? \App\Models\Product\ProductCategory::find($filterCategory)?->name ?? 'Unbekannt' }}
-                                <button wire:click="$set('filterCategory', '')" class="hover:text-red-500"><svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+                            <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#FAF6EE] text-gray-900 border border-primary/40 text-xs font-bold">
+                                <span>Kategorie: {{ $activeCategoryLabel }}</span>
+                                <button type="button" wire:click="$set('filterCategory', '')" class="hover:text-red-500 cursor-pointer"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12"/></svg></button>
                             </span>
                         @endif
 
-                        <button wire:click="resetFilters" class="text-xs font-bold text-red-500 hover:underline ml-auto">Alle Filter löschen</button>
+                        <button type="button" wire:click="resetFilters" class="text-xs font-bold text-red-600 hover:text-red-700 hover:underline ml-auto py-1 px-2 cursor-pointer">Alle Filter löschen</button>
                     </div>
                 @endif
             </div>
@@ -362,12 +471,11 @@
                                 {{-- Bild Container --}}
                                 <div class="aspect-square bg-gray-50 rounded-3xl overflow-hidden mb-5 relative border border-gray-100">
 
-                                    @php
-                                        $isWishlisted = in_array((string) $product->id, $wishlistProductIds ?? [], true);
-                                    @endphp
                                     <button type="button"
-                                            x-data="{ wishlisted: @js($isWishlisted) }"
-                                            @click.prevent="wishlisted = !wishlisted; if (window.sfTriggerWishlistHeartEffect) window.sfTriggerWishlistHeartEffect($event, wishlisted); $wire.toggleWishlist('{{ $product->id }}')"
+                                            x-data="window.sfWishlistButtonData('{{ $product->id }}', @js(in_array((string) $product->id, array_map('strval', $wishlistIds ?? $wishlistProductIds ?? []), true)))"
+                                            @sf-wishlist-sync.window="syncFromStore($event.detail)"
+                                            @wishlist-optimistic-delta.window="syncOptimistic($event.detail)"
+                                            @click.prevent="toggle($event)"
                                             :class="wishlisted ? 'bg-red-500 text-white scale-105 shadow-[0_0_15px_rgba(239,68,68,0.45)]' : 'bg-white/90 text-gray-500 hover:text-red-500 hover:bg-white'"
                                             class="absolute bottom-3 left-3 z-30 w-9 h-9 rounded-full backdrop-blur-md shadow-md flex items-center justify-center transition-all duration-200 cursor-pointer"
                                             :title="wishlisted ? 'Von Wunschliste entfernen' : 'Auf die Wunschliste'"
@@ -2149,14 +2257,14 @@
                     </div>
 
                     <div class="sf-lobby-actions" @pointerdown.stop @mousedown.stop>
-                        <span x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode && focusedProduct !== null"
+                        <span x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode && !multiplayerDisabled && focusedProduct !== null"
                               class="sf-lobby-badge sf-lobby-hide-sm">
                             <span style="color:#C5A059;">&#10003;</span>
                             <span>Fokus-Schutz</span>
                         </span>
 
                         <button type="button"
-                                x-show="currentZone === 'heroes' && isCustomerAuthenticated()"
+                                x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !multiplayerDisabled"
                                 data-testid="louvre-live-solo-toggle"
                                 @click="toggleSoloMode()"
                                 class="sf-lobby-pill-btn"
@@ -2166,7 +2274,7 @@
                         </button>
 
                         {{-- Manueller Multiplayer-Instanzen-Waehler (NUR in der Halle der Helden aktiv!) --}}
-                        <div x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode"
+                        <div x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode && !multiplayerDisabled"
                              @click.outside="instanceMenuOpen = false"
                              class="sf-lobby-instance-wrap">
                             <button type="button"
@@ -2209,7 +2317,7 @@
                         </div>
 
                         <button type="button"
-                                x-show="currentZone === 'heroes'"
+                                x-show="currentZone === 'heroes' && !soloMode && !multiplayerDisabled"
                                 data-testid="louvre-chat-toggle-btn"
                                 @click="toggleChatPanel()"
                                 :class="chatOpen ? 'sf-lobby-pill-btn is-gold' : 'sf-lobby-pill-btn'"
@@ -2268,7 +2376,7 @@
                                         <span>Modus</span>
                                         <strong x-text="pingModeLabel()">Atelier (Solo)</strong>
                                     </div>
-                                    <div x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode"
+                                    <div x-show="currentZone === 'heroes' && isCustomerAuthenticated() && !soloMode && !multiplayerDisabled"
                                          class="sf-lobby-ping-row">
                                         <span>Instanz</span>
                                         <strong x-text="pingInstanceLabel()">Halle #1 (1/20)</strong>
@@ -2867,7 +2975,7 @@
                     </div>
 
                     {{-- Ein-/ausklappbarer Light-Mode Raum-Chat (nur in der Multiplayer-Halle der Helden) --}}
-                    <div x-show="!isLoading && loadError === '' && currentZone === 'heroes' && chatOpen && focusedProduct === null"
+                    <div x-show="!isLoading && loadError === '' && currentZone === 'heroes' && !soloMode && !multiplayerDisabled && chatOpen && focusedProduct === null"
                          @pointerdown.stop
                          @mousedown.stop
                          @click.stop
@@ -2964,29 +3072,59 @@
                                     </template>
                                 </div>
 
+                                <div x-show="hasActiveChatModerationNotice()"
+                                     x-cloak
+                                     data-testid="louvre-chat-moderation-banner"
+                                     :style="chatStrikeInfo.isMuted
+                                         ? 'padding:8px 10px;border-radius:11px;background:#FEF2F2;border:1px solid #FECACA;border-left:3px solid #DC2626;display:flex;flex-direction:column;gap:4px;'
+                                         : 'padding:8px 10px;border-radius:11px;background:#FEF2F2;border:1px solid rgba(197,160,89,0.55);border-left:3px solid #C5A059;display:flex;flex-direction:column;gap:4px;'"
+                                     role="alert">
+                                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">
+                                        <span data-testid="louvre-chat-moderation-badge"
+                                              :style="chatStrikeInfo.isMuted
+                                                  ? 'display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;background:#DC2626;color:#FFFFFF;font-size:10px;font-weight:900;letter-spacing:0.03em;text-transform:uppercase;'
+                                                  : 'display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;background:#B91C1C;color:#FFFFFF;border:1px solid #C5A059;font-size:10px;font-weight:900;letter-spacing:0.03em;text-transform:uppercase;'"
+                                              x-text="chatStrikeBadgeLabel()"></span>
+                                        <span x-show="chatStrikeInfo.isMuted"
+                                              data-testid="louvre-chat-moderation-timer"
+                                              style="font-size:10px;font-weight:800;color:#991B1B;white-space:nowrap;"
+                                              x-text="chatMuteCountdownLabel()"></span>
+                                    </div>
+                                    <div x-show="chatStrikeInfo.bannerText !== ''"
+                                         style="font-size:11px;font-weight:700;color:#7F1D1D;line-height:1.35;word-break:break-word;"
+                                         x-text="chatStrikeInfo.bannerText"></div>
+                                </div>
+
                                 <div x-show="chatFeedback !== ''"
                                      style="padding:6px 9px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.45);font-size:11px;font-weight:700;color:#111827;"
                                      x-text="chatFeedback"></div>
 
                                 {{-- Schnellwahl für Animationen/Slash-Befehle --}}
                                 <div style="display:flex;align-items:center;gap:4px;overflow-x:auto;padding-bottom:2px;">
-                                    <button type="button" @click="sendChatMessage('/dance')" class="sf-emote-chip" title="Tanzen (/dance)">💃 /dance</button>
-                                    <button type="button" @click="sendChatMessage('/wave')" class="sf-emote-chip" title="Winken (/wave)">👋 /wave</button>
-                                    <button type="button" @click="sendChatMessage('/bow')" class="sf-emote-chip" title="Verbeugen (/bow)">🙇 /bow</button>
-                                    <button type="button" @click="sendChatMessage('/cheer')" class="sf-emote-chip" title="Jubeln (/cheer)">🙌 /cheer</button>
-                                    <button type="button" @click="sendChatMessage('/sit')" class="sf-emote-chip" title="Hinsetzen (/sit)">🧘 /sit</button>
-                                    <button type="button" @click="sendChatMessage('/clap')" class="sf-emote-chip" title="Klatschen (/clap)">👏 /clap</button>
+                                    <button type="button" :disabled="chatStrikeInfo.isMuted" @click="sendChatMessage('/dance')" class="sf-emote-chip" :style="chatStrikeInfo.isMuted ? 'opacity:0.45;cursor:not-allowed;' : ''" title="Tanzen (/dance)">💃 /dance</button>
+                                    <button type="button" :disabled="chatStrikeInfo.isMuted" @click="sendChatMessage('/wave')" class="sf-emote-chip" :style="chatStrikeInfo.isMuted ? 'opacity:0.45;cursor:not-allowed;' : ''" title="Winken (/wave)">👋 /wave</button>
+                                    <button type="button" :disabled="chatStrikeInfo.isMuted" @click="sendChatMessage('/bow')" class="sf-emote-chip" :style="chatStrikeInfo.isMuted ? 'opacity:0.45;cursor:not-allowed;' : ''" title="Verbeugen (/bow)">🙇 /bow</button>
+                                    <button type="button" :disabled="chatStrikeInfo.isMuted" @click="sendChatMessage('/cheer')" class="sf-emote-chip" :style="chatStrikeInfo.isMuted ? 'opacity:0.45;cursor:not-allowed;' : ''" title="Jubeln (/cheer)">🙌 /cheer</button>
+                                    <button type="button" :disabled="chatStrikeInfo.isMuted" @click="sendChatMessage('/sit')" class="sf-emote-chip" :style="chatStrikeInfo.isMuted ? 'opacity:0.45;cursor:not-allowed;' : ''" title="Hinsetzen (/sit)">🧘 /sit</button>
+                                    <button type="button" :disabled="chatStrikeInfo.isMuted" @click="sendChatMessage('/clap')" class="sf-emote-chip" :style="chatStrikeInfo.isMuted ? 'opacity:0.45;cursor:not-allowed;' : ''" title="Klatschen (/clap)">👏 /clap</button>
                                 </div>
 
                                 <form @submit.prevent="sendChatMessage()" style="display:flex;align-items:center;gap:6px;padding-top:2px;">
                                     <input type="text"
+                                           data-testid="louvre-chat-input"
                                            x-model="chatDraft"
+                                           :disabled="chatStrikeInfo.isMuted"
                                            maxlength="100"
-                                           placeholder="Nachricht oder /dance..."
-                                           style="flex:1;min-width:0;padding:7px 10px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.5);font-size:12px;font-weight:600;color:#111827;outline:none;">
+                                           :placeholder="chatStrikeInfo.isMuted ? chatMutePlaceholder() : 'Nachricht oder /dance...'"
+                                           :style="chatStrikeInfo.isMuted
+                                               ? 'flex:1;min-width:0;padding:7px 10px;border-radius:10px;background:#F3F4F6;border:1px solid #FECACA;font-size:12px;font-weight:700;color:#991B1B;outline:none;cursor:not-allowed;'
+                                               : 'flex:1;min-width:0;padding:7px 10px;border-radius:10px;background:#FAF8F5;border:1px solid rgba(197,160,89,0.5);font-size:12px;font-weight:600;color:#111827;outline:none;'">
                                     <button type="submit"
-                                            :disabled="chatSending"
-                                            style="appearance:none;padding:7px 12px;border-radius:10px;border:none;background:#C5A059;color:#FFFFFF;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">
+                                            data-testid="louvre-chat-submit-btn"
+                                            :disabled="chatSending || chatStrikeInfo.isMuted"
+                                            :style="(chatSending || chatStrikeInfo.isMuted)
+                                                ? 'appearance:none;padding:7px 12px;border-radius:10px;border:none;background:#D1D5DB;color:#6B7280;font-size:12px;font-weight:800;cursor:not-allowed;flex-shrink:0;'
+                                                : 'appearance:none;padding:7px 12px;border-radius:10px;border:none;background:#C5A059;color:#FFFFFF;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;'">
                                         Senden
                                     </button>
                                 </form>
@@ -3171,11 +3309,23 @@
                     instanceMenuOpen: false,
                     customInstanceInput: 1,
                     soloMode: false,
+                    multiplayerDisabled: false,
+                    _wsDisabledByServer: false,
                     peers: [],
                     chatOpen: false,
                     chatDraft: '',
                     chatSending: false,
                     chatFeedback: '',
+                    chatStrikeInfo: {
+                        strikes: 0,
+                        isMuted: false,
+                        remainingSec: 0,
+                        permanent: false,
+                        bannerText: '',
+                        level: ''
+                    },
+                    _chatMuteTickTimer: null,
+                    _chatMuteUntilPerfMs: 0,
                     chatMessages: [],
                     unreadChatCount: 0,
                     mutedPlayerIds: [],
@@ -3487,8 +3637,11 @@
                     },
 
                     pingModeLabel() {
-                        if (this.currentZone === 'heroes' && this.isCustomerAuthenticated() && !this.soloMode) {
-                            return this.wsConnected ? 'Echtzeit-WS (30 Hz)' : 'Live-Sync (6 Hz)';
+                        if (this.currentZone === 'heroes') {
+                            if (this.isCustomerAuthenticated() && !this.soloMode && !this.multiplayerDisabled) {
+                                return this.wsConnected ? 'Echtzeit-WS (30 Hz)' : 'Live-Sync (6 Hz)';
+                            }
+                            return 'Halle (Solo)';
                         }
                         return 'Atelier (Solo)';
                     },
@@ -3560,7 +3713,7 @@
 
                     probeSoloAtelierPing() {
                         if (!this.isOpen || this._pingProbeInFlight) return;
-                        if (this.currentZone === 'heroes' && this.lobbyAuthenticated && !this.soloMode && (this.wsConnected || this._syncTimer)) {
+                        if (this.currentZone === 'heroes' && this.lobbyAuthenticated && !this.soloMode && !this.multiplayerDisabled && (this.wsConnected || this._syncTimer)) {
                             return;
                         }
                         this._pingProbeInFlight = true;
@@ -4393,6 +4546,17 @@
                         this.outerGateModalOpen = false;
                         this.listeningKeyAction = '';
                         this.peers = [];
+                        this.multiplayerDisabled = false;
+                        this._wsDisabledByServer = false;
+                        this._stopChatMuteCountdown();
+                        this.chatStrikeInfo = {
+                            strikes: 0,
+                            isMuted: false,
+                            remainingSec: 0,
+                            permanent: false,
+                            bannerText: '',
+                            level: ''
+                        };
                         this.chatMessages = [];
                         this.unreadChatCount = 0;
                         this.chatFeedback = '';
@@ -4504,6 +4668,13 @@
                                 );
                                 this.lobbyAuthenticated = isAuth;
                                 this.soloMode = false;
+                                this.multiplayerDisabled = Boolean(
+                                    isAuth
+                                    && payload.multiplayer
+                                    && payload.multiplayer.enabled === false
+                                    && payload.multiplayer.solo_only === true
+                                );
+                                this._wsDisabledByServer = this.multiplayerDisabled;
                                 this.activeIndex = 0;
 
                                 const magicActive = Boolean(rawPlayer && rawPlayer.gamification_active);
@@ -4853,6 +5024,31 @@
                         }
                     },
 
+                    _closeLobbyWs(sendLeave = false) {
+                        this.closeLobbyWebSocket(sendLeave);
+                    },
+
+                    _applyServerMultiplayerDisabled(facadeOverride = null) {
+                        this._wsDisabledByServer = true;
+                        this.multiplayerDisabled = true;
+                        this._closeLobbyWs(false);
+                        this.stopHttpSyncTimers();
+                        this.instanceMenuOpen = false;
+                        this.chatOpen = false;
+                        this.peers = [];
+                        this.lobbyInstances = [];
+                        this.netStats = Object.assign({}, this.netStats, { tickHz: 'Halle (Solo)' });
+                        const f = facadeOverride || getFacade();
+                        if (f) {
+                            if (typeof f.updatePeers === 'function') {
+                                f.updatePeers([]);
+                            }
+                            if (typeof f.setSoloMode === 'function') {
+                                f.setSoloMode(true);
+                            }
+                        }
+                    },
+
                     closeLobbyWebSocket(sendLeave = false) {
                         this._clearWsTimers();
                         const ws = privateLobbyWs;
@@ -4877,6 +5073,13 @@
                     },
 
                     connectLobbyWebSocket(wsRelay, fallbackHttpRttMs) {
+                        if (wsRelay && wsRelay.url && wsRelay.ticket) {
+                            this._wsDisabledByServer = false;
+                            this.multiplayerDisabled = false;
+                        }
+                        if (this._wsDisabledByServer || this.multiplayerDisabled || this.soloMode) {
+                            return;
+                        }
                         if (!wsRelay || !wsRelay.url || !wsRelay.ticket || typeof WebSocket === 'undefined') {
                             if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
                                 this.recordNetSample(fallbackHttpRttMs, '6,0 Hz');
@@ -4884,7 +5087,7 @@
                             this.scheduleNextMultiplayerSync(165);
                             return;
                         }
-                        if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') return;
+                        if (!this.isOpen || !this.lobbyAuthenticated || this.currentZone !== 'heroes') return;
 
                         this.closeLobbyWebSocket(false);
                         privateWsTickMs = Math.max(25, Math.min(100, Number(wsRelay.tick_ms) || 33));
@@ -4904,7 +5107,7 @@
 
                         privateWsHandshakeFallbackTimer = setTimeout(() => {
                             privateWsHandshakeFallbackTimer = null;
-                            if (!this.wsConnected && privateLobbyWs === ws && this.isOpen && this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
+                            if (!this.wsConnected && privateLobbyWs === ws && this.isOpen && this.lobbyAuthenticated && !this.soloMode && !this.multiplayerDisabled && !this._wsDisabledByServer && this.currentZone === 'heroes') {
                                 this.closeLobbyWebSocket(false);
                                 if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
                                     this.recordNetSample(fallbackHttpRttMs, '6,0 Hz');
@@ -4923,7 +5126,7 @@
                         };
 
                         ws.onmessage = (ev) => {
-                            if (privateLobbyWs !== ws || !this.isOpen || this.soloMode || this.currentZone !== 'heroes') return;
+                            if (privateLobbyWs !== ws || !this.isOpen) return;
                             let msg = null;
                             try {
                                 msg = JSON.parse(ev.data);
@@ -4932,6 +5135,12 @@
                             }
                             if (!msg || typeof msg !== 'object') return;
                             const facade = getFacade();
+
+                            if (msg.type === 'multiplayer_disabled' || msg.solo_mode === true) {
+                                this._applyServerMultiplayerDisabled(facade);
+                                return;
+                            }
+                            if (this.soloMode || this.multiplayerDisabled || this.currentZone !== 'heroes') return;
 
                             if (msg.type === 'welcome') {
                                 this.wsConnected = true;
@@ -4996,14 +5205,18 @@
                             }
                         };
 
-                        const handleWsDisconnect = () => {
+                        const handleWsDisconnect = (ev) => {
+                            if (ev && Number(ev.code) === 4001) {
+                                this._applyServerMultiplayerDisabled();
+                                return;
+                            }
                             if (privateLobbyWs !== ws) return;
                             this._clearWsTimers();
                             privateLobbyWs = null;
                             const wasConnected = this.wsConnected;
                             this.wsConnected = false;
                             privateLastWsSentState = null;
-                            if (this.isOpen && this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
+                            if (this.isOpen && this.lobbyAuthenticated && !this.soloMode && !this.multiplayerDisabled && !this._wsDisabledByServer && this.currentZone === 'heroes') {
                                 this.netStats = Object.assign({}, this.netStats, { tickHz: '6,0 Hz' });
                                 if (!wasConnected && typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0 && this.netStats.pingMs === null) {
                                     this.recordNetSample(fallbackHttpRttMs, '6,0 Hz');
@@ -5183,6 +5396,20 @@
                             .then((data) => {
                                 if (!data || !data.ok || !this.isOpen || this.currentZone !== 'heroes') return;
                                 this.lobbyAuthenticated = Boolean(data.authenticated);
+                                if (data.chat_moderation && typeof data.chat_moderation === 'object') {
+                                    this._syncChatModeration(data.chat_moderation);
+                                }
+                                const f2 = getFacade();
+                                if (data.multiplayer_disabled || data.solo_mode === true) {
+                                    this._applyServerMultiplayerDisabled(f2);
+                                    return;
+                                }
+                                if (this.multiplayerDisabled) {
+                                    this.multiplayerDisabled = false;
+                                    if (f2 && typeof f2.setSoloMode === 'function') {
+                                        f2.setSoloMode(Boolean(this.soloMode));
+                                    }
+                                }
                                 if (data.tick_interval_ms && !this.wsConnected) {
                                     this.netStats = Object.assign({}, this.netStats, {
                                         tickIntervalMs: Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165)),
@@ -5199,7 +5426,6 @@
                                     this.lobbyInstances = data.instances;
                                 }
                                 this.peers = Array.isArray(data.peers) ? data.peers : [];
-                                const f2 = getFacade();
                                 if (f2) {
                                     if (data.peer_id) {
                                         this.multiplayer.peer_id = String(data.peer_id);
@@ -5212,8 +5438,11 @@
                                 if (Array.isArray(data.messages)) {
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
-                                if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
+                                if (this.lobbyAuthenticated && !this.soloMode && !this.multiplayerDisabled && this.currentZone === 'heroes') {
                                     const hasWsRelay = Boolean(data.ws_relay && data.ws_relay.url && data.ws_relay.ticket);
+                                    if (hasWsRelay) {
+                                        this._wsDisabledByServer = false;
+                                    }
                                     this.startMultiplayerLoop(hasWsRelay ? 10000 : undefined);
                                     if (hasWsRelay) {
                                         this.connectLobbyWebSocket(data.ws_relay, data._joinHttpRtt);
@@ -5449,6 +5678,23 @@
                             .then((data) => {
                                 const f2 = getFacade();
                                 if (!data || !data.ok || !this.isOpen || !f2 || this.currentZone !== 'heroes') return;
+                                if (data.chat_moderation && typeof data.chat_moderation === 'object') {
+                                    this._syncChatModeration(data.chat_moderation);
+                                }
+                                if (data.multiplayer_disabled || data.solo_mode === true) {
+                                    this._applyServerMultiplayerDisabled(f2);
+                                    return;
+                                }
+                                if (this.multiplayerDisabled) {
+                                    this.multiplayerDisabled = false;
+                                    if (typeof f2.setSoloMode === 'function') {
+                                        f2.setSoloMode(Boolean(this.soloMode));
+                                    }
+                                }
+                                if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket && !this.wsConnected && !privateLobbyWs) {
+                                    this._wsDisabledByServer = false;
+                                    this.connectLobbyWebSocket(data.ws_relay);
+                                }
                                 if (data.tick_interval_ms && !this.wsConnected) {
                                     this.netStats = Object.assign({}, this.netStats, {
                                         tickIntervalMs: Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165)),
@@ -5481,7 +5727,7 @@
                             })
                             .finally(() => {
                                 this._syncInFlight = false;
-                                if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
+                                if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.multiplayerDisabled || this.currentZone !== 'heroes') {
                                     return;
                                 }
                                 if (!this.wsConnected && this._syncPendingImmediate) {
@@ -5564,6 +5810,13 @@
                             .then((data) => {
                                 const f2 = getFacade();
                                 if (!data || !data.ok || !this.isOpen || !f2) return;
+                                if (data.chat_moderation && typeof data.chat_moderation === 'object') {
+                                    this._syncChatModeration(data.chat_moderation);
+                                }
+                                if (data.multiplayer_disabled || data.solo_mode === true) {
+                                    this._applyServerMultiplayerDisabled(f2);
+                                    return;
+                                }
                                 if (data.instance_id) {
                                     this.lobbyInstanceId = Number(data.instance_id) || cleanTarget;
                                     this.customInstanceInput = this.lobbyInstanceId;
@@ -5584,8 +5837,11 @@
                                 if (Array.isArray(data.messages)) {
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
-                                if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
+                                if (this.lobbyAuthenticated && !this.soloMode && !this.multiplayerDisabled && this.currentZone === 'heroes') {
                                     const hasWsRelay = Boolean(data.ws_relay && data.ws_relay.url && data.ws_relay.ticket);
+                                    if (hasWsRelay) {
+                                        this._wsDisabledByServer = false;
+                                    }
                                     this.startMultiplayerLoop(hasWsRelay ? 10000 : undefined);
                                     if (hasWsRelay) {
                                         this.connectLobbyWebSocket(data.ws_relay, data._switchHttpRtt);
@@ -5671,7 +5927,7 @@
                     },
 
                     showFeedback(text) {
-                        this.chatFeedback = text;
+                        this.chatFeedback = String(text || '').replace(/\s[\u2013\u2014]\s/g, ' · ').trim();
                         if (this._feedbackTimer) {
                             clearTimeout(this._feedbackTimer);
                         }
@@ -5680,11 +5936,201 @@
                         }, 4000);
                     },
 
+                    formatMuteRemaining(sec) {
+                        const s = Math.max(0, Math.ceil(Number(sec) || 0));
+                        if (s >= 3600) {
+                            const hrs = Math.floor(s / 3600);
+                            const mins = Math.floor((s % 3600) / 60);
+                            return hrs + ' Std. ' + mins + ' Min.';
+                        }
+                        if (s >= 60) {
+                            const mins = Math.floor(s / 60);
+                            const rem = s % 60;
+                            return String(mins).padStart(2, '0') + ':' + String(rem).padStart(2, '0') + ' Min.';
+                        }
+                        return s + ' Sek.';
+                    },
+
+                    chatStrikeBadgeLabel() {
+                        const info = this.chatStrikeInfo || {};
+                        const st = Number(info.strikes) || 0;
+                        if (info.isMuted) {
+                            if (st === 2 && !info.permanent && info.level !== 'auto_mute_24h' && info.level !== 'auto_mute_permanent') {
+                                return 'Abmahnung 2/3';
+                            }
+                            return 'Chat gesperrt';
+                        }
+                        if (st === 2 || info.level === 'auto_mute_15m') {
+                            return 'Abmahnung 2/3';
+                        }
+                        if (st === 1 || info.level === 'auto_warning_1') {
+                            return 'Verwarnung 1/3';
+                        }
+                        return 'Hausordnung';
+                    },
+
+                    chatMuteCountdownLabel() {
+                        const info = this.chatStrikeInfo || {};
+                        if (info.permanent) return 'Dauerhaft';
+                        if (info.remainingSec > 0) return this.formatMuteRemaining(info.remainingSec);
+                        return 'Aktiv';
+                    },
+
+                    chatMutePlaceholder() {
+                        const info = this.chatStrikeInfo || {};
+                        if (info.permanent) return 'Chat gesperrt (dauerhaft)';
+                        if (info.remainingSec > 0) return 'Chat gesperrt (' + this.formatMuteRemaining(info.remainingSec) + ')';
+                        return 'Chat gesperrt';
+                    },
+
+                    hasActiveChatModerationNotice() {
+                        const info = this.chatStrikeInfo;
+                        if (!info) return false;
+                        return Boolean(info.isMuted || info.bannerText !== '' || info.level !== '');
+                    },
+
+                    _stopChatMuteCountdown() {
+                        if (this._chatMuteTickTimer) {
+                            clearInterval(this._chatMuteTickTimer);
+                            this._chatMuteTickTimer = null;
+                        }
+                        this._chatMuteUntilPerfMs = 0;
+                    },
+
+                    _startChatMuteCountdown(seconds) {
+                        this._stopChatMuteCountdown();
+                        const cleanSec = Math.max(0, Math.ceil(Number(seconds) || 0));
+                        if (cleanSec <= 0 || !this.isOpen) return;
+                        this._chatMuteUntilPerfMs = this._nowPerfMs() + (cleanSec * 1000);
+                        this._chatMuteTickTimer = setInterval(() => {
+                            if (!this.isOpen || !this.chatStrikeInfo || !this.chatStrikeInfo.isMuted || this.chatStrikeInfo.permanent) {
+                                this._stopChatMuteCountdown();
+                                return;
+                            }
+                            const left = Math.max(0, Math.ceil((this._chatMuteUntilPerfMs - this._nowPerfMs()) / 1000));
+                            if (left <= 0) {
+                                this._stopChatMuteCountdown();
+                                this.chatStrikeInfo = Object.assign({}, this.chatStrikeInfo, {
+                                    isMuted: false,
+                                    remainingSec: 0,
+                                    bannerText: this.chatStrikeInfo.strikes > 0 ? '' : this.chatStrikeInfo.bannerText,
+                                    level: ''
+                                });
+                                return;
+                            }
+                            this.chatStrikeInfo = Object.assign({}, this.chatStrikeInfo, {
+                                remainingSec: left
+                            });
+                        }, 1000);
+                    },
+
+                    _syncChatModeration(cm) {
+                        if (!cm || typeof cm !== 'object') return;
+                        const strikes = Math.max(0, parseInt(cm.strikes ?? 0, 10) || 0);
+                        const permanent = Boolean(cm.permanent_mute);
+                        const remainingSec = permanent ? 0 : Math.max(0, Math.ceil(Number(cm.remaining_seconds) || 0));
+                        const isMuted = Boolean(cm.is_muted || permanent || remainingSec > 0);
+                        const prev = this.chatStrikeInfo || {};
+                        let nextLevel = prev.level || '';
+                        let nextBanner = prev.bannerText || '';
+
+                        if (isMuted) {
+                            if (permanent) {
+                                nextLevel = 'auto_mute_permanent';
+                                if (!nextBanner) nextBanner = 'Hausordnung: Dein Chat-Zugang ist dauerhaft gesperrt.';
+                            } else if (strikes >= 3) {
+                                nextLevel = 'auto_mute_24h';
+                                if (!nextBanner) nextBanner = 'Hausordnung: Dein Chat ist vorübergehend gesperrt.';
+                            } else if (strikes === 2) {
+                                nextLevel = 'auto_mute_15m';
+                                if (!nextBanner) nextBanner = 'Hausordnung: Dein Chat ist für 15 Minuten gesperrt.';
+                            } else {
+                                nextLevel = 'chat_muted';
+                                if (!nextBanner) nextBanner = 'Dein Chat ist aktuell gesperrt.';
+                            }
+                        } else if (prev.isMuted) {
+                            nextLevel = '';
+                            nextBanner = '';
+                        }
+
+                        this.chatStrikeInfo = {
+                            strikes,
+                            isMuted,
+                            remainingSec,
+                            permanent,
+                            bannerText: String(nextBanner || '').replace(/\s[\u2013\u2014]\s/g, ' · ').trim(),
+                            level: nextLevel
+                        };
+
+                        if (isMuted && !permanent && remainingSec > 0) {
+                            this._startChatMuteCountdown(remainingSec);
+                        } else {
+                            this._stopChatMuteCountdown();
+                        }
+                    },
+
+                    _applyChatModerationError(body) {
+                        if (!body || typeof body !== 'object') return false;
+                        const code = String(body.code || '').trim();
+                        if (code === 'multiplayer_disabled' || body.multiplayer_disabled === true) {
+                            this._applyServerMultiplayerDisabled();
+                            return true;
+                        }
+                        const modCodes = ['auto_warning_1', 'auto_mute_15m', 'auto_mute_24h', 'auto_mute_permanent', 'chat_muted', 'muted'];
+                        if (modCodes.indexOf(code) === -1 && !(body.chat_moderation && typeof body.chat_moderation === 'object')) {
+                            return false;
+                        }
+
+                        const cm = (body.chat_moderation && typeof body.chat_moderation === 'object') ? body.chat_moderation : {};
+                        let strikes = Math.max(0, parseInt(body.strike ?? body.strikes ?? cm.strikes ?? this.chatStrikeInfo.strikes ?? 0, 10) || 0);
+                        if (code === 'auto_warning_1' && strikes < 1) strikes = 1;
+                        if (code === 'auto_mute_15m' && strikes < 2) strikes = 2;
+                        if (code === 'auto_mute_24h' && strikes < 3) strikes = 3;
+                        if (code === 'auto_mute_permanent' && strikes < 4) strikes = 4;
+
+                        const permanent = Boolean(body.permanent_mute || cm.permanent_mute || code === 'auto_mute_permanent');
+                        const defaultRem = code === 'auto_mute_15m' ? 900 : (code === 'auto_mute_24h' ? 86400 : 0);
+                        const rawRem = body.remaining_seconds !== undefined ? body.remaining_seconds : cm.remaining_seconds;
+                        const remainingSec = permanent ? 0 : Math.max(0, Math.ceil(Number(rawRem !== undefined ? rawRem : defaultRem) || 0));
+                        const isMuted = Boolean(
+                            permanent
+                            || remainingSec > 0
+                            || cm.is_muted
+                            || code === 'auto_mute_15m'
+                            || code === 'auto_mute_24h'
+                            || code === 'auto_mute_permanent'
+                            || code === 'chat_muted'
+                            || code === 'muted'
+                        );
+                        const fallbackMsg = isMuted
+                            ? 'Hausordnung: Chat-Sperre aktiv.'
+                            : 'Bitte beachte unsere freundliche Hausordnung im Raum-Chat.';
+                        const cleanText = String(body.message || fallbackMsg).replace(/\s[\u2013\u2014]\s/g, ' · ').trim();
+
+                        this.chatFeedback = '';
+                        this.chatStrikeInfo = {
+                            strikes,
+                            isMuted,
+                            remainingSec,
+                            permanent,
+                            bannerText: cleanText,
+                            level: code || (isMuted ? 'chat_muted' : 'auto_warning_1')
+                        };
+
+                        if (isMuted && !permanent && remainingSec > 0) {
+                            this._startChatMuteCountdown(remainingSec);
+                        } else {
+                            this._stopChatMuteCountdown();
+                        }
+                        return true;
+                    },
+
                     sendChatMessage(overrideText) {
                         const raw = overrideText !== undefined ? overrideText : this.chatDraft;
                         const text = String(raw || '').trim();
                         if (text === '' || this.chatSending) return;
-                        if (!this.isCustomerAuthenticated() || this.soloMode) return;
+                        if (!this.isCustomerAuthenticated() || this.soloMode || this.multiplayerDisabled) return;
+                        if (this.chatStrikeInfo && this.chatStrikeInfo.isMuted) return;
 
                         if (text.startsWith('/')) {
                             const parts = text.split(' ');
@@ -5727,6 +6173,7 @@
                     },
 
                     _sendActualChatMessage(text) {
+                        if (this.chatStrikeInfo && this.chatStrikeInfo.isMuted) return;
                         this.chatSending = true;
                         fetch('/funkenwerk-welt/lobby/chat', {
                             method: 'POST',
@@ -5738,11 +6185,17 @@
                             },
                             body: JSON.stringify({ message: text })
                         })
-                            .then((res) => res.json().catch(() => null).then((body) => ({ ok: res.ok, body })))
+                            .then((res) => res.json().catch(() => null).then((body) => ({ ok: res.ok, status: res.status, body })))
                             .then(({ ok, body }) => {
                                 if (!ok || !body || !(body.ok || body.success)) {
+                                    if (this._applyChatModerationError(body)) {
+                                        return;
+                                    }
                                     this.showFeedback((body && body.message) ? body.message : 'Nachricht konnte nicht gesendet werden.');
                                     return;
+                                }
+                                if (body.chat_moderation && typeof body.chat_moderation === 'object') {
+                                    this._syncChatModeration(body.chat_moderation);
                                 }
                                 this.chatFeedback = '';
                                 const entry = body.entry || body.message_entry || null;
@@ -5961,8 +6414,9 @@
                         }
                         this.stopMultiplayerLoop();
                         this.stopAtelierPingLoop();
+                        this._stopChatMuteCountdown();
                         this.pingTooltipOpen = false;
-                        if (!this.soloMode && this._activeSyncZone === 'heroes') {
+                        if (!this.soloMode && !this.multiplayerDisabled && this._activeSyncZone === 'heroes') {
                             this.sendLobbyLeaveBeacon();
                         }
                         this._activeSyncZone = null;

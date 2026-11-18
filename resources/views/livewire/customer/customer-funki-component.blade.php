@@ -4,168 +4,91 @@
         showFunkiZoomModal: false,
         zoomStageData: null,
         heroProfileModal: null,
-        audioVolume: @js((int) $funkiAudioVolume),
-        audioMuted: @js((bool) $funkiAudioMuted),
-        audioKeepPlaying: @js((bool) $funkiAudioKeepPlaying),
-        audioExpanded: false,
-        init() {
-            const sessionEnabled = sessionStorage.getItem('sf_funki_bgm_session_enabled') === '1';
-            const savedVol = localStorage.getItem('sf_funki_audio_volume') ?? localStorage.getItem('sf_funki_bgm_vol');
-            const savedMute = localStorage.getItem('sf_funki_audio_muted') ?? localStorage.getItem('sf_funki_bgm_muted');
-            const savedKeep = localStorage.getItem('sf_funki_audio_keep_playing');
-            if (savedVol !== null && !isNaN(Number(savedVol))) {
-                this.audioVolume = Math.max(0, Math.min(100, Number(savedVol)));
-            }
-            if (sessionEnabled) {
-                if (savedMute !== null) {
-                    this.audioMuted = savedMute === '1' || savedMute === 'true';
-                }
-                if (savedKeep !== null) {
-                    this.audioKeepPlaying = savedKeep === '1' || savedKeep === 'true';
-                }
-            } else {
-                this.audioMuted = true;
-                this.audioKeepPlaying = false;
-            }
-            window._sfFunkiVolume = this.audioVolume;
-            window._sfFunkiMuted = this.audioMuted;
-
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.initFromServer(this.audioVolume, this.audioMuted, this.audioKeepPlaying);
-                this.audioVolume = window.SfFunkiBgm.volume;
-                this.audioMuted = window.SfFunkiBgm.muted;
-                this.audioKeepPlaying = window.SfFunkiBgm.keepPlaying;
-            }
-
-            window.addEventListener('sf-funki-bgm-state', (e) => {
-                if (!e.detail) return;
-                this.audioVolume = e.detail.volume;
-                this.audioMuted = e.detail.muted;
-                this.audioKeepPlaying = e.detail.keepPlaying;
-                window._sfFunkiVolume = this.audioVolume;
-                window._sfFunkiMuted = this.audioMuted;
-            });
-
-            // Registriert die Funki-Ansicht im Audio-Controller (spielt nur, wenn der Kunde den Ton in dieser Session aktiv eingeschaltet hat)
-            this.playFunkiBgm();
-        },
         openActivateMagicModal() {
-            this.pauseFunkiBgm();
             this.showActivateMagicModal = true;
-            if (window.sfCockpitSound) window.sfCockpitSound('click');
-        },
-        playFunkiBgm() {
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.onModalOpen();
-                return;
-            }
-            const audio = document.getElementById('bgm_funki_game');
-            if (!audio) return;
-            if (this.audioMuted || Number(this.audioVolume) <= 0) {
-                audio.volume = 0;
-                return;
-            }
-            const target = Math.max(0, Math.min(1, (Number(this.audioVolume) / 100) * 0.65));
-            audio.volume = 0.001;
-            const p = audio.play();
-            if (p && typeof p.catch === 'function') p.catch(() => {});
-            const start = performance.now();
-            const step = (now) => {
-                const t = Math.min(1, (now - start) / 850);
-                audio.volume = target * t;
-                if (t < 1) requestAnimationFrame(step);
-            };
-            requestAnimationFrame(step);
-        },
-        pauseFunkiBgm() {
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.onModalClose();
-                return;
-            }
-            if (this.audioKeepPlaying) return;
-            const audio = document.getElementById('bgm_funki_game');
-            if (!audio || audio.paused) return;
-            audio.volume = 0;
-            try { audio.pause(); } catch (e) {}
-        },
-        toggleMute() {
-            this.audioMuted = !this.audioMuted;
-            if (!this.audioMuted && Number(this.audioVolume) === 0) {
-                this.audioVolume = 35;
-            }
-            try {
-                if (!this.audioMuted) {
-                    sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
-                } else {
-                    sessionStorage.removeItem('sf_funki_bgm_session_enabled');
-                }
-            } catch (e) {}
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.setMuted(this.audioMuted, false);
-                this.audioKeepPlaying = window.SfFunkiBgm.keepPlaying;
-            } else if (!this.audioMuted) {
-                this.playFunkiBgm();
-            } else {
-                this.pauseFunkiBgm();
-            }
-            this.applyAudioState(true);
-            if (!this.audioMuted && window.sfCockpitSound) {
-                window.sfCockpitSound('click');
-            }
-        },
-        onVolumeChange(saveToServer = false) {
-            this.audioVolume = Math.max(0, Math.min(100, Number(this.audioVolume)));
-            if (this.audioVolume === 0) {
-                this.audioMuted = true;
-            } else if (this.audioMuted) {
-                this.audioMuted = false;
-            }
-            try {
-                if (!this.audioMuted && this.audioVolume > 0) {
-                    sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
-                } else {
-                    sessionStorage.removeItem('sf_funki_bgm_session_enabled');
-                }
-            } catch (e) {}
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.setVolume(this.audioVolume, false);
-                this.audioKeepPlaying = window.SfFunkiBgm.keepPlaying;
-            }
-            this.applyAudioState(saveToServer);
-        },
-        toggleKeepPlaying() {
-            if (window.sfCockpitSound) window.sfCockpitSound('click');
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.setKeepPlaying(this.audioKeepPlaying, false);
-            }
-            this.applyAudioState(true);
-        },
-        applyAudioState(saveToServer = false) {
-            window._sfFunkiVolume = Number(this.audioVolume);
-            window._sfFunkiMuted = Boolean(this.audioMuted);
-            try {
-                localStorage.setItem('sf_funki_bgm_vol', String(this.audioVolume));
-                localStorage.setItem('sf_funki_bgm_muted', this.audioMuted ? '1' : '0');
-                localStorage.setItem('sf_funki_audio_volume', String(this.audioVolume));
-                localStorage.setItem('sf_funki_audio_muted', this.audioMuted ? '1' : '0');
-                localStorage.setItem('sf_funki_audio_keep_playing', this.audioKeepPlaying ? '1' : '0');
-            } catch (e) {}
-            if (saveToServer) {
-                if (window.SfFunkiBgm && typeof window.SfFunkiBgm.persistToServer === 'function') {
-                    window.SfFunkiBgm.persistToServer();
-                } else {
-                    this.$wire.saveFunkiAudioSettings(Number(this.audioVolume), Boolean(this.audioMuted), Boolean(this.audioKeepPlaying));
-                }
-            }
+            window.dispatchEvent(new CustomEvent('sf-reset-magic-optin'));
         },
         openFunkiZoom(stageData) {
-            if (window.sfCockpitSound) window.sfCockpitSound('click');
             this.zoomStageData = stageData;
             this.showFunkiZoomModal = true;
         }
      }"
      @magic-activated-complete.window="showActivateMagicModal = false"
      class="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7 animate-fade-in-up space-y-6">
+
+    <style>
+        @keyframes sfGoldShimmerSweep {
+            0% { transform: translate3d(-145%, 0, 0) skewX(-20deg); }
+            62%, 100% { transform: translate3d(145%, 0, 0) skewX(-20deg); }
+        }
+        @keyframes sfGoldEdgeLuster {
+            0%, 100% { border-color: rgba(230, 197, 122, 0.45); }
+            50% { border-color: rgba(255, 248, 224, 0.92); }
+        }
+        @keyframes sfGoldSparkPulse {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.18) rotate(8deg); }
+        }
+        .sf-magic-activate-cta {
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+            background: linear-gradient(135deg, #B68D40 0%, #C5A059 42%, #E6C57A 72%, #B68D40 100%);
+            color: #111827 !important;
+            border: 1px solid #B68D40;
+            box-shadow: inset 0 1px 0 rgba(255, 251, 238, 0.65), 0 2px 8px rgba(17, 24, 39, 0.12);
+            transform: translate3d(0, 0, 0);
+            transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1), border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+        }
+        .sf-magic-activate-cta::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            border: 1px solid transparent;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .sf-magic-activate-cta::after {
+            content: "";
+            position: absolute;
+            top: -15%;
+            bottom: -15%;
+            left: -25%;
+            width: 68%;
+            background: linear-gradient(105deg, rgba(255, 255, 255, 0) 15%, rgba(255, 250, 235, 0.22) 38%, rgba(255, 253, 245, 0.78) 50%, rgba(230, 197, 122, 0.28) 62%, rgba(255, 255, 255, 0) 85%);
+            transform: translate3d(-145%, 0, 0) skewX(-20deg);
+            will-change: transform;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .sf-magic-activate-cta .sf-magic-spark-icon {
+            display: inline-block;
+            position: relative;
+            z-index: 3;
+            will-change: transform;
+            transition: transform 0.22s ease;
+        }
+        .sf-magic-activate-cta:hover,
+        .sf-magic-activate-cta:focus-visible {
+            background: linear-gradient(135deg, #C5A059 0%, #E6C57A 50%, #C5A059 100%);
+            border-color: #E6C57A;
+            box-shadow: inset 0 0 0 1px rgba(255, 250, 235, 0.78), 0 6px 18px rgba(182, 141, 64, 0.28);
+            transform: translate3d(0, -1px, 0) scale(1.025);
+        }
+        .sf-magic-activate-cta:hover::before,
+        .sf-magic-activate-cta:focus-visible::before {
+            animation: sfGoldEdgeLuster 2s ease-in-out infinite;
+        }
+        .sf-magic-activate-cta:hover::after,
+        .sf-magic-activate-cta:focus-visible::after {
+            animation: sfGoldShimmerSweep 1.65s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+        }
+        .sf-magic-activate-cta:hover .sf-magic-spark-icon,
+        .sf-magic-activate-cta:focus-visible .sf-magic-spark-icon {
+            animation: sfGoldSparkPulse 1.45s ease-in-out infinite;
+        }
+    </style>
 
     @php
         $lvlCfg = $currentLevelConfig ?: \App\Services\Gamification\GameConfig::getLevelConfig($funkiLevel ?: 1);
@@ -194,12 +117,12 @@
     @endphp
 
     {{-- =========================================================================
-         HERO CARD: DEIN FUNKI, AUDIO-STEUERUNG, KENNZAHLEN & TABS
+         HERO CARD: DEIN FUNKI, KENNZAHLEN & TABS
          ========================================================================= --}}
     <div class="relative overflow-hidden bg-white dark:bg-[#0d1017] border border-gray-200 dark:border-[#C5A059]/30 rounded-3xl sm:rounded-[2rem] p-5 sm:p-7 shadow-sm dark:shadow-2xl">
         <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent pointer-events-none"></div>
 
-        {{-- Top Action Row: Zurück zum Dashboard + Musik-Steuerung + Status --}}
+        {{-- Top Action Row: Zurück zum Dashboard + Status --}}
         <div class="relative z-10 flex flex-wrap items-center justify-between gap-2 pb-4 mb-4 border-b border-gray-100 dark:border-gray-800/80">
             <a href="{{ route('customer.dashboard') }}" wire:navigate
                class="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
@@ -227,75 +150,6 @@
                         <span class="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 {{ $isGameModeActive ? 'translate-x-4' : 'translate-x-0.5' }}"></span>
                     </span>
                 </button>
-
-                {{-- Audio-Steuerung --}}
-                <div @click.outside="audioExpanded = false" class="relative flex items-center">
-                    <button x-show="!audioExpanded"
-                            type="button"
-                            @click="audioExpanded = true"
-                            title="Funki Musik-Einstellungen"
-                            aria-label="Funki Musik öffnen"
-                            class="p-2 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-amber-600 dark:text-[#C5A059] hover:border-[#C5A059] transition-all cursor-pointer shrink-0">
-                        <svg x-show="!audioMuted && Number(audioVolume) > 0" class="w-4 h-4 text-amber-600 dark:text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" />
-                        </svg>
-                        <svg x-show="audioMuted || Number(audioVolume) === 0" style="display: none;" class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M23 9l-6 6m0-6l6 6" />
-                        </svg>
-                    </button>
-
-                    <div x-show="audioExpanded"
-                         x-cloak
-                         x-transition:enter="transition ease-out duration-200"
-                         x-transition:enter-start="opacity-0 scale-95"
-                         x-transition:enter-end="opacity-100 scale-100"
-                         x-transition:leave="transition ease-in duration-150"
-                         x-transition:leave-start="opacity-100 scale-100"
-                         x-transition:leave-end="opacity-0 scale-95"
-                         class="flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-[#C5A059]/40 dark:border-gray-800 shadow-sm min-w-0">
-                        <button type="button"
-                                @click="toggleMute()"
-                                :title="audioMuted ? 'Ton einschalten' : 'Stummschalten'"
-                                class="p-1 rounded-lg text-gray-600 dark:text-gray-300 hover:text-amber-600 dark:hover:text-[#f5dca0] transition cursor-pointer shrink-0">
-                            <svg x-show="!audioMuted && Number(audioVolume) > 0" class="w-4 h-4 text-amber-600 dark:text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" />
-                            </svg>
-                            <svg x-show="audioMuted || Number(audioVolume) === 0" style="display: none;" class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M23 9l-6 6m0-6l6 6" />
-                            </svg>
-                        </button>
-
-                        <input type="range"
-                               min="0"
-                               max="100"
-                               step="1"
-                               x-model.number="audioVolume"
-                               @input="onVolumeChange(false)"
-                               @change="onVolumeChange(true)"
-                               aria-label="Musik- und Sound-Lautstärke"
-                               class="w-16 sm:w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#C5A059]">
-
-                        <span class="text-[10px] font-mono font-bold text-gray-600 dark:text-gray-300 w-7 text-right select-none shrink-0"
-                              x-text="audioMuted ? 'Aus' : (audioVolume + '%')"></span>
-
-                        <div class="h-3.5 w-px bg-gray-200 dark:bg-gray-700 mx-0.5"></div>
-
-                        <label class="inline-flex items-center gap-1.5 cursor-pointer select-none group"
-                               title="Musik beim Seitenwechsel konstant weiterlaufen lassen">
-                            <input type="checkbox"
-                                   x-model="audioKeepPlaying"
-                                   @change="toggleKeepPlaying()"
-                                   class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-[#C5A059] focus:ring-[#C5A059]/40 cursor-pointer accent-[#C5A059]">
-                            <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600 dark:group-hover:text-[#f5dca0] transition-colors whitespace-nowrap">
-                                Musik laufen lassen
-                            </span>
-                        </label>
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -422,7 +276,7 @@
                     <x-shop.experience-star-widget area="funkenreich" :requireFunkenreichVisit="true" :darkAware="true" />
                     <button type="button"
                             data-testid="funki-vouchers-open-3d-lobby"
-                            onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
+                            onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
                             class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[#faf6ee] dark:hover:bg-gray-800 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black tracking-wide shadow-xs transition cursor-pointer shrink-0">
                         <span>✨</span>
                         <span>Funken im Funkenreich sammeln</span>
@@ -466,8 +320,9 @@
                         @if(!$isGameModeActive)
                             <button type="button"
                                     @click="openActivateMagicModal()"
-                                    class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-gray-950 font-black text-xs uppercase tracking-widest transition cursor-pointer">
-                                Magie aktivieren
+                                    class="sf-magic-activate-cta w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-widest cursor-pointer inline-flex items-center justify-center gap-2">
+                                <span class="sf-magic-spark-icon" aria-hidden="true">✨</span>
+                                <span class="relative z-10">Magie aktivieren</span>
                             </button>
                         @else
                             <button type="button"
@@ -962,7 +817,7 @@
                 <div class="flex items-center gap-2.5">
                     <button type="button"
                             data-testid="funki-open-hall-of-heroes-3d"
-                            onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
+                            onclick="(function(){ var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
                             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C5A059] hover:bg-[#b58f48] text-gray-950 text-xs font-black tracking-wide transition cursor-pointer">
                         <span>🏛️</span>
                         <span>Halle der Helden 3D</span>
@@ -1168,34 +1023,94 @@
     {{-- =========================================================================
          MODAL: MAGIE AKTIVIEREN (FALLS NOCH NICHT AKTIV)
          ========================================================================= --}}
-    <template x-teleport="body">
-        <div x-show="showActivateMagicModal"
-             style="display: none;"
-             class="fixed inset-0 z-[9400] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            <div class="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md"
-                 @click="showActivateMagicModal = false"
-                 x-transition.opacity></div>
+    <div wire:ignore>
+        <template x-teleport="body">
+            <div x-show="showActivateMagicModal"
+                 style="display: none;"
+                 @keydown.escape.window="if (showActivateMagicModal) showActivateMagicModal = false"
+                 class="fixed inset-0 z-[9400] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+                <div class="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md"
+                     @click="showActivateMagicModal = false"
+                     x-transition.opacity></div>
 
-            <div x-data="{ agreedToTerms: false }"
-                 class="relative z-10 w-full max-w-xl p-6 sm:p-8 rounded-3xl bg-white dark:bg-gray-900 border border-[#C5A059]/40 shadow-2xl text-center space-y-4">
-                <h3 class="text-2xl font-serif font-bold text-gray-900 dark:text-white">Seelenfunken-Magie aktivieren</h3>
-                <p class="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Sammle bei jedem Einkauf sowie auf unseren Shop-Seiten Funken für bis zu 15 % Rabatt.
-                </p>
-                <label class="flex items-start gap-2.5 text-left cursor-pointer">
-                    <input type="checkbox" x-model="agreedToTerms" class="mt-0.5 w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-500">
-                    <span class="text-xs text-gray-600 dark:text-gray-400">
-                        Ich stimme den <a href="{{ route('agb') }}#agb-gamification" target="_blank" class="text-amber-700 dark:text-primary underline">Teilnahmebedingungen</a> und <a href="{{ route('datenschutz') }}#datenschutz-gamification" target="_blank" class="text-amber-700 dark:text-primary underline">Datenschutzhinweisen</a> zu.
-                    </span>
-                </label>
-                <button type="button"
-                        :disabled="!agreedToTerms"
-                        @click="$wire.activateSeelenfunke(); showActivateMagicModal = false;"
-                        class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 disabled:opacity-40 text-gray-950 font-black text-xs uppercase tracking-widest cursor-pointer">
-                    ✨ Jetzt aktivieren
-                </button>
+                <div x-data="{
+                        agreedToTerms: false,
+                        magicCtaAura: false,
+                        isActivating: false,
+                        resetOptInState() {
+                            this.agreedToTerms = false;
+                            this.magicCtaAura = false;
+                            this.isActivating = false;
+                        },
+                        onMagicTermsChange() {
+                            if (this.agreedToTerms) {
+                                this.magicCtaAura = false;
+                                if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                                    window.sfSparkFlow.fly(this.$refs.magicTermsBox, this.$refs.magicActivateBtn, {
+                                        mode: 'unlock',
+                                        runKey: 'funki-cockpit-magic-flow',
+                                        onArrival: () => {
+                                            if (this.agreedToTerms) {
+                                                this.magicCtaAura = true;
+                                            }
+                                        },
+                                    });
+                                } else {
+                                    this.magicCtaAura = true;
+                                }
+                            } else {
+                                this.magicCtaAura = false;
+                                if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                                    window.sfSparkFlow.fly(this.$refs.magicActivateBtn, this.$refs.magicTermsBox, {
+                                        mode: 'relock',
+                                        runKey: 'funki-cockpit-magic-flow',
+                                    });
+                                }
+                            }
+                        },
+                        nudgeMagicTermsHint(btnEl) {
+                            if (this.agreedToTerms || this.isActivating) return;
+                            if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                                window.sfSparkFlow.fly(btnEl || this.$refs.magicActivateBtn, this.$refs.magicTermsBox, {
+                                    mode: 'hint',
+                                    cooldownKey: 'funki-cockpit-magic-hint',
+                                });
+                            }
+                        }
+                     }"
+                     @sf-reset-magic-optin.window="resetOptInState()"
+                     class="relative z-10 w-full max-w-xl p-6 sm:p-8 rounded-3xl bg-white dark:bg-gray-900 border border-[#C5A059]/40 shadow-2xl text-center space-y-4">
+                    <h3 class="text-2xl font-serif font-bold text-gray-900 dark:text-white">Seelenfunken-Magie aktivieren</h3>
+                    <p class="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                        Sammle bei jedem Einkauf sowie auf unseren Shop-Seiten Funken für bis zu 15 % Rabatt.
+                    </p>
+                    <label x-ref="magicTermsBox"
+                           class="sf-magic-thin-aura flex items-start gap-2.5 p-3 rounded-xl border text-left cursor-pointer transition-colors"
+                           :class="agreedToTerms ? 'bg-amber-50/50 dark:bg-amber-500/5 border-[#C5A059]/50' : 'bg-gray-50/80 dark:bg-gray-800/60 border-gray-200/80 dark:border-gray-700/70'">
+                        <span x-show="!agreedToTerms" class="sf-magic-thin-aura-ring" aria-hidden="true"></span>
+                        <input type="checkbox"
+                               x-model="agreedToTerms"
+                               @change="onMagicTermsChange()"
+                               class="mt-0.5 w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-500 cursor-pointer shrink-0">
+                        <span class="text-xs text-gray-600 dark:text-gray-400">
+                            Ich stimme den <a href="{{ route('agb') }}#agb-gamification" target="_blank" @click.stop class="text-amber-700 dark:text-primary underline">Teilnahmebedingungen</a> und <a href="{{ route('datenschutz') }}#datenschutz-gamification" target="_blank" @click.stop class="text-amber-700 dark:text-primary underline">Datenschutzhinweisen</a> zu.
+                        </span>
+                    </label>
+                    <button type="button"
+                            x-ref="magicActivateBtn"
+                            :disabled="isActivating"
+                            :aria-disabled="(!agreedToTerms || isActivating) ? 'true' : 'false'"
+                            @mouseenter="if (!agreedToTerms) nudgeMagicTermsHint($el)"
+                            @click="if (!agreedToTerms) { nudgeMagicTermsHint($el); return; } if (!isActivating) { isActivating = true; Promise.resolve($wire.activateSeelenfunke()).finally(() => { isActivating = false; showActivateMagicModal = false; }); }"
+                            :class="agreedToTerms && !isActivating
+                                ? 'bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 hover:from-amber-300 hover:to-amber-400 text-gray-950 shadow-[0_8px_24px_rgba(197,160,89,0.32)] cursor-pointer'
+                                : 'bg-gray-200 text-gray-500 border border-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 shadow-none opacity-55 grayscale cursor-not-allowed'"
+                            class="sf-magic-thin-aura sf-magic-thin-aura-cta relative w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all duration-300 overflow-hidden">
+                        <span x-show="magicCtaAura && agreedToTerms" x-cloak class="sf-magic-thin-aura-ring" aria-hidden="true"></span>
+                        <span class="relative z-10">✨ Jetzt aktivieren</span>
+                    </button>
+                </div>
             </div>
-        </div>
-    </template>
-    <script type="module" src="{{ asset('js/seelenfunke-lobby-audio.js') }}?v={{ @filemtime(public_path('js/seelenfunke-lobby-audio.js')) ?: time() }}"></script>
+        </template>
+    </div>
 </div>

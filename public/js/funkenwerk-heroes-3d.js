@@ -394,6 +394,8 @@
         this.atelierRatingBusy = false;
         this._loginOpenedFromStarStation = false;
         this.soloMode = false;
+        this.multiplayerDisabled = false;
+        this._wsDisabledByServer = false;
         this.instanceId = 1;
         this.instanceCapacity = 20;
         this.instances = [{ id: 1, count: 1, capacity: 20, is_full: false, is_current: true }];
@@ -405,6 +407,16 @@
         this.outerGateModalOpen = false;
         this.chatOpen = false;
         this.chatMessages = [];
+        this.chatStrikeInfo = {
+            strikes: 0,
+            isMuted: false,
+            remainingSec: 0,
+            permanent: false,
+            bannerText: '',
+            level: ''
+        };
+        this._chatMuteTimer = null;
+        this._chatMuteUntilPerfMs = 0;
         this.unreadChatCount = 0;
         this._seenMessageIds = {};
         this._loggedInDuringSession = false;
@@ -823,9 +835,16 @@
             '        <button type="button" data-lobby-chat-close style="appearance:none;border:none;background:transparent;font-size:15px;font-weight:900;color:#6B7280;cursor:pointer;">&times;</button>',
             '      </div>',
             '      <div data-lobby-chat-messages style="max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:5px;font-size:11.5px;"></div>',
+            '      <div data-lobby-chat-mod-banner role="alert" style="display:none;padding:7px 9px;border-radius:10px;background:#FEF2F2;border:1px solid #FECACA;border-left:3px solid #DC2626;flex-direction:column;gap:3px;">',
+            '        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;">',
+            '          <span data-lobby-chat-mod-badge style="display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;background:#DC2626;color:#FFFFFF;font-size:9.5px;font-weight:900;letter-spacing:0.03em;text-transform:uppercase;">Hausordnung</span>',
+            '          <span data-lobby-chat-mod-timer style="display:none;font-size:10px;font-weight:800;color:#991B1B;white-space:nowrap;"></span>',
+            '        </div>',
+            '        <div data-lobby-chat-mod-text style="font-size:11px;font-weight:700;color:#7F1D1D;line-height:1.35;word-break:break-word;"></div>',
+            '      </div>',
             '      <form data-lobby-chat-form style="display:flex;gap:6px;">',
             '        <input type="text" data-lobby-chat-input maxlength="120" placeholder="Nachricht..." class="sf-lobby-inline-input" style="padding:6px 9px;font-size:12px;">',
-            '        <button type="submit" class="sf-lobby-instance-submit" style="flex:0 0 auto;padding:6px 11px;">Senden</button>',
+            '        <button type="submit" data-lobby-chat-submit class="sf-lobby-instance-submit" style="flex:0 0 auto;padding:6px 11px;">Senden</button>',
             '      </form>',
             '    </div>',
             '  </div>',
@@ -1823,11 +1842,15 @@
             jitterValEl.textContent = '±' + (ns.jitterMs || 0) + ' ms';
         }
 
-        var isLiveHeroes = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode);
+        var isLiveHeroes = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode && !this.multiplayerDisabled);
         if (modeValEl) {
-            modeValEl.textContent = isLiveHeroes
-                ? (this.wsConnected ? 'Echtzeit-WS (30 Hz)' : 'Live-Sync (6 Hz)')
-                : 'Atelier (Solo)';
+            if (this.currentZone === 'heroes') {
+                modeValEl.textContent = isLiveHeroes
+                    ? (this.wsConnected ? 'Echtzeit-WS (30 Hz)' : 'Live-Sync (6 Hz)')
+                    : 'Halle (Solo)';
+            } else {
+                modeValEl.textContent = 'Atelier (Solo)';
+            }
         }
         if (instRowEl) {
             instRowEl.style.display = isLiveHeroes ? 'flex' : 'none';
@@ -1847,7 +1870,7 @@
     SeelenfunkeUnifiedLobbyHost.prototype._probeSoloAtelierPing = function () {
         var self = this;
         if (!this.isOpen || this._pingProbeInFlight) return;
-        if (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode && (this.wsConnected || this._syncTimer)) {
+        if (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode && !this.multiplayerDisabled && (this.wsConnected || this._syncTimer)) {
             return;
         }
         this._pingProbeInFlight = true;
@@ -2428,7 +2451,7 @@
         var soloDot = root.querySelector('[data-lobby-solo-dot]');
         var soloLbl = root.querySelector('[data-lobby-solo-label]');
         if (soloBtn) {
-            soloBtn.style.display = (this.currentZone === 'heroes' && this.lobbyAuth) ? 'inline-flex' : 'none';
+            soloBtn.style.display = (this.currentZone === 'heroes' && this.lobbyAuth && !this.multiplayerDisabled) ? 'inline-flex' : 'none';
         }
         if (soloDot) {
             soloDot.className = 'sf-lobby-dot ' + (this.soloMode ? 'is-solo' : 'is-live');
@@ -2485,7 +2508,7 @@
 
         var instWrap = root.querySelector('[data-lobby-instance-wrap]');
         if (instWrap) {
-            instWrap.style.display = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode) ? 'inline-flex' : 'none';
+            instWrap.style.display = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode && !this.multiplayerDisabled) ? 'inline-flex' : 'none';
         }
 
         var instLabel = root.querySelector('[data-lobby-instance-label]');
@@ -2507,8 +2530,15 @@
         }
         var chatPanel = root.querySelector('[data-lobby-chat-panel]');
         if (chatPanel) {
-            chatPanel.style.display = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode) ? 'block' : 'none';
+            var showChat = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode && !this.multiplayerDisabled);
+            chatPanel.style.display = showChat ? 'block' : 'none';
+            if (!showChat && this.chatOpen) {
+                this.chatOpen = false;
+                var chatBoxEl = root.querySelector('[data-lobby-chat-box]');
+                if (chatBoxEl) chatBoxEl.style.display = 'none';
+            }
         }
+        this._renderChatModerationState();
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._ingestSyncMessages = function (messages) {
@@ -2580,10 +2610,227 @@
         box.scrollTop = box.scrollHeight;
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._formatMuteRemaining = function (sec) {
+        var s = Math.max(0, Math.ceil(Number(sec) || 0));
+        if (s >= 3600) {
+            return Math.floor(s / 3600) + ' Std. ' + Math.floor((s % 3600) / 60) + ' Min.';
+        }
+        if (s >= 60) {
+            var m = Math.floor(s / 60);
+            var r = s % 60;
+            return (m < 10 ? '0' + m : String(m)) + ':' + (r < 10 ? '0' + r : String(r)) + ' Min.';
+        }
+        return s + ' Sek.';
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._stopChatMuteCountdown = function () {
+        if (this._chatMuteTimer) {
+            clearInterval(this._chatMuteTimer);
+            this._chatMuteTimer = null;
+        }
+        this._chatMuteUntilPerfMs = 0;
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._startChatMuteCountdown = function (seconds) {
+        var self = this;
+        this._stopChatMuteCountdown();
+        var cleanSec = Math.max(0, Math.ceil(Number(seconds) || 0));
+        if (cleanSec <= 0 || !this.isOpen) return;
+        this._chatMuteUntilPerfMs = this._nowPerfMs() + (cleanSec * 1000);
+        this._chatMuteTimer = setInterval(function () {
+            if (!self.isOpen || !self.chatStrikeInfo || !self.chatStrikeInfo.isMuted || self.chatStrikeInfo.permanent) {
+                self._stopChatMuteCountdown();
+                return;
+            }
+            var left = Math.max(0, Math.ceil((self._chatMuteUntilPerfMs - self._nowPerfMs()) / 1000));
+            if (left <= 0) {
+                self._stopChatMuteCountdown();
+                self.chatStrikeInfo.isMuted = false;
+                self.chatStrikeInfo.remainingSec = 0;
+                self.chatStrikeInfo.level = '';
+                self.chatStrikeInfo.bannerText = '';
+                self._renderChatModerationState();
+                return;
+            }
+            self.chatStrikeInfo.remainingSec = left;
+            self._renderChatModerationState();
+        }, 1000);
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderChatModerationState = function () {
+        if (!this.modalEl) return;
+        var root = this.modalEl;
+        var bannerEl = root.querySelector('[data-lobby-chat-mod-banner]');
+        var badgeEl = root.querySelector('[data-lobby-chat-mod-badge]');
+        var timerEl = root.querySelector('[data-lobby-chat-mod-timer]');
+        var textEl = root.querySelector('[data-lobby-chat-mod-text]');
+        var inpEl = root.querySelector('[data-lobby-chat-input]');
+        var subBtn = root.querySelector('[data-lobby-chat-submit]');
+        var info = this.chatStrikeInfo || {};
+        var hasNotice = Boolean(info.isMuted || info.bannerText || info.level);
+        var st = Number(info.strikes) || 0;
+
+        if (bannerEl) {
+            bannerEl.style.display = hasNotice ? 'flex' : 'none';
+            bannerEl.style.borderLeftColor = info.isMuted ? '#DC2626' : '#C5A059';
+            bannerEl.style.borderColor = info.isMuted ? '#FECACA' : 'rgba(197,160,89,0.55)';
+        }
+        if (badgeEl && hasNotice) {
+            if (info.isMuted) {
+                badgeEl.textContent = (st === 2 && !info.permanent && info.level !== 'auto_mute_24h' && info.level !== 'auto_mute_permanent')
+                    ? 'Abmahnung 2/3'
+                    : 'Chat gesperrt';
+            } else if (st === 2 || info.level === 'auto_mute_15m') {
+                badgeEl.textContent = 'Abmahnung 2/3';
+            } else if (st === 1 || info.level === 'auto_warning_1') {
+                badgeEl.textContent = 'Verwarnung 1/3';
+            } else {
+                badgeEl.textContent = 'Hausordnung';
+            }
+        }
+        if (timerEl) {
+            if (info.isMuted) {
+                timerEl.style.display = 'inline-block';
+                timerEl.textContent = info.permanent ? 'Dauerhaft' : (info.remainingSec > 0 ? this._formatMuteRemaining(info.remainingSec) : 'Aktiv');
+            } else {
+                timerEl.style.display = 'none';
+            }
+        }
+        if (textEl) {
+            textEl.textContent = sanitizeText(info.bannerText || '');
+            textEl.style.display = info.bannerText ? 'block' : 'none';
+        }
+        if (inpEl) {
+            inpEl.disabled = Boolean(info.isMuted);
+            if (info.isMuted) {
+                inpEl.placeholder = info.permanent
+                    ? 'Chat gesperrt (dauerhaft)'
+                    : (info.remainingSec > 0 ? ('Chat gesperrt (' + this._formatMuteRemaining(info.remainingSec) + ')') : 'Chat gesperrt');
+                inpEl.style.background = '#F3F4F6';
+                inpEl.style.borderColor = '#FECACA';
+                inpEl.style.color = '#991B1B';
+                inpEl.style.cursor = 'not-allowed';
+            } else {
+                inpEl.placeholder = 'Nachricht...';
+                inpEl.style.background = '#FFFFFF';
+                inpEl.style.borderColor = 'rgba(197,160,89,0.55)';
+                inpEl.style.color = '#111827';
+                inpEl.style.cursor = 'text';
+            }
+        }
+        if (subBtn) {
+            subBtn.disabled = Boolean(info.isMuted);
+            subBtn.style.opacity = info.isMuted ? '0.5' : '1';
+            subBtn.style.cursor = info.isMuted ? 'not-allowed' : 'pointer';
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._syncChatModeration = function (cm) {
+        if (!cm || typeof cm !== 'object') return;
+        var strikes = Math.max(0, parseInt(cm.strikes || 0, 10) || 0);
+        var permanent = Boolean(cm.permanent_mute);
+        var remainingSec = permanent ? 0 : Math.max(0, Math.ceil(Number(cm.remaining_seconds) || 0));
+        var isMuted = Boolean(cm.is_muted || permanent || remainingSec > 0);
+        var prev = this.chatStrikeInfo || {};
+        var nextLevel = prev.level || '';
+        var nextBanner = prev.bannerText || '';
+
+        if (isMuted) {
+            if (permanent) {
+                nextLevel = 'auto_mute_permanent';
+                if (!nextBanner) nextBanner = 'Hausordnung: Dein Chat-Zugang ist dauerhaft gesperrt.';
+            } else if (strikes >= 3) {
+                nextLevel = 'auto_mute_24h';
+                if (!nextBanner) nextBanner = 'Hausordnung: Dein Chat ist vorübergehend gesperrt.';
+            } else if (strikes === 2) {
+                nextLevel = 'auto_mute_15m';
+                if (!nextBanner) nextBanner = 'Hausordnung: Dein Chat ist für 15 Minuten gesperrt.';
+            } else {
+                nextLevel = 'chat_muted';
+                if (!nextBanner) nextBanner = 'Dein Chat ist aktuell gesperrt.';
+            }
+        } else if (prev.isMuted) {
+            nextLevel = '';
+            nextBanner = '';
+        }
+
+        this.chatStrikeInfo = {
+            strikes: strikes,
+            isMuted: isMuted,
+            remainingSec: remainingSec,
+            permanent: permanent,
+            bannerText: sanitizeText(nextBanner),
+            level: nextLevel
+        };
+
+        if (isMuted && !permanent && remainingSec > 0) {
+            this._startChatMuteCountdown(remainingSec);
+        } else {
+            this._stopChatMuteCountdown();
+        }
+        this._renderChatModerationState();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._applyChatModerationError = function (body) {
+        if (!body || typeof body !== 'object') return false;
+        var code = String(body.code || '').trim();
+        if (code === 'multiplayer_disabled' || body.multiplayer_disabled === true) {
+            this._applyServerMultiplayerDisabled();
+            return true;
+        }
+        var modCodes = ['auto_warning_1', 'auto_mute_15m', 'auto_mute_24h', 'auto_mute_permanent', 'chat_muted', 'muted'];
+        if (modCodes.indexOf(code) === -1 && !(body.chat_moderation && typeof body.chat_moderation === 'object')) {
+            return false;
+        }
+        var cm = (body.chat_moderation && typeof body.chat_moderation === 'object') ? body.chat_moderation : {};
+        var rawStrike = (body.strike !== undefined) ? body.strike : ((body.strikes !== undefined) ? body.strikes : cm.strikes);
+        var strikes = Math.max(0, parseInt(rawStrike || this.chatStrikeInfo.strikes || 0, 10) || 0);
+        if (code === 'auto_warning_1' && strikes < 1) strikes = 1;
+        if (code === 'auto_mute_15m' && strikes < 2) strikes = 2;
+        if (code === 'auto_mute_24h' && strikes < 3) strikes = 3;
+        if (code === 'auto_mute_permanent' && strikes < 4) strikes = 4;
+
+        var permanent = Boolean(body.permanent_mute || cm.permanent_mute || code === 'auto_mute_permanent');
+        var defRem = code === 'auto_mute_15m' ? 900 : (code === 'auto_mute_24h' ? 86400 : 0);
+        var rawRem = body.remaining_seconds !== undefined ? body.remaining_seconds : cm.remaining_seconds;
+        var remainingSec = permanent ? 0 : Math.max(0, Math.ceil(Number(rawRem !== undefined ? rawRem : defRem) || 0));
+        var isMuted = Boolean(
+            permanent
+            || remainingSec > 0
+            || cm.is_muted
+            || code === 'auto_mute_15m'
+            || code === 'auto_mute_24h'
+            || code === 'auto_mute_permanent'
+            || code === 'chat_muted'
+            || code === 'muted'
+        );
+        var fallbackMsg = isMuted
+            ? 'Hausordnung: Chat-Sperre aktiv.'
+            : 'Bitte beachte unsere freundliche Hausordnung im Raum-Chat.';
+
+        this.chatStrikeInfo = {
+            strikes: strikes,
+            isMuted: isMuted,
+            remainingSec: remainingSec,
+            permanent: permanent,
+            bannerText: sanitizeText(body.message || fallbackMsg),
+            level: code || (isMuted ? 'chat_muted' : 'auto_warning_1')
+        };
+
+        if (isMuted && !permanent && remainingSec > 0) {
+            this._startChatMuteCountdown(remainingSec);
+        } else {
+            this._stopChatMuteCountdown();
+        }
+        this._renderChatModerationState();
+        return true;
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype._sendInstanceChatMessage = function (rawMessage) {
         var self = this;
         var clean = sanitizeText(rawMessage).slice(0, 120);
-        if (!clean || !this.lobbyAuth) return;
+        if (!clean || !this.lobbyAuth || this.soloMode || this.multiplayerDisabled) return;
+        if (this.chatStrikeInfo && this.chatStrikeInfo.isMuted) return;
         fetch('/funkenwerk-welt/lobby/chat', {
             method: 'POST',
             credentials: 'same-origin',
@@ -2594,14 +2841,27 @@
             },
             body: JSON.stringify({ message: clean })
         })
-            .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (data) {
+            .then(function (r) {
+                return r.json().catch(function () { return null; }).then(function (b) {
+                    return { ok: r.ok, status: r.status, body: b };
+                });
+            })
+            .then(function (resObj) {
+                var data = resObj ? resObj.body : null;
+                if (!resObj || !resObj.ok || !data || !(data.ok || data.success)) {
+                    self._applyChatModerationError(data);
+                    return;
+                }
+                if (data.chat_moderation && typeof data.chat_moderation === 'object') {
+                    self._syncChatModeration(data.chat_moderation);
+                }
                 var f = getFacade(self);
-                if (data && data.message && typeof data.message === 'object') {
-                    if (data.message.peer_id && f && typeof f.setLocalPeerId === 'function') {
-                        f.setLocalPeerId(data.message.peer_id);
+                var entry = (data.entry && typeof data.entry === 'object') ? data.entry : ((data.message && typeof data.message === 'object') ? data.message : null);
+                if (entry) {
+                    if (entry.peer_id && f && typeof f.setLocalPeerId === 'function') {
+                        f.setLocalPeerId(entry.peer_id);
                     }
-                    self._ingestSyncMessages([data.message]);
+                    self._ingestSyncMessages([entry]);
                 } else if (f && typeof f.showChatBubble === 'function') {
                     f.showChatBubble('self', clean);
                 }
@@ -2966,6 +3226,33 @@
         }
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._closeLobbyWs = function (sendLeave) {
+        this._closeLobbyWebSocket(sendLeave);
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._applyServerMultiplayerDisabled = function (facadeOverride) {
+        this._wsDisabledByServer = true;
+        this.multiplayerDisabled = true;
+        this._closeLobbyWs(false);
+        this._stopHttpSyncTimers();
+        this._setInstanceMenuOpen(false);
+        this.chatOpen = false;
+        this.peers = [];
+        this.instances = [];
+        this.netStats.tickHz = 'Halle (Solo)';
+        var f = facadeOverride || getFacade(this);
+        if (f) {
+            if (typeof f.updatePeers === 'function') {
+                f.updatePeers([]);
+            }
+            if (typeof f.setSoloMode === 'function') {
+                f.setSoloMode(true);
+            }
+        }
+        this._syncHudState();
+        this._renderPingHud();
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype._closeLobbyWebSocket = function (sendLeave) {
         this._clearWsTimers();
         var ws = this._lobbyWs;
@@ -2991,6 +3278,13 @@
 
     SeelenfunkeUnifiedLobbyHost.prototype._connectLobbyWebSocket = function (wsRelay, fallbackHttpRttMs) {
         var self = this;
+        if (wsRelay && wsRelay.url && wsRelay.ticket) {
+            this._wsDisabledByServer = false;
+            this.multiplayerDisabled = false;
+        }
+        if (this._wsDisabledByServer || this.multiplayerDisabled || this.soloMode) {
+            return;
+        }
         if (!wsRelay || !wsRelay.url || !wsRelay.ticket || typeof WebSocket === 'undefined') {
             if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
                 this._recordNetSample(fallbackHttpRttMs, '6,0 Hz');
@@ -2998,7 +3292,7 @@
             this._scheduleNextSyncTick(165);
             return;
         }
-        if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
+        if (!this.isOpen || !this.lobbyAuth || this.currentZone !== 'heroes') return;
 
         this._closeLobbyWebSocket(false);
         this._wsTickMs = Math.max(25, Math.min(100, Number(wsRelay.tick_ms) || 33));
@@ -3018,7 +3312,7 @@
 
         this._wsHandshakeFallbackTimer = setTimeout(function () {
             self._wsHandshakeFallbackTimer = null;
-            if (!self.wsConnected && self._lobbyWs === ws && self.isOpen && self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
+            if (!self.wsConnected && self._lobbyWs === ws && self.isOpen && self.lobbyAuth && !self.soloMode && !self.multiplayerDisabled && !self._wsDisabledByServer && self.currentZone === 'heroes') {
                 self._closeLobbyWebSocket(false);
                 if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
                     self._recordNetSample(fallbackHttpRttMs, '6,0 Hz');
@@ -3037,7 +3331,7 @@
         };
 
         ws.onmessage = function (ev) {
-            if (self._lobbyWs !== ws || !self.isOpen || self.soloMode || self.currentZone !== 'heroes') return;
+            if (self._lobbyWs !== ws || !self.isOpen) return;
             var msg = null;
             try {
                 msg = JSON.parse(ev.data);
@@ -3046,6 +3340,12 @@
             }
             if (!msg || typeof msg !== 'object') return;
             var facade = getFacade(self);
+
+            if (msg.type === 'multiplayer_disabled' || msg.solo_mode === true) {
+                self._applyServerMultiplayerDisabled(facade);
+                return;
+            }
+            if (self.soloMode || self.multiplayerDisabled || self.currentZone !== 'heroes') return;
 
             if (msg.type === 'welcome') {
                 self.wsConnected = true;
@@ -3108,14 +3408,18 @@
             }
         };
 
-        var handleWsDisconnect = function () {
+        var handleWsDisconnect = function (ev) {
+            if (ev && Number(ev.code) === 4001) {
+                self._applyServerMultiplayerDisabled();
+                return;
+            }
             if (self._lobbyWs !== ws) return;
             self._clearWsTimers();
             self._lobbyWs = null;
             var wasConnected = self.wsConnected;
             self.wsConnected = false;
             self._lastWsSentState = null;
-            if (self.isOpen && self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
+            if (self.isOpen && self.lobbyAuth && !self.soloMode && !self.multiplayerDisabled && !self._wsDisabledByServer && self.currentZone === 'heroes') {
                 self.netStats.tickHz = '6,0 Hz';
                 if (!wasConnected && typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0 && self.netStats.pingMs === null) {
                     self._recordNetSample(fallbackHttpRttMs, '6,0 Hz');
@@ -3264,6 +3568,20 @@
             .then(function (data) {
                 if (!data || !data.ok || !self.isOpen || self.currentZone !== 'heroes') return;
                 self.lobbyAuth = Boolean(data.authenticated);
+                if (data.chat_moderation && typeof data.chat_moderation === 'object') {
+                    self._syncChatModeration(data.chat_moderation);
+                }
+                var f2 = getFacade(self);
+                if (data.multiplayer_disabled || data.solo_mode === true) {
+                    self._applyServerMultiplayerDisabled(f2);
+                    return;
+                }
+                if (self.multiplayerDisabled) {
+                    self.multiplayerDisabled = false;
+                    if (f2 && typeof f2.setSoloMode === 'function') {
+                        f2.setSoloMode(Boolean(self.soloMode));
+                    }
+                }
                 if (data.tick_interval_ms && !self.wsConnected) {
                     self.netStats.tickIntervalMs = Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165));
                 }
@@ -3271,7 +3589,6 @@
                 if (data.hard_cap) self.instanceCapacity = Number(data.hard_cap) || 20;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
                 self.peers = Array.isArray(data.peers) ? data.peers : [];
-                var f2 = getFacade(self);
                 if (f2) {
                     if (data.peer_id && typeof f2.setLocalPeerId === 'function') {
                         f2.setLocalPeerId(data.peer_id);
@@ -3283,8 +3600,11 @@
                 }
                 self._syncHudState();
                 self._renderPingHud();
-                if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
+                if (self.lobbyAuth && !self.soloMode && !self.multiplayerDisabled && self.currentZone === 'heroes') {
                     var hasWsRelay = Boolean(data.ws_relay && data.ws_relay.url && data.ws_relay.ticket);
+                    if (hasWsRelay) {
+                        self._wsDisabledByServer = false;
+                    }
                     self._startSyncLoop(hasWsRelay ? 10000 : undefined);
                     if (hasWsRelay) {
                         self._connectLobbyWebSocket(data.ws_relay, data._joinHttpRtt);
@@ -3530,6 +3850,23 @@
             .then(function (data) {
                 var f2 = getFacade(self);
                 if (!data || !data.ok || !self.isOpen || !f2 || self.currentZone !== 'heroes') return;
+                if (data.chat_moderation && typeof data.chat_moderation === 'object') {
+                    self._syncChatModeration(data.chat_moderation);
+                }
+                if (data.multiplayer_disabled || data.solo_mode === true) {
+                    self._applyServerMultiplayerDisabled(f2);
+                    return;
+                }
+                if (self.multiplayerDisabled) {
+                    self.multiplayerDisabled = false;
+                    if (typeof f2.setSoloMode === 'function') {
+                        f2.setSoloMode(Boolean(self.soloMode));
+                    }
+                }
+                if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket && !self.wsConnected && !self._lobbyWs) {
+                    self._wsDisabledByServer = false;
+                    self._connectLobbyWebSocket(data.ws_relay);
+                }
                 if (data.tick_interval_ms && !self.wsConnected) {
                     self.netStats.tickIntervalMs = Math.max(120, Math.min(250, Number(data.tick_interval_ms) || 165));
                 }
@@ -3556,7 +3893,7 @@
             })
             .finally(function () {
                 self._syncInFlight = false;
-                if (!self.isOpen || !self.lobbyAuth || self.soloMode || self.currentZone !== 'heroes') {
+                if (!self.isOpen || !self.lobbyAuth || self.soloMode || self.multiplayerDisabled || self.currentZone !== 'heroes') {
                     return;
                 }
                 if (!self.wsConnected && self._syncPendingImmediate) {
@@ -3641,6 +3978,13 @@
             .then(function (data) {
                 var f2 = getFacade(self);
                 if (!data || !data.ok || !self.isOpen || !f2) return;
+                if (data.chat_moderation && typeof data.chat_moderation === 'object') {
+                    self._syncChatModeration(data.chat_moderation);
+                }
+                if (data.multiplayer_disabled || data.solo_mode === true) {
+                    self._applyServerMultiplayerDisabled(f2);
+                    return;
+                }
                 if (data.instance_id) self.instanceId = Number(data.instance_id) || cleanTarget;
                 if (Array.isArray(data.instances)) self.instances = data.instances;
                 if (data.peer_id && typeof f2.setLocalPeerId === 'function') {
@@ -3650,8 +3994,11 @@
                 f2.switchInstance(self.peers);
                 self._syncHudState();
                 self._renderPingHud();
-                if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
+                if (self.lobbyAuth && !self.soloMode && !self.multiplayerDisabled && self.currentZone === 'heroes') {
                     var hasWsRelay = Boolean(data.ws_relay && data.ws_relay.url && data.ws_relay.ticket);
+                    if (hasWsRelay) {
+                        self._wsDisabledByServer = false;
+                    }
                     self._startSyncLoop(hasWsRelay ? 10000 : undefined);
                     if (hasWsRelay) {
                         self._connectLobbyWebSocket(data.ws_relay, data._switchHttpRtt);
@@ -3861,6 +4208,14 @@
                     || (self.heroesPayload && self.heroesPayload.customer_logged_in)
                 );
                 self.lobbyAuth = isAuth;
+                self.multiplayerDisabled = Boolean(
+                    isAuth
+                    && shopJson
+                    && shopJson.multiplayer
+                    && shopJson.multiplayer.enabled === false
+                    && shopJson.multiplayer.solo_only === true
+                );
+                self._wsDisabledByServer = self.multiplayerDisabled;
                 self.activeIndex = 0;
 
                 if (mod && typeof mod.loadLobbyUserSettings === 'function') {
@@ -3999,12 +4354,13 @@
         }
         this._stopSyncLoop();
         this._stopAtelierPingLoop();
+        this._stopChatMuteCountdown();
         this.pingTooltipOpen = false;
         if (this.modalEl) {
             var pAnc = this.modalEl.querySelector('[data-lobby-ping-anchor]');
             if (pAnc) pAnc.classList.remove('is-open');
         }
-        if (this._activeSyncZone === 'heroes') {
+        if (this._activeSyncZone === 'heroes' && !this.soloMode && !this.multiplayerDisabled) {
             this._sendLeaveBeacon();
         }
         this._activeSyncZone = null;

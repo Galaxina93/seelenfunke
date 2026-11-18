@@ -501,6 +501,27 @@ const server = http.createServer((req, res) => {
         }, null, 2));
         return;
     }
+    if (req.url && (req.url === '/internal/lobby-ws/flush' || req.url.startsWith('/internal/lobby-ws/flush?'))) {
+        req.resume();
+        if (req.method !== 'POST') {
+            res.writeHead(405, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'method_not_allowed' }));
+            return;
+        }
+        if (!verifyLobbyAdminFlushRequest(req)) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'forbidden' }));
+            return;
+        }
+        const flushed = flushAllLobbyWsRooms();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            ok: true,
+            rooms_cleared: flushed.roomsCleared,
+            sockets_closed: flushed.socketsClosed
+        }));
+        return;
+    }
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Seelenfunke Twilio-Gemini Audio Bridge is running.\n');
 });
@@ -1537,6 +1558,76 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
 const lobbyWsRooms = new Map(); // instanceId -> Map<peerId, { ws, state, lastSeenMs }>
 const LOBBY_ALLOWED_EMOTES = new Set(['wave', 'dance', 'cheer', 'bow', 'spark', 'sit', 'clap', 'heart', 'gg']);
 const LOBBY_ALLOWED_SHIP_CLASSES = new Set(['KLASSE C', 'KLASSE B', 'KLASSE A', 'KLASSE S']);
+
+function verifyLobbyAdminFlushRequest(req) {
+    const remoteAddr = String(req.socket?.remoteAddress || '').trim();
+    const hasForwarded = Boolean(req.headers['x-forwarded-for'] || req.headers['x-real-ip']);
+    if (!hasForwarded && (remoteAddr === '127.0.0.1' || remoteAddr === '::1' || remoteAddr === '::ffff:127.0.0.1')) {
+        return true;
+    }
+
+    const rawHeader = req.headers['x-lobby-admin-sig'];
+    const rawSig = Array.isArray(rawHeader) ? String(rawHeader[0] || '').trim() : String(rawHeader || '').trim();
+    const appKey = (process.env.APP_KEY || '').trim();
+    if (!rawSig || !appKey) {
+        return false;
+    }
+
+    const dotIdx = rawSig.indexOf('.');
+    if (dotIdx > 0 && dotIdx === rawSig.lastIndexOf('.')) {
+        const tsPart = rawSig.slice(0, dotIdx);
+        const sigPart = rawSig.slice(dotIdx + 1).toLowerCase();
+        const tsNum = Number(tsPart);
+        if (/^\d+$/.test(tsPart) && /^[0-9a-f]{64}$/.test(sigPart) && Math.abs(Math.floor(Date.now() / 1000) - tsNum) <= 120) {
+            const expectedTsHmac = crypto.createHmac('sha256', appKey).update(`flush-lobby-ws:${tsPart}`).digest('hex').toLowerCase();
+            if (crypto.timingSafeEqual(Buffer.from(sigPart, 'utf8'), Buffer.from(expectedTsHmac, 'utf8'))) {
+                return true;
+            }
+        }
+    }
+
+    if (/^[0-9a-f]{64}$/i.test(rawSig)) {
+        const sigLower = rawSig.toLowerCase();
+        const expectedDirect = crypto.createHmac('sha256', appKey).update('flush-lobby-ws').digest('hex').toLowerCase();
+        if (crypto.timingSafeEqual(Buffer.from(sigLower, 'utf8'), Buffer.from(expectedDirect, 'utf8'))) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function flushAllLobbyWsRooms() {
+    const roomsCleared = lobbyWsRooms.size;
+    const socketsToClose = [];
+    for (const [, room] of lobbyWsRooms.entries()) {
+        for (const [, peerEntry] of room.entries()) {
+            if (peerEntry && peerEntry.ws) {
+                socketsToClose.push(peerEntry.ws);
+            }
+        }
+        room.clear();
+    }
+    lobbyWsRooms.clear();
+
+    const disableMsg = JSON.stringify({
+        type: 'multiplayer_disabled',
+        solo_mode: true
+    });
+
+    let socketsClosed = 0;
+    for (const clientWs of socketsToClose) {
+        try {
+            if (clientWs.readyState === WebSocket.OPEN) {
+                clientWs.send(disableMsg);
+            }
+            safeClose(clientWs, 4001, 'multiplayer_disabled');
+            socketsClosed++;
+        } catch (_) {}
+    }
+
+    return { roomsCleared, socketsClosed };
+}
 
 function clampLobbyFloat(val, minVal, maxVal, fallback = 0, decimals = 3) {
     const num = Number(val);

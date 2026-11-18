@@ -2,74 +2,30 @@
         showFunkiModal: false,
         activeFunkiTab: 'vouchers',
         showActivateMagicModal: false,
+        isSealingMagic: false,
         showFunkiZoomModal: false,
         zoomStageData: null,
         heroProfileModal: null,
-        audioVolume: @js((int) $funkiAudioVolume),
-        audioMuted: @js((bool) $funkiAudioMuted),
-        audioKeepPlaying: @js((bool) $funkiAudioKeepPlaying),
-        audioExpanded: false,
-        localFadeRaf: null,
         init() {
-            const sessionEnabled = sessionStorage.getItem('sf_funki_bgm_session_enabled') === '1';
-            const savedVol = localStorage.getItem('sf_funki_audio_volume') ?? localStorage.getItem('sf_funki_bgm_vol');
-            const savedMute = localStorage.getItem('sf_funki_audio_muted') ?? localStorage.getItem('sf_funki_bgm_muted');
-            const savedKeep = localStorage.getItem('sf_funki_audio_keep_playing');
-            if (savedVol !== null && !isNaN(Number(savedVol))) {
-                this.audioVolume = Math.max(0, Math.min(100, Number(savedVol)));
-            }
-            if (sessionEnabled) {
-                if (savedMute !== null) {
-                    this.audioMuted = savedMute === '1' || savedMute === 'true';
-                }
-                if (savedKeep !== null) {
-                    this.audioKeepPlaying = savedKeep === '1' || savedKeep === 'true';
-                }
-            } else {
-                this.audioMuted = true;
-                this.audioKeepPlaying = false;
-            }
-            window._sfFunkiVolume = this.audioVolume;
-            window._sfFunkiMuted = this.audioMuted;
-
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.initFromServer(this.audioVolume, this.audioMuted, this.audioKeepPlaying);
-                this.audioVolume = window.SfFunkiBgm.volume;
-                this.audioMuted = window.SfFunkiBgm.muted;
-                this.audioKeepPlaying = window.SfFunkiBgm.keepPlaying;
-            }
-
-            window.addEventListener('sf-funki-bgm-state', (e) => {
-                if (!e.detail) return;
-                this.audioVolume = e.detail.volume;
-                this.audioMuted = e.detail.muted;
-                this.audioKeepPlaying = e.detail.keepPlaying;
-                window._sfFunkiVolume = this.audioVolume;
-                window._sfFunkiMuted = this.audioMuted;
-            });
-
             this.$watch('showFunkiModal', (val) => {
                 if (val) {
                     this.showActivateMagicModal = false;
-                    this.playFunkiBgm();
-                } else {
-                    this.pauseFunkiBgm();
                 }
             });
             this.$watch('showActivateMagicModal', (val) => {
                 if (val) {
                     this.showFunkiModal = false;
-                    this.pauseFunkiBgm();
+                } else {
+                    window.dispatchEvent(new CustomEvent('sf-stop-magic-optin'));
                 }
             });
         },
         openFunkiModal(tab = 'vouchers') {
-            if (!@js((bool) $isGameModeActive)) {
+            if (!this.$wire.get('isGameModeActive')) {
                 this.openActivateMagicModal();
                 return;
             }
             this.showActivateMagicModal = false;
-            if (window.sfCockpitSound) window.sfCockpitSound('click');
             const baseUrl = '{{ route('customer.funki') }}';
             const targetUrl = (tab && tab !== 'vouchers') ? (baseUrl + '?tab=' + encodeURIComponent(tab)) : baseUrl;
             if (window.Livewire && typeof window.Livewire.navigate === 'function') {
@@ -80,135 +36,115 @@
         },
         closeFunkiModal() {
             this.showFunkiModal = false;
-            if (window.sfCockpitSound) window.sfCockpitSound('back');
-            this.pauseFunkiBgm();
         },
         openActivateMagicModal() {
+            this.isSealingMagic = false;
             this.showFunkiModal = false;
-            this.pauseFunkiBgm();
             this.showActivateMagicModal = true;
-            if (window.sfCockpitSound) window.sfCockpitSound('click');
+            window.dispatchEvent(new CustomEvent('sf-reset-magic-optin'));
         },
-        playFunkiBgm() {
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.onModalOpen();
-                return;
-            }
-            const audio = document.getElementById('bgm_funki_game');
-            if (!audio) return;
-            if (this.audioMuted || Number(this.audioVolume) <= 0) {
-                audio.volume = 0;
-                return;
-            }
-            const target = Math.max(0, Math.min(1, (Number(this.audioVolume) / 100) * 0.65));
-            audio.volume = 0.001;
-            const p = audio.play();
-            if (p && typeof p.catch === 'function') p.catch(() => {});
-            const start = performance.now();
-            const step = (now) => {
-                const t = Math.min(1, (now - start) / 850);
-                audio.volume = target * t;
-                if (t < 1) requestAnimationFrame(step);
-            };
-            requestAnimationFrame(step);
-        },
-        pauseFunkiBgm() {
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.onModalClose();
-                return;
-            }
-            if (this.audioKeepPlaying) return;
-            const audio = document.getElementById('bgm_funki_game');
-            if (!audio || audio.paused) return;
-            const startVol = audio.volume;
-            const start = performance.now();
-            const step = (now) => {
-                const t = Math.min(1, (now - start) / 850);
-                audio.volume = Math.max(0, startVol * (1 - t));
-                if (t < 1) {
-                    requestAnimationFrame(step);
-                } else {
-                    audio.volume = 0;
-                    try { audio.pause(); } catch (e) {}
-                }
-            };
-            requestAnimationFrame(step);
-        },
-        toggleMute() {
-            this.audioMuted = !this.audioMuted;
-            if (!this.audioMuted && Number(this.audioVolume) === 0) {
-                this.audioVolume = 35;
-            }
-            try {
-                if (!this.audioMuted) {
-                    sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
-                } else {
-                    sessionStorage.removeItem('sf_funki_bgm_session_enabled');
-                }
-            } catch (e) {}
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.setMuted(this.audioMuted, false);
-                this.audioKeepPlaying = window.SfFunkiBgm.keepPlaying;
-            }
-            this.applyAudioState(true);
-            if (!this.audioMuted && window.sfCockpitSound) {
-                window.sfCockpitSound('click');
-            }
-        },
-        onVolumeChange(saveToServer = false) {
-            this.audioVolume = Math.max(0, Math.min(100, Number(this.audioVolume)));
-            if (this.audioVolume === 0) {
-                this.audioMuted = true;
-            } else if (this.audioMuted) {
-                this.audioMuted = false;
-            }
-            try {
-                if (!this.audioMuted && this.audioVolume > 0) {
-                    sessionStorage.setItem('sf_funki_bgm_session_enabled', '1');
-                } else {
-                    sessionStorage.removeItem('sf_funki_bgm_session_enabled');
-                }
-            } catch (e) {}
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.setVolume(this.audioVolume, false);
-                this.audioKeepPlaying = window.SfFunkiBgm.keepPlaying;
-            }
-            this.applyAudioState(saveToServer);
-        },
-        toggleKeepPlaying() {
-            if (window.sfCockpitSound) window.sfCockpitSound('click');
-            if (window.SfFunkiBgm) {
-                window.SfFunkiBgm.setKeepPlaying(this.audioKeepPlaying, false);
-            }
-            this.applyAudioState(true);
-        },
-        applyAudioState(saveToServer = false) {
-            window._sfFunkiVolume = Number(this.audioVolume);
-            window._sfFunkiMuted = Boolean(this.audioMuted);
-            try {
-                localStorage.setItem('sf_funki_bgm_vol', String(this.audioVolume));
-                localStorage.setItem('sf_funki_bgm_muted', this.audioMuted ? '1' : '0');
-                localStorage.setItem('sf_funki_audio_volume', String(this.audioVolume));
-                localStorage.setItem('sf_funki_audio_muted', this.audioMuted ? '1' : '0');
-                localStorage.setItem('sf_funki_audio_keep_playing', this.audioKeepPlaying ? '1' : '0');
-            } catch (e) {}
-            if (saveToServer) {
-                if (window.SfFunkiBgm && typeof window.SfFunkiBgm.persistToServer === 'function') {
-                    window.SfFunkiBgm.persistToServer();
-                } else {
-                    this.$wire.saveFunkiAudioSettings(Number(this.audioVolume), Boolean(this.audioMuted), Boolean(this.audioKeepPlaying));
-                }
-            }
+        triggerDeactivateMagic() {
+            if (this.isSealingMagic) return;
+            this.isSealingMagic = true;
+            const safetyTimer = setTimeout(() => {
+                this.isSealingMagic = false;
+            }, 2600);
+            setTimeout(() => {
+                Promise.resolve(this.$wire.deactivateSeelenfunke()).finally(() => {
+                    clearTimeout(safetyTimer);
+                    this.isSealingMagic = false;
+                });
+            }, 650);
         },
         openFunkiZoom(stageData) {
-            if (window.sfCockpitSound) window.sfCockpitSound('click');
             this.zoomStageData = stageData;
             this.showFunkiZoomModal = true;
         }
      }"
      @open-funki-modal.window="openFunkiModal(($event.detail && $event.detail.tab) ? $event.detail.tab : 'vouchers')"
+     @sf-magic-deactivated.window="isSealingMagic = false; showFunkiModal = false"
      @magic-activated-complete.window="showActivateMagicModal = false; window.location.href = '{{ route('customer.funki') }}'"
      class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-7 animate-fade-in-up">
+
+    <style>
+        @keyframes sfGoldShimmerSweep {
+            0% { transform: translate3d(-145%, 0, 0) skewX(-20deg); }
+            62%, 100% { transform: translate3d(145%, 0, 0) skewX(-20deg); }
+        }
+        @keyframes sfGoldEdgeLuster {
+            0%, 100% { border-color: rgba(230, 197, 122, 0.45); }
+            50% { border-color: rgba(255, 248, 224, 0.92); }
+        }
+        @keyframes sfGoldSparkPulse {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.18) rotate(8deg); }
+        }
+        .sf-magic-activate-cta {
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+            background: linear-gradient(135deg, #B68D40 0%, #C5A059 42%, #E6C57A 72%, #B68D40 100%);
+            color: #111827 !important;
+            border: 1px solid #B68D40;
+            box-shadow: inset 0 1px 0 rgba(255, 251, 238, 0.65), 0 2px 8px rgba(17, 24, 39, 0.12);
+            transform: translate3d(0, 0, 0);
+            transition: transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1), border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+        }
+        .sf-magic-activate-cta::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            border: 1px solid transparent;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .sf-magic-activate-cta::after {
+            content: "";
+            position: absolute;
+            top: -15%;
+            bottom: -15%;
+            left: -25%;
+            width: 68%;
+            background: linear-gradient(105deg, rgba(255, 255, 255, 0) 15%, rgba(255, 250, 235, 0.22) 38%, rgba(255, 253, 245, 0.78) 50%, rgba(230, 197, 122, 0.28) 62%, rgba(255, 255, 255, 0) 85%);
+            transform: translate3d(-145%, 0, 0) skewX(-20deg);
+            will-change: transform;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .sf-magic-activate-cta .sf-magic-spark-icon {
+            display: inline-block;
+            position: relative;
+            z-index: 3;
+            will-change: transform;
+            transition: transform 0.22s ease;
+        }
+        .sf-membercard-locked:hover .sf-magic-activate-cta,
+        .sf-magic-activate-cta:hover,
+        .sf-magic-activate-cta:focus-visible {
+            background: linear-gradient(135deg, #C5A059 0%, #E6C57A 50%, #C5A059 100%);
+            border-color: #E6C57A;
+            box-shadow: inset 0 0 0 1px rgba(255, 250, 235, 0.78), 0 6px 18px rgba(182, 141, 64, 0.28);
+        }
+        .sf-membercard-locked:hover .sf-magic-activate-cta::before,
+        .sf-magic-activate-cta:hover::before,
+        .sf-magic-activate-cta:focus-visible::before {
+            animation: sfGoldEdgeLuster 2s ease-in-out infinite;
+        }
+        .sf-membercard-locked:hover .sf-magic-activate-cta::after,
+        .sf-magic-activate-cta:hover::after,
+        .sf-magic-activate-cta:focus-visible::after {
+            animation: sfGoldShimmerSweep 1.65s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+        }
+        .sf-membercard-locked:hover .sf-magic-activate-cta .sf-magic-spark-icon,
+        .sf-magic-activate-cta:hover .sf-magic-spark-icon,
+        .sf-magic-activate-cta:focus-visible .sf-magic-spark-icon {
+            animation: sfGoldSparkPulse 1.45s ease-in-out infinite;
+        }
+        .sf-magic-activate-cta:hover {
+            transform: translate3d(0, -1px, 0) scale(1.025);
+        }
+    </style>
 
     {{-- Alerts & Profile Completion Banner --}}
     @if(count($profileSteps) > 0)
@@ -242,12 +178,54 @@
         $lvlAccentHex = $lvlCfg['accent_hex'] ?? '#c5a059';
         $arcText = $epBottomArcText ?: ($isMaxLevel ? '100% • MAXIMALES LEVEL ERREICHT' : ($progressPercentage . '% • NOCH ' . number_format($missingSparks, 0, ',', '.') . ' FUNKEN'));
     @endphp
-    <div class="relative overflow-hidden bg-white dark:bg-gradient-to-r dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950/20 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl px-5 py-4 sm:px-6 sm:py-5 md:px-7 md:py-5 mb-6 shadow-sm dark:shadow-xl">
+    <div :class="isSealingMagic ? 'scale-[0.995]' : ''"
+         class="relative overflow-hidden bg-white dark:bg-gradient-to-r dark:from-gray-900 dark:via-gray-900 dark:to-indigo-950/20 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl px-5 py-4 sm:px-6 sm:py-5 md:px-7 md:py-5 mb-6 shadow-sm dark:shadow-xl transition-all duration-300 group/membercard {{ !$isGameModeActive ? 'sf-membercard-locked' : '' }}">
         <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
-        <div class="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
+
+        @if(!$isGameModeActive)
+            {{-- Schloss-Overlay bei deaktivierter Magie: weiße/dunkle Box bleibt ruhig & unvergraut, exklusiv der Button schimmert beim Hover --}}
+            <div class="absolute inset-0 z-30 flex items-center justify-center bg-white/60 dark:bg-gray-950/65 backdrop-blur-[2px] transition-opacity duration-300">
+                <div class="flex flex-col items-center gap-2.5 px-5 py-3.5 rounded-2xl bg-white/95 dark:bg-gray-900/95 border border-gray-200/90 dark:border-gray-800 shadow-lg">
+                    <div class="w-9 h-9 rounded-full bg-[#FAF6EE] dark:bg-gray-800/90 border border-[#C5A059]/40 flex items-center justify-center text-[#C5A059]">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                        </svg>
+                    </div>
+                    <button type="button"
+                            data-testid="dashboard-activate-magic-btn"
+                            @click="openActivateMagicModal()"
+                            class="sf-magic-activate-cta px-5 py-2.5 rounded-xl font-black uppercase tracking-widest text-xs cursor-pointer inline-flex items-center justify-center gap-2">
+                        <span class="sf-magic-spark-icon" aria-hidden="true">✨</span>
+                        <span class="relative z-10">Magie aktivieren</span>
+                    </button>
+                </div>
+            </div>
+        @endif
+
+        {{-- 0,65s Versiegelungs-Animation beim Klick auf "Magie deaktivieren" --}}
+        <div x-show="isSealingMagic"
+             x-cloak
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             class="absolute inset-0 z-40 flex items-center justify-center bg-white/80 dark:bg-gray-950/80 backdrop-blur-xs pointer-events-none">
+            <div class="relative flex items-center justify-center w-24 h-24">
+                <div class="absolute inset-0 rounded-full border-2 border-[#C5A059] transition-all duration-500 ease-in"
+                     :class="isSealingMagic ? 'scale-50 opacity-0' : 'scale-125 opacity-100'"></div>
+                <div class="w-11 h-11 rounded-full bg-white dark:bg-gray-900 border border-[#C5A059] shadow-md flex items-center justify-center text-[#C5A059] transition-transform duration-300"
+                     :class="isSealingMagic ? 'scale-100' : 'scale-75'">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div :class="isSealingMagic ? 'grayscale-[0.65] opacity-75' : ''"
+             class="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6 transition-all duration-300 {{ !$isGameModeActive ? 'grayscale-[0.65] opacity-75' : '' }}">
             <div class="flex flex-col sm:flex-row items-center sm:items-center gap-4 sm:gap-5 text-center sm:text-left">
 
-                {{-- PROFILBILD: Wenn kein eigenes Foto hinterlegt ist -> Goldener Funki-Kreis (Stufe 1-10 + kostenloser Stufen-Hintergrund wie in Screenshot 1) --}}
+                {{-- PROFILBILD: Wenn kein eigenes Foto hinterlegt ist -> Goldener Funki-Kreis (Stufe 1-10 + kostenloser Stufen-Hintergrund) --}}
                 @if($hasCustomPhoto)
                     @php
                         $pp = auth()->user()->profile->photo_path;
@@ -255,8 +233,8 @@
                                ? asset($pp) : (\Illuminate\Support\Str::startsWith($pp, 'shop/') ? asset($pp) : Storage::url($pp));
                     @endphp
                     <button type="button"
-                            @click="{{ !$isGameModeActive ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
-                            title="Klicken, um Funki (Level {{ $funkiLevel }}) & deine Seelenfunken-Gutscheine zu öffnen"
+                            @click="openFunkiModal('vouchers')"
+                            title="Cockpit öffnen"
                             class="relative w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gray-100 dark:bg-gray-950 border-2 border-[#C5A059] overflow-hidden flex items-center justify-center shrink-0 shadow-md group cursor-pointer hover:scale-105 transition-transform">
                         <img src="{{ $src }}" class="w-full h-full object-cover">
                         <span class="absolute bottom-0 inset-x-0 bg-gray-950/85 text-[#f5dca0] text-[8px] font-black uppercase tracking-wider py-0.5 text-center">
@@ -264,10 +242,10 @@
                         </span>
                     </button>
                 @else
-                    {{-- GOLDENER FUNKI PROFIL-KREIS (EXAKTES DESIGN AUS SCREENSHOT 1) --}}
+                    {{-- GOLDENER FUNKI PROFIL-KREIS --}}
                     <button type="button"
-                            @click="{{ !$isGameModeActive ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
-                            title="Klicken, um Funki (Level 1–10) & deine Seelenfunken-Gutscheine anzusehen"
+                            @click="openFunkiModal('vouchers')"
+                            title="Cockpit öffnen"
                             class="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center shrink-0 group cursor-pointer focus:outline-none">
                         {{-- Äußere dezente Radar-/Runenringe --}}
                         <div class="absolute inset-[-6px] rounded-full border border-dashed border-[#C5A059]/40 pointer-events-none"></div>
@@ -282,7 +260,7 @@
                                     class="transition-all duration-1000 ease-out"></circle>
                         </svg>
 
-                        {{-- GEBOGENE LEVEL-ANZEIGE UNTEN IM KREIS ("100% • MAXIMALES LEVEL ERREICHT" / "XX% • NOCH XX FUNKEN") --}}
+                        {{-- GEBOGENE LEVEL-ANZEIGE UNTEN IM KREIS --}}
                         <svg class="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible" viewBox="0 0 200 200">
                             <defs>
                                 <path id="sf-dash-avatar-arc" d="M 22,128 A 83,83 0 0,0 178,128" fill="none" />
@@ -295,7 +273,7 @@
                             </text>
                         </svg>
 
-                        {{-- INNERER HINTERGRUND (WIRD PRO STUFE AUTOMATISCH EPISCHER) + 2D FUNKI --}}
+                        {{-- INNERER HINTERGRUND + 2D FUNKI --}}
                         <div style="{{ $lvlCircleCss }}"
                              class="absolute inset-2 rounded-full bg-white dark:bg-[#13151e] border-2 border-[#C5A059] shadow-[0_0_25px_rgba(197,160,89,0.35)] flex items-center justify-center overflow-hidden z-10 transition-transform duration-300 group-hover:scale-[1.03]">
                             @if(!empty($lvlVideoUrl))
@@ -307,11 +285,13 @@
                             <div class="absolute inset-[-18%] rounded-full opacity-50 mix-blend-screen animate-[spin_22s_linear_infinite] pointer-events-none z-[2]"
                                  style="background: conic-gradient(from 0deg, transparent 0%, {{ $lvlAccentHex }}55 25%, transparent 50%, {{ $lvlAccentHex }}44 75%, transparent 100%);"></div>
                             <img src="{{ $lvlImage }}" alt="Funki Level {{ $displayFunkiLevel }}" class="relative z-10 w-full h-full object-contain p-2.5 drop-shadow-[0_8px_16px_rgba(0,0,0,0.55)]">
-                            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center z-20">
-                                <span class="px-2.5 py-1 rounded-lg bg-[#C5A059] text-gray-950 font-black text-[9px] uppercase tracking-widest shadow-lg">
-                                    {{ !$isGameModeActive ? '✨ Magie aktivieren' : 'Funki öffnen' }}
-                                </span>
-                            </div>
+                            @if($isGameModeActive)
+                                <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center z-20">
+                                    <span class="px-2.5 py-1 rounded-lg bg-[#C5A059] text-gray-950 font-black text-[9px] uppercase tracking-widest shadow-lg">
+                                        Cockpit öffnen
+                                    </span>
+                                </div>
+                            @endif
                         </div>
 
                         {{-- Kleines Level-Schild oben rechts am Kreis --}}
@@ -325,7 +305,7 @@
                     <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                         <span class="text-primary text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]">Mitgliederbereich</span>
                         <button type="button"
-                                @click="{{ !$isGameModeActive ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
+                                @click="openFunkiModal('vouchers')"
                                 class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-[#C5A059]/50 text-amber-800 dark:text-[#f5dca0] text-[10px] font-black uppercase tracking-wider hover:bg-[#C5A059] hover:text-gray-950 transition-colors cursor-pointer">
                             <span>✨ Funki Lvl. {{ $funkiLevel }}</span>
                             <span>•</span>
@@ -347,16 +327,13 @@
                     <h2 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 dark:text-white mt-1 tracking-tight">
                         Hallo, {{ auth()->user()->first_name }}
                     </h2>
-                    <p class="text-gray-500 dark:text-gray-400 text-xs mt-0.5 max-w-lg leading-relaxed">
-                        Klicke auf dein Funki-Profilbild, um deine Evolutionsstufen (Level 1–10) und deine Rabatt-Gutscheine (bis 15 %) anzusehen.
-                    </p>
                 </div>
             </div>
 
             {{-- Quick Stats Row --}}
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
                 <button type="button"
-                        @click="{{ !$isGameModeActive ? 'openActivateMagicModal()' : "openFunkiModal('vouchers')" }}"
+                        @click="openFunkiModal('vouchers')"
                         class="text-left bg-amber-500/10 dark:bg-amber-500/15 hover:bg-amber-500/20 backdrop-blur-md border border-[#C5A059]/40 rounded-xl px-3.5 py-2 min-w-[125px] shadow-sm transition-colors cursor-pointer">
                     <span class="text-amber-800 dark:text-amber-300 text-[9px] font-black uppercase tracking-widest block mb-0.5">Seelenfunken</span>
                     <span class="text-amber-900 dark:text-[#f5dca0] font-mono text-xs font-black flex items-center gap-1">
@@ -394,41 +371,30 @@
                     </div>
                 @endif
 
+                <x-shop.experience-star-widget class="col-span-2 sm:col-span-3" area="funkenreich" :requireFunkenreichVisit="true" :darkAware="true" />
+
                 <button type="button"
                         data-testid="dashboard-open-user-lobby-3d"
-                        onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
+                        onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
                         class="col-span-2 sm:col-span-3 py-2.5 px-4 rounded-xl bg-white dark:bg-gray-950/80 hover:bg-[#faf6ee] dark:hover:bg-gray-900 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
                     <span>✨</span>
                     <span>Ins Funkenreich</span>
                 </button>
+
+                @if($isGameModeActive)
+                    <div class="col-span-2 sm:col-span-3 flex justify-center -mt-1">
+                        <button type="button"
+                                data-testid="dashboard-deactivate-magic-btn"
+                                :disabled="isSealingMagic"
+                                @click="triggerDeactivateMagic()"
+                                class="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 transition-colors cursor-pointer disabled:opacity-50">
+                            <span>Magie deaktivieren</span>
+                        </button>
+                    </div>
+                @endif
             </div>
         </div>
     </div>
-
-    {{-- BANNER NACH DEM 1. KAUF: "MAGIE AKTIVIEREN" (FALLS NOCH NICHT AKTIVIERT) --}}
-    @if($hasCompletedOrder && !$isGameModeActive)
-        <div class="mb-6 p-5 sm:p-6 bg-gradient-to-r from-amber-500/15 via-primary/10 to-amber-500/5 border-2 border-[#C5A059]/50 rounded-3xl shadow-md flex flex-col lg:flex-row items-center justify-between gap-5">
-            <div class="flex items-center gap-4 text-center sm:text-left flex-col sm:flex-row">
-                <img src="{{ asset('shop/customer/gamification/models/images/original/funki_lvl_1_rags.png') }}" alt="Funki Level 1" class="w-16 h-16 object-contain drop-shadow-md shrink-0">
-                <div>
-                    <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-black uppercase tracking-widest mb-1">
-                        ✦ Durch deinen Einkauf freigeschaltet
-                    </span>
-                    <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white">
-                        Dein Begleiter Funki (Level {{ $funkiLevel }}) & {{ number_format($funkenBalance, 0, ',', '.') }} ✨ Seelenfunken warten auf dich!
-                    </h3>
-                    <p class="text-gray-600 dark:text-gray-300 text-xs mt-0.5 max-w-2xl">
-                        Aktiviere jetzt kostenlos das Seelenfunken-Sammelspiel: Finde geheime Funken auf unseren Seiten, sammle bei jedem Artikelkauf automatisch Extra-Funken und tausche sie gegen <strong>5 %, 10 % oder 15 % Rabatt-Gutscheine</strong> ein!
-                    </p>
-                </div>
-            </div>
-            <button type="button"
-                    @click="openActivateMagicModal()"
-                    class="w-full lg:w-auto shrink-0 px-7 py-3.5 bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 hover:from-amber-300 hover:to-amber-400 text-gray-950 font-black uppercase tracking-widest text-xs rounded-2xl shadow-[0_8px_25px_rgba(245,158,11,0.35)] hover:scale-105 transition-all flex items-center justify-center gap-2.5 cursor-pointer">
-                <span>✨ Magie aktivieren</span>
-            </button>
-        </div>
-    @endif
 
     {{-- Aktives Einkaufsguthaben Banner --}}
     @if(count($activeGiftVouchers) > 0)
@@ -445,8 +411,6 @@
                             <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-900 dark:text-amber-200">
                                 {{ $voucherCount }} Codes
                             </span>
-                <x-shop.experience-star-widget class="col-span-2 sm:col-span-3" area="funkenreich" :requireFunkenreichVisit="true" :darkAware="true" />
-
                         @endif
                     </div>
                     <h3 class="text-lg sm:text-xl font-serif font-bold text-gray-900 dark:text-white mt-0.5">
@@ -757,8 +721,9 @@
             @if(!$isGameModeActive)
                 <button type="button"
                         @click="openActivateMagicModal()"
-                        class="w-full py-2.5 bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 hover:from-amber-300 hover:to-amber-400 text-gray-950 font-black uppercase tracking-widest text-xs rounded-xl hover:scale-[1.02] transition-all shadow-[0_0_15px_rgba(245,158,11,0.25)] cursor-pointer">
-                    ✨ Magie aktivieren
+                        class="sf-magic-activate-cta w-full py-2.5 font-black uppercase tracking-widest text-xs rounded-xl cursor-pointer inline-flex items-center justify-center gap-2">
+                    <span class="sf-magic-spark-icon" aria-hidden="true">✨</span>
+                    <span class="relative z-10">Magie aktivieren</span>
                 </button>
             @else
                 <button type="button"
@@ -805,18 +770,22 @@
     {{-- =========================================================================
          MODAL 1: "MAGIE AKTIVIEREN" OPT-IN SCREEN MIT VOLLBILD-SUPERNOVA-ANIMATION
          ========================================================================= --}}
-    <template x-teleport="body">
-        <div x-show="showActivateMagicModal"
-             style="display: none;"
-             class="fixed inset-0 z-[9400] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            <div class="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md"
-                 @click="showActivateMagicModal = false"
-                 x-transition.opacity></div>
+    <div wire:ignore>
+        <template x-teleport="body">
+            <div x-show="showActivateMagicModal"
+                 style="display: none;"
+                 @keydown.escape.window="if (showActivateMagicModal) showActivateMagicModal = false"
+                 class="fixed inset-0 z-[9400] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+                <div class="fixed inset-0 bg-black/70 dark:bg-black/85 backdrop-blur-md"
+                     @click="showActivateMagicModal = false"
+                     x-transition.opacity></div>
 
-            <div x-data="optInScreen()"
-                 x-init="initAmbientSparks()"
-                 :class="isWarping ? 'opacity-0 scale-[0.98] pointer-events-none' : 'opacity-100 scale-100'"
-                 class="relative z-10 w-full max-w-4xl p-6 sm:p-10 lg:p-14 flex flex-col lg:flex-row items-center gap-8 lg:gap-12 transition-[opacity,transform] duration-500 ease-out rounded-[2.5rem] bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-amber-500/30 shadow-2xl overflow-hidden">
+                <div x-data="optInScreen()"
+                     x-init="initOptIn()"
+                     @sf-reset-magic-optin.window="resetOptInState()"
+                     @sf-stop-magic-optin.window="stopOptInLoops()"
+                     :class="isWarping ? 'opacity-0 scale-[0.98] pointer-events-none' : 'opacity-100 scale-100'"
+                     class="relative z-10 w-full max-w-4xl p-6 sm:p-10 lg:p-14 flex flex-col lg:flex-row items-center gap-8 lg:gap-12 transition-[opacity,transform] duration-500 ease-out rounded-[2.5rem] bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-amber-500/30 shadow-2xl overflow-hidden">
 
                 <button type="button"
                         @click="showActivateMagicModal = false; if(window.sfCockpitSound) window.sfCockpitSound('back')"
@@ -889,9 +858,15 @@
                     </p>
 
                     <div class="mb-6 flex flex-col gap-2.5 text-left">
-                        <label class="flex items-start gap-3 cursor-pointer group">
+                        <label x-ref="magicTermsBox"
+                               class="sf-magic-thin-aura flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer group"
+                               :class="agreedToTerms ? 'bg-amber-50/50 dark:bg-amber-500/5 border-[#C5A059]/50' : 'bg-gray-50/80 dark:bg-gray-800/60 border-gray-200/80 dark:border-gray-700/70'">
+                            <span x-show="!agreedToTerms" class="sf-magic-thin-aura-ring" aria-hidden="true"></span>
                             <div class="relative flex items-center justify-center shrink-0 mt-0.5">
-                                <input type="checkbox" x-model="agreedToTerms" class="peer appearance-none w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 checked:bg-primary checked:border-primary transition-all cursor-pointer">
+                                <input type="checkbox"
+                                       x-model="agreedToTerms"
+                                       @change="onMagicTermsChange()"
+                                       class="peer appearance-none w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 checked:bg-primary checked:border-primary transition-all cursor-pointer">
                                 <svg class="absolute w-3 h-3 text-gray-900 opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                                 </svg>
@@ -901,9 +876,13 @@
                             </span>
                         </label>
 
-                        <label class="flex items-start gap-3 cursor-pointer group">
+                        <label class="flex items-start gap-3 px-3 py-1 cursor-pointer group">
                             <div class="relative flex items-center justify-center shrink-0 mt-0.5">
-                                <input type="checkbox" wire:model="optInPublicNameOnActivate" class="peer appearance-none w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 checked:bg-primary checked:border-primary transition-all cursor-pointer">
+                                <input type="checkbox"
+                                       x-model="optInPublicName"
+                                       wire:model="optInPublicNameOnActivate"
+                                       @change="$wire.set('optInPublicNameOnActivate', Boolean(optInPublicName), false)"
+                                       class="peer appearance-none w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 checked:bg-primary checked:border-primary transition-all cursor-pointer">
                                 <svg class="absolute w-3 h-3 text-gray-900 opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                                 </svg>
@@ -914,10 +893,20 @@
                         </label>
                     </div>
 
-                    <button :disabled="!agreedToTerms || isActivating"
-                            @click="if(agreedToTerms && !isActivating) triggerEpicStart($event)"
-                            class="w-full sm:w-auto group relative px-8 sm:px-10 py-4 bg-gradient-to-r from-amber-400 via-primary to-amber-500 hover:from-amber-300 hover:to-amber-400 text-gray-950 border border-amber-300/80 disabled:from-gray-200 disabled:to-gray-200 dark:disabled:from-gray-800 dark:disabled:to-gray-800 disabled:border-transparent disabled:text-gray-400 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm shadow-[0_10px_30px_rgba(245,158,11,0.35)] disabled:shadow-none transition-all duration-300 flex items-center justify-center gap-3 overflow-hidden mx-auto lg:mx-0 disabled:cursor-not-allowed hover:scale-[1.03] cursor-pointer">
-                        <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-950 disabled:text-gray-400 transition-transform duration-500 group-hover:rotate-90" viewBox="0 0 24 24" fill="currentColor">
+                    <button type="button"
+                            x-ref="magicActivateBtn"
+                            :disabled="isActivating"
+                            :aria-disabled="(!agreedToTerms || isActivating) ? 'true' : 'false'"
+                            @mouseenter="if (!agreedToTerms) nudgeMagicTermsHint($el)"
+                            @click="if (!agreedToTerms) { nudgeMagicTermsHint($el); return; } if (!isActivating) triggerEpicStart($event)"
+                            :class="agreedToTerms && !isActivating
+                                ? 'bg-gradient-to-r from-amber-400 via-primary to-amber-500 hover:from-amber-300 hover:to-amber-400 text-gray-950 border border-amber-300/80 shadow-[0_10px_30px_rgba(245,158,11,0.35)] hover:scale-[1.03] cursor-pointer'
+                                : 'bg-gray-200 text-gray-500 border border-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 shadow-none opacity-55 grayscale cursor-not-allowed'"
+                            class="sf-magic-thin-aura sf-magic-thin-aura-cta w-full sm:w-auto group relative px-8 sm:px-10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs sm:text-sm transition-all duration-300 flex items-center justify-center gap-3 overflow-hidden mx-auto lg:mx-0">
+                        <span x-show="magicCtaAura && agreedToTerms" x-cloak class="sf-magic-thin-aura-ring" aria-hidden="true"></span>
+                        <svg class="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-500"
+                             :class="agreedToTerms ? 'text-gray-950 group-hover:rotate-90' : 'text-gray-400'"
+                             viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 2L14.4 9.6L22 12L14.4 14.4L12 22L9.6 14.4L2 12L9.6 9.6L12 2Z" />
                         </svg>
                         <span class="relative z-10">Magie aktivieren</span>
@@ -930,7 +919,8 @@
                 </div>
             </div>
         </div>
-    </template>
+        </template>
+    </div>
 
     {{-- =========================================================================
          MODAL 2: FUNKI (LEVEL 1–10) & RABATT-GUTSCHEINE (KLICK AUF PROFILBILD)
@@ -949,83 +939,10 @@
                  x-transition:enter-start="opacity-0 scale-95"
                  x-transition:enter-end="opacity-100 scale-100">
 
-                {{-- Modal Header mit Soundregler + Mute-Taste + "Musik laufen lassen" + Schließen in sauberer eigener Kopfzeile (überlappt niemals den Text) --}}
+                {{-- Modal Header mit Schließen-Button in sauberer eigener Kopfzeile --}}
                 <div class="relative px-4 sm:px-8 pt-3.5 sm:pt-5 pb-4 sm:pb-5 border-b border-gray-200 dark:border-gray-800 bg-gradient-to-b from-amber-50/70 via-white to-white dark:from-[#151926] dark:via-[#0d1017] dark:to-[#0d1017] shrink-0">
 
-                    {{-- Eigene Top-Leiste für Audio-Steuerung (Standard: nur Lautsprecher-Icon, beim Drücken größer) & Schließen-Button --}}
                     <div class="w-full flex items-center justify-end gap-2 mb-3 sm:mb-2">
-                        <div @click.outside="audioExpanded = false" class="relative flex items-center">
-                            {{-- Standard: Nur Lautsprecher-Icon --}}
-                            <button x-show="!audioExpanded"
-                                    type="button"
-                                    @click="audioExpanded = true"
-                                    title="Funki Musik öffnen"
-                                    aria-label="Funki Musik öffnen"
-                                    class="p-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-amber-600 dark:text-[#C5A059] hover:border-[#C5A059] transition-all cursor-pointer shrink-0 shadow-2xs">
-                                <svg x-show="!audioMuted && Number(audioVolume) > 0" class="w-5 h-5 text-amber-600 dark:text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" />
-                                </svg>
-                                <svg x-show="audioMuted || Number(audioVolume) === 0" style="display: none;" class="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M23 9l-6 6m0-6l6 6" />
-                                </svg>
-                            </button>
-
-                            {{-- Geöffnet (etwas größer): Komplette Lautstärke- & "Musik laufen lassen"-Steuerung --}}
-                            <div x-show="audioExpanded"
-                                 x-cloak
-                                 x-transition:enter="transition ease-out duration-200"
-                                 x-transition:enter-start="opacity-0 scale-95"
-                                 x-transition:enter-end="opacity-100 scale-100"
-                                 x-transition:leave="transition ease-in duration-150"
-                                 x-transition:leave-start="opacity-100 scale-100"
-                                 x-transition:leave-end="opacity-0 scale-95"
-                                 class="flex flex-wrap items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/95 dark:bg-gray-900/95 border border-[#C5A059]/40 dark:border-gray-800 shadow-sm min-w-0">
-                                <button type="button"
-                                        @click="toggleMute()"
-                                        :title="audioMuted ? 'Ton einschalten' : 'Stummschalten'"
-                                        class="p-1 rounded-lg text-gray-600 dark:text-gray-300 hover:text-amber-600 dark:hover:text-[#f5dca0] transition cursor-pointer shrink-0">
-                                    {{-- Speaker On --}}
-                                    <svg x-show="!audioMuted && Number(audioVolume) > 0" class="w-4 h-4 text-amber-600 dark:text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" />
-                                    </svg>
-                                    {{-- Speaker Muted --}}
-                                    <svg x-show="audioMuted || Number(audioVolume) === 0" style="display: none;" class="w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M23 9l-6 6m0-6l6 6" />
-                                    </svg>
-                                </button>
-
-                                <input type="range"
-                                       min="0"
-                                       max="100"
-                                       step="1"
-                                       x-model.number="audioVolume"
-                                       @input="onVolumeChange(false)"
-                                       @change="onVolumeChange(true)"
-                                       aria-label="Musik- und Sound-Lautstärke"
-                                       class="w-16 sm:w-24 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#C5A059]">
-
-                                <span class="text-[10px] font-mono font-bold text-gray-600 dark:text-gray-300 w-7 text-right select-none shrink-0"
-                                      x-text="audioMuted ? 'Aus' : (audioVolume + '%')"></span>
-
-                                <div class="h-3.5 w-px bg-gray-200 dark:bg-gray-700 mx-0.5"></div>
-
-                                <label class="inline-flex items-center gap-1.5 cursor-pointer select-none group"
-                                       title="Wenn aktiviert, läuft die Funki-Musik beim Schließen des Modals und beim Seitenwechsel konstant weiter">
-                                    <input type="checkbox"
-                                           x-model="audioKeepPlaying"
-                                           @change="toggleKeepPlaying()"
-                                           class="w-3.5 h-3.5 rounded border-gray-300 dark:border-gray-600 text-[#C5A059] focus:ring-[#C5A059]/40 cursor-pointer accent-[#C5A059]">
-                                    <span class="text-[10px] font-bold text-gray-700 dark:text-gray-300 group-hover:text-amber-600 dark:group-hover:text-[#f5dca0] transition-colors whitespace-nowrap">
-                                        Musik laufen lassen
-                                    </span>
-                                </label>
-                            </div>
-                        </div>
-
                         <button type="button"
                                 @click="closeFunkiModal()"
                                 title="Schließen"
@@ -1168,7 +1085,7 @@
                                 </p>
                             </div>
                             <button type="button"
-                                    onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
+                                    onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
                                     class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[#faf6ee] dark:hover:bg-gray-800 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black tracking-wide shadow-xs transition cursor-pointer shrink-0">
                                 <span>✨</span>
                                 <span>Funken im Funkenreich sammeln</span>
@@ -1215,8 +1132,9 @@
                                     @if(!$isGameModeActive)
                                         <button type="button"
                                                 @click="openActivateMagicModal()"
-                                                class="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-gray-950 font-black text-xs uppercase tracking-widest transition cursor-pointer">
-                                            Zuerst Magie aktivieren
+                                                class="sf-magic-activate-cta w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-widest cursor-pointer inline-flex items-center justify-center gap-2">
+                                            <span class="sf-magic-spark-icon" aria-hidden="true">✨</span>
+                                            <span class="relative z-10">Magie aktivieren</span>
                                         </button>
                                     @else
                                         <button type="button"
@@ -1810,7 +1728,7 @@
                                 <div class="flex flex-wrap items-center gap-2.5">
                                     <button type="button"
                                             data-testid="modal-open-hall-of-heroes-3d"
-                                            onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
+                                            onclick="(function(){ var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('hall'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v=20261118v6_{{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('hall'); }; document.head.appendChild(s); } })()"
                                             class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C5A059] hover:bg-[#b58f48] text-gray-950 text-xs font-black tracking-wide transition cursor-pointer">
                                         <span>🏛️</span>
                                         <span>Halle der Helden 3D</span>
@@ -1967,8 +1885,9 @@
                         @else
                             <button type="button"
                                     @click="openActivateMagicModal()"
-                                    class="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-gradient-to-r from-amber-400 via-[#C5A059] to-amber-500 text-gray-950 text-[10px] font-black uppercase tracking-widest transition cursor-pointer">
-                                ✨ Magie aktivieren
+                                    class="sf-magic-activate-cta flex-1 sm:flex-none px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer inline-flex items-center justify-center gap-1.5">
+                                <span class="sf-magic-spark-icon" aria-hidden="true">✨</span>
+                                <span class="relative z-10">Magie aktivieren</span>
                             </button>
                         @endif
                         <button type="button"
@@ -2116,89 +2035,15 @@
         </div>
     </template>
 
-    {{-- WebAudio UI-Sound-Synthesizer (sfCockpitSound) + 60 FPS "Magie aktivieren" Script --}}
+    {{-- 60 FPS "Magie aktivieren" Script (ohne 2D-Sound/Musik außerhalb der 3D-Lobby) --}}
     <script>
-        window.sfCockpitSound = function(type = 'click') {
-            try {
-                if (window._sfFunkiMuted) return;
-                const volScale = Math.max(0, Math.min(1, (typeof window._sfFunkiVolume === 'number' ? window._sfFunkiVolume : 35) / 100));
-                if (volScale <= 0.01) return;
-
-                const Ctx = window.AudioContext || window.webkitAudioContext;
-                if (!Ctx) return;
-                if (!window._sfCockpitAudioCtx) {
-                    window._sfCockpitAudioCtx = new Ctx();
-                }
-                const ctx = window._sfCockpitAudioCtx;
-                if (ctx.state === 'suspended') {
-                    ctx.resume().catch(() => {});
-                }
-                const now = ctx.currentTime;
-
-                if (type === 'activate') {
-                    const notes = [440, 554.37, 659.25, 880, 1174.66];
-                    notes.forEach((freq, idx) => {
-                        const osc = ctx.createOscillator();
-                        const gain = ctx.createGain();
-                        osc.type = 'triangle';
-                        const start = now + idx * 0.09;
-                        osc.frequency.setValueAtTime(freq, start);
-                        osc.frequency.exponentialRampToValueAtTime(freq * 1.06, start + 0.22);
-                        gain.gain.setValueAtTime(0.0001, start);
-                        gain.gain.linearRampToValueAtTime(0.08 * volScale, start + 0.02);
-                        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.26);
-                        osc.connect(gain);
-                        gain.connect(ctx.destination);
-                        osc.start(start);
-                        osc.stop(start + 0.27);
-                    });
-                    return;
-                }
-
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-
-                if (type === 'hover') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(980, now);
-                    osc.frequency.exponentialRampToValueAtTime(1180, now + 0.035);
-                    gain.gain.setValueAtTime(0.018 * volScale, now);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
-                    osc.start(now);
-                    osc.stop(now + 0.045);
-                } else if (type === 'switch') {
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(520, now);
-                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.09);
-                    gain.gain.setValueAtTime(0.065 * volScale, now);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.10);
-                    osc.start(now);
-                    osc.stop(now + 0.11);
-                } else if (type === 'back') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(620, now);
-                    osc.frequency.exponentialRampToValueAtTime(380, now + 0.09);
-                    gain.gain.setValueAtTime(0.055 * volScale, now);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.10);
-                    osc.start(now);
-                    osc.stop(now + 0.11);
-                } else {
-                    osc.type = 'triangle';
-                    osc.frequency.setValueAtTime(740, now);
-                    osc.frequency.exponentialRampToValueAtTime(1120, now + 0.075);
-                    gain.gain.setValueAtTime(0.065 * volScale, now);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.085);
-                    osc.start(now);
-                    osc.stop(now + 0.09);
-                }
-            } catch (e) {}
-        };
+        window.sfCockpitSound = function() {};
 
         window.optInScreen = function() {
             return {
                 agreedToTerms: false,
+                optInPublicName: false,
+                magicCtaAura: false,
                 isWarping: false,
                 isActivating: false,
                 phase: 0,
@@ -2208,11 +2053,85 @@
                 _ambientRaf: null,
                 _magicRaf: null,
 
+                initOptIn() {
+                    if (this.showActivateMagicModal) {
+                        this.initAmbientSparks();
+                    }
+                },
+
+                stopOptInLoops() {
+                    if (this._ambientRaf) {
+                        cancelAnimationFrame(this._ambientRaf);
+                        this._ambientRaf = null;
+                    }
+                    if (!this.isActivating && this._magicRaf) {
+                        cancelAnimationFrame(this._magicRaf);
+                        this._magicRaf = null;
+                    }
+                },
+
+                resetOptInState() {
+                    this.stopOptInLoops();
+                    this.agreedToTerms = false;
+                    this.optInPublicName = false;
+                    this.magicCtaAura = false;
+                    this.isWarping = false;
+                    this.isActivating = false;
+                    this.phase = 0;
+                    this.eclipseRadius = 0;
+                    this.$nextTick(() => {
+                        this.initAmbientSparks();
+                    });
+                },
+
+                onMagicTermsChange() {
+                    if (this.agreedToTerms) {
+                        this.magicCtaAura = false;
+                        if (window.sfCockpitSound) window.sfCockpitSound('switch');
+                        if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                            window.sfSparkFlow.fly(this.$refs.magicTermsBox, this.$refs.magicActivateBtn, {
+                                mode: 'unlock',
+                                runKey: 'dashboard-magic-flow',
+                                onArrival: () => {
+                                    if (this.agreedToTerms) {
+                                        this.magicCtaAura = true;
+                                    }
+                                },
+                            });
+                        } else {
+                            this.magicCtaAura = true;
+                        }
+                    } else {
+                        this.magicCtaAura = false;
+                        if (window.sfCockpitSound) window.sfCockpitSound('back');
+                        if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                            window.sfSparkFlow.fly(this.$refs.magicActivateBtn, this.$refs.magicTermsBox, {
+                                mode: 'relock',
+                                runKey: 'dashboard-magic-flow',
+                            });
+                        }
+                    }
+                },
+
+                nudgeMagicTermsHint(btnEl) {
+                    if (this.agreedToTerms || this.isActivating) return;
+                    if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                        window.sfSparkFlow.fly(btnEl || this.$refs.magicActivateBtn, this.$refs.magicTermsBox, {
+                            mode: 'hint',
+                            cooldownKey: 'dashboard-magic-hint',
+                        });
+                    }
+                },
+
                 isDark() {
                     return document.documentElement.classList.contains('dark');
                 },
 
                 initAmbientSparks() {
+                    if (this._ambientRaf) {
+                        cancelAnimationFrame(this._ambientRaf);
+                        this._ambientRaf = null;
+                    }
                     const canvas = this.$refs.ambientSparksCanvas;
                     if (!canvas) return;
                     const ctx = canvas.getContext('2d');
@@ -2241,7 +2160,10 @@
                     }));
 
                     const renderAmbient = () => {
-                        if (this.isActivating) return;
+                        if (this.isActivating || !this.showActivateMagicModal) {
+                            this._ambientRaf = null;
+                            return;
+                        }
                         ctx.clearRect(0, 0, w, h);
                         const dark = this.isDark();
                         for (const s of sparks) {
@@ -2295,15 +2217,8 @@
                         }
                         this.isActivating = false;
                         this.isWarping = false;
+                        this.$wire.set('optInPublicNameOnActivate', Boolean(this.optInPublicName), false);
                         Promise.resolve(this.$wire.activateSeelenfunke()).finally(() => {
-                            try {
-                                sessionStorage.removeItem('sf_funki_bgm_session_enabled');
-                                localStorage.setItem('sf_funki_audio_muted', '1');
-                                localStorage.setItem('sf_funki_bgm_muted', '1');
-                            } catch (e) {}
-                            if (window.SfFunkiBgm) {
-                                window.SfFunkiBgm.setMuted(true, false);
-                            }
                             window.dispatchEvent(new CustomEvent('magic-activated-complete'));
                             window.location.href = '{{ route('customer.funki') }}';
                         });
@@ -2377,5 +2292,4 @@
             };
         };
     </script>
-    <script type="module" src="{{ asset('js/seelenfunke-lobby-audio.js') }}?v={{ @filemtime(public_path('js/seelenfunke-lobby-audio.js')) ?: time() }}"></script>
 </div>

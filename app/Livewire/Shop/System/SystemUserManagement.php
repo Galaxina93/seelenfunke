@@ -38,6 +38,14 @@ class SystemUserManagement extends Component
     public array $editingUserLogs = [];
     #[\Livewire\Attributes\Locked]
     public int $editingUserBirthdayCorrections = 0;
+    #[\Livewire\Attributes\Locked]
+    public bool $editingCustomerHasMasterKey = false;
+    #[\Livewire\Attributes\Locked]
+    public int $editingCustomerClearedMagmaRooms = 0;
+    #[\Livewire\Attributes\Locked]
+    public bool $editingCustomerChatMuted = false;
+    #[\Livewire\Attributes\Locked]
+    public int $editingCustomerChatStrikes = 0;
 
     public string $activeEditTab = 'account';
     public $customerUploadFiles = [];
@@ -69,6 +77,13 @@ class SystemUserManagement extends Component
         'funken_total_earned' => 0,
         'funki_level' => 1,
         'gamification_active' => false,
+        'ranking_opt_in' => false,
+        'use_real_name' => false,
+        'player_name' => '',
+        'ai_data_consent' => false,
+        'magma_unlocked_level' => 1,
+        'magma_hearts' => 6,
+        'healing_potions' => 0,
     ];
 
     protected $queryString = ['search', 'filterRole', 'showArchive', 'sortField', 'sortDirection'];
@@ -111,6 +126,10 @@ class SystemUserManagement extends Component
         $this->editingId = null;
         $this->editingType = null;
         $this->editing2faActive = false;
+        $this->editingCustomerHasMasterKey = false;
+        $this->editingCustomerClearedMagmaRooms = 0;
+        $this->editingCustomerChatMuted = false;
+        $this->editingCustomerChatStrikes = 0;
         $this->isCreating = true;
         $this->createType = 'customer';
         $this->formData = [
@@ -134,34 +153,69 @@ class SystemUserManagement extends Component
             'funken_total_earned' => 0,
             'funki_level' => 1,
             'gamification_active' => true,
+            'ranking_opt_in' => false,
+            'use_real_name' => false,
+            'player_name' => '',
+            'ai_data_consent' => false,
+            'magma_unlocked_level' => 1,
+            'magma_hearts' => 6,
+            'healing_potions' => 0,
         ];
     }
 
     public function saveNewUser()
     {
-        $this->validate([
-            'createType' => 'required|in:admin,customer,employee',
-            'formData.first_name' => 'required|string|max:255',
-            'formData.last_name' => 'required|string|max:255',
-            'formData.email' => 'required|email|unique:'.($this->createType === 'admin' ? 'admins' : ($this->createType === 'customer' ? 'customers' : 'employees')).',email',
-            'formData.password' => 'required|string|min:8',
-            'formData.birthday' => 'nullable|date',
-            'formData.phone_number' => 'nullable|string|max:50',
-            'formData.street' => 'nullable|string|max:255',
-            'formData.house_number' => 'nullable|string|max:30',
-            'formData.postal' => 'nullable|string|max:20',
-            'formData.city' => 'nullable|string|max:120',
-            'formData.customer_type' => 'nullable|in:private,business',
-            'formData.company_name' => 'nullable|string|max:255',
-            'formData.vat_id' => 'nullable|string|max:50',
-            'formData.internal_note' => 'nullable|string|max:5000',
-            'formData.is_verified' => 'boolean',
-            'formData.mmorpg_access_enabled' => 'nullable|boolean',
-            'formData.funken_balance' => 'nullable|integer|min:0|max:1000000',
-            'formData.funken_total_earned' => 'nullable|integer|min:0|max:1000000',
-            'formData.funki_level' => 'nullable|integer|min:1|max:10',
-            'formData.gamification_active' => 'nullable|boolean',
-        ]);
+        try {
+            $this->validate([
+                'createType' => 'required|in:admin,customer,employee',
+                'formData.first_name' => 'required|string|max:255',
+                'formData.last_name' => 'required|string|max:255',
+                'formData.email' => 'required|email|unique:'.($this->createType === 'admin' ? 'admins' : ($this->createType === 'customer' ? 'customers' : 'employees')).',email',
+                'formData.password' => 'required|string|min:8',
+                'formData.birthday' => 'nullable|date',
+                'formData.phone_number' => 'nullable|string|max:50',
+                'formData.street' => 'nullable|string|max:255',
+                'formData.house_number' => 'nullable|string|max:30',
+                'formData.postal' => 'nullable|string|max:20',
+                'formData.city' => 'nullable|string|max:120',
+                'formData.customer_type' => 'nullable|in:private,business',
+                'formData.company_name' => 'nullable|string|max:255',
+                'formData.vat_id' => 'nullable|string|max:50',
+                'formData.internal_note' => 'nullable|string|max:5000',
+                'formData.is_verified' => 'boolean',
+                'formData.mmorpg_access_enabled' => 'nullable|boolean',
+                'formData.funken_balance' => 'nullable|integer|min:0|max:1000000',
+                'formData.funken_total_earned' => 'nullable|integer|min:0|max:1000000',
+                'formData.funki_level' => 'nullable|integer|min:1|max:10',
+                'formData.gamification_active' => 'nullable|boolean',
+                'formData.ranking_opt_in' => 'nullable|boolean',
+                'formData.use_real_name' => 'nullable|boolean',
+                'formData.player_name' => 'nullable|string|max:35',
+                'formData.ai_data_consent' => 'nullable|boolean',
+                'formData.magma_unlocked_level' => 'nullable|integer|min:1|max:10',
+                'formData.magma_hearts' => 'nullable|integer|min:1|max:6',
+                'formData.healing_potions' => 'nullable|integer|min:0|max:30',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->switchToProfileTabOnProfileErrors($e);
+            throw $e;
+        }
+
+        if ($this->createType === 'customer') {
+            $rawPlayerName = trim((string) ($this->formData['player_name'] ?? ''));
+            if ($rawPlayerName !== '') {
+                $nameCheck = \App\Services\Gamification\PlayerNameValidator::validate($rawPlayerName, null, false);
+                if (!$nameCheck['valid']) {
+                    $this->activeEditTab = 'profile';
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'formData.player_name' => $nameCheck['error'] ?? 'Ungültiger Spielername.',
+                    ]);
+                }
+                $this->formData['player_name'] = $nameCheck['sanitized'];
+            } else {
+                $this->formData['player_name'] = '';
+            }
+        }
 
         $class = match($this->createType) {
             'admin' => Admin::class,
@@ -176,9 +230,11 @@ class SystemUserManagement extends Component
             'password' => Hash::make($this->formData['password']),
             'email_verified_at' => ($this->createType === 'customer' && $this->formData['is_verified']) ? now() : null,
         ];
+
         if ($this->createType === 'customer') {
             $createPayload['mmorpg_access_enabled'] = (bool) ($this->formData['mmorpg_access_enabled'] ?? false);
         }
+
         $user = $class::create($createPayload);
 
         if (method_exists($user, 'profile')) {
@@ -199,27 +255,15 @@ class SystemUserManagement extends Component
                 'email_verified_at' => $this->formData['is_verified'] ? now() : null,
             ];
 
-            if ($this->createType === 'customer') {
-                $profileData['funken_balance'] = max(0, (int) ($this->formData['funken_balance'] ?? 0));
-                $profileData['funken_total_earned'] = max(0, (int) ($this->formData['funken_total_earned'] ?? 0));
-                $profileData['funki_level'] = max(1, min(10, (int) ($this->formData['funki_level'] ?? 1)));
-                $profileData['gamification_active'] = (bool) ($this->formData['gamification_active'] ?? true);
-            }
-
             $profile->update($profileData);
         }
 
         if ($this->createType === 'customer' && $user instanceof Customer) {
-            app(\App\Services\Gamification\GamificationService::class)->adminAdjustCustomerGamification(
-                $user,
-                max(0, (int) ($this->formData['funken_balance'] ?? 0)),
-                max(0, (int) ($this->formData['funken_total_earned'] ?? 0)),
-                max(1, min(10, (int) ($this->formData['funki_level'] ?? 1))),
-                (bool) ($this->formData['gamification_active'] ?? true),
-                (bool) ($this->formData['ranking_opt_in'] ?? false),
-                (bool) ($this->formData['use_real_name'] ?? false),
-                (string) ($this->formData['player_name'] ?? '')
-            );
+            if (!empty($this->formData['ai_data_consent']) && method_exists($user, 'updateAiDataConsent')) {
+                $user->updateAiDataConsent(true, 'admin_user_management');
+            }
+
+            $this->syncCustomerGamificationFromAdminForm($user, true);
         }
 
         $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
@@ -267,6 +311,11 @@ class SystemUserManagement extends Component
             ? $gameService->countCustomerBirthdayCorrections($model)
             : 0;
 
+        $this->refreshEditingCustomerStatusPills(
+            ($type === 'customer' && $model instanceof Customer) ? $model : null,
+            $gamification
+        );
+
         $this->formData = [
             'first_name' => $model->first_name,
             'last_name' => $model->last_name,
@@ -296,6 +345,9 @@ class SystemUserManagement extends Component
             'use_real_name' => (bool) ($gamification->use_real_name ?? false),
             'player_name' => (string) ($gamification->player_name ?? ''),
             'ai_data_consent' => (bool) ($model->profile->ai_data_consent ?? false),
+            'magma_unlocked_level' => max(1, min(10, (int) ($gamification->magma_unlocked_level ?? 1))),
+            'magma_hearts' => max(1, min(6, (int) ($gamification->magma_hearts ?? 6))),
+            'healing_potions' => $this->countHealingPotionsFromGamification($gamification),
         ];
     }
 
@@ -505,6 +557,10 @@ class SystemUserManagement extends Component
         $this->editing2faActive = false;
         $this->editingUserLogs = [];
         $this->editingUserBirthdayCorrections = 0;
+        $this->editingCustomerHasMasterKey = false;
+        $this->editingCustomerClearedMagmaRooms = 0;
+        $this->editingCustomerChatMuted = false;
+        $this->editingCustomerChatStrikes = 0;
         $this->activeEditTab = 'account';
         $this->customerUploadFiles = [];
         $this->customerUploadTitle = '';
@@ -512,6 +568,83 @@ class SystemUserManagement extends Component
         $this->customerMediaSavedText = null;
         $this->isCreating = false;
         $this->resetErrorBag();
+    }
+
+    public function resetCustomer3dChatMute(): void
+    {
+        if ($this->editingType !== 'customer' || empty($this->editingId)) {
+            return;
+        }
+
+        /** @var Customer $customer */
+        $customer = Customer::withTrashed()->findOrFail($this->editingId);
+        $cid = (string) $customer->id;
+        $hash = md5($cid);
+        $actorHash = md5('customer:' . $cid);
+
+        foreach ([
+            'sf_lobby_sanction_v1_' . $cid,
+            'sf_lobby_sanction_v1_' . $hash,
+            'sf_lobby_sanction_v1_' . $actorHash,
+            'sf_lobby_mute_v1_' . $cid,
+            'sf_lobby_mute_v1_' . $hash,
+            'sf_lobby_reports_v1_' . $cid,
+            'sf_lobby_reports_v1_' . $hash,
+            'sf_lobby_report_v1_' . $cid,
+            'sf_lobby_reports_' . $cid,
+            'sf_lobby_chat_cd_v1_' . $cid,
+            'sf_lobby_chat_cd_v1_' . $hash,
+            'sf_fw_lobby_chat_cd_v1_' . $actorHash,
+            'sf_fw_lobby_chat_burst_v1_' . $actorHash,
+            'sf_showroom_mute_' . $cid,
+            'sf_showroom_mute_' . $hash,
+            'sf_showroom_reports_' . $cid,
+            'sf_showroom_reports_' . $hash,
+            'sf_showroom_report_' . $cid,
+            'sf_showroom_chat_cd_' . $cid,
+            'sf_showroom_chat_cd_' . $hash,
+        ] as $cacheKey) {
+            \Illuminate\Support\Facades\Cache::forget($cacheKey);
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('customer_gamifications')) {
+            $gamification = \App\Models\Customer\CustomerGamification::where('customer_id', $cid)->first();
+            if ($gamification !== null) {
+                $progress = is_array($gamification->titles_progress) ? $gamification->titles_progress : [];
+                $progress['chat_moderation'] = [
+                    'strikes' => 0,
+                    'muted_until_ts' => null,
+                    'permanent_mute' => false,
+                    'last_code' => null,
+                    'last_violation_at' => null,
+                ];
+                $gamification->titles_progress = $progress;
+                $gamification->save();
+            }
+        }
+
+        \App\Services\Gamification\LobbyInstanceService::forgetCustomerCache($cid);
+
+        $this->editingCustomerChatMuted = false;
+        $this->editingCustomerChatStrikes = 0;
+
+        $adminEmail = Auth::guard('admin')->user()->email ?? 'System';
+        SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'user:3d_chat_unmute',
+            'title' => '3D-Chat Stummschaltung aufgehoben',
+            'message' => "3D-Chat Stummschaltung und Verwarnungen für '{$customer->email}' wurden von {$adminEmail} zurückgesetzt.",
+            'status' => 'success',
+            'payload' => [
+                'actor' => $adminEmail,
+                'user_id' => $cid,
+                'target_user' => $customer->email,
+            ],
+            'started_at' => now(),
+            'finished_at' => now(),
+        ]);
+
+        $this->dispatch('notify', message: '3D-Chat freigeschaltet und Verwarnungen zurückgesetzt.', type: 'success');
     }
 
     public function toggleMmorpgAccess(string $customerId): void
@@ -571,34 +704,66 @@ class SystemUserManagement extends Component
             abort(400, 'Ungültiger Benutzertyp.');
         }
 
-        $this->validate([
-            'formData.first_name' => 'required|string|max:255',
-            'formData.last_name' => 'required|string|max:255',
-            'formData.email' => 'required|email|unique:'.($this->editingType === 'admin' ? 'admins' : ($this->editingType === 'customer' ? 'customers' : 'employees')).',email,'.$this->editingId,
-            'formData.password' => 'nullable|string|min:8',
-            'formData.birthday' => 'nullable|date',
-            'formData.phone_number' => 'nullable|string|max:50',
-            'formData.street' => 'nullable|string|max:255',
-            'formData.house_number' => 'nullable|string|max:30',
-            'formData.postal' => 'nullable|string|max:20',
-            'formData.city' => 'nullable|string|max:120',
-            'formData.customer_type' => 'nullable|in:private,business',
-            'formData.company_name' => 'nullable|string|max:255',
-            'formData.vat_id' => 'nullable|string|max:50',
-            'formData.internal_note' => 'nullable|string|max:5000',
-            'formData.is_verified' => 'boolean',
-            'formData.mmorpg_access_enabled' => 'nullable|boolean',
-            'formData.funken_balance' => 'nullable|integer|min:0|max:1000000',
-            'formData.funken_total_earned' => 'nullable|integer|min:0|max:1000000',
-            'formData.funki_level' => 'nullable|integer|min:1|max:10',
-            'formData.gamification_active' => 'nullable|boolean',
-            'formData.ranking_opt_in' => 'nullable|boolean',
-            'formData.use_real_name' => 'nullable|boolean',
-            'formData.player_name' => 'nullable|string|max:40',
-            'formData.ai_data_consent' => 'nullable|boolean',
-        ]);
+        try {
+            $this->validate([
+                'formData.first_name' => 'required|string|max:255',
+                'formData.last_name' => 'required|string|max:255',
+                'formData.email' => 'required|email|unique:'.($this->editingType === 'admin' ? 'admins' : ($this->editingType === 'customer' ? 'customers' : 'employees')).',email,'.$this->editingId,
+                'formData.password' => 'nullable|string|min:8',
+                'formData.birthday' => 'nullable|date',
+                'formData.phone_number' => 'nullable|string|max:50',
+                'formData.street' => 'nullable|string|max:255',
+                'formData.house_number' => 'nullable|string|max:30',
+                'formData.postal' => 'nullable|string|max:20',
+                'formData.city' => 'nullable|string|max:120',
+                'formData.customer_type' => 'nullable|in:private,business',
+                'formData.company_name' => 'nullable|string|max:255',
+                'formData.vat_id' => 'nullable|string|max:50',
+                'formData.internal_note' => 'nullable|string|max:5000',
+                'formData.is_verified' => 'boolean',
+                'formData.mmorpg_access_enabled' => 'nullable|boolean',
+                'formData.funken_balance' => 'nullable|integer|min:0|max:1000000',
+                'formData.funken_total_earned' => 'nullable|integer|min:0|max:1000000',
+                'formData.funki_level' => 'nullable|integer|min:1|max:10',
+                'formData.gamification_active' => 'nullable|boolean',
+                'formData.ranking_opt_in' => 'nullable|boolean',
+                'formData.use_real_name' => 'nullable|boolean',
+                'formData.player_name' => 'nullable|string|max:35',
+                'formData.ai_data_consent' => 'nullable|boolean',
+                'formData.magma_unlocked_level' => 'nullable|integer|min:1|max:10',
+                'formData.magma_hearts' => 'nullable|integer|min:1|max:6',
+                'formData.healing_potions' => 'nullable|integer|min:0|max:30',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->switchToProfileTabOnProfileErrors($e);
+            throw $e;
+        }
 
         $model = $this->getModelInstance($this->editingType, $this->editingId);
+
+        if ($this->editingType === 'customer' && $model instanceof Customer) {
+            $rawPlayerName = trim((string) ($this->formData['player_name'] ?? ''));
+            if ($rawPlayerName !== '') {
+                $existingPlayerName = trim((string) ($model->gamification?->player_name ?? ''));
+                $isUntouchedRealName = ($rawPlayerName === $existingPlayerName) && (bool) ($this->formData['use_real_name'] ?? false);
+                $nameCheck = \App\Services\Gamification\PlayerNameValidator::validate(
+                    $rawPlayerName,
+                    (string) $model->id,
+                    $isUntouchedRealName
+                );
+                if (!$nameCheck['valid']) {
+                    $this->activeEditTab = 'profile';
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'formData.player_name' => $nameCheck['error'] ?? 'Ungültiger Spielername.',
+                    ]);
+                }
+                $this->formData['player_name'] = $nameCheck['sanitized'];
+            } else {
+                $this->formData['player_name'] = '';
+            }
+        }
+
+        $this->formData['is_verified'] = (bool) ($this->formData['is_verified'] ?? false);
 
         // Sammeln der alten Daten für den Delta-Vergleich
         $oldData = [
@@ -618,12 +783,35 @@ class SystemUserManagement extends Component
             'is_verified' => $this->editingType === 'customer'
                 ? (!is_null($model->email_verified_at) || !is_null($model->profile->email_verified_at ?? null))
                 : !is_null($model->profile->email_verified_at ?? null),
-            'ai_data_consent' => (bool) ($model->profile->ai_data_consent ?? false),
-            'gamification_active' => (bool) ($model->gamification->is_active ?? false),
-            'ranking_opt_in' => (bool) ($model->gamification->ranking_opt_in ?? false),
-            'use_real_name' => (bool) ($model->gamification->use_real_name ?? false),
-            'player_name' => (string) ($model->gamification->player_name ?? ''),
         ];
+
+        if ($this->editingType === 'customer') {
+            $existingGamification = $model->gamification;
+            $oldData['mmorpg_access_enabled'] = (bool) ($model->mmorpg_access_enabled ?? false);
+            $oldData['ai_data_consent'] = (bool) ($model->profile->ai_data_consent ?? false);
+            $oldData['gamification_active'] = (bool) ($existingGamification->is_active ?? false);
+            $oldData['ranking_opt_in'] = (bool) ($existingGamification->ranking_opt_in ?? false);
+            $oldData['use_real_name'] = (bool) ($existingGamification->use_real_name ?? false);
+            $oldData['player_name'] = (string) ($existingGamification->player_name ?? '');
+            $oldData['funken_balance'] = (int) ($existingGamification->funken_balance ?? 0);
+            $oldData['funken_total_earned'] = (int) ($existingGamification->funken_total_earned ?? 0);
+            $oldData['funki_level'] = max(1, min(10, (int) ($existingGamification->level ?? $existingGamification->funki_level ?? 1)));
+            $oldData['magma_unlocked_level'] = max(1, min(10, (int) ($existingGamification->magma_unlocked_level ?? 1)));
+            $oldData['magma_hearts'] = max(1, min(6, (int) ($existingGamification->magma_hearts ?? 6)));
+            $oldData['healing_potions'] = $this->countHealingPotionsFromGamification($existingGamification);
+
+            $this->formData['mmorpg_access_enabled'] = (bool) ($this->formData['mmorpg_access_enabled'] ?? false);
+            $this->formData['ai_data_consent'] = (bool) ($this->formData['ai_data_consent'] ?? false);
+            $this->formData['gamification_active'] = (bool) ($this->formData['gamification_active'] ?? false);
+            $this->formData['ranking_opt_in'] = (bool) ($this->formData['ranking_opt_in'] ?? false);
+            $this->formData['use_real_name'] = (bool) ($this->formData['use_real_name'] ?? false);
+            $this->formData['funken_balance'] = max(0, (int) ($this->formData['funken_balance'] ?? 0));
+            $this->formData['funken_total_earned'] = max(0, (int) ($this->formData['funken_total_earned'] ?? 0));
+            $this->formData['funki_level'] = max(1, min(10, (int) ($this->formData['funki_level'] ?? 1)));
+            $this->formData['magma_unlocked_level'] = max(1, min(10, (int) ($this->formData['magma_unlocked_level'] ?? 1)));
+            $this->formData['magma_hearts'] = max(1, min(6, (int) ($this->formData['magma_hearts'] ?? 6)));
+            $this->formData['healing_potions'] = max(0, min(30, (int) ($this->formData['healing_potions'] ?? 0)));
+        }
 
         $userUpdate = [
             'first_name' => $this->formData['first_name'],
@@ -680,22 +868,13 @@ class SystemUserManagement extends Component
                 $model->updateAiDataConsent((bool) ($this->formData['ai_data_consent'] ?? false), 'admin_user_management');
             }
 
-            app(\App\Services\Gamification\GamificationService::class)->adminAdjustCustomerGamification(
-                $model,
-                max(0, (int) ($this->formData['funken_balance'] ?? 0)),
-                max(0, (int) ($this->formData['funken_total_earned'] ?? 0)),
-                max(1, min(10, (int) ($this->formData['funki_level'] ?? 1))),
-                (bool) ($this->formData['gamification_active'] ?? false),
-                (bool) ($this->formData['ranking_opt_in'] ?? false),
-                (bool) ($this->formData['use_real_name'] ?? false),
-                (string) ($this->formData['player_name'] ?? '')
-            );
+            $this->syncCustomerGamificationFromAdminForm($model, false);
         }
 
         // Berechne die genauen Änderungen (Delta)
         $changes = [];
         foreach ($oldData as $key => $oldValue) {
-            if (isset($this->formData[$key]) && $oldValue !== $this->formData[$key]) {
+            if (array_key_exists($key, $this->formData) && $oldValue !== $this->formData[$key]) {
                 $changes[$key] = [
                     'old' => $oldValue,
                     'new' => $this->formData[$key]
@@ -880,8 +1059,312 @@ class SystemUserManagement extends Component
         return $withTrashed ? $class::withTrashed()->findOrFail($id) : $class::findOrFail($id);
     }
 
+    private function switchToProfileTabOnProfileErrors(\Illuminate\Validation\ValidationException $e): void
+    {
+        $profileKeys = [
+            'formData.birthday',
+            'formData.phone_number',
+            'formData.street',
+            'formData.house_number',
+            'formData.postal',
+            'formData.city',
+            'formData.customer_type',
+            'formData.company_name',
+            'formData.vat_id',
+            'formData.internal_note',
+            'formData.funken_balance',
+            'formData.funken_total_earned',
+            'formData.funki_level',
+            'formData.gamification_active',
+            'formData.ranking_opt_in',
+            'formData.use_real_name',
+            'formData.player_name',
+            'formData.ai_data_consent',
+            'formData.magma_unlocked_level',
+            'formData.magma_hearts',
+            'formData.healing_potions',
+        ];
+
+        $errorKeys = array_keys($e->errors());
+        foreach ($errorKeys as $errKey) {
+            if (in_array($errKey, $profileKeys, true)) {
+                $this->activeEditTab = 'profile';
+                break;
+            }
+        }
+    }
+
+    private function countHealingPotionsFromGamification(?\App\Models\Customer\CustomerGamification $gamification): int
+    {
+        if (!$gamification || !is_array($gamification->inventory_items)) {
+            return 0;
+        }
+
+        $inv = $gamification->inventory_items;
+
+        if (isset($inv['bag_slots']) && is_array($inv['bag_slots'])) {
+            $slotSum = 0;
+            foreach ($inv['bag_slots'] as $slot) {
+                if (is_array($slot) && ($slot['item_key'] ?? null) === 'healing_potion') {
+                    $slotSum += max(0, (int) ($slot['qty'] ?? $slot['quantity'] ?? $slot['count'] ?? 0));
+                }
+            }
+
+            return min(30, max(0, $slotSum));
+        }
+
+        if (isset($inv['healing_potion']) && is_numeric($inv['healing_potion'])) {
+            return min(30, max(0, (int) $inv['healing_potion']));
+        }
+
+        $sum = 0;
+        foreach ($inv as $entry) {
+            if (is_array($entry) && ($entry['item_key'] ?? null) === 'healing_potion') {
+                $qty = $entry['quantity'] ?? $entry['qty'] ?? $entry['count'] ?? 1;
+                $sum += max(0, (int) $qty);
+            } elseif ($entry === 'healing_potion') {
+                $sum += 1;
+            }
+        }
+
+        return min(30, max(0, $sum));
+    }
+
+    private function isCustomer3dChatMuted(
+        string $customerId,
+        ?\App\Models\Customer\CustomerGamification $gamification = null
+    ): bool {
+        if (trim($customerId) === '') {
+            return false;
+        }
+
+        $cid = trim($customerId);
+        $hash = md5($cid);
+        $actorHash = md5('customer:' . $cid);
+        $nowTs = \Illuminate\Support\Carbon::now()->getTimestamp();
+
+        foreach ([
+            'sf_lobby_sanction_v1_' . $cid,
+            'sf_lobby_sanction_v1_' . $hash,
+            'sf_lobby_sanction_v1_' . $actorHash,
+        ] as $sanctionKey) {
+            $sanction = \Illuminate\Support\Facades\Cache::get($sanctionKey);
+            if (!is_array($sanction)) {
+                continue;
+            }
+            if (!empty($sanction['permanent_mute'])) {
+                return true;
+            }
+            if (isset($sanction['muted_until_ts']) && is_numeric($sanction['muted_until_ts']) && (int) $sanction['muted_until_ts'] > $nowTs) {
+                return true;
+            }
+        }
+
+        foreach ([
+            'sf_lobby_mute_v1_' . $cid,
+            'sf_lobby_mute_v1_' . $hash,
+            'sf_showroom_mute_' . $cid,
+            'sf_showroom_mute_' . $hash,
+        ] as $key) {
+            $val = \Illuminate\Support\Facades\Cache::get($key);
+            if ($val === null || $val === false || $val === 0 || $val === '0' || $val === '') {
+                continue;
+            }
+            if (is_numeric($val) && (int) $val > 1_000_000_000) {
+                if ((int) $val > $nowTs) {
+                    return true;
+                }
+                continue;
+            }
+            if ((bool) $val) {
+                return true;
+            }
+        }
+
+        $resolvedGamification = $gamification ?? (
+            \Illuminate\Support\Facades\Schema::hasTable('customer_gamifications')
+                ? \App\Models\Customer\CustomerGamification::where('customer_id', $cid)->first()
+                : null
+        );
+        $persistedMod = is_array($resolvedGamification?->titles_progress['chat_moderation'] ?? null)
+            ? $resolvedGamification->titles_progress['chat_moderation']
+            : null;
+
+        if ($persistedMod !== null) {
+            if (!empty($persistedMod['permanent_mute'])) {
+                return true;
+            }
+            if (isset($persistedMod['muted_until_ts']) && is_numeric($persistedMod['muted_until_ts']) && (int) $persistedMod['muted_until_ts'] > $nowTs) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function resolveCustomer3dChatStrikes(
+        string $customerId,
+        ?\App\Models\Customer\CustomerGamification $gamification = null
+    ): int {
+        if (trim($customerId) === '') {
+            return 0;
+        }
+
+        $cid = trim($customerId);
+        $hash = md5($cid);
+        $actorHash = md5('customer:' . $cid);
+        $strikes = 0;
+
+        foreach ([
+            'sf_lobby_sanction_v1_' . $cid,
+            'sf_lobby_sanction_v1_' . $hash,
+            'sf_lobby_sanction_v1_' . $actorHash,
+        ] as $sanctionKey) {
+            $sanction = \Illuminate\Support\Facades\Cache::get($sanctionKey);
+            if (is_array($sanction)) {
+                $strikes = max($strikes, (int) ($sanction['strikes'] ?? 0));
+            }
+        }
+
+        $resolvedGamification = $gamification ?? (
+            \Illuminate\Support\Facades\Schema::hasTable('customer_gamifications')
+                ? \App\Models\Customer\CustomerGamification::where('customer_id', $cid)->first()
+                : null
+        );
+        $persistedMod = is_array($resolvedGamification?->titles_progress['chat_moderation'] ?? null)
+            ? $resolvedGamification->titles_progress['chat_moderation']
+            : null;
+
+        if ($persistedMod !== null) {
+            $strikes = max($strikes, (int) ($persistedMod['strikes'] ?? 0));
+        }
+
+        return max(0, $strikes);
+    }
+
+    private function refreshEditingCustomerMagmaMeta(
+        ?Customer $customer = null,
+        ?\App\Models\Customer\CustomerGamification $gamification = null
+    ): void {
+        $this->refreshEditingCustomerStatusPills($customer, $gamification);
+    }
+
+    private function refreshEditingCustomerStatusPills(
+        ?Customer $customer = null,
+        ?\App\Models\Customer\CustomerGamification $gamification = null
+    ): void {
+        if ($this->editingType !== 'customer' || empty($this->editingId)) {
+            $this->editingCustomerHasMasterKey = false;
+            $this->editingCustomerClearedMagmaRooms = 0;
+            $this->editingCustomerChatMuted = false;
+            $this->editingCustomerChatStrikes = 0;
+            return;
+        }
+
+        $resolvedCustomer = $customer ?? Customer::withTrashed()->find($this->editingId);
+        if (!$resolvedCustomer) {
+            $this->editingCustomerHasMasterKey = false;
+            $this->editingCustomerClearedMagmaRooms = 0;
+            $this->editingCustomerChatMuted = false;
+            $this->editingCustomerChatStrikes = 0;
+            return;
+        }
+
+        $resolvedGamification = $gamification ?? $resolvedCustomer->gamification;
+        $clearedLevels = is_array($resolvedGamification?->titles_progress['lava_cleared_levels'] ?? null)
+            ? $resolvedGamification->titles_progress['lava_cleared_levels']
+            : [];
+
+        $cid = (string) $resolvedCustomer->id;
+        $this->editingCustomerHasMasterKey = app(\App\Services\Gamification\LavaParkourService::class)
+            ->hasMasterKey($resolvedCustomer);
+        $this->editingCustomerClearedMagmaRooms = min(10, count($clearedLevels));
+        $this->editingCustomerChatMuted = $this->isCustomer3dChatMuted($cid, $resolvedGamification);
+        $this->editingCustomerChatStrikes = $this->resolveCustomer3dChatStrikes($cid, $resolvedGamification);
+    }
+
+    private function syncCustomerGamificationFromAdminForm(Customer $customer, bool $defaultActive = false): void
+    {
+        $balance = max(0, (int) ($this->formData['funken_balance'] ?? 0));
+        $total = max(0, (int) ($this->formData['funken_total_earned'] ?? 0));
+        $level = max(1, min(10, (int) ($this->formData['funki_level'] ?? 1)));
+        $active = (bool) ($this->formData['gamification_active'] ?? $defaultActive);
+        $optIn = (bool) ($this->formData['ranking_opt_in'] ?? false);
+        $realName = (bool) ($this->formData['use_real_name'] ?? false);
+        $playerName = (string) ($this->formData['player_name'] ?? '');
+        $magmaUnlockedLevel = max(1, min(10, (int) ($this->formData['magma_unlocked_level'] ?? 1)));
+        $magmaHearts = max(1, min(6, (int) ($this->formData['magma_hearts'] ?? 6)));
+        $healingPotions = max(0, min(30, (int) ($this->formData['healing_potions'] ?? 0)));
+
+        $gameService = app(\App\Services\Gamification\GamificationService::class);
+        $ref = new \ReflectionMethod($gameService, 'adminAdjustCustomerGamification');
+
+        if ($ref->getNumberOfParameters() >= 11) {
+            $gameService->adminAdjustCustomerGamification(
+                $customer,
+                $balance,
+                $total,
+                $level,
+                $active,
+                $optIn,
+                $realName,
+                $playerName,
+                $magmaUnlockedLevel,
+                $magmaHearts,
+                $healingPotions
+            );
+            return;
+        }
+
+        $gamification = $gameService->adminAdjustCustomerGamification(
+            $customer,
+            $balance,
+            $total,
+            $level,
+            $active,
+            $optIn,
+            $realName,
+            $playerName
+        );
+
+        $items = is_array($gamification->inventory_items) ? $gamification->inventory_items : [];
+        $preserved = [];
+        foreach ($items as $entry) {
+            if (is_array($entry) && ($entry['item_key'] ?? null) === 'healing_potion') {
+                continue;
+            }
+            if ($entry === 'healing_potion') {
+                continue;
+            }
+            $preserved[] = $entry;
+        }
+        for ($i = 0; $i < $healingPotions; $i++) {
+            $preserved[] = [
+                'id' => (string) Str::uuid(),
+                'item_key' => 'healing_potion',
+                'acquired_at' => now()->toIso8601String(),
+            ];
+        }
+
+        $gamification->magma_unlocked_level = $magmaUnlockedLevel;
+        $gamification->magma_hearts = $magmaHearts;
+        $gamification->magma_active_run_id = null;
+        $gamification->magma_run_committed = false;
+        $gamification->inventory_items = array_values($preserved);
+        if ($healingPotions > 0) {
+            $gamification->has_backpack = true;
+        }
+        $gamification->save();
+
+        app(\App\Services\Gamification\LavaParkourService::class)
+            ->invalidateActiveRunForCustomer((string) $customer->id);
+    }
+
     public function render()
     {
+        if (!$this->isCreating && $this->editingType === 'customer' && !empty($this->editingId)) {
+            $this->refreshEditingCustomerStatusPills();
+        }
         if (!in_array((string) $this->filterRole, ['all', 'admin', 'customer', 'employee'], true)) {
             $this->filterRole = 'all';
         }

@@ -173,7 +173,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('Zum Produkt', $html);
 
         // Clean-Design ESC-Menü, ruhige Gold-Zierleiste & Anti-Manipulations-Closure
-        $this->assertStringContainsString('x-show="currentZone === \'heroes\' && isCustomerAuthenticated() && !soloMode"', $html);
+        $this->assertStringContainsString('x-show="currentZone === \'heroes\' && isCustomerAuthenticated() && !soloMode && !multiplayerDisabled"', $html);
         $this->assertStringContainsString('handleZoneSyncTransition', $html);
         $this->assertStringContainsString('handleSanctumHttpResponse', $html);
         $this->assertStringContainsString('data-testid="louvre-settings-btn"', $html);
@@ -825,12 +825,25 @@ class Louvre3DShowroomTest extends TestCase
 
     public function test_showroom_data_is_protected_by_maintenance_mode_for_guests(): void
     {
-        SystemSetting::updateOrCreate(['key' => 'shop_maintenance_mode'], ['value' => 'true']);
-        $this->getJson('/shop/showroom-data')->assertStatus(503);
+        Product::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Pflegetuch Set Schwarz-Gold',
+            'slug' => 'pflegetuch-set-wartung',
+            'status' => 'active',
+            'type' => 'physical',
+            'is_personalizable' => false,
+            'price' => 990,
+            'track_quantity' => true,
+            'quantity' => 10,
+        ]);
 
-        SystemSetting::updateOrCreate(['key' => 'shop_maintenance_mode'], ['value' => 'false']);
+        // Stufe 2 (Schaufenster-Wartungsmodus bei shop_is_live = true): 3D-Rundgang liefert HTTP 200, Direktkauf ist gesperrt
         SystemSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'true']);
-        $this->getJson('/shop/showroom-data')->assertStatus(503);
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+
+        $showcaseResp = $this->getJson('/shop/showroom-data')->assertStatus(200);
+        $showcaseResp->assertJsonPath('maintenance_mode', true);
+        $this->assertFalse((bool) collect($showcaseResp->json('products'))->firstWhere('slug', 'pflegetuch-set-wartung')['can_direct_add_to_cart']);
 
         $admin = Admin::create([
             'id' => (string) Str::uuid(),
@@ -840,6 +853,14 @@ class Louvre3DShowroomTest extends TestCase
             'password' => bcrypt('secret123'),
         ]);
         $this->actingAs($admin, 'admin')->getJson('/shop/showroom-data')->assertStatus(200);
+
+        // Stufe 1 (Vor-Livegang-Sperre shop_is_live = false): Harte HTTP-503-Sperre im Frontend (auch für Admins; Admin-Cockpit bleibt 200)
+        $this->app['auth']->forgetGuards();
+        SystemSetting::updateOrCreate(['key' => 'shop_is_live'], ['value' => 'false']);
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+        $this->getJson('/shop/showroom-data')->assertStatus(503);
+        $this->actingAs($admin, 'admin')->getJson('/shop/showroom-data')->assertStatus(503);
+        $this->actingAs($admin, 'admin')->get('/admin/settings')->assertStatus(200);
     }
 
     public function test_product_frontend_filter_area_direct_add_to_cart_works_for_standard_products_only(): void

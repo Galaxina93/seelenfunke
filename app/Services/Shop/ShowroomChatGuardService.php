@@ -13,28 +13,233 @@ class ShowroomChatGuardService
     public const SHADOW_MUTE_SECONDS = 86400; // 24 Stunden
 
     /**
-     * Exakte gesperrte Einzelwörter nach Normalisierung (DE & EN Beleidigungen, Fäkalsprache, Hassrede, NSFW).
+     * Explizite Whitelist harmloser deutscher & Shop-Begriffe (Scunthorpe-Schutz fuer Wortstamm-Pruefung).
+     *
+     * @var array<int, string>
+     */
+    private const SAFE_GERMAN_WORDS = [
+        'barsch', 'barsche', 'barschen', 'marsch', 'maersche', 'marsche', 'marschieren',
+        'abmarsch', 'einmarsch', 'durchmarsch', 'aufmarsch', 'rueckmarsch', 'ruckmarsch', 'vormarsch',
+        'herrschaft', 'herrschaften', 'herrschaftlich', 'nachbarschaft', 'nachbarschaften',
+        'wirtschaft', 'wirtschaftlich', 'wissenschaft', 'wissenschaftlich', 'freundschaft', 'freundschaftlich',
+        'gesellschaft', 'gesellschaftlich', 'landschaft', 'landschaften', 'mannschaft', 'mannschaften',
+        'leidenschaft', 'leidenschaftlich', 'meisterschaft', 'meisterschaften', 'kundschaft', 'bereitschaft',
+        'botschaft', 'eigenschaft', 'eigenschaften', 'gemeinschaft', 'erbschaft', 'verwandtschaft', 'partnerschaft',
+        'kirsche', 'kirschen', 'hirsch', 'hirsche', 'bursche', 'burschen', 'frosch', 'froesche', 'frosche',
+        'wunsch', 'wuensche', 'wunsche', 'wuenschen', 'wunschen', 'mensch', 'menschen', 'menschlich',
+        'tisch', 'tische', 'fisch', 'fische', 'frisch', 'frische', 'frischer', 'frisches', 'fleisch',
+        'busch', 'buesche', 'busche', 'dusche', 'duschen', 'tasche', 'taschen', 'flasche', 'flaschen',
+        'asche', 'masche', 'maschen', 'waschen', 'waesche', 'wasche', 'falsch', 'falsche', 'falscher',
+        'schmuck', 'schmuckstueck', 'schmuckstuck', 'schmuckstuecke', 'schmuckstucke', 'schmuckbox',
+        'klassiker', 'klasse', 'klassen', 'klassisch', 'klassische', 'klassischer', 'klassisches',
+        'dick', 'dicke', 'dicker', 'dickes', 'dicken', 'dickem', 'dickicht',
+        'geschickt', 'geschickte', 'geschickter', 'schicken', 'schick', 'schicke', 'schicker', 'schickes',
+        'schickt', 'schickte', 'geschick', 'abgeschickt', 'zugeschickt', 'verschicken', 'verschickt',
+        'nicken', 'nickt', 'blicken', 'blick', 'blickt', 'augenblick', 'klicken', 'klick', 'klickt', 'anklicken',
+        'ticken', 'tickt', 'sticken', 'bestickt', 'stricken', 'gestrickt', 'flicken', 'rucksack',
+        'druecken', 'drucken', 'drueckt', 'druckt', 'ausdruck', 'eindruck', 'beeindruckend',
+        'ruecken', 'rucken', 'bruecke', 'brucke', 'bruecken', 'brucken',
+        'stueck', 'stuck', 'stuecke', 'stucke', 'meisterstueck', 'meisterstuck', 'einzelstueck', 'einzelstuck',
+        'glueck', 'gluck', 'gluecklich', 'glucklich', 'glueckwunsch', 'gluckwunsch',
+        'zurueck', 'zuruck', 'verrueckt', 'verruckt', 'entzueckend', 'entzuckend', 'schmuecken', 'schmucken',
+        'bitte', 'bitten', 'mitte', 'mitten', 'mutter', 'muetter', 'butter', 'futter',
+        'ritter', 'gewitter', 'gitter', 'bitter', 'splitter', 'glitzer', 'glitzert', 'zittern', 'dritte', 'dritter',
+        'analyse', 'analysen', 'analysieren', 'analysiert', 'analog', 'analoge',
+        'kanal', 'kanaele', 'kanale', 'signal', 'signale', 'original', 'originale',
+        'pokal', 'pokale', 'lokal', 'lokale', 'egal', 'schal', 'wahl', 'wahlen', 'auswahl',
+        'zahl', 'zahlen', 'anzahl', 'strahl', 'strahlen', 'saal', 'saele', 'sale',
+        'ideal', 'ideale', 'material', 'kristall', 'kristalle', 'kristallglas', 'metall', 'edelstahl',
+        'portal', 'portale', 'regal', 'regale', 'denkmal', 'merkmal', 'normal', 'optimal', 'genial',
+        'weniger', 'wenig', 'wenige', 'wenigstens', 'koenig', 'konig', 'koenigin', 'konigin', 'honig', 'ewig',
+        'schein', 'scheine', 'scheinen', 'scheint', 'wahrscheinlich', 'sonnenschein', 'mondschein',
+        'scheibe', 'scheiben', 'glasscheibe', 'bescheid', 'bescheiden',
+        'entscheiden', 'entscheidung', 'entscheidungen', 'entschieden',
+        'unterschied', 'unterschiede', 'unterscheiden', 'unterschiedlich',
+        'abschied', 'verschieden', 'verschiedene', 'verschiedenen',
+        'geschenk', 'geschenke', 'geschenkbox', 'geschenkpapier', 'geschenkgutschein', 'geschenkgutscheine',
+        'gutschein', 'gutscheine', 'schenken', 'geschenkt',
+        'atelier', 'helden', 'held', 'heldin', 'heldenhalle', 'ehrenplatz', 'podest', 'podeste',
+        'seelenfunke', 'seelenfunken', 'funken', 'funkenwerk', 'funki', 'funkis', 'louvre',
+        'gravur', 'gravuren', 'lasergravur', 'manufaktur', 'gifhorn', 'kollektion', 'unikat', 'unikate',
+        'heiltrank', 'heiltraenke', 'heiltranke', 'heilung', 'heilen',
+        'schoen', 'schon', 'schoene', 'schone', 'schoenes', 'schones', 'schoener', 'schoner',
+        'wunderschoen', 'wunderschon', 'danke', 'dankeschoen', 'dankeschon', 'willkommen', 'hallo', 'super',
+    ];
+
+    /**
+     * Exakte gesperrte Einzelwoerter nach Normalisierung (DE & EN Beleidigungen, Alltagsabwertungen, Plurale, Hassrede, NSFW).
      *
      * @var array<int, string>
      */
     private const BLOCKED_TOKENS = [
-        // Deutsch
-        'arsch', 'arschloch', 'arschgeige', 'arschkriecher', 'hure', 'hurensohn', 'hundesohn',
-        'huso', 'hs', 'fotze', 'votze', 'schlampe', 'nutte', 'wichser', 'wixxer', 'wixer', 'wichsen',
-        'fick', 'ficken', 'ficker', 'gefickt', 'scheisse', 'scheiss', 'scheis', 'kacke', 'pisser',
-        'pisse', 'bastard', 'missgeburt', 'mistgeburt', 'fehlgeburt', 'drecksau', 'spast', 'spasti',
-        'mongo', 'vollidiot', 'idiot', 'huren', 'schwuchtel', 'transe', 'kanake', 'kanacke',
-        'neger', 'zigeuner', 'bimbo', 'assi', 'kackbratze', 'fresse', 'verpiss', 'kotze',
-        'schwanzlutscher', 'mord', 'moerder', 'suizid', 'amok', 'inzest', 'nazi', 'hitler',
-        'nsdap', 'gestapo', 'ss', 'sa', 'kz', 'heil',
+        // Deutsch: Harte Beleidigungen, Plurale & Beugungen
+        'arsch', 'arsche', 'aersche', 'arschloch', 'arschlocher', 'arschloecher', 'arschgeige', 'arschgeigen',
+        'arschkriecher', 'arschgesicht', 'arschgesichter', 'arschkopf', 'arschkrampe',
+        'hure', 'huren', 'hurre', 'hurren', 'hurensohn', 'hurensohne', 'hurensoehne', 'huensohn', 'huan',
+        'hundesohn', 'hundesohne', 'hundesoehne', 'huso', 'husos', 'hs',
+        'fotze', 'fotzen', 'votze', 'votzen', 'schlampe', 'schlampen', 'nutte', 'nutten',
+        'wichser', 'wichsers', 'wixxer', 'wixer', 'wichsen', 'wichse', 'wixe', 'wixen',
+        'fick', 'ficken', 'ficker', 'fickst', 'fickt', 'gefickt', 'verfickt', 'verfickte', 'verfickter',
+        'scheisse', 'scheiss', 'scheis', 'scheisser', 'beschissen', 'beschissene', 'beschissener',
+        'kacke', 'kacken', 'kackvogel', 'kackvoegel', 'kackbratze', 'kackhaufen', 'verkackt',
+        'pisser', 'pissers', 'pisse', 'pissen', 'verpiss', 'verpisst', 'verpissen',
+        'bastard', 'bastarde', 'missgeburt', 'missgeburten', 'mistgeburt', 'mistgeburten', 'fehlgeburt', 'fehlgeburten',
+        'drecksau', 'drecksaeue', 'drecksaue', 'dreckskerl', 'dreckskerle', 'drecksack', 'dreckssack',
+        'dreckig', 'dreckige', 'dreckiger', 'mistkerl', 'mistkerle', 'miststueck', 'miststuck', 'mistvieh',
+        'spast', 'spasti', 'spastis', 'spasten', 'spastiker', 'spacko', 'spackos', 'spacken', 'spack',
+        'mongo', 'mongos', 'vollidiot', 'vollidioten', 'idiot', 'idioten', 'idiotisch',
+        // Deutsch: Alltagsbeleidigungen & Abwertungen
+        'dumm', 'dumme', 'dummer', 'dummes', 'dummen', 'duemmer', 'dummkopf', 'dummkoepfe', 'dummkopfe', 'dummbatz',
+        'bloed', 'blod', 'bloede', 'blode', 'bloeder', 'bloder', 'bloedes', 'blodes', 'bloedmann', 'blodmann', 'bloedian', 'blodian',
+        'depp', 'deppen', 'trottel', 'volltrottel', 'vollpfosten', 'pfosten', 'vollhorst',
+        'penner', 'opfer', 'lappen', 'lauch', 'assi', 'assis', 'asozial', 'asozialer', 'asoziale',
+        'behindert', 'behinderte', 'behinderter', 'behindertes', 'behinderten',
+        'haesslich', 'hasslich', 'haessliche', 'hassliche', 'haesslicher', 'hasslicher',
+        'stinkst', 'stinkt', 'stinker', 'schnauze', 'maul', 'fresse', 'hdf',
+        'lutscher', 'schwanzlutscher', 'kotze', 'kotzen',
+        'abschaum', 'gesindel', 'untermensch', 'untermenschen',
+        'schwachkopf', 'schwachkoepfe', 'schwachkopfe', 'schwachmat', 'schwachmaten',
+        'hohlkopf', 'hohlkoepfe', 'hohlkopfe', 'holzkopf', 'hirnlos', 'hirnlose', 'hirnloser',
+        'geisteskrank', 'geisteskranker', 'geisteskranke', 'gestoert', 'gestort', 'gestoerte', 'gestorte', 'gestoerter', 'gestorter',
+        'ekelhaft', 'ekelhafte', 'ekelhafter', 'widerlich', 'widerliche', 'widerlicher', 'widerling',
+        'versager', 'loser', 'losers', 'looser', 'loosers', 'nichtsnutz', 'taugenichts',
+        'affenkopf', 'affenarsch', 'koeter', 'koter',
+        'schwuchtel', 'schwuchteln', 'transe', 'transen', 'kanake', 'kanaken', 'kanacke', 'kanacken',
+        'neger', 'zigeuner', 'bimbo', 'mord', 'moerder', 'morder', 'suizid', 'amok', 'inzest',
+        'nazi', 'nazis', 'hitler', 'nsdap', 'gestapo', 'ss', 'sa', 'kz', 'heil',
         // Englisch
-        'fuck', 'fck', 'fuk', 'fucker', 'fucking', 'mofo', 'motherfucker', 'shit', 'bullshit',
-        'bitch', 'btch', 'whore', 'slut', 'cunt', 'dick', 'dickhead', 'cock', 'pussy', 'asshole',
-        'arsehole', 'retard', 'retarded', 'faggot', 'fag', 'dyke', 'nigger', 'nigga', 'negro',
-        'chink', 'kike', 'twat', 'wanker', 'prick', 'blowjob', 'handjob', 'cum', 'cumshot',
-        'porn', 'porno', 'hentai', 'sex', 'penis', 'vagina', 'anal', 'dildo', 'boobs', 'tits',
-        'rape', 'rapist', 'pedo', 'paedo', 'pedophile', 'incest', 'suicide', 'kys', 'isis',
-        'daesh', 'jihad', 'kkk', 'swastika',
+        'fuck', 'fck', 'fuk', 'fucker', 'fuckers', 'fucking', 'fucked', 'mofo', 'motherfucker', 'motherfuckers',
+        'shit', 'shitty', 'bullshit', 'dipshit', 'horseshit',
+        'bitch', 'bitches', 'btch', 'bitchy', 'whore', 'whores', 'slut', 'sluts', 'cunt', 'cunts',
+        'dickhead', 'dickheads', 'cock', 'cocks', 'pussy', 'pussies',
+        'asshole', 'assholes', 'arsehole', 'arseholes', 'jackass', 'dumbass', 'fatass',
+        'retard', 'retards', 'retarded', 'moron', 'morons', 'stupid', 'scumbag', 'scumbags',
+        'douche', 'douchebag', 'douchebags', 'trash', 'bastards', 'idiots',
+        'faggot', 'faggots', 'fag', 'fags', 'dyke', 'nigger', 'niggers', 'nigga', 'niggas', 'negro',
+        'chink', 'kike', 'twat', 'twats', 'wanker', 'wankers', 'prick', 'pricks',
+        'stfu', 'gtfo', 'kys',
+        'blowjob', 'handjob', 'cum', 'cumshot', 'porn', 'porno', 'hentai', 'sex', 'penis', 'vagina', 'anal', 'dildo', 'boobs', 'tits',
+        'rape', 'rapist', 'pedo', 'paedo', 'pedophile', 'incest', 'suicide', 'isis', 'daesh', 'jihad', 'kkk', 'swastika',
+    ];
+
+    /**
+     * Eindeutige Schimpfwort-Staemme am Wortanfang (greifen auf normalisierte Tokens, sofern nicht in SAFE_GERMAN_WORDS).
+     *
+     * @var array<int, string>
+     */
+    private const BLOCKED_TOKEN_PREFIXES = [
+        'arsch',
+        'huren',
+        'fotz',
+        'votz',
+        'wichs',
+        'wix',
+        'fick',
+        'scheiss',
+        'scheis',
+        'kack',
+        'drecks',
+        'mistkerl',
+        'miststueck',
+        'miststuck',
+        'missgeburt',
+        'mistgeburt',
+        'fehlgeburt',
+        'vollidiot',
+        'dummkopf',
+        'vollpfosten',
+        'schwachkopf',
+        'hohlkopf',
+        'spast',
+        'spack',
+        'schlamp',
+        'schwuchtel',
+        'huso',
+        'motherfuck',
+        'fuck',
+        'bullshit',
+        'asshole',
+        'dickhead',
+        'bitch',
+    ];
+
+    /**
+     * Eindeutige Schimpfwort-Staemme am Wortende fuer deutsche Komposita (sofern nicht in SAFE_GERMAN_WORDS).
+     *
+     * @var array<int, string>
+     */
+    private const BLOCKED_TOKEN_SUFFIXES = [
+        'arschloch',
+        'arschlocher',
+        'arschloecher',
+        'hurensohn',
+        'hurensohne',
+        'hurensoehne',
+        'fotze',
+        'fotzen',
+        'votze',
+        'votzen',
+        'schlampe',
+        'schlampen',
+        'nutte',
+        'nutten',
+        'wichser',
+        'wixxer',
+        'pisser',
+        'spasti',
+        'fresse',
+        'idiot',
+        'idioten',
+        'bastard',
+        'bastarde',
+        'missgeburt',
+        'vollpfosten',
+        'dummkopf',
+        'schwachkopf',
+        'hohlkopf',
+    ];
+
+    /**
+     * Zusammengesetzte Beleidigungs-Phrasen auf Satzebene (mit Wortgrenzen geprueft).
+     *
+     * @var array<int, string>
+     */
+    private const BLOCKED_PHRASES = [
+        'halt die klappe',
+        'halt deine klappe',
+        'klappe halten',
+        'halts maul',
+        'halt s maul',
+        'halt das maul',
+        'halt dein maul',
+        'maul halten',
+        'fresse halten',
+        'halt die fresse',
+        'halt deine fresse',
+        'fick dich',
+        'fickt euch',
+        'verpiss dich',
+        'verpisst euch',
+        'geh sterben',
+        'geht sterben',
+        'bring dich um',
+        'du hund',
+        'ihr hunde',
+        'du affe',
+        'du opfer',
+        'du lappen',
+        'du lauch',
+        'bist du dumm',
+        'seid ihr dumm',
+        'wie dumm',
+        'so dumm',
+        'fuck you',
+        'fuck off',
+        'shut the fuck up',
+        'kill yourself',
+        'suck my dick',
+        'eat a dick',
+        'big dick',
     ];
 
     /**
@@ -43,13 +248,22 @@ class ShowroomChatGuardService
      * @var array<int, string>
      */
     private const BLOCKED_SUBSTRINGS = [
-        'hurensohn', 'arschloch', 'missgeburt', 'mistgeburt', 'fehlgeburt', 'schwanzlutscher',
-        'kackbratze', 'haltdiefresse', 'motherfuck', 'dickhead', 'faggot', 'nigger', 'nigga',
+        'hurensohn', 'hurensohne', 'arschloch', 'arschlocher', 'arschgesicht',
+        'missgeburt', 'mistgeburt', 'fehlgeburt', 'schwanzlutscher',
+        'kackbratze', 'vollpfosten', 'dreckskerl', 'dummkopf', 'schwachkopf', 'hohlkopf',
+        'haltdiefresse', 'haltdieklappe', 'haltsmaul', 'fickdich', 'verpissdich', 'gehsterben',
+        'motherfuck', 'dickhead', 'faggot', 'nigger', 'nigga',
         'heilhitler', 'siegheil', 'hakenkreuz', 'swastika', 'auschwitz', 'holocaust', 'treblinka',
         'waffenss', 'wehrmacht', 'reichsburger', 'reichsbuerger', 'whitepower', 'kuklux',
         'vergewaltig', 'kinderfick', 'childabuse', 'schoolshoot', 'killall', 'bringdichum',
         'killyourself', 'terrorist', 'blowjob', 'cumshot', 'onlyfans', 'pornhub', 'xvideos',
     ];
+
+    /** @var array<string, int>|null */
+    private static ?array $safeWordsLookup = null;
+
+    /** @var array<string, int>|null */
+    private static ?array $blockedTokensLookup = null;
 
     /**
      * Maskierte Sternchen-/Sonderzeichen-Muster vor der Bereinigung (z. B. f*ck, sh*t, b*tch, h*re, a*sch).
@@ -302,16 +516,93 @@ class ShowroomChatGuardService
         ) ?? $unpunctuated;
 
         $tokens = preg_split('/[^a-z0-9]+/u', $collapsedSpaced, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $blockedSet = array_flip(self::BLOCKED_TOKENS);
+        $safeSet = self::$safeWordsLookup ??= array_flip(self::SAFE_GERMAN_WORDS);
+        $blockedSet = self::$blockedTokensLookup ??= array_flip(self::BLOCKED_TOKENS);
+
+        if (!empty($tokens)) {
+            $dedupTokens = [];
+            $foldedTokens = [];
+            foreach ($tokens as $tok) {
+                $d2 = preg_replace('/([a-z])\1{2,}/u', '$1$1', $tok) ?? $tok;
+                $dedupTokens[] = $d2;
+                $foldedTokens[] = self::foldGermanUmlautDigraphs($d2);
+            }
+
+            $sentenceRaw = ' ' . implode(' ', $tokens) . ' ';
+            $sentenceDedup = ' ' . implode(' ', $dedupTokens) . ' ';
+            $sentenceFolded = ' ' . implode(' ', $foldedTokens) . ' ';
+
+            foreach (self::BLOCKED_PHRASES as $phrase) {
+                $needle = ' ' . $phrase . ' ';
+                if (
+                    str_contains($sentenceRaw, $needle)
+                    || str_contains($sentenceDedup, $needle)
+                    || str_contains($sentenceFolded, $needle)
+                ) {
+                    return true;
+                }
+            }
+        }
 
         foreach ($tokens as $token) {
+            if (isset($safeSet[$token])) {
+                continue;
+            }
+
+            $foldedToken = self::foldGermanUmlautDigraphs($token);
+            if (isset($safeSet[$foldedToken])) {
+                continue;
+            }
+
             // Exakt, auf Doppelbuchstaben reduziert ("puuuussy" -> "pussy") und auf Einzelbuchstaben reduziert ("huuure" -> "hure")
             $dedupDouble = preg_replace('/([a-z])\1{2,}/u', '$1$1', $token) ?? $token;
             $dedupSingle = preg_replace('/([a-z])\1+/u', '$1', $token) ?? $token;
 
-            foreach ([$token, $dedupDouble, $dedupSingle] as $candidate) {
-                if (isset($blockedSet[$candidate])) {
+            if (isset($safeSet[$dedupDouble])) {
+                continue;
+            }
+
+            $foldedDouble = self::foldGermanUmlautDigraphs($dedupDouble);
+            if (isset($safeSet[$foldedDouble])) {
+                continue;
+            }
+
+            $foldedSingle = self::foldGermanUmlautDigraphs($dedupSingle);
+
+            foreach ([$token, $foldedToken, $dedupDouble, $foldedDouble, $dedupSingle, $foldedSingle] as $candidate) {
+                if (!isset($safeSet[$candidate]) && isset($blockedSet[$candidate])) {
                     return true;
+                }
+            }
+
+            foreach ([$token, $foldedToken, $dedupDouble, $foldedDouble] as $stemCandidate) {
+                if (isset($safeSet[$stemCandidate])) {
+                    continue;
+                }
+
+                $len = strlen($stemCandidate);
+                if ($len >= 4) {
+                    foreach (self::BLOCKED_TOKEN_PREFIXES as $prefix) {
+                        if (str_starts_with($stemCandidate, $prefix)) {
+                            return true;
+                        }
+                    }
+                }
+
+                if ($len >= 5) {
+                    if (
+                        str_ends_with($stemCandidate, 'arsch')
+                        && !str_ends_with($stemCandidate, 'marsch')
+                        && !str_ends_with($stemCandidate, 'barsch')
+                    ) {
+                        return true;
+                    }
+
+                    foreach (self::BLOCKED_TOKEN_SUFFIXES as $suffix) {
+                        if (str_ends_with($stemCandidate, $suffix)) {
+                            return true;
+                        }
+                    }
                 }
             }
         }
@@ -361,6 +652,15 @@ class ShowroomChatGuardService
         ];
 
         return strtr($lower, $map);
+    }
+
+    private static function foldGermanUmlautDigraphs(string $word): string
+    {
+        if ($word === '') {
+            return '';
+        }
+
+        return str_replace(['ae', 'oe', 'ue'], ['a', 'o', 'u'], $word);
     }
 
     private function cooldownCacheKey(string $customerId): string

@@ -74,44 +74,86 @@
                     </div>
                 </div>
 
-                {{-- Interactive Tabs --}}
-                <div class="flex flex-wrap items-center gap-2 mb-8 p-1.5 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800 w-fit">
-                    <button type="button"
-                            wire:click="setEditTab('account')"
-                            @class([
-                                'inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
-                                'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'account',
-                                'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'account',
-                            ])>
-                        <x-heroicon-m-shield-check class="w-4 h-4" />
-                        <span>Account &amp; Sicherheit</span>
-                    </button>
-
-                    <button type="button"
-                            wire:click="setEditTab('profile')"
-                            @class([
-                                'inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
-                                'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'profile',
-                                'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'profile',
-                            ])>
-                        <x-heroicon-m-map-pin class="w-4 h-4" />
-                        <span>Standort &amp; Profil</span>
-                    </button>
-
-                    @if(!$isCreating && $editingType === 'customer')
+                {{-- Interactive Tabs & Compact Customer Status Pills --}}
+                <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-8">
+                    <div class="flex flex-wrap items-center gap-2 p-1.5 bg-gray-50 dark:bg-gray-950 rounded-2xl border border-gray-200 dark:border-gray-800 w-fit">
                         <button type="button"
-                                wire:click="setEditTab('media')"
+                                wire:click="setEditTab('account')"
                                 @class([
                                     'inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
-                                    'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'media',
-                                    'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'media',
+                                    'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'account',
+                                    'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'account',
                                 ])>
-                            <x-heroicon-m-folder-open class="w-4 h-4" />
-                            <span>Medien &amp; Dokumente</span>
-                            <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
-                                {{ $customerMedia['totalCount'] }}
-                            </span>
+                            <x-heroicon-m-shield-check class="w-4 h-4" />
+                            <span>Account &amp; Sicherheit</span>
                         </button>
+
+                        <button type="button"
+                                wire:click="setEditTab('profile')"
+                                @class([
+                                    'inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                                    'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'profile',
+                                    'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'profile',
+                                ])>
+                            <x-heroicon-m-map-pin class="w-4 h-4" />
+                            <span>Standort &amp; Profil</span>
+                        </button>
+
+                        @if(!$isCreating && $editingType === 'customer')
+                            <button type="button"
+                                    wire:click="setEditTab('media')"
+                                    @class([
+                                        'inline-flex items-center gap-2.5 px-5 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all',
+                                        'bg-white dark:bg-gray-900 text-[var(--theme-color)] shadow-sm border border-gray-200 dark:border-gray-700' => $activeEditTab === 'media',
+                                        'text-gray-500 hover:text-gray-900 dark:hover:text-white' => $activeEditTab !== 'media',
+                                    ])>
+                                <x-heroicon-m-folder-open class="w-4 h-4" />
+                                <span>Medien &amp; Dokumente</span>
+                                <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                                    {{ $customerMedia['totalCount'] }}
+                                </span>
+                            </button>
+                        @endif
+                    </div>
+
+                    @if(!$isCreating && $editingType === 'customer')
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span @class([
+                                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border',
+                                'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' => $editingCustomerHasMasterKey,
+                                'bg-gray-50 dark:bg-gray-950 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800' => !$editingCustomerHasMasterKey,
+                            ])>
+                                <span>Meisterschlüssel: {{ $editingCustomerHasMasterKey ? 'Aktiv ✓' : 'Offen' }}</span>
+                            </span>
+
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                                <span>Gemeisterte Räume: {{ $editingCustomerClearedMagmaRooms }} / 10</span>
+                            </span>
+
+                            @if($editingCustomerChatMuted || $editingCustomerChatStrikes > 0)
+                                <div @class([
+                                    'inline-flex flex-wrap items-center gap-2 px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border',
+                                    'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30' => $editingCustomerChatMuted,
+                                    'bg-[var(--theme-color-10)] text-[var(--theme-color)] border-[var(--theme-color-30)]' => !$editingCustomerChatMuted,
+                                ])>
+                                    <span>{{ $editingCustomerChatMuted ? '3D-Chat: Stummgeschaltet' : '3D-Chat: Frei' }}</span>
+                                    @if($editingCustomerChatStrikes > 0)
+                                        <span class="px-2 py-0.5 rounded-md bg-white/80 dark:bg-gray-900/80 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
+                                            Verwarnungen: {{ $editingCustomerChatStrikes }}/3
+                                        </span>
+                                    @endif
+                                    <button type="button"
+                                            wire:click="resetCustomer3dChatMute"
+                                            class="px-2.5 py-1 rounded-lg bg-[var(--theme-color)] text-gray-900 hover:opacity-90 transition-all text-[9px] font-black uppercase tracking-widest">
+                                        {{ $editingCustomerChatMuted ? 'Freischalten' : 'Zurücksetzen' }}
+                                    </button>
+                                </div>
+                            @else
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest bg-gray-50 dark:bg-gray-950 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800">
+                                    <span>3D-Chat: Frei</span>
+                                </span>
+                            @endif
+                        </div>
                     @endif
                 </div>
 
@@ -170,11 +212,22 @@
                             <label class="flex items-center gap-4 cursor-pointer group bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner hover:border-emerald-500/50 transition-colors">
                                 <div class="relative flex items-center shrink-0">
                                     <input type="checkbox" wire:model="formData.is_verified" class="peer sr-only">
-                                    <div class="w-6 h-6 bg-black border-2 border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
+                                    <div class="w-6 h-6 bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
                                     <svg class="absolute w-4 h-4 left-1 top-1 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                 </div>
                                 <span class="text-sm font-bold text-gray-800 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">E-Mail verifiziert</span>
                             </label>
+
+                            @if(($isCreating && $createType === 'customer') || (!$isCreating && $editingType === 'customer'))
+                                <label class="flex items-center gap-4 cursor-pointer group bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner hover:border-[var(--theme-color)]/50 transition-colors">
+                                    <div class="relative flex items-center shrink-0">
+                                        <input type="checkbox" wire:model="formData.mmorpg_access_enabled" class="peer sr-only">
+                                        <div class="w-6 h-6 bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
+                                        <svg class="absolute w-4 h-4 left-1 top-1 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                    </div>
+                                    <span class="text-sm font-bold text-gray-800 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">MMORPG-Zugang</span>
+                                </label>
+                            @endif
 
                             @if(!$isCreating)
                                 <div class="bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -208,17 +261,6 @@
                                 </div>
                             @endif
                         </div>
-
-                            @if(($isCreating && $createType === 'customer') || (!$isCreating && $editingType === 'customer'))
-                                <label class="flex items-center gap-4 cursor-pointer group bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-inner hover:border-[var(--theme-color)]/50 transition-colors">
-                                    <div class="relative flex items-center shrink-0">
-                                        <input type="checkbox" wire:model="formData.mmorpg_access_enabled" class="peer sr-only">
-                                        <div class="w-6 h-6 bg-white dark:bg-black border-2 border-gray-300 dark:border-gray-700 rounded transition-all peer-checked:bg-emerald-500 peer-checked:border-emerald-500"></div>
-                                        <svg class="absolute w-4 h-4 left-1 top-1 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                    </div>
-                                    <span class="text-sm font-bold text-gray-800 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">MMORPG-Zugang</span>
-                                </label>
-                            @endif
 
                         @if(!$isCreating)
                             {{-- PROFIL-, ADRESS-, GEBURTSTAGS- & DSGVO-ÄNDERUNGSPROTOKOLL (LOG) --}}
@@ -362,68 +404,105 @@
                             <textarea wire:model="formData.internal_note" rows="3" placeholder="Besonderheiten, VIP Status..." class="w-full text-sm border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-950 text-gray-900 dark:text-white shadow-sm dark:shadow-inner focus:ring-2 focus:ring-[var(--theme-color)]/50 focus:border-[var(--theme-color)] transition-all p-4 outline-none resize-none"></textarea>
                         </div>
 
-                        @if(!$isCreating && $editingType === 'customer')
+                        @if(($isCreating && $createType === 'customer') || (!$isCreating && $editingType === 'customer'))
                             <div class="pt-4 border-t border-gray-100 dark:border-gray-800/60 space-y-4">
                                 <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2 text-amber-500">
+                                    <div class="flex items-center gap-2 text-[var(--theme-color)]">
                                         <x-heroicon-s-sparkles class="w-5 h-5" />
                                         <h3 class="text-[10px] font-black uppercase tracking-widest">Seelenfunken, Funki &amp; DSGVO-Freigaben</h3>
                                     </div>
-                                    <label class="inline-flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" wire:model="formData.gamification_active" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500">
-                                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">Magie aktiv</span>
-                                    </label>
                                 </div>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
                                     <div class="space-y-1.5">
-                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Einlösbare Funken</label>
-                                        <input type="number" min="0" wire:model="formData.funken_balance" class="w-full text-sm font-mono font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-amber-500 p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
+                                        <label class="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Einlösbare Funken</label>
+                                        <input type="number" min="0" max="1000000" wire:model="formData.funken_balance" class="w-full text-sm font-mono font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-[var(--theme-color)] p-2.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 focus:border-[var(--theme-color)]">
+                                        @error('formData.funken_balance')
+                                            <p class="text-[11px] font-bold text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
                                     </div>
                                     <div class="space-y-1.5">
-                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Lebenszeit-Funken</label>
-                                        <input type="number" min="0" wire:model="formData.funken_total_earned" class="w-full text-sm font-mono font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
+                                        <label class="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Lebenszeit-Funken</label>
+                                        <input type="number" min="0" max="1000000" wire:model="formData.funken_total_earned" class="w-full text-sm font-mono font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 focus:border-[var(--theme-color)]">
+                                        @error('formData.funken_total_earned')
+                                            <p class="text-[11px] font-bold text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
                                     </div>
                                     <div class="space-y-1.5">
-                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Funki-Level (1–10)</label>
-                                        <select wire:model="formData.funki_level" class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
+                                        <label class="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Funki-Level (1-10)</label>
+                                        <select wire:model="formData.funki_level" class="w-full text-xs font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 focus:border-[var(--theme-color)]">
                                             @for($lvl = 1; $lvl <= 10; $lvl++)
                                                 <option value="{{ $lvl }}">Level {{ $lvl }} ({{ \App\Services\Gamification\GameConfig::getLevels()[$lvl]['title'] ?? '' }})</option>
                                             @endfor
                                         </select>
+                                        @error('formData.funki_level')
+                                            <p class="text-[11px] font-bold text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800">
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Magma-Freischaltung (1-10)</label>
+                                        <input type="number" min="1" max="10" wire:model="formData.magma_unlocked_level" class="w-full text-sm font-mono font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 focus:border-[var(--theme-color)]">
+                                        @error('formData.magma_unlocked_level')
+                                            <p class="text-[11px] font-bold text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Magma-Herzen (1-6)</label>
+                                        <input type="number" min="1" max="6" wire:model="formData.magma_hearts" class="w-full text-sm font-mono font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 focus:border-[var(--theme-color)]">
+                                        @error('formData.magma_hearts')
+                                            <p class="text-[11px] font-bold text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest">Heiltränke im Rucksack (0-30)</label>
+                                        <input type="number" min="0" max="30" wire:model="formData.healing_potions" class="w-full text-sm font-mono font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 focus:border-[var(--theme-color)]">
+                                        @error('formData.healing_potions')
+                                            <p class="text-[11px] font-bold text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
                                     </div>
                                 </div>
 
                                 <div class="bg-gray-50 dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 space-y-3">
                                     <div class="flex items-center justify-between">
-                                        <span class="text-[9px] font-black uppercase tracking-widest text-amber-500">DSGVO &amp; Einwilligungen</span>
+                                        <span class="text-[9px] font-black uppercase tracking-widest text-[var(--theme-color)]">DSGVO &amp; Einwilligungen</span>
                                     </div>
 
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
-                                            <input type="checkbox" wire:model="formData.gamification_active" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500 shrink-0">
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-[var(--theme-color)]/40 transition">
+                                            <input type="checkbox" wire:model="formData.gamification_active" class="w-4 h-4 rounded border-gray-300 dark:border-gray-700 accent-[var(--theme-color)] text-[var(--theme-color)] focus:ring-[var(--theme-color)] shrink-0">
                                             <span class="text-xs font-bold text-gray-900 dark:text-white">Seelenfunken-Treueprogramm aktiv</span>
                                         </label>
 
-                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
-                                            <input type="checkbox" wire:model="formData.ranking_opt_in" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500 shrink-0">
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-[var(--theme-color)]/40 transition">
+                                            <input type="checkbox" wire:model="formData.ranking_opt_in" class="w-4 h-4 rounded border-gray-300 dark:border-gray-700 accent-[var(--theme-color)] text-[var(--theme-color)] focus:ring-[var(--theme-color)] shrink-0">
                                             <span class="text-xs font-bold text-gray-900 dark:text-white">Sichtbarkeit in der Halle der Helden</span>
                                         </label>
 
-                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
-                                            <input type="checkbox" wire:model="formData.use_real_name" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500 shrink-0">
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-[var(--theme-color)]/40 transition">
+                                            <input type="checkbox" wire:model="formData.use_real_name" class="w-4 h-4 rounded border-gray-300 dark:border-gray-700 accent-[var(--theme-color)] text-[var(--theme-color)] focus:ring-[var(--theme-color)] shrink-0">
                                             <span class="text-xs font-bold text-gray-900 dark:text-white">Echtnamen öffentlich anzeigen</span>
                                         </label>
 
-                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-amber-500/40 transition">
-                                            <input type="checkbox" wire:model="formData.ai_data_consent" class="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-amber-500 shrink-0">
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-[var(--theme-color)]/40 transition">
+                                            <input type="checkbox" wire:model="formData.ai_data_consent" class="w-4 h-4 rounded border-gray-300 dark:border-gray-700 accent-[var(--theme-color)] text-[var(--theme-color)] focus:ring-[var(--theme-color)] shrink-0">
                                             <span class="text-xs font-bold text-gray-900 dark:text-white">DSGVO KI-Support-Freigabe</span>
+                                        </label>
+
+                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-[var(--theme-color)]/40 transition">
+                                            <input type="checkbox" wire:model="formData.mmorpg_access_enabled" class="w-4 h-4 rounded border-gray-300 dark:border-gray-700 accent-[var(--theme-color)] text-[var(--theme-color)] focus:ring-[var(--theme-color)] shrink-0">
+                                            <span class="text-xs font-bold text-gray-900 dark:text-white">MMORPG-Zugang</span>
                                         </label>
                                     </div>
 
                                     <div class="pt-1">
-                                        <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Spielername</label>
-                                        <input type="text" maxlength="40" wire:model="formData.player_name" placeholder="z. B. Sternenwanderer..." class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-amber-500/40">
+                                        <label class="text-[9px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest block mb-1">Spielername</label>
+                                        <input type="text" maxlength="35" wire:model="formData.player_name" placeholder="z. B. Sternenwanderer..." class="w-full text-xs font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-2.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/40 focus:border-[var(--theme-color)]">
+                                        @error('formData.player_name')
+                                            <p class="mt-1.5 text-xs font-bold text-red-600 dark:text-red-400">{{ $message }}</p>
+                                        @enderror
                                     </div>
                                 </div>
                             </div>
@@ -481,11 +560,6 @@
                                            wire:model="customerUploadTitle"
                                            placeholder="z. B. Echtheitszertifikat (leer = Dateiname)"
                                            class="w-full text-xs font-bold border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white p-3.5 outline-none focus:ring-2 focus:ring-[var(--theme-color)]/50">
-
-                                        <label class="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 cursor-pointer hover:border-[var(--theme-color)]/40 transition">
-                                            <input type="checkbox" wire:model="formData.mmorpg_access_enabled" class="w-4 h-4 rounded border-gray-300 dark:border-gray-700 accent-[var(--theme-color)] text-[var(--theme-color)] focus:ring-[var(--theme-color)] shrink-0">
-                                            <span class="text-xs font-bold text-gray-900 dark:text-white">MMORPG-Zugang</span>
-                                        </label>
                                 </div>
 
                                 <div class="space-y-1.5">
@@ -871,6 +945,25 @@
                                                 <span>{{ (int) ($user['gamification']['funken_balance'] ?? 0) }} Funken</span>
                                             </div>
                                         @endif
+
+                                        @if(($user['user_type'] ?? '') === 'customer' && !$showArchive)
+                                            <div>
+                                                <button type="button"
+                                                        wire:click="toggleMmorpgAccess('{{ $user['id'] }}')"
+                                                        @class([
+                                                            'inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all cursor-pointer',
+                                                            'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' => !empty($user['mmorpg_access_enabled']),
+                                                            'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]/50 hover:text-gray-900 dark:hover:text-white' => empty($user['mmorpg_access_enabled']),
+                                                        ])>
+                                                    <span @class([
+                                                        'w-2 h-2 rounded-full shrink-0 transition-colors',
+                                                        'bg-emerald-500' => !empty($user['mmorpg_access_enabled']),
+                                                        'bg-gray-400 dark:bg-gray-600' => empty($user['mmorpg_access_enabled']),
+                                                    ])></span>
+                                                    <span>MMORPG-Zugang</span>
+                                                </button>
+                                            </div>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-6 sm:px-8 py-4 align-top">
@@ -936,25 +1029,6 @@
                                                         <x-heroicon-s-key class="w-4 h-4" />
                                                     </button>
                                                 @endif
-
-                                        @if(($user['user_type'] ?? '') === 'customer' && !$showArchive)
-                                            <div>
-                                                <button type="button"
-                                                        wire:click="toggleMmorpgAccess('{{ $user['id'] }}')"
-                                                        @class([
-                                                            'inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all cursor-pointer',
-                                                            'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' => !empty($user['mmorpg_access_enabled']),
-                                                            'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]/50 hover:text-gray-900 dark:hover:text-white' => empty($user['mmorpg_access_enabled']),
-                                                        ])>
-                                                    <span @class([
-                                                        'w-2 h-2 rounded-full shrink-0 transition-colors',
-                                                        'bg-emerald-500' => !empty($user['mmorpg_access_enabled']),
-                                                        'bg-gray-400 dark:bg-gray-600' => empty($user['mmorpg_access_enabled']),
-                                                    ])></span>
-                                                    <span>MMORPG-Zugang</span>
-                                                </button>
-                                            </div>
-                                        @endif
                                                 <button wire:click="startEdit('{{ $user['id'] }}', '{{ $user['user_type'] }}')" class="p-2.5 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)]/30 rounded-xl transition-all shadow-sm dark:shadow-inner" title="Bearbeiten">
                                                     <x-heroicon-m-pencil-square class="w-4 h-4" />
                                                 </button>

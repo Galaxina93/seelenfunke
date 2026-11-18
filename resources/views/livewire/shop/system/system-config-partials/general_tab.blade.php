@@ -15,7 +15,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 xl:gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 xl:gap-6">
             {{-- 1. HAUPT-SHOP: PERSONALISIERTE MANUFAKTUR --}}
             <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
                 <div class="flex items-center justify-between gap-2">
@@ -30,9 +30,9 @@
                     </div>
                 </div>
                 <div>
-                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Personalisierter Shop (Live-Freigabe)</label>
-                    <button type="button" wire:click="toggleShopIsLive" role="switch" aria-checked="{{ $shop_is_live ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !py-3">
-                        <div class="flex items-center gap-2.5 min-w-0">
+                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Personalisierter Shop (Live)</label>
+                    <button type="button" wire:click="toggleShopIsLive" role="switch" aria-checked="{{ $shop_is_live ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !px-3.5 !py-3 !gap-2.5">
+                        <div class="flex flex-wrap items-center gap-1.5 min-w-0">
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Status</span>
                             @if($shop_is_live)
                                 <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Live (Öffentlich)</span>
@@ -47,23 +47,28 @@
                 </div>
             </div>
 
-            {{-- 2. GLOBALER WARTUNGSMODUS (TEMPORÄRE WARTUNG) --}}
+            {{-- 2. SCHAUFENSTER-WARTUNGSMODUS (KAUF PAUSIERT) --}}
             <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-red-500/10 text-red-600 dark:text-red-400 font-bold border border-red-500/20">Alle Domains</span>
-                        @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
+                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
+                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['maintenance_mode'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
+                                {{ $infoTexts['maintenance_mode'] }}
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div>
-                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Wartungsmodus (HTTP 503)</label>
-                    <button type="button" wire:click="toggleMaintenanceMode" role="switch" aria-checked="{{ !empty($settings['maintenance_mode']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !py-3">
-                        <div class="flex items-center gap-2.5 min-w-0">
+                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Wartungsmodus (Schaufenster)</label>
+                    <button type="button" wire:click="toggleMaintenanceMode" role="switch" aria-checked="{{ !empty($settings['maintenance_mode']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !px-3.5 !py-3 !gap-2.5">
+                        <div class="flex flex-wrap items-center gap-1.5 min-w-0">
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Modus</span>
                             @if(!empty($settings['maintenance_mode']))
-                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv (Wartungsseite)</span>
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv (Kauf pausiert)</span>
                             @else
-                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv (Regulärer Betrieb)</span>
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv (Regulär)</span>
                             @endif
                         </div>
                         <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ !empty($settings['maintenance_mode']) ? 'bg-red-500' : 'bg-gray-200 dark:bg-gray-800' }}">
@@ -77,23 +82,59 @@
             <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">3D-Welt</span>
-                        @include('components.alerts.info-tooltip', ['key' => 'showroom_multiplayer_enabled'])
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] text-[var(--theme-color)] font-bold border border-[var(--theme-color-20)]">3D-Welt</span>
+                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
+                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['showroom_multiplayer_enabled'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
+                                {{ $infoTexts['showroom_multiplayer_enabled'] }}
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div>
-                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">3D-Multiplayer (12er-Räume &amp; Chat)</label>
-                    <button type="button" wire:click="toggleShowroomMultiplayer" role="switch" aria-checked="{{ !empty($settings['showroom_multiplayer_enabled']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !py-3">
-                        <div class="flex items-center gap-2.5 min-w-0">
+                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">3D-Multiplayer (Halle &amp; Chat)</label>
+                    <button type="button" wire:click="toggleShowroomMultiplayer" role="switch" aria-checked="{{ !empty($settings['showroom_multiplayer_enabled']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !px-3.5 !py-3 !gap-2.5">
+                        <div class="flex flex-wrap items-center gap-1.5 min-w-0">
                             <span class="font-bold text-gray-900 dark:text-white text-sm">Showroom</span>
                             @if(!empty($settings['showroom_multiplayer_enabled']))
-                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Aktiv (12er-Räume)</span>
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Aktiv (Instanzen)</span>
                             @else
                                 <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/30">Solo-Modus</span>
                             @endif
                         </div>
                         <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ !empty($settings['showroom_multiplayer_enabled']) ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
                             <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['showroom_multiplayer_enabled']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                        </span>
+                    </button>
+                </div>
+            </div>
+
+            {{-- 4. ANGEBOTSKALKULATOR (FRONTEND-FREIGABE) --}}
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] text-[var(--theme-color)] font-bold border border-[var(--theme-color-20)]">/calculator</span>
+                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
+                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['quote_calculator_enabled'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
+                                {{ $infoTexts['quote_calculator_enabled'] }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label class="{{ $labelClass }} !mb-1 !ml-0 font-bold">Angebotskalkulator (Frontend)</label>
+                    <button type="button" wire:click="toggleQuoteCalculator" role="switch" aria-checked="{{ !empty($settings['quote_calculator_enabled']) ? 'true' : 'false' }}" class="{{ $checkboxContainerClass }} w-full justify-between !px-3.5 !py-3 !gap-2.5">
+                        <div class="flex flex-wrap items-center gap-1.5 min-w-0">
+                            <span class="font-bold text-gray-900 dark:text-white text-sm">Status</span>
+                            @if(!empty($settings['quote_calculator_enabled']))
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Aktiv (Sichtbar)</span>
+                            @else
+                                <span class="text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">Gesperrt (Ausgeblendet)</span>
+                            @endif
+                        </div>
+                        <span class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out {{ !empty($settings['quote_calculator_enabled']) ? 'bg-emerald-500' : 'bg-gray-200 dark:bg-gray-800' }}">
+                            <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ !empty($settings['quote_calculator_enabled']) ? 'translate-x-5' : 'translate-x-0' }}"></span>
                         </span>
                     </button>
                 </div>
