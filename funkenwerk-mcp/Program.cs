@@ -1065,16 +1065,7 @@ namespace FunkenwerkMcp
                 string localHandoffPath = Path.Combine(localPrivateDir, "antigravity_error_handoff.json");
 
                 string prettyJson = rootNode.ToJsonString(JsonPretty);
-                try
-                {
-                    await File.WriteAllTextAsync(localInboxPath, prettyJson, Utf8NoBom);
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    if (File.Exists(localInboxPath))
-                        File.Delete(localInboxPath);
-                    await File.WriteAllTextAsync(localInboxPath, prettyJson, Utf8NoBom);
-                }
+                await WriteSharedWslJsonAtomicallyAsync(localInboxPath, prettyJson);
 
                 if (openPoolCount == 0 && File.Exists(localHandoffPath))
                 {
@@ -1089,7 +1080,7 @@ namespace FunkenwerkMcp
                     var psi = new ProcessStartInfo
                     {
                         FileName = "wsl.exe",
-                        Arguments = "-d Ubuntu bash -c \"docker exec -u www-data mein_php_server php /var/www/html/artisan system:sentinel-inbox --import-file=storage/app/private/antigravity_inbox.json 2>/dev/null\"",
+                        Arguments = "-d Ubuntu bash -c \"chmod 0777 /home/ubuntuxina/meine-projekte/seelenfunke/storage/app/private 2>/dev/null; chmod 0666 /home/ubuntuxina/meine-projekte/seelenfunke/storage/app/private/antigravity_inbox.json /home/ubuntuxina/meine-projekte/seelenfunke/storage/app/private/antigravity_error_handoff.json 2>/dev/null; docker exec -u www-data mein_php_server php /var/www/html/artisan system:sentinel-inbox --import-file=storage/app/private/antigravity_inbox.json 2>/dev/null\"",
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
@@ -2375,20 +2366,90 @@ namespace FunkenwerkMcp
                     rootObj["updated_at"] = nowIso;
 
                 string outJson = rootNode.ToJsonString(JsonPretty);
-                try
-                {
-                    await File.WriteAllTextAsync(path, outJson, Utf8NoBom);
-                }
-                catch (UnauthorizedAccessException)
-                {
-                    if (File.Exists(path)) File.Delete(path);
-                    await File.WriteAllTextAsync(path, outJson, Utf8NoBom);
-                }
+                await WriteSharedWslJsonAtomicallyAsync(path, outJson);
                 return true;
             }
             catch
             {
                 return false;
+            }
+        }
+
+        internal static async Task WriteSharedWslJsonAtomicallyAsync(string targetPath, string jsonContent)
+        {
+            string? dir = Path.GetDirectoryName(targetPath);
+            if (!string.IsNullOrWhiteSpace(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            bool existedBefore = File.Exists(targetPath);
+            bool replacedViaTemp = false;
+
+            if (existedBefore)
+            {
+                try
+                {
+                    await File.WriteAllTextAsync(targetPath, jsonContent, Utf8NoBom);
+                    return;
+                }
+                catch (Exception ex) when (ex is UnauthorizedAccessException || ex is IOException)
+                {
+                    // Fallback auf atomaren Tempfile+Move-Pfad bei fremdem Owner / 0644
+                }
+            }
+
+            string tmpPath = Path.Combine(
+                dir ?? "",
+                $".{Path.GetFileName(targetPath)}.tmp.{Environment.ProcessId}.{Guid.NewGuid().ToString("N")[..8]}");
+
+            try
+            {
+                await File.WriteAllTextAsync(tmpPath, jsonContent, Utf8NoBom);
+                File.Move(tmpPath, targetPath, overwrite: true);
+                replacedViaTemp = true;
+            }
+            catch
+            {
+                try { if (File.Exists(tmpPath)) File.Delete(tmpPath); } catch { }
+                if (File.Exists(targetPath))
+                {
+                    File.Delete(targetPath);
+                }
+                await File.WriteAllTextAsync(targetPath, jsonContent, Utf8NoBom);
+                replacedViaTemp = true;
+            }
+
+            if ((!existedBefore || replacedViaTemp) &&
+                targetPath.StartsWith(@"\\wsl.localhost\Ubuntu\", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    string linuxRel = targetPath.Substring(@"\\wsl.localhost\Ubuntu".Length).Replace('\\', '/');
+                    if (linuxRel.StartsWith("/home/ubuntuxina/meine-projekte/seelenfunke/storage/app/private/", StringComparison.Ordinal) &&
+                        !linuxRel.Contains('\'') && !linuxRel.Contains('"') && !linuxRel.Contains(';'))
+                    {
+                        var chmodPsi = new ProcessStartInfo
+                        {
+                            FileName = "wsl.exe",
+                            Arguments = $"-d Ubuntu bash -c \"chmod 0777 /home/ubuntuxina/meine-projekte/seelenfunke/storage/app/private 2>/dev/null; chmod 0666 '{linuxRel}' 2>/dev/null\"",
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true
+                        };
+                        using var p = Process.Start(chmodPsi);
+                        if (p != null)
+                        {
+                            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                            await p.WaitForExitAsync(cts.Token);
+                        }
+                    }
+                }
+                catch
+                {
+                    // Best-effort; PHP SentinelTriageService::writeSharedPrivateJsonAtomically ersetzt notfalls atomar per rename()
+                }
             }
         }
 

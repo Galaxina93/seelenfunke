@@ -1847,9 +1847,11 @@ class SystemBrainDiagnosticsService
         ]);
 
         $handoffPath = storage_path('app/private/antigravity_error_handoff.json');
-        File::ensureDirectoryExists(dirname($handoffPath));
-        File::put($handoffPath, json_encode($dossier, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        @chmod($handoffPath, app()->environment('local', 'testing') ? 0666 : 0600);
+        SentinelTriageService::writeSharedPrivateJsonAtomically(
+            $handoffPath,
+            (string) json_encode($dossier, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            app()->environment('local', 'testing') ? 0666 : 0600
+        );
 
         return [
             'status' => 'success',

@@ -46,15 +46,13 @@ class SentinelSelfHealingAndInboxTest extends TestCase
         }
 
         if ($this->backupInbox !== null) {
-            File::ensureDirectoryExists(dirname($inboxPath));
-            file_put_contents($inboxPath, $this->backupInbox);
+            SentinelTriageService::writeSharedPrivateJsonAtomically($inboxPath, $this->backupInbox, 0666);
         } elseif (is_file($inboxPath)) {
             @unlink($inboxPath);
         }
 
         if ($this->backupHandoff !== null) {
-            File::ensureDirectoryExists(dirname($handoffPath));
-            file_put_contents($handoffPath, $this->backupHandoff);
+            SentinelTriageService::writeSharedPrivateJsonAtomically($handoffPath, $this->backupHandoff, 0666);
         } elseif (is_file($handoffPath)) {
             @unlink($handoffPath);
         }
@@ -1306,5 +1304,48 @@ class SentinelSelfHealingAndInboxTest extends TestCase
         } finally {
             $this->app['env'] = $origEnv;
         }
+    }
+
+    public function test_write_inbox_snapshot_atomically_replaces_readonly_file_without_permission_denied(): void
+    {
+        $inboxPath = storage_path(SentinelTriageService::INBOX_FILE);
+        $handoffPath = storage_path(SentinelTriageService::HANDOFF_FILE);
+        File::ensureDirectoryExists(dirname($inboxPath), 0777, true, true);
+
+        // Simuliert eine durch Windows/WSL (ubuntuxina, 0444/0644) geschriebene Datei,
+        // in die direktes file_put_contents() nicht hineinschreiben darf.
+        SentinelTriageService::writeSharedPrivateJsonAtomically($inboxPath, '{"inbox_version":1,"open_pool_count":0,"items":[]}', 0444);
+        @chmod($inboxPath, 0444);
+
+        $sentinel = app(SentinelTriageService::class);
+        $result = $sentinel->importRemoteStageInbox([
+            'source_environment' => 'production',
+            'items' => [
+                [
+                    'fingerprint' => hash('sha256', 'cross_uid_atomic_test_' . uniqid()),
+                    'log_id' => 9991,
+                    'origin_environment' => 'production',
+                    'platform' => 'portal',
+                    'platform_label' => 'Webportal',
+                    'type' => 'system',
+                    'action_id' => 'system:cross_uid_test',
+                    'severity' => 'error',
+                    'criticality' => 'standard',
+                    'title' => 'Cross-UID Atomic Replace Test',
+                    'message' => 'Verifiziert atomaren Tempfile+Rename Schreibpfad.',
+                ],
+            ],
+        ]);
+
+        $this->assertSame('success', $result['status'] ?? null);
+        $this->assertFileExists($inboxPath);
+        $this->assertFileExists($handoffPath);
+
+        $decoded = json_decode((string) file_get_contents($inboxPath), true);
+        $this->assertIsArray($decoded);
+        $this->assertSame(1, $decoded['inbox_version'] ?? null);
+
+        $perms = fileperms($inboxPath) & 0777;
+        $this->assertSame(0666, $perms, 'Im local/testing-Modus muss antigravity_inbox.json mit 0666 fuer Cross-UID-Zugriff angelegt werden.');
     }
 }

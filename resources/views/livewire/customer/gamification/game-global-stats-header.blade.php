@@ -53,6 +53,12 @@
             Hilfe & Support
         </a>
 
+        <a href="{{ route('customer.reviews') }}" wire:navigate
+           class="flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3.5 py-2 xl:py-2.5 rounded-2xl text-[11px] xl:text-xs font-bold tracking-wide transition-all {{ request()->routeIs('customer.reviews') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/80' }}">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+            Bewertungen
+        </a>
+
         @if($hasOptedIn)
             <a href="{{ route('customer.funki') }}" wire:navigate
                class="flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3.5 py-2 xl:py-2.5 rounded-2xl text-[11px] xl:text-xs font-bold tracking-wide transition-all {{ request()->routeIs('customer.funki') ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'text-amber-700 dark:text-[#f5dca0] hover:text-gray-900 dark:hover:text-white hover:bg-amber-500/15 dark:hover:bg-amber-500/20 border border-[#C5A059]/30' }}">

@@ -28,6 +28,15 @@ Route::middleware(['auth:customer'])->group(function () {
         Route::get('/funki', \App\Livewire\Customer\CustomerFunkiComponent::class)->name('customer.funki');
         Route::redirect('/customer/funki', '/funki');
 
+        // 5b. Meine Bewertungen (Produktbewertungen & Erlebnis-Feedback)
+        Route::get('/reviews', \App\Livewire\Customer\CustomerReviewsComponent::class)->name('customer.reviews');
+        Route::redirect('/customer/reviews', '/reviews');
+
+        // 5c. Asynchroner 1-Klick Erlebnis-Feedback Endpunkt
+        Route::post('/customer/experience-reviews', [\App\Http\Controllers\Customer\ExperienceReviewController::class, 'upsert'])
+            ->middleware('throttle:30,1')
+            ->name('customer.experience-reviews.upsert');
+
         // 6. Seelenfunken Audio-Einstellungen (BGM-Lautstärke, Mute & "Musik laufen lassen" über alle Seiten hinweg)
         Route::post('/customer/gamification/audio-settings', function (\Illuminate\Http\Request $request, \App\Services\Gamification\GamificationService $gameService) {
             $user = \Illuminate\Support\Facades\Auth::guard('customer')->user();

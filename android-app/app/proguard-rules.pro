@@ -52,7 +52,9 @@
 -keep public class * extends android.content.BroadcastReceiver
 -keep public class * extends android.app.Activity
 
-# Coroutines
+# Coroutines & Exception Diagnostics (keep Throwable class names & line numbers for Sentinel)
+-keepattributes SourceFile,LineNumberTable
+-keepnames class * extends java.lang.Throwable
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
 

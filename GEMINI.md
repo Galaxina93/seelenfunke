@@ -69,7 +69,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-17 23:02)
+> Generiert via `php artisan ai:generate-map` (2026-11-18 02:02)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -118,14 +118,14 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Order**: `OrderOrder, OrderOrderItem, OrderQuoteRequest, OrderQuoteRequestItem, OrderRevocation, OrderShipment`
 - **Product**: `Product, ProductAnalyticsEvent, ProductAttribute, ProductCategory, ProductIdea, ProductLoss, ProductNicheCrawlerRun, ProductNicheItem, ProductPackaging, ProductPackagingItem, ProductReview, ProductSupplier, ProductTemplate, ProductTierPrice`
 - **Root**: `SupportTelephonyCall`
-- **Support**: `SupportContactRequest, SupportContactRequestMessage, SupportCustomerChat, SupportCustomerChatMessage, SupportTicket, SupportTicketMessage`
+- **Support**: `SupportContactRequest, SupportContactRequestMessage, SupportCustomerChat, SupportCustomerChatMessage, SupportExperienceReview, SupportTicket, SupportTicketMessage`
 - **System**: `SystemAiHostingPlan, SystemBlockedIp, SystemCheckConfig, SystemCronjob, SystemDirectory, SystemLog, SystemLoginAttempt, SystemNeuralNode, SystemPasswordResetToken, SystemSchedulerLog, SystemSetting, SystemUser, SystemUserDevice`
 - **Tracking**: `PageVisit`
 
 ## 5. Livewire-Komponenten (`app/Livewire/<Domain>/*.php`)
 - **Auth**: `AuthLogin, AuthLoginDropdown, AuthPasswordReset, AuthProfileDropdown, AuthRegister`
 - **Backend\System**: `SystemNeuralAnalysisIndex`
-- **Customer**: `CustomerDashboardComponent, CustomerForcePasswordChange, CustomerFunkiComponent, CustomerInvoicesComponent, CustomerOrdersComponent, CustomerTicketsComponent`
+- **Customer**: `CustomerDashboardComponent, CustomerForcePasswordChange, CustomerFunkiComponent, CustomerInvoicesComponent, CustomerOrdersComponent, CustomerReviewsComponent, CustomerTicketsComponent`
 - **Customer\Gamification**: `GameGlobalStatsHeader, GameSparkHuntComponent`
 - **Employee**: `EmployeeDashboard`
 - **Employee\Influencer**: `InfluencerDashboard`
@@ -152,7 +152,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Shop\Product\ProductCalculator**: `ProductCalculator`
 - **Shop\Product\ProductConfigurator**: `ProductConfigurator`
 - **Shop\Product\ProductConfigurator\Traits**: `HandlesConfiguratorLogic`
-- **Shop\Support**: `SupportAnalytics, SupportChats, SupportContactFormComponent, SupportTelephony, SupportTicket`
+- **Shop\Support**: `SupportAnalytics, SupportChats, SupportContactFormComponent, SupportReviews, SupportTelephony, SupportTicket`
 - **Shop\System**: `SystemBackups, SystemDeliveryDisplay, SystemDeliveryTimes, SystemLogs, SystemShipping, SystemShopConfig, SystemUserManagement`
 - **Shop\Wishlist**: `WishlistIcon, WishlistPage`
 - **Traits**: `WithDepartmentTheming`
@@ -160,7 +160,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 ## 6. HTTP-Controller (`app/Http/Controllers/*.php`)
 - **Accounting**: `InvoiceDownloadController`
 - **Api**: `AgenticCommerceController, AntigravityDirectInboxController, CustomerLobbyController, FunkenwerkHeroesController, LavaParkourController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
-- **Customer**: `CustomerVerificationController, DigitalProductDownloadController, GiftVoucherDownloadController`
+- **Customer**: `CustomerVerificationController, DigitalProductDownloadController, ExperienceReviewController, GiftVoucherDownloadController`
 - **Frontend**: `ShopShowroomController`
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 

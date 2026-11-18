@@ -234,6 +234,9 @@
                     <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center shrink-0">
                         <h3 class="font-bold text-gray-800">Artikel anpassen</h3>
                         <button wire:click="cancelConfig" class="text-sm text-gray-500 hover:text-red-500">Abbrechen</button>
+                    @if(count($cartItems) > 0)
+                        <x-shop.experience-star-widget class="mb-3" area="calculator" wire:key="exp-star-calc-step1" />
+                    @endif
                     </div>
 
                     @if($showTemplateSelection)
@@ -324,6 +327,9 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                     </div>
+                <div class="max-w-3xl mx-auto px-8">
+                    <x-shop.experience-star-widget class="mt-6 -mb-2" area="calculator" wire:key="exp-star-calc-step3" />
+                </div>
                     <h3 class="text-3xl font-serif font-bold text-gray-900 mb-3">Anfrage erfolgreich!</h3>
                     @if(!empty($lastQuoteNumber))
                         <p class="text-sm font-mono font-bold text-primary mb-3">Angebotsnummer: {{ $lastQuoteNumber }}</p>

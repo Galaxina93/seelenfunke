@@ -68,7 +68,7 @@ class Louvre3DShowroomTest extends TestCase
             'Unsere Kollektion',
             'Entdecke Unikate, die deine Seele berühren.',
             '3D Shoppen',
-            'Manufaktur-Kollektion',
+            $active->name,
         ]);
         $this->assertStringContainsString('id="sf-louvre-showroom-modal"', $html);
         $this->assertStringContainsString('MEIN SEELENFUNKE · LOUVRE SHOWROOM', $html);

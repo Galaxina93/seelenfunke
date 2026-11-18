@@ -1150,11 +1150,11 @@ class SentinelTriageService
         $fileMode = app()->environment('local', 'testing') ? 0666 : 0600;
 
         $inboxPath = storage_path(self::INBOX_FILE);
-        File::ensureDirectoryExists(dirname($inboxPath));
-        File::put($inboxPath, json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-        if (!function_exists('posix_geteuid') || posix_geteuid() === 0 || @fileowner($inboxPath) === posix_geteuid()) {
-            @chmod($inboxPath, $fileMode);
-        }
+        self::writeSharedPrivateJsonAtomically(
+            $inboxPath,
+            (string) json_encode($snapshot, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            $fileMode
+        );
 
         $handoffPath = storage_path(self::HANDOFF_FILE);
         if (!empty($items)) {
@@ -1187,10 +1187,11 @@ class SentinelTriageService
                 'incoming_files' => $top['incoming_files'] ?? [],
                 'outgoing_files' => $top['outgoing_files'] ?? [],
             ]);
-            File::put($handoffPath, json_encode($handoffCompat, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            if (!function_exists('posix_geteuid') || posix_geteuid() === 0 || @fileowner($handoffPath) === posix_geteuid()) {
-                @chmod($handoffPath, $fileMode);
-            }
+            self::writeSharedPrivateJsonAtomically(
+                $handoffPath,
+                (string) json_encode($handoffCompat, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                $fileMode
+            );
         } elseif (File::exists($handoffPath)) {
             $existingHandoff = json_decode((string) @file_get_contents($handoffPath), true);
             if (is_array($existingHandoff) && str_contains((string) ($existingHandoff['prepared_by'] ?? ''), 'Sentinel')) {
@@ -1199,6 +1200,59 @@ class SentinelTriageService
         }
 
         return $snapshot;
+    }
+
+    /**
+     * Schreibt eine geteilte JSON-Steuerdatei in storage/app/private/ atomar ueber eine Temp-Datei
+     * im selben Verzeichnis + rename(), damit sich Docker (www-data / root) und Windows/WSL (ubuntuxina)
+     * niemals gegenseitig durch fremde Datei-Owner (0644) mit Permission denied aussperren.
+     */
+    public static function writeSharedPrivateJsonAtomically(
+        string $targetPath,
+        string $content,
+        ?int $fileMode = null
+    ): void {
+        $effectiveFileMode = $fileMode ?? ((app()->bound('env') && app()->environment('local', 'testing')) ? 0666 : 0600);
+        $dirMode = ($effectiveFileMode & 0006) !== 0 ? 0777 : 0700;
+        $dir = dirname($targetPath);
+
+        if (!is_dir($dir)) {
+            @mkdir($dir, $dirMode, true);
+        }
+        if (!function_exists('posix_geteuid') || posix_geteuid() === 0 || @fileowner($dir) === posix_geteuid()) {
+            @chmod($dir, $dirMode);
+        }
+
+        if (is_link($targetPath)) {
+            @unlink($targetPath);
+        }
+
+        $tmpPath = $dir . DIRECTORY_SEPARATOR . '.' . basename($targetPath) . '.tmp.' . getmypid() . '.' . bin2hex(random_bytes(4));
+        $written = @file_put_contents($tmpPath, $content, LOCK_EX);
+
+        if ($written !== false && $written === strlen($content)) {
+            @chmod($tmpPath, $effectiveFileMode);
+            if (!@rename($tmpPath, $targetPath)) {
+                @unlink($targetPath);
+                if (!@rename($tmpPath, $targetPath)) {
+                    @unlink($tmpPath);
+                    if (@is_file($targetPath) && !@is_writable($targetPath)) {
+                        @unlink($targetPath);
+                    }
+                    @file_put_contents($targetPath, $content, LOCK_EX);
+                }
+            }
+        } else {
+            @unlink($tmpPath);
+            if (@is_file($targetPath) && !@is_writable($targetPath)) {
+                @unlink($targetPath);
+            }
+            @file_put_contents($targetPath, $content, LOCK_EX);
+        }
+
+        if (!function_exists('posix_geteuid') || posix_geteuid() === 0 || @fileowner($targetPath) === posix_geteuid()) {
+            @chmod($targetPath, $effectiveFileMode);
+        }
     }
 
     /**

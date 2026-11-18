@@ -395,10 +395,11 @@
             @endif
 
             @if($context !== 'template_admin' && $context !== 'calculator')
-                <div x-show="saved"
+                <div x-show="hasAddedToCart"
                      x-cloak
                      x-collapse.duration.400ms
                      class="w-full pt-2.5 space-y-2">
+                    <x-shop.experience-star-widget area="configurator" :productId="$this->product->id ?? null" />
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <a href="{{ route('checkout') }}"
                            data-sf-portal="checkout"

@@ -418,13 +418,16 @@
                     <h2 class="text-lg font-serif font-bold text-gray-900 dark:text-white">Rabatt-Gutscheine freischalten</h2>
                     <p class="text-xs text-gray-500 dark:text-gray-400">Einmalig für deine nächste Bestellung einlösbar • Dein Level sinkt beim Einlösen nie.</p>
                 </div>
-                <button type="button"
-                        data-testid="funki-vouchers-open-3d-lobby"
-                        onclick="(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
-                        class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[#faf6ee] dark:hover:bg-gray-800 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black tracking-wide shadow-xs transition cursor-pointer shrink-0">
-                    <span>✨</span>
-                    <span>Funken im Funkenreich sammeln</span>
-                </button>
+                <div class="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+                    <x-shop.experience-star-widget area="funkenreich" :requireFunkenreichVisit="true" :darkAware="true" />
+                    <button type="button"
+                            data-testid="funki-vouchers-open-3d-lobby"
+                            onclick="try{localStorage.setItem('sf_visited_funkenreich_v1','1');window.dispatchEvent(new CustomEvent('sf-funkenreich-visited'));}catch(_e){}(function(){ if (window.getSeelenfunkeLobbyAudio) { window.getSeelenfunkeLobbyAudio({ isAuthenticated: true }).startLobbyMusicFromGesture(); } var e = window.SeelenfunkeHeroes3D; if (e && typeof e.open === 'function') { e.open('lobby'); return; } var s = document.getElementById('sf-heroes-3d-script'); if (!s) { s = document.createElement('script'); s.id = 'sf-heroes-3d-script'; s.src = '{{ asset('js/funkenwerk-heroes-3d.js') }}?v={{ @filemtime(public_path('js/funkenwerk-heroes-3d.js')) ?: time() }}'; s.onload = function(){ if (window.SeelenfunkeHeroes3D) window.SeelenfunkeHeroes3D.open('lobby'); }; document.head.appendChild(s); } })()"
+                            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-900 hover:bg-[#faf6ee] dark:hover:bg-gray-800 border border-[#C5A059] text-gray-900 dark:text-[#f5dca0] text-xs font-black tracking-wide shadow-xs transition cursor-pointer shrink-0">
+                        <span>✨</span>
+                        <span>Funken im Funkenreich sammeln</span>
+                    </button>
+                </div>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

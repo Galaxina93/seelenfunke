@@ -107,6 +107,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Aufgabe nicht umstellen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -129,6 +131,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Aufgabe nicht aktualisieren."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -173,6 +177,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Aufgabe nicht hinzufügen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -187,6 +193,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Aufgabe nicht löschen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -200,6 +208,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Aufgabenliste nicht löschen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -213,6 +223,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Aufgabenliste nicht hinzufügen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -227,6 +239,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Aufgabenliste nicht umbenennen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -240,6 +254,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Routinen nicht laden."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -259,6 +275,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Routine nicht erstellen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -280,6 +298,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Routine nicht aktualisieren."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -293,6 +313,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Routine nicht löschen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -306,6 +328,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Routine-Schritt nicht hinzufügen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -319,6 +343,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Routine-Schritt nicht löschen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -354,6 +380,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Server meldete Fehler beim Wecker-Sync."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -378,6 +406,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Wecker-Paket nicht vom Portal abrufen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -609,6 +639,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Einkaufsartikel nicht umstellen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -623,6 +655,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Einkaufsartikel nicht hinzufügen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -637,6 +671,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Stückzahl nicht ändern."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -651,9 +687,30 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Einkaufsartikel nicht löschen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun sanitizeCalendarEvent(raw: CalendarEvent?): CalendarEvent? {
+        if (raw == null) return null
+        @Suppress("USELESS_CAST")
+        val safeId = (raw.id as String?)?.trim().orEmpty()
+        @Suppress("USELESS_CAST")
+        val safeStart = (raw.start as String?)?.trim().orEmpty()
+        if (safeId.isEmpty() || safeStart.isEmpty()) return null
+        @Suppress("USELESS_CAST")
+        val safeTitle = (raw.title as String?)?.takeIf { it.isNotBlank() } ?: "Termin"
+        @Suppress("USELESS_CAST")
+        val safeCategory = (raw.category as String?)?.takeIf { it.isNotBlank() } ?: "general"
+        return raw.copy(
+            id = safeId,
+            title = safeTitle,
+            start = safeStart,
+            category = safeCategory
+        )
     }
 
     suspend fun getCalendarEvents(): Result<List<CalendarEvent>> {
@@ -662,13 +719,16 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val response = serviceLocator.getOrganizerApi().getCalendarEvents()
             if (response.success) {
-                val events = response.data
+                @Suppress("USELESS_CAST")
+                val rawList = (response.data as List<CalendarEvent?>?) ?: emptyList()
+                val events = rawList.mapNotNull { sanitizeCalendarEvent(it) }
                 de.meinseelenfunke.app.util.AppLogger.info(context, "OrganizerRepo", "getCalendarEvents: successfully loaded ${events.size} events")
                 saveCalendarEventsToCache(events)
                 Result.success(events)
             } else {
                 val cached = loadCalendarEventsFromCache()
                 if (cached != null) {
+                    de.meinseelenfunke.app.util.AppLogger.warn(context, "OrganizerRepo", "getCalendarEvents: API success=false, using cached events")
                     Result.success(cached)
                 } else {
                     val err = Exception("Server error response: success = false")
@@ -676,9 +736,20 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                     Result.failure(err)
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            de.meinseelenfunke.app.util.AppLogger.error(context, "OrganizerRepo", "getCalendarEvents exception", e)
             val cached = loadCalendarEventsFromCache()
+            val isTransientHttp = e is retrofit2.HttpException && e.code() in setOf(429, 502, 503, 504)
+            if (de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientNetworkOffline(e) || (isTransientHttp && cached != null)) {
+                de.meinseelenfunke.app.util.AppLogger.warn(
+                    context,
+                    "OrganizerRepo",
+                    "getCalendarEvents transient offline/transport fallback (${e.javaClass.simpleName}): ${e.message}"
+                )
+            } else {
+                de.meinseelenfunke.app.util.AppLogger.error(context, "OrganizerRepo", "getCalendarEvents exception", e)
+            }
             if (cached != null) Result.success(cached) else Result.failure(e)
         }
     }
@@ -697,7 +768,7 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
 
             triggerCalendarWidgetUpdate(context)
         } catch (e: Exception) {
-            android.util.Log.e("OrganizerRepository", "Failed to cache calendar events", e)
+            de.meinseelenfunke.app.util.AppLogger.warn(serviceLocator.context, "OrganizerRepo", "Failed to cache calendar events: ${e.message}")
         }
     }
 
@@ -747,6 +818,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Termin nicht hinzufügen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -760,6 +833,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Termin nicht löschen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -786,6 +861,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Termin nicht anpassen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -800,6 +877,8 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             } else {
                 Result.failure(Exception("Konnte Unteraufgabe nicht hinzufügen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -822,8 +901,14 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "uploadTaskFile failure: success=false")
                 Result.failure(Exception("Konnte Datei nicht hochladen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "uploadTaskFile exception: ${e.localizedMessage}", e)
+            if (de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientNetworkOffline(e)) {
+                de.meinseelenfunke.app.util.AppLogger.warn(serviceLocator.context, "OrganizerRepo", "uploadTaskFile offline/transport: ${e.message}")
+            } else {
+                de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "uploadTaskFile exception: ${e.localizedMessage}", e)
+            }
             Result.failure(e)
         }
     }
@@ -838,8 +923,14 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                 de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "deleteTaskFile failure: success=false")
                 Result.failure(Exception("Konnte Datei nicht löschen."))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "deleteTaskFile exception: ${e.localizedMessage}", e)
+            if (de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientNetworkOffline(e)) {
+                de.meinseelenfunke.app.util.AppLogger.warn(serviceLocator.context, "OrganizerRepo", "deleteTaskFile offline/transport: ${e.message}")
+            } else {
+                de.meinseelenfunke.app.util.AppLogger.error(serviceLocator.context, "OrganizerRepo", "deleteTaskFile exception: ${e.localizedMessage}", e)
+            }
             Result.failure(e)
         }
     }

@@ -101,15 +101,13 @@ namespace Tests {
             TestingTmpPathGuard::relaxOwnedTreePermissions($testingDiskRoot);
 
             if ($this->baseSnapshotInbox !== null) {
-                @file_put_contents($inboxPath, $this->baseSnapshotInbox);
-                TestingTmpPathGuard::safeChmod($inboxPath, 0666);
+                \App\Services\System\SentinelTriageService::writeSharedPrivateJsonAtomically($inboxPath, $this->baseSnapshotInbox, 0666);
             } elseif (is_file($inboxPath)) {
                 @unlink($inboxPath);
             }
 
             if ($this->baseSnapshotHandoff !== null) {
-                @file_put_contents($handoffPath, $this->baseSnapshotHandoff);
-                TestingTmpPathGuard::safeChmod($handoffPath, 0666);
+                \App\Services\System\SentinelTriageService::writeSharedPrivateJsonAtomically($handoffPath, $this->baseSnapshotHandoff, 0666);
             } elseif (is_file($handoffPath)) {
                 @unlink($handoffPath);
             }

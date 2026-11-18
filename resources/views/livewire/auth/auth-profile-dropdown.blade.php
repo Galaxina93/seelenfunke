@@ -52,6 +52,14 @@
         <x-heroicon-s-shopping-bag class="w-5 h-5 xl:w-6 xl:h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
     </a>
 
+    @if(($guard ?? null) === 'customer')
+        <a href="{{ route('customer.reviews') }}" wire:navigate class="flex flex-col items-center justify-center px-2 min-w-[3.5rem] h-14 sm:min-w-[4rem] sm:h-16 lg:min-w-[3.5rem] lg:h-14 xl:min-w-[4rem] xl:h-16 2xl:min-w-[4.5rem] 2xl:h-[4.5rem] rounded-xl {{ request()->routeIs('customer.reviews') ? 'bg-[#C5A059]/15 border border-[#C5A059]/40 text-[#C5A059]' : 'bg-[#C5A059]/5 border border-transparent hover:border-[#C5A059]/30 text-gray-500 hover:bg-[#C5A059]/10 hover:text-[#C5A059]' }} transition-all shadow-none hover:scale-105 group shrink-0 snap-start" title="Meine Bewertungen" aria-label="Meine Bewertungen" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
+            <span class="text-[7px] sm:text-[8px] xl:text-[9px] font-black uppercase tracking-wider mb-0.5 xl:mb-1 opacity-80 group-hover:opacity-100 group-hover:text-[#C5A059] transition-colors">Sterne</span>
+            <span class="sr-only">Meine Bewertungen</span>
+            <x-heroicon-s-star class="w-5 h-5 xl:w-6 xl:h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300 text-[#C5A059]" />
+        </a>
+    @endif
+
     <button @click="showProfileModal = true; activeProfileTab = 'profile'" class="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-14 lg:h-14 xl:w-16 xl:h-16 2xl:w-[4.5rem] 2xl:h-[4.5rem] rounded-xl bg-cyan-500/5 border border-transparent hover:border-cyan-500/30 text-gray-500 hover:bg-cyan-500/10 hover:text-cyan-500 dark:hover:text-cyan-400 transition-all shadow-none dark:hover:shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:scale-105 group shrink-0 snap-start" title="Profil" @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null">
         <span class="text-[8px] xl:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 xl:mb-1 opacity-70 group-hover:opacity-100 group-hover:text-cyan-500 dark:group-hover:text-cyan-400 transition-colors">Profil</span>
         <x-heroicon-s-user class="w-5 h-5 xl:w-6 xl:h-6 group-hover:rotate-12 group-active:scale-90 transition-transform duration-300" />
@@ -92,6 +100,12 @@
                         <button @click="activeProfileTab = 'password'" :class="activeProfileTab === 'password' ? 'bg-amber-500 text-gray-900 shadow-md font-black' : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white shadow-sm'" class="px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all whitespace-nowrap">Passwort</button>
                         <button @click="activeProfileTab = '2fa'" :class="activeProfileTab === '2fa' ? 'bg-emerald-500 text-white shadow-md font-black' : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white shadow-sm'" class="px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all whitespace-nowrap">2-FA Schutz</button>
                         <button @click="activeProfileTab = 'sessions'" :class="activeProfileTab === 'sessions' ? 'bg-purple-500 text-white shadow-md font-black' : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white shadow-sm'" class="px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all whitespace-nowrap">Geräte</button>
+                        @if(($guard ?? null) === 'customer')
+                            <a href="{{ route('customer.reviews') }}" wire:navigate @click="showProfileModal = false" class="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all whitespace-nowrap bg-white dark:bg-gray-900 border border-[#C5A059]/40 text-gray-800 dark:text-[#C5A059] hover:bg-[#C5A059] hover:text-gray-900 shadow-sm font-bold">
+                                <x-heroicon-s-star class="w-3.5 h-3.5 text-[#C5A059]" />
+                                Meine Bewertungen
+                            </a>
+                        @endif
                         <button @click="activeProfileTab = 'delete_account'" :class="activeProfileTab === 'delete_account' ? 'bg-red-500 text-white shadow-md font-black' : 'bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white shadow-sm'" class="px-6 py-2.5 rounded-xl text-[10px] uppercase tracking-widest transition-all whitespace-nowrap">Konto löschen</button>
                     </div>
                 </div>

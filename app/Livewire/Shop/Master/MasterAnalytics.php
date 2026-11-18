@@ -1641,6 +1641,7 @@ class MasterAnalytics extends Component
         $rawChecks = $service->getHealthChecks();
         $this->healthChecks = json_decode(json_encode($rawChecks), true) ?: [];
         $this->syncGeminiBridgeAlertIntoHealthChecks();
+        $this->syncExperienceReviewsIntoHealthChecks();
 
         $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins, $this->systemHealth, $this->healthChecks);
         $this->stats = json_decode(json_encode($rawStats), true);
@@ -1794,6 +1795,42 @@ class MasterAnalytics extends Component
                 'ssh_command' => null,
                 'items' => [],
             ];
+        }
+    }
+
+    /**
+     * Bindet offene 1-3 Sterne Erlebnis-Bewertungen in den Operativen Status (/admin/dashboard) ein.
+     */
+    protected function syncExperienceReviewsIntoHealthChecks(): void
+    {
+        if (
+            !class_exists(\App\Models\Support\SupportExperienceReview::class)
+            || !\Illuminate\Support\Facades\Schema::hasTable('support_experience_reviews')
+        ) {
+            return;
+        }
+
+        try {
+            $totalCount = \App\Models\Support\SupportExperienceReview::count();
+            $openCount = \App\Models\Support\SupportExperienceReview::where('status', 'open')->count();
+            $severeCount = \App\Models\Support\SupportExperienceReview::where('status', 'open')
+                ->where('rating', '<=', 2)
+                ->count();
+
+            $status = $openCount > 0 ? ($severeCount > 0 ? 'warning' : 'todo') : 'success';
+            $message = $openCount > 0
+                ? ($openCount . ' offene 1-3 ★ Hinweise')
+                : ($totalCount === 0 ? 'Keine Hinweise vorhanden' : 'Alle Hinweise erledigt');
+
+            $this->healthChecks['experience_reviews'] = [
+                'status' => $status,
+                'icon' => 'star',
+                'title' => 'Erlebnis-Feedback',
+                'message' => $message,
+                'count' => $openCount,
+                'data' => [],
+            ];
+        } catch (\Throwable $ignore) {
         }
     }
 
@@ -2755,6 +2792,7 @@ class MasterAnalytics extends Component
     public function render()
     {
         $this->syncGeminiBridgeAlertIntoHealthChecks();
+        $this->syncExperienceReviewsIntoHealthChecks();
 
         return view('livewire.shop.master.master-analytics', [
             'activeLogins' => $this->activeLogins,

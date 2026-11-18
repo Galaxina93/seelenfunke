@@ -15,9 +15,9 @@ class ProductFrontendFilterArea extends Component
     use WithPagination;
 
     public $search = '';
-    public string $collectionWorld = 'manufaktur'; // manufaktur, atelier, voucher
-    public $filterType = 'all'; // all, physical, digital, service (legacy URL compatibility)
-    public $filterPersonalizable = 'all'; // all, yes, no
+    public string $collectionWorld = 'all'; // Abwärtskompatibilität für alte Lesezeichen (manufaktur, atelier, voucher -> all)
+    public $filterType = 'all'; // Legacy URL-Kompatibilität (wird immer auf 'all' normalisiert)
+    public $filterPersonalizable = 'all'; // Legacy URL-Kompatibilität (wird immer auf 'all' normalisiert)
     public $filterSale = false; // Nur reduzierte Angebote (compare_at_price > price)
     public $filterCategory = '';
     public $filterHoliday = '';
@@ -25,7 +25,7 @@ class ProductFrontendFilterArea extends Component
     // Wir speichern den Query-String in der URL für besseres Teilen von Links
     protected $queryString = [
         'search' => ['except' => ''],
-        'collectionWorld' => ['except' => 'manufaktur'],
+        'collectionWorld' => ['except' => 'all'],
         'filterType' => ['except' => 'all'],
         'filterPersonalizable' => ['except' => 'all'],
         'filterSale' => ['except' => false],
@@ -35,34 +35,22 @@ class ProductFrontendFilterArea extends Component
 
     public function mount(): void
     {
-        if ($this->filterType === 'digital') {
-            $this->collectionWorld = 'voucher';
-        } elseif (!in_array($this->collectionWorld, ['manufaktur', 'atelier', 'voucher'], true)) {
-            $this->collectionWorld = 'manufaktur';
-        }
+        $this->collectionWorld = 'all';
+        $this->filterType = 'all';
+        $this->filterPersonalizable = 'all';
     }
 
-    public function setCollectionWorld(string $world): void
+    public function setCollectionWorld(string $world = 'all'): void
     {
-        if (!in_array($world, ['manufaktur', 'atelier', 'voucher'], true)) {
-            $world = 'manufaktur';
-        }
-        $this->collectionWorld = $world;
+        $this->collectionWorld = 'all';
         $this->filterType = 'all';
-        $this->filterCategory = '';
-        if ($world === 'voucher') {
-            $this->filterHoliday = '';
-            $this->filterPersonalizable = 'all';
-        }
+        $this->filterPersonalizable = 'all';
         $this->resetPage();
     }
 
     public function updatedCollectionWorld(): void
     {
-        if (!in_array($this->collectionWorld, ['manufaktur', 'atelier', 'voucher'], true)) {
-            $this->collectionWorld = 'manufaktur';
-        }
-        $this->filterCategory = '';
+        $this->collectionWorld = 'all';
         $this->resetPage();
     }
 
@@ -89,16 +77,13 @@ class ProductFrontendFilterArea extends Component
 
     public function updatedFilterType()
     {
-        if ($this->filterType === 'digital') {
-            $this->collectionWorld = 'voucher';
-        } elseif ($this->filterType === 'physical') {
-            $this->collectionWorld = 'manufaktur';
-        }
+        $this->filterType = 'all';
         $this->resetPage();
     }
 
     public function updatedFilterPersonalizable()
     {
+        $this->filterPersonalizable = 'all';
         $this->resetPage();
     }
 
@@ -109,7 +94,7 @@ class ProductFrontendFilterArea extends Component
 
     public function resetFilters()
     {
-        $this->reset(['search', 'filterType', 'filterPersonalizable', 'filterSale', 'filterCategory', 'filterHoliday']);
+        $this->reset(['search', 'collectionWorld', 'filterType', 'filterPersonalizable', 'filterSale', 'filterCategory', 'filterHoliday']);
         $this->resetPage();
     }
 
@@ -121,6 +106,10 @@ class ProductFrontendFilterArea extends Component
 
     public function addToCart(string $productId, \App\Services\CartService $cartService): bool
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            return false;
+        }
+
         $product = Product::where('status', 'active')
             ->where('slug', '!=', 'seelenfunke-ingame-artifact')
             ->where('id', $productId)
@@ -146,91 +135,35 @@ class ProductFrontendFilterArea extends Component
             return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
         }
 
-        if (!in_array($this->collectionWorld, ['manufaktur', 'atelier', 'voucher'], true)) {
-            $this->collectionWorld = 'manufaktur';
-        }
 
-        $hasCollectionLineCol = \Illuminate\Support\Facades\Schema::hasColumn('products', 'collection_line');
-
-        // Anzahl pro Kollektions-Welt ermitteln (für saubere Trennung von Manufaktur, Atelier Echtgold/Silber & Gutscheinen)
-        $manufakturCount = Product::where('status', 'active')
-            ->where('slug', '!=', 'seelenfunke-ingame-artifact')
-            ->where('type', 'physical')
-            ->when($hasCollectionLineCol, fn($q) => $q->where(fn($sub) => $sub->whereNull('collection_line')->orWhere('collection_line', '!=', 'atelier')))
-            ->count();
-
-        $atelierCount = $hasCollectionLineCol
-            ? Product::where('status', 'active')
-                ->where('slug', '!=', 'seelenfunke-ingame-artifact')
-                ->where('type', 'physical')
-                ->where('collection_line', 'atelier')
-                ->count()
-            : 0;
-
-        $voucherCount = Product::where('status', 'active')
-            ->where('slug', '!=', 'seelenfunke-ingame-artifact')
-            ->where(function ($q) use ($hasCollectionLineCol) {
-                $q->where('type', 'digital');
-                if ($hasCollectionLineCol) {
-                    $q->orWhere('collection_line', 'voucher');
-                }
-            })
-            ->count();
+        $this->collectionWorld = 'all';
+        $this->filterType = 'all';
+        $this->filterPersonalizable = 'all';
 
         // Dynamisch ermitteln, welche Produkttypen tatsächlich in aktiven Produkten vorhanden sind
         $availableTypes = Product::where('status', 'active')
+            ->where('slug', '!=', 'seelenfunke-ingame-artifact')
             ->distinct()
             ->pluck('type')
             ->toArray();
 
-        if ($this->filterType !== 'all' && !in_array($this->filterType, $availableTypes, true)) {
-            $this->filterType = 'all';
-        }
-
-        $activeWorld = $this->collectionWorld;
-
-        // Dynamisches Laden der Kategorien, die in der aktuell gewählten Kollektions-Welt aktive Produkte enthalten
-        $categoryQuery = ProductCategory::whereHas('products', function ($query) use ($activeWorld, $hasCollectionLineCol) {
+        // Dynamisches Laden aller Kategorien, die mindestens 1 aktives Produkt im gemeinsamen Schaufenster besitzen
+        $categories = ProductCategory::whereHas('products', function ($query) {
             $query->where('status', 'active')
                 ->where('slug', '!=', 'seelenfunke-ingame-artifact');
+        })->orderBy('name')->get();
 
-            if ($activeWorld === 'atelier') {
-                $query->where('type', 'physical');
-                if ($hasCollectionLineCol) {
-                    $query->where('collection_line', 'atelier');
-                }
-            } elseif ($activeWorld === 'voucher') {
-                $query->where(function ($sub) use ($hasCollectionLineCol) {
-                    $sub->where('type', 'digital');
-                    if ($hasCollectionLineCol) {
-                        $sub->orWhere('collection_line', 'voucher');
-                    }
-                });
-            } else {
-                $query->where('type', 'physical');
-                if ($hasCollectionLineCol) {
-                    $query->where(fn($sub) => $sub->whereNull('collection_line')->orWhere('collection_line', '!=', 'atelier'));
-                }
-            }
-        })->orderBy('name');
-        $categories = $categoryQuery->get();
-
-        if (!empty($this->filterCategory) && !$categories->contains('id', (int)$this->filterCategory)) {
+        if (!empty($this->filterCategory) && !$categories->contains('id', (int) $this->filterCategory)) {
             $this->filterCategory = '';
         }
 
-        // Dynamisches Laden der Anlässe (Holidays), die tatsächlich bei aktiven Vorlagen aktiver Produkte existieren
+        // Dynamisches Laden der Anlässe (Holidays) über alle aktiven Produkte hinweg
         $rawHolidays = ProductTemplate::where('is_active', true)
             ->whereNotNull('holiday')
             ->whereNotIn('holiday', ['', 'kein feiertag', 'Kein Feiertag', 'kein_feiertag', 'none', 'null'])
-            ->whereHas('product', function ($q) use ($activeWorld, $hasCollectionLineCol) {
-                $q->where('status', 'active');
-                if ($activeWorld === 'atelier' && $hasCollectionLineCol) {
-                    $q->where('collection_line', 'atelier');
-                } elseif ($activeWorld === 'manufaktur' && $hasCollectionLineCol) {
-                    $q->where('type', 'physical')
-                      ->where(fn($sub) => $sub->whereNull('collection_line')->orWhere('collection_line', '!=', 'atelier'));
-                }
+            ->whereHas('product', function ($q) {
+                $q->where('status', 'active')
+                  ->where('slug', '!=', 'seelenfunke-ingame-artifact');
             })
             ->distinct()
             ->pluck('holiday')
@@ -292,7 +225,7 @@ class ProductFrontendFilterArea extends Component
             }
         }
 
-        // Haupt-Query aufbauen (verstecktes Ingame-Shop-Systemprodukt aus dem regulären Shop-Katalog ausblenden)
+        // Gemeinsames Haupt-Schaufenster für alle aktiven Produkte (Manufaktur, 925er Atelier & Geschenkgutschein)
         $query = Product::where('status', 'active')
             ->where('slug', '!=', 'seelenfunke-ingame-artifact')
             ->with(['categories', 'tierPrices'])
@@ -303,124 +236,72 @@ class ProductFrontendFilterArea extends Component
                 $q->where('status', 'approved');
             }], 'rating');
 
-        // 1. Strikte Trennung der 3 Kollektions-Welten (Manufaktur, Atelier Echtgold/Silber & Gutscheine)
-        if ($activeWorld === 'atelier') {
-            $query->where('type', 'physical');
-            if ($hasCollectionLineCol) {
-                $query->where('collection_line', 'atelier');
-            } else {
-                $query->whereRaw('1 = 0');
-            }
-        } elseif ($activeWorld === 'voucher') {
-            $query->where(function ($q) use ($hasCollectionLineCol) {
-                $q->where('type', 'digital');
-                if ($hasCollectionLineCol) {
-                    $q->orWhere('collection_line', 'voucher');
-                }
-            });
-        } else {
-            // Standard: Manufaktur-Kollektion (ohne digitale Gutscheine, ohne Service, ohne hochpreisige Atelier-Echtgold-Stücke)
-            $query->where('type', 'physical');
-            if ($hasCollectionLineCol) {
-                $query->where(function ($q) {
-                    $q->whereNull('collection_line')
-                      ->orWhere('collection_line', '!=', 'atelier');
-                });
-            }
-        }
-
-        // 2. Suche nach Name oder Beschreibung
+        // 1. Suche nach Name oder Beschreibung
         if (!empty($this->search)) {
             $escapedSearch = addcslashes((string) $this->search, '%_\\');
-            $query->where(function($q) use ($escapedSearch) {
+            $query->where(function ($q) use ($escapedSearch) {
                 $q->where('name', 'like', '%' . $escapedSearch . '%')
                     ->orWhere('short_description', 'like', '%' . $escapedSearch . '%');
             });
         }
 
-        // 3. Filter nach Kategorie (Relation)
+        // 2. Filter nach Kategorie (Relation)
         if (!empty($this->filterCategory)) {
-            $query->whereHas('categories', function($q) {
+            $query->whereHas('categories', function ($q) {
                 $q->where('product_categories.id', $this->filterCategory);
             });
         }
 
-        // 3b. Filter nach Personalisierbarkeit (Prüfen, ob Standard-Produkte in dieser Kollektions-Welt existieren)
-        $standardProductsQuery = Product::where('status', 'active')
-            ->where('slug', '!=', 'seelenfunke-ingame-artifact')
-            ->where('is_personalizable', false);
-
-        if ($activeWorld === 'atelier') {
-            $standardProductsQuery->where('type', 'physical');
-            if ($hasCollectionLineCol) {
-                $standardProductsQuery->where('collection_line', 'atelier');
-            } else {
-                $standardProductsQuery->whereRaw('1 = 0');
-            }
-        } elseif ($activeWorld === 'voucher') {
-            $standardProductsQuery->where(function ($q) use ($hasCollectionLineCol) {
-                $q->where('type', 'digital');
-                if ($hasCollectionLineCol) {
-                    $q->orWhere('collection_line', 'voucher');
-                }
-            });
-        } else {
-            $standardProductsQuery->where('type', 'physical');
-            if ($hasCollectionLineCol) {
-                $standardProductsQuery->where(function ($q) {
-                    $q->whereNull('collection_line')
-                      ->orWhere('collection_line', '!=', 'atelier');
-                });
-            }
-        }
-
-        $hasStandardProducts = $standardProductsQuery->exists();
-
-        if (!$hasStandardProducts && $this->filterPersonalizable === 'no') {
-            $this->filterPersonalizable = 'all';
-        }
-
-        if ($this->filterPersonalizable === 'yes') {
-            $query->where('is_personalizable', true);
-        } elseif ($this->filterPersonalizable === 'no') {
-            $query->where('is_personalizable', false);
-        }
-
-        // 3c. Filter nach Angeboten (Sale: compare_at_price > price)
+        // 3. Filter nach Angeboten (Sale: compare_at_price > price)
         if ($this->filterSale) {
             $query->whereNotNull('compare_at_price')
                   ->whereColumn('compare_at_price', '>', 'price');
         }
 
         $saleCount = Product::where('status', 'active')
+            ->where('slug', '!=', 'seelenfunke-ingame-artifact')
             ->whereNotNull('compare_at_price')
             ->whereColumn('compare_at_price', '>', 'price')
             ->count();
 
         // 4. Filter nach Anlass / Feiertag (Template Projection Feature)
         if (!empty($this->filterHoliday)) {
-            $query->whereHas('templates', function($q) {
-                $q->where(function($sub) {
+            $query->whereHas('templates', function ($q) {
+                $q->where(function ($sub) {
                     $sub->where('holiday', $this->filterHoliday)
                         ->orWhere('holiday', strtolower($this->filterHoliday))
                         ->orWhere('holiday', ucfirst($this->filterHoliday));
                 })->where('is_active', true);
             });
             // Eager Load Templates for the thumbnail swap in blade view
-            $query->with(['templates' => function($q) {
-                $q->where(function($sub) {
+            $query->with(['templates' => function ($q) {
+                $q->where(function ($sub) {
                     $sub->where('holiday', $this->filterHoliday)
                         ->orWhere('holiday', strtolower($this->filterHoliday))
                         ->orWhere('holiday', ucfirst($this->filterHoliday));
                 })->where('is_active', true);
             }]);
         } else {
-            $query->with(['templates' => function($q) {
+            $query->with(['templates' => function ($q) {
                 $q->where('is_active', true);
             }]);
         }
 
-        $products = $query->latest()->paginate(12);
+        // Wertige Sortierung: zuerst physische Unikate (Manufaktur & Atelier), ganz am Ende digitale Gutscheine
+        $products = $query
+            ->orderByRaw("CASE WHEN type = 'digital' OR slug = 'geschenkgutschein' THEN 1 ELSE 0 END ASC")
+            ->orderByRaw("CASE slug
+                WHEN 'seelen-kristall' THEN 1
+                WHEN 'goldenes-seelen-herz' THEN 2
+                WHEN 'seelen-anhaenger' THEN 3
+                WHEN 'id-armband-silber-herz' THEN 4
+                WHEN 'id-armband-gold-herz' THEN 5
+                WHEN 'seelen-pfote-hundemarke' THEN 6
+                WHEN 'seelen-talisman' THEN 7
+                ELSE 50 END ASC")
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'asc')
+            ->paginate(12);
 
         $heroBanner = $this->resolveHeroBanner((string) $this->filterHoliday, $saleCount);
 
@@ -437,22 +318,14 @@ class ProductFrontendFilterArea extends Component
         $companyName = shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke'));
         $city = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
         $shopTitle = "Unsere Kollektion · Personalisierte Geschenke & Lasergravur | {$companyName}";
-        $shopMetaDesc = 'Entdecke handveredelte Unikate mit präziser Lasergravur: K9-Kristallglas-Trophäen, Edelstahl-Schlüsselanhänger, Hundemarken & Kristallgläser live im 3D-Konfigurator gestalten.';
+        $shopMetaDesc = 'Entdecke handveredelte Unikate mit präziser Lasergravur: K9-Kristallglas-Trophäen, 925er Silber- & vergoldeter Edelstahl-Schmuck, Schlüsselanhänger & Hundemarken live im 3D-Konfigurator gestalten.';
         $shopCanonical = route('shop');
 
-        if ($activeWorld === 'atelier') {
-            $shopTitle = "Atelier Echtgold & Silber · Exklusive Unikate mit Gravur | {$companyName}";
-            $shopMetaDesc = "Meisterstücke aus echtem 585er & 333er Gold sowie 925er Sterling Silber, mit weißen Handschuhen individuell in unserer Manufaktur in {$city} veredelt.";
-            $shopCanonical = route('shop', ['collectionWorld' => 'atelier']);
-        } elseif ($activeWorld === 'voucher') {
-            $shopTitle = "Geschenkgutscheine · Sofort-Freude & Edel-Umschlag | {$companyName}";
-            $shopMetaDesc = "Verschenke den Seelenfunke-Geschenkgutschein digital als Sofort-PDF oder als lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag mit Wachssiegel.";
-            $shopCanonical = route('shop', ['collectionWorld' => 'voucher']);
-        } elseif (!empty($this->filterHoliday)) {
+        if (!empty($this->filterHoliday)) {
             $normH = mb_strtolower(trim((string) $this->filterHoliday));
             $hLabel = $holidayLabels[$normH] ?? ucfirst($normH);
             $shopTitle = "{$hLabel} Geschenke personalisiert mit Lasergravur | {$companyName}";
-            $shopMetaDesc = "Besondere Geschenke zu {$hLabel}: Handveredelte Unikate aus K9-Kristallglas, Edelstahl & Metall mit eigener Wunschgravur im 2D/3D-Konfigurator gestalten.";
+            $shopMetaDesc = "Besondere Geschenke zu {$hLabel}: Handveredelte Unikate aus K9-Kristallglas, 925er Silber & Edelstahl mit eigener Wunschgravur im 2D/3D-Konfigurator gestalten.";
             $shopCanonical = route('shop', ['filterHoliday' => $normH]);
         } elseif (!empty($this->filterCategory)) {
             $selectedCat = $categories->firstWhere('id', (int) $this->filterCategory);
@@ -511,10 +384,6 @@ class ProductFrontendFilterArea extends Component
             'availableTypes' => $availableTypes,
             'availableHolidays' => $availableHolidays,
             'saleCount' => $saleCount,
-            'hasStandardProducts' => $hasStandardProducts,
-            'manufakturCount' => $manufakturCount,
-            'atelierCount' => $atelierCount,
-            'voucherCount' => $voucherCount,
             'heroBanner' => $heroBanner,
             'shopSchema' => $shopSchema,
             'wishlistProductIds' => app(\App\Services\WishlistService::class)->getProductIds(),

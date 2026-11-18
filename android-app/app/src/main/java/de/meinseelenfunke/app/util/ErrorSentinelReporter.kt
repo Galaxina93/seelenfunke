@@ -139,7 +139,11 @@ object ErrorSentinelReporter {
                 cur is java.net.ConnectException ||
                 cur is java.net.NoRouteToHostException ||
                 cur is java.net.SocketTimeoutException ||
+                cur is java.io.InterruptedIOException ||
+                cur is java.io.EOFException ||
                 cur is java.net.SocketException ||
+                cur is okhttp3.internal.http2.StreamResetException ||
+                cur is okhttp3.internal.http2.ConnectionShutdownException ||
                 isTransientSslTransportAbort(cur)
             ) {
                 return true
@@ -163,9 +167,12 @@ object ErrorSentinelReporter {
             if (cur is java.io.EOFException ||
                 cur is java.net.SocketException ||
                 cur is java.net.SocketTimeoutException ||
+                cur is java.io.InterruptedIOException ||
                 cur is java.net.UnknownHostException ||
                 cur is java.net.ConnectException ||
                 cur is java.net.NoRouteToHostException ||
+                cur is okhttp3.internal.http2.StreamResetException ||
+                cur is okhttp3.internal.http2.ConnectionShutdownException ||
                 isTransientSslTransportAbort(cur)
             ) {
                 return true
@@ -191,7 +198,9 @@ object ErrorSentinelReporter {
         }
         val appCtx = resolveContext(context) ?: return
         val shortTitle = if (throwable != null) {
-            "$cleanTag: ${throwable.javaClass.simpleName}"
+            val rawSimple = throwable.javaClass.simpleName
+            val exLabel = if (rawSimple.length <= 2) throwable.javaClass.name else rawSimple
+            "$cleanTag: $exLabel"
         } else {
             "$cleanTag: ${message.lineSequence().firstOrNull()?.take(90) ?: "Fehler"}"
         }

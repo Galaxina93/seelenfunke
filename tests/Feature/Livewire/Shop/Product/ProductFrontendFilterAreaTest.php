@@ -7,6 +7,7 @@ use App\Models\Product\Product;
 use App\Models\Product\ProductCategory;
 use App\Models\Product\ProductTemplate;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
@@ -28,102 +29,160 @@ class ProductFrontendFilterAreaTest extends TestCase
         ]);
     }
 
-    #[Test]
-    public function service_tab_is_hidden_when_no_active_service_products_exist()
+    protected function tearDown(): void
     {
-        // Ensure only physical products exist
-        Product::query()->update(['status' => 'archived']);
-
-        Product::create([
-            'name' => 'Holzblock Physisch',
-            'slug' => 'holzblock-physisch-' . uniqid(),
-            'status' => 'active',
-            'type' => 'physical',
-            'price' => 2000,
-        ]);
-
-        $component = Livewire::test(ProductFrontendFilterArea::class);
-
-        $component->assertSee('Manufaktur-Kollektion');
-        $component->assertSee('Holzblock Physisch');
-        $component->assertDontSee('Service');
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     #[Test]
-    public function digital_tab_appears_only_when_active_digital_products_exist()
+    public function unified_storefront_shows_manufaktur_atelier_and_digital_vouchers_together_without_world_tabs()
     {
         Product::query()->update(['status' => 'archived']);
 
-        // Only physical product initially
         Product::create([
-            'name' => 'Holzblock Physisch',
-            'slug' => 'holzblock-physisch-' . uniqid(),
+            'name' => 'Holzblock Manufaktur',
+            'slug' => 'holzblock-manufaktur-' . uniqid(),
             'status' => 'active',
             'type' => 'physical',
+            'collection_line' => 'manufaktur',
             'price' => 2000,
+            'track_quantity' => true,
+            'quantity' => 10,
         ]);
 
-        // Add an active digital voucher product
         Product::create([
-            'name' => 'E-Book Digital',
-            'slug' => 'ebook-digital-' . uniqid(),
-            'status' => 'active',
-            'type' => 'digital',
-            'price' => 1500,
-        ]);
-
-        $component = Livewire::test(ProductFrontendFilterArea::class);
-        $component->assertSee('Geschenkgutscheine');
-        $component->call('setCollectionWorld', 'voucher')
-            ->assertSet('collectionWorld', 'voucher')
-            ->assertSee('E-Book Digital')
-            ->assertDontSee('Holzblock Physisch');
-    }
-
-    #[Test]
-    public function service_tab_appears_when_active_service_product_exists()
-    {
-        Product::query()->update(['status' => 'archived']);
-
-        Product::create([
-            'name' => 'Atelier Ring Echtgold',
-            'slug' => 'atelier-ring-echtgold-' . uniqid(),
+            'name' => 'Echtsilber Armband 925',
+            'slug' => 'echtsilber-armband-925-' . uniqid(),
             'status' => 'active',
             'type' => 'physical',
             'collection_line' => 'atelier',
-            'price' => 5000,
+            'price' => 5990,
+            'track_quantity' => true,
+            'quantity' => 10,
+        ]);
+
+        Product::create([
+            'name' => 'Seelenfunke Geschenkgutschein',
+            'slug' => 'geschenkgutschein',
+            'status' => 'active',
+            'type' => 'digital',
+            'collection_line' => 'voucher',
+            'price' => 2500,
+            'track_quantity' => false,
+            'quantity' => 0,
         ]);
 
         $component = Livewire::test(ProductFrontendFilterArea::class);
-        $component->assertSee('Atelier Echtgold');
-        $component->call('setCollectionWorld', 'atelier')
-            ->assertSet('collectionWorld', 'atelier')
-            ->assertSee('Atelier Ring Echtgold');
+
+        // Gemeinsames Schaufenster: alle 3 Produktlinien sofort sichtbar
+        $component->assertSeeInOrder([
+            'Holzblock Manufaktur',
+            'Echtsilber Armband 925',
+            'Seelenfunke Geschenkgutschein',
+        ]);
+        $component->assertSee('925er Silber · Atelier');
+
+        // Alte 3-Welten-Tabs und Personalisiert/Standard-Pills sind nicht mehr vorhanden
+        $component->assertDontSee('Manufaktur-Kollektion');
+        $component->assertDontSee('Atelier Echtgold & Silber');
+        $component->assertDontSeeHtml("set('filterPersonalizable'");
+        $component->assertDontSeeHtml('>Personalisiert<');
+        $component->assertDontSeeHtml('>Standard<');
     }
 
     #[Test]
-    public function invalid_filter_type_in_query_string_falls_back_to_all()
+    public function legacy_collection_world_and_filter_type_query_params_normalize_gracefully_and_keep_all_products_visible()
     {
         Product::query()->update(['status' => 'archived']);
 
         Product::create([
-            'name' => 'Holzblock Physisch',
-            'slug' => 'holzblock-physisch-' . uniqid(),
+            'name' => 'Kristall Unikat Physisch',
+            'slug' => 'kristall-unikat-' . uniqid(),
             'status' => 'active',
             'type' => 'physical',
-            'price' => 2000,
+            'price' => 4990,
+            'track_quantity' => true,
+            'quantity' => 5,
         ]);
 
-        // Attempting to set filterType to service when no service products exist
-        $component = Livewire::withQueryParams(['filterType' => 'service'])
-            ->test(ProductFrontendFilterArea::class);
+        Product::create([
+            'name' => 'Atelier Silber Herz',
+            'slug' => 'atelier-silber-herz-' . uniqid(),
+            'status' => 'active',
+            'type' => 'physical',
+            'collection_line' => 'atelier',
+            'price' => 6490,
+            'track_quantity' => true,
+            'quantity' => 5,
+        ]);
 
-        $component->assertSet('filterType', 'all');
+        Product::create([
+            'name' => 'Digitaler Gutschein',
+            'slug' => 'digitaler-gutschein-' . uniqid(),
+            'status' => 'active',
+            'type' => 'digital',
+            'price' => 2500,
+            'track_quantity' => false,
+        ]);
+
+        foreach (['atelier', 'voucher', 'manufaktur', 'invalid'] as $legacyWorld) {
+            Livewire::withQueryParams(['collectionWorld' => $legacyWorld])
+                ->test(ProductFrontendFilterArea::class)
+                ->assertSet('collectionWorld', 'all')
+                ->assertSee('Kristall Unikat Physisch')
+                ->assertSee('Atelier Silber Herz')
+                ->assertSee('Digitaler Gutschein');
+        }
+
+        foreach (['digital', 'service', 'physical'] as $legacyType) {
+            Livewire::withQueryParams(['filterType' => $legacyType])
+                ->test(ProductFrontendFilterArea::class)
+                ->assertSet('filterType', 'all')
+                ->assertSee('Kristall Unikat Physisch')
+                ->assertSee('Atelier Silber Herz')
+                ->assertSee('Digitaler Gutschein');
+        }
+
+        // Auch ein direkter Legacy-Methodenaufruf sperrt keine Produkte mehr weg
+        Livewire::test(ProductFrontendFilterArea::class)
+            ->call('setCollectionWorld', 'voucher')
+            ->assertSet('collectionWorld', 'all')
+            ->assertSee('Kristall Unikat Physisch')
+            ->assertSee('Digitaler Gutschein');
+    }
+
+    #[Test]
+    public function sale_button_only_appears_when_discounted_products_exist_or_sale_filter_is_active()
+    {
+        Product::query()->update(['status' => 'archived']);
+
+        $regular = Product::create([
+            'name' => 'Regulaeres Produkt',
+            'slug' => 'regulaer-' . uniqid(),
+            'status' => 'active',
+            'type' => 'physical',
+            'price' => 2990,
+            'compare_at_price' => null,
+            'track_quantity' => true,
+            'quantity' => 5,
+        ]);
+
+        Livewire::test(ProductFrontendFilterArea::class)
+            ->assertDontSeeHtml('wire:click="toggleSaleFilter"');
+
+        $regular->update(['compare_at_price' => 3990]);
+
+        Livewire::test(ProductFrontendFilterArea::class)
+            ->assertSeeHtml('wire:click="toggleSaleFilter"')
+            ->assertSee('Angebote');
     }
 
     #[Test]
     public function occasions_dropdown_only_shows_holidays_from_active_templates_of_active_products()
     {
+        Carbon::setTestNow('2026-12-01 12:00:00');
+
         Product::query()->update(['status' => 'archived']);
         ProductTemplate::query()->update(['is_active' => false]);
 
@@ -132,11 +191,11 @@ class ProductFrontendFilterAreaTest extends TestCase
             'slug' => 'gravur-geschenk-' . uniqid(),
             'status' => 'active',
             'type' => 'physical',
+            'collection_line' => 'atelier',
             'price' => 2500,
             'is_personalizable' => true,
         ]);
 
-        // Create an active template for Weihnachten
         ProductTemplate::create([
             'product_id' => $product->id,
             'name' => 'Weihnachtsedition',
@@ -146,10 +205,7 @@ class ProductFrontendFilterAreaTest extends TestCase
 
         $component = Livewire::test(ProductFrontendFilterArea::class);
 
-        // Weihnachten must be in the dropdown
         $component->assertSeeHtml('<option value="Weihnachten">Weihnachten</option>');
-
-        // Non-existent holidays (like Valentinstag, Trauer, Ostern) must NOT be present
         $component->assertDontSeeHtml('Valentinstag');
         $component->assertDontSeeHtml('Trauer');
         $component->assertDontSeeHtml('Vatertag');
@@ -172,44 +228,60 @@ class ProductFrontendFilterAreaTest extends TestCase
 
         $component = Livewire::test(ProductFrontendFilterArea::class);
 
-        // When no templates exist, Anlass dropdown must not appear
         $component->assertDontSee('Alle Anlässe');
     }
 
     #[Test]
-    public function category_dropdown_only_shows_categories_with_active_products()
+    public function category_dropdown_shows_categories_across_all_active_products_in_unified_storefront()
     {
         Product::query()->update(['status' => 'archived']);
 
-        $catWithProducts = ProductCategory::create([
-            'name' => 'Aktive Testkategorie ' . uniqid(),
-            'slug' => 'aktive-kategorie-' . uniqid(),
+        $catManufaktur = ProductCategory::create([
+            'name' => 'Manufaktur Kategorie ' . uniqid(),
+            'slug' => 'manufaktur-kat-' . uniqid(),
         ]);
 
-        $catWithoutProducts = ProductCategory::create([
+        $catAtelier = ProductCategory::create([
+            'name' => 'Atelier Kategorie ' . uniqid(),
+            'slug' => 'atelier-kat-' . uniqid(),
+        ]);
+
+        $catEmpty = ProductCategory::create([
             'name' => 'Leere Geisterkategorie ' . uniqid(),
             'slug' => 'leere-kategorie-' . uniqid(),
         ]);
 
-        $product = Product::create([
-            'name' => 'Kategorie Produkt',
-            'slug' => 'kategorie-produkt-' . uniqid(),
+        $p1 = Product::create([
+            'name' => 'Manufaktur Produkt',
+            'slug' => 'manufaktur-prod-' . uniqid(),
             'status' => 'active',
             'type' => 'physical',
             'price' => 2000,
         ]);
+        $p1->categories()->attach($catManufaktur->id);
 
-        $product->categories()->attach($catWithProducts->id);
+        $p2 = Product::create([
+            'name' => 'Atelier Produkt',
+            'slug' => 'atelier-prod-' . uniqid(),
+            'status' => 'active',
+            'type' => 'physical',
+            'collection_line' => 'atelier',
+            'price' => 5500,
+        ]);
+        $p2->categories()->attach($catAtelier->id);
 
         $component = Livewire::test(ProductFrontendFilterArea::class);
 
-        $component->assertSeeHtml($catWithProducts->name);
-        $component->assertDontSeeHtml($catWithoutProducts->name);
+        $component->assertSeeHtml($catManufaktur->name);
+        $component->assertSeeHtml($catAtelier->name);
+        $component->assertDontSeeHtml($catEmpty->name);
     }
 
     #[Test]
     public function filtering_by_holiday_filters_matching_products()
     {
+        Carbon::setTestNow('2026-12-01 12:00:00');
+
         Product::query()->update(['status' => 'archived']);
         ProductTemplate::query()->update(['is_active' => false]);
 
@@ -229,9 +301,9 @@ class ProductFrontendFilterAreaTest extends TestCase
             'is_active' => true,
         ]);
 
-        $easterProduct = Product::create([
-            'name' => 'Oster-Artikel Speziell',
-            'slug' => 'easter-special-' . uniqid(),
+        $bdayProduct = Product::create([
+            'name' => 'Geburtstags-Artikel Speziell',
+            'slug' => 'bday-special-' . uniqid(),
             'status' => 'active',
             'type' => 'physical',
             'price' => 3000,
@@ -239,9 +311,9 @@ class ProductFrontendFilterAreaTest extends TestCase
         ]);
 
         ProductTemplate::create([
-            'product_id' => $easterProduct->id,
-            'name' => 'Oster Vorlage',
-            'holiday' => 'Ostern',
+            'product_id' => $bdayProduct->id,
+            'name' => 'Geburtstag Vorlage',
+            'holiday' => 'Geburtstag',
             'is_active' => true,
         ]);
 
@@ -249,7 +321,7 @@ class ProductFrontendFilterAreaTest extends TestCase
         $component->set('filterHoliday', 'Weihnachten');
 
         $component->assertSee('Weihnachts-Artikel Speziell');
-        $component->assertDontSee('Oster-Artikel Speziell');
+        $component->assertDontSee('Geburtstags-Artikel Speziell');
     }
 
     #[Test]
@@ -257,14 +329,15 @@ class ProductFrontendFilterAreaTest extends TestCase
     {
         $component = Livewire::test(ProductFrontendFilterArea::class)
             ->set('search', 'Testsuche')
-            ->set('filterType', 'physical')
-            ->set('filterPersonalizable', 'yes')
+            ->set('filterSale', true)
             ->set('filterCategory', '1')
             ->call('resetFilters');
 
         $component->assertSet('search', '');
+        $component->assertSet('collectionWorld', 'all');
         $component->assertSet('filterType', 'all');
         $component->assertSet('filterPersonalizable', 'all');
+        $component->assertSet('filterSale', false);
         $component->assertSet('filterCategory', '');
         $component->assertSet('filterHoliday', '');
     }

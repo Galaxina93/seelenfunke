@@ -25,6 +25,8 @@
             loadingProgress: 0,
             isSaving: false,
             saved: false,
+            hasAddedToCart: false,
+            _savedResetTimer: null,
 
             activeSide: params.wireModels.activeSide !== undefined ? params.wireModels.activeSide : 'front',
             backgroundTheme: params.wireModels.backgroundTheme !== undefined ? params.wireModels.backgroundTheme : 'standard',
@@ -667,8 +669,10 @@
                 }));
 
                 this._onCartUpdated = () => {
+                    this.hasAddedToCart = true;
                     this.saved = true;
-                    setTimeout(() => { this.saved = false; }, 15000);
+                    if (this._savedResetTimer) clearTimeout(this._savedResetTimer);
+                    this._savedResetTimer = setTimeout(() => { this.saved = false; }, 2500);
                 };
                 window.addEventListener('cart-updated', this._onCartUpdated);
 
@@ -977,6 +981,7 @@
             },
 
             destroy() {
+                if (this._savedResetTimer) clearTimeout(this._savedResetTimer);
                 if (this._curveRafId) cancelAnimationFrame(this._curveRafId);
                 if (this._onCartUpdated) window.removeEventListener('cart-updated', this._onCartUpdated);
                 if (this._onToggleHints) window.removeEventListener('toggle-configurator-hints', this._onToggleHints);

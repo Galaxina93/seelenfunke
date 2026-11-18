@@ -321,6 +321,7 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/support-tickets', \App\Livewire\Shop\Support\SupportTicket::class)->name('admin.support-tickets');
     Route::get('/admin/support-chats', \App\Livewire\Shop\Support\SupportChats::class)->name('admin.support-chats');
     Route::get('/admin/support-contact-form', \App\Livewire\Shop\Support\SupportContactFormComponent::class)->name('admin.support-contact-form');
+    Route::get('/admin/support/reviews', \App\Livewire\Shop\Support\SupportReviews::class)->name('admin.support.reviews');
 
     // -----------------------------------------------------------------------
     // AI Agent Universe

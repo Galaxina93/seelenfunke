@@ -49,6 +49,7 @@ class RepositoriesMockWebServerTest {
         geminiServer.start(InetAddress.getByName("127.0.0.1"), 0)
 
         ServiceLocator.init(context)
+        ErrorSentinelReporter.clearQueue(context)
         val mockBaseUrl = "http://127.0.0.1:${backendServer.port}/api/"
         assertTrue("MockWebServer loopback baseUrl must be accepted in debug test build", ServiceLocator.saveBaseUrl(mockBaseUrl))
     }
@@ -327,27 +328,42 @@ class RepositoriesMockWebServerTest {
         ServiceLocator.financeRepository.geminiDirectEndpointOverride =
             "http://127.0.0.1:${geminiServer.port}/v1beta1/projects/gen-lang-client-0670786367/locations/global/publishers/google/models/gemini-3.5-flash:generateContent"
 
-        backendServer.enqueue(
-            MockResponse()
-                .setResponseCode(502)
-                .setBody("""{"success":false,"message":"Bad Gateway"}""")
-        )
-        backendServer.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setHeader("Content-Type", "application/json")
-                .setBody(
-                    """{
-                        "status":"ok",
-                        "access_token":"ya29.MockAndroidVertexPostpayToken99887766",
-                        "expires_in_seconds":3000,
-                        "project_id":"gen-lang-client-0670786367",
-                        "rest_models_base_url":"https://aiplatform.googleapis.com/v1beta1/projects/gen-lang-client-0670786367/locations/global/publishers/google/models",
-                        "live_ws_url":"wss://europe-west4-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent",
-                        "live_model":"projects/gen-lang-client-0670786367/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio"
-                    }"""
-                )
-        )
+        val capturedBackendRequests = java.util.concurrent.CopyOnWriteArrayList<okhttp3.mockwebserver.RecordedRequest>()
+        backendServer.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: okhttp3.mockwebserver.RecordedRequest): MockResponse {
+                val path = request.path ?: ""
+                if (path.contains("/system/error-ingest")) {
+                    return MockResponse()
+                        .setResponseCode(200)
+                        .setHeader("Connection", "close")
+                        .setHeader("Content-Type", "application/json")
+                        .setBody("""{"status":"ok"}""")
+                }
+                capturedBackendRequests.add(request)
+                return when {
+                    path.contains("/funki/financials/scan-receipt") -> MockResponse()
+                        .setResponseCode(502)
+                        .setHeader("Connection", "close")
+                        .setBody("""{"success":false,"message":"Bad Gateway"}""")
+                    path.contains("/ai/vertex-ephemeral") -> MockResponse()
+                        .setResponseCode(200)
+                        .setHeader("Connection", "close")
+                        .setHeader("Content-Type", "application/json")
+                        .setBody(
+                            """{
+                                "status":"ok",
+                                "access_token":"ya29.MockAndroidVertexPostpayToken99887766",
+                                "expires_in_seconds":3000,
+                                "project_id":"gen-lang-client-0670786367",
+                                "rest_models_base_url":"https://aiplatform.googleapis.com/v1beta1/projects/gen-lang-client-0670786367/locations/global/publishers/google/models",
+                                "live_ws_url":"wss://europe-west4-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent",
+                                "live_model":"projects/gen-lang-client-0670786367/locations/europe-west4/publishers/google/models/gemini-live-2.5-flash-native-audio"
+                            }"""
+                        )
+                    else -> MockResponse().setResponseCode(404)
+                }
+            }
+        }
         geminiServer.enqueue(
             MockResponse()
                 .setResponseCode(200)
@@ -373,9 +389,10 @@ class RepositoriesMockWebServerTest {
         assertTrue("Expected Vertex direct receipt fallback to succeed", res.isSuccess)
         assertEquals("Westpack - Schmuckboxen", res.getOrNull()?.data?.title)
 
-        val scanReq = backendServer.takeRequest()
+        assertEquals(2, capturedBackendRequests.size)
+        val scanReq = capturedBackendRequests[0]
         assertTrue(scanReq.path!!.contains("/funki/financials/scan-receipt"))
-        val ephemeralReq = backendServer.takeRequest()
+        val ephemeralReq = capturedBackendRequests[1]
         assertEquals("/api/ai/vertex-ephemeral", ephemeralReq.path)
         assertEquals("Bearer 77|AdminSanctumTokenForVertex123456", ephemeralReq.getHeader("Authorization"))
 
