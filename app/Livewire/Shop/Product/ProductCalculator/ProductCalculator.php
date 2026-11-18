@@ -328,6 +328,60 @@ class ProductCalculator extends Component
     }
 
     #[On('calculator-save')]
+    protected function refreshCalculatorTemplates(string $productId, ?iterable $allActiveTemplates = null): void
+    {
+        $templates = $allActiveTemplates !== null
+            ? collect($allActiveTemplates)
+            : ProductTemplate::where('product_id', $productId)->where('is_active', true)->get();
+
+        if ($templates->isEmpty()) {
+            $this->productTemplates = [];
+            $this->hiddenSeasonalTemplatesCount = 0;
+            $this->showAllSeasonalTemplates = false;
+            return;
+        }
+
+        $allAsArrays = $templates->map(fn ($t) => $t instanceof ProductTemplate ? $t->toArray() : (array) $t)->values()->all();
+        $totalActive = count($allAsArrays);
+        $curated = ProductTemplate::filterAndSortForStorefront($allAsArrays, false);
+
+        if (empty($curated) || count($curated) === $totalActive) {
+            $this->productTemplates = empty($curated)
+                ? ProductTemplate::filterAndSortForStorefront($allAsArrays, true)
+                : $curated;
+            $this->hiddenSeasonalTemplatesCount = 0;
+            $this->showAllSeasonalTemplates = false;
+            return;
+        }
+
+        if ($this->showAllSeasonalTemplates) {
+            $this->productTemplates = ProductTemplate::filterAndSortForStorefront($allAsArrays, true);
+            $this->hiddenSeasonalTemplatesCount = 0;
+            return;
+        }
+
+        $this->productTemplates = $curated;
+        $this->hiddenSeasonalTemplatesCount = max(0, $totalActive - count($curated));
+    }
+
+    public function toggleShowAllTemplates(): void
+    {
+        if (method_exists($this, 'assertPublicCalculatorEnabled')) {
+            $this->assertPublicCalculatorEnabled();
+        }
+        if (method_exists($this, 'blockIfMaintenanceActive') && $this->blockIfMaintenanceActive()) {
+            return;
+        }
+
+        $productId = $this->currentProduct['id'] ?? null;
+        if (!$productId) {
+            return;
+        }
+
+        $this->showAllSeasonalTemplates = !$this->showAllSeasonalTemplates;
+        $this->refreshCalculatorTemplates((string) $productId);
+    }
+
     public function saveItemFromConfigurator($data)
     {
         $productId = $data['product_id'] ?? null;

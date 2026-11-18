@@ -54,6 +54,53 @@ class ProductShow extends Component
         }
     }
 
+    protected function refreshStorefrontTemplates(?iterable $allActiveTemplates = null): void
+    {
+        $templates = $allActiveTemplates !== null
+            ? collect($allActiveTemplates)
+            : ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
+
+        if ($templates->isEmpty()) {
+            $this->productTemplates = [];
+            $this->hiddenSeasonalTemplatesCount = 0;
+            $this->showAllSeasonalTemplates = false;
+            return;
+        }
+
+        $allAsArrays = $templates->map(fn ($t) => $t instanceof ProductTemplate ? $t->toArray() : (array) $t)->values()->all();
+        $totalActive = count($allAsArrays);
+        $curated = ProductTemplate::filterAndSortForStorefront($allAsArrays, false);
+
+        if (empty($curated)) {
+            $this->productTemplates = ProductTemplate::filterAndSortForStorefront($allAsArrays, true);
+            $this->hiddenSeasonalTemplatesCount = 0;
+            $this->showAllSeasonalTemplates = false;
+            return;
+        }
+
+        if (count($curated) === $totalActive) {
+            $this->productTemplates = $curated;
+            $this->hiddenSeasonalTemplatesCount = 0;
+            $this->showAllSeasonalTemplates = false;
+            return;
+        }
+
+        if ($this->showAllSeasonalTemplates) {
+            $this->productTemplates = ProductTemplate::filterAndSortForStorefront($allAsArrays, true);
+            $this->hiddenSeasonalTemplatesCount = 0;
+            return;
+        }
+
+        $this->productTemplates = $curated;
+        $this->hiddenSeasonalTemplatesCount = max(0, $totalActive - count($curated));
+    }
+
+    public function toggleShowAllTemplates(): void
+    {
+        $this->showAllSeasonalTemplates = !$this->showAllSeasonalTemplates;
+        $this->refreshStorefrontTemplates();
+    }
+
     public function startBeginnerConfig()
     {
         ProductTrackingService::trackModeChosen($this->product->id, 'beginner');
