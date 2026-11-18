@@ -1038,7 +1038,8 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->assertJsonPath('instance_id', 1)
             ->assertJsonPath('ws_relay.url', 'ws://127.0.0.1:8089/lobby-ws')
             ->assertJsonPath('ws_relay.instance_id', 1)
-            ->assertJsonPath('ws_relay.tick_hz', 20);
+            ->assertJsonPath('ws_relay.tick_ms', 33)
+            ->assertJsonPath('ws_relay.tick_hz', 30);
 
         $acrobatPeerId = (string) $joinResp->json('player.peer_id');
         $joinTicket = (string) $joinResp->json('ws_relay.ticket');
@@ -1065,7 +1066,8 @@ class Customer3DLobbyInstancesTest extends TestCase
         $switchResp->assertOk()
             ->assertJsonPath('instance_id', 2)
             ->assertJsonPath('ws_relay.url', 'wss://api-live-bridge.mein-seelenfunke.de/lobby-ws')
-            ->assertJsonPath('ws_relay.instance_id', 2);
+            ->assertJsonPath('ws_relay.instance_id', 2)
+            ->assertJsonPath('ws_relay.tick_ms', 33);
 
         $switchTicket = (string) $switchResp->json('ws_relay.ticket');
         [$switchB64, $switchSig] = explode('.', $switchTicket);

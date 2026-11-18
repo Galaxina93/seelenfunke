@@ -505,7 +505,14 @@ const server = http.createServer((req, res) => {
     res.end('Seelenfunke Twilio-Gemini Audio Bridge is running.\n');
 });
 
-const wss = new WebSocketServer({ server });
+server.on('connection', (socket) => {
+    try {
+        socket.setNoDelay(true);
+        socket.setKeepAlive(true, 15000);
+    } catch (_) {}
+});
+
+const wss = new WebSocketServer({ server, perMessageDeflate: false });
 
 function isSendableCloseCode(code) {
     if (typeof code !== 'number' || isNaN(code)) return false;
@@ -1610,7 +1617,22 @@ function verifyLobbyWsTicket(rawTicket) {
     };
 }
 
+let lastLobbySrvMs = 0;
+function nextLobbySrvMs() {
+    const now = Date.now();
+    if (now > lastLobbySrvMs) {
+        lastLobbySrvMs = now;
+    }
+    return lastLobbySrvMs;
+}
+
 function handleLobbyWsConnection(ws, parsedUrl, _reqMeta) {
+    if (ws._socket && typeof ws._socket.setNoDelay === 'function') {
+        try {
+            ws._socket.setNoDelay(true);
+        } catch (_) {}
+    }
+
     const ticket = parsedUrl.searchParams.get('ticket') || '';
     const claims = verifyLobbyWsTicket(ticket);
     if (!claims) {
@@ -1659,6 +1681,7 @@ function handleLobbyWsConnection(ws, parsedUrl, _reqMeta) {
         }
     }
 
+    const initialSrvMs = nextLobbySrvMs();
     const state = {
         peer_id,
         player_id: peer_id,
@@ -1686,30 +1709,38 @@ function handleLobbyWsConnection(ws, parsedUrl, _reqMeta) {
         combo_stage: 0,
         weapon_seq: 0,
         ability_slot: 0,
-        emote: null
+        emote: null,
+        pkt_seq: 0,
+        srv_ms: initialSrvMs
     };
 
     const entry = {
         ws,
         state,
-        lastSeenMs: Date.now()
+        pktSeq: 0,
+        lastSeenMs: initialSrvMs
     };
     room.set(peer_id, entry);
 
     if (ws.readyState === 1) {
         try {
+            const welcomeSrvMs = nextLobbySrvMs();
             ws.send(JSON.stringify({
                 type: 'welcome',
                 peer_id,
                 instance_id,
                 peers: otherPeersArray,
-                server_ts_ms: Date.now()
+                pkt_seq: 0,
+                srv_ms: welcomeSrvMs,
+                server_ts_ms: welcomeSrvMs
             }));
         } catch (_) {}
     }
 
     let rateWindowStartMs = Date.now();
     let msgCountInWindow = 0;
+    let chatPokeWindowStartMs = Date.now();
+    let chatPokeCountInWindow = 0;
     let isRemoved = false;
 
     const removeSelfFromRoom = () => {
@@ -1760,7 +1791,7 @@ function handleLobbyWsConnection(ws, parsedUrl, _reqMeta) {
             msgCountInWindow = 0;
         }
         msgCountInWindow++;
-        if (msgCountInWindow > 45) {
+        if (msgCountInWindow > 95) {
             return;
         }
 
@@ -1779,12 +1810,57 @@ function handleLobbyWsConnection(ws, parsedUrl, _reqMeta) {
             const cNum = Number(msg.c);
             if (ws.readyState === 1) {
                 try {
+                    const pongSrvMs = nextLobbySrvMs();
                     ws.send(JSON.stringify({
                         type: 'pong',
                         c: Number.isFinite(cNum) ? cNum : 0,
-                        server_ts_ms: Date.now()
+                        srv_ms: pongSrvMs,
+                        server_ts_ms: pongSrvMs
                     }));
                 } catch (_) {}
+            }
+            return;
+        }
+
+        if (msg.type === 'chat') {
+            // Niemals ungeprueften Chat-Text direkt ueber das WS-Relay weiterleiten (4-Stufen-Filter liegt in Laravel)
+            return;
+        }
+
+        if (msg.type === 'chat_notify') {
+            if (claims.exp <= nowMs) {
+                removeSelfFromRoom();
+                try {
+                    ws.close(4401, 'Ticket expired');
+                } catch (_) {}
+                return;
+            }
+            if (nowMs - chatPokeWindowStartMs >= 1000) {
+                chatPokeWindowStartMs = nowMs;
+                chatPokeCountInWindow = 0;
+            }
+            chatPokeCountInWindow++;
+            if (chatPokeCountInWindow > 6) {
+                return;
+            }
+            entry.lastSeenMs = nowMs;
+            const activeRoomForChat = lobbyWsRooms.get(instance_id);
+            if (!activeRoomForChat || activeRoomForChat.size <= 1) {
+                return;
+            }
+            const pokeSrvMs = nextLobbySrvMs();
+            const pokePayload = JSON.stringify({
+                type: 'chat_poke',
+                peer_id,
+                instance_id,
+                srv_ms: pokeSrvMs
+            });
+            for (const [pid, peerEntry] of activeRoomForChat.entries()) {
+                if (pid !== peer_id && peerEntry.ws && peerEntry.ws.readyState === 1) {
+                    try {
+                        peerEntry.ws.send(pokePayload);
+                    } catch (_) {}
+                }
             }
             return;
         }
@@ -1838,6 +1914,10 @@ function handleLobbyWsConnection(ws, parsedUrl, _reqMeta) {
                 }
             }
             state.emote = cleanEmote;
+            const srvMs = nextLobbySrvMs();
+            entry.pktSeq = (entry.pktSeq >= 2147483640) ? 1 : (entry.pktSeq + 1);
+            state.pkt_seq = entry.pktSeq;
+            state.srv_ms = srvMs;
             entry.lastSeenMs = nowMs;
 
             const activeRoom = lobbyWsRooms.get(instance_id);
@@ -1847,7 +1927,9 @@ function handleLobbyWsConnection(ws, parsedUrl, _reqMeta) {
             const outPayload = JSON.stringify({
                 type: 'peer_state',
                 peer: entry.state,
-                server_ts_ms: nowMs
+                pkt_seq: entry.pktSeq,
+                srv_ms: srvMs,
+                server_ts_ms: srvMs
             });
             for (const [pid, peerEntry] of activeRoom.entries()) {
                 if (pid !== peer_id && peerEntry.ws && peerEntry.ws.readyState === 1) {
@@ -1913,6 +1995,11 @@ setInterval(() => {
 }, 15000).unref();
 
 wss.on('connection', (ws, req) => {
+    if (ws._socket && typeof ws._socket.setNoDelay === 'function') {
+        try {
+            ws._socket.setNoDelay(true);
+        } catch (_) {}
+    }
     let urlString = req.url || '/';
     // Fallback if URL is relative or lacks host
     const parsedUrl = new URL(urlString, 'http://localhost');

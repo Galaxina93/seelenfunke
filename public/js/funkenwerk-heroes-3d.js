@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v8';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v9';
 
     function ensurePrewarmRegistryAndRegister(audioEl) {
         if (!audioEl || typeof window === 'undefined') return audioEl;
@@ -324,13 +324,20 @@
         this._lastWatchSyncSnap = null;
         this._pingProbeInFlight = false;
         this._netSampleIsDirectWire = false;
+        this._rttWindow = [];
+        this._resetPingOnNextWireSample = false;
         this.wsConnected = false;
         this._lobbyWs = null;
+        this._wsTickWorker = null;
+        this._wsTickWorkerUrl = null;
         this._wsSendTimer = null;
         this._wsPingTimer = null;
+        this._wsWarmupPingTimer = null;
+        this._wsHandshakeFallbackTimer = null;
         this._wsUrgentTimer = null;
-        this._wsTickMs = 50;
+        this._wsTickMs = 33;
         this._lastWsSentAtMs = 0;
+        this._lastWsPingSentAtMs = 0;
         this._lastWsSentState = null;
         this._activeSyncZone = null;
         this._openSeq = 0;
@@ -1724,35 +1731,49 @@
     SeelenfunkeUnifiedLobbyHost.prototype._recordNetRttSample = function (rttMs, isDirectWire, tickLabel) {
         var cleanRtt = Math.max(1, Number(rttMs) || 1);
         var ns = this.netStats;
-        var switchingToDirectWire = Boolean(isDirectWire) && !this._netSampleIsDirectWire;
-        if (isDirectWire) {
-            this._netSampleIsDirectWire = true;
+        var directFlag = Boolean(isDirectWire);
+        var switchingChannel = (directFlag !== Boolean(this._netSampleIsDirectWire)) || Boolean(this._resetPingOnNextWireSample);
+        if (switchingChannel || !Array.isArray(this._rttWindow)) {
+            this._rttWindow = [];
+            this._resetPingOnNextWireSample = false;
         }
+        this._netSampleIsDirectWire = directFlag;
+        this._rttWindow.push(cleanRtt);
+        while (this._rttWindow.length > 5) {
+            this._rttWindow.shift();
+        }
+        var sorted = this._rttWindow.slice().sort(function (a, b) { return a - b; });
+        var mid = Math.floor(sorted.length / 2);
+        var medianRtt = (sorted.length % 2 === 1)
+            ? sorted[mid]
+            : (sorted[mid - 1] + sorted[mid]) * 0.5;
+
         ns.sentCount += 1;
-        if (ns.samples === 0 || ns.pingMs === null || switchingToDirectWire) {
-            ns.pingMs = Math.max(1, Math.round(cleanRtt));
+        if (switchingChannel || ns.samples === 0 || ns.pingMs === null) {
+            ns.pingMs = Math.max(1, Math.round(medianRtt));
             ns.jitterMs = 0;
         } else {
-            var delta = Math.abs(cleanRtt - ns.lastRttMs);
-            var nextJitter = ns.samples === 1 ? delta : (ns.jitterMs * 0.72 + delta * 0.28);
-            var nextPing = ns.pingMs * 0.68 + cleanRtt * 0.32;
+            var prevRef = ns.lastRttMs || medianRtt;
+            var delta = Math.abs(medianRtt - prevRef);
+            var nextJitter = this._rttWindow.length <= 1 ? 0 : (ns.jitterMs * 0.72 + delta * 0.28);
+            var nextPing = ns.pingMs * 0.65 + medianRtt * 0.35;
             ns.pingMs = Math.max(1, Math.round(nextPing));
             ns.jitterMs = Math.max(0, Math.round(nextJitter));
         }
-        ns.lastRttMs = cleanRtt;
+        ns.lastRttMs = medianRtt;
         ns.samples += 1;
         ns.hasError = false;
         ns.lossPct = ns.sentCount > 0 ? Math.round((ns.failCount / ns.sentCount) * 100) : 0;
         if (tickLabel) {
             ns.tickHz = tickLabel;
         } else if (this.wsConnected) {
-            ns.tickHz = '20,0 Hz';
+            ns.tickHz = '30,0 Hz';
         }
         this._renderPingHud();
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._recordNetSample = function (rttMs, tickLabel) {
-        this._netSampleIsDirectWire = false;
+        if (this.wsConnected || this._lobbyWs) return;
         this._recordNetRttSample(rttMs, false, tickLabel);
     };
 
@@ -1780,10 +1801,10 @@
         var pingMs = ns.pingMs;
         var tier = 'optimal';
         var statusText = 'Optimal';
-        if (ns.hasError || (pingMs !== null && pingMs > 180)) {
+        if (ns.hasError || (pingMs !== null && pingMs > 195)) {
             tier = 'delayed';
             statusText = 'Verzögert';
-        } else if (pingMs !== null && pingMs > 85) {
+        } else if (pingMs !== null && pingMs > 95) {
             tier = 'good';
             statusText = 'Gut';
         }
@@ -1805,7 +1826,7 @@
         var isLiveHeroes = (this.currentZone === 'heroes' && this.lobbyAuth && !this.soloMode);
         if (modeValEl) {
             modeValEl.textContent = isLiveHeroes
-                ? (this.wsConnected ? 'Echtzeit-WS (20 Hz)' : 'Live-Sync (6 Hz)')
+                ? (this.wsConnected ? 'Echtzeit-WS (30 Hz)' : 'Live-Sync (6 Hz)')
                 : 'Atelier (Solo)';
         }
         if (instRowEl) {
@@ -2803,6 +2824,7 @@
         while (dYaw > Math.PI) dYaw -= Math.PI * 2;
         while (dYaw < -Math.PI) dYaw += Math.PI * 2;
         if (Math.abs(dYaw) > 0.012) return true;
+        if (((st.speed || 0) <= 0.02) !== ((prev.speed || 0) <= 0.02)) return true;
         if (Math.abs((st.speed || 0) - (prev.speed || 0)) > 0.03) return true;
         if (Boolean(st.jumping) !== Boolean(prev.jumping)) return true;
         if (Boolean(st.sprint) !== Boolean(prev.sprint)) return true;
@@ -2864,14 +2886,79 @@
         });
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._clearWsTimers = function () {
+    SeelenfunkeUnifiedLobbyHost.prototype._stopWsTickLoop = function () {
         if (this._wsSendTimer) {
             clearInterval(this._wsSendTimer);
             this._wsSendTimer = null;
         }
+        if (this._wsTickWorker) {
+            try {
+                this._wsTickWorker.onmessage = null;
+                this._wsTickWorker.onerror = null;
+                this._wsTickWorker.postMessage(0);
+                this._wsTickWorker.terminate();
+            } catch (e) {}
+            this._wsTickWorker = null;
+        }
+        if (this._wsTickWorkerUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+            try {
+                URL.revokeObjectURL(this._wsTickWorkerUrl);
+            } catch (e2) {}
+            this._wsTickWorkerUrl = null;
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._startWsTickLoop = function (intervalMs, pingFn) {
+        var self = this;
+        this._stopWsTickLoop();
+        var cleanMs = Math.max(25, Math.min(100, Math.round(Number(intervalMs) || 33)));
+        var onTick = function () {
+            if (!self.isOpen || !self.wsConnected) return;
+            self._sendWsStateNow(false);
+            if (typeof pingFn === 'function' && (self._nowPerfMs() - (self._lastWsPingSentAtMs || 0)) >= 1500) {
+                pingFn();
+            }
+        };
+        if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+            try {
+                var blobUrl = URL.createObjectURL(new Blob(
+                    ['let t=null;onmessage=e=>{clearInterval(t);if(e.data>0)t=setInterval(()=>postMessage(1),e.data);}'],
+                    { type: 'application/javascript' }
+                ));
+                var worker = new Worker(blobUrl);
+                this._wsTickWorkerUrl = blobUrl;
+                this._wsTickWorker = worker;
+                worker.onmessage = onTick;
+                worker.onerror = function () {
+                    if (self._wsTickWorker === worker) {
+                        self._stopWsTickLoop();
+                        if (self.isOpen && self.wsConnected) {
+                            self._wsSendTimer = setInterval(onTick, cleanMs);
+                        }
+                    }
+                };
+                worker.postMessage(cleanMs);
+                return;
+            } catch (err) {
+                this._stopWsTickLoop();
+            }
+        }
+        this._wsSendTimer = setInterval(onTick, cleanMs);
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._clearWsTimers = function () {
+        this._stopWsTickLoop();
         if (this._wsPingTimer) {
             clearInterval(this._wsPingTimer);
             this._wsPingTimer = null;
+        }
+        if (this._wsWarmupPingTimer) {
+            clearTimeout(this._wsWarmupPingTimer);
+            this._wsWarmupPingTimer = null;
+        }
+        if (this._wsHandshakeFallbackTimer) {
+            clearTimeout(this._wsHandshakeFallbackTimer);
+            this._wsHandshakeFallbackTimer = null;
         }
         if (this._wsUrgentTimer) {
             clearTimeout(this._wsUrgentTimer);
@@ -2885,6 +2972,8 @@
         this._lobbyWs = null;
         this.wsConnected = false;
         this._lastWsSentState = null;
+        this._rttWindow = [];
+        this._resetPingOnNextWireSample = true;
         if (!ws) return;
         ws.onopen = null;
         ws.onmessage = null;
@@ -2900,27 +2989,50 @@
         } catch (e2) {}
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._connectLobbyWebSocket = function (wsRelay) {
+    SeelenfunkeUnifiedLobbyHost.prototype._connectLobbyWebSocket = function (wsRelay, fallbackHttpRttMs) {
         var self = this;
-        if (!wsRelay || !wsRelay.url || !wsRelay.ticket || typeof WebSocket === 'undefined') return;
+        if (!wsRelay || !wsRelay.url || !wsRelay.ticket || typeof WebSocket === 'undefined') {
+            if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
+                this._recordNetSample(fallbackHttpRttMs, '6,0 Hz');
+            }
+            this._scheduleNextSyncTick(165);
+            return;
+        }
         if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
 
         this._closeLobbyWebSocket(false);
-        this._wsTickMs = Math.max(35, Math.min(100, Number(wsRelay.tick_ms) || 50));
+        this._wsTickMs = Math.max(25, Math.min(100, Number(wsRelay.tick_ms) || 33));
         var wsUrl = String(wsRelay.url) + (String(wsRelay.url).indexOf('?') === -1 ? '?' : '&') + 'ticket=' + encodeURIComponent(String(wsRelay.ticket));
         var ws = null;
         try {
             ws = new WebSocket(wsUrl);
         } catch (err) {
             this.wsConnected = false;
+            if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
+                this._recordNetSample(fallbackHttpRttMs, '6,0 Hz');
+            }
+            this._scheduleNextSyncTick(165);
             return;
         }
         this._lobbyWs = ws;
 
+        this._wsHandshakeFallbackTimer = setTimeout(function () {
+            self._wsHandshakeFallbackTimer = null;
+            if (!self.wsConnected && self._lobbyWs === ws && self.isOpen && self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
+                self._closeLobbyWebSocket(false);
+                if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
+                    self._recordNetSample(fallbackHttpRttMs, '6,0 Hz');
+                }
+                self._scheduleNextSyncTick(165);
+            }
+        }, 2500);
+
         var sendWsPing = function () {
             if (!self.wsConnected || self._lobbyWs !== ws || ws.readyState !== 1) return;
+            var nowP = self._nowPerfMs();
+            self._lastWsPingSentAtMs = nowP;
             try {
-                ws.send(JSON.stringify({ type: 'ping', c: self._nowPerfMs() }));
+                ws.send(JSON.stringify({ type: 'ping', c: nowP }));
             } catch (e) {}
         };
 
@@ -2937,7 +3049,11 @@
 
             if (msg.type === 'welcome') {
                 self.wsConnected = true;
-                self.netStats.tickHz = '20,0 Hz';
+                self._rttWindow = [];
+                self._resetPingOnNextWireSample = true;
+                self._netSampleIsDirectWire = true;
+                self.netStats.hasError = false;
+                self.netStats.tickHz = '30,0 Hz';
                 self.netStats.tickIntervalMs = self._wsTickMs;
                 if (msg.instance_id) {
                     self.instanceId = Number(msg.instance_id) || self.instanceId;
@@ -2952,11 +3068,17 @@
                 self._clearWsTimers();
                 self._sendWsStateNow(true);
                 sendWsPing();
-                self._wsSendTimer = setInterval(function () {
-                    self._sendWsStateNow(false);
-                }, self._wsTickMs);
-                self._wsPingTimer = setInterval(sendWsPing, 2000);
-                self._scheduleNextSyncTick(8000);
+                self._wsWarmupPingTimer = setTimeout(function () {
+                    self._wsWarmupPingTimer = null;
+                    sendWsPing();
+                }, 300);
+                self._startWsTickLoop(self._wsTickMs, sendWsPing);
+                self._wsPingTimer = setInterval(function () {
+                    if ((self._nowPerfMs() - (self._lastWsPingSentAtMs || 0)) >= 1450) {
+                        sendWsPing();
+                    }
+                }, 1500);
+                self._scheduleNextSyncTick(10000);
                 self._syncHudState();
                 self._renderPingHud();
                 return;
@@ -2982,7 +3104,7 @@
 
             if (msg.type === 'pong') {
                 var rtt = Math.max(1, self._nowPerfMs() - Number(msg.c));
-                self._recordNetRttSample(rtt, true, '20,0 Hz');
+                self._recordNetRttSample(rtt, true, '30,0 Hz');
             }
         };
 
@@ -2995,7 +3117,11 @@
             self._lastWsSentState = null;
             if (self.isOpen && self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
                 self.netStats.tickHz = '6,0 Hz';
-                self._renderPingHud();
+                if (!wasConnected && typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0 && self.netStats.pingMs === null) {
+                    self._recordNetSample(fallbackHttpRttMs, '6,0 Hz');
+                } else {
+                    self._renderPingHud();
+                }
                 if (wasConnected || !self._syncTimer) {
                     self._scheduleNextSyncTick(165);
                 }
@@ -3122,8 +3248,12 @@
                         return null;
                     }
                     if (r.ok) {
-                        if (!self.wsConnected) {
+                        var hasWs = Boolean(b && b.ws_relay && b.ws_relay.url && b.ws_relay.ticket);
+                        if (!hasWs && !self.wsConnected) {
                             self._recordNetSample(rtt, '6,0 Hz');
+                        }
+                        if (b && typeof b === 'object') {
+                            b._joinHttpRtt = rtt;
                         }
                     } else {
                         self._recordNetFailure();
@@ -3154,9 +3284,10 @@
                 self._syncHudState();
                 self._renderPingHud();
                 if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
-                    self._startSyncLoop();
-                    if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket) {
-                        self._connectLobbyWebSocket(data.ws_relay);
+                    var hasWsRelay = Boolean(data.ws_relay && data.ws_relay.url && data.ws_relay.ticket);
+                    self._startSyncLoop(hasWsRelay ? 10000 : undefined);
+                    if (hasWsRelay) {
+                        self._connectLobbyWebSocket(data.ws_relay, data._joinHttpRtt);
                     }
                 }
             })
@@ -3167,8 +3298,8 @@
 
     SeelenfunkeUnifiedLobbyHost.prototype._computeAdaptiveSyncDelayMs = function (st) {
         if (this.wsConnected) {
-            this.netStats.tickHz = '20,0 Hz';
-            return 8000;
+            this.netStats.tickHz = '30,0 Hz';
+            return 10000;
         }
         var speed = st ? (Number(st.speed) || 0) : 0;
         var jumping = Boolean(st && st.jumping);
@@ -3200,14 +3331,14 @@
 
         if (this.wsConnected && this._lobbyWs && this._lobbyWs.readyState === 1) {
             var wsElapsed = this._nowPerfMs() - (this._lastWsSentAtMs || 0);
-            if (wsElapsed >= 25) {
+            if (wsElapsed >= 16) {
                 if (this._wsUrgentTimer) {
                     clearTimeout(this._wsUrgentTimer);
                     this._wsUrgentTimer = null;
                 }
                 this._sendWsStateNow(true);
             } else if (!this._wsUrgentTimer) {
-                var wsWait = Math.max(4, Math.ceil(25 - wsElapsed));
+                var wsWait = Math.max(4, Math.ceil(16 - wsElapsed));
                 this._wsUrgentTimer = setTimeout(function () {
                     self._wsUrgentTimer = null;
                     self._sendWsStateNow(true);
@@ -3303,7 +3434,7 @@
         this._lastWatchSyncSnap = null;
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._startSyncLoop = function () {
+    SeelenfunkeUnifiedLobbyHost.prototype._startSyncLoop = function (initialDelayMs) {
         var self = this;
         this._stopHttpSyncTimers();
         if (!this.isOpen || !this.lobbyAuth || this.soloMode || this.currentZone !== 'heroes') return;
@@ -3311,7 +3442,7 @@
         this._urgentSyncWatchTimer = setInterval(function () {
             self._checkUrgentWatchState();
         }, 60);
-        this._scheduleNextSyncTick();
+        this._scheduleNextSyncTick(initialDelayMs);
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._stopSyncLoop = function () {
@@ -3340,7 +3471,7 @@
         var t0 = this._nowPerfMs();
         this._lastSyncSentAtMs = t0;
         var nextDelayMode = this.wsConnected
-            ? '20,0 Hz'
+            ? '30,0 Hz'
             : (this._computeAdaptiveSyncDelayMs(st) <= 165 ? '6,0 Hz' : 'Ruhe-Puls');
 
         fetch('/funkenwerk-welt/lobby/sync', {
@@ -3387,10 +3518,10 @@
                         return null;
                     }
                     if (r.ok) {
-                        if (!self.wsConnected) {
+                        if (!self.wsConnected && !self._lobbyWs) {
                             self._recordNetSample(rtt, nextDelayMode);
                         }
-                    } else if (!self.wsConnected) {
+                    } else if (!self.wsConnected && !self._lobbyWs) {
                         self._recordNetFailure();
                     }
                     return r.ok ? b : null;
@@ -3419,7 +3550,7 @@
                 if (self.instanceMenuOpen) self._renderInstanceList();
             })
             .catch(function () {
-                if (!self.wsConnected) {
+                if (!self.wsConnected && !self._lobbyWs) {
                     self._recordNetFailure();
                 }
             })
@@ -3432,7 +3563,7 @@
                     self._syncPendingImmediate = false;
                     self._requestImmediateSync();
                 } else {
-                    self._scheduleNextSyncTick(self.wsConnected ? 8000 : undefined);
+                    self._scheduleNextSyncTick(self.wsConnected ? 10000 : undefined);
                 }
             });
     };
@@ -3494,8 +3625,12 @@
                         return null;
                     }
                     if (r.ok) {
-                        if (!self.wsConnected) {
+                        var hasWsSwitch = Boolean(b && b.ws_relay && b.ws_relay.url && b.ws_relay.ticket);
+                        if (!hasWsSwitch && !self.wsConnected) {
                             self._recordNetSample(rtt, '6,0 Hz');
+                        }
+                        if (b && typeof b === 'object') {
+                            b._switchHttpRtt = rtt;
                         }
                     } else {
                         self._recordNetFailure();
@@ -3516,9 +3651,10 @@
                 self._syncHudState();
                 self._renderPingHud();
                 if (self.lobbyAuth && !self.soloMode && self.currentZone === 'heroes') {
-                    self._startSyncLoop();
-                    if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket) {
-                        self._connectLobbyWebSocket(data.ws_relay);
+                    var hasWsRelay = Boolean(data.ws_relay && data.ws_relay.url && data.ws_relay.ticket);
+                    self._startSyncLoop(hasWsRelay ? 10000 : undefined);
+                    if (hasWsRelay) {
+                        self._connectLobbyWebSocket(data.ws_relay, data._switchHttpRtt);
                     }
                 }
             })

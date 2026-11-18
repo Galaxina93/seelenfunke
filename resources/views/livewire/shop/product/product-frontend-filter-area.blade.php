@@ -3114,12 +3114,17 @@
                 let privateAudio = null;
                 let privateAudioUnsub = null;
                 let privateLobbyWs = null;
+                let privateWsTickWorker = null;
+                let privateWsTickWorkerUrl = null;
                 let privateWsSendTimer = null;
                 let privateWsPingTimer = null;
+                let privateWsWarmupPingTimer = null;
+                let privateWsHandshakeFallbackTimer = null;
                 let privateWsUrgentTimer = null;
                 let privateLastWsSentState = null;
                 let privateLastWsSentAtMs = 0;
-                let privateWsTickMs = 50;
+                let privateLastWsPingSentAtMs = 0;
+                let privateWsTickMs = 33;
 
                 const getFacade = () => privateShowroomFacades.get(instanceToken) || null;
                 const setFacade = (facade) => {
@@ -3291,6 +3296,8 @@
                     _pingWarmupTimer: null,
                     _pingProbeInFlight: false,
                     _netSampleIsDirectWire: false,
+                    _rttWindow: null,
+                    _resetPingOnNextWireSample: false,
                     wsConnected: false,
                     _syncInFlight: false,
                     _syncPendingImmediate: false,
@@ -3453,10 +3460,10 @@
 
                     pingTier() {
                         const ns = this.netStats || {};
-                        if (ns.hasError || (ns.pingMs !== null && ns.pingMs > 180)) {
+                        if (ns.hasError || (ns.pingMs !== null && ns.pingMs > 195)) {
                             return 'delayed';
                         }
-                        if (ns.pingMs !== null && ns.pingMs > 85) {
+                        if (ns.pingMs !== null && ns.pingMs > 95) {
                             return 'good';
                         }
                         return 'optimal';
@@ -3481,7 +3488,7 @@
 
                     pingModeLabel() {
                         if (this.currentZone === 'heroes' && this.isCustomerAuthenticated() && !this.soloMode) {
-                            return this.wsConnected ? 'Echtzeit-WS (20 Hz)' : 'Live-Sync (6 Hz)';
+                            return this.wsConnected ? 'Echtzeit-WS (30 Hz)' : 'Live-Sync (6 Hz)';
                         }
                         return 'Atelier (Solo)';
                     },
@@ -3494,20 +3501,34 @@
                         const cleanRtt = Math.max(1, Number(rttMs) || 1);
                         const ns = this.netStats;
                         const sent = (ns.sentCount || 0) + 1;
-                        const switchingToDirectWire = Boolean(isDirectWire) && !this._netSampleIsDirectWire;
-                        if (isDirectWire) {
-                            this._netSampleIsDirectWire = true;
+                        const directFlag = Boolean(isDirectWire);
+                        const switchingChannel = (directFlag !== Boolean(this._netSampleIsDirectWire)) || Boolean(this._resetPingOnNextWireSample);
+                        if (switchingChannel || !Array.isArray(this._rttWindow)) {
+                            this._rttWindow = [];
+                            this._resetPingOnNextWireSample = false;
                         }
-                        let nextPing = Math.max(1, Math.round(cleanRtt));
+                        this._netSampleIsDirectWire = directFlag;
+                        this._rttWindow.push(cleanRtt);
+                        while (this._rttWindow.length > 5) {
+                            this._rttWindow.shift();
+                        }
+                        const sorted = this._rttWindow.slice().sort((a, b) => a - b);
+                        const mid = Math.floor(sorted.length / 2);
+                        const medianRtt = (sorted.length % 2 === 1)
+                            ? sorted[mid]
+                            : (sorted[mid - 1] + sorted[mid]) * 0.5;
+
+                        let nextPing = Math.max(1, Math.round(medianRtt));
                         let nextJitter = 0;
-                        if (!switchingToDirectWire && ns.samples > 0 && ns.pingMs !== null) {
-                            const delta = Math.abs(cleanRtt - (ns.lastRttMs || cleanRtt));
-                            const rawJitter = ns.samples === 1 ? delta : ((ns.jitterMs || 0) * 0.72 + delta * 0.28);
-                            const rawPing = ns.pingMs * 0.68 + cleanRtt * 0.32;
+                        if (!switchingChannel && ns.samples > 0 && ns.pingMs !== null) {
+                            const prevRef = ns.lastRttMs || medianRtt;
+                            const delta = Math.abs(medianRtt - prevRef);
+                            const rawJitter = this._rttWindow.length <= 1 ? 0 : ((ns.jitterMs || 0) * 0.72 + delta * 0.28);
+                            const rawPing = ns.pingMs * 0.65 + medianRtt * 0.35;
                             nextPing = Math.max(1, Math.round(rawPing));
                             nextJitter = Math.max(0, Math.round(rawJitter));
                         }
-                        const resolvedHz = tickLabel || (this.wsConnected ? '20,0 Hz' : (ns.tickHz || '6,0 Hz'));
+                        const resolvedHz = tickLabel || (this.wsConnected ? '30,0 Hz' : (ns.tickHz || '6,0 Hz'));
                         this.netStats = Object.assign({}, ns, {
                             pingMs: nextPing,
                             jitterMs: nextJitter,
@@ -3515,13 +3536,13 @@
                             lossPct: Math.round(((ns.failCount || 0) / sent) * 100),
                             hasError: false,
                             samples: (ns.samples || 0) + 1,
-                            lastRttMs: cleanRtt,
+                            lastRttMs: medianRtt,
                             sentCount: sent,
                         });
                     },
 
                     recordNetSample(rttMs, tickLabel) {
-                        this._netSampleIsDirectWire = false;
+                        if (this.wsConnected || privateLobbyWs) return;
                         this.recordNetRttSample(rttMs, false, tickLabel);
                     },
 
@@ -4431,7 +4452,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v8');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v9');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -4690,6 +4711,7 @@
                         while (dYaw > Math.PI) dYaw -= Math.PI * 2;
                         while (dYaw < -Math.PI) dYaw += Math.PI * 2;
                         if (Math.abs(dYaw) > 0.012) return true;
+                        if (((st.speed || 0) <= 0.02) !== ((prev.speed || 0) <= 0.02)) return true;
                         if (Math.abs((st.speed || 0) - (prev.speed || 0)) > 0.03) return true;
                         if (Boolean(st.jumping) !== Boolean(prev.jumping)) return true;
                         if (Boolean(st.sprint) !== Boolean(prev.sprint)) return true;
@@ -4752,14 +4774,78 @@
                         this.peers = this.peers.filter((p) => p && String(p.peer_id || '') !== target && String(p.player_id || '') !== target);
                     },
 
-                    _clearWsTimers() {
+                    _stopWsTickLoop() {
                         if (privateWsSendTimer) {
                             clearInterval(privateWsSendTimer);
                             privateWsSendTimer = null;
                         }
+                        if (privateWsTickWorker) {
+                            try {
+                                privateWsTickWorker.onmessage = null;
+                                privateWsTickWorker.onerror = null;
+                                privateWsTickWorker.postMessage(0);
+                                privateWsTickWorker.terminate();
+                            } catch (e) {}
+                            privateWsTickWorker = null;
+                        }
+                        if (privateWsTickWorkerUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+                            try {
+                                URL.revokeObjectURL(privateWsTickWorkerUrl);
+                            } catch (e2) {}
+                            privateWsTickWorkerUrl = null;
+                        }
+                    },
+
+                    _startWsTickLoop(intervalMs, pingFn) {
+                        this._stopWsTickLoop();
+                        const cleanMs = Math.max(25, Math.min(100, Math.round(Number(intervalMs) || 33)));
+                        const onTick = () => {
+                            if (!this.isOpen || !this.wsConnected) return;
+                            this._sendWsStateNow(false);
+                            if (typeof pingFn === 'function' && (this._nowPerfMs() - (privateLastWsPingSentAtMs || 0)) >= 1500) {
+                                pingFn();
+                            }
+                        };
+                        if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+                            try {
+                                const blobUrl = URL.createObjectURL(new Blob(
+                                    ['let t=null;onmessage=e=>{clearInterval(t);if(e.data>0)t=setInterval(()=>postMessage(1),e.data);}'],
+                                    { type: 'application/javascript' }
+                                ));
+                                const worker = new Worker(blobUrl);
+                                privateWsTickWorkerUrl = blobUrl;
+                                privateWsTickWorker = worker;
+                                worker.onmessage = onTick;
+                                worker.onerror = () => {
+                                    if (privateWsTickWorker === worker) {
+                                        this._stopWsTickLoop();
+                                        if (this.isOpen && this.wsConnected) {
+                                            privateWsSendTimer = setInterval(onTick, cleanMs);
+                                        }
+                                    }
+                                };
+                                worker.postMessage(cleanMs);
+                                return;
+                            } catch (err) {
+                                this._stopWsTickLoop();
+                            }
+                        }
+                        privateWsSendTimer = setInterval(onTick, cleanMs);
+                    },
+
+                    _clearWsTimers() {
+                        this._stopWsTickLoop();
                         if (privateWsPingTimer) {
                             clearInterval(privateWsPingTimer);
                             privateWsPingTimer = null;
+                        }
+                        if (privateWsWarmupPingTimer) {
+                            clearTimeout(privateWsWarmupPingTimer);
+                            privateWsWarmupPingTimer = null;
+                        }
+                        if (privateWsHandshakeFallbackTimer) {
+                            clearTimeout(privateWsHandshakeFallbackTimer);
+                            privateWsHandshakeFallbackTimer = null;
                         }
                         if (privateWsUrgentTimer) {
                             clearTimeout(privateWsUrgentTimer);
@@ -4773,6 +4859,8 @@
                         privateLobbyWs = null;
                         this.wsConnected = false;
                         privateLastWsSentState = null;
+                        this._rttWindow = [];
+                        this._resetPingOnNextWireSample = true;
                         if (!ws) return;
                         ws.onopen = null;
                         ws.onmessage = null;
@@ -4788,26 +4876,49 @@
                         } catch (e2) {}
                     },
 
-                    connectLobbyWebSocket(wsRelay) {
-                        if (!wsRelay || !wsRelay.url || !wsRelay.ticket || typeof WebSocket === 'undefined') return;
+                    connectLobbyWebSocket(wsRelay, fallbackHttpRttMs) {
+                        if (!wsRelay || !wsRelay.url || !wsRelay.ticket || typeof WebSocket === 'undefined') {
+                            if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
+                                this.recordNetSample(fallbackHttpRttMs, '6,0 Hz');
+                            }
+                            this.scheduleNextMultiplayerSync(165);
+                            return;
+                        }
                         if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') return;
 
                         this.closeLobbyWebSocket(false);
-                        privateWsTickMs = Math.max(35, Math.min(100, Number(wsRelay.tick_ms) || 50));
+                        privateWsTickMs = Math.max(25, Math.min(100, Number(wsRelay.tick_ms) || 33));
                         const wsUrl = String(wsRelay.url) + (String(wsRelay.url).indexOf('?') === -1 ? '?' : '&') + 'ticket=' + encodeURIComponent(String(wsRelay.ticket));
                         let ws = null;
                         try {
                             ws = new WebSocket(wsUrl);
                         } catch (err) {
                             this.wsConnected = false;
+                            if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
+                                this.recordNetSample(fallbackHttpRttMs, '6,0 Hz');
+                            }
+                            this.scheduleNextMultiplayerSync(165);
                             return;
                         }
                         privateLobbyWs = ws;
 
+                        privateWsHandshakeFallbackTimer = setTimeout(() => {
+                            privateWsHandshakeFallbackTimer = null;
+                            if (!this.wsConnected && privateLobbyWs === ws && this.isOpen && this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
+                                this.closeLobbyWebSocket(false);
+                                if (typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0) {
+                                    this.recordNetSample(fallbackHttpRttMs, '6,0 Hz');
+                                }
+                                this.scheduleNextMultiplayerSync(165);
+                            }
+                        }, 2500);
+
                         const sendWsPing = () => {
                             if (!this.wsConnected || privateLobbyWs !== ws || ws.readyState !== 1) return;
+                            const nowP = this._nowPerfMs();
+                            privateLastWsPingSentAtMs = nowP;
                             try {
-                                ws.send(JSON.stringify({ type: 'ping', c: this._nowPerfMs() }));
+                                ws.send(JSON.stringify({ type: 'ping', c: nowP }));
                             } catch (e) {}
                         };
 
@@ -4824,8 +4935,12 @@
 
                             if (msg.type === 'welcome') {
                                 this.wsConnected = true;
+                                this._rttWindow = [];
+                                this._resetPingOnNextWireSample = true;
+                                this._netSampleIsDirectWire = true;
                                 this.netStats = Object.assign({}, this.netStats, {
-                                    tickHz: '20,0 Hz',
+                                    hasError: false,
+                                    tickHz: '30,0 Hz',
                                     tickIntervalMs: privateWsTickMs,
                                 });
                                 if (msg.instance_id) {
@@ -4845,11 +4960,17 @@
                                 this._clearWsTimers();
                                 this._sendWsStateNow(true);
                                 sendWsPing();
-                                privateWsSendTimer = setInterval(() => {
-                                    this._sendWsStateNow(false);
-                                }, privateWsTickMs);
-                                privateWsPingTimer = setInterval(sendWsPing, 2000);
-                                this.scheduleNextMultiplayerSync(8000);
+                                privateWsWarmupPingTimer = setTimeout(() => {
+                                    privateWsWarmupPingTimer = null;
+                                    sendWsPing();
+                                }, 300);
+                                this._startWsTickLoop(privateWsTickMs, sendWsPing);
+                                privateWsPingTimer = setInterval(() => {
+                                    if ((this._nowPerfMs() - (privateLastWsPingSentAtMs || 0)) >= 1450) {
+                                        sendWsPing();
+                                    }
+                                }, 1500);
+                                this.scheduleNextMultiplayerSync(10000);
                                 return;
                             }
 
@@ -4871,7 +4992,7 @@
 
                             if (msg.type === 'pong') {
                                 const rtt = Math.max(1, this._nowPerfMs() - Number(msg.c));
-                                this.recordNetRttSample(rtt, true, '20,0 Hz');
+                                this.recordNetRttSample(rtt, true, '30,0 Hz');
                             }
                         };
 
@@ -4884,6 +5005,9 @@
                             privateLastWsSentState = null;
                             if (this.isOpen && this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
                                 this.netStats = Object.assign({}, this.netStats, { tickHz: '6,0 Hz' });
+                                if (!wasConnected && typeof fallbackHttpRttMs === 'number' && fallbackHttpRttMs > 0 && this.netStats.pingMs === null) {
+                                    this.recordNetSample(fallbackHttpRttMs, '6,0 Hz');
+                                }
                                 if (wasConnected || !this._syncTimer) {
                                     this.scheduleNextMultiplayerSync(165);
                                 }
@@ -5043,8 +5167,12 @@
                                         return null;
                                     }
                                     if (res.ok) {
-                                        if (!this.wsConnected) {
+                                        const hasWs = Boolean(b && b.ws_relay && b.ws_relay.url && b.ws_relay.ticket);
+                                        if (!hasWs && !this.wsConnected) {
                                             this.recordNetSample(rtt, '6,0 Hz');
+                                        }
+                                        if (b && typeof b === 'object') {
+                                            b._joinHttpRtt = rtt;
                                         }
                                     } else {
                                         this.recordNetFailure();
@@ -5085,9 +5213,10 @@
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
                                 if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
-                                    this.startMultiplayerLoop();
-                                    if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket) {
-                                        this.connectLobbyWebSocket(data.ws_relay);
+                                    const hasWsRelay = Boolean(data.ws_relay && data.ws_relay.url && data.ws_relay.ticket);
+                                    this.startMultiplayerLoop(hasWsRelay ? 10000 : undefined);
+                                    if (hasWsRelay) {
+                                        this.connectLobbyWebSocket(data.ws_relay, data._joinHttpRtt);
                                     }
                                 }
                             })
@@ -5098,10 +5227,10 @@
 
                     computeAdaptiveSyncIntervalMs(st) {
                         if (this.wsConnected) {
-                            if (this.netStats && this.netStats.tickHz !== '20,0 Hz') {
-                                this.netStats = Object.assign({}, this.netStats, { tickHz: '20,0 Hz' });
+                            if (this.netStats && this.netStats.tickHz !== '30,0 Hz') {
+                                this.netStats = Object.assign({}, this.netStats, { tickHz: '30,0 Hz' });
                             }
-                            return 8000;
+                            return 10000;
                         }
                         const speed = st ? (Number(st.speed) || 0) : 0;
                         const jumping = Boolean(st && st.jumping);
@@ -5137,14 +5266,14 @@
                         }
                         if (this.wsConnected && privateLobbyWs && privateLobbyWs.readyState === 1) {
                             const wsElapsed = this._nowPerfMs() - (privateLastWsSentAtMs || 0);
-                            if (wsElapsed >= 25) {
+                            if (wsElapsed >= 16) {
                                 if (privateWsUrgentTimer) {
                                     clearTimeout(privateWsUrgentTimer);
                                     privateWsUrgentTimer = null;
                                 }
                                 this._sendWsStateNow(true);
                             } else if (!privateWsUrgentTimer) {
-                                const wsWait = Math.max(4, Math.ceil(25 - wsElapsed));
+                                const wsWait = Math.max(4, Math.ceil(16 - wsElapsed));
                                 privateWsUrgentTimer = setTimeout(() => {
                                     privateWsUrgentTimer = null;
                                     this._sendWsStateNow(true);
@@ -5225,7 +5354,7 @@
                         this._lastWatchSyncSnap = null;
                     },
 
-                    startMultiplayerLoop() {
+                    startMultiplayerLoop(initialDelayMs) {
                         this.stopHttpSyncTimers();
                         if (!this.isOpen || !this.lobbyAuthenticated || this.soloMode || this.currentZone !== 'heroes') {
                             return;
@@ -5233,7 +5362,7 @@
                         this._urgentSyncWatchTimer = setInterval(() => {
                             this.checkUrgentLocalSyncWatch();
                         }, 60);
-                        this.scheduleNextMultiplayerSync();
+                        this.scheduleNextMultiplayerSync(initialDelayMs);
                     },
 
                     stopMultiplayerLoop() {
@@ -5260,7 +5389,7 @@
                         const t0 = this._nowPerfMs();
                         this._lastSyncSentAtMs = t0;
                         const nextHzLabel = this.wsConnected
-                            ? '20,0 Hz'
+                            ? '30,0 Hz'
                             : (this.computeAdaptiveSyncIntervalMs(st) <= 165 ? '6,0 Hz' : 'Ruhe-Puls');
 
                         fetch('/funkenwerk-welt/lobby/sync', {
@@ -5308,10 +5437,10 @@
                                         return null;
                                     }
                                     if (res.ok) {
-                                        if (!this.wsConnected) {
+                                        if (!this.wsConnected && !privateLobbyWs) {
                                             this.recordNetSample(rtt, nextHzLabel);
                                         }
-                                    } else if (!this.wsConnected) {
+                                    } else if (!this.wsConnected && !privateLobbyWs) {
                                         this.recordNetFailure();
                                     }
                                     return res.ok ? b : null;
@@ -5346,7 +5475,7 @@
                                 }
                             })
                             .catch(() => {
-                                if (!this.wsConnected) {
+                                if (!this.wsConnected && !privateLobbyWs) {
                                     this.recordNetFailure();
                                 }
                             })
@@ -5359,7 +5488,7 @@
                                     this._syncPendingImmediate = false;
                                     this.requestImmediateMultiplayerSync();
                                 } else {
-                                    this.scheduleNextMultiplayerSync(this.wsConnected ? 8000 : undefined);
+                                    this.scheduleNextMultiplayerSync(this.wsConnected ? 10000 : undefined);
                                 }
                             });
                     },
@@ -5419,8 +5548,12 @@
                                         return null;
                                     }
                                     if (res.ok) {
-                                        if (!this.wsConnected) {
+                                        const hasWsSwitch = Boolean(b && b.ws_relay && b.ws_relay.url && b.ws_relay.ticket);
+                                        if (!hasWsSwitch && !this.wsConnected) {
                                             this.recordNetSample(rtt, '6,0 Hz');
+                                        }
+                                        if (b && typeof b === 'object') {
+                                            b._switchHttpRtt = rtt;
                                         }
                                     } else {
                                         this.recordNetFailure();
@@ -5452,9 +5585,10 @@
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
                                 if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
-                                    this.startMultiplayerLoop();
-                                    if (data.ws_relay && data.ws_relay.url && data.ws_relay.ticket) {
-                                        this.connectLobbyWebSocket(data.ws_relay);
+                                    const hasWsRelay = Boolean(data.ws_relay && data.ws_relay.url && data.ws_relay.ticket);
+                                    this.startMultiplayerLoop(hasWsRelay ? 10000 : undefined);
+                                    if (hasWsRelay) {
+                                        this.connectLobbyWebSocket(data.ws_relay, data._switchHttpRtt);
                                     }
                                 }
                             })

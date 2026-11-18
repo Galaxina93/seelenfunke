@@ -222,7 +222,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v8')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v9')", $html);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $html);
         $this->assertStringContainsString('window.__sfLobbyAudioRegistry', $html);
         $this->assertStringContainsString('volume: 5,', $html);
@@ -232,7 +232,11 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('data-testid="lobby-minimap-ping-tooltip"', $html);
         $this->assertStringContainsString('Serververbindung', $html);
         $this->assertStringContainsString('/lobby-ping.php', $html);
-        $this->assertStringContainsString('Echtzeit-WS (20 Hz)', $html);
+        $this->assertStringContainsString('Echtzeit-WS (30 Hz)', $html);
+        $this->assertStringNotContainsString('Echtzeit-WS (20 Hz)', $html);
+        $this->assertStringContainsString('_startWsTickLoop', $html);
+        $this->assertStringContainsString('URL.revokeObjectURL', $html);
+        $this->assertStringContainsString('_rttWindow', $html);
         $this->assertStringContainsString('ws_relay', $html);
         $this->assertStringContainsString('connectLobbyWebSocket', $html);
         $this->assertStringContainsString('facade.upsertPeer(', $html);
@@ -381,7 +385,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('carpetStrip.position.set(0, 0.029, carpetCenterZ)', $js);
         $this->assertStringContainsString('BoxGeometry(2.82, 0.018, 0.12)', $js);
         $this->assertStringContainsString('this.audio.setZone(this.currentZone)', $js);
-        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v8', $js);
+        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v9', $js);
         $this->assertStringContainsString('THREE.SkinnedMesh', $js);
         $this->assertStringContainsString('THREE.Skeleton', $js);
         $this->assertStringContainsString('skinIndex', $js);
@@ -466,7 +470,11 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('const maxPeerZ = this.heroesEntryZ + 0.6;', $js);
         $this->assertStringContainsString('peer.packetTime = this.elapsedTime;', $js);
         $this->assertStringContainsString('if (distJump > 4.5)', $js);
-        $this->assertStringContainsString('const posBlend = 1.0 - Math.exp(-dt * (peer.reportedSpeed > 0.08 ? 13.5 : 18.0));', $js);
+        $this->assertStringContainsString('peer.snapshots', $js);
+        $this->assertStringContainsString('lastPktSeq', $js);
+        $this->assertStringContainsString('const INTERP_DELAY = 0.045;', $js);
+        $this->assertStringContainsString('const renderTime = this.elapsedTime - INTERP_DELAY;', $js);
+        $this->assertStringContainsString('1.0 - Math.exp(-dt * 38.0)', $js);
         $this->assertStringContainsString('if (skinnedRig.actions && skinnedRig.actions.run && effectiveSpeed > 6.2)', $js);
         $this->assertStringNotContainsString('digital.' . 'mein-seelenfunke.de', $js);
         $this->assertStringContainsString('getMinimapState', $js);
@@ -536,7 +544,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v8', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v9', $hostJs);
         $this->assertStringContainsString("root.setAttribute('data-sf-3d-lobby-modal', 'heroes')", $hostJs);
         $this->assertStringContainsString('stopPrewarmAndForceLobbySilence', $hostJs);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $hostJs);
@@ -591,7 +599,11 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('data-testid="lobby-minimap-ping-dot"', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-minimap-ping-tooltip"', $hostJs);
         $this->assertStringContainsString('/lobby-ping.php', $hostJs);
-        $this->assertStringContainsString('Echtzeit-WS (20 Hz)', $hostJs);
+        $this->assertStringContainsString('Echtzeit-WS (30 Hz)', $hostJs);
+        $this->assertStringNotContainsString('Echtzeit-WS (20 Hz)', $hostJs);
+        $this->assertStringContainsString('_startWsTickLoop', $hostJs);
+        $this->assertStringContainsString('URL.revokeObjectURL', $hostJs);
+        $this->assertStringContainsString('_rttWindow', $hostJs);
         $this->assertStringContainsString('ws_relay', $hostJs);
         $this->assertStringContainsString('_connectLobbyWebSocket', $hostJs);
         $this->assertStringContainsString('facade.upsertPeer(', $hostJs);

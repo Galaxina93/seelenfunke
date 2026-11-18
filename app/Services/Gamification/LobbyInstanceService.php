@@ -2693,10 +2693,10 @@ class LobbyInstanceService
     }
 
     /**
-     * Erzeugt ein HMAC-SHA256-signiertes Ticket fuer das In-Memory-20-Hz-WebSocket-Relay (/lobby-ws).
+     * Erzeugt ein HMAC-SHA256-signiertes Ticket fuer das In-Memory-30-Hz-WebSocket-Relay (/lobby-ws).
      *
      * @param array<string, mixed> $actor
-     * @return array{url: string, ticket: string, instance_id: int, expires_at_ms: int, tick_hz: int}|null
+     * @return array{url: string, ticket: string, instance_id: int, expires_at_ms: int, tick_ms: int, tick_hz: int}|null
      */
     public function buildWsRelayPayload(array $actor, int $instanceId): ?array
     {
@@ -2750,7 +2750,8 @@ class LobbyInstanceService
             'ticket' => $ticket,
             'instance_id' => $instanceId,
             'expires_at_ms' => $exp,
-            'tick_hz' => 20,
+            'tick_ms' => 33,
+            'tick_hz' => 30,
         ];
     }
 

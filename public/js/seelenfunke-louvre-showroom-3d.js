@@ -4,7 +4,7 @@
  * On-Demand ES-Modul: 0 KB Initial-Last auf /shop & /mein-konto, 0 % CPU/GPU nach dem Schliessen.
  */
 
-import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v8';
+import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v9';
 
 const TWO_PI = Math.PI * 2;
 const PROXIMITY_FOCUS_ENTER = 3.4;
@@ -11092,6 +11092,7 @@ class SeelenfunkeLouvreShowroom3D {
         if (peer.nameplateMat) peer.nameplateMat.dispose();
         if (peer.bubbleTex) peer.bubbleTex.dispose();
         if (peer.bubbleMat) peer.bubbleMat.dispose();
+        peer.snapshots = null;
     }
 
     _clearAllPeers() {
@@ -11201,6 +11202,24 @@ class SeelenfunkeLouvreShowroom3D {
 
             this.scene.add(built.root);
 
+            const initVx = (!isPeerWallCling && hasExplicitVx) ? clamp(Number(pData.vx), -9.5, 9.5) : 0;
+            const initVy = isPeerWallCling ? 0 : cleanPeerVy;
+            const initVz = (!isPeerWallCling && hasExplicitVz) ? clamp(Number(pData.vz), -9.5, 9.5) : 0;
+            const initSnap = {
+                t: this.elapsedTime,
+                x: tx,
+                y: ty,
+                z: tz,
+                vx: initVx,
+                vy: initVy,
+                vz: initVz,
+                yaw: resolvedYaw,
+                speed: reportedSpeed,
+                wallCling: isPeerWallCling,
+                jumping: isPeerJumping,
+                sprint: isPeerSprint,
+            };
+
             peer = {
                 playerId: pid,
                 peerId: pData.peer_id ? String(pData.peer_id) : pid,
@@ -11217,15 +11236,17 @@ class SeelenfunkeLouvreShowroom3D {
                 targetY: ty,
                 targetZ: tz,
                 targetYaw: resolvedYaw,
-                vx: (!isPeerWallCling && hasExplicitVx) ? clamp(Number(pData.vx), -9.5, 9.5) : 0,
-                vy: isPeerWallCling ? 0 : cleanPeerVy,
-                vz: (!isPeerWallCling && hasExplicitVz) ? clamp(Number(pData.vz), -9.5, 9.5) : 0,
+                vx: initVx,
+                vy: initVy,
+                vz: initVz,
                 jumping: isPeerJumping,
                 sprint: isPeerSprint,
                 wallCling: isPeerWallCling,
                 wallClingBlend: isPeerWallCling ? 1.0 : 0.0,
                 wallNx: peerWallNx,
                 wallNz: peerWallNz,
+                lastPktSeq: Math.max(0, parseInt(pData.pkt_seq, 10) || 0),
+                snapshots: [initSnap],
                 lastSomersaultSeq: incomingSeq,
                 isSomersault: false,
                 somersaultDir: 1,
@@ -11263,7 +11284,14 @@ class SeelenfunkeLouvreShowroom3D {
             return pid;
         }
 
-        const dtPacket = Math.max(0.025, Math.min(1.2, this.elapsedTime - (peer.packetTime || peer.lastPacketAt || (this.elapsedTime - 0.05))));
+        if (pData.pkt_seq && peer.lastPktSeq && pData.pkt_seq < peer.lastPktSeq && (peer.lastPktSeq - pData.pkt_seq) < 10000 && (this.elapsedTime - (peer.lastPacketAt || 0)) < 2.0) {
+            return pid;
+        }
+        if (pData.pkt_seq) {
+            peer.lastPktSeq = Math.max(0, parseInt(pData.pkt_seq, 10) || 0);
+        }
+
+        const dtPacket = Math.max(0.016, Math.min(1.2, this.elapsedTime - (peer.packetTime || peer.lastPacketAt || (this.elapsedTime - 0.033))));
         const distJump = Math.hypot(tx - peer.x, tz - peer.z);
         if (distJump > 4.5) {
             peer.x = tx;
@@ -11287,6 +11315,54 @@ class SeelenfunkeLouvreShowroom3D {
             peer.vz = hasExplicitVz
                 ? (reportedSpeed > 0.04 || isPeerJumping ? clamp(Number(pData.vz), -9.5, 9.5) : 0)
                 : (reportedSpeed > 0.08 ? inferredVz : 0);
+        }
+
+        if (!Array.isArray(peer.snapshots)) {
+            peer.snapshots = [];
+        }
+        let snapT = this.elapsedTime;
+        const prevSnap = peer.snapshots.length > 0 ? peer.snapshots[peer.snapshots.length - 1] : null;
+        if (distJump <= 4.5 && prevSnap) {
+            if ((snapT - prevSnap.t) > 0.090 && (prevSnap.speed || 0) <= 0.05) {
+                peer.snapshots.push({
+                    t: snapT - 0.035,
+                    x: prevSnap.x,
+                    y: prevSnap.y,
+                    z: prevSnap.z,
+                    vx: 0,
+                    vy: 0,
+                    vz: 0,
+                    yaw: prevSnap.yaw,
+                    speed: 0,
+                    wallCling: prevSnap.wallCling,
+                    jumping: prevSnap.jumping,
+                    sprint: false,
+                });
+            } else if (snapT <= prevSnap.t) {
+                snapT = prevSnap.t + 0.008;
+            }
+        }
+        const snap = {
+            t: snapT,
+            x: tx,
+            y: ty,
+            z: tz,
+            vx: peer.vx,
+            vy: peer.vy,
+            vz: peer.vz,
+            yaw: resolvedYaw,
+            speed: reportedSpeed,
+            wallCling: isPeerWallCling,
+            jumping: isPeerJumping,
+            sprint: isPeerSprint,
+        };
+        if (distJump > 4.5) {
+            peer.snapshots = [snap];
+        } else {
+            peer.snapshots.push(snap);
+            while (peer.snapshots.length > 8) {
+                peer.snapshots.shift();
+            }
         }
 
         const prevWallNx = peer.wallNx || 0;
@@ -11359,9 +11435,9 @@ class SeelenfunkeLouvreShowroom3D {
     _updatePeersKinematics(dt) {
         if (this.peers.size === 0) return;
 
-        // 60-FPS AAA-Dead-Reckoning (Vorwaertsintegration + echte Sprung-Parabel, Wall-Cling & 360-Grad-Saltos!)
-        const ySmooth = 1.0 - Math.exp(-dt * 18.0);
-        const yawSmooth = 1.0 - Math.exp(-dt * 16.0);
+        // 60-FPS E-Sport Snapshot-Interpolations-Ringpuffer (45 ms Pufferfenster, 0 % Jitter, Wall-Cling & 360-Grad-Saltos!)
+        const INTERP_DELAY = 0.045;
+        const renderTime = this.elapsedTime - INTERP_DELAY;
         const blendSmooth = 1.0 - Math.exp(-dt * 11.5);
         const minPeerX = -this.pantheonHalfW + 0.42;
         const maxPeerX = this.pantheonHalfW - 0.42;
@@ -11372,53 +11448,116 @@ class SeelenfunkeLouvreShowroom3D {
             const prevX = peer.x;
             const prevZ = peer.z;
 
-            const sincePacket = clamp(this.elapsedTime - (peer.lastPacketAt || this.elapsedTime), 0, 0.38);
-            const posBlend = 1.0 - Math.exp(-dt * (peer.reportedSpeed > 0.08 ? 13.5 : 18.0));
+            const snaps = (Array.isArray(peer.snapshots) && peer.snapshots.length > 0)
+                ? peer.snapshots
+                : [{
+                    t: peer.lastPacketAt || this.elapsedTime,
+                    x: peer.targetX,
+                    y: peer.targetY,
+                    z: peer.targetZ,
+                    vx: peer.vx || 0,
+                    vy: peer.vy || 0,
+                    vz: peer.vz || 0,
+                    yaw: peer.targetYaw,
+                    speed: peer.reportedSpeed || 0,
+                    wallCling: Boolean(peer.wallCling),
+                    jumping: Boolean(peer.jumping),
+                    sprint: Boolean(peer.sprint),
+                }];
 
-            if (peer.wallCling) {
-                const clingSnap = 1.0 - Math.exp(-dt * 20.0);
-                peer.x = lerp(peer.x, peer.targetX, clingSnap);
-                peer.z = lerp(peer.z, peer.targetZ, clingSnap);
-                peer.y = lerp(peer.y, peer.targetY, clingSnap);
+            const firstSnap = snaps[0];
+            const lastSnap = snaps[snaps.length - 1];
+
+            let ix = lastSnap.x;
+            let iy = lastSnap.y;
+            let iz = lastSnap.z;
+            let iyaw = lastSnap.yaw;
+            let snapRefSpeed = lastSnap.speed || 0;
+            let activeWallCling = Boolean(lastSnap.wallCling);
+            let activeJumping = Boolean(lastSnap.jumping);
+            let activeSprint = Boolean(lastSnap.sprint);
+
+            if (renderTime <= firstSnap.t) {
+                ix = firstSnap.x;
+                iy = firstSnap.y;
+                iz = firstSnap.z;
+                iyaw = firstSnap.yaw;
+                snapRefSpeed = firstSnap.speed || 0;
+                activeWallCling = Boolean(firstSnap.wallCling);
+                activeJumping = Boolean(firstSnap.jumping);
+                activeSprint = Boolean(firstSnap.sprint);
+                const follow = 1.0 - Math.exp(-dt * 38.0);
+                peer.x = lerp(peer.x, ix, follow);
+                peer.y = lerp(peer.y, iy, follow);
+                peer.z = lerp(peer.z, iz, follow);
+                peer.yaw = lerpAngle(peer.yaw, iyaw, 1.0 - Math.exp(-dt * 30.0));
+            } else if (renderTime <= lastSnap.t) {
+                let s0 = firstSnap;
+                let s1 = lastSnap;
+                for (let k = 0; k < snaps.length - 1; k++) {
+                    if (renderTime >= snaps[k].t && renderTime <= snaps[k + 1].t) {
+                        s0 = snaps[k];
+                        s1 = snaps[k + 1];
+                        break;
+                    }
+                }
+                const span = Math.max(0.001, s1.t - s0.t);
+                const alpha = clamp((renderTime - s0.t) / span, 0, 1);
+                ix = lerp(s0.x, s1.x, alpha);
+                iy = lerp(s0.y, s1.y, alpha);
+                iz = lerp(s0.z, s1.z, alpha);
+                iyaw = lerpAngle(s0.yaw, s1.yaw, alpha);
+                snapRefSpeed = Math.max(s1.speed || 0, lerp(s0.speed || 0, s1.speed || 0, alpha));
+                activeWallCling = alpha < 0.5 ? Boolean(s0.wallCling) : Boolean(s1.wallCling);
+                activeJumping = Boolean(s0.jumping || s1.jumping);
+                activeSprint = Boolean(s1.sprint || (alpha < 0.5 && s0.sprint));
+                const follow = 1.0 - Math.exp(-dt * 38.0);
+                peer.x = lerp(peer.x, ix, follow);
+                peer.y = lerp(peer.y, iy, follow);
+                peer.z = lerp(peer.z, iz, follow);
+                peer.yaw = lerpAngle(peer.yaw, iyaw, 1.0 - Math.exp(-dt * 32.0));
+            } else {
+                const rawSinceLast = renderTime - lastSnap.t;
+                const over = clamp(rawSinceLast, 0, 0.14);
+                activeWallCling = Boolean(lastSnap.wallCling);
+                activeJumping = Boolean(lastSnap.jumping);
+                activeSprint = Boolean(lastSnap.sprint);
+                if (!lastSnap.wallCling && lastSnap.speed > 0.05) {
+                    ix = clamp(lastSnap.x + lastSnap.vx * over, minPeerX, maxPeerX);
+                    iz = clamp(lastSnap.z + lastSnap.vz * over, minPeerZ, maxPeerZ);
+                    iy = Math.max(0, lastSnap.y + lastSnap.vy * over - 0.5 * 15.2 * over * over);
+                    snapRefSpeed = rawSinceLast < 0.28 ? (lastSnap.speed || 0) : 0;
+                } else {
+                    ix = lastSnap.x;
+                    iy = lastSnap.y;
+                    iz = lastSnap.z;
+                    snapRefSpeed = 0;
+                }
+                iyaw = lastSnap.yaw;
+                const extrapFollow = 1.0 - Math.exp(-dt * (activeWallCling ? 24.0 : 32.0));
+                peer.x = lerp(peer.x, ix, extrapFollow);
+                peer.y = lerp(peer.y, iy, extrapFollow);
+                peer.z = lerp(peer.z, iz, extrapFollow);
+                peer.yaw = lerpAngle(peer.yaw, iyaw, 1.0 - Math.exp(-dt * 26.0));
+                if (lastSnap.speed <= 0.05 && Math.hypot(ix - peer.x, iz - peer.z) < 0.002) {
+                    peer.x = ix;
+                    peer.z = iz;
+                }
+            }
+
+            if (activeWallCling) {
                 peer.vy = 0;
                 if (Math.abs(peer.wallNx || 0) > 0.01 || Math.abs(peer.wallNz || 0) > 0.01) {
                     peer.targetYaw = Math.atan2(-peer.wallNx, -peer.wallNz);
+                    peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, 1.0 - Math.exp(-dt * 24.0));
                 }
-                peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, 1.0 - Math.exp(-dt * 22.0));
-            } else {
-                const predX = clamp(peer.targetX + (peer.vx || 0) * sincePacket, minPeerX, maxPeerX);
-                const predZ = clamp(peer.targetZ + (peer.vz || 0) * sincePacket, minPeerZ, maxPeerZ);
-                const advFactor = sincePacket < 0.32 ? 0.65 : 0;
-                const stepAdvX = clamp(peer.x + (peer.vx || 0) * dt * advFactor, minPeerX, maxPeerX);
-                const stepAdvZ = clamp(peer.z + (peer.vz || 0) * dt * advFactor, minPeerZ, maxPeerZ);
-
-                peer.x = lerp(stepAdvX, predX, posBlend);
-                peer.z = lerp(stepAdvZ, predZ, posBlend);
-                if (peer.reportedSpeed <= 0.04 && Math.hypot(predX - peer.x, predZ - peer.z) < 0.004) {
-                    peer.x = predX;
-                    peer.z = predZ;
+            } else if (peer.y <= 0.01 && iy <= 0.02 && !activeJumping) {
+                if (peer.y < 0.002 && iy <= 0.002) {
+                    peer.y = 0;
                 }
-
-                if (peer.jumping || peer.y > 0.02 || peer.targetY > 0.02) {
-                    peer.vy = (peer.vy || 0) - 15.2 * dt;
-                    peer.y = Math.max(
-                        0,
-                        lerp(peer.y + peer.vy * dt * (sincePacket < 0.25 ? 0.75 : 0), peer.targetY, 1.0 - Math.exp(-dt * 16.0))
-                    );
-                } else {
-                    peer.vy = 0;
-                    peer.y = lerp(peer.y, peer.targetY, ySmooth);
-                    if (peer.y < 0.002 && peer.targetY <= 0.002) {
-                        peer.y = 0;
-                    }
-                }
-                peer.yaw = lerpAngle(peer.yaw, peer.targetYaw, yawSmooth);
-
-                if (peer.y <= 0.01 && peer.targetY <= 0.02 && !peer.jumping) {
-                    peer.isSomersault = false;
-                    peer.somersaultProgress = 0;
-                    peer.vy = 0;
-                }
+                peer.isSomersault = false;
+                peer.somersaultProgress = 0;
+                peer.vy = 0;
             }
 
             let peerSomersaultTuck = 0;
@@ -11434,38 +11573,38 @@ class SeelenfunkeLouvreShowroom3D {
 
             peer.wallClingBlend = lerp(
                 peer.wallClingBlend || 0,
-                peer.wallCling ? 1.0 : 0.0,
+                activeWallCling ? 1.0 : 0.0,
                 1.0 - Math.exp(-dt * 18.0)
             );
             const peerWc = clamp(peer.wallClingBlend || 0, 0, 1);
 
-            // Lauf-Animation orientiert sich an echter Distanz und stoppt punktgenau bei reportedSpeed == 0
+            // Lauf-Animation aus interpolierter Bewegung + Snapshot-Speed (bricht beim Durchlaufen von Snapshots nie ein!)
             const stepDist = Math.hypot(peer.x - prevX, peer.z - prevZ);
             const measuredSpeed = stepDist / Math.max(0.001, dt);
-            const effectiveSpeed = peer.wallCling
+            const effectiveSpeed = activeWallCling
                 ? 0
-                : ((peer.reportedSpeed <= 0.04 && Math.hypot(peer.targetX - peer.x, peer.targetZ - peer.z) < 0.05)
+                : ((snapRefSpeed <= 0.04 && Math.hypot(ix - peer.x, iz - peer.z) < 0.04)
                     ? 0
-                    : Math.max(measuredSpeed, sincePacket < 0.32 ? peer.reportedSpeed * 0.90 : 0));
+                    : Math.max(measuredSpeed, snapRefSpeed * 0.92));
 
             const floorOffset = this._computeFloorBaseY(peer.x, peer.z);
             const support = { shadowY: 0 };
             const aboveGround = Math.max(0, peer.y - support.shadowY);
-            const airBlend = (peer.jumping || peer.wallCling)
+            const airBlend = (activeJumping || activeWallCling)
                 ? Math.max(0.38, clamp(aboveGround / 0.24, 0, 1))
                 : clamp(aboveGround / 0.26, 0, 1);
-            const peerSprintBoost = peer.sprint ? 1.0 : clamp((effectiveSpeed - 5.2) / 3.6, 0, 1.0);
-            const peerSprint = (peer.sprint || effectiveSpeed > 6.2) ? 1.0 : peerSprintBoost;
+            const peerSprintBoost = activeSprint ? 1.0 : clamp((effectiveSpeed - 5.2) / 3.6, 0, 1.0);
+            const peerSprint = (activeSprint || effectiveSpeed > 6.2) ? 1.0 : peerSprintBoost;
             const strideFrequency = 4.48 + 0.72 * peerSprintBoost;
 
             peer.root.position.set(peer.x, floorOffset + peer.y, peer.z);
             peer.root.rotation.y = peer.yaw;
 
-            if (stepDist > 0.00035 && airBlend < 0.65 && !peer.wallCling) {
+            if (stepDist > 0.00035 && airBlend < 0.65 && !activeWallCling) {
                 peer.walkPhase = (peer.walkPhase + stepDist * strideFrequency) % TWO_PI;
             }
 
-            const targetBlend = (!peer.wallCling && effectiveSpeed > 0.14) ? clamp(effectiveSpeed / 4.6, 0.24, 1.0) : 0.0;
+            const targetBlend = (!activeWallCling && effectiveSpeed > 0.14) ? clamp(effectiveSpeed / 4.6, 0.24, 1.0) : 0.0;
             peer.moveBlend = lerp(peer.moveBlend, targetBlend, blendSmooth);
 
             const mb = peer.moveBlend * (1.0 - airBlend * 0.65);
@@ -11661,7 +11800,7 @@ class SeelenfunkeLouvreShowroom3D {
 
             if (peer.builtRecord && peer.builtRecord.skinnedRig) {
                 const skinnedRig = peer.builtRecord.skinnedRig;
-                const peerAnimState = (peer.jumping || airBlend > 0.25 || peerWc > 0.25) ? 'jump' : (mb > 0.18 ? 'run' : 'idle');
+                const peerAnimState = (activeJumping || airBlend > 0.25 || peerWc > 0.25) ? 'jump' : (mb > 0.18 ? 'run' : 'idle');
                 this._syncSkinnedFunkiBones(skinnedRig, j, peerSomersaultTuck, {
                     dt,
                     speed: effectiveSpeed,
