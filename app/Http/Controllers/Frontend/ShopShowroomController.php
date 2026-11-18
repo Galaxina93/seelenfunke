@@ -64,28 +64,32 @@ class ShopShowroomController extends Controller
         $products = $this->resolveCachedShowroomProducts();
         $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
         $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
-        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer);
         $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
+        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer, $lavaParkourPayload);
         $environmentPayload = $this->resolveShowroomEnvironment();
         $playerPayload = $this->resolveShowroomPlayer(
             $customer,
             $multiplayerPayload,
-            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false)
+            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false),
+            $lavaParkourPayload
         );
+        $mmorpgAccess = $this->resolveMmorpgAccess($customer);
 
         return response()->json([
             'success' => true,
             'csrf_token' => csrf_token(),
+            'maintenance_mode' => filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)
+                || filter_var(shop_setting('shop_maintenance_mode', false), FILTER_VALIDATE_BOOLEAN),
             'showroom_style' => 'louvre_black_gold',
             'total_products' => count($products),
+            'mmorpg_can_enter' => $mmorpgAccess['mmorpg_can_enter'],
+            'mmorpg_enter_url' => $mmorpgAccess['mmorpg_enter_url'],
             'environment' => $environmentPayload,
             'sanctum_access' => $sanctumAccess,
             'player' => $playerPayload,
             'player_funki' => $playerFunki,
             'multiplayer' => $multiplayerPayload,
             'lava_parkour' => $lavaParkourPayload,
-            'mmorpg_can_enter' => $playerPayload['mmorpg_can_enter'] ?? false,
-            'mmorpg_enter_url' => $playerPayload['mmorpg_enter_url'] ?? '/funkenreich/enter',
             'atelier_review' => $this->resolveAtelierReviewPayload($customer),
             'products' => $products,
         ], 200, $this->noStoreHeaders());
@@ -306,22 +310,25 @@ class ShopShowroomController extends Controller
             ], 403, $this->noStoreHeaders());
         }
 
+        LobbyInstanceService::forgetCustomerCache((string) $customer->id);
         $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
         $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
-        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer);
         $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
+        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer, $lavaParkourPayload);
         $playerPayload = $this->resolveShowroomPlayer(
             $customer,
             $multiplayerPayload,
-            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false)
+            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false),
+            $lavaParkourPayload
         );
+        $mmorpgAccess = $this->resolveMmorpgAccess($customer);
 
         return response()->json([
             'success' => true,
             'status' => 'authenticated',
             'csrf_token' => csrf_token(),
-            'mmorpg_can_enter' => $playerPayload['mmorpg_can_enter'] ?? false,
-            'mmorpg_enter_url' => $playerPayload['mmorpg_enter_url'] ?? '/funkenreich/enter',
+            'mmorpg_can_enter' => $mmorpgAccess['mmorpg_can_enter'],
+            'mmorpg_enter_url' => $mmorpgAccess['mmorpg_enter_url'],
             'sanctum_access' => $sanctumAccess,
             'player' => $playerPayload,
             'player_funki' => $playerFunki,
@@ -332,8 +339,8 @@ class ShopShowroomController extends Controller
     }
 
     /**
-     * Inline-Aktivierung der Seelenfunken-Magie direkt im 3D-Showroom / Funkenreich.
-     * Erzwingt unter DB::transaction & lockForUpdate() eine verifizierte, nicht widerrufene Bestellung.
+     * Kostenlose Inline-Aktivierung der Seelenfunken-Magie direkt im 3D-Showroom / Funkenreich.
+     * Schaltet die Halle der Helden sowie Magma-Raum 1 bis 5 sofort frei (Meisterschluessel erst ab Raum 6).
      */
     public function activateMagic(
         Request $request,
@@ -421,14 +428,6 @@ class ShopShowroomController extends Controller
 
         $txResult = DB::transaction(function () use ($customer, $gameService, $rankingOptIn): array {
             $profile = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->firstOrFail();
-            $accessCheck = LobbyInstanceService::evaluateSanctumAccess($customer);
-
-            if (!$accessCheck['has_completed_order']) {
-                return [
-                    'allowed' => false,
-                    'access' => $accessCheck,
-                ];
-            }
 
             $wasActive = (bool) $profile->is_active;
             $oldOptIn = (bool) $profile->ranking_opt_in;
@@ -448,26 +447,26 @@ class ShopShowroomController extends Controller
             }
             $profile->titles_progress = $progress;
 
-            if ((int) ($profile->magma_unlocked_level ?? 0) < 1) {
-                $rawCleared = $progress['lava_cleared_levels'] ?? [];
-                $maxSeq = 0;
-                if (is_array($rawCleared)) {
-                    $lookup = [];
-                    foreach ($rawCleared as $v) {
-                        if (is_int($v) || (is_string($v) && ctype_digit($v))) {
-                            $lookup[(int) $v] = true;
-                        }
-                    }
-                    for ($i = 1; $i <= LavaParkourService::MAX_MAGMA_LEVEL; $i++) {
-                        if (isset($lookup[$i])) {
-                            $maxSeq = $i;
-                        } else {
-                            break;
-                        }
+            $rawCleared = $progress['lava_cleared_levels'] ?? [];
+            $maxSeq = 0;
+            if (is_array($rawCleared)) {
+                $lookup = [];
+                foreach ($rawCleared as $v) {
+                    if (is_int($v) || (is_string($v) && ctype_digit($v))) {
+                        $lookup[(int) $v] = true;
                     }
                 }
-                $profile->magma_unlocked_level = max(1, min(LavaParkourService::MAX_MAGMA_LEVEL, $maxSeq + 1));
+                for ($i = 1; $i <= LavaParkourService::MAX_MAGMA_LEVEL; $i++) {
+                    if (isset($lookup[$i])) {
+                        $maxSeq = $i;
+                    } else {
+                        break;
+                    }
+                }
             }
+            $permanentFloor = max(1, min(LavaParkourService::MAX_MAGMA_LEVEL, $maxSeq + 1));
+            $currentMagmaLvl = max(0, (int) ($profile->magma_unlocked_level ?? 0));
+            $profile->magma_unlocked_level = max($permanentFloor, min(LavaParkourService::MAX_MAGMA_LEVEL, $currentMagmaLvl));
 
             if (!$wasActive || (int) ($profile->magma_hearts ?? 0) <= 0) {
                 $profile->magma_hearts = LavaParkourService::MAX_HEARTS;
@@ -495,30 +494,11 @@ class ShopShowroomController extends Controller
             }
 
             return [
-                'allowed' => true,
                 'was_active' => $wasActive,
                 'profile' => $profile,
                 'logged_changes' => $loggedChanges,
             ];
         });
-
-        if (empty($txResult['allowed'])) {
-            $deniedAccess = $txResult['access'];
-
-            return response()->json([
-                'success' => false,
-                'status' => 'order_required',
-                'code' => 'order_required',
-                'sanctum_block_reason' => 'order_required',
-                'has_completed_order' => false,
-                'gamification_active' => false,
-                'can_enter_sanctums' => false,
-            'mmorpg_can_enter' => $mmorpgAccess['mmorpg_can_enter'],
-            'mmorpg_enter_url' => $mmorpgAccess['mmorpg_enter_url'],
-                'csrf_token' => csrf_token(),
-                'message' => (string) ($deniedAccess['message'] ?? 'Ab deiner ersten abgeschlossenen Bestellung schaltest du die Seelenfunken-Magie frei.'),
-            ], 403, $this->noStoreHeaders());
-        }
 
         /** @var CustomerGamification $activatedProfile */
         $activatedProfile = $txResult['profile'];
@@ -537,24 +517,28 @@ class ShopShowroomController extends Controller
             );
         }
 
+        LobbyInstanceService::forgetCustomerCache((string) $customer->id);
         FunkenwerkHeroesController::forgetPublicCache();
 
         $sanctumAccess = LobbyInstanceService::evaluateSanctumAccess($customer);
         $multiplayerPayload = $multiplayer->buildBootstrapPayload($customer);
-        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer);
         $lavaParkourPayload = $lavaParkour->buildShowroomPayload($customer);
+        $playerFunki = $this->resolvePlayerFunki($multiplayerPayload, $customer, $lavaParkourPayload);
         $playerPayload = $this->resolveShowroomPlayer(
             $customer,
             $multiplayerPayload,
-            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false)
+            (bool) ($lavaParkourPayload['master_key_unlocked'] ?? false),
+            $lavaParkourPayload
         );
+        $mmorpgAccess = $this->resolveMmorpgAccess($customer);
 
         return response()->json([
             'success' => true,
             'status' => 'magic_activated',
+            'play_awaken_fx' => true,
             'csrf_token' => csrf_token(),
-            'mmorpg_can_enter' => $playerPayload['mmorpg_can_enter'] ?? false,
-            'mmorpg_enter_url' => $playerPayload['mmorpg_enter_url'] ?? '/funkenreich/enter',
+            'mmorpg_can_enter' => $mmorpgAccess['mmorpg_can_enter'],
+            'mmorpg_enter_url' => $mmorpgAccess['mmorpg_enter_url'],
             'sanctum_access' => $sanctumAccess,
             'player' => $playerPayload,
             'player_funki' => $playerFunki,
@@ -640,10 +624,14 @@ class ShopShowroomController extends Controller
     }
 
     /**
-     * Moderierter Raum-Chat mit 4-stufigem TikTok-Basis-Wort-, Link- & PII-Filter (Gäste strikt 403).
+     * Moderierter Raum-Chat mit 4-stufigem TikTok-Basis-Wort-, Link- & PII-Filter (Gaeste strikt 403).
+     * Leitet bei aktiver Heldenhallen-Instanz nahtlos auf LobbyInstanceService weiter.
      */
-    public function chat(Request $request, ShowroomMultiplayerService $multiplayer): JsonResponse
-    {
+    public function chat(
+        Request $request,
+        ShowroomMultiplayerService $multiplayer,
+        LobbyInstanceService $lobby
+    ): JsonResponse {
         if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
             return $maintenanceResp;
         }
@@ -683,7 +671,7 @@ class ShopShowroomController extends Controller
                 'has_completed_order' => $sanctumAccess['has_completed_order'],
                 'gamification_active' => $sanctumAccess['gamification_active'],
                 'can_enter_sanctums' => false,
-                'message' => (string) ($sanctumAccess['message'] ?? 'Der Showroom-Chat erfordert eine abgeschlossene Bestellung und aktivierte Magie.'),
+                'message' => (string) ($sanctumAccess['message'] ?? 'Bitte aktiviere zuerst deine Seelenfunken-Magie, um die Halle der Helden und die Magma-Prüfung zu betreten.'),
             ], 403, $this->noStoreHeaders());
         }
 
@@ -696,6 +684,28 @@ class ShopShowroomController extends Controller
                 'code' => 'invalid_payload',
                 'message' => 'Ungültiges Nachrichtenformat.',
             ], 422, $this->noStoreHeaders());
+        }
+
+        $requestedZone = is_string($request->input('zone')) ? strtolower(trim($request->input('zone'))) : '';
+        $activeHeroInstance = $lobby->getActiveHeroInstanceForCustomer($customer);
+
+        if ($activeHeroInstance !== null || $requestedZone === 'heroes') {
+            $lobbyResult = $lobby->postInstanceChatForCustomer($customer, $rawMessage, true);
+            if (empty($lobbyResult['success'])) {
+                return response()->json([
+                    'success' => false,
+                    'code' => $lobbyResult['code'] ?? 'blocked',
+                    'message' => $lobbyResult['message'] ?? 'Nachricht blockiert.',
+                ], (int) ($lobbyResult['status'] ?? 422), $this->noStoreHeaders());
+            }
+
+            return response()->json([
+                'success' => true,
+                'instance_id' => $lobbyResult['instance_id'] ?? $activeHeroInstance,
+                'room_id' => $lobbyResult['room_id'] ?? ('heroes-instance-' . ($lobbyResult['instance_id'] ?? 1)),
+                'entry' => $lobbyResult['entry'],
+                'messages' => $lobbyResult['messages'] ?? [],
+            ], 200, $this->noStoreHeaders());
         }
 
         $result = $multiplayer->postChatMessage($customer, $rawMessage);
@@ -717,9 +727,13 @@ class ShopShowroomController extends Controller
 
     /**
      * 1-Klick Spieler-Meldung im Raum-Chat (2 Meldungen -> 24h Shadow-Mute).
+     * Leitet bei aktiver Heldenhallen-Instanz (12-Hex peer_id) auf LobbyInstanceService weiter.
      */
-    public function report(Request $request, ShowroomMultiplayerService $multiplayer): JsonResponse
-    {
+    public function report(
+        Request $request,
+        ShowroomMultiplayerService $multiplayer,
+        LobbyInstanceService $lobby
+    ): JsonResponse {
         if ($maintenanceResp = $this->checkMaintenanceOrLock($request)) {
             return $maintenanceResp;
         }
@@ -759,11 +773,13 @@ class ShopShowroomController extends Controller
                 'has_completed_order' => $sanctumAccess['has_completed_order'],
                 'gamification_active' => $sanctumAccess['gamification_active'],
                 'can_enter_sanctums' => false,
-                'message' => (string) ($sanctumAccess['message'] ?? 'Meldungen erfordern eine abgeschlossene Bestellung und aktivierte Magie.'),
+                'message' => (string) ($sanctumAccess['message'] ?? 'Bitte aktiviere zuerst deine Seelenfunken-Magie, um die Halle der Helden und die Magma-Prüfung zu betreten.'),
             ], 403, $this->noStoreHeaders());
         }
 
-        $rawTarget = $request->input('target_player_id', '');
+        $rawTarget = $request->has('peer_id')
+            ? $request->input('peer_id', '')
+            : $request->input('target_player_id', '');
         if (!is_string($rawTarget)) {
             return response()->json([
                 'success' => false,
@@ -771,7 +787,15 @@ class ShopShowroomController extends Controller
             ], 422, $this->noStoreHeaders());
         }
 
-        $result = $multiplayer->reportPlayerByPublicId($customer, $rawTarget);
+        $trimmedTarget = strtolower(trim($rawTarget));
+        $isHeroPeerFormat = preg_match('/^[0-9a-f]{12}$/', $trimmedTarget) === 1;
+        $activeHeroInstance = $lobby->getActiveHeroInstanceForCustomer($customer);
+
+        if ($isHeroPeerFormat || ($activeHeroInstance !== null && !str_starts_with($trimmedTarget, 'p_'))) {
+            $result = $lobby->reportPeerInHeroInstance($customer, $trimmedTarget);
+        } else {
+            $result = $multiplayer->reportPlayerByPublicId($customer, $rawTarget);
+        }
 
         return response()->json([
             'success' => $result['success'],
@@ -868,7 +892,8 @@ class ShopShowroomController extends Controller
         $activeCount = (int) (clone $baseScope)->count();
         $latestStamp = (string) ((clone $baseScope)->max('updated_at') ?? '0');
         $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
-        $isMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+        $isMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)
+            || filter_var(shop_setting('shop_maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
         $taxRateKey = (string) shop_setting('default_tax_rate', 19);
         $freeThreshold = (int) shop_setting('shipping_free_threshold', 5000);
         $shippingCost = (int) shop_setting('shipping_cost', 490);
@@ -1209,10 +1234,14 @@ class ShopShowroomController extends Controller
      * Ermittelt das Funki-3D-Modell des Besuchers (eingeloggter Kunde: Lv. 1..10 inkl. Waffe, Gast: Lv. 2).
      *
      * @param array<string, mixed> $multiplayerPayload
+     * @param array<string, mixed> $lavaParkourPayload
      * @return array<string, mixed>
      */
-    private function resolvePlayerFunki(array $multiplayerPayload = [], ?Customer $resolvedCustomer = null): array
-    {
+    private function resolvePlayerFunki(
+        array $multiplayerPayload = [],
+        ?Customer $resolvedCustomer = null,
+        array $lavaParkourPayload = []
+    ): array {
         $levelModels = $this->resolveFunkiLevelModelsMap();
 
         /** @var Customer|null $customer */
@@ -1220,6 +1249,7 @@ class ShopShowroomController extends Controller
 
         if ($customer !== null) {
             $resolvedLevel = 1;
+            $profile = null;
 
             if (Schema::hasTable('customer_gamifications')) {
                 $profile = CustomerGamification::where('customer_id', $customer->id)->first();
@@ -1229,6 +1259,16 @@ class ShopShowroomController extends Controller
                     $resolvedLevel = min(GameConfig::MAX_LEVEL, max(1, $rawLevel));
                 }
             }
+
+            $inv = !empty($lavaParkourPayload) && array_key_exists('bag_slots', $lavaParkourPayload)
+                ? [
+                    'potion_count' => (int) ($lavaParkourPayload['potion_count'] ?? 0),
+                    'potion_price_sparks' => (int) ($lavaParkourPayload['potion_price_sparks'] ?? GameConfig::HEALING_POTION_COST_SPARKS),
+                    'potion_heal_hearts' => (int) ($lavaParkourPayload['potion_heal_hearts'] ?? GameConfig::HEALING_POTION_HEAL_HEARTS),
+                    'bag_slots' => $lavaParkourPayload['bag_slots'],
+                    'quick_slots' => $lavaParkourPayload['quick_slots'] ?? ['slot_1' => null, 'slot_2' => null],
+                ]
+                : app(LavaParkourService::class)->getInventoryPayload($customer, $profile);
 
             $cfg = GameConfig::getLevelConfig($resolvedLevel);
             $modelRel = ltrim((string) ($cfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_1_rags.glb'), '/');
@@ -1244,6 +1284,11 @@ class ShopShowroomController extends Controller
                 'model_url' => $modelUrl,
                 'glb_url' => $modelUrl,
                 'level_models' => $levelModels,
+                'potion_count' => $inv['potion_count'],
+                'potion_price_sparks' => $inv['potion_price_sparks'],
+                'potion_heal_hearts' => $inv['potion_heal_hearts'],
+                'bag_slots' => $inv['bag_slots'],
+                'quick_slots' => $inv['quick_slots'],
             ];
         }
 
@@ -1251,6 +1296,7 @@ class ShopShowroomController extends Controller
         $guestCfg = GameConfig::getLevelConfig($guestLevel);
         $guestModelRel = ltrim((string) ($guestCfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_2_basic.glb'), '/');
         $guestModelUrl = '/' . $guestModelRel;
+        $guestInv = app(LavaParkourService::class)->getDefaultGuestInventoryPayload();
 
         return [
             'is_guest' => true,
@@ -1262,6 +1308,11 @@ class ShopShowroomController extends Controller
             'model_url' => $guestModelUrl,
             'glb_url' => $guestModelUrl,
             'level_models' => $levelModels,
+            'potion_count' => $guestInv['potion_count'],
+            'potion_price_sparks' => $guestInv['potion_price_sparks'],
+            'potion_heal_hearts' => $guestInv['potion_heal_hearts'],
+            'bag_slots' => $guestInv['bag_slots'],
+            'quick_slots' => $guestInv['quick_slots'],
         ];
     }
 
@@ -1348,12 +1399,14 @@ class ShopShowroomController extends Controller
      * Erzeugt den strukturierten Spieler-Block fuer GET /shop/showroom-data (Zero-PII).
      *
      * @param array<string, mixed> $multiplayerPayload
+     * @param array<string, mixed> $lavaParkourPayload
      * @return array<string, mixed>
      */
     private function resolveShowroomPlayer(
         ?Customer $customer,
         array $multiplayerPayload,
-        bool $masterKeyUnlocked
+        bool $masterKeyUnlocked,
+        array $lavaParkourPayload = []
     ): array {
         $giftVoucherUrl = '/produkt/geschenkgutschein';
         $levelTitles = GameConfig::getLevelTitles();
@@ -1372,6 +1425,16 @@ class ShopShowroomController extends Controller
             $rawLevel = (int) ($profile?->level ?: GameConfig::getLevelForLifetimeSparks($funkenTotalEarned));
             $resolvedLevel = min(GameConfig::MAX_LEVEL, max(1, $rawLevel));
 
+            $inv = !empty($lavaParkourPayload) && array_key_exists('bag_slots', $lavaParkourPayload)
+                ? [
+                    'potion_count' => (int) ($lavaParkourPayload['potion_count'] ?? 0),
+                    'potion_price_sparks' => (int) ($lavaParkourPayload['potion_price_sparks'] ?? GameConfig::HEALING_POTION_COST_SPARKS),
+                    'potion_heal_hearts' => (int) ($lavaParkourPayload['potion_heal_hearts'] ?? GameConfig::HEALING_POTION_HEAL_HEARTS),
+                    'bag_slots' => $lavaParkourPayload['bag_slots'],
+                    'quick_slots' => $lavaParkourPayload['quick_slots'] ?? ['slot_1' => null, 'slot_2' => null],
+                ]
+                : app(LavaParkourService::class)->getInventoryPayload($customer, $profile);
+
             $cfg = GameConfig::getLevelConfig($resolvedLevel);
             $modelRel = ltrim((string) ($cfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_1_rags.glb'), '/');
             $modelUrl = '/' . $modelRel;
@@ -1387,9 +1450,9 @@ class ShopShowroomController extends Controller
                 'has_completed_order' => $sanctumAccess['has_completed_order'],
                 'gamification_active' => $gamificationActive,
                 'can_enter_sanctums' => $sanctumAccess['can_enter_sanctums'],
+                'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
                 'mmorpg_can_enter' => $mmorpgAccess['mmorpg_can_enter'],
                 'mmorpg_enter_url' => $mmorpgAccess['mmorpg_enter_url'],
-                'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
                 'login_url' => $sanctumAccess['login_url'],
                 'dashboard_url' => $sanctumAccess['dashboard_url'],
                 'name' => $safeName,
@@ -1398,6 +1461,11 @@ class ShopShowroomController extends Controller
                 'model_url' => $modelUrl,
                 'funken_balance' => $funkenBalance,
                 'funken_total_earned' => $funkenTotalEarned,
+                'potion_count' => $inv['potion_count'],
+                'potion_price_sparks' => $inv['potion_price_sparks'],
+                'potion_heal_hearts' => $inv['potion_heal_hearts'],
+                'bag_slots' => $inv['bag_slots'],
+                'quick_slots' => $inv['quick_slots'],
                 'hero_score' => $heroMetrics['hero_score'],
                 'hero_score_formatted' => number_format($heroMetrics['hero_score'], 0, ',', '.'),
                 'magma_highest_level' => $heroMetrics['magma_highest_level'],
@@ -1413,6 +1481,7 @@ class ShopShowroomController extends Controller
         $guestModelRel = ltrim((string) ($guestCfg['model_path'] ?? 'shop/customer/gamification/models/funki_lvl_2_basic.glb'), '/');
         $guestModelUrl = '/' . $guestModelRel;
         $guestTitle = $this->cleanText((string) ($levelTitles[$guestLevel]['name'] ?? 'Lichtträger-Lehrling'));
+        $guestInv = app(LavaParkourService::class)->getDefaultGuestInventoryPayload();
 
         return [
             'is_authenticated' => false,
@@ -1420,6 +1489,8 @@ class ShopShowroomController extends Controller
             'gamification_active' => false,
             'can_enter_sanctums' => false,
             'sanctum_block_reason' => $sanctumAccess['sanctum_block_reason'],
+            'mmorpg_can_enter' => $mmorpgAccess['mmorpg_can_enter'],
+            'mmorpg_enter_url' => $mmorpgAccess['mmorpg_enter_url'],
             'login_url' => $sanctumAccess['login_url'],
             'dashboard_url' => $sanctumAccess['dashboard_url'],
             'name' => 'Gast-Funki',
@@ -1428,6 +1499,11 @@ class ShopShowroomController extends Controller
             'model_url' => $guestModelUrl,
             'funken_balance' => 0,
             'funken_total_earned' => 0,
+            'potion_count' => $guestInv['potion_count'],
+            'potion_price_sparks' => $guestInv['potion_price_sparks'],
+            'potion_heal_hearts' => $guestInv['potion_heal_hearts'],
+            'bag_slots' => $guestInv['bag_slots'],
+            'quick_slots' => $guestInv['quick_slots'],
             'hero_score' => 0,
             'hero_score_formatted' => '0',
             'magma_highest_level' => 0,

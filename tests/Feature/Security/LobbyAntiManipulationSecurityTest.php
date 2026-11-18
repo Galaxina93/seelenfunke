@@ -618,6 +618,23 @@ class LobbyAntiManipulationSecurityTest extends TestCase
                 ->assertJsonPath('code', 'login_required');
         }
 
+        // Neue Endpunkte (Lobby-Chat/Report & Merchant/Inventar) ebenfalls strikt 403 login_required fuer Gaeste
+        $this->postJson('/funkenwerk-welt/lobby/chat', ['message' => 'Gast'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
+        $this->postJson('/funkenwerk-welt/lobby/report', ['peer_id' => 'abcdef012345'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
+        $this->postJson('/funkenwerk-welt/merchant/buy-potion', ['quantity' => 1])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
+        $this->postJson('/funkenwerk-welt/inventory/use-item', ['item_key' => 'healing_potion'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
+        $this->postJson('/funkenwerk-welt/inventory/equip-slot', ['quick_slot' => 1, 'item_key' => 'healing_potion'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'login_required');
+
         // In der Produkt-Lobby ('gallery') bleibt der Gast Solo ohne Instanz-Slot oder gefaelschte Spielerdaten
         $this->postJson('/funkenwerk-welt/lobby/join', [
             'preferred_instance' => 1,
@@ -636,18 +653,7 @@ class LobbyAntiManipulationSecurityTest extends TestCase
             ->assertStatus(403)
             ->assertJsonPath('code', 'login_required');
 
-        // Kunde ohne bezahlte Bestellung -> 403 order_required
-        $noOrderCustomer = $this->makeCustomer(11, 'OhneKauf', 2, 0, 150, false, true);
-        $this->actingAs($noOrderCustomer, 'customer')
-            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes'])
-            ->assertStatus(403)
-            ->assertJsonPath('code', 'order_required');
-        $this->actingAs($noOrderCustomer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/start')
-            ->assertStatus(403)
-            ->assertJsonPath('code', 'order_required');
-
-        // Kunde mit bezahlter Bestellung, aber ohne 'Magie aktivieren' -> 403 magic_activation_required
+        // Kunde OHNE aktivierte Magie -> 403 magic_activation_required (auch mit bezahlter Bestellung)
         $noMagicCustomer = $this->makeCustomer(12, 'OhneMagie', 2, 0, 150, true, false);
         $this->actingAs($noMagicCustomer, 'customer')
             ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes'])
@@ -658,12 +664,41 @@ class LobbyAntiManipulationSecurityTest extends TestCase
             ->assertStatus(403)
             ->assertJsonPath('code', 'magic_activation_required');
 
-        // Ein echter Kunde mit allen 3 Voraussetzungen betritt Instanz 1 in 'heroes' und sieht 0 Geister-Peers
+        // Kunde MIT aktivierter Magie OHNE Bestellung -> Halle der Helden & Magma Raum 1-5 frei, Raum 6 MASTER_KEY_REQUIRED!
+        $noOrderCustomer = $this->makeCustomer(11, 'OhneKauf', 2, 0, 150, false, true);
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes'])
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('zone', 'heroes');
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 1])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('level', 1);
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 6])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'MASTER_KEY_REQUIRED');
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/leave')
+            ->assertOk();
+
+        // Ein echter Kunde mit aktivierter Magie betritt Instanz 1 in 'heroes' und sieht 0 Geister-Peers
         $realPlayer = $this->makeCustomer(10, 'EchterSpieler', 3, 10, 350);
         $realJoin = $this->actingAs($realPlayer, 'customer')
             ->postJson('/funkenwerk-welt/lobby/join', ['x' => 0.0, 'z' => -25.0, 'zone' => 'heroes']);
         $realJoin->assertOk()->assertJsonPath('instance_id', 1);
         $this->assertCount(0, $realJoin->json('peers'));
+
+        // Emotes /dance, /sit, /clap erzeugen keinerlei Tamper-Logs in Lobby & Showroom
+        $tamperCountBeforeEmotes = SystemLog::where('action_id', 'security:lobby_tamper_blocked')->count();
+        foreach (['dance', 'sit', 'clap'] as $emoteKey) {
+            $this->actingAs($realPlayer, 'customer')
+                ->postJson('/funkenwerk-welt/lobby/sync', ['x' => 0.0, 'z' => -25.0, 'zone' => 'heroes', 'emote' => $emoteKey])
+                ->assertOk();
+        }
+        $this->assertSame($tamperCountBeforeEmotes, SystemLog::where('action_id', 'security:lobby_tamper_blocked')->count());
 
         Auth::guard('customer')->logout();
         Auth::forgetGuards();

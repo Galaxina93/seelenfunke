@@ -10,6 +10,7 @@ use App\Services\Gamification\LobbyInstanceService;
 use App\Services\Gamification\PlayerNameValidator;
 use Closure;
 use Illuminate\Contracts\Cache\LockProvider;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
@@ -36,9 +37,12 @@ class ShowroomMultiplayerService
      */
     public const ALLOWED_EMOTES = [
         'wave',
+        'dance',
         'cheer',
         'spark',
         'bow',
+        'sit',
+        'clap',
         'heart',
         'gg',
     ];
@@ -274,47 +278,56 @@ class ShowroomMultiplayerService
         $identity = $this->resolveCustomerIdentity($customer);
         $roomId = $this->resolveExistingOrAssignRoom($identity, $actorKey);
 
-        return $this->withShowroomLock($roomId, function () use ($identity, $roomId, $cleanSanitizedText): array {
-            $nowMs = Carbon::now()->getTimestampMs();
-            $entry = [
-                'id' => 'm_' . Str::lower(Str::random(12)),
-                'player_id' => $identity['player_id'],
-                'display_name' => $identity['display_name'],
-                'level' => $identity['level'],
-                'rank_class' => $identity['weapon']['rank_class'] ?? 'C',
-                'class_label' => $identity['weapon']['class_label'] ?? 'KLASSE C',
-                'text' => $cleanSanitizedText,
-                'created_at_ms' => $nowMs,
-                'expires_at_ms' => $nowMs + (self::CHAT_TTL_SECONDS * 1000),
-            ];
+        return $this->withShowroomLock(
+            $roomId,
+            function () use ($identity, $roomId, $cleanSanitizedText): array {
+                $nowMs = Carbon::now()->getTimestampMs();
+                $entry = [
+                    'id' => 'm_' . Str::lower(Str::random(12)),
+                    'player_id' => $identity['player_id'],
+                    'display_name' => $identity['display_name'],
+                    'level' => $identity['level'],
+                    'rank_class' => $identity['weapon']['rank_class'] ?? 'C',
+                    'class_label' => $identity['weapon']['class_label'] ?? 'KLASSE C',
+                    'text' => $cleanSanitizedText,
+                    'created_at_ms' => $nowMs,
+                    'expires_at_ms' => $nowMs + (self::CHAT_TTL_SECONDS * 1000),
+                ];
 
-            $chatKey = $this->roomChatCacheKey($roomId);
-            $existing = Cache::get($chatKey, []);
-            if (!is_array($existing)) {
-                $existing = [];
-            }
-
-            $validMessages = [];
-            foreach ($existing as $msg) {
-                if (is_array($msg) && (int) ($msg['expires_at_ms'] ?? 0) > $nowMs) {
-                    $validMessages[] = $msg;
+                $chatKey = $this->roomChatCacheKey($roomId);
+                $existing = Cache::get($chatKey, []);
+                if (!is_array($existing)) {
+                    $existing = [];
                 }
-            }
 
-            $validMessages[] = $entry;
-            if (count($validMessages) > self::CHAT_RING_BUFFER_SIZE) {
-                $validMessages = array_slice($validMessages, -self::CHAT_RING_BUFFER_SIZE);
-            }
+                $validMessages = [];
+                foreach ($existing as $msg) {
+                    if (is_array($msg) && (int) ($msg['expires_at_ms'] ?? 0) > $nowMs) {
+                        $validMessages[] = $msg;
+                    }
+                }
 
-            Cache::put($chatKey, $validMessages, self::CHAT_TTL_SECONDS);
+                $validMessages[] = $entry;
+                if (count($validMessages) > self::CHAT_RING_BUFFER_SIZE) {
+                    $validMessages = array_slice($validMessages, -self::CHAT_RING_BUFFER_SIZE);
+                }
 
-            return [
-                'success' => true,
-                'status' => 200,
-                'room_id' => $roomId,
-                'entry' => $entry,
-            ];
-        });
+                Cache::put($chatKey, $validMessages, self::CHAT_TTL_SECONDS);
+
+                return [
+                    'success' => true,
+                    'status' => 200,
+                    'room_id' => $roomId,
+                    'entry' => $entry,
+                ];
+            },
+            static fn (): array => [
+                'success' => false,
+                'status' => 409,
+                'code' => 'busy',
+                'message' => 'Der Showroom-Chat verarbeitet gerade eine Anfrage. Bitte kurz warten.',
+            ]
+        );
     }
 
     /**
@@ -654,119 +667,128 @@ class ShowroomMultiplayerService
         array $state,
         string $actorKey = 'showroom_actor'
     ): string {
-        return $this->withShowroomLock('global_shard', function () use ($identity, $state, $actorKey): string {
-            $publicId = $identity['player_id'];
-            $now = Carbon::now()->getTimestamp();
-            $nowMs = Carbon::now()->getTimestampMs();
+        $fallbackRoomId = Cache::get($this->playerRoomCacheKey($identity['player_id']));
+        $safeFallbackRoom = (is_string($fallbackRoomId) && str_starts_with($fallbackRoomId, 'louvre-room-'))
+            ? $fallbackRoomId
+            : 'louvre-room-1';
 
-            $existingRoomId = Cache::get($this->playerRoomCacheKey($publicId));
-            $selectedRoomId = null;
-            $selectedRoster = [];
+        return $this->withShowroomLock(
+            'global_shard',
+            function () use ($identity, $state, $actorKey): string {
+                $publicId = $identity['player_id'];
+                $now = Carbon::now()->getTimestamp();
+                $nowMs = Carbon::now()->getTimestampMs();
 
-            if (is_string($existingRoomId) && str_starts_with($existingRoomId, 'louvre-room-')) {
-                $roster = $this->loadPrunedRoomRoster($existingRoomId, $now);
-                if (isset($roster[$publicId]) || count($roster) < self::MAX_PLAYERS_PER_ROOM) {
-                    $selectedRoomId = $existingRoomId;
-                    $selectedRoster = $roster;
-                }
-            }
+                $existingRoomId = Cache::get($this->playerRoomCacheKey($publicId));
+                $selectedRoomId = null;
+                $selectedRoster = [];
 
-            if ($selectedRoomId === null) {
-                for ($idx = 1; $idx <= self::MAX_SHARD_ROOMS; $idx++) {
-                    $candidateRoomId = 'louvre-room-' . $idx;
-                    $roster = $this->loadPrunedRoomRoster($candidateRoomId, $now);
+                if (is_string($existingRoomId) && str_starts_with($existingRoomId, 'louvre-room-')) {
+                    $roster = $this->loadPrunedRoomRoster($existingRoomId, $now);
                     if (isset($roster[$publicId]) || count($roster) < self::MAX_PLAYERS_PER_ROOM) {
-                        $selectedRoomId = $candidateRoomId;
+                        $selectedRoomId = $existingRoomId;
                         $selectedRoster = $roster;
-                        break;
                     }
                 }
-            }
 
-            if ($selectedRoomId === null) {
-                $selectedRoomId = 'louvre-room-1';
-                $selectedRoster = $this->loadPrunedRoomRoster($selectedRoomId, $now);
-            }
-
-            $prevEntry = is_array($selectedRoster[$publicId] ?? null) ? $selectedRoster[$publicId] : [];
-            $wasPosSynced = !empty($prevEntry['pos_synced']);
-            $isSyncTick = !empty($state['pos_synced']);
-
-            $prevX = LobbyInstanceService::parseFiniteFloat($prevEntry['x'] ?? 0.0, 0.0);
-            $prevY = LobbyInstanceService::parseFiniteFloat($prevEntry['y'] ?? 0.0, 0.0);
-            $prevZ = LobbyInstanceService::parseFiniteFloat($prevEntry['z'] ?? 8.4, 8.4);
-            $prevZone = is_string($prevEntry['zone'] ?? null) ? $prevEntry['zone'] : 'gallery';
-
-            $nextX = array_key_exists('x', $state) ? (float) $state['x'] : $prevX;
-            $nextY = array_key_exists('y', $state) ? (float) $state['y'] : $prevY;
-            $nextZ = array_key_exists('z', $state) ? (float) $state['z'] : $prevZ;
-            $nextZone = is_string($state['zone'] ?? null) ? $state['zone'] : $prevZone;
-
-            if ($isSyncTick && empty($state['has_explicit_x']) && !empty($prevEntry)) {
-                $nextX = $prevX;
-            }
-            if ($isSyncTick && empty($state['has_explicit_z']) && !empty($prevEntry)) {
-                $nextZ = $prevZ;
-            }
-
-            if ($wasPosSynced && $isSyncTick && isset($prevEntry['updated_at_ms'])) {
-                $elapsedSec = max(0.0, ($nowMs - (int) $prevEntry['updated_at_ms']) / 1000.0);
-
-                if (!$this->isLegitimateShowroomZoneJump($nextX, $nextZ, $nextZone, $prevZone, $prevZ)) {
-                    $dx = $nextX - $prevX;
-                    $dz = $nextZ - $prevZ;
-                    $dist = hypot($dx, $dz);
-                    $maxStep = max(self::MIN_SYNC_TELEPORT_STEP, $elapsedSec * self::MAX_SPEED_WITH_MARGIN);
-
-                    if ($dist > $maxStep && $dist > 0.0001) {
-                        if ($dist > $maxStep + 10.0) {
-                            LobbyInstanceService::logTamperThrottled($actorKey, 'shop/showroom-sync', 'unplausible_teleport_clamped', [
-                                'requested_distance' => round($dist, 2),
-                                'allowed_max_step' => round($maxStep, 2),
-                                'elapsed_sec' => round($elapsedSec, 3),
-                            ]);
+                if ($selectedRoomId === null) {
+                    for ($idx = 1; $idx <= self::MAX_SHARD_ROOMS; $idx++) {
+                        $candidateRoomId = 'louvre-room-' . $idx;
+                        $roster = $this->loadPrunedRoomRoster($candidateRoomId, $now);
+                        if (isset($roster[$publicId]) || count($roster) < self::MAX_PLAYERS_PER_ROOM) {
+                            $selectedRoomId = $candidateRoomId;
+                            $selectedRoster = $roster;
+                            break;
                         }
-
-                        $scale = $maxStep / $dist;
-                        $nextX = round(max(-12.0, min(12.0, $prevX + ($dx * $scale))), 3);
-                        $nextZ = round(max(-240.0, min(20.0, $prevZ + ($dz * $scale))), 3);
                     }
                 }
-            }
 
-            $prevWeaponSeq = (int) ($prevEntry['weapon_seq'] ?? 0);
-            $requestedWeaponSeq = (int) ($state['weapon_seq'] ?? $prevWeaponSeq);
-            if ($wasPosSynced && $requestedWeaponSeq > $prevWeaponSeq + 3) {
-                $requestedWeaponSeq = $prevWeaponSeq + 1;
-            }
-            $cleanWeaponSeq = max(0, min(1000000, $requestedWeaponSeq));
+                if ($selectedRoomId === null) {
+                    $selectedRoomId = 'louvre-room-1';
+                    $selectedRoster = $this->loadPrunedRoomRoster($selectedRoomId, $now);
+                }
 
-            $selectedRoster[$publicId] = [
-                'player_id' => $publicId,
-                'display_name' => $identity['display_name'],
-                'level' => $identity['level'],
-                'glb_url' => $identity['glb_url'],
-                'weapon' => $identity['weapon'],
-                'x' => round(max(-12.0, min(12.0, $nextX)), 3),
-                'y' => round(max(0.0, min(4.5, $nextY)), 3),
-                'z' => round(max(-240.0, min(20.0, $nextZ)), 3),
-                'rot_y' => (float) ($state['rot_y'] ?? ($prevEntry['rot_y'] ?? 3.1416)),
-                'speed' => round(max(0.0, min(self::MAX_SPEED, (float) ($state['speed'] ?? ($prevEntry['speed'] ?? 0.0)))), 3),
-                'zone' => $nextZone,
-                'jumping' => (bool) ($state['jumping'] ?? ($prevEntry['jumping'] ?? false)),
-                'weapon_seq' => $cleanWeaponSeq,
-                'emote' => $state['emote'] ?? null,
-                'solo_mode' => (bool) ($state['solo_mode'] ?? false),
-                'pos_synced' => $wasPosSynced || $isSyncTick,
-                'updated_at_ms' => $nowMs,
-                'expires_at' => $now + self::PLAYER_TTL_SECONDS,
-            ];
+                $prevEntry = is_array($selectedRoster[$publicId] ?? null) ? $selectedRoster[$publicId] : [];
+                $wasPosSynced = !empty($prevEntry['pos_synced']);
+                $isSyncTick = !empty($state['pos_synced']);
 
-            Cache::put($this->roomRosterCacheKey($selectedRoomId), $selectedRoster, self::PLAYER_TTL_SECONDS + 40);
-            Cache::put($this->playerRoomCacheKey($publicId), $selectedRoomId, self::PLAYER_TTL_SECONDS);
+                $prevX = LobbyInstanceService::parseFiniteFloat($prevEntry['x'] ?? 0.0, 0.0);
+                $prevY = LobbyInstanceService::parseFiniteFloat($prevEntry['y'] ?? 0.0, 0.0);
+                $prevZ = LobbyInstanceService::parseFiniteFloat($prevEntry['z'] ?? 8.4, 8.4);
+                $prevZone = is_string($prevEntry['zone'] ?? null) ? $prevEntry['zone'] : 'gallery';
 
-            return $selectedRoomId;
-        });
+                $nextX = array_key_exists('x', $state) ? (float) $state['x'] : $prevX;
+                $nextY = array_key_exists('y', $state) ? (float) $state['y'] : $prevY;
+                $nextZ = array_key_exists('z', $state) ? (float) $state['z'] : $prevZ;
+                $nextZone = is_string($state['zone'] ?? null) ? $state['zone'] : $prevZone;
+
+                if ($isSyncTick && empty($state['has_explicit_x']) && !empty($prevEntry)) {
+                    $nextX = $prevX;
+                }
+                if ($isSyncTick && empty($state['has_explicit_z']) && !empty($prevEntry)) {
+                    $nextZ = $prevZ;
+                }
+
+                if ($wasPosSynced && $isSyncTick && isset($prevEntry['updated_at_ms'])) {
+                    $elapsedSec = max(0.0, ($nowMs - (int) $prevEntry['updated_at_ms']) / 1000.0);
+
+                    if (!$this->isLegitimateShowroomZoneJump($nextX, $nextZ, $nextZone, $prevZone, $prevZ)) {
+                        $dx = $nextX - $prevX;
+                        $dz = $nextZ - $prevZ;
+                        $dist = hypot($dx, $dz);
+                        $maxStep = max(self::MIN_SYNC_TELEPORT_STEP, $elapsedSec * self::MAX_SPEED_WITH_MARGIN);
+
+                        if ($dist > $maxStep && $dist > 0.0001) {
+                            if ($dist > $maxStep + 10.0) {
+                                LobbyInstanceService::logTamperThrottled($actorKey, 'shop/showroom-sync', 'unplausible_teleport_clamped', [
+                                    'requested_distance' => round($dist, 2),
+                                    'allowed_max_step' => round($maxStep, 2),
+                                    'elapsed_sec' => round($elapsedSec, 3),
+                                ]);
+                            }
+
+                            $scale = $maxStep / $dist;
+                            $nextX = round(max(-12.0, min(12.0, $prevX + ($dx * $scale))), 3);
+                            $nextZ = round(max(-240.0, min(20.0, $prevZ + ($dz * $scale))), 3);
+                        }
+                    }
+                }
+
+                $prevWeaponSeq = (int) ($prevEntry['weapon_seq'] ?? 0);
+                $requestedWeaponSeq = (int) ($state['weapon_seq'] ?? $prevWeaponSeq);
+                if ($wasPosSynced && $requestedWeaponSeq > $prevWeaponSeq + 3) {
+                    $requestedWeaponSeq = $prevWeaponSeq + 1;
+                }
+                $cleanWeaponSeq = max(0, min(1000000, $requestedWeaponSeq));
+
+                $selectedRoster[$publicId] = [
+                    'player_id' => $publicId,
+                    'display_name' => $identity['display_name'],
+                    'level' => $identity['level'],
+                    'glb_url' => $identity['glb_url'],
+                    'weapon' => $identity['weapon'],
+                    'x' => round(max(-12.0, min(12.0, $nextX)), 3),
+                    'y' => round(max(0.0, min(4.5, $nextY)), 3),
+                    'z' => round(max(-240.0, min(20.0, $nextZ)), 3),
+                    'rot_y' => (float) ($state['rot_y'] ?? ($prevEntry['rot_y'] ?? 3.1416)),
+                    'speed' => round(max(0.0, min(self::MAX_SPEED, (float) ($state['speed'] ?? ($prevEntry['speed'] ?? 0.0)))), 3),
+                    'zone' => $nextZone,
+                    'jumping' => (bool) ($state['jumping'] ?? ($prevEntry['jumping'] ?? false)),
+                    'weapon_seq' => $cleanWeaponSeq,
+                    'emote' => $state['emote'] ?? null,
+                    'solo_mode' => (bool) ($state['solo_mode'] ?? false),
+                    'pos_synced' => $wasPosSynced || $isSyncTick,
+                    'updated_at_ms' => $nowMs,
+                    'expires_at' => $now + self::PLAYER_TTL_SECONDS,
+                ];
+
+                Cache::put($this->roomRosterCacheKey($selectedRoomId), $selectedRoster, self::PLAYER_TTL_SECONDS + 40);
+                Cache::put($this->playerRoomCacheKey($publicId), $selectedRoomId, self::PLAYER_TTL_SECONDS);
+
+                return $selectedRoomId;
+            },
+            static fn (): string => $safeFallbackRoom
+        );
     }
 
     private function isLegitimateShowroomZoneJump(
@@ -977,13 +999,22 @@ class ShowroomMultiplayerService
     /**
      * @template TReturn
      * @param Closure(): TReturn $callback
+     * @param (Closure(): TReturn)|null $onTimeout
      * @return TReturn
      */
-    private function withShowroomLock(string $scope, Closure $callback): mixed
+    private function withShowroomLock(string $scope, Closure $callback, ?Closure $onTimeout = null): mixed
     {
         $store = Cache::getStore();
         if ($store instanceof LockProvider) {
-            return Cache::lock('sf_showroom_mutex_' . $scope, 4)->block(2, $callback);
+            try {
+                return Cache::lock('sf_showroom_mutex_' . $scope, 4)->block(2, $callback);
+            } catch (LockTimeoutException) {
+                if ($onTimeout !== null) {
+                    return $onTimeout();
+                }
+
+                return null;
+            }
         }
 
         return $callback();

@@ -16,6 +16,14 @@ class GameConfig
     // Belohnung für eine ehrliche, verifizierte Produktbewertung (einmalig pro gekauftem Produkt)
     public const REVIEW_SPARK_REWARD = 15;
 
+    // NPC Händler, Heiltrank & Rucksack-Inventar (Clean-Design)
+    public const HEALING_POTION_KEY = 'healing_potion';
+    public const HEALING_POTION_COST_SPARKS = 8;
+    public const HEALING_POTION_HEAL_HEARTS = 2;
+    public const INVENTORY_BAG_SLOTS = 6;
+    public const HEALING_POTION_MAX_STACK = 5;
+    public const HEALING_POTION_MAX_TOTAL = 30;
+
     // Ultimativer Rang-Titel (Alle 5 Kern-Titel auf Diamant + Funki Level 10)
     public const ULTIMATE_TITLE_NAME = 'Seelengott unter Sterblichen';
 
@@ -411,7 +419,20 @@ class GameConfig
 
     public static function getIngameShopCatalog(): array
     {
-        return [];
+        return [
+            self::HEALING_POTION_KEY => [
+                'key'          => self::HEALING_POTION_KEY,
+                'item_key'     => self::HEALING_POTION_KEY,
+                'name'         => 'Heiltrank',
+                'price_sparks' => self::HEALING_POTION_COST_SPARKS,
+                'cost_sparks'  => self::HEALING_POTION_COST_SPARKS,
+                'heal_hearts'  => self::HEALING_POTION_HEAL_HEARTS,
+                'max_stack'    => self::HEALING_POTION_MAX_STACK,
+                'bag_slots'    => self::INVENTORY_BAG_SLOTS,
+                'max_total'    => self::HEALING_POTION_MAX_TOTAL,
+                'category'     => 'consumable',
+            ],
+        ];
     }
 
     public static function getCockpitBackgrounds(): array

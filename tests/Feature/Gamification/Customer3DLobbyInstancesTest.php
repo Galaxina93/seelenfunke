@@ -661,7 +661,7 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->assertJsonPath('success', false)
             ->assertJsonPath('code', 'login_required');
 
-        // (b) Eingeloggter Kunde OHNE bezahlte Bestellung (auch stornierte/unbezahlte Bestellung zaehlt nicht) -> 403 'order_required'
+        // (b) Eingeloggter Kunde OHNE bezahlte Bestellung, aber MIT aktivierter Magie -> Halle der Helden & Magma Raum 1-5 frei!
         $noOrderCustomer = $this->makeCustomer(81, true, 'OhneBestellung', 2, false, true);
         OrderOrder::create([
             'order_number' => 'ORD-CANCELLED-81',
@@ -683,44 +683,28 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->assertJsonPath('player.is_authenticated', true)
             ->assertJsonPath('player.has_completed_order', false)
             ->assertJsonPath('player.gamification_active', true)
-            ->assertJsonPath('player.can_enter_sanctums', false)
-            ->assertJsonPath('player.sanctum_block_reason', 'order_required')
+            ->assertJsonPath('player.can_enter_sanctums', true)
+            ->assertJsonPath('player.sanctum_block_reason', null)
+            ->assertJsonPath('player.master_key_unlocked', false)
             ->assertJsonPath('player.login_url', '/login')
             ->assertJsonPath('player.dashboard_url', '/dashboard');
 
-        // Produkt-Lobby bleibt fuer eingeloggten Kunden ohne Bestellung frei zugaenglich
-        $this->actingAs($noOrderCustomer, 'customer')
-            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'gallery'])
-            ->assertOk()
-            ->assertJsonPath('zone', 'gallery');
-
-        // Showroom-Sync klemmt unberechtigten Zonenwechsel auf 'lobby'
-        $this->actingAs($noOrderCustomer, 'customer')
-            ->postJson('/shop/showroom-sync', ['x' => 0.0, 'y' => 0.0, 'z' => -40.0, 'zone' => 'heroes'])
-            ->assertOk()
-            ->assertJsonPath('zone', 'lobby')
-            ->assertJsonPath('sanctum_clamped', true)
-            ->assertJsonPath('can_enter_sanctums', false)
-            ->assertJsonPath('sanctum_block_reason', 'order_required');
-
-        foreach (['heroes', 'lava'] as $z) {
+        foreach (['gallery', 'heroes', 'lava'] as $z) {
             $this->actingAs($noOrderCustomer, 'customer')
                 ->postJson('/funkenwerk-welt/lobby/join', ['zone' => $z])
-                ->assertStatus(403)
-                ->assertJsonPath('success', false)
-                ->assertJsonPath('code', 'order_required');
-
-            $this->actingAs($noOrderCustomer, 'customer')
-                ->postJson('/funkenwerk-welt/lobby/sync', ['zone' => $z, 'x' => 0, 'z' => -20])
-                ->assertStatus(403)
-                ->assertJsonPath('success', false)
-                ->assertJsonPath('code', 'order_required');
+                ->assertOk()
+                ->assertJsonPath('zone', $z);
         }
 
+        // Raum 6 bleibt ohne bezahlte Bestellung hart gesperrt (MASTER_KEY_REQUIRED)
         $this->actingAs($noOrderCustomer, 'customer')
-            ->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 1])
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 6])
             ->assertStatus(403)
-            ->assertJsonPath('code', 'order_required');
+            ->assertJsonPath('code', 'MASTER_KEY_REQUIRED');
+
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/leave')
+            ->assertOk();
 
         // (c) Kunde MIT bezahlter Bestellung, aber OHNE 'Magie aktivieren' (is_active = false) -> 403 'magic_activation_required'
         $noMagicCustomer = $this->makeCustomer(82, false, 'OhneMagie', 1, true, false);
@@ -755,7 +739,17 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->assertStatus(403)
             ->assertJsonPath('code', 'magic_activation_required');
 
-        // (d) Sobald Magie aktiviert wird (alle 3 Voraussetzungen erfuellt) -> 200 OK in Halle der Helden & Magma!
+        // Ohne aktivierte Magie kein Chat & kein Report (403 magic_activation_required)
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->postJson('/shop/showroom-chat', ['message' => 'Hallo ohne Magie'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'magic_activation_required');
+        $this->actingAs($noMagicCustomer, 'customer')
+            ->postJson('/shop/showroom-report', ['target_player_id' => 'p_1234567890ab'])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'magic_activation_required');
+
+        // (d) Sobald Magie aktiviert wird -> 200 OK in Halle der Helden & Magma!
         CustomerGamification::where('customer_id', $noMagicCustomer->id)->update(['is_active' => true]);
 
         $this->actingAs($noMagicCustomer, 'customer')
@@ -779,20 +773,10 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->assertJsonPath('ok', true)
             ->assertJsonPath('zone', 'lava');
 
-        // (e) Red-Team Härtung: Showroom-Chat & Report erfordern can_enter_sanctums === true + selben Raum + sync_interval_ms = 750
+        // (e) Red-Team Härtung: Showroom-Chat & Report erfordern denselben Raum + sync_interval_ms = 750
         $bootAuth = $this->actingAs($noMagicCustomer, 'customer')->getJson('/shop/showroom-data')->assertOk();
         $this->assertSame(750, $bootAuth->json('multiplayer.sync_interval_ms'));
         $targetPid = (string) $bootAuth->json('multiplayer.player_id');
-
-        // Ohne Bestellung kein Chat & kein Report (403 order_required)
-        $this->actingAs($noOrderCustomer, 'customer')
-            ->postJson('/shop/showroom-chat', ['message' => 'Hallo ohne Bestellung'])
-            ->assertStatus(403)
-            ->assertJsonPath('code', 'order_required');
-        $this->actingAs($noOrderCustomer, 'customer')
-            ->postJson('/shop/showroom-report', ['target_player_id' => $targetPid])
-            ->assertStatus(403)
-            ->assertJsonPath('code', 'order_required');
 
         // Berechtigter Kunde, der aber NICHT im selben Raum aktiv ist, kann keinen fremden Spieler melden (422)
         $outsiderReporter = $this->makeCustomer(83, true, 'AussenMelder', 3, true, true);
@@ -807,6 +791,140 @@ class Customer3DLobbyInstancesTest extends TestCase
             ->postJson('/shop/showroom-report', ['target_player_id' => $targetPid])
             ->assertOk()
             ->assertJsonPath('reports_count', 1);
+    }
+
+    public function test_unified_hero_instance_chat_report_shadow_mute_emotes_velocity_and_showroom_forwarding(): void
+    {
+        $p1 = $this->makeCustomer(91, true, 'HeldenSender', 5, false, true);
+        $p2 = $this->makeCustomer(92, true, 'HeldenHoerer', 6, false, true);
+        $p3 = $this->makeCustomer(93, true, 'HeldenZeuge', 4, false, true);
+
+        $j1 = $this->actingAs($p1, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes', 'x' => -2.0, 'z' => -30.0])
+            ->assertOk();
+        $p1PeerId = (string) $j1->json('player.peer_id');
+        $this->assertMatchesRegularExpression('/^[0-9a-f]{12}$/', $p1PeerId);
+
+        $this->actingAs($p2, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes', 'x' => 2.0, 'z' => -30.0])
+            ->assertOk()
+            ->assertJsonPath('instance_id', 1);
+
+        $this->actingAs($p3, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/join', ['zone' => 'heroes', 'x' => 0.0, 'z' => -32.0])
+            ->assertOk()
+            ->assertJsonPath('instance_id', 1);
+
+        // 1. HTML/XSS & Überlänge (> 180 Zeichen) werden im Instanz-Chat hart abgelehnt
+        $this->actingAs($p1, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/chat', ['message' => '<script>alert(1)</script>'])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'blocked_html');
+
+        $this->actingAs($p1, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/chat', ['message' => str_repeat('A', 185)])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'too_long');
+
+        // 2. Ehrliche Nachricht via /funkenwerk-welt/lobby/chat UND via /shop/showroom-chat landet auf derselben Instanz #1!
+        $chat1 = $this->actingAs($p1, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/chat', ['message' => 'Willkommen in der Halle der Helden!']);
+        $chat1->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('instance_id', 1)
+            ->assertJsonPath('entry.peer_id', $p1PeerId)
+            ->assertJsonPath('entry.display_name', 'HeldenSender')
+            ->assertJsonPath('entry.message', 'Willkommen in der Halle der Helden!');
+
+        $this->travel(3)->seconds();
+
+        $chat2 = $this->actingAs($p2, 'customer')
+            ->postJson('/shop/showroom-chat', ['message' => 'Seid gegrüßt, Kameraden!']);
+        $chat2->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('instance_id', 1);
+
+        // 3. Sync liefert Peers inkl. vx, vz, emote ('sit'/'clap'/'dance'), ability_slot, weapon_seq UND die Instanz-Messages!
+        $this->actingAs($p1, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', [
+                'zone' => 'heroes',
+                'x' => -1.5,
+                'y' => 0.0,
+                'z' => -29.5,
+                'vx' => 3.4,
+                'vz' => -2.1,
+                'speed' => 4.0,
+                'emote' => 'sit',
+                'ability_slot' => 2,
+                'weapon_seq' => 7,
+            ])
+            ->assertOk();
+
+        $syncP2 = $this->actingAs($p2, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', [
+                'zone' => 'heroes',
+                'x' => 2.0,
+                'z' => -30.0,
+                'emote' => 'clap',
+            ]);
+        $syncP2->assertOk();
+
+        $peerP1 = collect($syncP2->json('peers'))->firstWhere('peer_id', $p1PeerId);
+        $this->assertNotNull($peerP1);
+        $this->assertEquals(3.4, $peerP1['vx']);
+        $this->assertEquals(-2.1, $peerP1['vz']);
+        $this->assertSame('sit', $peerP1['emote']);
+        $this->assertSame(2, $peerP1['ability_slot']);
+        $this->assertSame(7, $peerP1['weapon_seq']);
+
+        $messagesForP2 = $syncP2->json('messages');
+        $this->assertCount(2, $messagesForP2);
+        $this->assertSame('Willkommen in der Halle der Helden!', $messagesForP2[0]['message']);
+        $this->assertSame('Seid gegrüßt, Kameraden!', $messagesForP2[1]['message']);
+
+        // 4. Instanz-Isolation: Spieler in Instanz #2 sieht weder Nachrichten aus Instanz #1 noch darf er p1 melden!
+        $outsider = $this->makeCustomer(94, true, 'InstanzZweiHeld', 3, false, true);
+        $this->actingAs($outsider, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/switch', ['target_instance' => 2, 'zone' => 'heroes'])
+            ->assertOk()
+            ->assertJsonPath('instance_id', 2)
+            ->assertJsonPath('messages', []);
+
+        $this->actingAs($outsider, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/report', ['peer_id' => $p1PeerId])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'not_in_same_instance');
+
+        // 5. 2 Meldungen aus derselben Instanz (#1) aktivieren den 24h Shadow-Mute (sf_lobby_mute_v1_{customerId})
+        $this->actingAs($p2, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/report', ['peer_id' => $p1PeerId])
+            ->assertOk()
+            ->assertJsonPath('reports_count', 1)
+            ->assertJsonPath('shadow_muted', false);
+
+        $this->actingAs($p3, 'customer')
+            ->postJson('/shop/showroom-report', ['peer_id' => $p1PeerId])
+            ->assertOk()
+            ->assertJsonPath('reports_count', 2)
+            ->assertJsonPath('shadow_muted', true);
+
+        $this->assertTrue(Cache::has('sf_lobby_mute_v1_' . $p1->id));
+
+        $this->travel(3)->seconds();
+        $this->actingAs($p1, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/chat', ['message' => 'Unsichtbare Shadow-Mute Nachricht'])
+            ->assertOk()
+            ->assertJsonPath('shadow_muted', true);
+
+        // Sender selbst sieht seine Nachricht lokal weiterhin, Mitspieler p2 sieht sie NICHT!
+        $syncMutedSelf = $this->actingAs($p1, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', ['zone' => 'heroes', 'x' => -1.5, 'z' => -29.5]);
+        $this->assertCount(3, $syncMutedSelf->json('messages'));
+
+        $syncListenerAfterMute = $this->actingAs($p2, 'customer')
+            ->postJson('/funkenwerk-welt/lobby/sync', ['zone' => 'heroes', 'x' => 2.0, 'z' => -30.0]);
+        $listenerTexts = collect($syncListenerAfterMute->json('messages'))->pluck('message')->all();
+        $this->assertNotContains('Unsichtbare Shadow-Mute Nachricht', $listenerTexts);
     }
 
     private function makeCustomer(

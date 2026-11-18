@@ -20,6 +20,8 @@ class CustomerLobbyController extends Controller
         'x',
         'y',
         'z',
+        'vx',
+        'vz',
         'rot_y',
         'rotY',
         'speed',
@@ -27,6 +29,8 @@ class CustomerLobbyController extends Controller
         'comboSeq',
         'combo_stage',
         'comboStage',
+        'weapon_seq',
+        'weaponActionSeq',
         'ability_slot',
         'abilitySlot',
     ];
@@ -38,6 +42,8 @@ class CustomerLobbyController extends Controller
         'x',
         'y',
         'z',
+        'vx',
+        'vz',
         'rot_y',
         'rotY',
         'speed',
@@ -46,6 +52,8 @@ class CustomerLobbyController extends Controller
         'comboSeq',
         'combo_stage',
         'comboStage',
+        'weapon_seq',
+        'weaponActionSeq',
         'emote',
         'ability_slot',
         'abilitySlot',
@@ -177,6 +185,90 @@ class CustomerLobbyController extends Controller
         return response()->json([
             'ok' => true,
         ], 200, $this->securityHeaders());
+    }
+
+    public function chat(Request $request, LobbyInstanceService $lobby): JsonResponse
+    {
+        $actor = $lobby->resolveActorFromAuth();
+        if ($blocked = $this->guardAgainstConsoleManipulation($request, $actor['actor_key'] ?? null)) {
+            return $blocked;
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        $isAdmin = $customer === null
+            && $actor !== null
+            && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
+
+        if ($denied = $lobby->checkZoneSanctumRestriction($customer instanceof Customer ? $customer : null, 'heroes', $isAdmin)) {
+            return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
+        }
+
+        if ($actor === null) {
+            $guestDenied = $lobby->checkGuestZoneRestriction('heroes');
+
+            return response()->json($guestDenied['body'] ?? ['ok' => false, 'code' => 'login_required'], 403, $this->securityHeaders());
+        }
+
+        $rawMessage = $request->input('message', $request->input('text', ''));
+        if (!is_string($rawMessage)) {
+            LobbyInstanceService::logTamperThrottled((string) ($actor['actor_key'] ?? 'lobby_chat'), $request->path(), 'non_string_chat_message');
+
+            return response()->json([
+                'ok' => false,
+                'success' => false,
+                'code' => 'invalid_payload',
+                'message' => 'Ungültiges Nachrichtenformat.',
+            ], 422, $this->securityHeaders());
+        }
+
+        $result = $lobby->postChatMessage($actor, $rawMessage, true);
+        $status = (int) ($result['status'] ?? (!empty($result['ok']) ? 200 : 422));
+        unset($result['status']);
+
+        return response()->json($result, $status, $this->securityHeaders());
+    }
+
+    public function report(Request $request, LobbyInstanceService $lobby): JsonResponse
+    {
+        $actor = $lobby->resolveActorFromAuth();
+        if ($blocked = $this->guardAgainstConsoleManipulation($request, $actor['actor_key'] ?? null)) {
+            return $blocked;
+        }
+
+        /** @var Customer|null $customer */
+        $customer = Auth::guard('customer')->user();
+        $isAdmin = $customer === null
+            && $actor !== null
+            && str_starts_with((string) ($actor['actor_key'] ?? ''), 'admin:');
+
+        if ($denied = $lobby->checkZoneSanctumRestriction($customer instanceof Customer ? $customer : null, 'heroes', $isAdmin)) {
+            return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
+        }
+
+        if ($actor === null) {
+            $guestDenied = $lobby->checkGuestZoneRestriction('heroes');
+
+            return response()->json($guestDenied['body'] ?? ['ok' => false, 'code' => 'login_required'], 403, $this->securityHeaders());
+        }
+
+        $rawTarget = $request->input('target_peer_id', $request->input('target_player_id', $request->input('peer_id', '')));
+        if (!is_string($rawTarget)) {
+            LobbyInstanceService::logTamperThrottled((string) ($actor['actor_key'] ?? 'lobby_report'), $request->path(), 'non_string_report_target');
+
+            return response()->json([
+                'ok' => false,
+                'success' => false,
+                'code' => 'invalid_target',
+                'message' => 'Ungültige Spieler-Kennung.',
+            ], 422, $this->securityHeaders());
+        }
+
+        $result = $lobby->reportPeer($actor, $rawTarget);
+        $status = (int) ($result['status'] ?? (!empty($result['ok']) ? 200 : 422));
+        unset($result['status']);
+
+        return response()->json($result, $status, $this->securityHeaders());
     }
 
     private function guardAgainstConsoleManipulation(Request $request, ?string $actorKey = null): ?JsonResponse

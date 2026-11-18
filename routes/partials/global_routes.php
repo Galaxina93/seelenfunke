@@ -219,6 +219,12 @@ Route::post('/funkenwerk-welt/lobby/switch', [\App\Http\Controllers\Api\Customer
 Route::post('/funkenwerk-welt/lobby/leave', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'leave'])
     ->middleware('throttle:60,1,lobby_leave')
     ->name('gamification.funkenwerk-lobby.leave');
+Route::post('/funkenwerk-welt/lobby/chat', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'chat'])
+    ->middleware('throttle:30,1,lobby_chat')
+    ->name('gamification.funkenwerk-lobby.chat');
+Route::post('/funkenwerk-welt/lobby/report', [\App\Http\Controllers\Api\CustomerLobbyController::class, 'report'])
+    ->middleware('throttle:20,1,lobby_report')
+    ->name('gamification.funkenwerk-lobby.report');
 
 // Inline-Auth & Inline-Magie-Aktivierung für 3D-Showroom & Funkenreich
 Route::post('/funkenwerk-welt/inline-login', [\App\Http\Controllers\Frontend\ShopShowroomController::class, 'inlineLogin'])

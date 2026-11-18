@@ -2,9 +2,10 @@
 
 namespace App\Services\Gamification;
 
+use App\Http\Controllers\Api\FunkenwerkHeroesController;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
-use App\Models\Customer\CustomerGamificationEventLog;
+use App\Models\Customer\CustomerGamificationLog;
 use App\Models\Marketing\MarketingVoucher;
 use App\Models\Order\OrderOrder;
 use App\Models\Product\ProductReview;
@@ -590,6 +591,9 @@ class GamificationService
 
             $this->syncDynamicTitles($profile);
         });
+
+        LobbyInstanceService::forgetCustomerCache((string) $order->customer_id);
+        FunkenwerkHeroesController::forgetPublicCache();
     }
 
     public function reverseOrderFunken(OrderOrder $order): void
@@ -687,6 +691,9 @@ class GamificationService
 
             $this->syncDynamicTitles($profile);
         });
+
+        LobbyInstanceService::forgetCustomerCache((string) $order->customer_id);
+        FunkenwerkHeroesController::forgetPublicCache();
     }
 
     /**
@@ -856,12 +863,15 @@ class GamificationService
 
             $this->syncDynamicTitles($profile);
         });
+
+        LobbyInstanceService::forgetCustomerCache((string) $review->customer_id);
+        FunkenwerkHeroesController::forgetPublicCache();
     }
 
     /**
-     * Admin-Verwaltung für die Benutzerverwaltung (/admin/user-management):
+     * Admin-Verwaltung für die Benutzerverwaltung (/admin/users):
      * Erlaubt das sichere Anpassen von Funken-Guthaben, Lebenszeit-Funken, Funki-Level (1-10),
-     * Aktiv-Status sowie der DSGVO-Haken (Halle der Helden Opt-In, Echtname/Spielername).
+     * Aktiv-Status, DSGVO-Haken sowie Magma-Stufe, Magma-Herzen und Heiltränken.
      */
     public function adminAdjustCustomerGamification(
         Customer $customer,
@@ -871,9 +881,12 @@ class GamificationService
         bool $isActive,
         ?bool $rankingOptIn = null,
         ?bool $useRealName = null,
-        ?string $playerName = null
+        ?string $playerName = null,
+        ?int $magmaUnlockedLevel = null,
+        ?int $magmaHearts = null,
+        ?int $healingPotions = null
     ): CustomerGamification {
-        return DB::transaction(function () use (
+        $adjusted = DB::transaction(function () use (
             $customer,
             $funkenBalance,
             $funkenTotalEarned,
@@ -881,7 +894,10 @@ class GamificationService
             $isActive,
             $rankingOptIn,
             $useRealName,
-            $playerName
+            $playerName,
+            $magmaUnlockedLevel,
+            $magmaHearts,
+            $healingPotions
         ) {
             $profile = $this->getProfile($customer);
             $locked = CustomerGamification::where('id', $profile->id)->lockForUpdate()->first() ?? $profile;
@@ -903,6 +919,22 @@ class GamificationService
                 $locked->player_name = $cleanPlayerName !== '' ? mb_substr($cleanPlayerName, 0, 35) : null;
             }
 
+            if ($magmaUnlockedLevel !== null) {
+                $locked->magma_unlocked_level = max(1, min(LavaParkourService::MAX_MAGMA_LEVEL, $magmaUnlockedLevel));
+            }
+            if ($magmaHearts !== null) {
+                $locked->magma_hearts = max(1, min(LavaParkourService::MAX_HEARTS, $magmaHearts));
+            }
+
+            $locked->magma_active_run_id = null;
+            $locked->magma_run_committed = false;
+
+            $syncedPotions = null;
+            if ($healingPotions !== null) {
+                $invSync = app(LavaParkourService::class)->syncCustomerPotionsCount($locked, $healingPotions);
+                $syncedPotions = $invSync['potion_count'];
+            }
+
             $progress = is_array($locked->titles_progress) && !empty($locked->titles_progress)
                 ? $locked->titles_progress
                 : $this->getInitialTitlesProgress();
@@ -920,18 +952,27 @@ class GamificationService
                 $delta,
                 (int) $locked->funken_balance,
                 [
-                    'level'               => (int) $locked->level,
-                    'funken_balance'      => (int) $locked->funken_balance,
-                    'funken_total_earned' => (int) $locked->funken_total_earned,
-                    'is_active'           => (bool) $locked->is_active,
-                    'ranking_opt_in'      => (bool) $locked->ranking_opt_in,
-                    'use_real_name'       => (bool) $locked->use_real_name,
-                    'player_name'         => $locked->player_name,
+                    'level'                => (int) $locked->level,
+                    'funken_balance'       => (int) $locked->funken_balance,
+                    'funken_total_earned'  => (int) $locked->funken_total_earned,
+                    'is_active'            => (bool) $locked->is_active,
+                    'ranking_opt_in'       => (bool) $locked->ranking_opt_in,
+                    'use_real_name'        => (bool) $locked->use_real_name,
+                    'player_name'          => $locked->player_name,
+                    'magma_unlocked_level' => (int) ($locked->magma_unlocked_level ?? 1),
+                    'magma_hearts'         => (int) ($locked->magma_hearts ?? LavaParkourService::MAX_HEARTS),
+                    'healing_potions'      => $syncedPotions,
                 ]
             );
 
             return $locked;
         });
+
+        app(LavaParkourService::class)->invalidateActiveRunForCustomer((string) $customer->id);
+        LobbyInstanceService::forgetCustomerCache((string) $customer->id);
+        FunkenwerkHeroesController::forgetPublicCache();
+
+        return $adjusted;
     }
 
     public function getCurrentImagePath(int $level): string
@@ -1363,7 +1404,8 @@ class GamificationService
             return [$prevOptIn, $prevReal, $prevName, $locked];
         });
 
-        \App\Http\Controllers\Api\FunkenwerkHeroesController::forgetPublicCache();
+        FunkenwerkHeroesController::forgetPublicCache();
+        LobbyInstanceService::forgetCustomerCache((string) $customer->id);
 
         $hofChanges = [];
         if ($oldRankingOptIn !== (bool) $profile->ranking_opt_in) {
@@ -1397,14 +1439,14 @@ class GamificationService
     {
         if (!$profile || !is_array($profile->titles_progress)) {
             return [
-                'volume'       => 35,
+                'volume'       => 5,
                 'muted'        => true,
                 'keep_playing' => false,
             ];
         }
 
         $progress = $profile->titles_progress;
-        $volume = isset($progress['_audio_volume']) ? max(0, min(100, (int) $progress['_audio_volume'])) : 35;
+        $volume = isset($progress['_audio_volume']) ? max(0, min(100, (int) $progress['_audio_volume'])) : 5;
         $muted = array_key_exists('_audio_muted', $progress) ? (bool) $progress['_audio_muted'] : true;
         $keepPlaying = !empty($progress['_audio_keep_playing']);
 
@@ -1707,6 +1749,13 @@ class GamificationService
             'ranking_opt_in'      => 'DSGVO: Halle der Helden Opt-In',
             'use_real_name'       => 'DSGVO: Echtname in Halle der Helden',
             'player_name'                => 'Spielername (Halle der Helden)',
+            'funken_balance'             => 'Seelenfunken-Guthaben',
+            'funken_total_earned'        => 'Lebenszeit-Funken (Gesamt)',
+            'funki_level'                => 'Funki-Stufe (1 bis 10)',
+            'level'                      => 'Funki-Stufe (1 bis 10)',
+            'magma_unlocked_level'       => 'Magma-Prüfung Freischalt-Stufe',
+            'magma_hearts'               => 'Magma-Herzen (1 bis 6)',
+            'healing_potions'            => 'Heiltränke im Rucksack',
             'ai_data_consent'            => 'DSGVO: KI-Support-Freigabe',
             'receive_birthday_emails'    => 'E-Mail: 🎂 Geburtstags-Funke',
             'receive_anniversary_emails' => 'E-Mail: 🕯️ Kauf-Jubiläum (Vorfreude-Funken)',
@@ -2287,8 +2336,8 @@ class GamificationService
         array $meta = []
     ): void {
         try {
-            if (Schema::hasTable('customer_gamification_event_logs')) {
-                CustomerGamificationEventLog::create([
+            if (Schema::hasTable('customer_gamification_logs')) {
+                CustomerGamificationLog::create([
                     'customer_id'   => $customerId,
                     'event_type'    => $eventType,
                     'category'      => $category,
@@ -2296,7 +2345,7 @@ class GamificationService
                     'description'   => $description,
                     'sparks_delta'  => $sparksDelta,
                     'balance_after' => $balanceAfter,
-                    'meta'          => $meta,
+                    'metadata'      => $meta,
                 ]);
             }
         } catch (\Throwable $e) {

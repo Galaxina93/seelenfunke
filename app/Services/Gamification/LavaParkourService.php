@@ -358,15 +358,22 @@ class LavaParkourService
         }
 
         $maxSequential = $this->computeMaxSequentialCleared($clearedLevels);
-        $fallbackUnlocked = min(self::MAX_MAGMA_LEVEL, $maxSequential + 1);
+        $permanentFloorLevel = min(self::MAX_MAGMA_LEVEL, $maxSequential + 1);
 
-        $rawProgressUnlocked = $fallbackUnlocked;
+        $rawProgressUnlocked = $permanentFloorLevel;
         $hearts = self::MAX_HEARTS;
 
         if ($gamification !== null) {
             $attrs = $gamification->getAttributes();
             if (array_key_exists('magma_unlocked_level', $attrs) && $attrs['magma_unlocked_level'] !== null) {
-                $rawProgressUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) $attrs['magma_unlocked_level']));
+                $storedUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) $attrs['magma_unlocked_level']));
+                $rawProgressUnlocked = max($permanentFloorLevel, $storedUnlocked);
+
+                if ($storedUnlocked < $permanentFloorLevel && Schema::hasTable('customer_gamifications')) {
+                    $gamification->magma_unlocked_level = $rawProgressUnlocked;
+                    CustomerGamification::where('id', $gamification->id)
+                        ->update(['magma_unlocked_level' => $rawProgressUnlocked]);
+                }
             }
             if (array_key_exists('magma_hearts', $attrs) && $attrs['magma_hearts'] !== null && (int) $attrs['magma_hearts'] > 0) {
                 $hearts = max(1, min(self::MAX_HEARTS, (int) $attrs['magma_hearts']));
@@ -431,7 +438,14 @@ class LavaParkourService
     public function buildShowroomPayload(?Customer $customer): array
     {
         $access = LobbyInstanceService::evaluateSanctumAccess($customer);
-        $state = $this->resolveProgressState($customer);
+        $gamification = null;
+        if ($customer !== null && Schema::hasTable('customer_gamifications')) {
+            $gamification = CustomerGamification::where('customer_id', $customer->id)->first();
+        }
+        $state = $this->resolveProgressState($customer, $gamification);
+        $inventory = $customer !== null
+            ? $this->getInventoryPayload($customer, $gamification)
+            : $this->getDefaultGuestInventoryPayload();
         $levelsList = [];
 
         foreach ($this->getLevelsCatalog() as $lvlNum => $levelDef) {
@@ -460,6 +474,11 @@ class LavaParkourService
             'unlocked_level' => $state['highest_unlocked_level'],
             'hearts' => $state['hearts'],
             'max_hearts' => self::MAX_HEARTS,
+            'potion_count' => $inventory['potion_count'],
+            'potion_price_sparks' => $inventory['potion_price_sparks'],
+            'potion_heal_hearts' => $inventory['potion_heal_hearts'],
+            'bag_slots' => $inventory['bag_slots'],
+            'quick_slots' => $inventory['quick_slots'],
             'unlocked_portals' => $state['unlocked_portals'],
             'first_cleared_levels' => $state['first_cleared_levels'],
             'daily_cleared_levels' => $state['daily_cleared_levels'],
@@ -535,7 +554,13 @@ class LavaParkourService
                 $masterKeyUnlocked = $this->hasMasterKey($customer);
                 $maxCap = $masterKeyUnlocked ? self::MAX_MAGMA_LEVEL : 5;
 
-                $rawUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($gam->magma_unlocked_level ?: 1)));
+                $titlesProgress = is_array($gam->titles_progress) ? $gam->titles_progress : [];
+                $clearedLevels = $this->normalizeLevelList($titlesProgress['lava_cleared_levels'] ?? []);
+                $maxSequentialCleared = $this->computeMaxSequentialCleared($clearedLevels);
+                $permanentFloorLevel = min(self::MAX_MAGMA_LEVEL, $maxSequentialCleared + 1);
+
+                $storedUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($gam->magma_unlocked_level ?: 1)));
+                $rawUnlocked = max($permanentFloorLevel, $storedUnlocked);
                 $hearts = max(1, min(self::MAX_HEARTS, (int) ($gam->magma_hearts ?: self::MAX_HEARTS)));
 
                 $escrowPenaltyApplied = false;
@@ -547,9 +572,11 @@ class LavaParkourService
                     $hearts--;
 
                     if ($hearts <= 0) {
-                        $rawUnlocked = max(1, $rawUnlocked - 1);
+                        $beforeDemote = $rawUnlocked;
+                        $demotedLevel = max(1, $rawUnlocked - 1);
+                        $rawUnlocked = max($permanentFloorLevel, $demotedLevel);
                         $hearts = self::MAX_HEARTS;
-                        $escrowDemoted = true;
+                        $escrowDemoted = $rawUnlocked < $beforeDemote;
                     }
                 }
 
@@ -1036,14 +1063,21 @@ class LavaParkourService
                     $masterKeyUnlocked = $this->hasMasterKey($customer);
                     $maxCap = $masterKeyUnlocked ? self::MAX_MAGMA_LEVEL : 5;
 
+                    $titlesProgress = is_array($gam->titles_progress) ? $gam->titles_progress : [];
+                    $clearedLevels = $this->normalizeLevelList($titlesProgress['lava_cleared_levels'] ?? []);
+                    $maxSequentialCleared = $this->computeMaxSequentialCleared($clearedLevels);
+                    $permanentFloorLevel = min(self::MAX_MAGMA_LEVEL, $maxSequentialCleared + 1);
+
                     $currentHearts = max(1, min(self::MAX_HEARTS, (int) ($gam->magma_hearts ?: self::MAX_HEARTS)));
                     $nextHearts = $currentHearts - 1;
-                    $currentRawUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($gam->magma_unlocked_level ?: 1)));
+                    $storedUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($gam->magma_unlocked_level ?: 1)));
+                    $currentRawUnlocked = max($permanentFloorLevel, $storedUnlocked);
 
                     if ($nextHearts > 0) {
                         $newLifeNonce = Str::random(32);
                         $newSecret = Str::random(48);
 
+                        $gam->magma_unlocked_level = $currentRawUnlocked;
                         $gam->magma_hearts = $nextHearts;
                         $gam->magma_active_run_id = $runId;
                         $gam->magma_run_committed = false;
@@ -1060,6 +1094,7 @@ class LavaParkourService
                         $run['life_nonce'] = $newLifeNonce;
                         $run['secret'] = $newSecret;
                         $run['last_hit_at_ms'] = $nowMs;
+                        $run['hearts'] = $nextHearts;
                         $this->refreshRunTtl($cacheKey, $run);
 
                         $effectiveUnlocked = max(1, min($maxCap, $currentRawUnlocked));
@@ -1072,6 +1107,7 @@ class LavaParkourService
                             'max_hearts' => self::MAX_HEARTS,
                             'demoted' => false,
                             'unlocked_level' => $effectiveUnlocked,
+                            'highest_unlocked_level' => $effectiveUnlocked,
                             'target_level' => $runLevel,
                             'run_id' => $runId,
                             'life_nonce' => $newLifeNonce,
@@ -1096,10 +1132,13 @@ class LavaParkourService
                         ];
                     }
 
-                    // 0/6 Herzen erreicht -> Level-Rueckstufung um 1 Stufe & frische 6/6 Herzen
-                    $newRawUnlocked = max(1, $currentRawUnlocked - 1);
+                    // 0/6 Herzen erreicht -> Rueckstufung maximal bis auf das permanente Raum-Plateau & frische 6/6 Herzen
+                    $demotedCandidate = max(1, $currentRawUnlocked - 1);
+                    $newRawUnlocked = max($permanentFloorLevel, $demotedCandidate);
                     $newEffectiveUnlocked = max(1, min($maxCap, $newRawUnlocked));
                     $newTargetLevel = max(1, min($runLevel, $newEffectiveUnlocked));
+                    $wasDemoted = ($newRawUnlocked < $currentRawUnlocked) || ($newTargetLevel < $runLevel);
+                    $unlockedPortals = $newEffectiveUnlocked >= 2 ? range(2, $newEffectiveUnlocked) : [];
 
                     $newRunId = Str::random(40);
                     $newLifeNonce = Str::random(32);
@@ -1112,6 +1151,7 @@ class LavaParkourService
                     $gam->save();
 
                     FunkenwerkHeroesController::forgetPublicCache();
+                    LobbyInstanceService::forgetCustomerCache($customerId);
                     $this->storeActiveLifeNonce($customerId, $newLifeNonce);
 
                     Cache::put(
@@ -1131,6 +1171,7 @@ class LavaParkourService
                             'shield_uses' => 0,
                             'last_shield_at_ms' => null,
                             'last_hit_at_ms' => $nowMs,
+                            'hearts' => self::MAX_HEARTS,
                         ],
                         Carbon::now()->addMinutes(self::RUN_TTL_MINUTES)
                     );
@@ -1139,11 +1180,13 @@ class LavaParkourService
 
                     $body = [
                         'success' => true,
-                        'status' => 'level_demoted',
+                        'status' => $wasDemoted ? 'level_demoted' : 'hearts_reset',
                         'hearts' => self::MAX_HEARTS,
                         'max_hearts' => self::MAX_HEARTS,
-                        'demoted' => true,
+                        'demoted' => $wasDemoted,
                         'unlocked_level' => $newEffectiveUnlocked,
+                        'highest_unlocked_level' => $newEffectiveUnlocked,
+                        'unlocked_portals' => $unlockedPortals,
                         'demoted_to_level' => $newTargetLevel,
                         'target_level' => $newTargetLevel,
                         'run_id' => $newRunId,
@@ -1851,8 +1894,14 @@ class LavaParkourService
                         'sparks' => $dailySparksEarned,
                     ];
 
+                    $maxSequentialCleared = $this->computeMaxSequentialCleared($clearedLevels);
+                    $permanentFloorLevel = min(self::MAX_MAGMA_LEVEL, $maxSequentialCleared + 1);
                     $currentMagmaUnlocked = max(1, min(self::MAX_MAGMA_LEVEL, (int) ($gam->magma_unlocked_level ?: 1)));
-                    $nextRawUnlocked = max($currentMagmaUnlocked, min(self::MAX_MAGMA_LEVEL, $runLevel + 1));
+                    $nextRawUnlocked = max(
+                        $permanentFloorLevel,
+                        $currentMagmaUnlocked,
+                        min(self::MAX_MAGMA_LEVEL, $runLevel + 1)
+                    );
 
                     $gam->magma_unlocked_level = $nextRawUnlocked;
                     $gam->magma_active_run_id = null;
@@ -1861,6 +1910,7 @@ class LavaParkourService
                     $gam->save();
 
                     FunkenwerkHeroesController::forgetPublicCache();
+                    LobbyInstanceService::forgetCustomerCache((string) $customer->id);
 
                     if ($sparksAwarded > 0) {
                         $levelTitle = self::LEVEL_TITLES[$runLevel];
@@ -2092,6 +2142,84 @@ class LavaParkourService
             ];
         }
 
+        if ($action === 'buy_potion') {
+            $qty = max(1, min(GameConfig::HEALING_POTION_MAX_STACK, (int) ($payload['quantity'] ?? 1)));
+            $bagSlots = array_fill(0, GameConfig::INVENTORY_BAG_SLOTS, null);
+            $bagSlots[0] = [
+                'slot' => 0,
+                'item_key' => GameConfig::HEALING_POTION_KEY,
+                'name' => 'Heiltrank',
+                'qty' => $qty,
+                'heal_hearts' => GameConfig::HEALING_POTION_HEAL_HEARTS,
+            ];
+
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'admin_preview' => true,
+                    'item_key' => GameConfig::HEALING_POTION_KEY,
+                    'purchased_qty' => $qty,
+                    'potion_count' => $qty,
+                    'potion_price_sparks' => GameConfig::HEALING_POTION_COST_SPARKS,
+                    'potion_heal_hearts' => GameConfig::HEALING_POTION_HEAL_HEARTS,
+                    'bag_slots' => $bagSlots,
+                    'quick_slots' => [
+                        'slot_1' => GameConfig::HEALING_POTION_KEY,
+                        'slot_2' => null,
+                    ],
+                    'funken_balance' => 0,
+                    'funken_total_earned' => 0,
+                    'hearts' => self::MAX_HEARTS,
+                    'max_hearts' => self::MAX_HEARTS,
+                    'message' => 'Admin-Vorschau: Heiltrank simuliert.',
+                ],
+            ];
+        }
+
+        if ($action === 'use_item') {
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'admin_preview' => true,
+                    'item_key' => GameConfig::HEALING_POTION_KEY,
+                    'healed_hearts' => GameConfig::HEALING_POTION_HEAL_HEARTS,
+                    'hearts_before' => 4,
+                    'hearts' => self::MAX_HEARTS,
+                    'max_hearts' => self::MAX_HEARTS,
+                    'potion_count' => 1,
+                    'bag_slots' => array_fill(0, GameConfig::INVENTORY_BAG_SLOTS, null),
+                    'quick_slots' => [
+                        'slot_1' => GameConfig::HEALING_POTION_KEY,
+                        'slot_2' => null,
+                    ],
+                    'message' => '+2 Herzen regeneriert!',
+                ],
+            ];
+        }
+
+        if ($action === 'equip_slot') {
+            $qSlot = (int) ($payload['quick_slot'] ?? 1);
+            $rawKey = isset($payload['item_key']) && $payload['item_key'] === GameConfig::HEALING_POTION_KEY
+                ? GameConfig::HEALING_POTION_KEY
+                : null;
+
+            return [
+                'status' => 200,
+                'body' => [
+                    'success' => true,
+                    'admin_preview' => true,
+                    'potion_count' => 1,
+                    'bag_slots' => array_fill(0, GameConfig::INVENTORY_BAG_SLOTS, null),
+                    'quick_slots' => [
+                        'slot_1' => $qSlot === 1 ? $rawKey : null,
+                        'slot_2' => $qSlot === 2 ? $rawKey : null,
+                    ],
+                ],
+            ];
+        }
+
         Cache::forget($cacheKey);
 
         return [
@@ -2107,6 +2235,639 @@ class LavaParkourService
                 'rewarded_sparks' => 0,
                 'message' => 'Admin-Vorschau abgeschlossen.',
             ],
+        ];
+    }
+
+    /**
+     * @return array{
+     *     potion_count: int,
+     *     potion_price_sparks: int,
+     *     potion_heal_hearts: int,
+     *     bag_slots: array<int, array<string, mixed>|null>,
+     *     quick_slots: array{slot_1: string|null, slot_2: string|null}
+     * }
+     */
+    public function getDefaultGuestInventoryPayload(): array
+    {
+        return [
+            'potion_count' => 0,
+            'potion_price_sparks' => GameConfig::HEALING_POTION_COST_SPARKS,
+            'potion_heal_hearts' => GameConfig::HEALING_POTION_HEAL_HEARTS,
+            'bag_slots' => array_fill(0, GameConfig::INVENTORY_BAG_SLOTS, null),
+            'quick_slots' => [
+                'slot_1' => null,
+                'slot_2' => null,
+            ],
+        ];
+    }
+
+    /**
+     * Normalisierte Inventar- & Rucksack-Darstellung fuer den Kunden (6 Slots, max. 5 Heiltraenke je Slot = max. 30).
+     *
+     * @return array{
+     *     potion_count: int,
+     *     potion_price_sparks: int,
+     *     potion_heal_hearts: int,
+     *     bag_slots: array<int, array<string, mixed>|null>,
+     *     quick_slots: array{slot_1: string|null, slot_2: string|null}
+     * }
+     */
+    public function getInventoryPayload(?Customer $customer, ?CustomerGamification $gam = null): array
+    {
+        if ($customer === null) {
+            return $this->getDefaultGuestInventoryPayload();
+        }
+
+        if ($gam === null && Schema::hasTable('customer_gamifications')) {
+            $gam = CustomerGamification::where('customer_id', $customer->id)->first();
+        }
+
+        if ($gam === null) {
+            return $this->getDefaultGuestInventoryPayload();
+        }
+
+        $normalized = $this->extractNormalizedInventoryState($gam);
+
+        return [
+            'potion_count' => $normalized['potion_count'],
+            'potion_price_sparks' => GameConfig::HEALING_POTION_COST_SPARKS,
+            'potion_heal_hearts' => GameConfig::HEALING_POTION_HEAL_HEARTS,
+            'bag_slots' => $normalized['bag_slots'],
+            'quick_slots' => $normalized['quick_slots'],
+        ];
+    }
+
+    /**
+     * Synchronisiert die Heiltrank-Menge (0..30) in 5er-Stacks auf den 6 Rucksack-Slots (fuer Admin-Support).
+     *
+     * @return array{
+     *     potion_count: int,
+     *     bag_slots: array<int, array<string, mixed>|null>,
+     *     quick_slots: array{slot_1: string|null, slot_2: string|null}
+     * }
+     */
+    public function syncCustomerPotionsCount(CustomerGamification $gam, int $targetCount): array
+    {
+        $clampedTotal = max(0, min(GameConfig::HEALING_POTION_MAX_TOTAL, $targetCount));
+        $remaining = $clampedTotal;
+        $bagSlots = array_fill(0, GameConfig::INVENTORY_BAG_SLOTS, null);
+
+        for ($i = 0; $i < GameConfig::INVENTORY_BAG_SLOTS; $i++) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $stackQty = min(GameConfig::HEALING_POTION_MAX_STACK, $remaining);
+            $bagSlots[$i] = $this->buildPotionSlotEntry($i, $stackQty);
+            $remaining -= $stackQty;
+        }
+
+        $rawInv = is_array($gam->inventory_items) ? $gam->inventory_items : [];
+        $cleanedInv = [];
+        foreach ($rawInv as $invKey => $invEntry) {
+            if (is_int($invKey)) {
+                if (is_array($invEntry) && ($invEntry['item_key'] ?? null) === GameConfig::HEALING_POTION_KEY) {
+                    continue;
+                }
+                if ($invEntry === GameConfig::HEALING_POTION_KEY) {
+                    continue;
+                }
+            }
+            $cleanedInv[$invKey] = $invEntry;
+        }
+        $cleanedInv['bag_slots'] = $bagSlots;
+        $cleanedInv[GameConfig::HEALING_POTION_KEY] = $clampedTotal;
+        $gam->inventory_items = $cleanedInv;
+
+        $equipped = is_array($gam->equipped_items) ? $gam->equipped_items : [];
+        $quickSlots = $this->normalizeQuickSlots($equipped['quick_slots'] ?? null);
+        if ($clampedTotal > 0 && $quickSlots['slot_1'] === null && $quickSlots['slot_2'] === null) {
+            $quickSlots['slot_1'] = GameConfig::HEALING_POTION_KEY;
+        }
+        $equipped['quick_slots'] = $quickSlots;
+        $gam->equipped_items = $equipped;
+
+        return [
+            'potion_count' => $clampedTotal,
+            'bag_slots' => $bagSlots,
+            'quick_slots' => $quickSlots,
+        ];
+    }
+
+    /**
+     * Kauf von 1..5 Heiltraenken beim NPC-Haendler (8 Funken je Trank, Abzug NUR von funken_balance!).
+     *
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function buyHealingPotion(Customer $customer, int $quantity = 1): array
+    {
+        if ($denied = $this->checkSanctumAccess($customer)) {
+            return $denied;
+        }
+
+        $qty = max(1, min(GameConfig::HEALING_POTION_MAX_STACK, $quantity));
+        $costSparks = GameConfig::HEALING_POTION_COST_SPARKS * $qty;
+        $customerId = (string) $customer->id;
+
+        $this->gamificationService->getProfile($customer);
+
+        return $this->withCustomerParkourLock($customerId, function () use ($customer, $customerId, $qty, $costSparks): array {
+            return DB::transaction(function () use ($customer, $customerId, $qty, $costSparks): array {
+                $gam = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->first();
+                if ($gam === null || !$gam->is_active) {
+                    return [
+                        'status' => 403,
+                        'body' => [
+                            'success' => false,
+                            'code' => 'magic_activation_required',
+                            'sanctum_block_reason' => 'magic_activation_required',
+                            'message' => 'Bitte aktiviere zuerst deine Seelenfunken-Magie, um die Halle der Helden und die Magma-Prüfung zu betreten.',
+                        ],
+                    ];
+                }
+
+                $state = $this->extractNormalizedInventoryState($gam);
+                $currentCount = $state['potion_count'];
+
+                if (($currentCount + $qty) > GameConfig::HEALING_POTION_MAX_TOTAL) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'code' => 'BAG_FULL',
+                            'potion_count' => $currentCount,
+                            'bag_slots' => $state['bag_slots'],
+                            'quick_slots' => $state['quick_slots'],
+                            'message' => 'Dein Rucksack ist voll (maximal 30 Heiltränke).',
+                        ],
+                    ];
+                }
+
+                $currentBalance = (int) $gam->funken_balance;
+                if ($currentBalance < $costSparks) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'code' => 'INSUFFICIENT_SPARKS',
+                            'funken_balance' => $currentBalance,
+                            'required_sparks' => $costSparks,
+                            'potion_count' => $currentCount,
+                            'message' => 'Nicht genügend Funken für diesen Kauf.',
+                        ],
+                    ];
+                }
+
+                $bagSlots = $state['bag_slots'];
+                $toPlace = $qty;
+
+                // 1. Vorhandene Heiltrank-Stacks auf bis zu 5 auffuellen
+                for ($i = 0; $i < GameConfig::INVENTORY_BAG_SLOTS && $toPlace > 0; $i++) {
+                    if (is_array($bagSlots[$i]) && ($bagSlots[$i]['item_key'] ?? '') === GameConfig::HEALING_POTION_KEY) {
+                        $curSlotQty = (int) ($bagSlots[$i]['qty'] ?? 0);
+                        if ($curSlotQty < GameConfig::HEALING_POTION_MAX_STACK) {
+                            $add = min(GameConfig::HEALING_POTION_MAX_STACK - $curSlotQty, $toPlace);
+                            $bagSlots[$i] = $this->buildPotionSlotEntry($i, $curSlotQty + $add);
+                            $toPlace -= $add;
+                        }
+                    }
+                }
+
+                // 2. Restliche Traenke in freie Slots legen
+                for ($i = 0; $i < GameConfig::INVENTORY_BAG_SLOTS && $toPlace > 0; $i++) {
+                    if ($bagSlots[$i] === null) {
+                        $add = min(GameConfig::HEALING_POTION_MAX_STACK, $toPlace);
+                        $bagSlots[$i] = $this->buildPotionSlotEntry($i, $add);
+                        $toPlace -= $add;
+                    }
+                }
+
+                $newTotalPotions = $this->sumBagPotionCount($bagSlots);
+                $quickSlots = $state['quick_slots'];
+                if ($quickSlots['slot_1'] === null && $quickSlots['slot_2'] === null) {
+                    $quickSlots['slot_1'] = GameConfig::HEALING_POTION_KEY;
+                }
+
+                // Abzug AUSSCHLIESSLICH von funken_balance (funken_total_earned bleibt 100 % unveraendert!)
+                $gam->funken_balance = $currentBalance - $costSparks;
+
+                $rawInv = is_array($gam->inventory_items) ? $gam->inventory_items : [];
+                $rawInv['bag_slots'] = $bagSlots;
+                $rawInv[GameConfig::HEALING_POTION_KEY] = $newTotalPotions;
+                $gam->inventory_items = $rawInv;
+
+                $equipped = is_array($gam->equipped_items) ? $gam->equipped_items : [];
+                $equipped['quick_slots'] = $quickSlots;
+                $gam->equipped_items = $equipped;
+                $gam->save();
+
+                CustomerGamificationLog::create([
+                    'customer_id' => $customerId,
+                    'event_type' => 'merchant_healing_potion_buy',
+                    'category' => 'shop',
+                    'title' => $qty > 1 ? "{$qty}x Heiltrank gekauft" : 'Heiltrank gekauft',
+                    'description' => "{$qty}x Heiltrank beim Händler erworben (-{$costSparks} Funken)",
+                    'sparks_delta' => -$costSparks,
+                    'balance_after' => (int) $gam->funken_balance,
+                    'metadata' => [
+                        'item_key' => GameConfig::HEALING_POTION_KEY,
+                        'quantity' => $qty,
+                        'unit_price_sparks' => GameConfig::HEALING_POTION_COST_SPARKS,
+                        'potion_count_after' => $newTotalPotions,
+                    ],
+                ]);
+
+                LobbyInstanceService::forgetCustomerCache($customerId);
+
+                $hearts = max(1, min(self::MAX_HEARTS, (int) ($gam->magma_hearts ?: self::MAX_HEARTS)));
+
+                return [
+                    'status' => 200,
+                    'body' => [
+                        'success' => true,
+                        'item_key' => GameConfig::HEALING_POTION_KEY,
+                        'purchased_qty' => $qty,
+                        'potion_count' => $newTotalPotions,
+                        'potion_price_sparks' => GameConfig::HEALING_POTION_COST_SPARKS,
+                        'potion_heal_hearts' => GameConfig::HEALING_POTION_HEAL_HEARTS,
+                        'bag_slots' => $bagSlots,
+                        'quick_slots' => $quickSlots,
+                        'funken_balance' => (int) $gam->funken_balance,
+                        'funken_total_earned' => (int) $gam->funken_total_earned,
+                        'hearts' => $hearts,
+                        'max_hearts' => self::MAX_HEARTS,
+                        'message' => $qty > 1 ? "{$qty} Heiltränke erhalten!" : 'Heiltrank erhalten!',
+                    ],
+                ];
+            });
+        });
+    }
+
+    /**
+     * Setzt 1 Heiltrank ein (+2 Herzen bis maximal 6/6).
+     *
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function useInventoryItem(Customer $customer, string $itemKey, ?int $slot = null): array
+    {
+        if ($denied = $this->checkSanctumAccess($customer)) {
+            return $denied;
+        }
+
+        if ($itemKey !== GameConfig::HEALING_POTION_KEY) {
+            return [
+                'status' => 422,
+                'body' => [
+                    'success' => false,
+                    'code' => 'INVALID_ITEM',
+                    'message' => 'Unbekannter Gegenstand.',
+                ],
+            ];
+        }
+
+        $customerId = (string) $customer->id;
+        $this->gamificationService->getProfile($customer);
+
+        return $this->withCustomerParkourLock($customerId, function () use ($customer, $customerId, $slot): array {
+            return DB::transaction(function () use ($customer, $customerId, $slot): array {
+                $gam = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->first();
+                if ($gam === null || !$gam->is_active) {
+                    return [
+                        'status' => 403,
+                        'body' => [
+                            'success' => false,
+                            'code' => 'magic_activation_required',
+                            'sanctum_block_reason' => 'magic_activation_required',
+                            'message' => 'Bitte aktiviere zuerst deine Seelenfunken-Magie, um die Halle der Helden und die Magma-Prüfung zu betreten.',
+                        ],
+                    ];
+                }
+
+                $state = $this->extractNormalizedInventoryState($gam);
+                if ($state['potion_count'] < 1) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'code' => 'NO_POTION',
+                            'potion_count' => 0,
+                            'bag_slots' => $state['bag_slots'],
+                            'quick_slots' => $state['quick_slots'],
+                            'message' => 'Kein Heiltrank im Rucksack vorhanden.',
+                        ],
+                    ];
+                }
+
+                $oldHearts = max(1, min(self::MAX_HEARTS, (int) ($gam->magma_hearts ?: self::MAX_HEARTS)));
+                if ($oldHearts >= self::MAX_HEARTS) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'code' => 'HEARTS_FULL',
+                            'hearts' => self::MAX_HEARTS,
+                            'max_hearts' => self::MAX_HEARTS,
+                            'potion_count' => $state['potion_count'],
+                            'bag_slots' => $state['bag_slots'],
+                            'quick_slots' => $state['quick_slots'],
+                            'message' => 'Deine Herzen sind bereits voll.',
+                        ],
+                    ];
+                }
+
+                $bagSlots = $state['bag_slots'];
+                $consumed = false;
+                for ($i = GameConfig::INVENTORY_BAG_SLOTS - 1; $i >= 0; $i--) {
+                    if (is_array($bagSlots[$i]) && ($bagSlots[$i]['item_key'] ?? '') === GameConfig::HEALING_POTION_KEY) {
+                        $curQty = (int) ($bagSlots[$i]['qty'] ?? 0);
+                        if ($curQty > 1) {
+                            $bagSlots[$i] = $this->buildPotionSlotEntry($i, $curQty - 1);
+                        } else {
+                            $bagSlots[$i] = null;
+                        }
+                        $consumed = true;
+                        break;
+                    }
+                }
+
+                if (!$consumed) {
+                    return [
+                        'status' => 422,
+                        'body' => [
+                            'success' => false,
+                            'code' => 'NO_POTION',
+                            'potion_count' => 0,
+                            'message' => 'Kein Heiltrank im Rucksack vorhanden.',
+                        ],
+                    ];
+                }
+
+                $newTotalPotions = $this->sumBagPotionCount($bagSlots);
+                $newHearts = min(self::MAX_HEARTS, $oldHearts + GameConfig::HEALING_POTION_HEAL_HEARTS);
+                $healedHearts = $newHearts - $oldHearts;
+
+                $rawInv = is_array($gam->inventory_items) ? $gam->inventory_items : [];
+                $rawInv['bag_slots'] = $bagSlots;
+                $rawInv[GameConfig::HEALING_POTION_KEY] = $newTotalPotions;
+                $gam->inventory_items = $rawInv;
+                $gam->magma_hearts = $newHearts;
+                $gam->save();
+
+                $runCacheKey = $this->runCacheKey($customerId);
+                $activeRun = Cache::get($runCacheKey);
+                if (is_array($activeRun)) {
+                    $activeRun['hearts'] = $newHearts;
+                    $this->refreshRunTtl($runCacheKey, $activeRun);
+                }
+
+                LobbyInstanceService::forgetCustomerCache($customerId);
+
+                return [
+                    'status' => 200,
+                    'body' => [
+                        'success' => true,
+                        'item_key' => GameConfig::HEALING_POTION_KEY,
+                        'slot' => $slot,
+                        'healed_hearts' => $healedHearts,
+                        'hearts_before' => $oldHearts,
+                        'hearts' => $newHearts,
+                        'max_hearts' => self::MAX_HEARTS,
+                        'potion_count' => $newTotalPotions,
+                        'bag_slots' => $bagSlots,
+                        'quick_slots' => $state['quick_slots'],
+                        'message' => '+2 Herzen regeneriert!',
+                    ],
+                ];
+            });
+        });
+    }
+
+    /**
+     * Belegt/leert Quick-Slots (1..2) oder tauscht Rucksack-Slots (0..5) unter strikter Mengen-Invariante.
+     *
+     * @return array{status: int, body: array<string, mixed>}
+     */
+    public function equipInventorySlot(
+        Customer $customer,
+        ?int $quickSlot = null,
+        ?string $itemKey = null,
+        ?int $fromBagSlot = null,
+        ?int $toBagSlot = null
+    ): array {
+        if ($denied = $this->checkSanctumAccess($customer)) {
+            return $denied;
+        }
+
+        $customerId = (string) $customer->id;
+        $this->gamificationService->getProfile($customer);
+
+        return $this->withCustomerParkourLock(
+            $customerId,
+            function () use ($customer, $customerId, $quickSlot, $itemKey, $fromBagSlot, $toBagSlot): array {
+                return DB::transaction(function () use ($customer, $customerId, $quickSlot, $itemKey, $fromBagSlot, $toBagSlot): array {
+                    $gam = CustomerGamification::where('customer_id', $customer->id)->lockForUpdate()->first();
+                    if ($gam === null || !$gam->is_active) {
+                        return [
+                            'status' => 403,
+                            'body' => [
+                                'success' => false,
+                                'code' => 'magic_activation_required',
+                                'sanctum_block_reason' => 'magic_activation_required',
+                                'message' => 'Bitte aktiviere zuerst deine Seelenfunken-Magie, um die Halle der Helden und die Magma-Prüfung zu betreten.',
+                            ],
+                        ];
+                    }
+
+                    $state = $this->extractNormalizedInventoryState($gam);
+                    $beforeCount = $state['potion_count'];
+                    $bagSlots = $state['bag_slots'];
+                    $quickSlots = $state['quick_slots'];
+
+                    if (
+                        $fromBagSlot !== null
+                        && $toBagSlot !== null
+                        && $fromBagSlot >= 0
+                        && $fromBagSlot < GameConfig::INVENTORY_BAG_SLOTS
+                        && $toBagSlot >= 0
+                        && $toBagSlot < GameConfig::INVENTORY_BAG_SLOTS
+                        && $fromBagSlot !== $toBagSlot
+                    ) {
+                        $slotA = $bagSlots[$fromBagSlot];
+                        $slotB = $bagSlots[$toBagSlot];
+
+                        $bagSlots[$fromBagSlot] = is_array($slotB)
+                            ? $this->buildPotionSlotEntry($fromBagSlot, (int) ($slotB['qty'] ?? 1))
+                            : null;
+                        $bagSlots[$toBagSlot] = is_array($slotA)
+                            ? $this->buildPotionSlotEntry($toBagSlot, (int) ($slotA['qty'] ?? 1))
+                            : null;
+                    }
+
+                    // Strikte Server-Invariante: Verschieben im Rucksack darf potion_count niemals veraendern!
+                    $afterCount = $this->sumBagPotionCount($bagSlots);
+                    if ($afterCount !== $beforeCount) {
+                        $bagSlots = $state['bag_slots'];
+                        $afterCount = $beforeCount;
+                    }
+
+                    if ($quickSlot === 1 || $quickSlot === 2) {
+                        $targetKey = 'slot_' . $quickSlot;
+                        $otherKey = $quickSlot === 1 ? 'slot_2' : 'slot_1';
+                        $normalizedItem = ($itemKey === GameConfig::HEALING_POTION_KEY)
+                            ? GameConfig::HEALING_POTION_KEY
+                            : null;
+
+                        $quickSlots[$targetKey] = $normalizedItem;
+                        if ($normalizedItem !== null && $quickSlots[$otherKey] === $normalizedItem) {
+                            $quickSlots[$otherKey] = null;
+                        }
+                    }
+
+                    $rawInv = is_array($gam->inventory_items) ? $gam->inventory_items : [];
+                    $rawInv['bag_slots'] = $bagSlots;
+                    $rawInv[GameConfig::HEALING_POTION_KEY] = $afterCount;
+                    $gam->inventory_items = $rawInv;
+
+                    $equipped = is_array($gam->equipped_items) ? $gam->equipped_items : [];
+                    $equipped['quick_slots'] = $quickSlots;
+                    $gam->equipped_items = $equipped;
+                    $gam->save();
+
+                    LobbyInstanceService::forgetCustomerCache($customerId);
+
+                    return [
+                        'status' => 200,
+                        'body' => [
+                            'success' => true,
+                            'potion_count' => $afterCount,
+                            'bag_slots' => $bagSlots,
+                            'quick_slots' => $quickSlots,
+                        ],
+                    ];
+                });
+            }
+        );
+    }
+
+    /**
+     * @return array{
+     *     potion_count: int,
+     *     bag_slots: array<int, array<string, mixed>|null>,
+     *     quick_slots: array{slot_1: string|null, slot_2: string|null}
+     * }
+     */
+    private function extractNormalizedInventoryState(CustomerGamification $gam): array
+    {
+        $rawInv = is_array($gam->inventory_items) ? $gam->inventory_items : [];
+        $bagSlots = array_fill(0, GameConfig::INVENTORY_BAG_SLOTS, null);
+        $totalCount = 0;
+
+        if (isset($rawInv['bag_slots']) && is_array($rawInv['bag_slots'])) {
+            for ($i = 0; $i < GameConfig::INVENTORY_BAG_SLOTS; $i++) {
+                $entry = $rawInv['bag_slots'][$i] ?? null;
+                if (
+                    is_array($entry)
+                    && ($entry['item_key'] ?? '') === GameConfig::HEALING_POTION_KEY
+                    && (int) ($entry['qty'] ?? 0) > 0
+                ) {
+                    $allowedRemaining = GameConfig::HEALING_POTION_MAX_TOTAL - $totalCount;
+                    if ($allowedRemaining <= 0) {
+                        break;
+                    }
+                    $qty = max(1, min(GameConfig::HEALING_POTION_MAX_STACK, $allowedRemaining, (int) $entry['qty']));
+                    $bagSlots[$i] = $this->buildPotionSlotEntry($i, $qty);
+                    $totalCount += $qty;
+                }
+            }
+        } elseif (isset($rawInv[GameConfig::HEALING_POTION_KEY]) && is_numeric($rawInv[GameConfig::HEALING_POTION_KEY])) {
+            $remaining = max(0, min(GameConfig::HEALING_POTION_MAX_TOTAL, (int) $rawInv[GameConfig::HEALING_POTION_KEY]));
+            $totalCount = $remaining;
+            for ($i = 0; $i < GameConfig::INVENTORY_BAG_SLOTS && $remaining > 0; $i++) {
+                $qty = min(GameConfig::HEALING_POTION_MAX_STACK, $remaining);
+                $bagSlots[$i] = $this->buildPotionSlotEntry($i, $qty);
+                $remaining -= $qty;
+            }
+        } else {
+            $legacySum = 0;
+            foreach ($rawInv as $invKey => $entry) {
+                if (!is_int($invKey)) {
+                    continue;
+                }
+                if (is_array($entry) && ($entry['item_key'] ?? null) === GameConfig::HEALING_POTION_KEY) {
+                    $legacySum += max(0, (int) ($entry['quantity'] ?? $entry['qty'] ?? $entry['count'] ?? 1));
+                } elseif ($entry === GameConfig::HEALING_POTION_KEY) {
+                    $legacySum += 1;
+                }
+            }
+            if ($legacySum > 0) {
+                $remaining = max(0, min(GameConfig::HEALING_POTION_MAX_TOTAL, $legacySum));
+                $totalCount = $remaining;
+                for ($i = 0; $i < GameConfig::INVENTORY_BAG_SLOTS && $remaining > 0; $i++) {
+                    $qty = min(GameConfig::HEALING_POTION_MAX_STACK, $remaining);
+                    $bagSlots[$i] = $this->buildPotionSlotEntry($i, $qty);
+                    $remaining -= $qty;
+                }
+            }
+        }
+
+        $equipped = is_array($gam->equipped_items) ? $gam->equipped_items : [];
+        $quickSlots = $this->normalizeQuickSlots($equipped['quick_slots'] ?? null);
+
+        return [
+            'potion_count' => $totalCount,
+            'bag_slots' => $bagSlots,
+            'quick_slots' => $quickSlots,
+        ];
+    }
+
+    /**
+     * @return array{slot: int, item_key: string, name: string, qty: int, heal_hearts: int}
+     */
+    private function buildPotionSlotEntry(int $slotIndex, int $qty): array
+    {
+        return [
+            'slot' => max(0, min(GameConfig::INVENTORY_BAG_SLOTS - 1, $slotIndex)),
+            'item_key' => GameConfig::HEALING_POTION_KEY,
+            'name' => 'Heiltrank',
+            'qty' => max(1, min(GameConfig::HEALING_POTION_MAX_STACK, $qty)),
+            'heal_hearts' => GameConfig::HEALING_POTION_HEAL_HEARTS,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>|null> $bagSlots
+     */
+    private function sumBagPotionCount(array $bagSlots): int
+    {
+        $sum = 0;
+        foreach ($bagSlots as $slot) {
+            if (is_array($slot) && ($slot['item_key'] ?? '') === GameConfig::HEALING_POTION_KEY) {
+                $sum += max(0, (int) ($slot['qty'] ?? 0));
+            }
+        }
+
+        return max(0, min(GameConfig::HEALING_POTION_MAX_TOTAL, $sum));
+    }
+
+    /**
+     * @return array{slot_1: string|null, slot_2: string|null}
+     */
+    private function normalizeQuickSlots(mixed $rawQuickSlots): array
+    {
+        $slot1 = null;
+        $slot2 = null;
+
+        if (is_array($rawQuickSlots)) {
+            if (($rawQuickSlots['slot_1'] ?? null) === GameConfig::HEALING_POTION_KEY) {
+                $slot1 = GameConfig::HEALING_POTION_KEY;
+            }
+            if (($rawQuickSlots['slot_2'] ?? null) === GameConfig::HEALING_POTION_KEY) {
+                $slot2 = GameConfig::HEALING_POTION_KEY;
+            }
+        }
+
+        return [
+            'slot_1' => $slot1,
+            'slot_2' => $slot2,
         ];
     }
 
@@ -2156,23 +2917,11 @@ class LavaParkourService
     private function storeActiveLifeNonce(string $customerId, string $lifeNonce): void
     {
         Cache::put($this->lifeNonceKey($customerId), $lifeNonce, Carbon::now()->addMinutes(self::RUN_TTL_MINUTES));
-        try {
-            if (request()?->hasSession()) {
-                request()->session()->put('sf_magma_life_nonce_' . $customerId, $lifeNonce);
-            }
-        } catch (\Throwable) {
-        }
     }
 
     private function clearActiveLifeNonce(string $customerId): void
     {
         Cache::forget($this->lifeNonceKey($customerId));
-        try {
-            if (request()?->hasSession()) {
-                request()->session()->forget('sf_magma_life_nonce_' . $customerId);
-            }
-        } catch (\Throwable) {
-        }
     }
 
     private function verifyRunLifeNonce(string $customerId, string $runLifeNonce, ?string $requestLifeNonce): bool
