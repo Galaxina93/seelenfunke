@@ -5,7 +5,9 @@ namespace Tests\Feature\Support;
 use App\Http\Controllers\Customer\ExperienceReviewController;
 use App\Livewire\Customer\CustomerReviewsComponent;
 use App\Livewire\Shop\Master\MasterAnalytics;
+use App\Livewire\Shop\Product\ProductReviews;
 use App\Livewire\Shop\Support\SupportReviews;
+use App\Livewire\Traits\ManagesCustomerProductReviewForm;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Customer\CustomerGamification;
@@ -17,14 +19,14 @@ use App\Models\Product\Product;
 use App\Models\Product\ProductReview;
 use App\Models\Support\SupportExperienceReview;
 use App\Services\Gamification\GameConfig;
-use App\Services\Gamification\GamificationService;
 use App\Services\Navigation\BackendNavigationService;
 use App\Services\System\SystemBlueprintService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class ExperienceReviewsAndCustomerPortalTest extends TestCase
@@ -196,6 +198,8 @@ class ExperienceReviewsAndCustomerPortalTest extends TestCase
 
     public function test_customer_reviews_portal_page_handles_both_tabs_product_reviews_and_experience_feedback(): void
     {
+        Storage::fake('public');
+
         $customer = Customer::create([
             'first_name' => 'Hannah',
             'last_name' => 'Kundin',
@@ -288,44 +292,97 @@ class ExperienceReviewsAndCustomerPortalTest extends TestCase
             ->assertSee('Edelstahl Armband Gold')
             ->assertDontSee('Widerrufener Schlüsselanhänger');
 
-        // Tab 1: Neue Produktbewertung abgeben -> status = pending
+        // Tab 1: Öffnet die zentrale „Deine Erfahrung teilen“-Komponente im Kundenportal
         $comp = Livewire::actingAs($customer, 'customer')
             ->test(CustomerReviewsComponent::class)
             ->call('startCreateProductReview', $purchasedProduct->id)
-            ->set('newProductRating', 5)
-            ->set('newProductTitle', 'Wunderschöne Gravur')
-            ->set('newProductContent', 'Die Gravur ist gestochen scharf und edel verpackt.')
-            ->call('submitNewProductReview');
+            ->assertSee('Deine Erfahrung teilen')
+            ->assertSee('Sterne-Bewertung')
+            ->assertSee('5_funki_5_stars.webp')
+            ->assertSee('Bilder & Video hinzufügen')
+            ->assertSee('Anonym bewerten')
+            ->assertSee('AGB (§ 8a)');
+
+        // Validierung greift bei fehlender Einwilligung & zu kurzem Text (< 10 Zeichen)
+        $comp->set('content', 'Zu kurz')
+            ->set('acceptReviewTerms', false)
+            ->call('submitReview')
+            ->assertHasErrors(['content', 'acceptReviewTerms']);
+
+        // Absenden ohne Medien + Anonym-Flag -> status = approved & sofortige Seelenfunken-Gutschrift
+        $comp->set('rating', 5)
+            ->set('title', 'Wunderschöne Gravur')
+            ->set('content', 'Die Gravur ist gestochen scharf und edel verpackt.')
+            ->set('isAnonymous', true)
+            ->set('acceptReviewTerms', true)
+            ->call('submitReview')
+            ->assertHasNoErrors();
 
         $productReview = ProductReview::where('customer_id', $customer->id)
             ->where('product_id', $purchasedProduct->id)
             ->first();
 
         $this->assertNotNull($productReview);
-        $this->assertSame('pending', $productReview->status);
+        $this->assertSame('approved', $productReview->status);
+        $this->assertTrue((bool) $productReview->is_anonymous);
 
-        // Simuliere Admin-Freigabe inkl. Seelenfunken-Belohnung
-        $productReview->update(['status' => 'approved']);
-        $awarded = app(GamificationService::class)->rewardReviewFunken($productReview->fresh());
-        $this->assertSame(GameConfig::REVIEW_SPARK_REWARD, $awarded);
+        $gamificationAfterCreate = CustomerGamification::where('customer_id', $customer->id)->first();
+        $this->assertNotNull($gamificationAfterCreate);
+        $this->assertSame(GameConfig::REVIEW_SPARK_REWARD, (int) $gamificationAfterCreate->funken_balance);
 
-        // Kunde bearbeitet Bewertung inline -> Status geht zurück auf pending
+        // Kunde bearbeitet Bewertung unter /reviews und lädt 2 Bilder hoch -> automatische WebP-Konvertierung & Status pending
+        $uploadImg1 = UploadedFile::fake()->image('armband-1.png', 900, 700);
+        $uploadImg2 = UploadedFile::fake()->image('armband-2.jpg', 800, 800);
+
         $comp->call('startEditProductReview', $productReview->id)
-            ->set('editProductRating', 4)
-            ->set('editProductTitle', 'Sehr schöne Gravur')
-            ->set('editProductContent', 'Aktualisierter Text mit mindestens zehn Zeichen.')
-            ->call('saveProductReview');
+            ->assertSee('Deine Bewertung bearbeiten')
+            ->set('rating', 4)
+            ->set('title', 'Sehr schöne Gravur')
+            ->set('content', 'Aktualisierter Text mit echten Fotos aus dem Kundenportal.')
+            ->set('isAnonymous', false)
+            ->set('newMedia', [$uploadImg1, $uploadImg2])
+            ->call('submitReview')
+            ->assertHasNoErrors();
 
-        $this->assertSame('pending', $productReview->fresh()->status);
-        $this->assertSame(4, (int) $productReview->fresh()->rating);
+        $freshReview = $productReview->fresh();
+        $this->assertNotNull($freshReview);
+        $this->assertSame('pending', $freshReview->status);
+        $this->assertSame(4, (int) $freshReview->rating);
+        $this->assertFalse((bool) $freshReview->is_anonymous);
+        $this->assertIsArray($freshReview->media);
+        $this->assertCount(2, $freshReview->media);
 
-        // Kunde löscht Produktbewertung -> Datensatz gelöscht & Seelenfunken zurückgebucht
+        $firstMediaPath = $freshReview->media[0];
+        $secondMediaPath = $freshReview->media[1];
+        $this->assertStringStartsWith('produkte/reviews/', $firstMediaPath);
+        if (function_exists('imagewebp')) {
+            $this->assertStringEndsWith('.webp', $firstMediaPath);
+            $this->assertStringEndsWith('.webp', $secondMediaPath);
+        }
+        Storage::disk('public')->assertExists($firstMediaPath);
+        Storage::disk('public')->assertExists($secondMediaPath);
+
+        // Lightbox-Slider im selben Fenster wird gerendert (kein target="_blank" auf Medien)
+        $comp->assertSee('openMediaLightbox');
+
+        // Kunde entfernt im Bearbeitungsmodus das erste Bild -> Datei wird sauber von Disk gelöscht
+        $comp->call('startEditProductReview', $productReview->id)
+            ->call('removeExistingMedia', 0)
+            ->call('submitReview')
+            ->assertHasNoErrors();
+
+        Storage::disk('public')->assertMissing($firstMediaPath);
+        Storage::disk('public')->assertExists($secondMediaPath);
+        $this->assertCount(1, $productReview->fresh()->media);
+
+        // Kunde löscht Produktbewertung -> Datensatz + verbleibende Mediendatei gelöscht & Seelenfunken zurückgebucht
         $comp->call('deleteProductReview', $productReview->id);
         $this->assertDatabaseMissing('product_reviews', ['id' => $productReview->id]);
+        Storage::disk('public')->assertMissing($secondMediaPath);
 
-        $gamification = CustomerGamification::where('customer_id', $customer->id)->first();
-        $this->assertNotNull($gamification);
-        $this->assertSame(0, (int) $gamification->funken_balance);
+        $gamificationAfterDelete = CustomerGamification::where('customer_id', $customer->id)->first();
+        $this->assertNotNull($gamificationAfterDelete);
+        $this->assertSame(0, (int) $gamificationAfterDelete->funken_balance);
 
         // Tab 2: Erlebnis-Feedback inkl. Korrektur ohne Dublette
         $comp->call('switchTab', 'experience')
@@ -358,6 +415,75 @@ class ExperienceReviewsAndCustomerPortalTest extends TestCase
             'status' => 'open',
             'comment' => 'Auf meinem älteren Smartphone wäre ein Performance-Schalter hilfreich.',
         ]);
+    }
+
+    public function test_shared_single_source_of_truth_review_architecture_between_product_page_and_customer_portal(): void
+    {
+        $productPageTraits = class_uses_recursive(ProductReviews::class);
+        $customerPortalTraits = class_uses_recursive(CustomerReviewsComponent::class);
+
+        $this->assertArrayHasKey(ManagesCustomerProductReviewForm::class, $productPageTraits);
+        $this->assertArrayHasKey(ManagesCustomerProductReviewForm::class, $customerPortalTraits);
+
+        $productBlade = (string) file_get_contents(base_path('resources/views/livewire/shop/product/product-reviews.blade.php'));
+        $portalBlade = (string) file_get_contents(base_path('resources/views/livewire/customer/customer-reviews-component.blade.php'));
+
+        $this->assertStringContainsString('<x-shop.product-review-experience-form', $productBlade);
+        $this->assertStringContainsString('<x-shop.product-review-experience-form', $portalBlade);
+
+        // Light-/Darkmode-Disziplin prüfen: Produktseite bleibt 100 % Light-Mode, Kundenportal ist darkAware
+        $customer = Customer::create([
+            'first_name' => 'Lena',
+            'last_name' => 'Licht',
+            'email' => 'lena-dry@example.com',
+            'password' => bcrypt('Secret123!'),
+            'email_verified_at' => now(),
+        ]);
+
+        $product = Product::create([
+            'name' => 'Kristallglas Herz',
+            'slug' => 'kristallglas-herz-dry-test',
+            'type' => 'physical',
+            'status' => 'active',
+            'price' => 4490,
+            'quantity' => 0,
+        ]);
+
+        $order = OrderOrder::create([
+            'order_number' => 'SF-DRY-2001',
+            'customer_id' => $customer->id,
+            'email' => $customer->email,
+            'status' => 'completed',
+            'payment_status' => 'paid',
+            'billing_address' => ['first_name' => 'Lena', 'last_name' => 'Licht'],
+            'shipping_address' => ['first_name' => 'Lena', 'last_name' => 'Licht'],
+            'subtotal_price' => 4490,
+            'tax_amount' => 717,
+            'shipping_price' => 0,
+            'total_price' => 4490,
+        ]);
+
+        OrderOrderItem::create([
+            'order_id' => $order->id,
+            'product_id' => $product->id,
+            'product_name' => $product->name,
+            'quantity' => 1,
+            'unit_price' => 4490,
+            'total_price' => 4490,
+        ]);
+
+        Livewire::actingAs($customer, 'customer')
+            ->test(ProductReviews::class, ['product' => $product])
+            ->assertSee('Deine Erfahrung teilen')
+            ->assertSee('data-product-review-experience-form="true"', false)
+            ->assertDontSee('dark:bg-gray-900/80 p-6 sm:p-8 rounded-2xl', false);
+
+        Livewire::actingAs($customer, 'customer')
+            ->test(CustomerReviewsComponent::class)
+            ->call('startCreateProductReview', $product->id)
+            ->assertSee('Deine Erfahrung teilen')
+            ->assertSee('data-product-review-experience-form="true"', false)
+            ->assertSee('dark:bg-gray-900/80 p-6 sm:p-8 rounded-2xl', false);
     }
 
     public function test_admin_support_reviews_kpis_filters_toggle_and_strict_role_isolation(): void
@@ -547,6 +673,10 @@ class ExperienceReviewsAndCustomerPortalTest extends TestCase
             base_path('database/migrations/2026_11_18_012500_create_support_experience_reviews_table.php'),
             base_path('app/Models/Support/SupportExperienceReview.php'),
             base_path('app/Http/Controllers/Customer/ExperienceReviewController.php'),
+            base_path('app/Livewire/Traits/ManagesCustomerProductReviewForm.php'),
+            base_path('resources/views/components/shop/product-review-experience-form.blade.php'),
+            base_path('app/Livewire/Shop/Product/ProductReviews.php'),
+            base_path('resources/views/livewire/shop/product/product-reviews.blade.php'),
             base_path('app/Livewire/Customer/CustomerReviewsComponent.php'),
             base_path('resources/views/livewire/customer/customer-reviews-component.blade.php'),
             base_path('resources/views/livewire/customer/gamification/game-global-stats-header.blade.php'),

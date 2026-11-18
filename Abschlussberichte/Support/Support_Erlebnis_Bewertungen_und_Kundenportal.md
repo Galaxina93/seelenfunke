@@ -15,9 +15,9 @@ Schnelles, friktionsfreies Echtzeit-Feedback verifizierter Bestandskunden an den
   - **4 bis 5 Sterne:** Sofortige Speicherung (`status = 'done'`) ohne Textfeld-Zwang; ruhige Bestätigung `Danke!` + `Ändern` zur direkten Verklicker-Korrektur. Beim nächsten Seitenaufruf wird das bereits bewertete Widget automatisch ausgeblendet.
   - **1 bis 3 Sterne:** Sofortige Speicherung (`status = 'open'`) + Aufklappen eines kompakten Einzeilers (`Was können wir verbessern?`, max. 500 Zeichen, HTML-bereinigt).
 
-## 3. Kundenportal „Meine Bewertungen“ (`/reviews`)
+## 3. Kundenportal „Meine Bewertungen“ (`/reviews`) & Zentrale „Deine Erfahrung teilen“-Architektur
 - Eigene Livewire-Seite `App\Livewire\Customer\CustomerReviewsComponent` (verlinkt in der Desktop-Kopfleiste und im Profil-Dropdown auf Desktop & Mobil; die 5er-Mobile-Bottom-Bar bleibt schlank).
-- **Tab 1 (`Produktbewertungen`):** Eigene Produktbewertungen einsehen, bearbeiten (`status = 'pending'`), löschen (inkl. fairer Rückbuchung gutgeschriebener Bewertungs-Funken via `GamificationService::reverseReviewFunken()`) sowie noch unbewertete, bezahlte und nicht widerrufene Bestellpositionen bewerten.
+- **Tab 1 (`Produktbewertungen` · 100 % DRY Single-Source-of-Truth):** Sowohl `ProductReviews` (`/produkt/{slug}`) als auch `CustomerReviewsComponent` (`/reviews`) nutzen denselben zentralen Trait `App\Livewire\Traits\ManagesCustomerProductReviewForm` und die zentrale Blade-Komponente `<x-shop.product-review-experience-form>` (interaktive 5-Sterne-Auswahl mit dynamischem Funki-Maskottchen, optionale Zusammenfassung, 1000-Zeichen-Feedback, Drag-&-Drop Foto-/Video-Upload mit EXIF/GPS-Entfernung & automatischer `1600x1600`-WebP-Komprimierung, `Anonym bewerten`, AGB-§-8a-/Datenschutz-Einwilligung, Lightbox-Slider im selben Fenster sowie faire Rückbuchung gutgeschriebener Bewertungs-Funken beim Löschen).
 - **Tab 2 (`Erlebnis-Feedback`):** Alle 3 System-Bereiche (`Produktkonfigurator`, `3D-Funkenreich`, `Angebots-Kalkulator`) jederzeit einsehen, neu bewerten oder nachträglich abändern (`UNIQUE(customer_id, area)`).
 
 ## 4. Admin-Cockpit (`/admin/support/reviews`) & `/admin/dashboard`

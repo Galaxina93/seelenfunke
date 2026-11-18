@@ -98,7 +98,7 @@ class ProductAssetSeeder extends Seeder
         file_put_contents($echtgoldHerzDir . '/echtgold_seelen_herz_3d.glb', $echtgoldGlb);
         $this->ensureEchtgoldHerzGalleryAndTemplates($publicProductsPath, $echtgoldHerzDir, false);
 
-        // 3c. Das Echtsilber Seelen-Armband (FBM P001.53062HERZ.5.18.5: 925er Sterlingsilber, Figaro diamantiert 2,1 mm, 18,5 cm)
+        // 3c. Das Echtsilber Seelenarmband (FBM P001.53062HERZ.5.18.5: 925er Sterlingsilber, Figaro diamantiert 2,1 mm, 18,5 cm)
         $silberArmbandDir = $publicProductsPath . '/id-armband-silber-herz';
         File::ensureDirectoryExists($silberArmbandDir);
         $this->ensureHeaderBackground($publicProductsPath, $silberArmbandDir);
@@ -113,7 +113,7 @@ class ProductAssetSeeder extends Seeder
         file_put_contents($silberArmbandDir . '/id_armband_silber_herz_3d.glb', $silberArmbandGlb);
         $this->ensureIdArmbandHerzGalleryAndTemplates($publicProductsPath, $silberArmbandDir, 'id-armband-silber-herz', 'silver', true);
 
-        // 3d. Das Gold-Vermeil Seelen-Armband (FBM P020.53062HERZ.5.18.5: 925er Silber Gelb vergoldet, Figaro diamantiert 2,1 mm, 18,5 cm)
+        // 3d. Das Goldene Seelenarmband (FBM P020.53062HERZ.5.18.5: 925er Silber Gelb vergoldet, Figaro diamantiert 2,1 mm, 18,5 cm)
         $goldArmbandDir = $publicProductsPath . '/id-armband-gold-herz';
         File::ensureDirectoryExists($goldArmbandDir);
         $this->ensureHeaderBackground($publicProductsPath, $goldArmbandDir);
@@ -3693,8 +3693,8 @@ SVG,
         $hasTtf = file_exists($fontSerifBold);
 
         $titleFooter = $isGold
-            ? 'Das Gold-Vermeil Seelen-Armband • 925er Silber Gelb vergoldet (18,5 cm)'
-            : 'Das Echtsilber Seelen-Armband • Massives 925er Sterlingsilber (18,5 cm)';
+            ? 'Das Goldene Seelenarmband • 925er Silber Gelb vergoldet (18,5 cm)'
+            : 'Das Echtsilber Seelenarmband • Massives 925er Sterlingsilber (18,5 cm)';
 
         $renderScene = function (
             string $outFile,
@@ -3988,7 +3988,7 @@ SVG,
             [
                 'slug' => 'id-armband-silber-herz',
                 'outFileName' => 'id-armband-silber-herz-dimensions.jpg',
-                'title' => 'Das Echtsilber Seelen-Armband: Maße & Details',
+                'title' => 'Das Echtsilber Seelenarmband: Maße & Details',
                 'subtitle' => 'Massives 925er Sterlingsilber (FBM Made in Germany) mit Figaro-Kette (2,1 mm) & Herz-Durchbruch',
                 'overlayTop' => 185,
                 'horizArrows' => [
@@ -4012,7 +4012,7 @@ SVG,
             [
                 'slug' => 'id-armband-gold-herz',
                 'outFileName' => 'id-armband-gold-herz-dimensions.jpg',
-                'title' => 'Das Gold-Vermeil Seelen-Armband: Maße & Details',
+                'title' => 'Das Goldene Seelenarmband: Maße & Details',
                 'subtitle' => '925er Sterlingsilber Gelb vergoldet (FBM Made in Germany) mit Figaro-Kette (2,1 mm) & Herz',
                 'overlayTop' => 185,
                 'horizArrows' => [

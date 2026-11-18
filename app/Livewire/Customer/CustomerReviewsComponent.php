@@ -2,19 +2,16 @@
 
 namespace App\Livewire\Customer;
 
+use App\Livewire\Traits\ManagesCustomerProductReviewForm;
 use App\Models\Customer\Customer;
-use App\Models\Customer\CustomerGamification;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderRevocation;
 use App\Models\Product\Product;
 use App\Models\Product\ProductReview;
 use App\Models\Support\SupportExperienceReview;
-use App\Services\Gamification\GamificationService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
@@ -23,22 +20,13 @@ use Livewire\Component;
 #[Layout('components.layouts.customer_layout')]
 class CustomerReviewsComponent extends Component
 {
+    use ManagesCustomerProductReviewForm;
+
     #[Url]
     public string $activeTab = 'products';
 
     #[Locked]
-    public ?string $editingProductReviewId = null;
-
-    public int $editProductRating = 5;
-    public string $editProductTitle = '';
-    public string $editProductContent = '';
-
-    #[Locked]
-    public ?string $creatingProductId = null;
-
-    public int $newProductRating = 5;
-    public string $newProductTitle = '';
-    public string $newProductContent = '';
+    public ?string $targetProductId = null;
 
     /**
      * @var array<string, int>
@@ -98,6 +86,19 @@ class CustomerReviewsComponent extends Component
         }
     }
 
+    public function startCreateProductReview(string $productId): void
+    {
+        $customer = $this->resolveEligibleCustomerOrAbort();
+
+        $unreviewedProducts = $this->getUnreviewedPurchasedPhysicalProducts($customer);
+        if (!$unreviewedProducts->contains(fn (Product $p) => (string) $p->id === $productId)) {
+            return;
+        }
+
+        $this->resetReviewFormState();
+        $this->targetProductId = $productId;
+    }
+
     public function startEditProductReview(string $reviewId): void
     {
         $customer = $this->resolveEligibleCustomerOrAbort();
@@ -110,77 +111,59 @@ class CustomerReviewsComponent extends Component
             return;
         }
 
-        $this->resetErrorBag();
-        $this->creatingProductId = null;
-        $this->editingProductReviewId = (string) $review->id;
-        $this->editProductRating = max(1, min(5, (int) $review->rating));
-        $this->editProductTitle = (string) ($review->title ?? '');
-        $this->editProductContent = (string) $review->content;
+        $this->loadReviewIntoForm($review);
+        $this->targetProductId = (string) $review->product_id;
+    }
+
+    public function cancelEdit(): void
+    {
+        $this->resetReviewFormState();
+        $this->targetProductId = null;
     }
 
     public function cancelEditProductReview(): void
     {
-        $this->editingProductReviewId = null;
-        $this->editProductRating = 5;
-        $this->editProductTitle = '';
-        $this->editProductContent = '';
-        $this->resetErrorBag();
+        $this->cancelEdit();
     }
 
-    public function saveProductReview(): void
+    public function cancelCreateProductReview(): void
+    {
+        $this->cancelEdit();
+    }
+
+    public function submitReview(): void
     {
         $customer = $this->resolveEligibleCustomerOrAbort();
 
-        if (!$this->editingProductReviewId) {
+        if (!$this->targetProductId) {
             return;
         }
 
-        $review = ProductReview::where('id', $this->editingProductReviewId)
-            ->where('customer_id', $customer->id)
-            ->firstOrFail();
+        if ($this->isEditing) {
+            if (
+                !$this->userReviewId
+                || !ProductReview::where('id', $this->userReviewId)
+                    ->where('customer_id', $customer->id)
+                    ->where('product_id', $this->targetProductId)
+                    ->exists()
+            ) {
+                $this->cancelEdit();
+                return;
+            }
+        } else {
+            $eligibleProduct = $this->getUnreviewedPurchasedPhysicalProducts($customer)
+                ->first(fn (Product $p) => (string) $p->id === $this->targetProductId);
 
-        $this->validate([
-            'editProductRating' => ['required', 'integer', 'min:1', 'max:5'],
-            'editProductTitle' => ['nullable', 'string', 'max:255'],
-            'editProductContent' => ['required', 'string', 'min:10', 'max:1000'],
-        ], [
-            'editProductRating.required' => 'Bitte wähle eine Sterne-Bewertung aus.',
-            'editProductContent.required' => 'Bitte schreibe mindestens 10 Zeichen.',
-            'editProductContent.min' => 'Bitte schreibe mindestens 10 Zeichen.',
-        ]);
-
-        $cleanTitle = trim(strip_tags($this->editProductTitle));
-        $cleanContent = trim(strip_tags($this->editProductContent));
-        if (mb_strlen($cleanContent) < 10) {
-            $this->addError('editProductContent', 'Bitte schreibe mindestens 10 Zeichen.');
-            return;
+            if (!$eligibleProduct) {
+                $this->cancelEdit();
+                return;
+            }
         }
 
-        $newRating = max(1, min(5, (int) $this->editProductRating));
-        $hasChanged = ((int) $review->rating !== $newRating)
-            || (trim((string) ($review->title ?? '')) !== $cleanTitle)
-            || (trim((string) $review->content) !== $cleanContent);
-
-        $targetStatus = ($hasChanged || $review->status === 'rejected') ? 'pending' : $review->status;
-
-        $review->update([
-            'rating' => $newRating,
-            'title' => $cleanTitle !== '' ? $cleanTitle : null,
-            'content' => $cleanContent,
-            'status' => $targetStatus,
-        ]);
-
-        Cache::forget('google_reviews');
-
-        $profile = CustomerGamification::where('customer_id', $customer->id)->first();
-        if ($profile) {
-            app(GamificationService::class)->syncDynamicTitles($profile);
+        $saved = $this->persistCustomerProductReview($this->targetProductId);
+        if ($saved !== null) {
+            $this->targetProductId = null;
         }
-
-        $this->cancelEditProductReview();
-        session()->flash('reviews_notice', $targetStatus === 'pending'
-            ? 'Bewertung aktualisiert und zur Prüfung eingereicht.'
-            : 'Bewertung gespeichert.');
     }
 
     public function deleteProductReview(string $reviewId): void
@@ -195,110 +178,14 @@ class CustomerReviewsComponent extends Component
             return;
         }
 
-        if (!empty($review->media) && is_array($review->media)) {
-            foreach ($review->media as $media) {
-                if (
-                    is_string($media)
-                    && str_starts_with($media, 'produkte/reviews/')
-                    && !str_contains($media, '..')
-                    && Storage::disk('public')->exists($media)
-                ) {
-                    Storage::disk('public')->delete($media);
-                }
-            }
+        $wasActiveTarget = ((string) $this->userReviewId === (string) $review->id)
+            || ((string) $this->targetProductId === (string) $review->product_id);
+
+        $this->destroyCustomerProductReview($review);
+
+        if ($wasActiveTarget) {
+            $this->targetProductId = null;
         }
-
-        $reviewSnapshot = clone $review;
-        $review->delete();
-
-        Cache::forget('google_reviews');
-        app(GamificationService::class)->reverseReviewFunken($reviewSnapshot);
-
-        if ($this->editingProductReviewId === $reviewId) {
-            $this->cancelEditProductReview();
-        }
-
-        session()->flash('reviews_notice', 'Produktbewertung gelöscht.');
-    }
-
-    public function startCreateProductReview(string $productId): void
-    {
-        $customer = $this->resolveEligibleCustomerOrAbort();
-
-        $unreviewedProducts = $this->getUnreviewedPurchasedPhysicalProducts($customer);
-        if (!$unreviewedProducts->contains(fn (Product $p) => (string) $p->id === $productId)) {
-            return;
-        }
-
-        $this->resetErrorBag();
-        $this->editingProductReviewId = null;
-        $this->creatingProductId = $productId;
-        $this->newProductRating = 5;
-        $this->newProductTitle = '';
-        $this->newProductContent = '';
-    }
-
-    public function cancelCreateProductReview(): void
-    {
-        $this->creatingProductId = null;
-        $this->newProductRating = 5;
-        $this->newProductTitle = '';
-        $this->newProductContent = '';
-        $this->resetErrorBag();
-    }
-
-    public function submitNewProductReview(): void
-    {
-        $customer = $this->resolveEligibleCustomerOrAbort();
-
-        if (!$this->creatingProductId) {
-            return;
-        }
-
-        $eligibleProduct = $this->getUnreviewedPurchasedPhysicalProducts($customer)
-            ->first(fn (Product $p) => (string) $p->id === $this->creatingProductId);
-
-        if (!$eligibleProduct) {
-            $this->cancelCreateProductReview();
-            return;
-        }
-
-        $this->validate([
-            'newProductRating' => ['required', 'integer', 'min:1', 'max:5'],
-            'newProductTitle' => ['nullable', 'string', 'max:255'],
-            'newProductContent' => ['required', 'string', 'min:10', 'max:1000'],
-        ], [
-            'newProductRating.required' => 'Bitte wähle eine Sterne-Bewertung aus.',
-            'newProductContent.required' => 'Bitte schreibe mindestens 10 Zeichen.',
-            'newProductContent.min' => 'Bitte schreibe mindestens 10 Zeichen.',
-        ]);
-
-        $cleanTitle = trim(strip_tags($this->newProductTitle));
-        $cleanContent = trim(strip_tags($this->newProductContent));
-        if (mb_strlen($cleanContent) < 10) {
-            $this->addError('newProductContent', 'Bitte schreibe mindestens 10 Zeichen.');
-            return;
-        }
-
-        if (ProductReview::where('customer_id', $customer->id)->where('product_id', $eligibleProduct->id)->exists()) {
-            $this->cancelCreateProductReview();
-            return;
-        }
-
-        ProductReview::create([
-            'product_id' => $eligibleProduct->id,
-            'customer_id' => $customer->id,
-            'rating' => max(1, min(5, (int) $this->newProductRating)),
-            'title' => $cleanTitle !== '' ? $cleanTitle : null,
-            'content' => $cleanContent,
-            'is_anonymous' => false,
-            'media' => [],
-            'status' => 'pending',
-        ]);
-
-        Cache::forget('google_reviews');
-        $this->cancelCreateProductReview();
-        session()->flash('reviews_notice', 'Produktbewertung eingereicht.');
     }
 
     public function rateExperience(string $area, int $rating): void
@@ -430,12 +317,8 @@ class CustomerReviewsComponent extends Component
 
         $orders = OrderOrder::with(['items.product'])
             ->where('customer_id', $customer->id)
-            ->whereNotIn('status', ['cancelled', 'refunded'])
-            ->where('payment_status', '!=', 'refunded')
-            ->where(function ($query) {
-                $query->where('payment_status', 'paid')
-                    ->orWhere('status', 'completed');
-            })
+            ->whereIn('status', ['completed', 'shipped', 'processing', 'pending'])
+            ->where('payment_status', 'paid')
             ->latest()
             ->get()
             ->reject(function (OrderOrder $order) use ($revokedOrderNumbers) {
@@ -475,6 +358,19 @@ class CustomerReviewsComponent extends Component
 
         $unreviewedProducts = $this->getUnreviewedPurchasedPhysicalProducts($customer);
 
+        $activeFormProductName = null;
+        if ($this->targetProductId) {
+            $matchedFromReviews = $productReviews
+                ->first(fn (ProductReview $r) => (string) $r->product_id === $this->targetProductId)
+                ?->product;
+            $matchedFromUnreviewed = $unreviewedProducts
+                ->first(fn (Product $p) => (string) $p->id === $this->targetProductId);
+
+            $activeFormProductName = $matchedFromReviews?->name
+                ?? $matchedFromUnreviewed?->name
+                ?? Product::find($this->targetProductId)?->name;
+        }
+
         $experienceCards = [
             [
                 'area' => SupportExperienceReview::AREA_CONFIGURATOR,
@@ -496,6 +392,7 @@ class CustomerReviewsComponent extends Component
         return view('livewire.customer.customer-reviews-component', [
             'productReviews' => $productReviews,
             'unreviewedProducts' => $unreviewedProducts,
+            'activeFormProductName' => $activeFormProductName,
             'experienceCards' => $experienceCards,
         ]);
     }

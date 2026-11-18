@@ -110,7 +110,7 @@ class UnifiedShopAndHomepageShowcaseTest extends TestCase
 
         Product::create([
             'id' => (string) Str::uuid(),
-            'name' => 'Das Echtsilber Seelen-Armband (925er Silber & Herz)',
+            'name' => 'Das Echtsilber Seelenarmband',
             'slug' => 'id-armband-silber-herz',
             'status' => 'active',
             'type' => 'physical',
@@ -124,7 +124,7 @@ class UnifiedShopAndHomepageShowcaseTest extends TestCase
 
         Product::create([
             'id' => (string) Str::uuid(),
-            'name' => 'Das Gold-Vermeil Seelen-Armband (925er Silber Gelb vergoldet & Herz)',
+            'name' => 'Das Goldene Seelenarmband',
             'slug' => 'id-armband-gold-herz',
             'status' => 'active',
             'type' => 'physical',
@@ -256,15 +256,16 @@ class UnifiedShopAndHomepageShowcaseTest extends TestCase
             'Der Seelen Kristall',
             'Das Goldene Seelen-Herz',
             'Der Seelenanhänger',
-            'Das Echtsilber Seelen-Armband (925er Silber & Herz)',
-            'Das Gold-Vermeil Seelen-Armband (925er Silber Gelb vergoldet & Herz)',
+            'Das Echtsilber Seelenarmband',
+            'Das Goldene Seelenarmband',
             'Die Seelen-Pfote',
             'Der Seelen-Talisman',
             'Geschenkgutschein',
         ]);
 
-        // Beide 925er Atelier-Armbänder tragen das edle Wertigkeits-Badge
-        $this->assertGreaterThanOrEqual(2, substr_count($html, '925er Silber · Atelier'));
+        // Kein „Gold-Vermeil“-Begriff und kein „925er Silber · Atelier“-Badge auf den Karten
+        $this->assertStringNotContainsString('Gold-Vermeil', $html);
+        $this->assertStringNotContainsString('925er Silber · Atelier', $html);
 
         // Entwürfe & System-Artefakte bleiben strikt ausgeblendet
         $response->assertDontSee('Der Feierabend-Funke Entwurf');
@@ -291,7 +292,8 @@ class UnifiedShopAndHomepageShowcaseTest extends TestCase
 
             $response->assertStatus(200);
             $response->assertSee('Der Seelen Kristall');
-            $response->assertSee('Das Echtsilber Seelen-Armband (925er Silber & Herz)');
+            $response->assertSee('Das Echtsilber Seelenarmband');
+            $response->assertSee('Das Goldene Seelenarmband');
             $response->assertSee('Geschenkgutschein');
             $this->assertStringContainsString('<link rel="canonical" href="' . route('shop') . '"', (string) $response->getContent());
         }

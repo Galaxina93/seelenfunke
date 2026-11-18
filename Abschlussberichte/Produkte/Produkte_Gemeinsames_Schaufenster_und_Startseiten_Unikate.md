@@ -13,6 +13,6 @@
 - **Zentraler Call-to-Action:** Darunter führt `Alle Unikate im Shop entdecken →` ungefiltert nach `/shop`.
 
 ## 3. Gemeinsames Schaufenster `/shop/` (`ProductFrontendFilterArea`)
-- **Alle aktiven Produkte gemeinsam:** Manufaktur-Unikate, 925er Silber-/Gold-Vermeil-Armbänder (mit edlem `925er Silber · Atelier`-Badge direkt auf der Karte) und der `Geschenkgutschein` (harmonisch am Ende sortiert) erscheinen sofort gemeinsam im Grid.
+- **Alle aktiven Produkte gemeinsam:** Manufaktur-Unikate, die beiden 925er Silber-Armbänder (**„Das Echtsilber Seelenarmband“** und abmahnsicher **„Das Goldene Seelenarmband“**, komplett ohne störendes Zusatz-Badge über `VORBESTELLBAR`) und der `Geschenkgutschein` (harmonisch am Ende sortiert) erscheinen sofort gemeinsam im Grid.
 - **Schlanke Filterleiste:** Suchfeld + saisonal kuratierter Anlass-Filter + Kategorie-Dropdown + bedingter `Angebote`-Filter (nur sichtbar, wenn tatsächlich reduzierte Produkte aktiv sind). Der technische `Alle | Personalisiert | Standard`-Schalter entfällt.
 - **Bruchsichere Legacy-Links:** Alte Aufrufe wie `/shop?collectionWorld=atelier` oder `/shop?collectionWorld=voucher` normalisieren fehlertolerant auf das gemeinsame Schaufenster mit Canonical `/shop`.

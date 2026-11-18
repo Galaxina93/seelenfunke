@@ -378,20 +378,8 @@
                                     </button>
 
                                     {{-- Product Type Badges --}}
-                                    @php
-                                        $atelierHaystack = mb_strtolower($product->name . ' ' . $product->slug);
-                                        $atelierBadgeLabel = (str_contains($atelierHaystack, 'silber') || str_contains($atelierHaystack, 'vermeil') || str_contains($atelierHaystack, '925'))
-                                            ? '925er Silber · Atelier'
-                                            : 'Atelier';
-                                    @endphp
                                     @if(!$isSoldOut && !$isBackorder)
                                         <div class="absolute top-3 right-3 z-30 flex flex-col gap-2 pointer-events-none">
-                                            @if($product->isAtelierLine())
-                                                <div class="bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 border border-[#D8C9A8] text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
-                                                    <svg class="w-3 h-3 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                                                    {{ $atelierBadgeLabel }}
-                                                </div>
-                                            @endif
                                             @if($product->type === 'digital')
                                                 <div class="bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 border border-[#D8C9A8] text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
                                                     <svg class="w-3 h-3 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" /></svg>
@@ -501,14 +489,8 @@
                                         </div>
                                     @endif
 
-                                    {{-- Kompakter Prozent-, Neu- & Atelier-Indikator oben links (verdeckt niemals das Produktmotiv) --}}
+                                    {{-- Kompakter Prozent- & Neu-Indikator oben links (verdeckt niemals das Produktmotiv) --}}
                                     <div class="absolute top-3 left-3 flex flex-col items-start gap-1.5 pointer-events-none z-20">
-                                        @if(!$isSoldOut && $isBackorder && $product->isAtelierLine())
-                                            <div class="bg-[#F5F1E8]/95 backdrop-blur-sm text-gray-900 border border-[#D8C9A8] text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest shadow-sm flex items-center gap-1.5">
-                                                <svg class="w-3 h-3 text-[#C5A059]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                                                {{ $atelierBadgeLabel }}
-                                            </div>
-                                        @endif
                                         @if(!$isSoldOut && $product->compare_at_price > $product->price)
                                             @php
                                                 $discountPercent = (int) round((($product->compare_at_price - $product->price) / $product->compare_at_price) * 100);

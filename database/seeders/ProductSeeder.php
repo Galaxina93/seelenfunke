@@ -61,6 +61,19 @@ class ProductSeeder extends Seeder
             ]);
         }
 
+        // Bestehende nicht-leere Produktgalerien aus der DB bewahren (niemals mit [] überschreiben)
+        $existingGalleries = Product::withTrashed()->pluck('media_gallery', 'slug')->all();
+        $resolveGallery = static function (string $slug, array $defaultGallery = []) use ($existingGalleries): array {
+            $existing = $existingGalleries[$slug] ?? null;
+            if (is_string($existing)) {
+                $existing = json_decode($existing, true);
+            }
+            if (is_array($existing) && count($existing) > 0) {
+                return $existing;
+            }
+            return $defaultGallery;
+        };
+
         // --- PRODUKT 1: Der Seelen Kristall (Physisch) ---
         $p1 = Product::updateOrCreate(['slug' => 'seelen-kristall'], [
             'name' => 'Der Seelen Kristall',
@@ -94,7 +107,11 @@ class ProductSeeder extends Seeder
             'preview_image_path' => 'produkte/products/seelen-kristall/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-kristall/t_seelenk.glb',
             'three_d_background_path' => 'produkte/products/seelen-kristall/header_bg.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('seelen-kristall', [
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall_b.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Personalisierter K9 Kristall mit Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Funkelndes K9-Kristallglas als emotionales Geschenk in den Händen'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Technisches Maßblatt & Abmessungen (180 x 200 x 40 mm)'],
+            ]),
             'configurator_settings' => [
                 'template_package' => 'seelen-kristall',
                 'origin_badge' => 'handcrafted_in_germany',
@@ -199,6 +216,58 @@ class ProductSeeder extends Seeder
             ['material_type' => 'plastic', 'weight_grams' => 20],
         ]);
 
+        $seelenAnhaengerDefaultGallery = [];
+        if (is_file(storage_path('app/public/produkte/products/seelen-anhaenger/medien/1794922657_der-seelenanhaenger-2.jpg'))) {
+            $seelenAnhaengerDefaultGallery[] = [
+                'type' => 'image',
+                'path' => 'produkte/products/seelen-anhaenger/medien/1794922657_der-seelenanhaenger-2.jpg',
+                'is_main' => true,
+                'is_hover' => false,
+                'is_beginner' => true,
+                'is_ai_generated' => false,
+                'alt' => 'Der Seelenanhänger: Echtes Manufaktur-Foto mit Lasergravur am Schlüsselbund',
+            ];
+        }
+        if (is_file(storage_path('app/public/produkte/products/seelen-anhaenger/medien/1794922622_der-seelenanhaenger.jpg'))) {
+            $seelenAnhaengerDefaultGallery[] = [
+                'type' => 'image',
+                'path' => 'produkte/products/seelen-anhaenger/medien/1794922622_der-seelenanhaenger.jpg',
+                'is_main' => empty($seelenAnhaengerDefaultGallery),
+                'is_hover' => !empty($seelenAnhaengerDefaultGallery),
+                'is_beginner' => false,
+                'is_ai_generated' => false,
+                'alt' => 'Der Seelenanhänger: Graviertes Aluminium-Herz am Autoschlüssel',
+            ];
+        }
+        $hasRealAnhaengerPhotos = !empty($seelenAnhaengerDefaultGallery);
+        $seelenAnhaengerDefaultGallery[] = [
+            'type' => 'image',
+            'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-back.jpg',
+            'is_main' => !$hasRealAnhaengerPhotos,
+            'is_hover' => false,
+            'is_beginner' => !$hasRealAnhaengerPhotos,
+            'is_ai_generated' => true,
+            'alt' => 'Der Seelenanhänger: Massives Alu-Herz mit beidseitiger Lasergravur',
+        ];
+        $seelenAnhaengerDefaultGallery[] = [
+            'type' => 'image',
+            'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-lifestyle.jpg',
+            'is_main' => false,
+            'is_hover' => !$hasRealAnhaengerPhotos,
+            'is_beginner' => false,
+            'is_ai_generated' => true,
+            'alt' => 'Der Seelenanhänger: Graviertes Alu-Herz als treuer Begleiter am Rucksack',
+        ];
+        $seelenAnhaengerDefaultGallery[] = [
+            'type' => 'image',
+            'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg',
+            'is_main' => false,
+            'is_hover' => false,
+            'is_beginner' => false,
+            'is_ai_generated' => true,
+            'alt' => 'Der Seelenanhänger: Technisches Maßblatt & Abmessungen (45 x 40 x 2,3 mm)',
+        ];
+
         // --- PRODUKT 2: Der Seelenanhänger (Physisch) ---
         $p2 = Product::updateOrCreate(['slug' => 'seelen-anhaenger'], [
             'name' => 'Der Seelenanhänger',
@@ -232,7 +301,7 @@ class ProductSeeder extends Seeder
             'preview_image_path' => 'produkte/products/seelen-anhaenger/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-anhaenger/seelenanhaenger_3d_.glb',
             'three_d_background_path' => 'produkte/products/seelen-anhaenger/header_bg.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('seelen-anhaenger', $seelenAnhaengerDefaultGallery),
             'configurator_settings' => [
                 'template_package' => 'seelen-anhaenger',
                 'origin_badge' => 'handcrafted_in_germany',
@@ -440,7 +509,11 @@ class ProductSeeder extends Seeder
             'preview_image_path' => 'produkte/products/weizenglas-personalisiert/overlay.png',
             'three_d_model_path' => 'produkte/products/weizenglas-personalisiert/beer_glas_3d.glb',
             'three_d_background_path' => 'produkte/products/weizenglas-personalisiert/header_bg.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('weizenglas-personalisiert', [
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Personalisiertes Weizenbierglas'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Frisch gezapftes Weizenglas mit Lasergravur im Biergarten'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Technisches Maßblatt & Abmessungen (218 x Ø 74 mm)'],
+            ]),
             'configurator_settings' => [
                 'template_package' => 'weizenglas-personalisiert',
                 'origin_badge' => 'made_in_germany',
@@ -570,7 +643,12 @@ class ProductSeeder extends Seeder
             'preview_image_path' => 'produkte/products/seelen-talisman/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-talisman/seelen_talisman_3d.glb',
             'three_d_background_path' => 'produkte/products/seelen-talisman/header_bg.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('seelen-talisman', [
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Spiegelpolierter Gold-Edelstahl-Schlüsselanhänger mit Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Beidseitige Gravur mit Wunschkoordinaten'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Gold-Schlüsselanhänger am Haustür-Schlüsselbund beim Aufschließen'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Technisches Maßblatt & Abmessungen (50 x 28 x 2,2 mm)'],
+            ]),
             'configurator_settings' => [
                 'template_package' => 'seelen-talisman',
                 'origin_badge' => 'handcrafted_in_germany',
@@ -769,7 +847,12 @@ class ProductSeeder extends Seeder
             'preview_image_path' => 'produkte/products/seelen-pfote-hundemarke/overlay.png',
             'three_d_model_path' => 'produkte/products/seelen-pfote-hundemarke/seelen_pfote_3d.glb',
             'three_d_background_path' => 'produkte/products/seelen-pfote-hundemarke/header_bg.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('seelen-pfote-hundemarke', [
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Goldfarbene Edelstahl-Hundemarke Knochenform mit Pfoten-Durchbruch & Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Goldene Rückseite mit Notfall-Telefonnummer & TASSO-Hinweis'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote Gold-Hundemarke am Lederhalsband eines Golden Retrievers'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Technisches Maßblatt & Abmessungen (40 x 22 x 1,8 mm)'],
+            ]),
             'configurator_settings' => [
                 'template_package' => 'seelen-pfote-hundemarke',
                 'origin_badge' => 'handcrafted_in_germany',
@@ -993,7 +1076,12 @@ class ProductSeeder extends Seeder
             'preview_image_path' => 'produkte/products/goldenes-seelen-herz/overlay.png',
             'three_d_model_path' => 'produkte/products/goldenes-seelen-herz/goldenes_seelen_herz_3d.glb',
             'three_d_background_path' => 'produkte/products/goldenes-seelen-herz/header_bg.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('goldenes-seelen-herz', [
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Vergoldeter Edelstahl-Herzanhänger inklusive Gold-Ankerkette (44 bis 50 cm) & Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Rückseite mit Wunschdatum & Koordinaten-Gravur inklusive Halskette'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz Komplett-Set an der mitgelieferten 44 bis 50 cm Gold-Ankerkette getragen'],
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Technisches Maßblatt & Abmessungen (25 x 22 x 4 mm inkl. 44 bis 50 cm Ankerkette)'],
+            ]),
             'configurator_settings' => [
                 'template_package' => 'goldenes-seelen-herz',
                 'origin_badge' => 'handcrafted_in_germany',
@@ -1320,13 +1408,13 @@ class ProductSeeder extends Seeder
         ]);
 */
 
-        // --- PRODUKT 8: Das Echtsilber Seelen-Armband (Atelier Echtgold & Silber: FBM P001.53062HERZ.5.18.5 - 925er Sterlingsilber) ---
+        // --- PRODUKT 8: Das Echtsilber Seelenarmband (Atelier Echtgold & Silber: FBM P001.53062HERZ.5.18.5 - 925er Sterlingsilber) ---
         $p8SilberArmband = Product::updateOrCreate(['slug' => 'id-armband-silber-herz'], [
-            'name' => 'Das Echtsilber Seelen-Armband (925er Silber & Herz)',
+            'name' => 'Das Echtsilber Seelenarmband',
             'type' => 'physical',
             'collection_line' => 'atelier',
-            'description' => 'Ein zeitloses Schmuckstück aus echtem Edelmetall, auf Bestellung für Sie handveredelt in unserer Manufaktur in Gifhorn: Das Echtsilber Seelen-Armband stammt aus der deutschen Traditionsmanufaktur Friedrich Binder (FBM, Mönsheim, gefertigt in Deutschland seit 1910) und besteht aus massivem 925er Sterlingsilber (gestempelt 925, ca. 2,50 g). Das 2,1 mm breite, fein diamantierte Figaro-Kettengeflecht trägt eine hochglanzpolierte Gravurplatte (24 x 5,5 mm) mit einem filigran ausgestanzten Herz-Durchbruch auf der linken Seite. Mit unserem 5W UV-Präzisionslaser veredeln wir die polierte Gravurfläche berührungslos und materialschonend mit Ihrem Wunschnamen, einem besonderen Datum oder einer liebevollen Botschaft, auf Wunsch kostenfrei beidseitig auf Vorder- und Rückseite. Dank des sicheren Federringverschlusses und der offenen Figaro-Glieder lässt sich die Damen-Standardlänge von 18,5 cm flexibel am Handgelenk tragen.',
-            'short_description' => 'Massives 925er Sterlingsilber Seelen-Armband (Figaro diamantiert 2,1 mm, 18,5 cm, ca. 2,50 g) mit ausgestanztem Herz-Durchbruch und beidseitiger 5W UV-Lasergravur.',
+            'description' => 'Ein zeitloses Schmuckstück aus echtem Edelmetall, auf Bestellung für Sie handveredelt in unserer Manufaktur in Gifhorn: Das Echtsilber Seelenarmband stammt aus der deutschen Traditionsmanufaktur Friedrich Binder (FBM, Mönsheim, gefertigt in Deutschland seit 1910) und besteht aus massivem 925er Sterlingsilber (gestempelt 925, ca. 2,50 g). Das 2,1 mm breite, fein diamantierte Figaro-Kettengeflecht trägt eine hochglanzpolierte Gravurplatte (24 x 5,5 mm) mit einem filigran ausgestanzten Herz-Durchbruch auf der linken Seite. Mit unserem 5W UV-Präzisionslaser veredeln wir die polierte Gravurfläche berührungslos und materialschonend mit Ihrem Wunschnamen, einem besonderen Datum oder einer liebevollen Botschaft, auf Wunsch kostenfrei beidseitig auf Vorder- und Rückseite. Dank des sicheren Federringverschlusses und der offenen Figaro-Glieder lässt sich die Damen-Standardlänge von 18,5 cm flexibel am Handgelenk tragen.',
+            'short_description' => 'Massives 925er Sterlingsilber Seelenarmband (Figaro diamantiert 2,1 mm, 18,5 cm, ca. 2,50 g) mit ausgestanztem Herz-Durchbruch und beidseitiger 5W UV-Lasergravur.',
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
@@ -1354,7 +1442,12 @@ class ProductSeeder extends Seeder
             'preview_image_path' => 'produkte/products/id-armband-silber-herz/overlay.png',
             'three_d_model_path' => 'produkte/products/id-armband-silber-herz/id_armband_silber_herz_3d.glb',
             'three_d_background_path' => 'produkte/products/id-armband-silber-herz/header_bg.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('id-armband-silber-herz', [
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelenarmband: Massives 925er Sterlingsilber Figaro-Armband mit Herz-Durchbruch & Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelenarmband: Beidseitige Präzisions-UV-Lasergravur auf 925er Sterlingsilber'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelenarmband (18,5 cm, 2,1 mm Figaro diamantiert) mit Federringverschluss und 925er Punze'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelenarmband: Technisches Maßblatt & Abmessungen (18,5 cm Länge, 24 x 5,5 mm Gravurplatte)'],
+            ]),
             'configurator_settings' => [
                 'template_package' => 'id-armband-silber-herz',
                 'origin_badge' => 'handcrafted_in_germany',
@@ -1462,8 +1555,8 @@ class ProductSeeder extends Seeder
                 'Herkunft' => 'Rohling Made in Germany (FBM Mönsheim), handveredelt in Gifhorn',
             ],
             'tier_pricing' => [],
-            'seo_title' => 'Das Echtsilber Seelen-Armband (925er Silber & Herz) | Mein-Seelenfunke Atelier',
-            'seo_description' => 'Massives 925er Sterlingsilber Seelen-Armband (Figaro diamantiert 2,1 mm, 18,5 cm) mit Herz-Durchbruch und individueller, beidseitiger Lasergravur aus unserer Manufaktur.',
+            'seo_title' => 'Das Echtsilber Seelenarmband (925er Sterlingsilber) | Mein-Seelenfunke',
+            'seo_description' => 'Massives 925er Sterlingsilber Seelenarmband (Figaro diamantiert 2,1 mm, 18,5 cm) mit Herz-Durchbruch und individueller, beidseitiger Lasergravur aus unserer Manufaktur.',
             'completion_step' => 4
         ]);
 
@@ -1476,13 +1569,13 @@ class ProductSeeder extends Seeder
             ['material_type' => 'paper',     'weight_grams' => 3],
         ]);
 
-        // --- PRODUKT 9: Das Gold-Vermeil Seelen-Armband (Atelier Echtgold & Silber: FBM P020.53062HERZ.5.18.5 - 925er Silber Gelb vergoldet) ---
+        // --- PRODUKT 9: Das Goldene Seelenarmband (Atelier Echtgold & Silber: FBM P020.53062HERZ.5.18.5 - 925er Silber Gelb vergoldet) ---
         $p9GoldArmband = Product::updateOrCreate(['slug' => 'id-armband-gold-herz'], [
-            'name' => 'Das Gold-Vermeil Seelen-Armband (925er Silber Gelb vergoldet & Herz)',
+            'name' => 'Das Goldene Seelenarmband',
             'type' => 'physical',
             'collection_line' => 'atelier',
-            'description' => 'Edler Goldglanz auf echtem Edelmetall, auf Bestellung für Sie handveredelt in unserer Manufaktur in Gifhorn: Das Gold-Vermeil Seelen-Armband wird in der deutschen Traditionsmanufaktur Friedrich Binder (FBM, Mönsheim, gefertigt in Deutschland seit 1910) aus massivem 925er Sterlingsilber gefertigt und mit einer hochwertigen Gelbgold-Plattierung (925 Gelb vergoldet / Gold Vermeil, gestempelt 925, ca. 2,50 g) veredelt. Das 2,1 mm breite, fein diamantierte Figaro-Kettengeflecht trägt eine spiegelpolierte Gravurplatte (24 x 5,5 mm) mit einem ausgestanzten Herz-Durchbruch auf der linken Seite. Mit unserem 5W UV-Präzisionslaser gravieren wir Ihren Wunschnamen, Initialen oder ein besonderes Datum gestochen scharf rechts neben das Herz, auf Wunsch kostenfrei beidseitig auf Vorder- und Rückseite. Die Damen-Standardlänge von 18,5 cm mit Federringverschluss schmiegt sich elegant an jedes Handgelenk.',
-            'short_description' => '925er Sterlingsilber Seelen-Armband mit echter Gelbgold-Vergoldung (Figaro diamantiert 2,1 mm, 18,5 cm, ca. 2,50 g), ausgestanztem Herz-Durchbruch und beidseitiger 5W UV-Lasergravur.',
+            'description' => 'Edler Goldglanz auf echtem Edelmetall, auf Bestellung für Sie handveredelt in unserer Manufaktur in Gifhorn: Das Goldene Seelenarmband wird in der deutschen Traditionsmanufaktur Friedrich Binder (FBM, Mönsheim, gefertigt in Deutschland seit 1910) aus massivem 925er Sterlingsilber mit echter Gelbgold-Vergoldung (gestempelt 925, ca. 2,50 g) gefertigt. Das 2,1 mm breite, fein diamantierte Figaro-Kettengeflecht trägt eine spiegelpolierte Gravurplatte (24 x 5,5 mm) mit einem ausgestanzten Herz-Durchbruch auf der linken Seite. Mit unserem 5W UV-Präzisionslaser gravieren wir Ihren Wunschnamen, Initialen oder ein besonderes Datum gestochen scharf rechts neben das Herz, auf Wunsch kostenfrei beidseitig auf Vorder- und Rückseite. Die Damen-Standardlänge von 18,5 cm mit Federringverschluss schmiegt sich elegant an jedes Handgelenk.',
+            'short_description' => 'Das Goldene Seelenarmband aus massivem 925er Sterlingsilber mit echter Gelbgold-Vergoldung (gestempelt 925, Figaro diamantiert 2,1 mm, 18,5 cm, ca. 2,50 g), ausgestanztem Herz-Durchbruch und beidseitiger 5W UV-Lasergravur.',
             'status' => 'active',
             'is_personalizable' => true,
             'three_d_active' => true,
@@ -1510,7 +1603,12 @@ class ProductSeeder extends Seeder
             'preview_image_path' => 'produkte/products/id-armband-gold-herz/overlay.png',
             'three_d_model_path' => 'produkte/products/id-armband-gold-herz/id_armband_gold_herz_3d.glb',
             'three_d_background_path' => 'produkte/products/id-armband-gold-herz/header_bg.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('id-armband-gold-herz', [
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelenarmband: Massives 925er Sterlingsilber mit echter Gelbgold-Vergoldung, Figaro-Kette & Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelenarmband: Beidseitige Präzisions-UV-Lasergravur auf 925er Sterlingsilber mit Gelbgold-Vergoldung'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelenarmband (18,5 cm, 2,1 mm Figaro diamantiert) mit Federringverschluss und 925er Punze'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelenarmband: Technisches Maßblatt & Abmessungen (18,5 cm Länge, 24 x 5,5 mm Gravurplatte)'],
+            ]),
             'configurator_settings' => [
                 'template_package' => 'id-armband-gold-herz',
                 'origin_badge' => 'handcrafted_in_germany',
@@ -1610,7 +1708,7 @@ class ProductSeeder extends Seeder
                 ],
             ],
             'attributes' => [
-                'Edelmetall & Legierung' => 'Massives 925er Sterlingsilber mit Echtgold-Plattierung (925 Gelb vergoldet, gestempelt 925)',
+                'Edelmetall & Legierung' => 'Massives 925er Sterlingsilber mit echter Gelbgold-Vergoldung (925 Gelb vergoldet, gestempelt 925)',
                 'Kettenart & Verschluss' => 'Figaro diamantiert (2,1 mm Breite) mit Federringverschluss',
                 'Länge & Gewicht' => '18,5 cm Damen-Standardlänge (ca. 2,50 g Edelmetall)',
                 'Gravurplatte' => '24 x 5,5 x 1,2 mm (spiegelpoliert mit ausgestanztem Herz links)',
@@ -1618,8 +1716,8 @@ class ProductSeeder extends Seeder
                 'Herkunft' => 'Rohling Made in Germany (FBM Mönsheim), handveredelt in Gifhorn',
             ],
             'tier_pricing' => [],
-            'seo_title' => 'Das Gold-Vermeil Seelen-Armband (925er Silber Gelb vergoldet & Herz) | Mein-Seelenfunke Atelier',
-            'seo_description' => 'Edles Seelen-Armband aus 925er Sterlingsilber Gelb vergoldet (Figaro diamantiert 2,1 mm, 18,5 cm) mit Herz-Durchbruch und beidseitiger Lasergravur.',
+            'seo_title' => 'Das Goldene Seelenarmband (925er Silber vergoldet) | Mein-Seelenfunke',
+            'seo_description' => 'Das Goldene Seelenarmband aus massivem 925er Sterlingsilber mit echter Gelbgold-Vergoldung (gestempelt 925, Figaro 2,1 mm, 18,5 cm) mit Herz-Durchbruch und beidseitiger Lasergravur.',
             'completion_step' => 4
         ]);
 
@@ -1653,7 +1751,14 @@ class ProductSeeder extends Seeder
             'continue_selling_when_out_of_stock' => true,
             'weight' => 25, 'packaging_weight' => 15, 'height' => 2, 'width' => 114, 'length' => 162, 'shipping_class' => 'brief',
             'preview_image_path' => 'produkte/products/geschenkgutschein/envelope.png',
-            'media_gallery' => [],
+            'media_gallery' => $resolveGallery('geschenkgutschein', [
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Standard', 'alt' => 'Seelenfunke Geschenkgutschein im schwarz-goldenen Umschlag mit Wachssiegel'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Seelenfunke Geschenkgutschein: Persönliche Übergabe im Schwarz-Gold-Umschlag mit Wachssiegel'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-halloween.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Halloween', 'alt' => 'Seelenfunke Geschenkgutschein: Herbst & Lichter Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-weihnachten.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Weihnachten', 'alt' => 'Seelenfunke Geschenkgutschein: Weihnachts-Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-valentinstag.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Valentinstag', 'alt' => 'Seelenfunke Geschenkgutschein: Romantik & Valentinstag Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-ostern.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Ostern', 'alt' => 'Seelenfunke Geschenkgutschein: Frühlings- & Oster-Edition'],
+            ]),
             'configurator_settings' => [
                 'auto_seasonal_main_image' => true,
                 'allow_text_pos' => false,
@@ -1723,7 +1828,7 @@ class ProductSeeder extends Seeder
                 $changed = true;
             }
             foreach ($gallery as $idx => $item) {
-                if (is_array($item) && ($item['type'] ?? 'image') === 'image' && empty($item['is_ai_generated'])) {
+                if (is_array($item) && ($item['type'] ?? 'image') === 'image' && !array_key_exists('is_ai_generated', $item)) {
                     $gallery[$idx]['is_ai_generated'] = true;
                     $changed = true;
                 }
