@@ -751,8 +751,8 @@
                 display: inline-flex;
                 align-items: center;
                 gap: 7px;
-                margin-right: 244px;
                 flex-wrap: wrap;
+                margin-right: 244px;
             }
             .sf-lobby-pill-btn {
                 appearance: none;
@@ -1308,9 +1308,9 @@
                 height: 22px;
                 display: inline-flex;
                 align-items: center;
+                justify-content: center;
                 position: relative;
                 z-index: 2;
-                justify-content: center;
                 pointer-events: none;
             }
             .sf-ability-svg svg {
@@ -1342,8 +1342,8 @@
                 background: rgba(17, 24, 39, 0.90);
                 padding: 1px 4px;
                 border-radius: 5px;
-                z-index: 4;
                 line-height: 1;
+                z-index: 4;
                 pointer-events: none;
             }
             .sf-ability-combo-badge {
@@ -1358,8 +1358,8 @@
                 border-radius: 999px;
                 border: 1.5px solid #FFFFFF;
                 line-height: 1;
-                z-index: 5;
                 box-shadow: 0 3px 8px rgba(17, 24, 39, 0.18);
+                z-index: 5;
                 pointer-events: none;
             }
             .sf-ability-tooltip {
@@ -1577,15 +1577,113 @@
                 pointer-events: none;
             }
             .sf-outer-gate-banner {
-                padding: 16px 14px;
+                padding: 15px 16px;
                 border-radius: 14px;
                 background: #FAF8F5;
                 border: 1.5px solid rgba(197, 160, 89, 0.55);
                 text-align: center;
-                font-size: 15px;
-                font-weight: 800;
+                font-size: 13.5px;
+                font-weight: 600;
+                line-height: 1.55;
+                color: #1F2937;
+                letter-spacing: 0.005em;
+            }
+            .sf-atelier-star-card {
+                pointer-events: auto;
+                width: 274px;
+                max-width: calc(100vw - 32px);
+                background: #FAF8F5;
                 color: #111827;
-                letter-spacing: 0.01em;
+                border: 1.5px solid #C5A059;
+                border-radius: 16px;
+                padding: 13px 15px;
+                box-shadow: 0 18px 42px rgba(17, 24, 39, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 9px;
+                box-sizing: border-box;
+                text-align: center;
+            }
+            .sf-atelier-star-title {
+                margin: 0;
+                font-family: Georgia, "Times New Roman", serif;
+                font-size: 14px;
+                font-weight: 700;
+                color: #111827;
+                line-height: 1.25;
+            }
+            .sf-atelier-star-row {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 5px;
+            }
+            .sf-atelier-star-btn {
+                appearance: none;
+                border: none;
+                background: transparent;
+                padding: 2px 3px;
+                font-size: 27px;
+                line-height: 1;
+                color: #DDD5C4;
+                cursor: pointer;
+                transition: transform 0.14s ease, color 0.14s ease;
+            }
+            .sf-atelier-star-btn.is-lit,
+            .sf-atelier-star-btn:hover {
+                color: #C5A059;
+            }
+            .sf-atelier-star-btn:hover {
+                transform: scale(1.16);
+            }
+            .sf-atelier-star-preview {
+                font-size: 24px;
+                line-height: 1;
+                color: #C5A059;
+                letter-spacing: 3px;
+            }
+            .sf-atelier-star-thanks {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-size: 12px;
+                font-weight: 800;
+                color: #785A28;
+            }
+            .sf-atelier-star-edit-btn {
+                appearance: none;
+                border: 1px solid rgba(197, 160, 89, 0.45);
+                background: #FFFFFF;
+                color: #4B5563;
+                border-radius: 999px;
+                padding: 2px 8px;
+                font-size: 10.5px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+            .sf-atelier-star-feedback {
+                width: 100%;
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+                margin-top: 2px;
+            }
+            .sf-atelier-star-textarea {
+                width: 100%;
+                min-height: 58px;
+                max-height: 110px;
+                resize: vertical;
+                border-radius: 10px;
+                border: 1px solid rgba(197, 160, 89, 0.52);
+                background: #FFFFFF;
+                color: #111827;
+                padding: 7px 9px;
+                font-size: 12px;
+                font-family: inherit;
+                box-sizing: border-box;
+                outline: none;
             }
             .sf-lobby-minimap-wrap {
                 position: relative;
@@ -1733,6 +1831,7 @@
                 font-weight: 700;
                 color: #111827;
                 cursor: pointer;
+            }
             .sf-lobby-inline-terms-box {
                 position: relative;
                 padding: 9px 11px;
@@ -1755,7 +1854,6 @@
                 filter: grayscale(1);
                 cursor: not-allowed !important;
                 transform: none !important;
-            }
             }
             .sf-lobby-stick-wrap { display: none; position: absolute; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); left: 14px; z-index: 25; }
             .sf-lobby-stick {
@@ -1821,6 +1919,7 @@
                 white-space: nowrap;
             }
             .sf-lobby-step-btn:hover { background: #F5EFE2; }
+            .sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
             .sf-lobby-gear-btn {
                 position: relative;
                 display: inline-flex;
@@ -1840,7 +1939,6 @@
             }
             .sf-lobby-gear-btn:hover { border-color: #C5A059; background: #FFFFFF; transform: translateY(-1px); }
             .sf-lobby-gear-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
-            .sf-lobby-step-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
             @media (max-width: 900px), (pointer: coarse) {
                 .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
                 .sf-lobby-actions { margin-right: 0; }
@@ -1859,8 +1957,8 @@
                 .sf-lobby-kbd, .sf-lobby-hide-sm, .sf-lobby-copyright { display: none !important; }
                 .sf-lobby-chat-panel { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); right: 10px; }
                 .sf-lobby-chat-panel.is-expanded { width: calc(100vw - 20px); }
-                .sf-lobby-gold-crest-bar { min-height: 50px; padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; }
                 .sf-lobby-keybind-grid { grid-template-columns: 1fr; }
+                .sf-lobby-gold-crest-bar { min-height: 50px; padding: 5px 10px calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: flex-end; }
             }
             @media (max-width: 559px) {
                 .sf-lobby-topright-stack { top: 64px; right: 8px; gap: 5px; }
@@ -1999,9 +2097,9 @@
 
                     {{-- Oben rechts: Runde 232x232 Light-Mode Minimap (mobil kompakt 138px) --}}
                     <div x-show="!isLoading && loadError === ''"
+                         @pointerdown.stop
                          @mousedown.stop
                          @click.stop
-                         @pointerdown.stop
                          class="sf-lobby-topright-stack">
                         <div data-testid="lobby-minimap" class="sf-lobby-minimap-wrap">
                             <canvas x-ref="minimapCanvas" width="232" height="232" class="sf-lobby-minimap-canvas"></canvas>
@@ -2117,7 +2215,7 @@
                         </button>
                     </div>
 
-                    {{-- Schwebendes Light-Mode Schild am monumentalen Tor zur Aussenwelt (MMORPG-Ausblick) --}}
+                    {{-- Schwebendes Light-Mode Schild am monumentalen Tor zur Aussenwelt --}}
                     <div x-ref="floatingOuterGateCard"
                          data-testid="lobby-outer-gate-card"
                          style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
@@ -2128,8 +2226,76 @@
                                 class="sf-lobby-portal-pill"
                                 style="cursor:pointer;">
                             <span>✨</span>
-                            <span>Tor zur Außenwelt · Hier entsteht ein MMORPG</span>
+                            <span>Tor zur Außenwelt · Fantastische Welt &amp; Abenteuer in Planung</span>
                         </button>
+                    </div>
+
+                    {{-- 1-Klick Light-Mode Bewertungs-Kaertchen an der 3D-Sternebewertungs-Station neben dem Ehrenportal --}}
+                    <div x-ref="floatingAtelierStarCard"
+                         style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
+                         class="sf-lobby-floating-anchor">
+                        <div @pointerdown.stop
+                             @mousedown.stop
+                             @click.stop
+                             data-testid="atelier-star-rating-card"
+                             class="sf-atelier-star-card">
+                            <h4 class="sf-atelier-star-title">Wie gefällt dir unser Atelier?</h4>
+
+                            <template x-if="atelierReview.can_rate">
+                                <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;">
+                                    <div class="sf-atelier-star-row" @mouseleave="previewAtelierStars(0)">
+                                        <template x-for="star in [1, 2, 3, 4, 5]" :key="'atelier-star-' + star">
+                                            <button type="button"
+                                                    :data-testid="'atelier-star-btn-' + star"
+                                                    :aria-label="star + ' Sterne'"
+                                                    @mouseenter="previewAtelierStars(star)"
+                                                    @click="submitAtelierStarRating(star)"
+                                                    class="sf-atelier-star-btn"
+                                                    :class="{ 'is-lit': star <= (atelierStarHover > 0 ? atelierStarHover : atelierReview.my_rating) }">★</button>
+                                        </template>
+                                    </div>
+
+                                    <template x-if="atelierFeedbackOpen">
+                                        <form @submit.prevent="submitAtelierStarComment()" class="sf-atelier-star-feedback">
+                                            <textarea x-model="atelierFeedbackDraft"
+                                                      maxlength="1500"
+                                                      placeholder="Was können wir noch besser machen?"
+                                                      aria-label="Was können wir noch besser machen?"
+                                                      class="sf-atelier-star-textarea"></textarea>
+                                            <button type="submit"
+                                                    :disabled="atelierRatingBusy"
+                                                    class="sf-lobby-prod-cta"
+                                                    style="margin-top:0;border:none;cursor:pointer;padding:7px 12px;font-size:12px;">
+                                                <span x-text="atelierRatingBusy ? 'Wird gesendet...' : 'Senden'"></span>
+                                            </button>
+                                        </form>
+                                    </template>
+
+                                    <template x-if="!atelierFeedbackOpen && atelierReview.has_rated && !atelierRatingEditing">
+                                        <div class="sf-atelier-star-thanks">
+                                            <span>✓ Danke für deine Bewertung!</span>
+                                            <button type="button"
+                                                    @click="startAtelierRatingEdit()"
+                                                    class="sf-atelier-star-edit-btn">Ändern</button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template x-if="!atelierReview.can_rate">
+                                <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;">
+                                    <div class="sf-atelier-star-preview" aria-hidden="true">★★★★★</div>
+                                    <button type="button"
+                                            data-testid="atelier-star-login-btn"
+                                            @click="openLoginForAtelierRating()"
+                                            class="sf-lobby-prod-cta"
+                                            style="margin-top:0;border:none;cursor:pointer;padding:8px 14px;font-size:12px;">
+                                        <span>Anmelden &amp; bewerten</span>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="sf-lobby-floating-arrow"></div>
                     </div>
 
                     {{-- Helles Light-Mode Modal am Tor zur Aussenwelt (Clean-Design, rollenabhaengiger 1-Klick-SSO-Uebergang) --}}
@@ -2157,7 +2323,7 @@
                                         aria-label="Schließen">&times;</button>
                             </div>
 
-                            <div class="sf-outer-gate-banner">Hier entsteht ein MMORPG</div>
+                            <div class="sf-outer-gate-banner">Hinter diesem Tor warten bald eine fantastische Welt und spannende Abenteuer auf dich, an denen das Team von Mein-Seelenfunke in Zukunft arbeiten möchte.</div>
 
                             <template x-if="mmorpgCanEnter">
                                 <div style="display:flex;flex-direction:column;gap:8px;">
@@ -2166,7 +2332,7 @@
                                             @click="enterFunkenreichMmorpg()"
                                             class="sf-lobby-prod-cta"
                                             style="margin-top:0;border:none;cursor:pointer;">
-                                        <span>✨ Spielwelt betreten (game.mein-seelenfunke.de) &rarr;</span>
+                                        <span>✨ In die Außenwelt starten &rarr;</span>
                                     </button>
                                     <button type="button"
                                             @click="closeOuterGateModal()"
@@ -2192,8 +2358,8 @@
                     {{-- Helles Light-Mode Voraussetzungs-Modal (Rotes ✕ vs. Goldenes ✓, In-Game-Login mit Auge-Icon & 1-Klick-Magie, Clean-Design) --}}
                     <div x-show="sanctumGateOpen"
                          x-cloak
-                         @mousedown.stop
                          @pointerdown.stop
+                         @mousedown.stop
                          @click.self="closeSanctumGateModal()"
                          data-testid="lobby-sanctum-gate-modal"
                          class="sf-lobby-settings-backdrop">
@@ -2323,8 +2489,8 @@
                                              class="sf-lobby-inline-error"
                                              x-text="inlineAuthError"></div>
 
-                                                x-ref="inlineMagicActivateBtn"
                                         <button type="button"
+                                                x-ref="inlineMagicActivateBtn"
                                                 data-testid="sanctum-inline-magic-submit"
                                                 :disabled="inlineAuthBusy"
                                                 :aria-disabled="(!inlineMagicAcceptTerms || inlineAuthBusy) ? 'true' : 'false'"
@@ -2367,8 +2533,8 @@
                     {{-- Kompaktes Light-Mode ESC-Einstellungsmenü (⚙️ Gamification Clean-Design, 0 Subtexte) --}}
                     <div x-show="settingsOpen"
                          x-cloak
-                         @mousedown.stop
                          @pointerdown.stop
+                         @mousedown.stop
                          @click.self="closeSettingsModal()"
                          data-testid="lobby-settings-modal"
                          class="sf-lobby-settings-backdrop">
@@ -2414,6 +2580,7 @@
                                        class="sf-lobby-slider"
                                        aria-label="Lautstärke">
                             </div>
+
                             <div class="sf-lobby-settings-section">
                                 <div class="sf-lobby-settings-row">
                                     <span class="sf-lobby-settings-label">Vollbild</span>
@@ -2425,7 +2592,6 @@
                                             x-text="isFullscreen ? 'Vollbild beenden' : 'Vollbild aktivieren'"></button>
                                 </div>
                             </div>
-
 
                             <div class="sf-lobby-settings-section">
                                 <div class="sf-lobby-settings-row">
@@ -2516,8 +2682,8 @@
                                         style="margin-top:0;flex:1;border:none;cursor:pointer;">
                                     Weiter erkunden
                                 </button>
-                                        data-testid="lobby-settings-exit-btn"
                                 <button type="button"
+                                        data-testid="lobby-settings-exit-btn"
                                         @click="closeShowroom()"
                                         class="sf-lobby-step-btn"
                                         style="padding:9px 14px;border-radius:12px;">
@@ -2529,9 +2695,9 @@
 
                     {{-- Ein-/ausklappbarer Light-Mode Raum-Chat (nur in der Multiplayer-Halle der Helden) --}}
                     <div x-show="!isLoading && loadError === '' && currentZone === 'heroes' && chatOpen && focusedProduct === null"
+                         @pointerdown.stop
                          @mousedown.stop
                          @click.stop
-                         @pointerdown.stop
                          data-testid="louvre-room-chat-panel"
                          class="sf-lobby-chat-panel"
                          :class="{ 'is-expanded': chatExpanded }">
@@ -2726,9 +2892,9 @@
 
                     {{-- Ruhige goldene Zierleiste am unteren Rand: Links © Mein-Seelenfunke + Rechts Einstellungen (Esc) --}}
                     <div x-show="!isLoading && loadError === ''"
+                         @pointerdown.stop
                          @mousedown.stop
                          @click.stop
-                         @pointerdown.stop
                          data-testid="lobby-gold-crest-bar"
                          class="sf-lobby-gold-crest-bar"
                          style="justify-content:space-between;">
@@ -2749,6 +2915,7 @@
             </div>
         </template>
     </div>
+
     @php
         $sfInitialAdminAuth = \Illuminate\Support\Facades\Auth::guard('admin')->check();
         $sfInitialCustomer = \Illuminate\Support\Facades\Auth::guard('customer')->user();
@@ -2761,7 +2928,6 @@
             && (bool) ($sfInitialCustomer->mmorpg_access_enabled ?? false)
         );
     @endphp
-
     <script>
         (function () {
             'use strict';
@@ -2808,8 +2974,8 @@
                         solo_only: true,
                         room_id: null,
                         sync_interval_ms: 950,
-                        peer_id: null,
                         player_id: null,
+                        peer_id: null,
                         display_name: null,
                         weapon: null
                     },
@@ -2873,6 +3039,22 @@
                     },
                     mmorpgCanEnter: @json($sfInitialMmorpgCanEnter),
                     mmorpgEnterUrl: '/funkenreich/enter',
+                    atelierReview: {
+                        area: 'funkenreich',
+                        label: '3D-Atelier',
+                        can_rate: false,
+                        has_rated: false,
+                        my_rating: 0,
+                        my_comment: '',
+                        submit_url: '/customer/experience-reviews',
+                    },
+                    atelierStarHover: 0,
+                    atelierRatingEditing: false,
+                    atelierFeedbackOpen: false,
+                    atelierFeedbackDraft: '',
+                    atelierRatingBusy: false,
+                    atelierStarStationFocused: false,
+                    _loginOpenedFromStarStation: false,
                     outerGateModalOpen: false,
                     sanctumGateOpen: false,
                     sanctumGateZone: 'heroes',
@@ -2882,12 +3064,12 @@
                     inlineLoginShowPassword: false,
                     inlineLoginTwoFactorRequired: false,
                     inlineLoginTwoFactorCode: '',
-                    inlineMagicCtaAura: false,
                     inlineMagicAcceptTerms: false,
+                    inlineMagicCtaAura: false,
                     inlineMagicRankingOptIn: true,
                     inlineAuthBusy: false,
-                    _loggedInDuringLobbySession: false,
                     inlineAuthError: '',
+                    _loggedInDuringLobbySession: false,
                     sanctumGateState: {
                         canEnter: false,
                         reason: 'login_required',
@@ -3178,6 +3360,7 @@
                             }
                         }
                     },
+
                     triggerSanctumMagicCta() {
                         this.inlineAuthError = '';
                         if (!this.sanctumGateState.checks.login) {
@@ -3191,11 +3374,15 @@
                         }
                     },
 
-
                     applyLiveAccountResponse(body) {
                         if (!body || typeof body !== 'object') return;
                         if (body.csrf_token) {
                             this.updateDocumentCsrfToken(body.csrf_token);
+                        }
+                        if (body.atelier_review && typeof body.atelier_review === 'object') {
+                            this.applyAtelierReviewPayload(body.atelier_review);
+                        } else if (body.status === 'authenticated' || body.success) {
+                            this.atelierReview = Object.assign({}, this.atelierReview, { can_rate: true });
                         }
                         if (body.player_funki && typeof body.player_funki === 'object') {
                             this.funkiInfo = Object.assign({}, this.funkiInfo || {}, body.player_funki);
@@ -3223,6 +3410,7 @@
                                 loginUrl: sa.login_url || this.sanctumGateState.loginUrl || '/login',
                                 dashboardUrl: sa.dashboard_url || this.sanctumGateState.dashboardUrl || '/dashboard',
                             };
+                        }
                         if (body.mmorpg_can_enter !== undefined) {
                             this.mmorpgCanEnter = Boolean(body.mmorpg_can_enter);
                         } else if (body.player && body.player.mmorpg_can_enter !== undefined) {
@@ -3232,7 +3420,6 @@
                             this.mmorpgEnterUrl = body.mmorpg_enter_url.trim();
                         } else if (body.player && typeof body.player.mmorpg_enter_url === 'string' && body.player.mmorpg_enter_url.trim() !== '') {
                             this.mmorpgEnterUrl = body.player.mmorpg_enter_url.trim();
-                        }
                         }
 
                         const facade = getFacade();
@@ -3308,12 +3495,13 @@
                                 if (body.status === 'authenticated' || body.success) {
                                     this.inlineLoginPassword = '';
                                     this.inlineLoginTwoFactorCode = '';
+                                    this.inlineLoginTwoFactorRequired = false;
                                     this._loggedInDuringLobbySession = true;
                                     this.dispatchLivewireAuthSync();
-                                    this.inlineLoginTwoFactorRequired = false;
                                     this.applyLiveAccountResponse(body);
 
-                                    if (this.sanctumGateState.canEnter) {
+                                    if (this._loginOpenedFromStarStation || this.sanctumGateState.canEnter) {
+                                        this._loginOpenedFromStarStation = false;
                                         this.sanctumExpandedStep = '';
                                         this.sanctumGateOpen = false;
                                     } else if (!this.sanctumGateState.checks.magic) {
@@ -3326,6 +3514,130 @@
                             .catch(() => {
                                 this.inlineAuthBusy = false;
                                 this.inlineAuthError = 'Verbindung fehlgeschlagen.';
+                            });
+                    },
+
+                    applyAtelierReviewPayload(rev) {
+                        if (!rev || typeof rev !== 'object') return;
+                        const cleanRating = Math.max(0, Math.min(5, parseInt(rev.my_rating || 0, 10) || 0));
+                        this.atelierReview = {
+                            area: String(rev.area || 'funkenreich'),
+                            label: String(rev.label || '3D-Atelier'),
+                            can_rate: Boolean(rev.can_rate),
+                            has_rated: Boolean(rev.has_rated || cleanRating > 0),
+                            my_rating: cleanRating,
+                            my_comment: typeof rev.my_comment === 'string' ? rev.my_comment : '',
+                            submit_url: String(rev.submit_url || '/customer/experience-reviews'),
+                        };
+                        this.atelierFeedbackDraft = this.atelierReview.my_comment || '';
+                    },
+
+                    openLoginForAtelierRating() {
+                        this._loginOpenedFromStarStation = true;
+                        this.openSanctumGateModal('heroes');
+                    },
+
+                    previewAtelierStars(starVal) {
+                        const clean = Math.max(0, Math.min(5, parseInt(starVal, 10) || 0));
+                        this.atelierStarHover = clean;
+                        const facade = getFacade();
+                        if (facade && typeof facade.previewAtelierStarHover === 'function') {
+                            facade.previewAtelierStarHover(clean);
+                        }
+                    },
+
+                    startAtelierRatingEdit() {
+                        this.atelierRatingEditing = true;
+                        if (this.atelierReview.my_rating >= 1 && this.atelierReview.my_rating <= 3) {
+                            this.atelierFeedbackOpen = true;
+                        }
+                    },
+
+                    submitAtelierStarRating(stars) {
+                        if (this.atelierRatingBusy) return;
+                        const cleanStars = Math.max(1, Math.min(5, parseInt(stars, 10) || 5));
+                        this.atelierRatingBusy = true;
+                        this.atelierStarHover = 0;
+                        this.atelierReview = Object.assign({}, this.atelierReview, {
+                            my_rating: cleanStars,
+                            has_rated: true,
+                        });
+                        this.atelierRatingEditing = false;
+                        this.atelierFeedbackOpen = cleanStars <= 3;
+
+                        const facade = getFacade();
+                        if (facade && typeof facade.setAtelierReviewState === 'function') {
+                            facade.setAtelierReviewState(this.atelierReview, { celebrate: true, stars: cleanStars });
+                        }
+
+                        fetch(this.atelierReview.submit_url || '/customer/experience-reviews', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken(),
+                            },
+                            body: JSON.stringify({
+                                area: this.atelierReview.area || 'funkenreich',
+                                rating: cleanStars,
+                                keep_existing_comment: true,
+                            }),
+                        })
+                            .then((res) => res.json().catch(() => null))
+                            .then((body) => {
+                                this.atelierRatingBusy = false;
+                                if (body && body.ok && body.review) {
+                                    const savedRating = parseInt(body.review.rating || cleanStars, 10) || cleanStars;
+                                    const savedComment = typeof body.review.comment === 'string' ? body.review.comment : this.atelierReview.my_comment;
+                                    this.atelierReview = Object.assign({}, this.atelierReview, {
+                                        my_rating: savedRating,
+                                        has_rated: true,
+                                        my_comment: savedComment,
+                                    });
+                                    this.atelierFeedbackDraft = savedComment || '';
+                                }
+                            })
+                            .catch(() => {
+                                this.atelierRatingBusy = false;
+                            });
+                    },
+
+                    submitAtelierStarComment() {
+                        if (this.atelierRatingBusy) return;
+                        const rating = Math.max(1, Math.min(5, parseInt(this.atelierReview.my_rating || 3, 10) || 3));
+                        const commentText = String(this.atelierFeedbackDraft || '').trim();
+                        this.atelierRatingBusy = true;
+
+                        fetch(this.atelierReview.submit_url || '/customer/experience-reviews', {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken(),
+                            },
+                            body: JSON.stringify({
+                                area: this.atelierReview.area || 'funkenreich',
+                                rating,
+                                comment: commentText,
+                            }),
+                        })
+                            .then((res) => res.json().catch(() => null))
+                            .then((body) => {
+                                this.atelierRatingBusy = false;
+                                this.atelierFeedbackOpen = false;
+                                this.atelierRatingEditing = false;
+                                const savedComment = (body && body.ok && body.review && typeof body.review.comment === 'string')
+                                    ? body.review.comment
+                                    : commentText;
+                                this.atelierReview = Object.assign({}, this.atelierReview, {
+                                    my_comment: savedComment,
+                                });
+                            })
+                            .catch(() => {
+                                this.atelierRatingBusy = false;
+                                this.atelierFeedbackOpen = false;
                             });
                     },
 
@@ -3633,8 +3945,8 @@
                         } catch (e) {}
                     },
 
-                        const requestedZone = (initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery';
                     openShowroom(initialZone = 'gallery') {
+                        const requestedZone = (initialZone === 'heroes' || initialZone === 'hall') ? 'heroes' : 'gallery';
                         // User-Gesture-Token zu 100 % synchron im Klick-Event sichern (VOR fetch / import)!
                         this.startLobbyMusicFromGesture(requestedZone);
                         if (this.isOpen) {
@@ -3710,7 +4022,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v4');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v5');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -3734,6 +4046,10 @@
                                 const rawPlayer = (payload.player && typeof payload.player === 'object') ? payload.player : null;
                                 if (payload.environment && typeof payload.environment === 'object') {
                                     this.environmentInfo = Object.assign({}, this.environmentInfo, payload.environment);
+                                }
+                                if (payload.atelier_review && typeof payload.atelier_review === 'object') {
+                                    this.applyAtelierReviewPayload(payload.atelier_review);
+                                }
                                 if (payload.mmorpg_can_enter !== undefined) {
                                     this.mmorpgCanEnter = Boolean(payload.mmorpg_can_enter);
                                 } else if (rawPlayer && rawPlayer.mmorpg_can_enter !== undefined) {
@@ -3743,7 +4059,6 @@
                                     this.mmorpgEnterUrl = payload.mmorpg_enter_url.trim();
                                 } else if (rawPlayer && typeof rawPlayer.mmorpg_enter_url === 'string' && rawPlayer.mmorpg_enter_url.trim() !== '') {
                                     this.mmorpgEnterUrl = rawPlayer.mmorpg_enter_url.trim();
-                                }
                                 }
 
                                 const isAuth = Boolean(
@@ -3811,11 +4126,13 @@
                                         floatingHeroCardEl: this.$refs.floatingHeroCard || null,
                                         floatingPortalCardEl: this.$refs.floatingPortalCard || null,
                                         floatingOuterGateEl: this.$refs.floatingOuterGateCard || null,
+                                        floatingStarStationEl: this.$refs.floatingAtelierStarCard || null,
                                         products: this.products,
                                         environment: payload.environment || null,
                                         player: rawPlayer,
                                         heroesPayload: this.heroesPayload,
                                         playerFunki: this.funkiInfo,
+                                        atelierReview: this.atelierReview,
                                         mmorpgCanEnter: this.mmorpgCanEnter,
                                         mmorpgEnterUrl: this.mmorpgEnterUrl,
                                         audio: privateAudio || undefined,
@@ -3848,15 +4165,21 @@
                                         onOuterGateModalOpen: (mmorpgState) => {
                                             this.openOuterGateModal(mmorpgState);
                                         },
+                                        onAtelierStarStationFocusChange: (focused) => {
+                                            this.atelierStarStationFocused = Boolean(focused);
+                                            if (!focused) {
+                                                this.atelierStarHover = 0;
+                                            }
+                                        },
                                         onPlayerHudChange: (hud) => {
                                             if (hud && typeof hud === 'object') {
+                                                this.playerHud = Object.assign({}, this.playerHud, hud);
                                                 if (hud.mmorpgCanEnter !== undefined) {
                                                     this.mmorpgCanEnter = Boolean(hud.mmorpgCanEnter);
                                                 }
                                                 if (typeof hud.mmorpgEnterUrl === 'string' && hud.mmorpgEnterUrl.trim() !== '') {
                                                     this.mmorpgEnterUrl = hud.mmorpgEnterUrl.trim();
                                                 }
-                                                this.playerHud = Object.assign({}, this.playerHud, hud);
                                                 if (hud.environment) {
                                                     this.environmentInfo = Object.assign({}, this.environmentInfo, hud.environment);
                                                 }
@@ -3943,18 +4266,19 @@
                                     y: st.y,
                                     z: st.z,
                                     rot_y: st.rot_y,
-                                    jumping: Boolean(st.jumping),
                                     speed: st.speed,
+                                    jumping: Boolean(st.jumping),
+                                    zone: z,
                                     emote: st.emote || null,
                                     ability_slot: st.ability_slot || 0,
                                     weapon_seq: st.weapon_seq || 0,
-                                    zone: z,
                                     combo_seq: st.combo_seq,
                                     combo_stage: st.combo_stage
                                 })
                             }).catch(() => {});
                         }
                     },
+
                     _ingestLobbySyncMessages(rawMessages) {
                         if (!Array.isArray(rawMessages) || rawMessages.length === 0) return;
                         if (!this._seenMessageIds) this._seenMessageIds = new Set();
@@ -3984,7 +4308,6 @@
                         }
                     },
 
-
                     joinLobbyInstance() {
                         const facade = getFacade();
                         if (!this.isOpen || !facade || !this.isCustomerAuthenticated() || this.soloMode || this.currentZone !== 'heroes') {
@@ -4004,12 +4327,12 @@
                                 y: st.y,
                                 z: st.z,
                                 rot_y: st.rot_y,
-                                jumping: Boolean(st.jumping),
                                 speed: st.speed,
+                                jumping: Boolean(st.jumping),
+                                zone: 'heroes',
                                 emote: st.emote || null,
                                 ability_slot: st.ability_slot || 0,
                                 weapon_seq: st.weapon_seq || 0,
-                                zone: 'heroes',
                                 combo_seq: st.combo_seq,
                                 combo_stage: st.combo_stage
                             })
@@ -4040,17 +4363,17 @@
                                 }
                                 this.peers = Array.isArray(data.peers) ? data.peers : [];
                                 const f2 = getFacade();
+                                if (f2) {
                                     if (data.peer_id) {
                                         this.multiplayer.peer_id = String(data.peer_id);
                                         if (typeof f2.setLocalPeerId === 'function') {
                                             f2.setLocalPeerId(data.peer_id);
                                         }
                                     }
-                                if (f2) {
                                     f2.updatePeers(this.peers);
+                                }
                                 if (Array.isArray(data.messages)) {
                                     this._ingestLobbySyncMessages(data.messages);
-                                }
                                 }
                                 if (this.lobbyAuthenticated && this.currentZone === 'heroes') {
                                     this.startMultiplayerLoop();
@@ -4101,12 +4424,12 @@
                                 y: st.y,
                                 z: st.z,
                                 rot_y: st.rot_y,
-                                jumping: Boolean(st.jumping),
                                 speed: st.speed,
+                                jumping: Boolean(st.jumping),
+                                zone: 'heroes',
                                 emote: st.emote || null,
                                 ability_slot: st.ability_slot || 0,
                                 weapon_seq: st.weapon_seq || 0,
-                                zone: 'heroes',
                                 combo_seq: st.combo_seq,
                                 combo_stage: st.combo_stage
                             })
@@ -4130,18 +4453,18 @@
                                 }
                                 if (Array.isArray(data.instances)) {
                                     this.lobbyInstances = data.instances;
+                                }
                                 if (data.peer_id) {
                                     this.multiplayer.peer_id = String(data.peer_id);
                                     if (typeof f2.setLocalPeerId === 'function') {
                                         f2.setLocalPeerId(data.peer_id);
                                     }
                                 }
-                                }
                                 this.peers = Array.isArray(data.peers) ? data.peers : [];
+                                f2.updatePeers(this.peers);
                                 if (Array.isArray(data.messages)) {
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
-                                f2.updatePeers(this.peers);
                             })
                             .catch(() => {})
                             .finally(() => {
@@ -4198,6 +4521,7 @@
                                 }
                                 if (Array.isArray(data.instances)) {
                                     this.lobbyInstances = data.instances;
+                                }
                                 if (data.peer_id) {
                                     this.multiplayer.peer_id = String(data.peer_id);
                                     if (typeof f2.setLocalPeerId === 'function') {
@@ -4206,12 +4530,11 @@
                                 }
                                 this.chatMessages = [];
                                 this._seenMessageIds = new Set();
-                                }
                                 this.peers = Array.isArray(data.peers) ? data.peers : [];
+                                f2.switchInstance(this.peers);
                                 if (Array.isArray(data.messages)) {
                                     this._ingestLobbySyncMessages(data.messages);
                                 }
-                                f2.switchInstance(this.peers);
                                 if (this.lobbyAuthenticated && !this.soloMode && this.currentZone === 'heroes') {
                                     this.startMultiplayerLoop();
                                 }
@@ -4267,6 +4590,7 @@
                             this.unreadChatCount = 0;
                         }
                     },
+
                     msgPeerKey(msg) {
                         if (!msg || typeof msg !== 'object') return '';
                         return String(msg.peer_id || msg.player_id || '');
@@ -4281,7 +4605,6 @@
                         if (pk && this.multiplayer.player_id && pk === String(this.multiplayer.player_id)) return true;
                         return false;
                     },
-
 
                     visibleChatMessages() {
                         if (!Array.isArray(this.chatMessages)) return [];
@@ -4386,9 +4709,9 @@
                                     if (facade) {
                                         facade.showChatBubble(peerKey || 'self', normalized.text);
                                     }
+                                }
                                 if (Array.isArray(body.messages)) {
                                     this._ingestLobbySyncMessages(body.messages);
-                                }
                                 }
                             })
                             .catch(() => {
@@ -4641,11 +4964,11 @@
                             setFacade(null);
                         }
                         document.documentElement.style.overflow = this.prevHtmlOverflow;
+                        document.body.style.overflow = this.prevOverflow;
                         if (this._loggedInDuringLobbySession) {
                             this._loggedInDuringLobbySession = false;
                             this.dispatchLivewireAuthSync();
                         }
-                        document.body.style.overflow = this.prevOverflow;
                     },
 
                     handleEscape() {

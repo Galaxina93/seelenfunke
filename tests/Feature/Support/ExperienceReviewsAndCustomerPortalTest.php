@@ -387,7 +387,7 @@ class ExperienceReviewsAndCustomerPortalTest extends TestCase
         // Tab 2: Erlebnis-Feedback inkl. Korrektur ohne Dublette
         $comp->call('switchTab', 'experience')
             ->assertSee('Produktkonfigurator')
-            ->assertSee('3D-Funkenreich')
+            ->assertSee('3D-Atelier')
             ->assertSee('Angebots-Kalkulator')
             ->call('rateExperience', SupportExperienceReview::AREA_FUNKENREICH, 5)
             ->assertSee('✓ Gespeichert')
@@ -588,7 +588,7 @@ class ExperienceReviewsAndCustomerPortalTest extends TestCase
             ->assertOk()
             ->assertSee('Bewertungen')
             ->assertSee('Produktkonfigurator')
-            ->assertSee('3D-Funkenreich')
+            ->assertSee('3D-Atelier')
             ->assertSee('Angebots-Kalkulator')
             ->assertSee('Offen (1-3 ★): 1');
 

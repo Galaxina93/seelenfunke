@@ -131,6 +131,50 @@ class ConfiguratorPermanentCtaAndStarWidgetTest extends TestCase
         $this->assertStringContainsString('Zum Warenkorb wechseln', $footerContent);
     }
 
+    public function test_configurator_renders_thin_gold_aura_muted_cta_and_spark_flight_while_calculator_omits_confirm_box(): void
+    {
+        $product = $this->createActiveProduct();
+
+        // 1. Standard Shop-Kontext ('add'): Pflicht-Checkbox mit Goldrand, untergrauter CTA & 60-FPS-Funkenflug aktiv
+        $addHtml = html_entity_decode(Livewire::test(ProductConfigurator::class, [
+            'product' => $product,
+            'context' => 'add',
+        ])->html(), ENT_QUOTES);
+
+        $this->assertStringContainsString("configConfirmed: \$wire.entangle('config_confirmed')", $addHtml);
+        $this->assertStringContainsString('sf-magic-thin-aura', $addHtml);
+        $this->assertStringContainsString('sf-magic-thin-aura-ring', $addHtml);
+        $this->assertStringContainsString('sf-magic-thin-aura-cta', $addHtml);
+        $this->assertStringContainsString('x-ref="confirmBox"', $addHtml);
+        $this->assertStringContainsString('x-ref="addToCartBtn"', $addHtml);
+        $this->assertStringContainsString('@mouseenter="onLockedCtaHover()"', $addHtml);
+        $this->assertStringContainsString('@change="onConfirmToggle($event)"', $addHtml);
+        $this->assertStringContainsString('cursor-not-allowed', $addHtml);
+        $this->assertStringContainsString('onLockedCtaHover()', $addHtml);
+        $this->assertStringContainsString("mode: 'hint'", $addHtml);
+        $this->assertStringContainsString("mode: 'unlock'", $addHtml);
+        $this->assertStringContainsString("mode: 'relock'", $addHtml);
+        $this->assertStringContainsString("mode: 'to-cart'", $addHtml);
+        $this->assertStringContainsString('triggerConfirmToCartSparkFlight', $addHtml);
+        $this->assertStringContainsString('drawFourPointStar', $addHtml);
+        $this->assertStringContainsString('#E5C17B', $addHtml);
+        $this->assertStringNotContainsString('#F4A7B9', $addHtml);
+        $this->assertStringNotContainsString('#E88B9C', $addHtml);
+        $this->assertStringContainsString('bg-gray-200/95 text-gray-500 border border-gray-300/90 shadow-none', $addHtml);
+        $this->assertStringContainsString(':disabled="isSaving"', $addHtml);
+        $this->assertStringNotContainsString(':disabled="!configConfirmed"', $addHtml);
+
+        // 2. Kalkulator-Kontext ('calculator'): Keine Pflicht-Checkbox, CTA sofort bereit
+        $calcHtml = Livewire::test(ProductConfigurator::class, [
+            'product' => $product,
+            'context' => 'calculator',
+        ])->html();
+
+        $this->assertStringNotContainsString('x-ref="confirmBox"', $calcHtml);
+        $this->assertStringContainsString('x-ref="addToCartBtn"', $calcHtml);
+        $this->assertStringContainsString('Übernehmen', $calcHtml);
+    }
+
     public function test_guests_unverified_and_password_change_customers_never_see_experience_star_widgets(): void
     {
         $product = $this->createActiveProduct();
@@ -188,11 +232,13 @@ class ConfiguratorPermanentCtaAndStarWidgetTest extends TestCase
         $this->assertStringContainsString('Ändern', $configuratorHtml);
         $this->assertStringContainsString('reopenStars()', $configuratorHtml);
         $this->assertStringContainsString('#C5A059', $configuratorHtml);
+        $this->assertStringContainsString('#F5B301', $configuratorHtml);
+        $this->assertStringContainsString('#D97706', $configuratorHtml);
 
         // 2. Funkenreich (CustomerDashboard & CustomerFunkiComponent mit Besuchs-Gate)
         $dashboardHtml = Livewire::test(CustomerDashboardComponent::class)->html();
         $this->assertStringContainsString('data-experience-star-widget="funkenreich"', $dashboardHtml);
-        $this->assertStringContainsString('Funkenreich bewerten', $dashboardHtml);
+        $this->assertStringContainsString('3D-Atelier bewerten', $dashboardHtml);
         $this->assertStringContainsString('sf_visited_funkenreich_v1', $dashboardHtml);
         $this->assertStringContainsString('sf-funkenreich-visited', $dashboardHtml);
 
@@ -267,10 +313,11 @@ class ConfiguratorPermanentCtaAndStarWidgetTest extends TestCase
         $this->assertStringNotContainsString('dark:', $lightHtml);
         $this->assertStringNotContainsString('bg-amber', $lightHtml);
 
-        // 0 KI-Gedankenstriche (Leerzeichen + En-Dash + Leerzeichen) in allen neuen/bearbeiteten Dateien
+        // 0 KI-Gedankenstriche (Leerzeichen + En-Dash + Leerzeichen) & kein Inline-try/catch in x-init in allen neuen/bearbeiteten Dateien
         $enDashPattern = ' ' . "\u{2013}" . ' ';
         $filesToCheck = [
             resource_path('views/components/shop/experience-star-widget.blade.php'),
+            resource_path('views/livewire/shop/product/product-configurator/product-configurator.blade.php'),
             resource_path('views/livewire/shop/product/product-configurator/partials/scripts_frontend_1.blade.php'),
             resource_path('views/livewire/shop/product/product-configurator/partials/footer.blade.php'),
             resource_path('views/livewire/customer/customer-dashboard-component.blade.php'),
@@ -286,6 +333,11 @@ class ConfiguratorPermanentCtaAndStarWidgetTest extends TestCase
                 $enDashPattern,
                 $content,
                 'Verbotener KI-Gedankenstrich gefunden in: ' . $filePath
+            );
+            $this->assertDoesNotMatchRegularExpression(
+                '/x-init\s*=\s*"[^"]*\btry\b/i',
+                $content,
+                'Verbotenes Inline-try/catch in x-init gefunden in: ' . $filePath
             );
         }
     }

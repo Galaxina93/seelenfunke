@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v4';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v5';
 
     var KEYBIND_ACTIONS = [
         { key: 'jump', label: 'Sprung' },
@@ -98,7 +98,18 @@
         '.sf-lobby-copyright { position: absolute; left: 20px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); font-size: 11px; font-weight: 700; letter-spacing: 0.03em; color: #7C6334; white-space: nowrap; pointer-events: none; }',
         '.sf-lobby-gear-btn { appearance: none; background: #FFFFFF; color: #111827; border: 1.5px solid rgba(197,160,89,0.65); border-radius: 999px; padding: 7px 14px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; box-shadow: 0 6px 16px rgba(17,24,39,0.08); }',
         '.sf-lobby-gear-btn:hover, .sf-lobby-gear-btn.is-active { border-color: #C5A059; background: #FAF6EE; }',
-        '.sf-outer-gate-banner { background: #FAF8F5; border: 1px solid rgba(197,160,89,0.48); border-radius: 14px; padding: 14px 16px; text-align: center; font-size: 14px; font-weight: 800; color: #111827; }',
+        '.sf-outer-gate-banner { background: #FAF8F5; border: 1.5px solid #C5A059; border-radius: 14px; padding: 14px 16px; text-align: center; font-size: 13.5px; font-weight: 600; line-height: 1.55; color: #1F2937; }',
+        '.sf-atelier-star-card { pointer-events: auto; width: 274px; max-width: calc(100vw - 32px); background: #FAF8F5; color: #111827; border: 1.5px solid #C5A059; border-radius: 16px; padding: 13px 15px; box-shadow: 0 18px 42px rgba(17,24,39,0.16); display: flex; flex-direction: column; align-items: center; gap: 9px; box-sizing: border-box; text-align: center; }',
+        '.sf-atelier-star-title { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 14px; font-weight: 700; color: #111827; line-height: 1.25; }',
+        '.sf-atelier-star-row { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }',
+        '.sf-atelier-star-btn { appearance: none; border: none; background: transparent; padding: 2px 3px; font-size: 27px; line-height: 1; color: #DDD5C4; cursor: pointer; transition: transform 0.14s ease, color 0.14s ease; }',
+        '.sf-atelier-star-btn.is-lit, .sf-atelier-star-btn:hover { color: #C5A059; }',
+        '.sf-atelier-star-btn:hover { transform: scale(1.16); }',
+        '.sf-atelier-star-preview { font-size: 24px; line-height: 1; color: #C5A059; letter-spacing: 3px; }',
+        '.sf-atelier-star-thanks { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; font-weight: 800; color: #785A28; }',
+        '.sf-atelier-star-edit-btn { appearance: none; border: 1px solid rgba(197,160,89,0.45); background: #FFFFFF; color: #4B5563; border-radius: 999px; padding: 2px 8px; font-size: 10.5px; font-weight: 700; cursor: pointer; }',
+        '.sf-atelier-star-feedback { width: 100%; display: flex; flex-direction: column; gap: 7px; margin-top: 2px; }',
+        '.sf-atelier-star-textarea { width: 100%; min-height: 58px; max-height: 110px; resize: vertical; border-radius: 10px; border: 1px solid rgba(197,160,89,0.52); background: #FFFFFF; color: #111827; padding: 7px 9px; font-size: 12px; font-family: inherit; box-sizing: border-box; outline: none; }',
         '.sf-lobby-settings-backdrop { position: absolute; inset: 0; z-index: 48; background: rgba(17,24,39,0.24); display: flex; align-items: center; justify-content: center; padding: 16px; pointer-events: auto; box-sizing: border-box; }',
         '.sf-lobby-settings-card { width: 392px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 40px); overflow-y: auto; background: #FFFFFF; color: #111827; border: 1px solid rgba(197,160,89,0.55); border-radius: 20px; padding: 18px 20px; box-shadow: 0 22px 52px rgba(17,24,39,0.18); display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; }',
         '.sf-lobby-settings-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid rgba(197,160,89,0.28); }',
@@ -183,7 +194,7 @@
             styleTag.id = 'sf-3d-lobby-scoped-css';
             styleTag.textContent = STANDALONE_SCOPED_CSS;
             (document.head || document.documentElement).appendChild(styleTag);
-        } else if (!existing.textContent || existing.textContent.indexOf('.sf-outer-gate-banner') === -1) {
+        } else if (!existing.textContent || existing.textContent.indexOf('.sf-atelier-star-card') === -1) {
             existing.textContent = STANDALONE_SCOPED_CSS;
         }
     }
@@ -248,6 +259,7 @@
         this.floatingHeroWrap = null;
         this.floatingPortalWrap = null;
         this.floatingOuterGateWrap = null;
+        this.floatingStarStationWrap = null;
         this.minimapCanvasEl = null;
 
         this._mod = null;
@@ -282,6 +294,21 @@
         this.lobbyAuth = false;
         this.mmorpgCanEnter = false;
         this.mmorpgEnterUrl = '/funkenreich/enter';
+        this.atelierReview = {
+            area: 'funkenreich',
+            label: '3D-Atelier',
+            can_rate: false,
+            has_rated: false,
+            my_rating: 0,
+            my_comment: '',
+            submit_url: '/customer/experience-reviews'
+        };
+        this.atelierStarHover = 0;
+        this.atelierRatingEditing = false;
+        this.atelierFeedbackOpen = false;
+        this.atelierFeedbackDraft = '';
+        this.atelierRatingBusy = false;
+        this._loginOpenedFromStarStation = false;
         this.soloMode = false;
         this.instanceId = 1;
         this.instanceCapacity = 20;
@@ -547,7 +574,11 @@
             '    <button type="button" data-lobby-portal-pill class="sf-lobby-portal-pill">🔒 Halle der Helden · Voraussetzungen →</button>',
             '  </div>',
             '  <div data-lobby-outer-gate-card data-testid="lobby-outer-gate-card" class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
-            '    <button type="button" data-outer-gate-pill class="sf-lobby-portal-pill">✨ Tor zur Außenwelt · Hier entsteht ein MMORPG</button>',
+            '    <button type="button" data-outer-gate-pill class="sf-lobby-portal-pill">✨ Tor zur Außenwelt · Fantastische Welt &amp; Abenteuer in Planung</button>',
+            '  </div>',
+            '  <div data-lobby-star-station-card class="sf-lobby-floating-anchor" style="opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(-9999px,-9999px,0);">',
+            '    <div data-atelier-star-inner data-testid="atelier-star-rating-card" class="sf-atelier-star-card"></div>',
+            '    <div class="sf-lobby-floating-arrow"></div>',
             '  </div>',
             '  <div data-lobby-outer-gate-modal data-testid="lobby-outer-gate-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
             '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Tor zur Außenwelt">',
@@ -555,7 +586,7 @@
             '        <h3 class="sf-lobby-settings-title"><span>✨</span><span>Tor zur Außenwelt</span></h3>',
             '        <button type="button" data-outer-gate-close style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;" aria-label="Schließen">&times;</button>',
             '      </div>',
-            '      <div class="sf-outer-gate-banner">Hier entsteht ein MMORPG</div>',
+            '      <div class="sf-outer-gate-banner">Hinter diesem Tor warten bald eine fantastische Welt und spannende Abenteuer auf dich, an denen das Team von Mein-Seelenfunke in Zukunft arbeiten möchte.</div>',
             '      <div data-outer-gate-cta-wrap style="display:flex;flex-direction:column;gap:8px;"></div>',
             '    </div>',
             '  </div>',
@@ -700,12 +731,14 @@
         this.floatingHeroWrap = root.querySelector('[data-lobby-hero-card]');
         this.floatingPortalWrap = root.querySelector('[data-lobby-portal-card]');
         this.floatingOuterGateWrap = root.querySelector('[data-lobby-outer-gate-card]');
+        this.floatingStarStationWrap = root.querySelector('[data-lobby-star-station-card]');
         this.stickZoneEl = root.querySelector('[data-lobby-stick]');
         this.stickKnobEl = root.querySelector('[data-lobby-stick-knob]');
 
         this._bindModalUiEvents();
         this._renderKeybindingsList();
         this._renderOuterGateModal();
+        this._renderAtelierStarCard();
         this._renderSanctumGateModal();
     };
 
@@ -746,7 +779,7 @@
             enterBtn.setAttribute('data-testid', 'outer-gate-enter-mmorpg-btn');
             enterBtn.className = 'sf-lobby-prod-cta';
             enterBtn.style.cssText = 'margin-top:0;border:none;cursor:pointer;';
-            enterBtn.textContent = '✨ Spielwelt betreten (game.mein-seelenfunke.de) →';
+            enterBtn.textContent = '✨ In die Außenwelt starten →';
             enterBtn.addEventListener('click', function () {
                 window.location.href = self.mmorpgEnterUrl || '/funkenreich/enter';
             });
@@ -813,10 +846,248 @@
         }
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._applyAtelierReviewPayload = function (rev) {
+        if (!rev || typeof rev !== 'object') return;
+        var rating = Math.max(0, Math.min(5, parseInt(rev.my_rating || 0, 10) || 0));
+        this.atelierReview = {
+            area: String(rev.area || 'funkenreich'),
+            label: String(rev.label || '3D-Atelier'),
+            can_rate: Boolean(rev.can_rate),
+            has_rated: Boolean(rev.has_rated || rating > 0),
+            my_rating: rating,
+            my_comment: typeof rev.my_comment === 'string' ? rev.my_comment : '',
+            submit_url: String(rev.submit_url || '/customer/experience-reviews')
+        };
+        this.atelierFeedbackDraft = this.atelierReview.my_comment || '';
+        this._renderAtelierStarCard();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderAtelierStarCard = function () {
+        if (!this.modalEl) return;
+        var inner = this.modalEl.querySelector('[data-atelier-star-inner]');
+        if (!inner) return;
+        while (inner.firstChild) inner.removeChild(inner.firstChild);
+
+        var self = this;
+        var rev = this.atelierReview || {};
+        var title = document.createElement('h4');
+        title.className = 'sf-atelier-star-title';
+        title.textContent = 'Wie gefällt dir unser Atelier?';
+        inner.appendChild(title);
+
+        if (rev.can_rate) {
+            var activeStars = this.atelierStarHover > 0 ? this.atelierStarHover : (rev.my_rating || 0);
+            var row = document.createElement('div');
+            row.className = 'sf-atelier-star-row';
+
+            for (var s = 1; s <= 5; s++) {
+                (function (starVal) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'sf-atelier-star-btn' + (starVal <= activeStars ? ' is-lit' : '');
+                    btn.setAttribute('data-testid', 'atelier-star-btn-' + starVal);
+                    btn.setAttribute('aria-label', starVal + ' Sterne');
+                    btn.textContent = '★';
+                    btn.addEventListener('mouseenter', function () {
+                        self.atelierStarHover = starVal;
+                        var f = getFacade(self);
+                        if (f && typeof f.previewAtelierStarHover === 'function') {
+                            f.previewAtelierStarHover(starVal);
+                        }
+                        var allBtns = row.querySelectorAll('.sf-atelier-star-btn');
+                        for (var b = 0; b < allBtns.length; b++) {
+                            if (b + 1 <= starVal) allBtns[b].classList.add('is-lit');
+                            else allBtns[b].classList.remove('is-lit');
+                        }
+                    });
+                    btn.addEventListener('mouseleave', function () {
+                        self.atelierStarHover = 0;
+                        var f = getFacade(self);
+                        if (f && typeof f.previewAtelierStarHover === 'function') {
+                            f.previewAtelierStarHover(0);
+                        }
+                        var cur = self.atelierReview.my_rating || 0;
+                        var allBtns = row.querySelectorAll('.sf-atelier-star-btn');
+                        for (var b = 0; b < allBtns.length; b++) {
+                            if (b + 1 <= cur) allBtns[b].classList.add('is-lit');
+                            else allBtns[b].classList.remove('is-lit');
+                        }
+                    });
+                    btn.addEventListener('click', function () {
+                        self._submitAtelierRating(starVal);
+                    });
+                    row.appendChild(btn);
+                })(s);
+            }
+            inner.appendChild(row);
+
+            if (this.atelierFeedbackOpen) {
+                var fbWrap = document.createElement('form');
+                fbWrap.className = 'sf-atelier-star-feedback';
+                var ta = document.createElement('textarea');
+                ta.className = 'sf-atelier-star-textarea';
+                ta.placeholder = 'Was können wir noch besser machen?';
+                ta.maxLength = 1500;
+                ta.value = this.atelierFeedbackDraft || '';
+                ta.addEventListener('input', function () {
+                    self.atelierFeedbackDraft = ta.value;
+                });
+                fbWrap.appendChild(ta);
+
+                var sendBtn = document.createElement('button');
+                sendBtn.type = 'submit';
+                sendBtn.className = 'sf-lobby-prod-cta';
+                sendBtn.style.cssText = 'margin-top:0;border:none;cursor:pointer;padding:7px 12px;font-size:12px;';
+                sendBtn.textContent = this.atelierRatingBusy ? 'Wird gesendet...' : 'Senden';
+                fbWrap.addEventListener('submit', function (ev) {
+                    ev.preventDefault();
+                    self._submitAtelierFeedback();
+                });
+                fbWrap.appendChild(sendBtn);
+                inner.appendChild(fbWrap);
+            } else if (rev.has_rated && !this.atelierRatingEditing) {
+                var thanks = document.createElement('div');
+                thanks.className = 'sf-atelier-star-thanks';
+                var txt = document.createElement('span');
+                txt.textContent = '✓ Danke für deine Bewertung!';
+                thanks.appendChild(txt);
+
+                var editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'sf-atelier-star-edit-btn';
+                editBtn.textContent = 'Ändern';
+                editBtn.addEventListener('click', function () {
+                    self.atelierRatingEditing = true;
+                    if ((self.atelierReview.my_rating || 0) >= 1 && (self.atelierReview.my_rating || 0) <= 3) {
+                        self.atelierFeedbackOpen = true;
+                    }
+                    self._renderAtelierStarCard();
+                });
+                thanks.appendChild(editBtn);
+                inner.appendChild(thanks);
+            }
+        } else {
+            var prev = document.createElement('div');
+            prev.className = 'sf-atelier-star-preview';
+            prev.textContent = '★★★★★';
+            inner.appendChild(prev);
+
+            var loginBtn = document.createElement('button');
+            loginBtn.type = 'button';
+            loginBtn.setAttribute('data-testid', 'atelier-star-login-btn');
+            loginBtn.className = 'sf-lobby-prod-cta';
+            loginBtn.style.cssText = 'margin-top:0;border:none;cursor:pointer;padding:8px 14px;font-size:12px;';
+            loginBtn.textContent = 'Anmelden & bewerten';
+            loginBtn.addEventListener('click', function () {
+                self._loginOpenedFromStarStation = true;
+                self._setSanctumGateOpen(true, 'heroes');
+            });
+            inner.appendChild(loginBtn);
+        }
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._submitAtelierRating = function (stars) {
+        if (this.atelierRatingBusy) return;
+        var cleanStars = Math.max(1, Math.min(5, parseInt(stars, 10) || 5));
+        var self = this;
+
+        this.atelierRatingBusy = true;
+        this.atelierStarHover = 0;
+        this.atelierReview.my_rating = cleanStars;
+        this.atelierReview.has_rated = true;
+        this.atelierRatingEditing = false;
+        this.atelierFeedbackOpen = (cleanStars <= 3);
+        this._renderAtelierStarCard();
+
+        var facade = getFacade(this);
+        if (facade && typeof facade.setAtelierReviewState === 'function') {
+            facade.setAtelierReviewState(this.atelierReview, { celebrate: true, stars: cleanStars });
+        }
+
+        fetch(this.atelierReview.submit_url || '/customer/experience-reviews', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken()
+            },
+            body: JSON.stringify({
+                area: this.atelierReview.area || 'funkenreich',
+                rating: cleanStars,
+                keep_existing_comment: true
+            })
+        })
+            .then(function (r) { return r.json().catch(function () { return null; }); })
+            .then(function (body) {
+                self.atelierRatingBusy = false;
+                if (body && body.ok && body.review) {
+                    self.atelierReview.my_rating = parseInt(body.review.rating || cleanStars, 10) || cleanStars;
+                    self.atelierReview.has_rated = true;
+                    if (typeof body.review.comment === 'string') {
+                        self.atelierReview.my_comment = body.review.comment;
+                        self.atelierFeedbackDraft = body.review.comment;
+                    }
+                }
+                self._renderAtelierStarCard();
+            })
+            .catch(function () {
+                self.atelierRatingBusy = false;
+                self._renderAtelierStarCard();
+            });
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._submitAtelierFeedback = function () {
+        if (this.atelierRatingBusy) return;
+        var self = this;
+        var rating = Math.max(1, Math.min(5, parseInt(this.atelierReview.my_rating || 3, 10) || 3));
+        var commentText = String(this.atelierFeedbackDraft || '').trim();
+        this.atelierRatingBusy = true;
+        this._renderAtelierStarCard();
+
+        fetch(this.atelierReview.submit_url || '/customer/experience-reviews', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken()
+            },
+            body: JSON.stringify({
+                area: this.atelierReview.area || 'funkenreich',
+                rating: rating,
+                comment: commentText
+            })
+        })
+            .then(function (r) { return r.json().catch(function () { return null; }); })
+            .then(function (body) {
+                self.atelierRatingBusy = false;
+                self.atelierFeedbackOpen = false;
+                self.atelierRatingEditing = false;
+                if (body && body.ok && body.review) {
+                    self.atelierReview.my_comment = typeof body.review.comment === 'string' ? body.review.comment : commentText;
+                } else {
+                    self.atelierReview.my_comment = commentText;
+                }
+                self._renderAtelierStarCard();
+            })
+            .catch(function () {
+                self.atelierRatingBusy = false;
+                self.atelierFeedbackOpen = false;
+                self._renderAtelierStarCard();
+            });
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype._applyLiveAccountPayload = function (body) {
         if (!body || typeof body !== 'object') return;
         if (body.csrf_token) {
             updateCsrfMetaToken(body.csrf_token);
+        }
+        if (body.atelier_review && typeof body.atelier_review === 'object') {
+            this._applyAtelierReviewPayload(body.atelier_review);
+        } else if (body.status === 'authenticated' || body.success) {
+            this.atelierReview.can_rate = true;
+            this._renderAtelierStarCard();
         }
         if (body.mmorpg_can_enter !== undefined) {
             this.mmorpgCanEnter = Boolean(body.mmorpg_can_enter);
@@ -934,7 +1205,8 @@
                     dispatchLivewireAuthSync();
                     self._applyLiveAccountPayload(body);
 
-                    if (self.sanctumGateState.canEnter) {
+                    if (self._loginOpenedFromStarStation || self.sanctumGateState.canEnter) {
+                        self._loginOpenedFromStarStation = false;
                         self.sanctumExpandedStep = '';
                         self._setSanctumGateOpen(false);
                     } else if (!self.sanctumGateState.checks.magic) {
@@ -2607,6 +2879,10 @@
                     self.environmentInfo = shopJson.environment;
                 }
 
+                if (shopJson && shopJson.atelier_review && typeof shopJson.atelier_review === 'object') {
+                    self._applyAtelierReviewPayload(shopJson.atelier_review);
+                }
+
                 self.mmorpgCanEnter = Boolean(
                     (shopJson && shopJson.mmorpg_can_enter)
                     || (rawPlayer && rawPlayer.mmorpg_can_enter)
@@ -2656,11 +2932,13 @@
                     floatingHeroCardEl: self.floatingHeroWrap,
                     floatingPortalCardEl: self.floatingPortalWrap,
                     floatingOuterGateEl: self.floatingOuterGateWrap,
+                    floatingStarStationEl: self.floatingStarStationWrap,
                     products: self.products,
                     environment: shopJson ? shopJson.environment : null,
                     player: rawPlayer,
                     heroesPayload: self.heroesPayload,
                     playerFunki: self.funkiInfo,
+                    atelierReview: self.atelierReview,
                     mmorpgCanEnter: self.mmorpgCanEnter,
                     mmorpgEnterUrl: self.mmorpgEnterUrl,
                     audio: self._audio || undefined,
@@ -2696,6 +2974,11 @@
                     },
                     onOuterGateModalOpen: function (mmorpgState) {
                         self._setOuterGateModalOpen(true, mmorpgState);
+                    },
+                    onAtelierStarStationFocusChange: function (focused) {
+                        if (focused) {
+                            self._renderAtelierStarCard();
+                        }
                     },
                     onPlayerHudChange: function (hud) {
                         if (hud) {

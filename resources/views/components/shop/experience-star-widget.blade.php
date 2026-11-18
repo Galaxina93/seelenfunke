@@ -42,7 +42,7 @@
 
     $labels = [
         'configurator' => 'Konfigurator bewerten',
-        'funkenreich' => 'Funkenreich bewerten',
+        'funkenreich' => '3D-Atelier bewerten',
         'calculator' => 'Kalkulator bewerten',
     ];
     $widgetLabel = $labels[$areaKey] ?? 'Erlebnis bewerten';

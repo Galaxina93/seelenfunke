@@ -39,7 +39,7 @@ class SupportExperienceReview extends Model implements HasSystemBlueprint
 
     public const AREA_LABELS = [
         self::AREA_CONFIGURATOR => 'Produktkonfigurator',
-        self::AREA_FUNKENREICH => '3D-Funkenreich',
+        self::AREA_FUNKENREICH => '3D-Atelier',
         self::AREA_CALCULATOR => 'Angebots-Kalkulator',
     ];
 
@@ -69,7 +69,7 @@ class SupportExperienceReview extends Model implements HasSystemBlueprint
     {
         return ModelBlueprint::make(
             label: 'Kunden-Erlebnis-Feedback (5-Sterne Qualitätsradar)',
-            description: 'Sterne-Bewertungen und Verbesserungshinweise verifizierter Kunden zu Produktkonfigurator, 3D-Funkenreich und Angebots-Kalkulator.',
+            description: 'Sterne-Bewertungen und Verbesserungshinweise verifizierter Kunden zu Produktkonfigurator, 3D-Atelier und Angebots-Kalkulator.',
             department: SystemDepartment::Support,
             navigationNodes: ['admin.support.reviews', 'customer.reviews'],
             lifecycle: LifecycleBehavior::TransactionalWorkflow,

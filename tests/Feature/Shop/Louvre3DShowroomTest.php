@@ -99,16 +99,25 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('z-[2147483500]', $html);
         $this->assertStringNotContainsString('bg-[#FAF8F5]/95', $html);
 
-        // Schwebende Light-Mode Raum-Schilder (Produkte, Top-5-Helden, Ehrenportal, Tor zur Außenwelt & 2-Stufen-Voraussetzungs-Modal)
+        // Schwebende Light-Mode Raum-Schilder (Produkte, Top-5-Helden, Ehrenportal, 3D-Bewertungsstation, Tor zur Außenwelt & 2-Stufen-Voraussetzungs-Modal)
         $this->assertStringContainsString('data-testid="louvre-floating-space-card"', $html);
         $this->assertStringContainsString('data-testid="lobby-floating-hero-card"', $html);
         $this->assertStringContainsString('data-testid="lobby-guest-portal-card"', $html);
+        $this->assertStringContainsString('data-testid="atelier-star-rating-card"', $html);
+        $this->assertStringContainsString('data-testid="atelier-star-login-btn"', $html);
+        $this->assertStringContainsString('Wie gefällt dir unser Atelier?', $html);
+        $this->assertStringContainsString('Anmelden &amp; bewerten', $html);
+        $this->assertStringContainsString('submitAtelierStarRating', $html);
+        $this->assertStringContainsString('submitAtelierStarComment', $html);
+        $this->assertStringContainsString('keep_existing_comment: true', $html);
         $this->assertStringContainsString('data-testid="lobby-outer-gate-card"', $html);
         $this->assertStringContainsString('Tor zur Außenwelt', $html);
-        $this->assertStringContainsString('Hier entsteht ein MMORPG', $html);
+        $this->assertStringContainsString('Fantastische Welt &amp; Abenteuer in Planung', $html);
+        $this->assertStringContainsString('Hinter diesem Tor warten bald eine fantastische Welt und spannende Abenteuer auf dich', $html);
+        $this->assertStringNotContainsString('Hier entsteht ein MMORPG', $html);
         $this->assertStringContainsString('data-testid="lobby-outer-gate-modal"', $html);
         $this->assertStringContainsString('data-testid="outer-gate-enter-mmorpg-btn"', $html);
-        $this->assertStringContainsString('Spielwelt betreten (game.mein-seelenfunke.de)', $html);
+        $this->assertStringContainsString('In die Außenwelt starten', $html);
         $this->assertStringContainsString('/funkenreich/enter', $html);
         $this->assertStringContainsString('data-testid="lobby-sanctum-gate-modal"', $html);
         $this->assertStringContainsString('data-testid="sanctum-check-login"', $html);
@@ -212,7 +221,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v4')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v5')", $html);
         $this->assertStringContainsString('volume: 5,', $html);
         $this->assertStringContainsString('sync_interval_ms: 950,', $html);
         $this->assertStringContainsString('dispatchLivewireAuthSync', $html);
@@ -351,7 +360,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('carpetStrip.position.set(0, 0.029, carpetCenterZ)', $js);
         $this->assertStringContainsString('BoxGeometry(2.82, 0.018, 0.12)', $js);
         $this->assertStringContainsString('this.audio.setZone(this.currentZone)', $js);
-        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v4', $js);
+        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v3', $js);
         $this->assertStringContainsString('THREE.SkinnedMesh', $js);
         $this->assertStringContainsString('THREE.Skeleton', $js);
         $this->assertStringContainsString('skinIndex', $js);
@@ -370,7 +379,9 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('sf_lobby_user_settings_v2', $js);
         $this->assertStringContainsString('volume: 5,', $js);
         $this->assertStringContainsString('proceduralExoMeshes', $js);
-        $this->assertStringContainsString('? (this.player.somersaultProgress * TWO_PI)', $js);
+        $this->assertStringContainsString('? ((this.player.somersaultDir || 1) * this.player.somersaultProgress * TWO_PI)', $js);
+        $this->assertStringContainsString('this.player.somersaultDir = 1;', $js);
+        $this->assertStringContainsString('this.player.somersaultDir = -1;', $js);
         $this->assertStringNotContainsString('? -(this.player.somersaultProgress * TWO_PI)', $js);
         $this->assertStringContainsString('depthWrite: false', $js);
         $this->assertStringContainsString('_triggerSanctumGateRepulse', $js);
@@ -383,10 +394,30 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('startExhibitTransition', $js);
         $this->assertStringContainsString('westOuterGateGroup', $js);
         $this->assertStringContainsString('Tor zur Außenwelt', $js);
-        $this->assertStringContainsString('Hier entsteht ein MMORPG', $js);
+        $this->assertStringContainsString('Bald warten hier fantastische Welten & Abenteuer', $js);
+        $this->assertStringNotContainsString('Hier entsteht ein MMORPG', $js);
         $this->assertStringContainsString('openOuterGateModal', $js);
         $this->assertStringContainsString('getMmorpgAccessState', $js);
         $this->assertStringContainsString('/funkenreich/enter', $js);
+
+        // 5c. 3D-Sterne-Bewertungsstation am Goldenen Ehrenportal + realistische Wandkollision + Ninja-Wall-Cling & Wall-Backflip
+        $this->assertStringContainsString('this.hallHalfW = 12.0;', $js);
+        $this->assertStringContainsString('_galleryPierPlacements', $js);
+        $this->assertStringContainsString('const wallMargin = 0.24;', $js);
+        $this->assertStringContainsString('_buildAtelierStarRatingStation', $js);
+        $this->assertStringContainsString('new THREE.ExtrudeGeometry(', $js);
+        $this->assertStringContainsString('Atelier bewerten', $js);
+        $this->assertStringContainsString('Deine Meinung zählt', $js);
+        $this->assertStringContainsString('setAtelierReviewState', $js);
+        $this->assertStringContainsString('previewAtelierStarHover', $js);
+        $this->assertStringContainsString('goToAtelierStarStation', $js);
+        $this->assertStringContainsString('normalizeAngleSigned', $js);
+        $this->assertStringContainsString('shortestAngleDiff', $js);
+        $this->assertStringContainsString('_hasActiveMovementKeys', $js);
+        $this->assertStringContainsString('_detectWallForCling', $js);
+        $this->assertStringContainsString('isWallClinging', $js);
+        $this->assertStringContainsString('this.player.wallClingTimer = 1.0;', $js);
+        $this->assertStringContainsString('_spawnWallKickBurst', $js);
         $this->assertStringContainsString('pierInst', $js);
         $this->assertStringContainsString('canEnterSanctums', $js);
         $this->assertStringContainsString('getSanctumAccessState', $js);
@@ -422,7 +453,8 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('const outerFriezeY = springY + halfSpan + 0.68;', $js);
         $this->assertStringContainsString('BoxGeometry(0.22, 1.06, 5.2)', $js);
         $this->assertStringContainsString('PlaneGeometry(4.96, 0.92)', $js);
-        $this->assertStringContainsString("ctx.font = '600 22px system-ui", $js);
+        $this->assertStringContainsString("'600 19px system-ui", $js);
+        $this->assertStringContainsString("'600 22px system-ui", $js);
         $this->assertStringContainsString("ctx.fillStyle = '#E6C687';", $js);
 
         // Baustein 0: Kein Händler, kein Magma-Portal/Kammer, kein Heiltrank/Inventar & keine Kampfklinge im Shop-JS!
@@ -465,7 +497,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v4', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v5', $hostJs);
         $this->assertStringNotContainsString('data-testid="lobby-vital-hud"', $hostJs);
         $this->assertStringNotContainsString('data-testid="lobby-unit-hearts"', $hostJs);
         $this->assertStringNotContainsString('Mindestens 1 Bestellung', $hostJs);
@@ -502,7 +534,14 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('data-testid="lobby-outer-gate-modal"', $hostJs);
         $this->assertStringContainsString('outer-gate-enter-mmorpg-btn', $hostJs);
         $this->assertStringContainsString('Tor zur Außenwelt', $hostJs);
-        $this->assertStringContainsString('Hier entsteht ein MMORPG', $hostJs);
+        $this->assertStringContainsString('Fantastische Welt &amp; Abenteuer in Planung', $hostJs);
+        $this->assertStringContainsString('Hinter diesem Tor warten bald eine fantastische Welt und spannende Abenteuer auf dich', $hostJs);
+        $this->assertStringContainsString('In die Außenwelt starten', $hostJs);
+        $this->assertStringNotContainsString('Hier entsteht ein MMORPG', $hostJs);
+        $this->assertStringContainsString('data-testid="atelier-star-rating-card"', $hostJs);
+        $this->assertStringContainsString('atelier-star-login-btn', $hostJs);
+        $this->assertStringContainsString('_submitAtelierRating', $hostJs);
+        $this->assertStringContainsString('_submitAtelierFeedback', $hostJs);
         $this->assertStringContainsString('/funkenreich/enter', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-sanctum-gate-modal"', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-player-unit-frame"', $hostJs);
@@ -906,5 +945,66 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('https://', $audioJs);
         $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', $audioJs);
         $this->assertStringNotContainsString(' ' . "\u{2014}" . ' ', $audioJs);
+    }
+
+    public function test_atelier_3d_star_rating_station_guest_to_inline_login_and_one_click_review_flow(): void
+    {
+        // 1. Gast ruft Showroom-Daten auf: atelier_review ist vorhanden, aber can_rate = false
+        $guestBoot = $this->getJson('/shop/showroom-data')->assertStatus(200);
+        $guestBoot->assertJsonPath('atelier_review.area', 'funkenreich');
+        $guestBoot->assertJsonPath('atelier_review.can_rate', false);
+        $guestBoot->assertJsonPath('atelier_review.has_rated', false);
+        $guestBoot->assertJsonPath('atelier_review.my_rating', 0);
+        $guestBoot->assertJsonPath('atelier_review.submit_url', '/customer/experience-reviews');
+
+        // 2. Verifizierter Kunde meldet sich nahtlos via Inline-Login an (0 Seiten-Reload)
+        $customer = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Sophie',
+            'last_name' => 'Sternenglanz',
+            'email' => 'sophie.atelier@example.com',
+            'email_verified_at' => now(),
+            'password' => bcrypt('AtelierSecret2026!'),
+        ]);
+
+        $loginResp = $this->postJson('/funkenwerk-welt/inline-login', [
+            'email' => 'sophie.atelier@example.com',
+            'password' => 'AtelierSecret2026!',
+        ])->assertStatus(200);
+
+        $loginResp->assertJsonPath('success', true);
+        $loginResp->assertJsonPath('atelier_review.can_rate', true);
+        $loginResp->assertJsonPath('atelier_review.has_rated', false);
+
+        // 3. 1-Click 5-Sterne-Bewertung an der 3D-Station speichert sofort ohne Textfeld-Zwang
+        $rateFive = $this->actingAs($customer, 'customer')->postJson('/customer/experience-reviews', [
+            'area' => 'funkenreich',
+            'rating' => 5,
+            'keep_existing_comment' => true,
+        ])->assertStatus(200);
+
+        $rateFive->assertJsonPath('ok', true);
+        $rateFive->assertJsonPath('review.area', 'funkenreich');
+        $rateFive->assertJsonPath('review.rating', 5);
+
+        $afterFiveBoot = $this->actingAs($customer, 'customer')->getJson('/shop/showroom-data')->assertStatus(200);
+        $afterFiveBoot->assertJsonPath('atelier_review.can_rate', true);
+        $afterFiveBoot->assertJsonPath('atelier_review.has_rated', true);
+        $afterFiveBoot->assertJsonPath('atelier_review.my_rating', 5);
+
+        // 4. Korrektur auf 3 Sterne + konstruktives Inline-Feedback aktualisiert denselben Eintrag
+        $rateThreeWithFeedback = $this->actingAs($customer, 'customer')->postJson('/customer/experience-reviews', [
+            'area' => 'funkenreich',
+            'rating' => 3,
+            'comment' => 'Noch mehr Schmuck-Vitrinen im Nordflügel wären wunderbar.',
+        ])->assertStatus(200);
+
+        $rateThreeWithFeedback->assertJsonPath('ok', true);
+        $rateThreeWithFeedback->assertJsonPath('review.rating', 3);
+        $rateThreeWithFeedback->assertJsonPath('review.comment', 'Noch mehr Schmuck-Vitrinen im Nordflügel wären wunderbar.');
+
+        $afterThreeBoot = $this->actingAs($customer, 'customer')->getJson('/shop/showroom-data')->assertStatus(200);
+        $afterThreeBoot->assertJsonPath('atelier_review.my_rating', 3);
+        $afterThreeBoot->assertJsonPath('atelier_review.my_comment', 'Noch mehr Schmuck-Vitrinen im Nordflügel wären wunderbar.');
     }
 }

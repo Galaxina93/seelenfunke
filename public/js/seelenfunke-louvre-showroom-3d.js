@@ -1053,10 +1053,116 @@ export const SF_LOBBY_SCOPED_CSS = `
     border-radius: 14px;
     padding: 14px 16px;
     text-align: center;
-    font-size: 14px;
-    font-weight: 800;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.55;
+    color: #1F2937;
+    letter-spacing: 0.005em;
+}
+.sf-atelier-star-card {
+    pointer-events: auto;
+    width: 274px;
+    max-width: calc(100vw - 32px);
+    background: #FAF8F5;
     color: #111827;
-    letter-spacing: 0.01em;
+    border: 1.5px solid #C5A059;
+    border-radius: 16px;
+    padding: 13px 15px;
+    box-shadow: 0 18px 42px rgba(17, 24, 39, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    box-sizing: border-box;
+    text-align: center;
+}
+.sf-atelier-star-title {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.25;
+}
+.sf-atelier-star-row {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+.sf-atelier-star-btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 2px 3px;
+    font-size: 27px;
+    line-height: 1;
+    color: #DDD5C4;
+    cursor: pointer;
+    transition: transform 0.14s ease, color 0.14s ease;
+}
+.sf-atelier-star-btn.is-lit {
+    color: #C5A059;
+}
+.sf-atelier-star-btn:hover {
+    transform: scale(1.16);
+    color: #C5A059;
+}
+.sf-atelier-star-preview {
+    font-size: 24px;
+    line-height: 1;
+    color: #C5A059;
+    letter-spacing: 3px;
+    user-select: none;
+}
+.sf-atelier-star-thanks {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #785A28;
+}
+.sf-atelier-star-edit-btn {
+    appearance: none;
+    border: 1px solid rgba(197, 160, 89, 0.45);
+    background: #FFFFFF;
+    color: #4B5563;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.sf-atelier-star-edit-btn:hover {
+    border-color: #C5A059;
+    color: #111827;
+}
+.sf-atelier-star-feedback {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-top: 2px;
+}
+.sf-atelier-star-textarea {
+    width: 100%;
+    min-height: 58px;
+    max-height: 110px;
+    resize: vertical;
+    border-radius: 10px;
+    border: 1px solid rgba(197, 160, 89, 0.52);
+    background: #FFFFFF;
+    color: #111827;
+    padding: 7px 9px;
+    font-size: 12px;
+    font-family: inherit;
+    box-sizing: border-box;
+    outline: none;
+}
+.sf-atelier-star-textarea:focus {
+    border-color: #C5A059;
 }
 .sf-lobby-settings-backdrop {
     position: absolute;
@@ -1411,7 +1517,7 @@ export function ensureLobbyScopedStyles() {
         styleEl.id = 'sf-3d-lobby-scoped-css';
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
         (document.head || document.documentElement).appendChild(styleEl);
-    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-outer-gate-banner') === -1) {
+    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-atelier-star-card') === -1) {
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
     }
 }
@@ -1469,10 +1575,16 @@ function lerp(a, b, t) {
     return a + (b - a) * t;
 }
 
+function normalizeAngleSigned(rad) {
+    return (((rad + Math.PI) % TWO_PI) + TWO_PI) % TWO_PI - Math.PI;
+}
+
+function shortestAngleDiff(fromRad, toRad) {
+    return normalizeAngleSigned(toRad - fromRad);
+}
+
 function lerpAngle(a, b, t) {
-    let diff = ((b - a + Math.PI) % TWO_PI) - Math.PI;
-    if (diff < -Math.PI) diff += TWO_PI;
-    return a + diff * t;
+    return normalizeAngleSigned(a + shortestAngleDiff(a, b) * t);
 }
 
 function hexToRgb(hex) {
@@ -2381,14 +2493,18 @@ function buildLouvreFriezeTexture(THREE, maxAniso, titleText, subText, disposabl
     ctx.fillStyle = goldGrad;
     ctx.fillText(titleText, W * 0.5, H * 0.43, W - 80);
 
-    ctx.font = '600 22px system-ui, -apple-system, "Segoe UI", sans-serif';
+    const isLongSub = String(subText || '').length > 28;
+    ctx.font = isLongSub
+        ? '600 19px system-ui, -apple-system, "Segoe UI", sans-serif'
+        : '600 22px system-ui, -apple-system, "Segoe UI", sans-serif';
     if ('letterSpacing' in ctx) {
-        ctx.letterSpacing = '5px';
+        ctx.letterSpacing = isLongSub ? '2.5px' : '5px';
     }
+    const subMaxWidth = isLongSub ? (W - 64) : (W - 90);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
-    ctx.fillText(subText, W * 0.5 + 1.5, H * 0.77 + 2, W - 90);
+    ctx.fillText(subText, W * 0.5 + 1.5, H * 0.77 + 2, subMaxWidth);
     ctx.fillStyle = '#E6C687';
-    ctx.fillText(subText, W * 0.5, H * 0.77, W - 90);
+    ctx.fillText(subText, W * 0.5, H * 0.77, subMaxWidth);
 
     const tex = new THREE.CanvasTexture(c);
     tex.generateMipmaps = true;
@@ -3434,6 +3550,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.floatingHeroCardEl = options.floatingHeroCardEl || null;
         this.floatingPortalCardEl = options.floatingPortalCardEl || null;
         this.floatingOuterGateEl = options.floatingOuterGateEl || null;
+        this.floatingStarStationEl = options.floatingStarStationEl || null;
 
         this.products = Array.isArray(options.products) ? options.products : [];
         this.environmentInfo = resolveLobbyEnvironment(options.environment || null);
@@ -3481,6 +3598,7 @@ class SeelenfunkeLouvreShowroom3D {
 
         this.mmorpgCanEnter = Boolean(options.mmorpgCanEnter ?? (rawPlayerObj && rawPlayerObj.mmorpg_can_enter));
         this.mmorpgEnterUrl = String(options.mmorpgEnterUrl || (rawPlayerObj && rawPlayerObj.mmorpg_enter_url) || '/funkenreich/enter');
+        this.atelierReview = this._normalizeAtelierReview(options.atelierReview);
 
         this.playerProfile = {
             isAuthenticated: this.isAuthenticatedCustomer,
@@ -3540,6 +3658,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.onAuthGatePrompt = rawAuthGateCb ? (zone) => rawAuthGateCb(zone, this.getSanctumAccessState()) : null;
         this.onOuterGatePromptChange = typeof options.onOuterGatePromptChange === 'function' ? options.onOuterGatePromptChange : null;
         this.onOuterGateModalOpen = typeof options.onOuterGateModalOpen === 'function' ? options.onOuterGateModalOpen : null;
+        this.onAtelierStarStationFocusChange = typeof options.onAtelierStarStationFocusChange === 'function' ? options.onAtelierStarStationFocusChange : null;
         this.onTeleportTransition = typeof options.onTeleportTransition === 'function' ? options.onTeleportTransition : null;
         this.onPlayerHudChange = typeof options.onPlayerHudChange === 'function' ? options.onPlayerHudChange : null;
 
@@ -3571,6 +3690,7 @@ class SeelenfunkeLouvreShowroom3D {
         this._gatePromptCooldown = 0;
         this._gatePromptPendingTimer = 0;
         this.teleportFovBoost = 0;
+        this.sprintFovBoost = 0;
         this._portalWalkCd = 0;
 
         this.disposables = [];
@@ -3593,7 +3713,7 @@ class SeelenfunkeLouvreShowroom3D {
         this._viewW = 1;
         this._viewH = 1;
 
-        this.hallHalfW = 10.6;
+        this.hallHalfW = 12.0;
         this.hallNorthZ = -18;
         this.hallSouthZ = 14;
         this.portalHalfW = 4.25;
@@ -3647,6 +3767,9 @@ class SeelenfunkeLouvreShowroom3D {
         this.pinnedHeroSlot = -1;
         this.portalGateFocused = false;
         this.pinnedPortalGate = false;
+        this.atelierStarStation = null;
+        this.atelierStarStationFocused = false;
+        this.atelierStarHoverPreview = 0;
 
         this._cardScreenX = -9999;
         this._cardScreenY = -9999;
@@ -3659,6 +3782,10 @@ class SeelenfunkeLouvreShowroom3D {
         this._portalCardScreenX = -9999;
         this._portalCardScreenY = -9999;
         this._portalCardVisible = false;
+
+        this._starStationCardScreenX = -9999;
+        this._starStationCardScreenY = -9999;
+        this._starStationCardVisible = false;
 
         this.player = {
             root: null,
@@ -3673,7 +3800,16 @@ class SeelenfunkeLouvreShowroom3D {
             isJumping: false,
             jumpCount: 0,
             coyoteTimer: 0,
+            isWallClinging: false,
+            wallClingTimer: 0.0,
+            wallClingUsed: false,
+            wallClingBlend: 0.0,
+            wallNormalX: 0.0,
+            wallNormalZ: 0.0,
+            wallFlipVx: 0.0,
+            wallFlipVz: 0.0,
             isSomersault: false,
+            somersaultDir: 1,
             somersaultProgress: 0.0,
             somersaultDuration: 0.52,
             landSquash: 0,
@@ -3688,6 +3824,11 @@ class SeelenfunkeLouvreShowroom3D {
             isSprinting: false,
             sprintBoost: 0.0,
             currentSpeed: 0,
+            smoothInputForward: 0.0,
+            smoothInputRight: 0.0,
+            velX: 0.0,
+            velZ: 0.0,
+            smoothTurnRate: 0.0,
             autoTarget: null,
             autoLookAt: null,
             bubbleSprite: null,
@@ -3738,7 +3879,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.raycaster = null;
         this.pointerNdc = null;
         this._projVec = null;
-        this._collisionOut = { x: 0, z: 0 };
+        this._collisionOut = { x: 0, z: 0, hitWall: false, wallNormalX: 0, wallNormalZ: 0 };
         this._hoverTickCounter = 0;
 
         this._boundTick = (ts) => this._tick(ts);
@@ -3840,6 +3981,7 @@ class SeelenfunkeLouvreShowroom3D {
         this._buildWestOuterWorldGate();
         this._buildGoldenHonorPortalAndPromenade();
         this._buildHallOfHeroes();
+        this._buildAtelierStarRatingStation();
         const coreTexturesPromise = this._loadPhotorealisticTextures(24.0, totalGalleryLength, promWidth, promTotalLen);
         this._populateHeroesMonuments();
         this._buildExhibitSteles(baySpacing);
@@ -4893,7 +5035,9 @@ class SeelenfunkeLouvreShowroom3D {
         } else {
             this.teleportFovBoost = 0;
         }
-        const targetFov = baseFov + this.teleportFovBoost;
+        const sprintTargetFov = (this.player && this.player.sprintBoost) ? (this.player.sprintBoost * 3.2) : 0;
+        this.sprintFovBoost = lerp(this.sprintFovBoost || 0, sprintTargetFov, 1.0 - Math.exp(-dt * 7.5));
+        const targetFov = baseFov + this.teleportFovBoost + this.sprintFovBoost;
         if (Math.abs(this.camera.fov - targetFov) > 0.01) {
             this.camera.fov = targetFov;
             this.camera.updateProjectionMatrix();
@@ -5181,7 +5325,7 @@ class SeelenfunkeLouvreShowroom3D {
             THREE,
             this.maxAniso,
             'Tor zur Außenwelt',
-            'Hier entsteht ein MMORPG',
+            'Bald warten hier fantastische Welten & Abenteuer',
             this.disposables
         );
         const outerGateFriezeMat = this._trackDisposable(new THREE.MeshBasicMaterial({
@@ -5215,6 +5359,493 @@ class SeelenfunkeLouvreShowroom3D {
         gateHitProxy.userData = { isWestOuterGate: true };
         this.westOuterGateGroup.add(gateHitProxy);
         this.westGateHitMeshes.push(gateHitProxy);
+    }
+
+    _normalizeAtelierReview(raw) {
+        const src = (raw && typeof raw === 'object') ? raw : {};
+        const myRating = clamp(parseInt(src.my_rating ?? src.myRating ?? 0, 10) || 0, 0, 5);
+        return {
+            area: String(src.area || 'funkenreich'),
+            label: sanitizeDisplayText(src.label || '3D-Atelier'),
+            can_rate: Boolean(src.can_rate ?? src.canRate ?? false),
+            has_rated: Boolean(src.has_rated ?? src.hasRated ?? (myRating > 0)),
+            my_rating: myRating,
+            my_comment: typeof (src.my_comment ?? src.myComment) === 'string' ? String(src.my_comment ?? src.myComment) : '',
+            submit_url: String(src.submit_url || src.submitUrl || '/customer/experience-reviews'),
+        };
+    }
+
+    getAtelierReviewState() {
+        return Object.assign({}, this.atelierReview || this._normalizeAtelierReview(null));
+    }
+
+    setAtelierReviewState(nextReview, opts = null) {
+        this.atelierReview = this._normalizeAtelierReview(Object.assign({}, this.atelierReview || {}, nextReview || {}));
+        this._syncAtelierStarMaterials();
+        if (opts && opts.celebrate) {
+            const stars = clamp(parseInt(opts.stars ?? this.atelierReview.my_rating ?? 5, 10) || 5, 1, 5);
+            this._triggerAtelierStarCelebration(stars);
+        }
+        if (this.onAtelierStarStationFocusChange && this.atelierStarStationFocused) {
+            this.onAtelierStarStationFocusChange(true, this.getAtelierReviewState());
+        }
+        return this.getAtelierReviewState();
+    }
+
+    previewAtelierStarHover(hoverStars = 0) {
+        const nextHover = clamp(parseInt(hoverStars, 10) || 0, 0, 5);
+        if (this.atelierStarHoverPreview === nextHover) return;
+        this.atelierStarHoverPreview = nextHover;
+        this._syncAtelierStarMaterials();
+    }
+
+    _syncAtelierStarMaterials() {
+        const st = this.atelierStarStation;
+        if (!st || !st.stars || !this.mats) return;
+        const preview = this.atelierStarHoverPreview || 0;
+        const saved = (this.atelierReview && this.atelierReview.my_rating) ? this.atelierReview.my_rating : 0;
+        const activeCount = preview > 0 ? preview : saved;
+
+        for (let i = 0; i < st.stars.length; i++) {
+            const item = st.stars[i];
+            if (!item || !item.mesh) continue;
+            if (activeCount > 0) {
+                item.isLit = (i < activeCount);
+                item.mesh.material = item.isLit ? this.mats.goldMatcapBright : st.dimStarMat;
+            } else {
+                item.isLit = false;
+                item.mesh.material = this.mats.goldChampagne;
+            }
+        }
+    }
+
+    /**
+     * Edle 3D-Sternebewertungs-Station rechts neben dem goldenen Ehrenportal zur Halle der Helden (Schwarz-Gold #C5A059, 60 FPS).
+     */
+    _buildAtelierStarRatingStation() {
+        if (!this.galleryGroup || !this.THREE || !this.mats) return;
+        const THREE = this.THREE;
+        const stX = 6.85;
+        const stZ = this.hallNorthZ + 1.95;
+        const stRotY = -0.26;
+
+        const group = new THREE.Group();
+        group.position.set(stX, 0, stZ);
+        group.rotation.y = stRotY;
+        this.galleryGroup.add(group);
+
+        const dimStarMat = this._trackDisposable(new THREE.MeshStandardMaterial({
+            color: 0x6f5b38,
+            roughness: 0.56,
+            metalness: 0.42,
+            envMapIntensity: 0.62,
+        }));
+
+        // Kontakt-Schatten & goldener Boden-Fokusring
+        const shadowDisc = new THREE.Mesh(
+            this._trackDisposable(new THREE.CircleGeometry(1.06, 32)),
+            this.mats.contactShadow
+        );
+        shadowDisc.rotation.x = -Math.PI * 0.5;
+        shadowDisc.position.y = 0.004;
+        group.add(shadowDisc);
+
+        const floorRing = new THREE.Mesh(
+            this._trackDisposable(new THREE.RingGeometry(0.79, 0.87, 48)),
+            this.mats.goldMatcapBright
+        );
+        floorRing.rotation.x = -Math.PI * 0.5;
+        floorRing.position.y = 0.009;
+        group.add(floorRing);
+
+        const floorInnerRing = new THREE.Mesh(
+            this._trackDisposable(new THREE.RingGeometry(0.68, 0.71, 44)),
+            this.mats.goldBrushed
+        );
+        floorInnerRing.rotation.x = -Math.PI * 0.5;
+        floorInnerRing.position.y = 0.008;
+        group.add(floorInnerRing);
+
+        // 24K-Gold-Sockel + Nero-Marquina-Marmorpult + kannelierter Säulenschaft
+        const goldBase = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.56, 0.62, 0.09, 8)),
+            this.mats.goldMatcapBright
+        );
+        goldBase.position.y = 0.045;
+        group.add(goldBase);
+
+        const neroPlinth = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.44, 0.50, 0.22, 8)),
+            this.mats.neroPedestal
+        );
+        neroPlinth.position.y = 0.20;
+        group.add(neroPlinth);
+
+        const baseTorus = new THREE.Mesh(
+            this._trackDisposable(new THREE.TorusGeometry(0.43, 0.038, 10, 28)),
+            this.mats.goldMatcapBright
+        );
+        baseTorus.rotation.x = Math.PI * 0.5;
+        baseTorus.position.y = 0.31;
+        group.add(baseTorus);
+
+        const shaft = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.20, 0.25, 0.88, 18)),
+            this.mats.neroPedestal
+        );
+        shaft.position.y = 0.75;
+        group.add(shaft);
+
+        const fluteGeo = this._trackDisposable(new THREE.BoxGeometry(0.022, 0.82, 0.022));
+        for (let fi = 0; fi < 4; fi++) {
+            const fang = (fi / 4) * TWO_PI + Math.PI * 0.25;
+            const flute = new THREE.Mesh(fluteGeo, this.mats.goldBrushed);
+            flute.position.set(Math.cos(fang) * 0.225, 0.75, Math.sin(fang) * 0.225);
+            flute.rotation.y = -fang;
+            group.add(flute);
+        }
+
+        const capital = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.34, 0.22, 0.12, 18)),
+            this.mats.goldMatcapBright
+        );
+        capital.position.y = 1.24;
+        group.add(capital);
+
+        // Geneigte Gold-Schrifttafel ("Atelier bewerten" / "Deine Meinung zählt")
+        const deskPivot = new THREE.Group();
+        deskPivot.position.set(0, 1.33, 0.02);
+        deskPivot.rotation.x = 0.48;
+        group.add(deskPivot);
+
+        const deskGoldFrame = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.92, 0.052, 0.60)),
+            this.mats.goldMatcapBright
+        );
+        deskPivot.add(deskGoldFrame);
+
+        const deskMarble = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.86, 0.064, 0.54)),
+            this.mats.neroPedestal
+        );
+        deskMarble.position.y = 0.012;
+        deskPivot.add(deskMarble);
+
+        const deskLip = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.92, 0.044, 0.036)),
+            this.mats.goldMatcapBright
+        );
+        deskLip.position.set(0, 0.042, 0.282);
+        deskPivot.add(deskLip);
+
+        const plaqueCanvas = document.createElement('canvas');
+        plaqueCanvas.width = 512;
+        plaqueCanvas.height = 320;
+        const pCtx = plaqueCanvas.getContext('2d');
+        const pBg = pCtx.createLinearGradient(0, 0, 0, 320);
+        pBg.addColorStop(0, '#101218');
+        pBg.addColorStop(0.5, '#090b10');
+        pBg.addColorStop(1, '#101218');
+        pCtx.fillStyle = pBg;
+        pCtx.fillRect(0, 0, 512, 320);
+        pCtx.strokeStyle = '#C5A059';
+        pCtx.lineWidth = 5;
+        pCtx.strokeRect(12, 12, 488, 296);
+        pCtx.strokeStyle = 'rgba(230, 198, 135, 0.42)';
+        pCtx.lineWidth = 1.5;
+        pCtx.strokeRect(22, 22, 468, 276);
+        pCtx.textAlign = 'center';
+        pCtx.textBaseline = 'middle';
+        pCtx.fillStyle = '#E6C687';
+        pCtx.font = '700 32px Georgia, "Times New Roman", serif';
+        pCtx.fillText('★  ★  ★  ★  ★', 256, 78);
+        const pGold = pCtx.createLinearGradient(0, 115, 0, 195);
+        pGold.addColorStop(0, '#FFF8E1');
+        pGold.addColorStop(0.5, '#E6C687');
+        pGold.addColorStop(1, '#C5A059');
+        pCtx.fillStyle = pGold;
+        pCtx.font = '700 42px Georgia, "Times New Roman", serif';
+        pCtx.fillText('Atelier bewerten', 256, 162, 440);
+        pCtx.fillStyle = '#E6C687';
+        pCtx.font = '600 22px system-ui, -apple-system, "Segoe UI", sans-serif';
+        if ('letterSpacing' in pCtx) pCtx.letterSpacing = '3px';
+        pCtx.fillText('Deine Meinung zählt', 256, 236, 440);
+
+        const plaqueTex = this._trackDisposable(new THREE.CanvasTexture(plaqueCanvas));
+        plaqueTex.anisotropy = Math.min(this.maxAniso || 4, 8);
+        applySrgbColorSpace(THREE, plaqueTex);
+        const plaqueMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+            map: plaqueTex,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+        }));
+        const plaqueMesh = new THREE.Mesh(
+            this._trackDisposable(new THREE.PlaneGeometry(0.80, 0.48)),
+            plaqueMat
+        );
+        plaqueMesh.rotation.x = -Math.PI * 0.5;
+        plaqueMesh.position.y = 0.048;
+        deskPivot.add(plaqueMesh);
+
+        // Feiner rotierender Doppel-Gold-Halo hinter dem Sternenbogen
+        const haloAnchor = new THREE.Group();
+        haloAnchor.position.set(0, 2.26, -0.06);
+        group.add(haloAnchor);
+
+        const haloOuter = new THREE.Mesh(
+            this._trackDisposable(new THREE.TorusGeometry(0.88, 0.013, 10, 56)),
+            this.mats.goldChampagne
+        );
+        haloAnchor.add(haloOuter);
+
+        const haloInner = new THREE.Mesh(
+            this._trackDisposable(new THREE.TorusGeometry(0.72, 0.009, 8, 48)),
+            this.mats.goldMatcapBright
+        );
+        haloInner.rotation.y = 0.32;
+        haloAnchor.add(haloInner);
+
+        // 5 plastische, fuenfzackige 3D-Sterne (echte 5-Zacken-Sternform via ExtrudeGeometry mit feiner Fase/Bevel!)
+        const starShape = new THREE.Shape();
+        const outerR = 0.148;
+        const innerR = 0.062;
+        for (let pt = 0; pt < 10; pt++) {
+            const rad = (pt % 2 === 0) ? outerR : innerR;
+            const ang = (pt * Math.PI) / 5 + Math.PI * 0.5;
+            const sx = Math.cos(ang) * rad;
+            const sy = Math.sin(ang) * rad;
+            if (pt === 0) starShape.moveTo(sx, sy);
+            else starShape.lineTo(sx, sy);
+        }
+        starShape.closePath();
+
+        const starGeo = this._trackDisposable(new THREE.ExtrudeGeometry(starShape, {
+            depth: 0.042,
+            bevelEnabled: true,
+            bevelSegments: 3,
+            steps: 1,
+            bevelSize: 0.013,
+            bevelThickness: 0.015,
+        }));
+        starGeo.center();
+
+        const stars = [];
+        for (let si = 0; si < 5; si++) {
+            const u = (si - 2) * 0.5; // -1.0, -0.5, 0.0, +0.5, +1.0
+            const baseX = u * 0.68;
+            const baseY = 2.40 - (u * u) * 0.23; // 2.17 .. 2.40 m harmonischer Bogen
+            const baseZ = -(u * u) * 0.09;
+
+            const starMesh = new THREE.Mesh(starGeo, this.mats.goldChampagne);
+            starMesh.position.set(baseX, baseY, baseZ);
+            group.add(starMesh);
+
+            stars.push({
+                index: si + 1,
+                mesh: starMesh,
+                baseX,
+                baseY,
+                baseZ,
+                baseTiltZ: -u * 0.16,
+                isLit: false,
+            });
+        }
+
+        // Aufsteigende goldene Seelenfunken-Partikel rund um Pult & Sternenbogen
+        const sparkCount = 26;
+        const sparkPositions = new Float32Array(sparkCount * 3);
+        const sparkColors = new Float32Array(sparkCount * 3);
+        const sparkMeta = [];
+        const rng = mulberry32(20261118);
+
+        for (let k = 0; k < sparkCount; k++) {
+            const ph = rng();
+            const rad = 0.28 + rng() * 0.58;
+            const hSpan = 1.35 + rng() * 0.55;
+            const spd = 0.18 + rng() * 0.16;
+            const sw = (0.75 + rng() * 0.85) * (k % 2 === 0 ? 1 : -1);
+            const startY = 1.18 + rng() * 0.22;
+            sparkMeta.push({ rad, hSpan, spd, ph, sw, startY });
+
+            sparkPositions[k * 3] = Math.cos(ph * TWO_PI) * rad;
+            sparkPositions[k * 3 + 1] = startY + ph * hSpan;
+            sparkPositions[k * 3 + 2] = Math.sin(ph * TWO_PI) * rad * 0.65;
+
+            const bright = (k % 3 === 0);
+            sparkColors[k * 3] = 1.0;
+            sparkColors[k * 3 + 1] = bright ? 0.96 : 0.85;
+            sparkColors[k * 3 + 2] = bright ? 0.80 : 0.42;
+        }
+
+        const sparkGeo = this._trackDisposable(new THREE.BufferGeometry());
+        const sparkPosAttr = new THREE.BufferAttribute(sparkPositions, 3);
+        sparkGeo.setAttribute('position', sparkPosAttr);
+        sparkGeo.setAttribute('color', new THREE.BufferAttribute(sparkColors, 3));
+        const sparkMat = this._trackDisposable(new THREE.PointsMaterial({
+            size: 0.16,
+            map: this.sparkSpriteTex || null,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.86,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        }));
+        const sparkPoints = new THREE.Points(sparkGeo, sparkMat);
+        sparkPoints.frustumCulled = false;
+        group.add(sparkPoints);
+
+        // Klick-Proxy fuer automatisches Hinlaufen aus der Distanz
+        const hitProxy = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(1.65, 2.65, 1.35)),
+            this._trackDisposable(new THREE.MeshBasicMaterial({ visible: false }))
+        );
+        hitProxy.position.set(0, 1.32, 0.05);
+        hitProxy.userData = { isAtelierStarStation: true };
+        group.add(hitProxy);
+        this.interactiveHitMeshes.push(hitProxy);
+
+        const standDist = 1.92;
+        const standX = stX + Math.sin(stRotY) * standDist;
+        const standZ = stZ + Math.cos(stRotY) * standDist;
+
+        this.atelierStarStation = {
+            group,
+            x: stX,
+            z: stZ,
+            rotY: stRotY,
+            radius: 0.78,
+            standX,
+            standZ,
+            stars,
+            dimStarMat,
+            haloOuter,
+            haloInner,
+            floorRing,
+            sparkPosAttr,
+            sparkMeta,
+            celebTimer: 0,
+            celebDuration: 1.35,
+            celebStarsCount: 0,
+        };
+
+        this._syncAtelierStarMaterials();
+    }
+
+    _triggerAtelierStarCelebration(starsCount = 5) {
+        const st = this.atelierStarStation;
+        if (!st) return;
+        const count = clamp(parseInt(starsCount, 10) || 5, 1, 5);
+        st.celebStarsCount = count;
+        st.celebTimer = st.celebDuration;
+
+        this._spawnDoubleJumpBurst(st.x, 2.24, st.z);
+        if (this.audio) {
+            if (typeof this.audio.playSparkCollect === 'function') {
+                this.audio.playSparkCollect(Math.max(0, count - 1));
+            }
+            if (count >= 4 && typeof this.audio.playChestOpenFanfare === 'function') {
+                this.audio.playChestOpenFanfare();
+            }
+        }
+    }
+
+    _updateAtelierStarRatingStation(dt) {
+        const st = this.atelierStarStation;
+        if (!st || !st.group || !st.group.visible) return;
+        const t = this.elapsedTime;
+
+        let celebProgress = -1;
+        if (st.celebTimer > 0) {
+            st.celebTimer = Math.max(0, st.celebTimer - dt);
+            celebProgress = 1.0 - (st.celebTimer / Math.max(0.1, st.celebDuration));
+        }
+
+        const speedBoost = celebProgress >= 0 ? 2.4 : 1.0;
+        if (st.haloOuter) {
+            st.haloOuter.rotation.z = t * 0.42 * speedBoost;
+        }
+        if (st.haloInner) {
+            st.haloInner.rotation.z = -t * 0.68 * speedBoost;
+            st.haloInner.rotation.y = Math.sin(t * 0.9) * 0.28;
+        }
+        if (st.floorRing) {
+            const ringPulse = this.atelierStarStationFocused
+                ? (1.03 + Math.sin(t * 3.4) * 0.025)
+                : 1.0;
+            st.floorRing.scale.set(ringPulse, ringPulse, 1);
+        }
+
+        for (let i = 0; i < st.stars.length; i++) {
+            const item = st.stars[i];
+            const wave = Math.sin(t * 2.35 - i * 0.58);
+            const gentleYaw = Math.sin(t * 1.45 + i * 0.72) * 0.28;
+            let hopY = 0;
+            let spinY = 0;
+            let celebScale = item.isLit ? 1.08 : 1.0;
+
+            if (celebProgress >= 0 && i < st.celebStarsCount) {
+                const stagger = i * 0.08;
+                const localP = clamp((celebProgress - stagger) / Math.max(0.25, 1.0 - stagger * 0.8), 0, 1);
+                const easeOut = 1.0 - Math.pow(1.0 - localP, 3);
+                spinY = easeOut * TWO_PI;
+                hopY = Math.sin(localP * Math.PI) * 0.24;
+                celebScale += Math.sin(localP * Math.PI) * 0.18;
+            }
+
+            item.mesh.position.set(
+                item.baseX,
+                item.baseY + wave * 0.048 + hopY,
+                item.baseZ
+            );
+            item.mesh.rotation.set(
+                Math.sin(t * 1.8 + i) * 0.06,
+                gentleYaw + spinY,
+                item.baseTiltZ + Math.cos(t * 1.6 + i * 0.5) * 0.04
+            );
+            item.mesh.scale.setScalar(celebScale);
+        }
+
+        if (st.sparkPosAttr && st.sparkMeta) {
+            const posArr = st.sparkPosAttr.array;
+            const fountainMult = celebProgress >= 0 ? (1.0 + Math.sin(celebProgress * Math.PI) * 1.45) : 1.0;
+            for (let k = 0; k < st.sparkMeta.length; k++) {
+                const sm = st.sparkMeta[k];
+                const u = ((sm.ph + t * sm.spd * fountainMult) % 1 + 1) % 1;
+                const ang = t * sm.sw * fountainMult + sm.ph * TWO_PI;
+                const rNow = sm.rad * (0.72 + 0.32 * Math.sin(u * Math.PI));
+                const k3 = k * 3;
+                posArr[k3] = Math.cos(ang) * rNow;
+                posArr[k3 + 1] = sm.startY + u * sm.hSpan * fountainMult;
+                posArr[k3 + 2] = Math.sin(ang) * rNow * 0.65;
+            }
+            st.sparkPosAttr.needsUpdate = true;
+        }
+    }
+
+    goToAtelierStarStation() {
+        const st = this.atelierStarStation;
+        if (!st) return;
+        const keepFp = Boolean(this.running && this.camControl.desiredDistance < 0.55);
+        if (this.currentZone !== 'gallery') {
+            this.goToZone('gallery', true);
+        }
+        this.pinnedSteleIndex = -1;
+        this.pinnedHeroSlot = -1;
+        this.pinnedPortalGate = false;
+        this._setFocusedSteleIndex(-1);
+
+        this.player.autoTarget = { x: st.standX, z: st.standZ };
+        this.player.autoLookAt = { x: st.x, z: st.z };
+        this.camControl.desiredYaw = Math.atan2(st.standX - st.x, st.standZ - st.z);
+        this.camControl.desiredPitch = keepFp ? 0.06 : 0.20;
+        this.camControl.desiredDistance = keepFp ? 0 : 3.95;
+
+        if (this.walkTargetRing) {
+            this.walkTargetRing.position.set(st.standX, 0.015, st.standZ);
+            this.walkTargetTimer = 1.25;
+        }
+        if (this.audio) this.audio.playUiClick();
     }
 
     /**
@@ -6020,7 +6651,7 @@ class SeelenfunkeLouvreShowroom3D {
         // Funki schwebt 0.42 m empor + 360-Grad-Drehung + leicht erhobene Arme
         this.player.awakenLiftY = bell * 0.42;
         this.player.awakenPoseWeight = bell;
-        this.player.yaw = ch.baseYaw + smoothU * TWO_PI;
+        this.player.yaw = normalizeAngleSigned(ch.baseYaw + smoothU * TWO_PI);
 
         ch.group.position.set(px, py + 0.04, pz);
 
@@ -6164,6 +6795,12 @@ class SeelenfunkeLouvreShowroom3D {
             }
             const nextModelUrl = pf.glb_url || pf.model_url || DEFAULT_FUNKI_GLB_URLS[nextLvl];
             this.upgradePlayerModel(nextLvl, nextModelUrl);
+        }
+
+        if (payload.atelier_review && typeof payload.atelier_review === 'object') {
+            this.setAtelierReviewState(payload.atelier_review);
+        } else if (payload.atelierReview && typeof payload.atelierReview === 'object') {
+            this.setAtelierReviewState(payload.atelierReview);
         }
 
         if (payload.play_awaken_fx || payload.status === 'magic_activated') {
@@ -8445,6 +9082,12 @@ class SeelenfunkeLouvreShowroom3D {
         const legSync = 0.84;
         const armSync = 0.84;
         const tuck = clamp(somersaultTuck || 0, 0, 1);
+        const wallClingBlend = (kinMeta && typeof kinMeta.wallClingBlend === 'number')
+            ? clamp(kinMeta.wallClingBlend, 0, 1)
+            : 0;
+        const minShoulderRx = -1.15 - 0.22 * wallClingBlend;
+        const maxShoulderRx = 0.78;
+        const maxHeadRy = 0.52 + 0.12 * wallClingBlend;
 
         // 1: pelvis
         const pelvisDy = Math.max(-0.02, (j.pelvisPivot.position.y - 0.776));
@@ -8473,13 +9116,13 @@ class SeelenfunkeLouvreShowroom3D {
         // 4: head (sanft geklemmt fuer 100 % verzerrungsfreies Chibi-Gesicht)
         b[4].rotation.set(
             clamp(j.headPivot.rotation.x * 0.62 + 0.14 * tuck, -0.34, 0.42),
-            clamp(j.headPivot.rotation.y * 0.68, -0.52, 0.52),
+            clamp(j.headPivot.rotation.y * (0.68 + 0.14 * wallClingBlend), -maxHeadRy, maxHeadRy),
             clamp(j.headPivot.rotation.z * 0.55, -0.22, 0.22)
         );
 
         // 5..8: Left Arm + Hand + Fingers
         b[5].rotation.set(
-            clamp(j.shoulderPivotL.rotation.x * 0.68, -1.15, 0.65),
+            clamp(j.shoulderPivotL.rotation.x * (0.68 + 0.12 * wallClingBlend), minShoulderRx, maxShoulderRx),
             clamp(j.shoulderPivotL.rotation.y * 0.68, -0.48, 0.48),
             clamp(j.shoulderPivotL.rotation.z * 0.64, -0.58, 0.58)
         );
@@ -8501,7 +9144,7 @@ class SeelenfunkeLouvreShowroom3D {
 
         // 9..12: Right Arm + Hand + Fingers
         b[9].rotation.set(
-            clamp(j.shoulderPivotR.rotation.x * 0.68, -1.15, 0.65),
+            clamp(j.shoulderPivotR.rotation.x * (0.68 + 0.12 * wallClingBlend), minShoulderRx, maxShoulderRx),
             clamp(j.shoulderPivotR.rotation.y * 0.68, -0.48, 0.48),
             clamp(j.shoulderPivotR.rotation.z * 0.64, -0.58, 0.58)
         );
@@ -9116,6 +9759,12 @@ class SeelenfunkeLouvreShowroom3D {
         const airBlend = clamp(heightAboveSupport / 0.26, 0, 1);
         const squash = this.player.landSquash || 0;
         const sprintBoost = clamp(this.player.sprintBoost || 0, 0, 1.0);
+        this.player.wallClingBlend = lerp(
+            this.player.wallClingBlend || 0,
+            this.player.isWallClinging ? 1.0 : 0.0,
+            1.0 - Math.exp(-dt * 18.0)
+        );
+        const wc = clamp(this.player.wallClingBlend || 0, 0, 1);
 
         this.player.root.position.set(this.player.x, floorOffset + visualY, this.player.z);
         this.player.root.rotation.y = this.player.yaw;
@@ -9164,7 +9813,7 @@ class SeelenfunkeLouvreShowroom3D {
             );
 
             const heelStrike = Math.max(0, sinP - 0.45) * 0.22;
-            const toePushOff = Math.max(0, -sinP - 0.35) * 0.30;
+            const toePushOff = Math.max(0, -sinP - 0.32) * (0.32 + 0.14 * sprintBoost);
             const swingToeLift = -swingForward * 0.26;
             const anklePitch = (swingToeLift + heelStrike + toePushOff - stanceWeight * 0.04) * mb
                 + 0.24 * airBlend
@@ -9196,49 +9845,88 @@ class SeelenfunkeLouvreShowroom3D {
             const forwardAmt = Math.max(0, sinArm);
             const idleBreathArm = Math.sin(this.elapsedTime * 1.95 + sideSign * 0.45) * 0.024 * idleWeight;
             const idleFingerWave = Math.sin(this.elapsedTime * 2.15 + sideSign * 0.7) * 0.065 * idleWeight;
-            const sprintPump = 1.0 + 0.24 * sprintBoost;
+            const armSwingScale = 1.0 - 0.58 * sprintBoost;
+            const ninjaSweepBack = 0.56 * sprintBoost * mb;
 
-            shoulderPivot.rotation.x = -0.44 * sprintPump * sinArm * mb + idleBreathArm - 0.42 * airBlend - squash * 0.14;
-            shoulderPivot.rotation.z = sideSign * (0.072 + 0.036 * mb + Math.max(0, -sinArm) * 0.028 * mb + 0.18 * airBlend + Math.sin(this.elapsedTime * 2.05) * 0.012 * idleWeight);
-            shoulderPivot.rotation.y = -sideSign * 0.075 * sinArm * mb;
+            shoulderPivot.rotation.x = (-0.44 * armSwingScale * sinArm * mb) + ninjaSweepBack + idleBreathArm - 0.42 * airBlend - squash * 0.14;
+            shoulderPivot.rotation.z = sideSign * (0.072 + (0.036 + 0.145 * sprintBoost) * mb + Math.max(0, -sinArm) * 0.028 * mb + 0.18 * airBlend + Math.sin(this.elapsedTime * 2.05) * 0.012 * idleWeight);
+            shoulderPivot.rotation.y = -sideSign * (0.075 * armSwingScale * sinArm - 0.08 * sprintBoost) * mb;
 
-            elbowPivot.rotation.x = -0.18 - (0.14 + 0.38 * sprintPump * forwardAmt) * mb - 0.32 * airBlend - squash * 0.18;
+            elbowPivot.rotation.x = -0.18 - ((0.14 + 0.36 * forwardAmt) * armSwingScale + 0.08 * sprintBoost) * mb - 0.32 * airBlend - squash * 0.18;
 
-            wristPivot.rotation.x = (-0.09 * cosArm - 0.06 * forwardAmt) * mb + 0.10 * airBlend + idleFingerWave * 0.45;
-            wristPivot.rotation.z = sideSign * (0.04 + 0.05 * sinArm * mb - 0.06 * airBlend);
-            fingerCurl.rotation.x = (-0.12 * airBlend) + (0.22 * forwardAmt * mb) + idleFingerWave;
-            fingerCurl.rotation.z = sideSign * (0.14 + idleFingerWave + (0.18 * forwardAmt + 0.14 * sprintBoost) * mb - 0.08 * airBlend);
+            wristPivot.rotation.x = ((-0.09 * cosArm - 0.06 * forwardAmt) * armSwingScale + 0.14 * sprintBoost) * mb + 0.10 * airBlend + idleFingerWave * 0.45;
+            wristPivot.rotation.z = sideSign * (0.04 + 0.05 * armSwingScale * sinArm * mb - 0.06 * airBlend);
+            fingerCurl.rotation.x = (-0.12 * airBlend) + (0.20 * forwardAmt * armSwingScale * mb) + idleFingerWave;
+            fingerCurl.rotation.z = sideSign * (0.14 + idleFingerWave + (0.18 * forwardAmt * armSwingScale + 0.06 * sprintBoost) * mb - 0.08 * airBlend);
             if (thumbPivot) {
-                thumbPivot.rotation.x = 0.16 * forwardAmt * mb - 0.10 * airBlend + idleFingerWave * 0.6;
+                thumbPivot.rotation.x = 0.16 * forwardAmt * armSwingScale * mb - 0.10 * airBlend + idleFingerWave * 0.6;
             }
         };
 
         applyArmGait(j.shoulderPivotL, j.elbowPivotL, j.wristPivotL, j.thumbPivotL, j.fingerCurlL, phaseR, -1);
         applyArmGait(j.shoulderPivotR, j.elbowPivotR, j.wristPivotR, j.thumbPivotR, j.fingerCurlR, phaseL, 1);
 
-        const doubleStepBounce = Math.cos(2.0 * phaseL) * (0.026 + 0.008 * sprintBoost) * mb;
-        const stanceSink = -(0.016 + 0.014 * sprintBoost) * mb - squash * 0.18;
+        const doubleStepBounce = Math.cos(2.0 * phaseL) * (0.026 + 0.012 * sprintBoost) * mb;
+        const stanceSink = -(0.016 + 0.022 * sprintBoost) * mb - squash * 0.18;
         const idleBreath = Math.sin(this.elapsedTime * 2.05) * 0.011 * idleWeight;
 
-        // Punkt 15: Dynamischer Vorwaertssalto in Blick-/Laufrichtung (+somersaultProgress * TWO_PI statt Rueckwaertssalto!)
+        // Dynamischer Vorwaerts- (+1) & Wall-Cling-Rueckwaertssalto (-1)
+        const somersaultDir = this.player.somersaultDir || 1;
         j.pelvisPivot.position.y = 0.776 + doubleStepBounce + stanceSink + idleBreath;
         j.pelvisPivot.position.x = -Math.sin(phaseL) * 0.020 * mb + idleSway * 0.016;
-        j.pelvisPivot.position.z = 0.022 * sprintBoost * mb;
+        j.pelvisPivot.position.z = 0.032 * sprintBoost * mb;
         j.pelvisPivot.rotation.x = (this.player.isSomersault && heightAboveSupport > 0.24)
-            ? (this.player.somersaultProgress * TWO_PI)
+            ? ((this.player.somersaultDir || 1) * this.player.somersaultProgress * TWO_PI)
             : 0;
         j.pelvisPivot.rotation.y = Math.sin(phaseL) * 0.075 * mb + idleSway * 0.025;
         j.pelvisPivot.rotation.z = -Math.sin(phaseL) * 0.036 * mb - idleSway * 0.020;
 
-        const targetBank = clamp(-turnRate * 0.050, -0.10, 0.10) * mb;
+        const targetBank = clamp(-turnRate * 0.052, -0.11, 0.11) * mb;
         this.player.turnBank = lerp(this.player.turnBank, targetBank, blendFactor);
 
-        j.torsoPivot.rotation.x = (0.085 + 0.135 * sprintBoost) * mb
+        j.torsoPivot.rotation.x = (0.095 + 0.215 * sprintBoost) * mb
             + Math.sin(this.elapsedTime * 2.05 - 0.35) * 0.018 * idleWeight
-            + squash * 0.16
-            + 1.35 * somersaultTuck;
+            + squash * 0.18
+            + (somersaultDir >= 0 ? 1.35 : 0.85) * somersaultTuck;
         j.torsoPivot.rotation.y = -Math.sin(phaseL) * (0.095 + 0.035 * sprintBoost) * mb - idleSway * 0.032;
         j.torsoPivot.rotation.z = this.player.turnBank + Math.sin(phaseL) * 0.024 * mb + idleSway * 0.016;
+
+        // Echte Ninja Wall-Cling-Pose (beide Haende schulterhoch flach an der Wand, Knie athletisch abgestuetzt)
+        if (wc > 0.002) {
+            j.pelvisPivot.position.z = lerp(j.pelvisPivot.position.z, 0.085, wc);
+            j.pelvisPivot.rotation.y = lerp(j.pelvisPivot.rotation.y, -0.10, wc);
+            j.pelvisPivot.rotation.z = lerp(j.pelvisPivot.rotation.z, 0.03, wc);
+            j.torsoPivot.rotation.x = lerp(j.torsoPivot.rotation.x, -0.06, wc);
+            j.torsoPivot.rotation.y = lerp(j.torsoPivot.rotation.y, 0.08, wc);
+
+            j.shoulderPivotL.rotation.x = lerp(j.shoulderPivotL.rotation.x, -1.42, wc);
+            j.shoulderPivotL.rotation.y = lerp(j.shoulderPivotL.rotation.y, 0.18, wc);
+            j.shoulderPivotL.rotation.z = lerp(j.shoulderPivotL.rotation.z, -0.46, wc);
+            j.elbowPivotL.rotation.x = lerp(j.elbowPivotL.rotation.x, -0.46, wc);
+            j.wristPivotL.rotation.x = lerp(j.wristPivotL.rotation.x, 0.58, wc);
+            j.wristPivotL.rotation.z = lerp(j.wristPivotL.rotation.z, -0.14, wc);
+            j.fingerCurlL.rotation.x = lerp(j.fingerCurlL.rotation.x, -0.22, wc);
+            j.fingerCurlL.rotation.z = lerp(j.fingerCurlL.rotation.z, -0.05, wc);
+
+            j.shoulderPivotR.rotation.x = lerp(j.shoulderPivotR.rotation.x, -1.42, wc);
+            j.shoulderPivotR.rotation.y = lerp(j.shoulderPivotR.rotation.y, -0.18, wc);
+            j.shoulderPivotR.rotation.z = lerp(j.shoulderPivotR.rotation.z, 0.46, wc);
+            j.elbowPivotR.rotation.x = lerp(j.elbowPivotR.rotation.x, -0.46, wc);
+            j.wristPivotR.rotation.x = lerp(j.wristPivotR.rotation.x, 0.58, wc);
+            j.wristPivotR.rotation.z = lerp(j.wristPivotR.rotation.z, 0.14, wc);
+            j.fingerCurlR.rotation.x = lerp(j.fingerCurlR.rotation.x, -0.22, wc);
+            j.fingerCurlR.rotation.z = lerp(j.fingerCurlR.rotation.z, 0.05, wc);
+
+            j.hipPivotL.rotation.x = lerp(j.hipPivotL.rotation.x, -1.04, wc);
+            j.hipPivotL.rotation.z = lerp(j.hipPivotL.rotation.z, -0.20, wc);
+            j.kneePivotL.rotation.x = lerp(j.kneePivotL.rotation.x, 1.30, wc);
+            j.anklePivotL.rotation.x = lerp(j.anklePivotL.rotation.x, -0.26, wc);
+
+            j.hipPivotR.rotation.x = lerp(j.hipPivotR.rotation.x, -0.68, wc);
+            j.hipPivotR.rotation.z = lerp(j.hipPivotR.rotation.z, 0.18, wc);
+            j.kneePivotR.rotation.x = lerp(j.kneePivotR.rotation.x, 0.96, wc);
+            j.anklePivotR.rotation.x = lerp(j.anklePivotR.rotation.x, -0.16, wc);
+        }
 
         if (this.player.isSomersault) {
             j.shoulderPivotL.rotation.x -= 1.35 * somersaultTuck;
@@ -9348,21 +10036,23 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         let desiredHeadYaw = 0;
-        let desiredHeadPitch = -0.02 * mb;
+        let desiredHeadPitch = (-0.02 - 0.11 * sprintBoost) * mb;
 
-        if (nearestForGaze) {
+        if (wc > 0.35) {
+            desiredHeadYaw = 0.54 * wc;
+            desiredHeadPitch = 0.05 * wc;
+        } else if (nearestForGaze) {
             const worldToTargetYaw = Math.atan2(nearestForGaze.x - this.player.x, nearestForGaze.z - this.player.z);
-            let relYaw = ((worldToTargetYaw - this.player.yaw + Math.PI) % TWO_PI) - Math.PI;
-            if (relYaw < -Math.PI) relYaw += TWO_PI;
+            const relYaw = shortestAngleDiff(this.player.yaw, worldToTargetYaw);
+            const gazeStrength = clamp(1.0 - mb * 2.5, 0, 1);
 
-            if (Math.abs(relYaw) < 1.35) {
-                const gazeStrength = clamp(1.0 - mb * 0.65, 0.35, 1.0);
+            if (Math.abs(relYaw) < 1.35 && gazeStrength > 0.005) {
                 desiredHeadYaw = clamp(relYaw * 0.68, -0.56, 0.56) * gazeStrength;
-                desiredHeadPitch = -0.06 * gazeStrength;
+                desiredHeadPitch = lerp(desiredHeadPitch, -0.06, gazeStrength);
             }
         }
 
-        const headSmooth = 1.0 - Math.exp(-dt * 6.5);
+        const headSmooth = 1.0 - Math.exp(-dt * 8.5);
         this.player.headYaw = lerp(this.player.headYaw, desiredHeadYaw, headSmooth);
         this.player.headPitch = lerp(this.player.headPitch, desiredHeadPitch, headSmooth);
         j.headPivot.rotation.y = this.player.headYaw;
@@ -9372,7 +10062,7 @@ class SeelenfunkeLouvreShowroom3D {
         const isAwakening = Boolean((this.player.awakenPoseWeight || 0) > 0.05);
         const animState = isAwakening
             ? 'cast'
-            : (airBlend > 0.25 ? 'jump' : (mb > 0.18 ? 'run' : 'idle'));
+            : ((airBlend > 0.25 || wc > 0.25) ? 'jump' : (mb > 0.18 ? 'run' : 'idle'));
 
         // Sanft geklemmte Knochenwinkel, Hand-/Finger-Posen, Crossfading & Umhang-Spring-Physik auf das 22-Bone THREE.SkinnedMesh uebertragen!
         if (this.player.builtRecord && this.player.builtRecord.skinnedRig) {
@@ -9383,6 +10073,7 @@ class SeelenfunkeLouvreShowroom3D {
                 turnRate,
                 animState,
                 sprintBoost,
+                wallClingBlend: wc,
             });
         }
     }
@@ -9669,29 +10360,64 @@ class SeelenfunkeLouvreShowroom3D {
     triggerJump() {
         if (!this.running || this.destroyed) return false;
 
+        // 0. Epischer Rueckwaertssalto (Wall-Backflip) direkt aus dem 1-Sekunden Wall-Cling an der Wand!
+        if (this.player.isWallClinging) {
+            const wnX = this.player.wallNormalX || 0;
+            const wnZ = this.player.wallNormalZ || 0;
+            this.player.isWallClinging = false;
+            this.player.wallClingTimer = 0;
+            this.player.isJumping = true;
+            this.player.jumpCount = 2;
+            this.player.vy = 6.75;
+            this.player.wallFlipVx = wnX * 6.5;
+            this.player.wallFlipVz = wnZ * 6.5;
+            this.player.velX = this.player.wallFlipVx;
+            this.player.velZ = this.player.wallFlipVz;
+            this.player.isSomersault = true;
+            this.player.somersaultDir = -1;
+            this.player.somersaultDuration = 0.62;
+            this.player.somersaultProgress = 0.0;
+            this._spawnWallKickBurst(
+                this.player.x - wnX * 0.28,
+                (this.player.y || 0) + 0.85,
+                this.player.z - wnZ * 0.28,
+                wnX,
+                wnZ
+            );
+            if (this.audio) this.audio.playJump(true);
+            return true;
+        }
+
         const onGroundOrCoyote = (!this.player.isJumping && Math.abs((this.player.y || 0) - (this.player.groundY || 0)) <= 0.08)
             || (this.player.jumpCount === 0 && this.player.coyoteTimer > 0);
 
-        // 1. Erster Sprung vom Boden (inkl. 110 ms Coyote-Time im Lava-Parkour!)
+        // 1. Erster Sprung vom Boden (inkl. 110 ms Coyote-Time)
         if (onGroundOrCoyote) {
             this.player.isJumping = true;
             this.player.highJumpActive = false;
             this.player.jumpCount = 1;
             this.player.coyoteTimer = 0;
             this.player.standingPlatform = null;
+            this.player.wallClingUsed = false;
+            this.player.isWallClinging = false;
+            this.player.wallClingTimer = 0;
             this.player.vy = 5.8;
             this.player.isSomersault = false;
+            this.player.somersaultDir = 1;
+            this.player.somersaultDuration = 0.52;
             this.player.somersaultProgress = 0.0;
             if (this.audio) this.audio.playJump(false);
             return true;
         }
 
-        // 2. Doppelsprung mit 360-Grad Kugel-Salto in der Luft
+        // 2. Doppelsprung mit 360-Grad Vorwaertssalto in der Luft
         if (this.player.jumpCount === 1) {
             this.player.isJumping = true;
             this.player.jumpCount = 2;
             this.player.vy = 5.85;
             this.player.isSomersault = true;
+            this.player.somersaultDir = 1;
+            this.player.somersaultDuration = 0.52;
             this.player.somersaultProgress = 0.0;
             this._spawnDoubleJumpBurst(this.player.x, (this.player.y || 0) + 0.12, this.player.z);
             if (this.audio) this.audio.playJump(true);
@@ -9699,6 +10425,68 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         return false;
+    }
+
+    _spawnWallKickBurst(x, y, z, wnX = 0, wnZ = 1) {
+        if (!this.scene || !this.THREE) return;
+        if (this.weaponBursts.length >= 14) {
+            const oldest = this.weaponBursts.shift();
+            if (oldest) this._disposeWeaponBurst(oldest);
+        }
+
+        const THREE = this.THREE;
+        const shared = this._ensureAvatarSharedPool();
+        const group = new THREE.Group();
+        group.position.set(Number(x) || 0, Number(y) || 0, Number(z) || 0);
+
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#C5A059'),
+            transparent: true,
+            opacity: 0.94,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+        });
+        const ringMesh = new THREE.Mesh(shared.geos.baseRing, ringMat);
+        ringMesh.rotation.y = Math.atan2(wnX, wnZ);
+        ringMesh.scale.set(0.55, 0.55, 0.55);
+        group.add(ringMesh);
+
+        const sparks = [];
+        const sparkMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#FFF3CC'),
+            transparent: true,
+            opacity: 0.96,
+            depthWrite: false,
+        });
+        const sideX = -wnZ;
+        const sideZ = wnX;
+        for (let i = 0; i < 10; i++) {
+            const angle = (i / 10) * TWO_PI;
+            const cA = Math.cos(angle);
+            const sA = Math.sin(angle);
+            const sMesh = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
+            sMesh.position.set(sideX * cA * 0.22, sA * 0.22, sideZ * cA * 0.22);
+            group.add(sMesh);
+            sparks.push({
+                mesh: sMesh,
+                vx: sideX * cA * 1.9 + wnX * 1.6,
+                vy: sA * 1.9 + 0.5,
+                vz: sideZ * cA * 1.9 + wnZ * 1.6,
+            });
+        }
+
+        this.scene.add(group);
+        this.weaponBursts.push({
+            group,
+            slashMesh: ringMesh,
+            arcMat: ringMat,
+            sparkMat,
+            sparks,
+            age: 0,
+            duration: 0.44,
+            maxRingScale: 1.75,
+            isRemote: false,
+        });
     }
 
     _spawnDoubleJumpBurst(x, y, z) {
@@ -10418,6 +11206,19 @@ class SeelenfunkeLouvreShowroom3D {
         }
     }
 
+    _setAtelierStarStationFocused(flag) {
+        const next = Boolean(flag);
+        if (this.atelierStarStationFocused === next) return;
+        this.atelierStarStationFocused = next;
+        if (!next && this.atelierStarHoverPreview !== 0) {
+            this.atelierStarHoverPreview = 0;
+            this._syncAtelierStarMaterials();
+        }
+        if (this.onAtelierStarStationFocusChange) {
+            this.onAtelierStarStationFocusChange(next, this.getAtelierReviewState());
+        }
+    }
+
     _projectElementToWorld(el, worldX, worldY, worldZ, statePrefix) {
         if (!el || !this.camera) return;
 
@@ -10512,11 +11313,24 @@ class SeelenfunkeLouvreShowroom3D {
             this._hideProjectedElement(this.floatingPortalCardEl, '_portalCard');
         }
 
-        // 4. Schwebender Hinweis am monumentalen West-Prunktor ("Tor zur Außenwelt · Hier entsteht ein MMORPG")
+        // 4. Schwebender Hinweis am monumentalen West-Prunktor ("Tor zur Außenwelt")
         if (this.westGateFocused && this.floatingOuterGateEl && this.currentZone === 'gallery') {
             this._projectElementToWorld(this.floatingOuterGateEl, -11.65, 2.75, 0.0, '_outerGateCard');
         } else {
             this._hideProjectedElement(this.floatingOuterGateEl, '_outerGateCard');
+        }
+
+        // 5. 1-Klick Light-Mode Bewertungs-Kaertchen an der 3D-Sternebewertungs-Station neben dem Ehrenportal
+        if (this.atelierStarStationFocused && this.atelierStarStation && this.floatingStarStationEl && this.currentZone === 'gallery') {
+            this._projectElementToWorld(
+                this.floatingStarStationEl,
+                this.atelierStarStation.x,
+                2.64,
+                this.atelierStarStation.z,
+                '_starStationCard'
+            );
+        } else {
+            this._hideProjectedElement(this.floatingStarStationEl, '_starStationCard');
         }
     }
 
@@ -10551,7 +11365,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.player.jumpCount = 1;
         this.player.vy = 2.65;
 
-        this._spawnDoubleJumpBurst(-10.65, 1.10, this.player.z || 0);
+        this._spawnDoubleJumpBurst(-11.55, 1.10, this.player.z || 0);
         if (this.audio && typeof this.audio.playGateLocked === 'function') {
             this.audio.playGateLocked();
         }
@@ -10610,7 +11424,7 @@ class SeelenfunkeLouvreShowroom3D {
         if (!this.running) return;
         const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
         if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-        if (e.target && e.target.closest && e.target.closest('[data-testid="lobby-settings-modal"], [data-testid="lobby-sanctum-gate-modal"], [data-testid="lobby-outer-gate-modal"]')) {
+        if (e.target && e.target.closest && e.target.closest('[data-testid="lobby-settings-modal"], [data-testid="lobby-sanctum-gate-modal"], [data-testid="lobby-outer-gate-modal"], [data-testid="atelier-star-rating-card"]')) {
             return;
         }
 
@@ -10679,10 +11493,19 @@ class SeelenfunkeLouvreShowroom3D {
         }
     }
 
+    _hasActiveMovementKeys() {
+        const kb = this.keybindings || {};
+        if (this.keys[kb.moveForward] || this.keys[kb.moveBack] || this.keys[kb.moveLeft] || this.keys[kb.moveRight]) return true;
+        if (this.keys.ArrowUp || this.keys.ArrowDown || this.keys.ArrowLeft || this.keys.ArrowRight) return true;
+        if (this.camControl.bothMouseWalk) return true;
+        if (Math.abs(this.joystick.x) > 0.04 || Math.abs(this.joystick.y) > 0.04) return true;
+        return false;
+    }
+
     _onPointerDown(e) {
         if (!this.running) return;
         if (e && e.target && e.target !== this.canvas && typeof e.target.closest === 'function') {
-            if (e.target.closest('.sf-lobby-settings-backdrop, .sf-lobby-floating-card, .sf-lobby-topbar, .sf-lobby-gold-crest-bar, .sf-lobby-chat-panel, .sf-lobby-instance-popover, .sf-lobby-bottom-pill')) {
+            if (e.target.closest('.sf-lobby-settings-backdrop, .sf-lobby-floating-card, .sf-atelier-star-card, .sf-lobby-topbar, .sf-lobby-gold-crest-bar, .sf-lobby-chat-panel, .sf-lobby-instance-popover, .sf-lobby-bottom-pill')) {
                 return;
             }
         }
@@ -10760,15 +11583,18 @@ class SeelenfunkeLouvreShowroom3D {
             this.camControl.desiredPitch = clamp(this.camControl.desiredPitch + dy * 0.0042 * sens, minPitch, 0.82);
 
             if (this.camControl.desiredDistance < 0.55) {
-                this.player.yaw = Math.atan2(
-                    Math.sin(this.camControl.desiredYaw + Math.PI),
-                    Math.cos(this.camControl.desiredYaw + Math.PI)
-                );
+                this.player.yaw = normalizeAngleSigned(this.camControl.desiredYaw + Math.PI);
             } else if (this.camControl.bothMouseWalk) {
                 this.camControl.yaw = this.camControl.desiredYaw;
-                this.player.yaw = this.camControl.desiredYaw + Math.PI;
-            } else if (this.camControl.mouseRightDown && !this.camControl.mouseLeftDown && this.camControl.dragMoved > 2) {
-                this.player.yaw = lerpAngle(this.player.yaw, this.camControl.desiredYaw + Math.PI, 0.45);
+            } else if (
+                this.camControl.mouseRightDown
+                && !this.camControl.mouseLeftDown
+                && this.camControl.dragMoved > 2
+                && !this._hasActiveMovementKeys()
+                && !this.player.isMoving
+                && !this.player.isWallClinging
+            ) {
+                this.player.yaw = lerpAngle(this.player.yaw, this.camControl.desiredYaw + Math.PI, 0.35);
             }
             return;
         }
@@ -10923,13 +11749,13 @@ class SeelenfunkeLouvreShowroom3D {
         this.pointerNdc.y = -((clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
         this.raycaster.setFromCamera(this.pointerNdc, this.camera);
 
-        // 1. Monumentales Tor zur Aussenwelt an der Westwand ("Hier entsteht ein MMORPG")
+        // 1. Monumentales Tor zur Aussenwelt an der Westwand
         if (this.westGateHitMeshes.length > 0) {
             const wgHits = this.raycaster.intersectObjects(this.westGateHitMeshes, false);
             if (wgHits.length > 0) {
                 this._setWestOuterGateFocused(true);
                 if (this.currentZone === 'gallery') {
-                    this.player.autoTarget = { x: -8.95, z: 0.0 };
+                    this.player.autoTarget = { x: -10.35, z: 0.0 };
                     this.player.autoLookAt = { x: -11.92, z: 0.0 };
                 }
                 this.openOuterGateModalFromWorld();
@@ -10956,13 +11782,20 @@ class SeelenfunkeLouvreShowroom3D {
             }
         }
 
-        // 4. Produkt-Podeste im 3D-Produkt-Atelier
+        // 4. 3D-Sternebewertungs-Station & Produkt-Podeste im 3D-Produkt-Atelier
         if (this.interactiveHitMeshes.length > 0) {
             const steleHits = this.raycaster.intersectObjects(this.interactiveHitMeshes, false);
             if (steleHits.length > 0) {
-                const idx = steleHits[0].object.userData.steleIndex;
-                this.goToExhibit(idx, false);
-                return;
+                const hitData = steleHits[0].object.userData || {};
+                if (hitData.isAtelierStarStation) {
+                    this.goToAtelierStarStation();
+                    return;
+                }
+                const idx = hitData.steleIndex;
+                if (typeof idx === 'number') {
+                    this.goToExhibit(idx, false);
+                    return;
+                }
             }
         }
 
@@ -11345,43 +12178,129 @@ class SeelenfunkeLouvreShowroom3D {
      */
     _resolveCollisions(nx, nz) {
         let x = nx;
-        let z = clamp(nz, this.pantheonMinZ + 1.0, this.hallSouthZ - 1.3);
+        let z = nz;
+        let hitWall = false;
+        let wallNormalX = 0;
+        let wallNormalZ = 0;
+
+        const recordWall = (wnx, wnz) => {
+            hitWall = true;
+            wallNormalX = wnx;
+            wallNormalZ = wnz;
+        };
+
+        const minPantheonZ = this.pantheonMinZ + 0.42;
+        const maxSouthZ = this.hallSouthZ - 0.42;
+        if (z < minPantheonZ) {
+            z = minPantheonZ;
+            recordWall(0, 1);
+        } else if (z > maxSouthZ) {
+            z = maxSouthZ;
+            recordWall(0, -1);
+        }
 
         // Unberechtigte Spieler (!canEnterSanctums) an der Nord-Schwelle zur Halle der Helden sanft abweisen
-        if (!this.canEnterSanctums && z < this.hallNorthZ + 1.15) {
-            z = this.hallNorthZ + 1.15;
+        if (!this.canEnterSanctums && z < this.hallNorthZ + 0.85) {
+            z = this.hallNorthZ + 0.85;
             if (Math.abs(x) <= 4.25) {
                 this._triggerSanctumGateRepulse();
+            } else {
+                recordWall(0, 1);
             }
-        } else if (z > this.hallNorthZ + 1.65) {
+        } else if (z > this.hallNorthZ + 1.35) {
             this._heroesAuthGateTriggered = false;
         }
 
-        const portalClearHalfW = this.portalHalfW - 0.55;
+        const portalClearHalfW = this.portalHalfW - 0.52;
 
-        if (z >= this.hallNorthZ + 0.9) {
-            // Zone 1: 3D-Produkt-Atelier (geschlossene Ostwand, West-Schwelle am "Tor zur Außenwelt" bei X = -9.45)
-            if (Math.abs(z) <= 2.65 && x < -9.45) {
-                x = -9.45;
+        if (z >= this.hallNorthZ + 0.35) {
+            // Zone 1: 3D-Produkt-Atelier (realistisch nahe Wandabstaende 0.38..0.44 m + West-Tor bei X = -11.35)
+            if (Math.abs(z) <= 2.45 && x < -11.35) {
+                x = -11.35;
+                recordWall(1, 0);
                 if (this._westOuterGateArmed) {
                     this._westOuterGateArmed = false;
                     this._triggerOuterGateRepulse();
                 }
             }
-            const minWestX = -this.hallHalfW + 1.0;
-            const maxEastX = this.hallHalfW - 1.0;
-            x = clamp(x, minWestX, maxEastX);
-            if (z < this.hallNorthZ + 1.15 && Math.abs(x) > portalClearHalfW && this.player.z >= this.hallNorthZ + 0.9) {
-                z = this.hallNorthZ + 1.15;
+            const minWestX = -this.hallHalfW + 0.38;
+            const maxEastX = this.hallHalfW - 0.38;
+            if (x < minWestX) {
+                x = minWestX;
+                recordWall(1, 0);
+            } else if (x > maxEastX) {
+                x = maxEastX;
+                recordWall(-1, 0);
             }
-        } else if (z >= this.heroesEntryZ + 0.4) {
+            if (z < this.hallNorthZ + 0.44 && Math.abs(x) > portalClearHalfW && this.player.z >= this.hallNorthZ + 0.30) {
+                z = this.hallNorthZ + 0.44;
+                recordWall(0, 1);
+            }
+
+            // Sanfte Kreiskollisionen um Halbrund-Wandpilaster (r = 0.54)
+            if (this._galleryPierPlacements) {
+                for (let pi = 0; pi < this._galleryPierPlacements.length; pi++) {
+                    const pier = this._galleryPierPlacements[pi];
+                    const dx = x - pier[0];
+                    const dz = z - pier[1];
+                    const dist = Math.hypot(dx, dz);
+                    if (dist < 0.54 && dist > 0.0001) {
+                        const push = 0.54 - dist;
+                        const pnx = dx / dist;
+                        const pnz = dz / dist;
+                        x += pnx * push;
+                        z += pnz * push;
+                        recordWall(pnx, pnz);
+                    }
+                }
+            }
+
+            // Goldene Ehrenportal-Saeulen (r = 0.72)
+            [-this.portalHalfW, this.portalHalfW].forEach((ppx) => {
+                const dx = x - ppx;
+                const dz = z - this.hallNorthZ;
+                const dist = Math.hypot(dx, dz);
+                if (dist < 0.72 && dist > 0.0001) {
+                    const push = 0.72 - dist;
+                    x += (dx / dist) * push;
+                    z += (dz / dist) * push;
+                }
+            });
+
+            // Sanfte Kreiskollision um die 3D-Sternebewertungs-Station (r = 0.78)
+            if (this.atelierStarStation) {
+                const dx = x - this.atelierStarStation.x;
+                const dz = z - this.atelierStarStation.z;
+                const dist = Math.hypot(dx, dz);
+                if (dist < 0.78 && dist > 0.0001) {
+                    const push = 0.78 - dist;
+                    x += (dx / dist) * push;
+                    z += (dz / dist) * push;
+                }
+            }
+        } else if (z >= this.heroesEntryZ + 0.38) {
             // Ehrenportal & Marmor-Ehrenpromenade
-            x = clamp(x, -portalClearHalfW, portalClearHalfW);
+            if (x < -portalClearHalfW) {
+                x = -portalClearHalfW;
+                recordWall(1, 0);
+            } else if (x > portalClearHalfW) {
+                x = portalClearHalfW;
+                recordWall(-1, 0);
+            }
         } else {
             // Zone 2: Pantheon-Rotunde ("Halle der Helden")
-            x = clamp(x, -this.pantheonHalfW + 0.8, this.pantheonHalfW - 0.8);
-            if (z > this.heroesEntryZ - 0.6 && Math.abs(x) > portalClearHalfW + 1.2) {
-                z = this.heroesEntryZ - 0.6;
+            const minPanX = -(this.pantheonHalfW - 0.42);
+            const maxPanX = this.pantheonHalfW - 0.42;
+            if (x < minPanX) {
+                x = minPanX;
+                recordWall(1, 0);
+            } else if (x > maxPanX) {
+                x = maxPanX;
+                recordWall(-1, 0);
+            }
+            if (z > this.heroesEntryZ - 0.42 && Math.abs(x) > portalClearHalfW + 1.2) {
+                z = this.heroesEntryZ - 0.42;
+                recordWall(0, -1);
             }
         }
 
@@ -11393,7 +12312,7 @@ class SeelenfunkeLouvreShowroom3D {
             const dz = z - st.z;
             const dist = Math.hypot(dx, dz);
             if (dist < minSteleRadius && dist > 0.0001) {
-                const push = (minSteleRadius - dist);
+                const push = minSteleRadius - dist;
                 x += (dx / dist) * push;
                 z += (dz / dist) * push;
             }
@@ -11428,7 +12347,64 @@ class SeelenfunkeLouvreShowroom3D {
 
         this._collisionOut.x = x;
         this._collisionOut.z = z;
+        this._collisionOut.hitWall = hitWall;
+        this._collisionOut.wallNormalX = wallNormalX;
+        this._collisionOut.wallNormalZ = wallNormalZ;
         return this._collisionOut;
+    }
+
+    _detectWallForCling(px, pz, hitWall, wnX, wnZ) {
+        const faceDirX = Math.sin(this.player.yaw || 0);
+        const faceDirZ = Math.cos(this.player.yaw || 0);
+        const vLen = Math.hypot(this.player.velX || 0, this.player.velZ || 0);
+        const moveDirX = vLen > 0.25 ? (this.player.velX / vLen) : faceDirX;
+        const moveDirZ = vLen > 0.25 ? (this.player.velZ / vLen) : faceDirZ;
+
+        if (hitWall && (wnX !== 0 || wnZ !== 0)) {
+            const intoWall = moveDirX * (-wnX) + moveDirZ * (-wnZ);
+            if (intoWall > 0.15) {
+                return { ok: true, nx: wnX, nz: wnZ };
+            }
+        }
+
+        // Wandabstand <= 0.46 m in Blick- oder Bewegungsrichtung pruefen (auch beim Hochspringen dicht vor der Wand!)
+        const portalClearHalfW = this.portalHalfW - 0.52;
+        const candidates = [];
+
+        if (pz >= this.hallNorthZ + 0.30) {
+            const westSurfaceX = Math.abs(pz) <= 2.45 ? -11.81 : -this.hallHalfW;
+            candidates.push({ dist: px - westSurfaceX, nx: 1, nz: 0 });
+            candidates.push({ dist: this.hallHalfW - px, nx: -1, nz: 0 });
+            candidates.push({ dist: this.hallSouthZ - pz, nx: 0, nz: -1 });
+            if (Math.abs(px) > portalClearHalfW) {
+                candidates.push({ dist: pz - this.hallNorthZ, nx: 0, nz: 1 });
+            }
+        } else if (pz >= this.heroesEntryZ + 0.38) {
+            candidates.push({ dist: px - (-this.portalHalfW), nx: 1, nz: 0 });
+            candidates.push({ dist: this.portalHalfW - px, nx: -1, nz: 0 });
+        } else {
+            candidates.push({ dist: px - (-this.pantheonHalfW), nx: 1, nz: 0 });
+            candidates.push({ dist: this.pantheonHalfW - px, nx: -1, nz: 0 });
+            candidates.push({ dist: pz - this.pantheonMinZ, nx: 0, nz: 1 });
+            if (Math.abs(px) > portalClearHalfW + 1.2) {
+                candidates.push({ dist: this.heroesEntryZ - pz, nx: 0, nz: -1 });
+            }
+        }
+
+        let best = null;
+        let bestDist = 0.46;
+        for (let i = 0; i < candidates.length; i++) {
+            const c = candidates[i];
+            if (c.dist <= bestDist && c.dist >= -0.05) {
+                const alignFace = faceDirX * (-c.nx) + faceDirZ * (-c.nz);
+                const alignMove = moveDirX * (-c.nx) + moveDirZ * (-c.nz);
+                if (alignFace > 0.35 || alignMove > 0.35) {
+                    bestDist = c.dist;
+                    best = c;
+                }
+            }
+        }
+        return best ? { ok: true, nx: best.nx, nz: best.nz } : null;
     }
 
     _tick(nowMs) {
@@ -11503,44 +12479,89 @@ class SeelenfunkeLouvreShowroom3D {
             this.pinnedPortalGate = false;
         }
 
+        // Analoge Input-Glaettung (verhindert jedes Diagonal-Zucken bei leicht versetztem W+A / W+D!)
+        const rawInLen = Math.max(1.0, Math.hypot(inputForward, inputRight));
+        const targetInFwd = hasManualInput ? (inputForward / rawInLen) : 0.0;
+        const targetInRight = hasManualInput ? (inputRight / rawInLen) : 0.0;
+        const inputSmoothAlpha = 1.0 - Math.exp(-dt * 24.0);
+        this.player.smoothInputForward = lerp(this.player.smoothInputForward || 0, targetInFwd, inputSmoothAlpha);
+        this.player.smoothInputRight = lerp(this.player.smoothInputRight || 0, targetInRight, inputSmoothAlpha);
+        if (!hasManualInput && Math.hypot(this.player.smoothInputForward, this.player.smoothInputRight) < 0.002) {
+            this.player.smoothInputForward = 0;
+            this.player.smoothInputRight = 0;
+        }
+
         const isShiftHeld = Boolean(this.keys.ShiftLeft || this.keys.ShiftRight || this.keys.Shift);
         const moveSpeed = isShiftHeld ? 8.8 : 5.2;
-        let vx = 0;
-        let vz = 0;
+        let targetVx = 0;
+        let targetVz = 0;
 
-        if (hasManualInput) {
-            const len = Math.max(1.0, Math.hypot(inputForward, inputRight));
-            const nf = inputForward / len;
-            const nr = inputRight / len;
-            const sinY = Math.sin(this.camControl.yaw);
-            const cosY = Math.cos(this.camControl.yaw);
+        const smoothInMag = Math.hypot(this.player.smoothInputForward, this.player.smoothInputRight);
+        if (!this.player.isWallClinging) {
+            if (hasManualInput || smoothInMag > 0.015) {
+                const clampedMag = Math.min(1.0, smoothInMag);
+                const scaleIn = smoothInMag > 0.0001 ? (clampedMag / smoothInMag) : 0;
+                const nf = this.player.smoothInputForward * scaleIn;
+                const nr = this.player.smoothInputRight * scaleIn;
+                const sinY = Math.sin(this.camControl.yaw);
+                const cosY = Math.cos(this.camControl.yaw);
 
-            vx = (-sinY * nf + cosY * nr) * moveSpeed;
-            vz = (-cosY * nf - sinY * nr) * moveSpeed;
-        } else if (this.player.autoTarget) {
-            const dx = this.player.autoTarget.x - this.player.x;
-            const dz = this.player.autoTarget.z - this.player.z;
-            const dist = Math.hypot(dx, dz);
-            if (dist > 0.09) {
-                const stepSpeed = Math.min(8.8, moveSpeed * 1.18, Math.max(1.85, dist * 3.4));
-                vx = (dx / dist) * stepSpeed;
-                vz = (dz / dist) * stepSpeed;
-            } else {
-                this.player.autoTarget = null;
-                this.pinnedSteleIndex = -1;
-                if (this.player.autoLookAt) {
-                    const faceYaw = Math.atan2(
-                        this.player.autoLookAt.x - this.player.x,
-                        this.player.autoLookAt.z - this.player.z
-                    );
-                    this.player.yaw = faceYaw;
-                    this.player.autoLookAt = null;
+                targetVx = (-sinY * nf + cosY * nr) * moveSpeed;
+                targetVz = (-cosY * nf - sinY * nr) * moveSpeed;
+            } else if (this.player.autoTarget) {
+                const dx = this.player.autoTarget.x - this.player.x;
+                const dz = this.player.autoTarget.z - this.player.z;
+                const dist = Math.hypot(dx, dz);
+                if (dist > 0.09) {
+                    const stepSpeed = Math.min(8.8, moveSpeed * 1.18, Math.max(1.85, dist * 3.4));
+                    targetVx = (dx / dist) * stepSpeed;
+                    targetVz = (dz / dist) * stepSpeed;
+                } else {
+                    this.player.autoTarget = null;
+                    this.pinnedSteleIndex = -1;
+                    if (this.player.autoLookAt) {
+                        const faceYaw = Math.atan2(
+                            this.player.autoLookAt.x - this.player.x,
+                            this.player.autoLookAt.z - this.player.z
+                        );
+                        this.player.yaw = normalizeAngleSigned(faceYaw);
+                        this.player.autoLookAt = null;
+                    }
                 }
             }
         }
 
-        const speedMag = Math.hypot(vx, vz);
-        this.player.isMoving = speedMag > 0.08;
+        // Knackige Ninja-Trägheits-Physik (Beschleunigung accel = 22.0, Abbremsen decel = 18.0)
+        const hasDriveIntent = !this.player.isWallClinging && (hasManualInput || Boolean(this.player.autoTarget));
+        const velRate = hasDriveIntent ? 22.0 : 18.0;
+        const velAlpha = 1.0 - Math.exp(-dt * velRate);
+        this.player.velX = lerp(this.player.velX || 0, targetVx, velAlpha);
+        this.player.velZ = lerp(this.player.velZ || 0, targetVz, velAlpha);
+        if (!hasDriveIntent && Math.hypot(this.player.velX, this.player.velZ) < 0.02) {
+            this.player.velX = 0;
+            this.player.velZ = 0;
+        }
+
+        // Sanftes Ausklingen des Wall-Backflip-Abstoss-Impulses in der Luft
+        let wfVx = 0;
+        let wfVz = 0;
+        if (Math.hypot(this.player.wallFlipVx || 0, this.player.wallFlipVz || 0) > 0.02) {
+            const wfDecay = Math.exp(-dt * 2.8);
+            this.player.wallFlipVx *= wfDecay;
+            this.player.wallFlipVz *= wfDecay;
+            wfVx = this.player.wallFlipVx;
+            wfVz = this.player.wallFlipVz;
+            if (Math.hypot(wfVx, wfVz) < 0.03) {
+                this.player.wallFlipVx = 0;
+                this.player.wallFlipVz = 0;
+            }
+        }
+
+        let vx = this.player.velX + wfVx * 0.65;
+        let vz = this.player.velZ + wfVz * 0.65;
+
+        const speedMag = Math.hypot(this.player.velX, this.player.velZ);
+        this.player.isMoving = !this.player.isWallClinging && (speedMag > 0.08 || hasDriveIntent);
         this.player.isSprinting = isShiftHeld && this.player.isMoving;
         this.player.sprintBoost = lerp(this.player.sprintBoost || 0, this.player.isSprinting ? 1.0 : 0.0, 1.0 - Math.exp(-dt * 12.0));
 
@@ -11566,7 +12587,11 @@ class SeelenfunkeLouvreShowroom3D {
             this._gateRepulseTimer = Math.max(0, this._gateRepulseTimer - dt);
         }
 
-        if (this.player.isMoving || (gateRepVx !== 0 || gateRepVz !== 0)) {
+        let frameHitWall = false;
+        let frameWnX = 0;
+        let frameWnZ = 0;
+
+        if (!this.player.isWallClinging && (Math.hypot(vx, vz) > 0.005 || gateRepVx !== 0 || gateRepVz !== 0)) {
             const totalVx = vx + gateRepVx;
             const totalVz = vz + gateRepVz;
             const nextPos = this._resolveCollisions(
@@ -11575,18 +12600,65 @@ class SeelenfunkeLouvreShowroom3D {
             );
             this.player.x = nextPos.x;
             this.player.z = nextPos.z;
+            frameHitWall = Boolean(nextPos.hitWall);
+            frameWnX = nextPos.wallNormalX || 0;
+            frameWnZ = nextPos.wallNormalZ || 0;
 
-            if (this.player.isMoving && this._gateRepulseTimer <= 0) {
-                const moveYaw = Math.atan2(vx, vz);
-                this.player.yaw = lerpAngle(this.player.yaw, moveYaw, 1.0 - Math.exp(-13.5 * dt));
+            const isWallBackflipping = Boolean(this.player.isSomersault && this.player.somersaultDir === -1);
+            if (hasDriveIntent && Math.hypot(targetVx, targetVz) > 0.12 && this._gateRepulseTimer <= 0 && !isWallBackflipping) {
+                const moveYaw = Math.atan2(this.player.velX || targetVx, this.player.velZ || targetVz);
+                this.player.yaw = lerpAngle(this.player.yaw, moveYaw, 1.0 - Math.exp(-16.0 * dt));
             }
         }
 
-        // Ebene Boden- & Sprung-Physik in Produkt-Atelier, Ehrenpromenade & Halle der Helden (y = 0)
+        // 1-Sekunde Wall-Cling + Boden- & Sprung-Physik in Produkt-Atelier, Ehrenpromenade & Halle der Helden (y = 0)
         this.player.groundY = 0;
-        if (this.player.isJumping || this.player.y > 0) {
+
+        if (this.player.isWallClinging) {
+            this.player.vy = 0;
+            this.player.velX = 0;
+            this.player.velZ = 0;
+            const faceWallYaw = Math.atan2(-(this.player.wallNormalX || 0), -(this.player.wallNormalZ || 0));
+            this.player.yaw = lerpAngle(this.player.yaw, faceWallYaw, 1.0 - Math.exp(-dt * 22.0));
+
+            this.player.wallClingTimer -= dt;
+            if (this.player.wallClingTimer < 0.20 && this.player.wallClingTimer > 0) {
+                this.player.y = Math.max(0.05, (this.player.y || 0) - 0.15 * dt);
+            }
+            if (this.player.wallClingTimer <= 0) {
+                this.player.isWallClinging = false;
+                this.player.wallClingTimer = 0;
+                this.player.vy = -0.35;
+            }
+        } else if (this.player.isJumping || this.player.y > 0) {
+            const impactSpeedBefore = Math.max(0, -(this.player.vy || 0));
             this.player.vy -= 15.2 * dt;
             this.player.y += this.player.vy * dt;
+
+            // Startet 1-Sekunde Wall-Cling beim Sprung nahe an / gegen eine Wand
+            if (
+                this.player.isJumping
+                && this.player.y > 0.26
+                && this.player.vy > -3.5
+                && !this.player.wallClingUsed
+                && this._gateRepulseTimer <= 0
+            ) {
+                const clingWall = this._detectWallForCling(this.player.x, this.player.z, frameHitWall, frameWnX, frameWnZ);
+                if (clingWall && clingWall.ok) {
+                    this.player.isWallClinging = true;
+                    this.player.wallClingTimer = 1.0;
+                    this.player.wallClingUsed = true;
+                    this.player.wallNormalX = clingWall.nx;
+                    this.player.wallNormalZ = clingWall.nz;
+                    this.player.vy = 0;
+                    this.player.velX = 0;
+                    this.player.velZ = 0;
+                    this.player.isSomersault = false;
+                    this.player.somersaultProgress = 0.0;
+                    this.player.yaw = Math.atan2(-clingWall.nx, -clingWall.nz);
+                    if (this.audio) this.audio.playFootstep('marble');
+                }
+            }
 
             if (this.player.isSomersault) {
                 this.player.somersaultProgress += dt / Math.max(0.01, this.player.somersaultDuration);
@@ -11596,24 +12668,30 @@ class SeelenfunkeLouvreShowroom3D {
                 }
             }
 
-            if (this.player.y <= 0) {
+            if (!this.player.isWallClinging && this.player.y <= 0) {
                 this.player.y = 0;
                 this.player.vy = 0;
                 this.player.isJumping = false;
                 this.player.highJumpActive = false;
                 this.player.jumpCount = 0;
+                this.player.wallClingUsed = false;
+                this.player.isWallClinging = false;
+                this.player.wallClingTimer = 0;
+                this.player.wallFlipVx = 0;
+                this.player.wallFlipVz = 0;
                 this.player.isSomersault = false;
+                this.player.somersaultDir = 1;
                 this.player.somersaultProgress = 0.0;
-                this.player.landSquash = 0.18;
+                this.player.landSquash = clamp(0.14 + impactSpeedBefore * 0.012, 0.15, 0.25);
             }
         }
 
         // Tor zur Aussenwelt (Westwand X = -11.92, Z = 0.0): schwebender Hinweis bei Annaeherung & Re-Arm beim Zuruecktreten
         if (this.currentZone === 'gallery') {
-            if (this.player.x > -8.15) {
+            if (this.player.x > -10.2) {
                 this._westOuterGateArmed = true;
             }
-            const nearOuterGate = (this.player.x < -7.2 && Math.abs(this.player.z) < 3.5);
+            const nearOuterGate = (this.player.x < -9.2 && Math.abs(this.player.z) < 3.5);
             if (nearOuterGate !== this.westGateFocused) {
                 this._setWestOuterGateFocused(nearOuterGate);
             }
@@ -11621,16 +12699,33 @@ class SeelenfunkeLouvreShowroom3D {
             this._setWestOuterGateFocused(false);
         }
 
+        // 3D-Sternebewertungs-Station neben dem Ehrenportal (dist < 2.95 m in gallery)
+        if (this.currentZone === 'gallery' && this.atelierStarStation) {
+            const stDist = Math.hypot(
+                this.player.x - this.atelierStarStation.x,
+                this.player.z - this.atelierStarStation.z
+            );
+            const focusThreshold = this.atelierStarStationFocused ? 3.20 : 2.95;
+            const nearStarStation = stDist < focusThreshold;
+            if (nearStarStation !== this.atelierStarStationFocused) {
+                this._setAtelierStarStationFocused(nearStarStation);
+            }
+        } else if (this.atelierStarStationFocused) {
+            this._setAtelierStarStationFocused(false);
+        }
+
         if (this.player.landSquash > 0) {
-            this.player.landSquash = Math.max(0, this.player.landSquash - dt * 0.90);
+            this.player.landSquash = this.player.landSquash * Math.exp(-dt * 7.5);
+            if (this.player.landSquash < 0.003) this.player.landSquash = 0;
         }
 
         const stepDist = Math.hypot(this.player.x - prevX, this.player.z - prevZ);
         this.player.currentSpeed = stepDist / Math.max(0.001, dt);
 
-        let yawDiff = ((this.player.yaw - prevYaw + Math.PI) % TWO_PI) - Math.PI;
-        if (yawDiff < -Math.PI) yawDiff += TWO_PI;
-        const turnRate = yawDiff / dt;
+        const yawDiff = shortestAngleDiff(prevYaw, this.player.yaw);
+        const rawTurnRate = clamp(yawDiff / Math.max(0.004, dt), -14.0, 14.0);
+        this.player.smoothTurnRate = lerp(this.player.smoothTurnRate || 0, rawTurnRate, 1.0 - Math.exp(-dt * 14.0));
+        const turnRate = this.player.smoothTurnRate;
 
         const activeZoneNow = this.getCurrentZone();
         if (activeZoneNow !== this.currentZone) {
@@ -11702,6 +12797,7 @@ class SeelenfunkeLouvreShowroom3D {
         this._updatePlayerKinematics(dt, stepDist, turnRate, nearestGaze, 0);
         this._updatePeersKinematics(dt);
         this._updateHeroPedestalAnimations(this.elapsedTime);
+        this._updateAtelierStarRatingStation(dt);
         this._updateWeaponBursts(dt);
 
         for (let i = 0; i < this.steles.length; i++) {
@@ -11733,10 +12829,7 @@ class SeelenfunkeLouvreShowroom3D {
             if (this.player.bubbleSprite) {
                 this.player.bubbleSprite.visible = false;
             }
-            this.player.yaw = Math.atan2(
-                Math.sin(this.camControl.yaw + Math.PI),
-                Math.cos(this.camControl.yaw + Math.PI)
-            );
+            this.player.yaw = normalizeAngleSigned(this.camControl.yaw + Math.PI);
         }
 
         const jumpOffsetY = Math.max(0, this.player.y || 0);
@@ -11772,16 +12865,31 @@ class SeelenfunkeLouvreShowroom3D {
             const rawCamY = this.camControl.lookAtCurrent.y + Math.sin(this.camControl.pitch) * this.camControl.distance + shakeOffset;
             const rawCamZ = this.camControl.lookAtCurrent.z + Math.cos(this.camControl.yaw) * horizDist;
 
-            const maxBoundX = activeZoneNow === 'heroes'
-                ? (this.pantheonHalfW - 0.4)
-                : (this.player.z < this.hallNorthZ + 0.5 ? (this.portalHalfW - 0.25) : (this.hallHalfW - 0.65));
+            // Kamera-Wandschutz (0.24 m Innenabstand zur Wand, niemals Blick von hinter der Aussenwand!)
+            const wallMargin = 0.24;
+            let maxBoundX = this.hallHalfW - wallMargin;
+            let minBoundZ = this.canEnterSanctums ? (this.pantheonMinZ + wallMargin) : (this.hallNorthZ + 0.29);
+            let maxBoundZ = this.hallSouthZ - wallMargin;
+
+            if (activeZoneNow === 'heroes') {
+                maxBoundX = this.pantheonHalfW - wallMargin;
+                if (Math.abs(rawCamX) > this.portalHalfW + 0.9 && this.player.z < this.heroesEntryZ - 0.1) {
+                    maxBoundZ = this.heroesEntryZ - wallMargin;
+                }
+            } else if (this.player.z < this.hallNorthZ + 0.30) {
+                maxBoundX = this.portalHalfW + 0.10;
+            } else {
+                maxBoundX = this.hallHalfW - wallMargin;
+                if (Math.abs(rawCamX) > this.portalHalfW - wallMargin) {
+                    minBoundZ = Math.max(minBoundZ, this.hallNorthZ + 0.29);
+                }
+            }
             const maxBoundY = activeZoneNow === 'heroes' ? 19.5 : 11.5;
-            const minBoundZ = this.canEnterSanctums ? (this.pantheonMinZ + 0.6) : (this.hallNorthZ + 0.75);
 
             this.camera.position.set(
                 clamp(rawCamX, -maxBoundX, maxBoundX),
                 clamp(rawCamY, 0.85, maxBoundY),
-                clamp(rawCamZ, minBoundZ, this.hallSouthZ - 0.55)
+                clamp(rawCamZ, minBoundZ, maxBoundZ)
             );
             this.camera.lookAt(this.camControl.lookAtCurrent);
         }
@@ -11874,6 +12982,10 @@ class SeelenfunkeLouvreShowroom3D {
             }
             const wg = toUv(-11.92, 0.0);
             markers.push({ type: 'gate', u: wg.u, v: wg.v, active: Boolean(this.mmorpgCanEnter) });
+            if (this.atelierStarStation) {
+                const sp = toUv(this.atelierStarStation.x, this.atelierStarStation.z);
+                markers.push({ type: 'star_station', u: sp.u, v: sp.v, active: Boolean(this.atelierStarStationFocused) });
+            }
         } else if (zone === 'heroes') {
             for (let i = 0; i < this.heroPedestals.length; i++) {
                 const ped = this.heroPedestals[i];
@@ -11935,6 +13047,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.floatingHeroCardEl,
             this.floatingPortalCardEl,
             this.floatingOuterGateEl,
+            this.floatingStarStationEl,
         ].forEach((el) => {
             if (el) {
                 el.style.opacity = '0';
@@ -11946,6 +13059,8 @@ class SeelenfunkeLouvreShowroom3D {
         this.floatingHeroCardEl = null;
         this.floatingPortalCardEl = null;
         this.floatingOuterGateEl = null;
+        this.floatingStarStationEl = null;
+        this.atelierStarStation = null;
 
         if (this._fsResizeTimer) {
             clearTimeout(this._fsResizeTimer);
@@ -12124,6 +13239,18 @@ export function createLouvreShowroom(options) {
         },
         getMmorpgAccessState() {
             return Object.freeze(engine.getMmorpgAccessState());
+        },
+        getAtelierReviewState() {
+            return Object.freeze(engine.getAtelierReviewState());
+        },
+        setAtelierReviewState(reviewPayload, opts) {
+            return Object.freeze(engine.setAtelierReviewState(reviewPayload, opts || null));
+        },
+        previewAtelierStarHover(stars) {
+            engine.previewAtelierStarHover(stars);
+        },
+        focusAtelierStarStation() {
+            engine.goToAtelierStarStation();
         },
         setLocalPeerId(peerId) {
             engine.setLocalPeerId(peerId);

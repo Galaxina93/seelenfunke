@@ -10,6 +10,7 @@ use App\Models\Customer\CustomerGamification;
 use App\Models\Delivery\DeliverySetting;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
+use App\Models\Support\SupportExperienceReview;
 use App\Models\System\SystemBlockedIp;
 use App\Models\System\SystemLoginAttempt;
 use App\Services\CartService;
@@ -85,6 +86,7 @@ class ShopShowroomController extends Controller
             'lava_parkour' => $lavaParkourPayload,
             'mmorpg_can_enter' => $playerPayload['mmorpg_can_enter'] ?? false,
             'mmorpg_enter_url' => $playerPayload['mmorpg_enter_url'] ?? '/funkenreich/enter',
+            'atelier_review' => $this->resolveAtelierReviewPayload($customer),
             'products' => $products,
         ], 200, $this->noStoreHeaders());
     }
@@ -325,6 +327,7 @@ class ShopShowroomController extends Controller
             'player_funki' => $playerFunki,
             'multiplayer' => $multiplayerPayload,
             'lava_parkour' => $lavaParkourPayload,
+            'atelier_review' => $this->resolveAtelierReviewPayload($customer),
         ], 200, $this->noStoreHeaders());
     }
 
@@ -557,6 +560,7 @@ class ShopShowroomController extends Controller
             'player_funki' => $playerFunki,
             'multiplayer' => $multiplayerPayload,
             'lava_parkour' => $lavaParkourPayload,
+            'atelier_review' => $this->resolveAtelierReviewPayload($customer),
         ], 200, $this->noStoreHeaders());
     }
 
@@ -1465,6 +1469,42 @@ class ShopShowroomController extends Controller
         return [
             'mmorpg_can_enter' => $isAdmin || $customerAllowed,
             'mmorpg_enter_url' => '/funkenreich/enter',
+        ];
+    }
+
+    /**
+     * Liefert die DSGVO-arme Bewertungs-Payload fuer das 3D-Atelier (Schluessel: funkenreich).
+     *
+     * @return array{
+     *     area: string,
+     *     label: string,
+     *     can_rate: bool,
+     *     has_rated: bool,
+     *     my_rating: int,
+     *     my_comment: string,
+     *     submit_url: string
+     * }
+     */
+    private function resolveAtelierReviewPayload(?Customer $customer): array
+    {
+        $canRate = SupportExperienceReview::isCustomerEligible($customer);
+        $existing = null;
+
+        if ($canRate && $customer !== null && Schema::hasTable('support_experience_reviews')) {
+            $existing = SupportExperienceReview::query()
+                ->where('customer_id', $customer->id)
+                ->where('area', SupportExperienceReview::AREA_FUNKENREICH)
+                ->first();
+        }
+
+        return [
+            'area' => SupportExperienceReview::AREA_FUNKENREICH,
+            'label' => SupportExperienceReview::areaLabel(SupportExperienceReview::AREA_FUNKENREICH),
+            'can_rate' => $canRate,
+            'has_rated' => $existing !== null,
+            'my_rating' => $existing !== null ? (int) $existing->rating : 0,
+            'my_comment' => $existing !== null ? (string) ($existing->comment ?? '') : '',
+            'submit_url' => '/customer/experience-reviews',
         ];
     }
 
