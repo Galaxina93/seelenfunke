@@ -16,6 +16,9 @@ class ProductShow extends Component
     public $showTemplatesList = false;
     #[\Livewire\Attributes\Locked]
     public $productTemplates = [];
+    public bool $showAllSeasonalTemplates = false;
+    #[\Livewire\Attributes\Locked]
+    public int $hiddenSeasonalTemplatesCount = 0;
     public $currentConfig = [];
 
     public function mount(Product $product)
@@ -34,9 +37,9 @@ class ProductShow extends Component
             $templates = ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
 
             if ($templates->isNotEmpty()) {
-                $this->productTemplates = $templates->toArray();
+                $this->refreshStorefrontTemplates($templates);
 
-                // Template Projection Deep-Link Check
+                // Template Projection Deep-Link Check (gilt 365 Tage im Jahr für alle aktiven Vorlagen)
                 $requestedTemplateId = request()->query('t');
                 if ($requestedTemplateId) {
                     $matchingTemplate = $templates->firstWhere('id', $requestedTemplateId);

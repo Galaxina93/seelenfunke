@@ -49,6 +49,8 @@ class ProductCalculator extends Component
     public $showTemplateSelection = false;
     public $showTemplatesList = false;
     public $productTemplates = [];
+    public bool $showAllSeasonalTemplates = false;
+    public int $hiddenSeasonalTemplatesCount = 0;
 
     // --- PREISE & GEWICHT ---
     public $gesamtKosten = 0;
@@ -220,6 +222,8 @@ class ProductCalculator extends Component
         ProductTrackingService::trackCalculatorProductOpened($productId);
 
         $this->currentConfig = [];
+        $this->showAllSeasonalTemplates = false;
+        $this->hiddenSeasonalTemplatesCount = 0;
 
         // --- B2B BYPASS: Wenn nicht personalisiert, direkt in Cart legen! ---
         if (!$this->currentProduct['is_personalizable']) {
@@ -250,7 +254,7 @@ class ProductCalculator extends Component
             ->get();
 
         if ($templates->isNotEmpty()) {
-            $this->productTemplates = $templates->toArray();
+            $this->refreshCalculatorTemplates((string) $productId, $templates);
             $this->showTemplateSelection = true;
             $this->showTemplatesList = false;
             $this->step = 2;
@@ -845,7 +849,7 @@ class ProductCalculator extends Component
 
     public function restartCalculator()
     {
-        $this->reset(['cartItems', 'form', 'isExpress', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight', 'showTemplateSelection', 'showTemplatesList', 'productTemplates', 'lastQuoteNumber', 'lastQuoteToken']);
+        $this->reset(['cartItems', 'form', 'isExpress', 'step', 'gesamtKosten', 'shippingCost', 'totalWeight', 'showTemplateSelection', 'showTemplatesList', 'productTemplates', 'showAllSeasonalTemplates', 'hiddenSeasonalTemplatesCount', 'lastQuoteNumber', 'lastQuoteToken']);
         session()->forget(['calc_cart', 'calc_form']);
         $this->step = 1;
         $this->dispatch('quote-restarted');
@@ -979,19 +983,40 @@ class ProductCalculator extends Component
             'weihnachten' => 'Weihnachten',
             'vatertag' => 'Vatertag',
             'ostern' => 'Ostern',
+            'halloween' => 'Halloween',
+            'silvester' => 'Silvester',
+            'neujahr' => 'Neujahr',
+            'weltfrauentag' => 'Weltfrauentag',
             'geburtstag' => 'Geburtstag',
             'hochzeit' => 'Hochzeit',
             'taufe' => 'Taufe',
             'einschulung' => 'Einschulung',
             'jubilaeum' => 'Jubiläum',
+            'jubiläum' => 'Jubiläum',
             'trauer' => 'Trauer',
         ];
 
-        $availableHolidays = [];
-        foreach ($rawHolidays as $h) {
+        $activeFilterLower = mb_strtolower(trim((string) $this->filterHoliday));
+        $filteredHolidays = [];
+        foreach ($rawHolidays as $index => $h) {
             $trimmed = trim((string) $h);
-            $lower = strtolower($trimmed);
-            $availableHolidays[$trimmed] = $holidayLabels[$lower] ?? ucfirst($trimmed);
+            $lower = mb_strtolower($trimmed);
+            $isActiveUrlFilter = ($activeFilterLower !== '' && $lower === $activeFilterLower);
+            if (!$isActiveUrlFilter && !ProductTemplate::isHolidaySlotCurrentlyRelevant($trimmed)) {
+                continue;
+            }
+            $filteredHolidays[] = [
+                'key' => $trimmed,
+                'label' => $holidayLabels[$lower] ?? ucfirst($trimmed),
+                'priority' => ProductTemplate::resolveHolidaySlotPriority($trimmed),
+                'index' => $index,
+            ];
+        }
+        usort($filteredHolidays, static fn (array $a, array $b): int => [$a['priority'], $a['index']] <=> [$b['priority'], $b['index']]);
+
+        $availableHolidays = [];
+        foreach ($filteredHolidays as $entry) {
+            $availableHolidays[$entry['key']] = $entry['label'];
         }
 
         if (!empty($this->filterHoliday)) {

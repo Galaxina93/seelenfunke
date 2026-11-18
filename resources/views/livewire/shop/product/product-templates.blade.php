@@ -192,6 +192,17 @@
                                             <span class="px-2.5 py-0.5 rounded-lg bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-20)] text-[9px] font-black uppercase tracking-widest">
                                                 {{ $template->holiday }}
                                             </span>
+                                            @if($template->isSeasonalSlot())
+                                                @if($template->isCurrentlyRelevant())
+                                                    <span class="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 text-[9px] font-black uppercase tracking-widest">
+                                                        Saison aktiv
+                                                    </span>
+                                                @else
+                                                    <span class="px-2 py-0.5 rounded-lg bg-gray-100 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-widest">
+                                                        Außer Saison
+                                                    </span>
+                                                @endif
+                                            @endif
                                         @endif
                                         @if(!empty($template->configuration['variant_name']))
                                             <span class="px-2.5 py-0.5 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 text-[9px] font-black uppercase tracking-widest">
@@ -354,10 +365,23 @@
                             @endif
 
                             {{-- Footer Aktionen (Identisch zu /admin/products) --}}
-                            <div class="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800/80 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                                <span class="text-gray-400 dark:text-gray-500">
-                                    {{ $template->holiday ?: 'Standard' }}
-                                </span>
+                            <div class="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800/80 flex justify-between items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                                <div class="flex items-center gap-2 min-w-0 flex-wrap">
+                                    <span class="text-gray-400 dark:text-gray-500">
+                                        {{ $template->holiday ?: 'Standard' }}
+                                    </span>
+                                    @if($template->isSeasonalSlot())
+                                        @if($template->isCurrentlyRelevant())
+                                            <span class="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 text-[8px] font-black uppercase tracking-widest">
+                                                Saison aktiv
+                                            </span>
+                                        @else
+                                            <span class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 text-[8px] font-black uppercase tracking-widest">
+                                                Außer Saison
+                                            </span>
+                                        @endif
+                                    @endif
+                                </div>
 
                                 <div class="flex gap-4">
                                     @if($showArchived)

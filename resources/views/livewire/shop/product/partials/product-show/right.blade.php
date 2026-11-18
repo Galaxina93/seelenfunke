@@ -387,6 +387,20 @@
                                 </div>
                             @endforeach
                         </div>
+
+                        @if($hiddenSeasonalTemplatesCount > 0 || $showAllSeasonalTemplates)
+                            <div class="mt-4 text-center">
+                                <button type="button"
+                                        wire:click="toggleShowAllTemplates"
+                                        class="text-[11px] text-gray-400 hover:text-[var(--theme-color)] transition-colors underline underline-offset-4 cursor-pointer">
+                                    @if($showAllSeasonalTemplates)
+                                        Nur aktuelle Saison anzeigen
+                                    @else
+                                        Alle Vorlagen anzeigen ({{ count($productTemplates) + $hiddenSeasonalTemplatesCount }})
+                                    @endif
+                                </button>
+                            </div>
+                        @endif
                     </div>
 
                 @else

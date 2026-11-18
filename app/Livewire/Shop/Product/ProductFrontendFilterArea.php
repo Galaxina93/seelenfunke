@@ -242,25 +242,50 @@ class ProductFrontendFilterArea extends Component
             'weihnachten' => 'Weihnachten',
             'vatertag' => 'Vatertag',
             'ostern' => 'Ostern',
+            'halloween' => 'Halloween',
+            'silvester' => 'Silvester',
+            'neujahr' => 'Neujahr',
+            'weltfrauentag' => 'Weltfrauentag',
             'geburtstag' => 'Geburtstag',
             'hochzeit' => 'Hochzeit',
             'taufe' => 'Taufe',
             'einschulung' => 'Einschulung',
             'jubilaeum' => 'Jubiläum',
+            'jubiläum' => 'Jubiläum',
             'trauer' => 'Trauer',
         ];
 
+        $activeFilterLower = mb_strtolower(trim((string) $this->filterHoliday));
+        $filteredHolidays = [];
+        $seenLower = [];
+        foreach ($rawHolidays as $index => $h) {
+            $trimmed = trim((string) $h);
+            $lower = mb_strtolower($trimmed);
+            if ($lower === '' || isset($seenLower[$lower])) {
+                continue;
+            }
+            $isActiveUrlFilter = ($activeFilterLower !== '' && $lower === $activeFilterLower);
+            if (!$isActiveUrlFilter && !ProductTemplate::isHolidaySlotCurrentlyRelevant($trimmed)) {
+                continue;
+            }
+            $seenLower[$lower] = true;
+            $filteredHolidays[] = [
+                'key' => $trimmed,
+                'label' => $holidayLabels[$lower] ?? ucfirst($trimmed),
+                'priority' => ProductTemplate::resolveHolidaySlotPriority($trimmed),
+                'index' => $index,
+            ];
+        }
+        usort($filteredHolidays, static fn (array $a, array $b): int => [$a['priority'], $a['index']] <=> [$b['priority'], $b['index']]);
+
         $availableHolidays = [];
-        foreach ($rawHolidays as $h) {
-            $trimmed = trim($h);
-            $lower = strtolower($trimmed);
-            $label = $holidayLabels[$lower] ?? ucfirst($trimmed);
-            $availableHolidays[$trimmed] = $label;
+        foreach ($filteredHolidays as $entry) {
+            $availableHolidays[$entry['key']] = $entry['label'];
         }
 
         if (!empty($this->filterHoliday)) {
             $holidayExists = collect($availableHolidays)->contains(function ($label, $val) {
-                return strtolower($val) === strtolower($this->filterHoliday);
+                return mb_strtolower((string) $val) === mb_strtolower(trim((string) $this->filterHoliday));
             });
             if (!$holidayExists) {
                 $this->filterHoliday = '';
