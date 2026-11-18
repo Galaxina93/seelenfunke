@@ -2381,11 +2381,13 @@ function buildLouvreFriezeTexture(THREE, maxAniso, titleText, subText, disposabl
     ctx.fillStyle = goldGrad;
     ctx.fillText(titleText, W * 0.5, H * 0.43, W - 80);
 
-    ctx.font = '600 19px system-ui, -apple-system, "Segoe UI", sans-serif';
+    ctx.font = '600 22px system-ui, -apple-system, "Segoe UI", sans-serif';
     if ('letterSpacing' in ctx) {
         ctx.letterSpacing = '5px';
     }
-    ctx.fillStyle = '#C5A059';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+    ctx.fillText(subText, W * 0.5 + 1.5, H * 0.77 + 2, W - 90);
+    ctx.fillStyle = '#E6C687';
     ctx.fillText(subText, W * 0.5, H * 0.77, W - 90);
 
     const tex = new THREE.CanvasTexture(c);
@@ -2397,6 +2399,201 @@ function buildLouvreFriezeTexture(THREE, maxAniso, titleText, subText, disposabl
     tex.needsUpdate = true;
     if (disposables) disposables.push(tex);
     return tex;
+}
+
+/**
+ * Dezente prozedurale Baumwoll-Feinkarton-Papierkorn-Bump-Textur fuer den edlen Geschenkgutschein-Umschlag.
+ */
+function buildFineCardstockBumpTexture(THREE, disposables) {
+    const S = 128;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const ctx = c.getContext('2d');
+    const imgData = ctx.createImageData(S, S);
+    const data = imgData.data;
+
+    let seed = 41927;
+    const nextRand = () => {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 4294967296;
+    };
+
+    for (let y = 0; y < S; y++) {
+        const fiberWave = Math.sin((y / S) * TWO_PI * 11.0) * 6.0;
+        for (let x = 0; x < S; x++) {
+            const weave = Math.cos((x / S) * TWO_PI * 13.0) * 5.0;
+            const grain = (nextRand() - 0.5) * 34.0;
+            const v = clamp(Math.round(128 + fiberWave + weave + grain), 72, 188);
+            const idx = (y * S + x) * 4;
+            data[idx] = v;
+            data[idx + 1] = v;
+            data[idx + 2] = v;
+            data[idx + 3] = 255;
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(3.2, 2.2);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Edle mattschwarze Rueckseiten-Heissfolienpraegung "MEIN SEELENFUNKE" fuer die 360-Grad-Drehung des Gutschein-Umschlags.
+ */
+function buildVoucherBackCrestTexture(THREE, maxAniso, disposables) {
+    const W = 768;
+    const H = 540;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+
+    ctx.fillStyle = '#141518';
+    ctx.fillRect(0, 0, W, H);
+
+    const goldGrad = ctx.createLinearGradient(0, H * 0.22, W, H * 0.78);
+    goldGrad.addColorStop(0.0, '#B89246');
+    goldGrad.addColorStop(0.32, '#F3DDA6');
+    goldGrad.addColorStop(0.55, '#C5A059');
+    goldGrad.addColorStop(0.82, '#E6C687');
+    goldGrad.addColorStop(1.0, '#9E7A36');
+
+    const drawChamferRect = (pad, ch) => {
+        ctx.beginPath();
+        ctx.moveTo(pad + ch, pad);
+        ctx.lineTo(W - pad - ch, pad);
+        ctx.lineTo(W - pad, pad + ch);
+        ctx.lineTo(W - pad, H - pad - ch);
+        ctx.lineTo(W - pad - ch, H - pad);
+        ctx.lineTo(pad + ch, H - pad);
+        ctx.lineTo(pad, H - pad - ch);
+        ctx.lineTo(pad, pad + ch);
+        ctx.closePath();
+    };
+
+    ctx.strokeStyle = goldGrad;
+    ctx.lineWidth = 4.5;
+    drawChamferRect(26, 22);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(230, 198, 135, 0.52)';
+    ctx.lineWidth = 1.6;
+    drawChamferRect(38, 16);
+    ctx.stroke();
+
+    const cx = W * 0.5;
+    const starY = H * 0.37;
+    ctx.fillStyle = goldGrad;
+    ctx.beginPath();
+    ctx.moveTo(cx, starY - 16);
+    ctx.lineTo(cx + 4.5, starY - 4.5);
+    ctx.lineTo(cx + 16, starY);
+    ctx.lineTo(cx + 4.5, starY + 4.5);
+    ctx.lineTo(cx, starY + 16);
+    ctx.lineTo(cx - 4.5, starY + 4.5);
+    ctx.lineTo(cx - 16, starY);
+    ctx.lineTo(cx - 4.5, starY - 4.5);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '600 34px Georgia, "Times New Roman", serif';
+    if ('letterSpacing' in ctx) {
+        ctx.letterSpacing = '7px';
+    }
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+    ctx.fillText('MEIN SEELENFUNKE', cx + 1.5, H * 0.51 + 2, W - 140);
+    ctx.fillStyle = goldGrad;
+    ctx.fillText('MEIN SEELENFUNKE', cx, H * 0.51, W - 140);
+
+    ctx.strokeStyle = 'rgba(230, 198, 135, 0.58)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 118, H * 0.59);
+    ctx.lineTo(cx + 118, H * 0.59);
+    ctx.stroke();
+
+    ctx.font = '600 15px system-ui, -apple-system, "Segoe UI", sans-serif';
+    if ('letterSpacing' in ctx) {
+        ctx.letterSpacing = '4px';
+    }
+    ctx.fillStyle = '#D9B875';
+    ctx.fillText('GESCHENKGUTSCHEIN · MANUFAKTUR GIFHORN', cx, H * 0.65, W - 140);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = Math.min(maxAniso || 4, 8);
+    applySrgbColorSpace(THREE, tex);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Erzeugt ein exakt auf Gehrung geschnittenes 2D-THREE.Shape entlang eines Polylinien-Pfads (CCW fuer saubere ExtrudeGeometry-Normalen).
+ */
+function buildMiteredRibbonShape(THREE, pts, halfWidth) {
+    const shape = new THREE.Shape();
+    if (!pts || pts.length < 2) return shape;
+
+    const segNormals = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+        const dx = pts[i + 1][0] - pts[i][0];
+        const dy = pts[i + 1][1] - pts[i][1];
+        const len = Math.max(1e-6, Math.hypot(dx, dy));
+        segNormals.push([-dy / len, dx / len]);
+    }
+
+    const leftPts = [];
+    const rightPts = [];
+    for (let i = 0; i < pts.length; i++) {
+        let nx = 0;
+        let ny = 0;
+        let scale = halfWidth;
+        if (i === 0) {
+            nx = segNormals[0][0];
+            ny = segNormals[0][1];
+        } else if (i === pts.length - 1) {
+            nx = segNormals[segNormals.length - 1][0];
+            ny = segNormals[segNormals.length - 1][1];
+        } else {
+            const n0 = segNormals[i - 1];
+            const n1 = segNormals[i];
+            const mx = n0[0] + n1[0];
+            const my = n0[1] + n1[1];
+            const mLen = Math.hypot(mx, my);
+            if (mLen < 1e-4) {
+                nx = n0[0];
+                ny = n0[1];
+            } else {
+                nx = mx / mLen;
+                ny = my / mLen;
+                const dot = Math.max(0.38, nx * n0[0] + ny * n0[1]);
+                scale = halfWidth / dot;
+            }
+        }
+        leftPts.push([pts[i][0] + nx * scale, pts[i][1] + ny * scale]);
+        rightPts.push([pts[i][0] - nx * scale, pts[i][1] - ny * scale]);
+    }
+
+    shape.moveTo(rightPts[0][0], rightPts[0][1]);
+    for (let i = 1; i < rightPts.length; i++) {
+        shape.lineTo(rightPts[i][0], rightPts[i][1]);
+    }
+    for (let i = leftPts.length - 1; i >= 0; i--) {
+        shape.lineTo(leftPts[i][0], leftPts[i][1]);
+    }
+    shape.closePath();
+    return shape;
 }
 
 /**
@@ -3488,6 +3685,8 @@ class SeelenfunkeLouvreShowroom3D {
             headYaw: 0,
             headPitch: 0,
             isMoving: false,
+            isSprinting: false,
+            sprintBoost: 0.0,
             currentSpeed: 0,
             autoTarget: null,
             autoLookAt: null,
@@ -3503,6 +3702,7 @@ class SeelenfunkeLouvreShowroom3D {
         this._heroesNeedsLiveRefresh = false;
 
         this._avatarShared = null;
+        this._voucherShared = null;
         this.peers = new Map();
         this.weaponBursts = [];
         this.soloMode = Boolean(options.soloMode);
@@ -4844,10 +5044,10 @@ class SeelenfunkeLouvreShowroom3D {
         this.westOuterGateGroup.add(goldArchivolt);
 
         const keystone = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(0.36, 0.54, 0.38)),
+            this._trackDisposable(new THREE.BoxGeometry(0.24, 0.32, 0.34)),
             this.mats.goldMatcapBright
         );
-        keystone.position.set(0.22, springY + halfSpan + 0.05, 0);
+        keystone.position.set(0.14, springY + halfSpan - 0.04, 0);
         this.westOuterGateGroup.add(keystone);
 
         const fanlightDisc = new THREE.Mesh(
@@ -4991,16 +5191,16 @@ class SeelenfunkeLouvreShowroom3D {
             polygonOffsetUnits: -2,
             depthWrite: true,
         }));
-        const outerFriezeY = springY + halfSpan + 0.42;
+        const outerFriezeY = springY + halfSpan + 0.68;
         const outerFriezeBack = new THREE.Mesh(
-            this._trackDisposable(new THREE.BoxGeometry(0.22, 1.16, 5.2)),
+            this._trackDisposable(new THREE.BoxGeometry(0.22, 1.06, 5.2)),
             this.mats.goldMatcapBright
         );
         outerFriezeBack.position.set(0.24, outerFriezeY, 0);
         this.westOuterGateGroup.add(outerFriezeBack);
 
         const outerFriezePlane = new THREE.Mesh(
-            this._trackDisposable(new THREE.PlaneGeometry(4.96, 1.00)),
+            this._trackDisposable(new THREE.PlaneGeometry(4.96, 0.92)),
             outerGateFriezeMat
         );
         outerFriezePlane.rotation.y = Math.PI * 0.5;
@@ -6888,8 +7088,14 @@ class SeelenfunkeLouvreShowroom3D {
             }
         };
 
+        const isVoucherExhibit = Boolean(
+            nextStele.product
+            && (nextStele.product.slug === 'geschenkgutschein' || nextStele.product.collection_world === 'voucher')
+        );
         if (nextStele.product.glb_url) {
             this._populateExhibitGlb(nextStele).finally(done);
+        } else if (isVoucherExhibit) {
+            this._populateVoucherEnvelope3D(nextStele).finally(done);
         } else {
             this._populateFramedPhotoExhibit(nextStele).finally(done);
         }
@@ -7078,6 +7284,433 @@ class SeelenfunkeLouvreShowroom3D {
             img.onerror = () => resolve();
             img.src = product.preview_image_url;
         });
+    }
+
+    /**
+     * Dedizierte 3D-Manufaktur-Skulptur fuer den Geschenkgutschein (C6-Format 162 x 114 mm -> 0.420 x 0.296 m):
+     * Mattschwarzer Feinkarton-Umschlag (#141518) mit echten 3D-Klappen & Schattenfugen,
+     * 4 diagonalen 24K-Gold-Zierleisten, plastischem 3D-Gold-Wachssiegel (Lorbeerkranz + 3D-Herz-Relief),
+     * edler "MEIN SEELENFUNKE"-Rueckseitenpraegung und dezentem 24K-Gold-Aufsteller.
+     */
+    _populateVoucherEnvelope3D(steleRecord) {
+        if (this.destroyed || !steleRecord || !steleRecord.turntable) {
+            return Promise.resolve();
+        }
+        const THREE = this.THREE;
+        const { turntable } = steleRecord;
+
+        const W = 0.420;
+        const H = 0.296;
+        const halfW = W * 0.5;
+        const halfH = H * 0.5;
+        const sealY = -0.018;
+
+        const paperBumpTex = buildFineCardstockBumpTexture(THREE, this.disposables);
+        const matteBlackCardMat = this._trackDisposable(new THREE.MeshStandardMaterial({
+            color: 0x141518,
+            roughness: 0.74,
+            metalness: 0.06,
+            bumpMap: paperBumpTex,
+            bumpScale: 0.0018,
+            envMapIntensity: 0.62,
+        }));
+        const flapSeamShadowMat = this._trackDisposable(new THREE.MeshStandardMaterial({
+            color: 0x08090c,
+            roughness: 0.90,
+            metalness: 0.02,
+            envMapIntensity: 0.25,
+        }));
+        const waxCastGoldMat = this._trackDisposable(new THREE.MeshStandardMaterial({
+            color: 0xd6af54,
+            roughness: 0.24,
+            metalness: 0.90,
+            envMapIntensity: 1.38,
+        }));
+
+        const backCrestTex = buildVoucherBackCrestTexture(THREE, this.maxAniso, this.disposables);
+        const backCrestMat = this._trackDisposable(new THREE.MeshStandardMaterial({
+            map: backCrestTex,
+            bumpMap: paperBumpTex,
+            bumpScale: 0.0014,
+            roughness: 0.66,
+            metalness: 0.18,
+            envMapIntensity: 0.85,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
+        }));
+
+        const voucherRoot = new THREE.Group();
+        const envelopeGroup = new THREE.Group();
+        envelopeGroup.rotation.x = -0.15;
+        envelopeGroup.position.set(0, 0.014, 0.006);
+        voucherRoot.add(envelopeGroup);
+
+        // 1. Mattschwarzer Feinkarton-Korpus mit sanft gefasten Kanten (Tiefe ~ 0.012 m)
+        const cornerR = 0.004;
+        const bodyShape = new THREE.Shape();
+        const bx = halfW - 0.0016;
+        const by = halfH - 0.0016;
+        bodyShape.moveTo(-bx + cornerR, -by);
+        bodyShape.lineTo(bx - cornerR, -by);
+        bodyShape.quadraticCurveTo(bx, -by, bx, -by + cornerR);
+        bodyShape.lineTo(bx, by - cornerR);
+        bodyShape.quadraticCurveTo(bx, by, bx - cornerR, by);
+        bodyShape.lineTo(-bx + cornerR, by);
+        bodyShape.quadraticCurveTo(-bx, by, -bx, by - cornerR);
+        bodyShape.lineTo(-bx, -by + cornerR);
+        bodyShape.quadraticCurveTo(-bx, -by, -bx + cornerR, -by);
+        bodyShape.closePath();
+
+        const bodyGeo = this._trackDisposable(new THREE.ExtrudeGeometry(bodyShape, {
+            depth: 0.0088,
+            bevelEnabled: true,
+            bevelThickness: 0.0016,
+            bevelSize: 0.0016,
+            bevelSegments: 3,
+            curveSegments: 8,
+        }));
+        bodyGeo.translate(0, 0, -0.0044);
+        envelopeGroup.add(new THREE.Mesh(bodyGeo, matteBlackCardMat));
+
+        // 2. Echte 3D-Umschlagklappen auf der Vorderseite (seitliche Faltflaechen + untere Tasche + obere V-Verschlussklappe)
+        const leftSideShape = new THREE.Shape();
+        leftSideShape.moveTo(-halfW + 0.0015, -halfH + 0.004);
+        leftSideShape.lineTo(-0.026, sealY);
+        leftSideShape.lineTo(-halfW + 0.0015, halfH - 0.004);
+        leftSideShape.closePath();
+
+        const rightSideShape = new THREE.Shape();
+        rightSideShape.moveTo(halfW - 0.0015, halfH - 0.004);
+        rightSideShape.lineTo(0.026, sealY);
+        rightSideShape.lineTo(halfW - 0.0015, -halfH + 0.004);
+        rightSideShape.closePath();
+
+        const sideFlapOpts = {
+            depth: 0.0009,
+            bevelEnabled: true,
+            bevelThickness: 0.00035,
+            bevelSize: 0.00035,
+            bevelSegments: 2,
+        };
+        const leftSideMesh = new THREE.Mesh(this._trackDisposable(new THREE.ExtrudeGeometry(leftSideShape, sideFlapOpts)), matteBlackCardMat);
+        leftSideMesh.position.z = 0.0061;
+        const rightSideMesh = new THREE.Mesh(this._trackDisposable(new THREE.ExtrudeGeometry(rightSideShape, sideFlapOpts)), matteBlackCardMat);
+        rightSideMesh.position.z = 0.0061;
+        envelopeGroup.add(leftSideMesh, rightSideMesh);
+
+        const bottomFlapShape = new THREE.Shape();
+        bottomFlapShape.moveTo(-halfW + 0.003, -halfH + 0.001);
+        bottomFlapShape.lineTo(halfW - 0.003, -halfH + 0.001);
+        bottomFlapShape.lineTo(halfW - 0.012, -halfH + 0.024);
+        bottomFlapShape.lineTo(0.046, sealY + 0.022);
+        bottomFlapShape.lineTo(-0.046, sealY + 0.022);
+        bottomFlapShape.lineTo(-halfW + 0.012, -halfH + 0.024);
+        bottomFlapShape.closePath();
+
+        const bottomShadowGeo = this._trackDisposable(new THREE.ExtrudeGeometry(bottomFlapShape, {
+            depth: 0.0005,
+            bevelEnabled: false,
+        }));
+        const bottomShadowMesh = new THREE.Mesh(bottomShadowGeo, flapSeamShadowMat);
+        bottomShadowMesh.position.set(0, 0.0016, 0.0070);
+        envelopeGroup.add(bottomShadowMesh);
+
+        const bottomFlapGeo = this._trackDisposable(new THREE.ExtrudeGeometry(bottomFlapShape, {
+            depth: 0.0011,
+            bevelEnabled: true,
+            bevelThickness: 0.0004,
+            bevelSize: 0.0004,
+            bevelSegments: 2,
+        }));
+        const bottomFlapMesh = new THREE.Mesh(bottomFlapGeo, matteBlackCardMat);
+        bottomFlapMesh.position.z = 0.0075;
+        envelopeGroup.add(bottomFlapMesh);
+
+        // Untere 2 diagonale 24K-Gold-Zierkanten (von den unteren Ecken bis exakt an die obere V-Klappe)
+        const lowerGoldTrimOpts = {
+            depth: 0.0014,
+            bevelEnabled: true,
+            bevelThickness: 0.00045,
+            bevelSize: 0.00042,
+            bevelSegments: 2,
+        };
+        const lowerTrimShapeL = buildMiteredRibbonShape(THREE, [
+            [-halfW + 0.0038, -halfH + 0.0016],
+            [-halfW + 0.0120, -halfH + 0.0240],
+            [-0.0480, 0.0073],
+        ], 0.0032);
+        const lowerTrimShapeR = buildMiteredRibbonShape(THREE, [
+            [0.0480, 0.0073],
+            [halfW - 0.0120, -halfH + 0.0240],
+            [halfW - 0.0038, -halfH + 0.0016],
+        ], 0.0032);
+
+        const lowerGoldMeshL = new THREE.Mesh(this._trackDisposable(new THREE.ExtrudeGeometry(lowerTrimShapeL, lowerGoldTrimOpts)), this.mats.goldChampagne);
+        lowerGoldMeshL.position.z = 0.0083;
+        const lowerGoldMeshR = new THREE.Mesh(this._trackDisposable(new THREE.ExtrudeGeometry(lowerTrimShapeR, lowerGoldTrimOpts)), this.mats.goldChampagne);
+        lowerGoldMeshR.position.z = 0.0083;
+        envelopeGroup.add(lowerGoldMeshL, lowerGoldMeshR);
+
+        // Obere dreieckige V-Verschlussklappe (physisch leicht abgesetzt mit echter Schattenfuge)
+        const upperTipY = sealY - 0.012;
+        const upperFlapShape = new THREE.Shape();
+        upperFlapShape.moveTo(0.0, upperTipY);
+        upperFlapShape.lineTo(halfW - 0.012, halfH - 0.024);
+        upperFlapShape.lineTo(halfW - 0.003, halfH - 0.001);
+        upperFlapShape.lineTo(-halfW + 0.003, halfH - 0.001);
+        upperFlapShape.lineTo(-halfW + 0.012, halfH - 0.024);
+        upperFlapShape.closePath();
+
+        const upperShadowGeo = this._trackDisposable(new THREE.ExtrudeGeometry(upperFlapShape, {
+            depth: 0.0006,
+            bevelEnabled: false,
+        }));
+        const upperShadowMesh = new THREE.Mesh(upperShadowGeo, flapSeamShadowMat);
+        upperShadowMesh.position.set(0, -0.0022, 0.0096);
+        envelopeGroup.add(upperShadowMesh);
+
+        const upperFlapGeo = this._trackDisposable(new THREE.ExtrudeGeometry(upperFlapShape, {
+            depth: 0.0013,
+            bevelEnabled: true,
+            bevelThickness: 0.00045,
+            bevelSize: 0.00045,
+            bevelSegments: 2,
+        }));
+        const upperFlapMesh = new THREE.Mesh(upperFlapGeo, matteBlackCardMat);
+        upperFlapMesh.position.z = 0.0101;
+        envelopeGroup.add(upperFlapMesh);
+
+        // Obere 2 diagonale 24K-Gold-Zierleisten entlang der V-Verschlussklappe bis unter das Wachssiegel
+        const upperGoldTrimOpts = {
+            depth: 0.0015,
+            bevelEnabled: true,
+            bevelThickness: 0.00048,
+            bevelSize: 0.00045,
+            bevelSegments: 2,
+        };
+        const upperTrimShapeL = buildMiteredRibbonShape(THREE, [
+            [-halfW + 0.0038, halfH - 0.0016],
+            [-halfW + 0.0120, halfH - 0.0240],
+            [0.0, upperTipY + 0.001],
+        ], 0.0033);
+        const upperTrimShapeR = buildMiteredRibbonShape(THREE, [
+            [0.0, upperTipY + 0.001],
+            [halfW - 0.0120, halfH - 0.0240],
+            [halfW - 0.0038, halfH - 0.0016],
+        ], 0.0033);
+
+        const upperGoldMeshL = new THREE.Mesh(this._trackDisposable(new THREE.ExtrudeGeometry(upperTrimShapeL, upperGoldTrimOpts)), this.mats.goldChampagne);
+        upperGoldMeshL.position.z = 0.0110;
+        const upperGoldMeshR = new THREE.Mesh(this._trackDisposable(new THREE.ExtrudeGeometry(upperTrimShapeR, upperGoldTrimOpts)), this.mats.goldChampagne);
+        upperGoldMeshR.position.z = 0.0110;
+        envelopeGroup.add(upperGoldMeshL, upperGoldMeshR);
+
+        // 4. Plastisches 3D-Gold-Wachssiegel (radius ~ 0.046 m) mittig auf der Klappenspitze (y = -0.018)
+        const sealGroup = new THREE.Group();
+        sealGroup.position.set(0.0, sealY, 0.0128);
+        envelopeGroup.add(sealGroup);
+
+        const waxOuterShape = new THREE.Shape();
+        const waxSegs = 56;
+        for (let wi = 0; wi <= waxSegs; wi++) {
+            const ang = (wi / waxSegs) * TWO_PI;
+            const organicR = 0.0445
+                + 0.0016 * Math.sin(ang * 5.0 + 0.42)
+                + 0.0011 * Math.cos(ang * 8.0 - 0.68)
+                + 0.0006 * Math.sin(ang * 13.0 + 1.15);
+            const wx = Math.cos(ang) * organicR;
+            const wy = Math.sin(ang) * organicR;
+            if (wi === 0) waxOuterShape.moveTo(wx, wy);
+            else waxOuterShape.lineTo(wx, wy);
+        }
+        waxOuterShape.closePath();
+
+        const waxDiscGeo = this._trackDisposable(new THREE.ExtrudeGeometry(waxOuterShape, {
+            depth: 0.0026,
+            bevelEnabled: true,
+            bevelThickness: 0.0019,
+            bevelSize: 0.0017,
+            bevelSegments: 4,
+        }));
+        sealGroup.add(new THREE.Mesh(waxDiscGeo, waxCastGoldMat));
+
+        const waxRimTorus = new THREE.Mesh(
+            this._trackDisposable(new THREE.TorusGeometry(0.0392, 0.0046, 14, 52)),
+            waxCastGoldMat
+        );
+        waxRimTorus.scale.set(1.015, 0.992, 0.80);
+        waxRimTorus.position.z = 0.0034;
+        sealGroup.add(waxRimTorus);
+
+        const sealInnerMirror = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.0362, 0.0362, 0.0014, 44)),
+            this.mats.goldBrushed
+        );
+        sealInnerMirror.rotation.x = Math.PI * 0.5;
+        sealInnerMirror.position.z = 0.0036;
+        sealGroup.add(sealInnerMirror);
+
+        const sealInnerRing = new THREE.Mesh(
+            this._trackDisposable(new THREE.TorusGeometry(0.0328, 0.0011, 10, 48)),
+            this.mats.goldChampagne
+        );
+        sealInnerRing.position.z = 0.0046;
+        sealGroup.add(sealInnerRing);
+
+        // Zarter 3D-Lorbeerkranz links & rechts im Siegelrund
+        const wreathR = 0.0256;
+        const wreathArcSpan = Math.PI * 0.76;
+        const stemGeo = this._trackDisposable(new THREE.TorusGeometry(wreathR, 0.00068, 8, 30, wreathArcSpan));
+        const rightStem = new THREE.Mesh(stemGeo, this.mats.goldChampagne);
+        rightStem.rotation.z = -wreathArcSpan * 0.5;
+        rightStem.position.z = 0.0046;
+        const leftStem = new THREE.Mesh(stemGeo, this.mats.goldChampagne);
+        leftStem.rotation.z = Math.PI - wreathArcSpan * 0.5;
+        leftStem.position.z = 0.0046;
+        sealGroup.add(rightStem, leftStem);
+
+        const leafShape = new THREE.Shape();
+        leafShape.moveTo(0, 0);
+        leafShape.quadraticCurveTo(0.0015, 0.0022, 0.0, 0.0058);
+        leafShape.quadraticCurveTo(-0.0015, 0.0022, 0.0, 0);
+        leafShape.closePath();
+        const leafGeo = this._trackDisposable(new THREE.ExtrudeGeometry(leafShape, {
+            depth: 0.0008,
+            bevelEnabled: true,
+            bevelThickness: 0.00032,
+            bevelSize: 0.00028,
+            bevelSegments: 2,
+            curveSegments: 6,
+        }));
+
+        const branchSteps = 9;
+        [-1, 1].forEach((side) => {
+            for (let li = 0; li < branchSteps; li++) {
+                const frac = (li + 0.45) / branchSteps;
+                const theta = -Math.PI * 0.37 + frac * (Math.PI * 0.74);
+                const ang = side > 0 ? theta : (Math.PI - theta);
+                const bxLeaf = Math.cos(ang) * wreathR;
+                const byLeaf = Math.sin(ang) * wreathR;
+                const tangentDir = side > 0 ? (ang + Math.PI * 0.5) : (ang - Math.PI * 0.5);
+
+                [-1, 1].forEach((splay) => {
+                    if (li === branchSteps - 1 && splay < 0) return;
+                    const leafMesh = new THREE.Mesh(leafGeo, this.mats.goldChampagne);
+                    const splayAngle = (tangentDir - Math.PI * 0.5) + splay * side * 0.46;
+                    leafMesh.position.set(bxLeaf, byLeaf, 0.0046);
+                    leafMesh.rotation.set(0.08 * splay, 0, splayAngle);
+                    const leafScale = 1.0 - frac * 0.18;
+                    leafMesh.scale.setScalar(leafScale);
+                    sealGroup.add(leafMesh);
+                });
+            }
+        });
+
+        const stemTieShape = buildMiteredRibbonShape(THREE, [
+            [-0.0052, -wreathR - 0.0012],
+            [0.0, -wreathR + 0.0012],
+            [0.0052, -wreathR - 0.0012],
+        ], 0.00075);
+        const stemTieMesh = new THREE.Mesh(
+            this._trackDisposable(new THREE.ExtrudeGeometry(stemTieShape, { depth: 0.0009, bevelEnabled: false })),
+            this.mats.goldChampagne
+        );
+        stemTieMesh.position.z = 0.0047;
+        sealGroup.add(stemTieMesh);
+
+        // Plastisches 3D-Herz-Relief exakt in der Mitte des Siegels
+        const heartCurveShape = new THREE.Shape();
+        heartCurveShape.moveTo(0.0, -0.0124);
+        heartCurveShape.bezierCurveTo(0.0038, -0.0046, 0.0112, 0.0026, 0.0088, 0.0098);
+        heartCurveShape.bezierCurveTo(0.0066, 0.0136, 0.0016, 0.0112, 0.0, 0.0050);
+        heartCurveShape.bezierCurveTo(-0.0016, 0.0112, -0.0066, 0.0136, -0.0088, 0.0098);
+        heartCurveShape.bezierCurveTo(-0.0112, 0.0026, -0.0038, -0.0046, 0.0, -0.0124);
+        heartCurveShape.closePath();
+
+        const heartBaseReliefGeo = this._trackDisposable(new THREE.ExtrudeGeometry(heartCurveShape, {
+            depth: 0.0008,
+            bevelEnabled: true,
+            bevelThickness: 0.0003,
+            bevelSize: 0.00025,
+            bevelSegments: 2,
+            curveSegments: 14,
+        }));
+        const heartBaseMesh = new THREE.Mesh(heartBaseReliefGeo, waxCastGoldMat);
+        heartBaseMesh.position.set(0, 0.0006, 0.0044);
+        sealGroup.add(heartBaseMesh);
+
+        const sampledPts = heartCurveShape.getPoints(36);
+        const heartRibbonPts = [];
+        for (let hi = 0; hi < sampledPts.length; hi++) {
+            heartRibbonPts.push([sampledPts[hi].x, sampledPts[hi].y]);
+        }
+        if (heartRibbonPts.length > 2) {
+            heartRibbonPts.push([heartRibbonPts[0][0], heartRibbonPts[0][1]]);
+        }
+        const heartOutlineShape = buildMiteredRibbonShape(THREE, heartRibbonPts, 0.00112);
+        const heartOutlineGeo = this._trackDisposable(new THREE.ExtrudeGeometry(heartOutlineShape, {
+            depth: 0.0017,
+            bevelEnabled: true,
+            bevelThickness: 0.00048,
+            bevelSize: 0.00042,
+            bevelSegments: 2,
+        }));
+        const heartOutlineMesh = new THREE.Mesh(heartOutlineGeo, this.mats.goldChampagne);
+        heartOutlineMesh.position.set(0, 0.0006, 0.0048);
+        sealGroup.add(heartOutlineMesh);
+
+        // 5. Edle Rueckseite fuer die 360-Grad-Drehung auf dem Vitrinen-Drehteller
+        const backPlateMesh = new THREE.Mesh(
+            this._trackDisposable(new THREE.PlaneGeometry(W - 0.009, H - 0.009)),
+            backCrestMat
+        );
+        backPlateMesh.rotation.y = Math.PI;
+        backPlateMesh.position.z = -0.0063;
+        envelopeGroup.add(backPlateMesh);
+
+        const backGoldBarH = this._trackDisposable(new THREE.BoxGeometry(W - 0.032, 0.0022, 0.0012));
+        [-halfH + 0.015, halfH - 0.015].forEach((byBar) => {
+            const bBar = new THREE.Mesh(backGoldBarH, this.mats.goldChampagne);
+            bBar.position.set(0, byBar, -0.0065);
+            envelopeGroup.add(bBar);
+        });
+
+        // 6. Feiner, dezenter 24K-Gold-Museums-Aufsteller (laesst die Rueckseitenpraegung in der Mitte zu 100 % frei!)
+        const easelGroup = new THREE.Group();
+        voucherRoot.add(easelGroup);
+
+        const standBase = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.24, 0.011, 0.115)),
+            this.mats.goldBrushed
+        );
+        standBase.position.set(0, -0.146, -0.014);
+        easelGroup.add(standBase);
+
+        const cradleCrossbar = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.22, 0.0065, 0.016)),
+            this.mats.goldChampagne
+        );
+        cradleCrossbar.position.set(0, -0.135, 0.025);
+        easelGroup.add(cradleCrossbar);
+
+        const lipGeo = this._trackDisposable(new THREE.BoxGeometry(0.014, 0.016, 0.005));
+        const rearStrutGeo = this._trackDisposable(new THREE.BoxGeometry(0.008, 0.092, 0.008));
+        [-0.092, 0.092].forEach((sxStand) => {
+            const frontLip = new THREE.Mesh(lipGeo, this.mats.goldChampagne);
+            frontLip.position.set(sxStand, -0.128, 0.034);
+            frontLip.rotation.x = -0.15;
+            easelGroup.add(frontLip);
+
+            const rearStrut = new THREE.Mesh(rearStrutGeo, this.mats.goldBrushed);
+            rearStrut.position.set(sxStand, -0.102, -0.026);
+            rearStrut.rotation.x = 0.44;
+            easelGroup.add(rearStrut);
+        });
+
+        this._clearPlaceholder(steleRecord);
+        turntable.add(voucherRoot);
+        return Promise.resolve();
     }
 
     /**
@@ -7910,8 +8543,15 @@ class SeelenfunkeLouvreShowroom3D {
         const vy = (kinMeta && kinMeta.vy) ? kinMeta.vy : 0;
         const turnRate = (kinMeta && kinMeta.turnRate) ? kinMeta.turnRate : 0;
         const animState = (kinMeta && kinMeta.animState) ? kinMeta.animState : 'idle';
+        const sprintBoost = (kinMeta && typeof kinMeta.sprintBoost === 'number')
+            ? clamp(kinMeta.sprintBoost, 0, 1.0)
+            : clamp((speed - 5.2) / 3.6, 0, 1.0);
 
         this._crossfadeSkinnedRigState(skinnedRig, animState, 0.22);
+        if (skinnedRig.actions && skinnedRig.actions.run && skinnedRig.activeState === 'run') {
+            const runTimeScale = lerp(1.0, 1.69, sprintBoost > 0.01 ? sprintBoost : clamp((speed / 5.2 - 1.0) / 0.69, 0, 1.0));
+            skinnedRig.actions.run.setEffectiveTimeScale(runTimeScale);
+        }
         if (skinnedRig.mixer) {
             skinnedRig.mixer.update(dt);
         }
@@ -8475,13 +9115,13 @@ class SeelenfunkeLouvreShowroom3D {
         const heightAboveSupport = Math.max(0, visualY - shadowSurfaceY);
         const airBlend = clamp(heightAboveSupport / 0.26, 0, 1);
         const squash = this.player.landSquash || 0;
-        const sprintBoost = 0.0;
+        const sprintBoost = clamp(this.player.sprintBoost || 0, 0, 1.0);
 
         this.player.root.position.set(this.player.x, floorOffset + visualY, this.player.z);
         this.player.root.rotation.y = this.player.yaw;
         this.player.root.rotation.x = 0;
 
-        const strideFrequency = 4.48;
+        const strideFrequency = 4.48 + 0.72 * sprintBoost;
         if (stepDist > 0.0001 && airBlend < 0.65) {
             this.player.walkPhase = (this.player.walkPhase + stepDist * strideFrequency) % TWO_PI;
             const halfCycle = Math.floor((this.player.walkPhase / Math.PI) % 2);
@@ -8675,11 +9315,12 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         if (j.thrusterFlameL && j.thrusterFlameR) {
-            j.thrusterFlameL.visible = false;
-            j.thrusterFlameR.visible = false;
+            const showThrusters = !(this.player.builtRecord && this.player.builtRecord.skinnedRig) && sprintBoost > 0.15;
+            j.thrusterFlameL.visible = showThrusters;
+            j.thrusterFlameR.visible = showThrusters;
         }
         if (j.reactorRing) {
-            j.reactorRing.rotation.z = this.elapsedTime * 1.1;
+            j.reactorRing.rotation.z = this.elapsedTime * (1.1 + 2.9 * sprintBoost);
         }
 
         // Punkt 2: Exakte 0-mm-Boden-Buendigkeit der tieferen Schuhsohle auf groundY + 0.004!
@@ -8741,6 +9382,7 @@ class SeelenfunkeLouvreShowroom3D {
                 vy: this.player.vy || 0,
                 turnRate,
                 animState,
+                sprintBoost,
             });
         }
     }
@@ -9959,6 +10601,9 @@ class SeelenfunkeLouvreShowroom3D {
         this.camControl.hadChordWalk = false;
         this.camControl.isDragging = false;
         this.keys = {};
+        if (this.player) {
+            this.player.isSprinting = false;
+        }
     }
 
     _onKeyDown(e) {
@@ -9972,7 +10617,14 @@ class SeelenfunkeLouvreShowroom3D {
         const code = e.code || e.key;
         const kb = this.keybindings;
 
-        this.keys[code] = true;
+        if (code) {
+            this.keys[code] = true;
+        }
+        if (code === 'ShiftLeft' || code === 'ShiftRight' || e.key === 'Shift' || e.shiftKey === true) {
+            if (code === 'ShiftLeft') this.keys.ShiftLeft = true;
+            if (code === 'ShiftRight') this.keys.ShiftRight = true;
+            this.keys.Shift = true;
+        }
 
         if (matchesActionKey(code, kb.jump) || (kb.jump === 'Space' && e.key === ' ')) {
             e.preventDefault();
@@ -9999,7 +10651,21 @@ class SeelenfunkeLouvreShowroom3D {
 
     _onKeyUp(e) {
         const code = e.code || e.key;
-        this.keys[code] = false;
+        if (code) {
+            this.keys[code] = false;
+        }
+        if (code === 'ShiftLeft' || code === 'ShiftRight' || e.key === 'Shift') {
+            if (code === 'ShiftLeft') this.keys.ShiftLeft = false;
+            if (code === 'ShiftRight') this.keys.ShiftRight = false;
+            if (!this.keys.ShiftLeft && !this.keys.ShiftRight) {
+                this.keys.Shift = false;
+            }
+        }
+        if (e.shiftKey === false) {
+            this.keys.ShiftLeft = false;
+            this.keys.ShiftRight = false;
+            this.keys.Shift = false;
+        }
     }
 
     _syncMouseChordFromButtons(buttonsMask) {
@@ -10837,7 +11503,8 @@ class SeelenfunkeLouvreShowroom3D {
             this.pinnedPortalGate = false;
         }
 
-        const moveSpeed = 5.2;
+        const isShiftHeld = Boolean(this.keys.ShiftLeft || this.keys.ShiftRight || this.keys.Shift);
+        const moveSpeed = isShiftHeld ? 8.8 : 5.2;
         let vx = 0;
         let vz = 0;
 
@@ -10855,7 +11522,7 @@ class SeelenfunkeLouvreShowroom3D {
             const dz = this.player.autoTarget.z - this.player.z;
             const dist = Math.hypot(dx, dz);
             if (dist > 0.09) {
-                const stepSpeed = Math.min(moveSpeed * 1.18, Math.max(1.85, dist * 3.4));
+                const stepSpeed = Math.min(8.8, moveSpeed * 1.18, Math.max(1.85, dist * 3.4));
                 vx = (dx / dist) * stepSpeed;
                 vz = (dz / dist) * stepSpeed;
             } else {
@@ -10874,6 +11541,8 @@ class SeelenfunkeLouvreShowroom3D {
 
         const speedMag = Math.hypot(vx, vz);
         this.player.isMoving = speedMag > 0.08;
+        this.player.isSprinting = isShiftHeld && this.player.isMoving;
+        this.player.sprintBoost = lerp(this.player.sprintBoost || 0, this.player.isSprinting ? 1.0 : 0.0, 1.0 - Math.exp(-dt * 12.0));
 
         const prevX = this.player.x;
         const prevZ = this.player.z;

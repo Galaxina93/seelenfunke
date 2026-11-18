@@ -212,7 +212,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v3')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v4')", $html);
         $this->assertStringContainsString('volume: 5,', $html);
         $this->assertStringContainsString('sync_interval_ms: 950,', $html);
         $this->assertStringContainsString('dispatchLivewireAuthSync', $html);
@@ -351,7 +351,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('carpetStrip.position.set(0, 0.029, carpetCenterZ)', $js);
         $this->assertStringContainsString('BoxGeometry(2.82, 0.018, 0.12)', $js);
         $this->assertStringContainsString('this.audio.setZone(this.currentZone)', $js);
-        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v3', $js);
+        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v4', $js);
         $this->assertStringContainsString('THREE.SkinnedMesh', $js);
         $this->assertStringContainsString('THREE.Skeleton', $js);
         $this->assertStringContainsString('skinIndex', $js);
@@ -406,6 +406,25 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('triggerEmote', $js);
         $this->assertStringContainsString('updateSettings', $js);
 
+        // Shift-Sprint (8.8 < MAX_SPEED 9.5), 3D Schwarzer Edel-Gutscheinumschlag mit Herz-Wachssiegel & freie Schild-Positionierung am West-Tor
+        $this->assertStringContainsString('const isShiftHeld = Boolean(this.keys.ShiftLeft || this.keys.ShiftRight || this.keys.Shift);', $js);
+        $this->assertStringContainsString('const moveSpeed = isShiftHeld ? 8.8 : 5.2;', $js);
+        $this->assertStringContainsString('this.player.isSprinting = isShiftHeld && this.player.isMoving;', $js);
+        $this->assertStringContainsString('const sprintBoost = clamp(this.player.sprintBoost || 0, 0, 1.0);', $js);
+        $this->assertStringContainsString('const strideFrequency = 4.48 + 0.72 * sprintBoost;', $js);
+        $this->assertStringContainsString('if (e.shiftKey === false)', $js);
+        $this->assertStringContainsString('setEffectiveTimeScale(runTimeScale)', $js);
+        $this->assertStringContainsString('_populateVoucherEnvelope3D', $js);
+        $this->assertStringContainsString("nextStele.product.slug === 'geschenkgutschein' || nextStele.product.collection_world === 'voucher'", $js);
+        $this->assertStringContainsString('color: 0x141518', $js);
+        $this->assertStringContainsString('buildVoucherBackCrestTexture', $js);
+        $this->assertStringContainsString('keystone.position.set(0.14, springY + halfSpan - 0.04, 0);', $js);
+        $this->assertStringContainsString('const outerFriezeY = springY + halfSpan + 0.68;', $js);
+        $this->assertStringContainsString('BoxGeometry(0.22, 1.06, 5.2)', $js);
+        $this->assertStringContainsString('PlaneGeometry(4.96, 0.92)', $js);
+        $this->assertStringContainsString("ctx.font = '600 22px system-ui", $js);
+        $this->assertStringContainsString("ctx.fillStyle = '#E6C687';", $js);
+
         // Baustein 0: Kein Händler, kein Magma-Portal/Kammer, kein Heiltrank/Inventar & keine Kampfklinge im Shop-JS!
         foreach ([
             '_buildHallOfHeroesMerchant',
@@ -446,7 +465,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v3', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v4', $hostJs);
         $this->assertStringNotContainsString('data-testid="lobby-vital-hud"', $hostJs);
         $this->assertStringNotContainsString('data-testid="lobby-unit-hearts"', $hostJs);
         $this->assertStringNotContainsString('Mindestens 1 Bestellung', $hostJs);
