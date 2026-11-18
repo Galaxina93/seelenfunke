@@ -9,7 +9,8 @@
 
 - **Projekt-Pfad (WSL):** `/home/ubuntuxina/meine-projekte/funkenreich`
 - **Projekt-Pfad (Windows UNC fuer Dateitools):** `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\funkenreich`
-- **Live- & Stage-Domain:** `https://game.mein-seelenfunke.de` (`DocumentRoot: /public`)
+- **Lokaler Docker-Container:** `mein_funkenreich_server` auf Port `:8090`
+- **Live- & Stage-Domain:** `https://game.mein-seelenfunke.de` (Mittwald App `a-xu1n7n`, `DocumentRoot: /public`, Deploy per `./funki funkenreich-deploy`)
 - **Hauptportal (Shop):** `https://mein-seelenfunke.de` (`/home/ubuntuxina/meine-projekte/seelenfunke`)
 - **Suchmaschinen-Abschirmung:** Strikter Header `X-Robots-Tag: noindex, nofollow, noarchive` auf allen Routen sowie `Disallow: /` in `public/robots.txt`.
 - **Closed-Alpha-Waechter:** Unbefugte Aufrufer erhalten auf `GET /` immer **HTTP `403 Forbidden`** mit der edlen Schwarz-Gold Vorschau-Seite (`app/Views/gate_locked.php`) und auf allen API-Endpunkten **HTTP `403`** JSON (`closed_alpha_locked`).
@@ -144,12 +145,17 @@
 
 ---
 
-## 5. Spieli-Studio-Zustaendigkeiten & Ausbau-Fahrplan
+## 5. Spieli-Studio-Zustaendigkeiten, Referenz-Physik & Ausbau-Fahrplan
 
 - **`spieli` (Lead Game Director & Engine/Movement Architect):** Gesamtkoordination, Pflege dieser `funkenreich.md`, `core/`, `character/MovementSpec.js`, Next-Gen Movement, `Shift`-Sprint, Physik & 60-FPS-Kamera.
 - **`spieli1` (3D Character, Rigging, Armor-Extraction & Animation Artist):** Weibliche/maennliche Basis-Charaktere, Voelker (*Funkenwaechter* Gold vs. *Seelenzerstoerer* Rot), extrahierte `.glb`-Ruestungen/Waffen & Animationen.
 - **`spieli2` (Combat, Abilities, Shader-VFX & Matte Audio Designer):** Kampfsystem (`combat/`), Faehigkeiten-Choreografien, Slash-/Partikel-Shader, gruene Checkpoint-Effekte & matte Kampf-SFX.
 - **`spieli3` (RPG Backend, SSO-Gate, Naming & Paperdoll-UI Architect):** Closed-Alpha-SSO, Level `1..100`, 6 Attribute (`STR, DEX, CON, INT, WIS, CHA`), Charakter-Editor, 6-Stufen-Namenspruefung, Multiplayer-Instanzen & 13-Slot Paperdoll-Inventar.
+
+### 5.1 Bewaehrte Referenz-Netzwerk- & Movement-Architektur (`MovementSpec.js` & Echtzeit-WS)
+Fuer Baustein 1 bis 6 gelten die live erprobten Praezisions-Standards aus der Halle der Helden als verbindliche Referenz:
+- **Ninja-Movement & Winkel-Stabilitaet (`character/MovementSpec.js`):** `Shift`-Sprint (`8.8 m/s` statt `5.2 m/s`, Anti-Haengenbleib-Schutz via `e.shiftKey`, `+3.2°` FOV-Glide), 100 % Entkopplung von Maus-Hover und Bewegungs-Yaw, vorzeichenfeste Winkel-Normalisierung via `normalizeAngleSigned` / `shortestAngleDiff` (0 Diagonal-Zucken bei `W+A`/`W+D`), `24 Hz` Input-Glaettung (`accel = 22`, `decel = 18`), **`1.0 s` Ninja-Wall-Cling** (Blick & Haende zur Wand) sowie **echter 360°-Wall-Backflip (`somersaultDir = -1`, `vy = 6.75`, `wallNormal * 6.5`)**.
+- **Ultra-Low-Latency `30 Hz` (`33 ms`) Echtzeit-Sync:** Inline-`WebWorker`-Taktgeber (`33 ms` ohne Hintergrund-Tab-Drosselung), `TCP_NODELAY` (`perMessageDeflate: false`, In-Memory Relay ohne DB-Last) sowie ein **`45 ms` Snapshot-Interpolations-Ringpuffer (`INTERP_DELAY = 0.045`, `8` Slots)** fuer butterweiche 60-FPS Mitspieler-Replikation inkl. `wall_cling`, `somersault_seq` und `somersault_dir = -1/+1`.
 
 ---
 
