@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261117v6';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v2';
 
     var KEYBIND_ACTIONS = [
         { key: 'jump', label: 'Sprung' },

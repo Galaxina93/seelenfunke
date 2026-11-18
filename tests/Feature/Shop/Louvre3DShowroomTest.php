@@ -201,7 +201,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v6')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v2')", $html);
         $this->assertStringContainsString('data-testid="lobby-vital-hud"', $html);
         $this->assertStringContainsString('data-testid="lobby-lava-demote-banner"', $html);
         $this->assertStringContainsString('data-testid="sanctum-login-password-eye"', $html);
@@ -362,6 +362,11 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('_verifyAndClampJumpReachability', $js);
         $this->assertStringContainsString('eastMagmaPortalVeilMat', $js);
         $this->assertStringContainsString('eastMagmaNicheFloorMat', $js);
+        $this->assertStringContainsString('const padObj = np && (np.group || np.mesh);', $js);
+        $this->assertStringContainsString('baseZ: pd.z', $js);
+        $this->assertStringNotContainsString('np.mesh.position', $js);
+        $this->assertStringContainsString('Number(em.bx ?? em.ex ?? 0)', $js);
+        $this->assertStringNotContainsString('arr[e3] = em.ex;', $js);
         $this->assertStringContainsString('depthWrite: false', $js);
         $this->assertStringContainsString('_triggerSanctumGateRepulse', $js);
         $this->assertStringContainsString('_spawnGateRepulseFieldBurst', $js);
@@ -444,7 +449,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261117v6', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v2', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-vital-hud"', $hostJs);
         $this->assertStringContainsString('data-testid="lobby-lava-demote-banner"', $hostJs);
         $this->assertStringContainsString('data-testid="sanctum-login-password-eye"', $hostJs);

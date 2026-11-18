@@ -5699,7 +5699,7 @@ class SeelenfunkeLouvreShowroom3D {
             rim.position.y = 0.04;
             pHolder.add(slab, rim);
             pGroup.add(pHolder);
-            this.eastPortalNichePads.push({ group: pHolder, baseY: pd.y, ph: pd.ph });
+            this.eastPortalNichePads.push({ group: pHolder, mesh: pHolder, baseY: pd.y, baseZ: pd.z, ph: pd.ph, phase: pd.ph });
         }
 
         // Langsam aufsteigende rote Glut-Funken in der Vulkan-Nische
@@ -5714,7 +5714,7 @@ class SeelenfunkeLouvreShowroom3D {
             const ph = nRng();
             const spd = 0.09 + nRng() * 0.12;
             const sway = 0.14 + nRng() * 0.22;
-            this.eastPortalNicheEmberMeta.push({ bx, bz, ph, spd, sway });
+            this.eastPortalNicheEmberMeta.push({ bx, bz, ex: bx, ez: bz, ph, spd, sway });
             nEmberPos[ei * 3] = bx;
             nEmberPos[ei * 3 + 1] = 0.15 + ph * 4.8;
             nEmberPos[ei * 3 + 2] = bz;
@@ -5901,19 +5901,23 @@ class SeelenfunkeLouvreShowroom3D {
         if (this.eastPortalNichePads && this.eastPortalNichePads.length > 0) {
             for (let pi = 0; pi < this.eastPortalNichePads.length; pi++) {
                 const np = this.eastPortalNichePads[pi];
-                np.mesh.position.y = np.baseY + Math.sin(t * 1.55 + np.phase) * 0.08;
-                np.mesh.position.z = np.baseZ + Math.cos(t * 1.15 + np.phase) * 0.16;
+                const padObj = np && (np.group || np.mesh);
+                if (!padObj || !padObj.position) continue;
+                const phase = Number(np.ph ?? np.phase ?? 0);
+                padObj.position.y = (Number(np.baseY) || 0) + Math.sin(t * 1.55 + phase) * 0.08;
+                padObj.position.z = (Number(np.baseZ) || 0) + Math.cos(t * 1.15 + phase) * 0.16;
             }
         }
         if (this.eastPortalNicheEmberAttr && this.eastPortalNicheEmberMeta && this.eastPortalNicheEmberMeta.length > 0) {
             const arr = this.eastPortalNicheEmberAttr.array;
             for (let ei = 0; ei < this.eastPortalNicheEmberMeta.length; ei++) {
                 const em = this.eastPortalNicheEmberMeta[ei];
-                const u = ((em.ph + t * em.spd) % 1 + 1) % 1;
+                if (!em) continue;
+                const u = (((Number(em.ph) || 0) + t * (Number(em.spd) || 0)) % 1 + 1) % 1;
                 const e3 = ei * 3;
-                arr[e3] = em.ex;
+                arr[e3] = Number(em.bx ?? em.ex ?? 0);
                 arr[e3 + 1] = 0.08 + u * 4.95;
-                arr[e3 + 2] = em.ez + Math.sin(t * 1.8 + em.ph * TWO_PI) * em.sway;
+                arr[e3 + 2] = Number(em.bz ?? em.ez ?? 0) + Math.sin(t * 1.8 + (Number(em.ph) || 0) * TWO_PI) * (Number(em.sway) || 0);
             }
             this.eastPortalNicheEmberAttr.needsUpdate = true;
         }

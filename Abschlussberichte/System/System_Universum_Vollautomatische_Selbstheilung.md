@@ -217,6 +217,17 @@ Zu jeder vollen Stunde (`CRON_TZ=Europe/Berlin 0 * * * *`) startet [sidecar.json
   - **Portal / Sentinel (`docker exec -u www-data mein_php_server php artisan test tests/Feature/System/SentinelSelfHealingAndInboxTest.php`)**: **`19/19 Tests` (`197 Assertions`, `0 Failed`)** inkl. Read-Only/Foreign-Owner-Atomiktest bestanden.
   - **Funkenwerk MCP (`FunkenwerkMcp.exe --self-test`)**: **`63/63 Checks` (`0 Failed`)**.
 
+### 18.11.2026, 02:56 Uhr (Agenti Wächter-Heilung: 3D-Lobby Ost-Magma-Portal Key-Mismatch `eastPortalNichePads` & `eastPortalNicheEmberMeta`, Fingerprint `cd89c699132bef5d...`, Cache-Buster `?v=20261118v2`)
+* **Ursache & Voll-Audit-Befund (`HEAD:public/js/seelenfunke-louvre-showroom-3d.js`, Stage `/customer/dashboard`):**
+  1. **Primärbefund (`eastPortalNichePads`, Zeile `5702` vs. `5902..5906` in `HEAD`):** `_buildEastMagmaEntrancePortal()` speicherte `{ group: pHolder, baseY: pd.y, ph: pd.ph }`, während `_updateEastMagmaPortalPreview(dt)` ungeschützt auf `np.mesh.position`, `np.baseZ` und `np.phase` zugriff (`Uncaught TypeError: Cannot read properties of undefined (reading 'position')`).
+  2. **Zusatzfund des Render-Loop-Voll-Audits (`eastPortalNicheEmberMeta`, Zeile `5717` vs. `5911..5917` in `HEAD`):** Unmittelbar darunter pushte `HEAD` `{ bx, bz, ph, spd, sway }`, las im Loop jedoch `em.ex` und `em.ez` (`undefined`), was nach Behebung von Punkt 1 `NaN`-Werte in das `Float32Array` von `eastPortalNicheEmberAttr` geschrieben hätte. Alle übrigen `43` Collections und `26` Update-/Tick-Methoden erwiesen sich im statischen Key-Audit sowie in der Headless-V8/Three.js-Laufzeitsimulation über alle Zonen (`gallery`, `heroes`, `lava` Räume `1..10`) als fehlerfrei (`0 Runtime Errors`, `0 NaN Findings`).
+* **Dauerhafte Code-Härtung & Cache-Buster (`?v=20261118v2`):**
+  1. **3D-Engine ([`seelenfunke-louvre-showroom-3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/seelenfunke-louvre-showroom-3d.js)):** Neben `eastPortalNichePads` (`{ group, mesh, baseY, baseZ, ph, phase }` + `(np.group || np.mesh)`-Guard) auch `eastPortalNicheEmberMeta` symmetrisch auf `{ bx, bz, ex: bx, ez: bz, ph, spd, sway }` + Null-Guard (`Number(em.bx ?? em.ex ?? 0)`) sowie defensive Loop-Guards in `_updateCollectibleFloorSparks`, `_updateWeaponBursts` und `_shatterAegisShield` gehärtet.
+  2. **Cache-Buster & Regressions-Schutz ([`funkenwerk-heroes-3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/funkenwerk-heroes-3d.js), [`product-frontend-filter-area.blade.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/product/product-frontend-filter-area.blade.php), [`Louvre3DShowroomTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shop/Louvre3DShowroomTest.php)):** Modul-Import auf `?v=20261118v2` angehoben und explizite PHPUnit-Assertions gegen ungeschütztes `np.mesh.position` sowie `arr[e3] = em.ex;` verankert.
+* **Testnachweis (`100 % Grün`):**
+  - **Node-Syntax & V8/Three.js-Laufzeitsimulation:** `node --check` + Voll-Tick-Lauf über alle Zonen (`0 Runtime Errors`, `0 NaN Findings`).
+  - **PHPUnit ([`Louvre3DShowroomTest.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Shop/Louvre3DShowroomTest.php)):** **`7/7 Tests` (`539 Assertions`, `0 Failed`)** bestanden.
+
 
 
 
