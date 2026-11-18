@@ -701,9 +701,24 @@ class SystemSecurityAuditCommand extends Command
     private function runJsonProcess(array $command, int $timeoutSeconds = 25): ?array
     {
         try {
+            $uid = function_exists('posix_geteuid') ? (int) posix_geteuid() : 0;
+            $cacheRoot = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'sf_security_audit_uid' . $uid;
+            $composerCacheDir = $cacheRoot . DIRECTORY_SEPARATOR . 'composer';
+            $npmCacheDir = $cacheRoot . DIRECTORY_SEPARATOR . 'npm';
+
+            if (!is_dir($composerCacheDir)) {
+                @mkdir($composerCacheDir, 0700, true);
+            }
+            if (!is_dir($npmCacheDir)) {
+                @mkdir($npmCacheDir, 0700, true);
+            }
+
             $process = new Process($command, base_path(), [
                 'COMPOSER_DISABLE_XDEBUG_WARN' => '1',
                 'COMPOSER_NO_INTERACTION' => '1',
+                'COMPOSER_CACHE_DIR' => $composerCacheDir,
+                'npm_config_cache' => $npmCacheDir,
+                'npm_config_update_notifier' => 'false',
             ]);
             $process->setTimeout($timeoutSeconds);
             $process->run();

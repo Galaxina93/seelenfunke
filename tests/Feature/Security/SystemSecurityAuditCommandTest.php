@@ -189,4 +189,39 @@ class SystemSecurityAuditCommandTest extends TestCase
         $this->assertSame('auto_healed', $staleWarning->triageState());
         $this->assertStringStartsWith('[AUTO-GEHEILT]', (string) $staleWarning->title);
     }
+
+    #[Test]
+    public function package_manifests_strictly_separate_node_runtime_from_frontend_build_dependencies(): void
+    {
+        $packageJson = json_decode(file_get_contents(base_path('package.json')), true);
+        $this->assertIsArray($packageJson);
+
+        $prodDeps = $packageJson['dependencies'] ?? [];
+        $devDeps = $packageJson['devDependencies'] ?? [];
+
+        // True server-side Node.js runtime packages (server-twilio.js & scripts/optimize-glb.mjs)
+        foreach (['ws', 'dotenv', 'wavefile', '@gltf-transform/core', 'sharp', 'meshoptimizer'] as $runtimePkg) {
+            $this->assertArrayHasKey($runtimePkg, $prodDeps, "Runtime package {$runtimePkg} must stay in dependencies.");
+        }
+
+        // Pure build/compiler packages must live in devDependencies so ReDoS in build-time globbers never pollutes prod
+        foreach (['vite', '@tailwindcss/forms', '@tailwindcss/typography', 'postcss-import', 'filerobot-image-editor'] as $buildPkg) {
+            $this->assertArrayNotHasKey($buildPkg, $prodDeps, "Build package {$buildPkg} must not sit in production dependencies.");
+            $this->assertArrayHasKey($buildPkg, $devDeps, "Build package {$buildPkg} must be declared in devDependencies.");
+        }
+
+        $lockJson = json_decode(file_get_contents(base_path('package-lock.json')), true);
+        $lockPackages = $lockJson['packages'] ?? [];
+        foreach ($lockPackages as $nodePath => $meta) {
+            if ($nodePath === '' || !is_array($meta)) {
+                continue;
+            }
+            if ($nodePath === 'node_modules/picomatch' || str_ends_with((string) $nodePath, '/node_modules/picomatch')) {
+                $this->assertTrue(
+                    !empty($meta['dev']) || !empty($meta['devOptional']),
+                    "Lockfile node {$nodePath} must be marked dev/devOptional."
+                );
+            }
+        }
+    }
 }

@@ -46,18 +46,18 @@
         </svg>
 
         {{-- Badge (Rote leuchtende Zahl) --}}
-        @if($totals['item_count'] > 0)
+        @if(($totals['item_count'] ?? 0) > 0)
             <span class="absolute -top-1 -right-1 flex h-5 w-5">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-5 w-5 bg-red-500 text-white text-[10px] font-bold justify-center items-center">
-                  {{ $totals['item_count'] }}
+                  {{ (int) ($totals['item_count'] ?? 0) }}
               </span>
             </span>
         @endif
     </a>
 
     {{-- Tooltip / Mini-Warenkorb Vorschau (Ausgeblendet im Warenkorb & Checkout-Prozess) --}}
-    @if($totals['item_count'] > 0 && !$suppressPreview)
+    @if(($totals['item_count'] ?? 0) > 0 && !($suppressPreview ?? false))
         <div x-cloak
              x-show="previewOpen && !isCartOrCheckoutPage()"
              style="display: none;"
@@ -78,24 +78,24 @@
                 {{-- Zeile: Zwischensumme --}}
                 <div class="flex justify-between text-xs text-gray-600">
                     <span>Zwischensumme</span>
-                    <span class="whitespace-nowrap">{{ number_format($totals['subtotal'] / 100, 2, ',', '.') }}&nbsp;€</span>
+                    <span class="whitespace-nowrap">{{ number_format(((int) ($totals['subtotal'] ?? ($totals['subtotal_gross'] ?? 0))) / 100, 2, ',', '.') }}&nbsp;€</span>
                 </div>
 
                 {{-- Zeile: Versand (Sprechender Link gem. § 6 PAngV) --}}
                 <div class="flex justify-between text-xs">
                     <a href="{{ route('versand') }}" class="text-gray-600 underline decoration-gray-300 hover:text-primary hover:decoration-primary transition-colors">Versand</a>
-                    @if($totals['shipping'] == 0)
+                    @if(((int) ($totals['shipping'] ?? 0)) === 0)
                         <span class="text-green-600 font-bold">Kostenlos</span>
                     @else
-                        <span class="whitespace-nowrap">{{ number_format($totals['shipping'] / 100, 2, ',', '.') }}&nbsp;€</span>
+                        <span class="whitespace-nowrap">{{ number_format(((int) ($totals['shipping'] ?? 0)) / 100, 2, ',', '.') }}&nbsp;€</span>
                     @endif
                 </div>
 
                 {{-- Zeile: Rabatte (falls vorhanden) --}}
-                @if(isset($totals['discount_amount']) && $totals['discount_amount'] > 0)
+                @if(((int) ($totals['discount_amount'] ?? ($totals['discount'] ?? 0))) > 0)
                     <div class="flex justify-between text-xs text-green-600 font-medium">
                         <span>Rabatt</span>
-                        <span class="whitespace-nowrap">-{{ number_format($totals['discount_amount'] / 100, 2, ',', '.') }}&nbsp;€</span>
+                        <span class="whitespace-nowrap">-{{ number_format(((int) ($totals['discount_amount'] ?? ($totals['discount'] ?? 0))) / 100, 2, ',', '.') }}&nbsp;€</span>
                     </div>
                 @endif
 
@@ -104,7 +104,7 @@
                 {{-- Zeile: Gesamtsumme --}}
                 <div class="flex justify-between items-center mb-1">
                     <span class="font-bold text-gray-900 text-sm">Gesamt</span>
-                    <span class="font-bold text-primary text-lg whitespace-nowrap">{{ number_format($totals['total'] / 100, 2, ',', '.') }}&nbsp;€</span>
+                    <span class="font-bold text-primary text-lg whitespace-nowrap">{{ number_format(((int) ($totals['total'] ?? 0)) / 100, 2, ',', '.') }}&nbsp;€</span>
                 </div>
 
                 {{-- Zeile: MwSt (Detailliert oder Zusammengefasst) --}}
@@ -113,18 +113,18 @@
                         <div class="text-[10px] text-gray-400 italic">
                             Gemäß § 19 UStG keine MwSt.
                         </div>
-                    @elseif(isset($totals['taxes_breakdown']) && count($totals['taxes_breakdown']) > 0)
+                    @elseif(!empty($totals['taxes_breakdown']) && is_array($totals['taxes_breakdown']))
                         @foreach($totals['taxes_breakdown'] as $rate => $amount)
-                            @if($amount > 0)
+                            @if(((int) $amount) > 0)
                                 <div class="text-[10px] text-gray-400">
-                                    inkl. {{ number_format($amount / 100, 2, ',', '.') }} € MwSt. ({{ floatval($rate) }}%)
+                                    inkl. {{ number_format(((int) $amount) / 100, 2, ',', '.') }} € MwSt. ({{ floatval($rate) }}%)
                                 </div>
                             @endif
                         @endforeach
                     @else
                         {{-- Fallback falls Breakdown fehlt --}}
                         <div class="text-[10px] text-gray-400">
-                            inkl. {{ number_format($totals['tax'] / 100, 2, ',', '.') }} € MwSt.
+                            inkl. {{ number_format(((int) ($totals['tax'] ?? 0)) / 100, 2, ',', '.') }} € MwSt.
                         </div>
                     @endif
                 </div>
