@@ -21,6 +21,8 @@ const LS_SFX_MUTED = 'sf_lobby_sfx_muted';
 const DEFAULT_LOBBY_BGM_VOLUME = 5;
 const DEFAULT_LOBBY_SFX_VOLUME = 5;
 const BGM_CROSSFADE_DURATION_MS = 700;
+const LOBBY_DOM_WATCHDOG_INTERVAL_MS = 400;
+const LOBBY_OPEN_GRACE_MS = 1200;
 
 function clampNum(val, min, max) {
     const n = Number(val);
@@ -41,6 +43,93 @@ function normalizeAudioZone(rawZone) {
     return 'gallery';
 }
 
+function ensureGlobalLobbyAudioRegistry() {
+    if (typeof window === 'undefined') return null;
+    if (!(window.__sfLobbyAudioRegistry instanceof Set)) {
+        const nextSet = new Set();
+        if (Array.isArray(window.__sfLobbyAudioRegistry)) {
+            for (let i = 0; i < window.__sfLobbyAudioRegistry.length; i++) {
+                if (window.__sfLobbyAudioRegistry[i]) {
+                    nextSet.add(window.__sfLobbyAudioRegistry[i]);
+                }
+            }
+        }
+        window.__sfLobbyAudioRegistry = nextSet;
+    }
+    if (window.__sfPrewarmLobbyBgmEl) {
+        window.__sfLobbyAudioRegistry.add(window.__sfPrewarmLobbyBgmEl);
+    }
+    return window.__sfLobbyAudioRegistry;
+}
+
+export function registerLobbyAudioElement(el) {
+    if (!el) return el;
+    const reg = ensureGlobalLobbyAudioRegistry();
+    if (reg) {
+        reg.add(el);
+    }
+    return el;
+}
+
+function silenceSingleAudioElement(el, resetTime = true) {
+    if (!el) return;
+    try {
+        el.pause();
+    } catch (e) {}
+    try {
+        el.volume = 0;
+    } catch (e) {}
+    if (resetTime) {
+        try {
+            el.currentTime = 0;
+        } catch (e) {}
+    }
+}
+
+function isModalNodeOpenAndVisible(el, requireIsOpenClass = false) {
+    if (!el || typeof window === 'undefined' || typeof document === 'undefined') return false;
+    if (!document.documentElement || !document.documentElement.contains(el)) return false;
+    if (el.classList) {
+        if (el.classList.contains('is-closed')) return false;
+        if (requireIsOpenClass && !el.classList.contains('is-open')) return false;
+    }
+    const cs = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(el) : null;
+    if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) {
+        return false;
+    }
+    return el.offsetWidth > 0 && el.offsetHeight > 0;
+}
+
+export function isAny3dLobbyModalVisibleInDom() {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return false;
+
+    const showroomModals = document.querySelectorAll('[data-sf-3d-lobby-modal="showroom"], #sf-louvre-showroom-modal');
+    for (let i = 0; i < showroomModals.length; i++) {
+        if (isModalNodeOpenAndVisible(showroomModals[i], false)) {
+            return true;
+        }
+    }
+
+    const standaloneModals = document.querySelectorAll(
+        '[data-sf-3d-lobby-modal="heroes"].is-open, #sf-unified-lobby-modal.is-open, #sf-user-lobby-3d-modal.is-open'
+    );
+    for (let i = 0; i < standaloneModals.length; i++) {
+        if (isModalNodeOpenAndVisible(standaloneModals[i], true)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function clearGlobalLobbyWatchdogTimer() {
+    if (typeof window === 'undefined') return;
+    if (window.__sfLobbyAudioWatchdogTimer) {
+        clearInterval(window.__sfLobbyAudioWatchdogTimer);
+        window.__sfLobbyAudioWatchdogTimer = null;
+    }
+}
+
 export class SeelenfunkeLobbyAudio {
     constructor(options = {}) {
         this.isAuthenticated = Boolean(options.isAuthenticated);
@@ -56,6 +145,10 @@ export class SeelenfunkeLobbyAudio {
         this._calmBgmEl = null;
         this._magmaBgmEl = null;
         this._crossfadeTimer = null;
+        this._watchdogTimer = null;
+        this._openedGraceUntil = 0;
+        this._modalConfirmedOpen = false;
+        this._inCloseSequence = false;
         this._serverSyncTimer = null;
         this._listeners = new Set();
         this._oneShotUnlockBound = null;
@@ -74,12 +167,18 @@ export class SeelenfunkeLobbyAudio {
 
         this._boundGestureUnlock = () => {
             if (!this.lobbyOpen || !this.lobbyActive) return;
+            if (typeof document !== 'undefined' && document.hidden) return;
+            if (!isAny3dLobbyModalVisibleInDom() && Date.now() >= this._effectiveGraceUntil()) {
+                forceStopAllLobbyAudio();
+                return;
+            }
             this._unlockContextIfNeeded();
             if (!this.bgmMuted && this.bgmVolume > 0 && !this._crossfadeTimer) {
                 this._syncActiveBgmPlayback();
             }
         };
 
+        ensureGlobalLobbyAudioRegistry();
         this._loadStoredSettings();
     }
 
@@ -218,19 +317,95 @@ export class SeelenfunkeLobbyAudio {
         window.addEventListener('keydown', this._oneShotUnlockBound, { once: true, passive: true });
     }
 
-    _ensureCalmBgmElement() {
-        if (this._calmBgmEl) return this._calmBgmEl;
-        if (typeof window !== 'undefined' && window.__sfPrewarmLobbyBgmEl) {
-            this._calmBgmEl = window.__sfPrewarmLobbyBgmEl;
-            window.__sfPrewarmLobbyBgmEl = null;
-            this._calmBgmEl.loop = true;
-            return this._calmBgmEl;
+    _effectiveGraceUntil() {
+        const externalGrace = (typeof window !== 'undefined' && Number.isFinite(Number(window.__sfLobbyAudioGraceUntil)))
+            ? Number(window.__sfLobbyAudioGraceUntil)
+            : 0;
+        return Math.max(this._openedGraceUntil || 0, externalGrace);
+    }
+
+    _markLobbyOpeningGrace() {
+        const until = Date.now() + LOBBY_OPEN_GRACE_MS;
+        this._openedGraceUntil = until;
+        this._modalConfirmedOpen = isAny3dLobbyModalVisibleInDom();
+        if (typeof window !== 'undefined') {
+            window.__sfLobbyAudioGraceUntil = until;
         }
+    }
+
+    _stopWatchdog() {
+        if (this._watchdogTimer) {
+            clearInterval(this._watchdogTimer);
+            this._watchdogTimer = null;
+        }
+        clearGlobalLobbyWatchdogTimer();
+    }
+
+    _isAnyRegisteredAudioPlaying() {
+        const candidates = [this._calmBgmEl, this._magmaBgmEl];
+        if (typeof window !== 'undefined' && window.__sfPrewarmLobbyBgmEl) {
+            candidates.push(window.__sfPrewarmLobbyBgmEl);
+        }
+        const reg = ensureGlobalLobbyAudioRegistry();
+        if (reg) {
+            reg.forEach((el) => {
+                if (el) candidates.push(el);
+            });
+        }
+        for (let i = 0; i < candidates.length; i++) {
+            const el = candidates[i];
+            if (el && !el.paused) return true;
+        }
+        return false;
+    }
+
+    _startWatchdog() {
+        if (typeof window === 'undefined') return;
+        this._stopWatchdog();
+        const timer = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden === true) {
+                forceStopAllLobbyAudio();
+                return;
+            }
+            const visible = isAny3dLobbyModalVisibleInDom();
+            if (visible) {
+                this._modalConfirmedOpen = true;
+                return;
+            }
+            if (this._modalConfirmedOpen || Date.now() >= this._effectiveGraceUntil()) {
+                forceStopAllLobbyAudio();
+                return;
+            }
+            if (!this.lobbyOpen && !this.lobbyActive && !this._isAnyRegisteredAudioPlaying()) {
+                this._stopWatchdog();
+            }
+        }, LOBBY_DOM_WATCHDOG_INTERVAL_MS);
+        this._watchdogTimer = timer;
+        window.__sfLobbyAudioWatchdogTimer = timer;
+    }
+
+    _adoptPrewarmBgmIfPresent() {
+        if (typeof window === 'undefined' || !window.__sfPrewarmLobbyBgmEl) return;
+        const preEl = window.__sfPrewarmLobbyBgmEl;
+        window.__sfPrewarmLobbyBgmEl = null;
+        registerLobbyAudioElement(preEl);
+        if (!this._calmBgmEl) {
+            preEl.loop = true;
+            this._calmBgmEl = preEl;
+        } else if (this._calmBgmEl !== preEl) {
+            silenceSingleAudioElement(preEl, true);
+        }
+    }
+
+    _ensureCalmBgmElement() {
+        this._adoptPrewarmBgmIfPresent();
+        if (this._calmBgmEl) return this._calmBgmEl;
         if (typeof Audio === 'undefined') return null;
         const el = new Audio(LOBBY_BGM_TRACK_URL);
         el.loop = true;
         el.preload = 'auto';
         el.volume = 0;
+        registerLobbyAudioElement(el);
         this._calmBgmEl = el;
         return el;
     }
@@ -242,17 +417,20 @@ export class SeelenfunkeLobbyAudio {
         el.loop = true;
         el.preload = 'auto';
         el.volume = 0;
+        registerLobbyAudioElement(el);
         this._magmaBgmEl = el;
         return el;
     }
 
     _activeTrackElement() {
+        this._adoptPrewarmBgmIfPresent();
         return this.currentZone === 'lava'
             ? this._ensureMagmaBgmElement()
             : this._ensureCalmBgmElement();
     }
 
     _inactiveTrackElement() {
+        this._adoptPrewarmBgmIfPresent();
         return this.currentZone === 'lava'
             ? this._calmBgmEl
             : this._magmaBgmEl;
@@ -265,30 +443,50 @@ export class SeelenfunkeLobbyAudio {
 
     _stopBothBgmElements(resetTime = true) {
         this._cancelCrossfade();
-        const list = [this._calmBgmEl, this._magmaBgmEl];
+        const visited = new Set();
+        const pushEl = (el) => {
+            if (el) visited.add(el);
+        };
+        pushEl(this._calmBgmEl);
+        pushEl(this._magmaBgmEl);
         if (typeof window !== 'undefined' && window.__sfPrewarmLobbyBgmEl) {
-            list.push(window.__sfPrewarmLobbyBgmEl);
+            const preEl = window.__sfPrewarmLobbyBgmEl;
+            registerLobbyAudioElement(preEl);
+            pushEl(preEl);
+            if (!this._calmBgmEl) {
+                preEl.loop = true;
+                this._calmBgmEl = preEl;
+            }
             window.__sfPrewarmLobbyBgmEl = null;
         }
-        for (let i = 0; i < list.length; i++) {
-            const el = list[i];
-            if (!el) continue;
-            try {
-                el.pause();
-                el.volume = 0;
-                if (resetTime) {
-                    el.currentTime = 0;
+        const reg = ensureGlobalLobbyAudioRegistry();
+        if (reg) {
+            reg.forEach((el) => {
+                if (!el) return;
+                if (el === this._mp3Pool.shield || el === this._mp3Pool.sprint) {
+                    if (resetTime) pushEl(el);
+                    return;
                 }
-            } catch (e) {}
+                pushEl(el);
+            });
         }
+        visited.forEach((el) => {
+            silenceSingleAudioElement(el, resetTime);
+        });
     }
 
     _syncActiveBgmPlayback() {
+        this._adoptPrewarmBgmIfPresent();
         if (!this.lobbyOpen || !this.lobbyActive || this.bgmMuted || this.bgmVolume <= 0) {
             this._stopBothBgmElements(false);
             return;
         }
+        if (typeof document !== 'undefined' && document.hidden === true) {
+            this._stopBothBgmElements(false);
+            return;
+        }
         this._cancelCrossfade();
+        this._startWatchdog();
         const activeEl = this._activeTrackElement();
         const inactiveEl = this._inactiveTrackElement();
         if (inactiveEl) {
@@ -312,10 +510,16 @@ export class SeelenfunkeLobbyAudio {
 
     _crossfadeToZoneTrack(toLava, durationMs = BGM_CROSSFADE_DURATION_MS) {
         this._cancelCrossfade();
+        this._adoptPrewarmBgmIfPresent();
         if (!this.lobbyOpen || !this.lobbyActive || this.bgmMuted || this.bgmVolume <= 0) {
             this._stopBothBgmElements(false);
             return;
         }
+        if (typeof document !== 'undefined' && document.hidden === true) {
+            this._stopBothBgmElements(false);
+            return;
+        }
+        this._startWatchdog();
 
         const inEl = toLava ? this._ensureMagmaBgmElement() : this._ensureCalmBgmElement();
         const outEl = toLava ? this._calmBgmEl : this._magmaBgmEl;
@@ -408,12 +612,15 @@ export class SeelenfunkeLobbyAudio {
      * damit das User-Gesture-Token des Browsers zu 100 % erhalten bleibt.
      */
     startLobbyMusicFromGesture(initialZone = undefined) {
+        this._adoptPrewarmBgmIfPresent();
         this._loadStoredSettings();
         if (initialZone !== undefined) {
             this.currentZone = normalizeAudioZone(initialZone);
         }
         this.lobbyOpen = true;
         this.lobbyActive = true;
+        this._markLobbyOpeningGrace();
+        this._startWatchdog();
 
         if (typeof window !== 'undefined') {
             window.addEventListener('pointerdown', this._boundGestureUnlock, { passive: true });
@@ -461,6 +668,7 @@ export class SeelenfunkeLobbyAudio {
     }
 
     onLobbyOpen(isAuthenticated = undefined, initialZone = undefined) {
+        this._adoptPrewarmBgmIfPresent();
         if (isAuthenticated !== undefined) {
             this.isAuthenticated = Boolean(isAuthenticated);
         }
@@ -470,6 +678,8 @@ export class SeelenfunkeLobbyAudio {
         const alreadyStartedByGesture = this.lobbyActive && this.lobbyOpen;
         this.lobbyOpen = true;
         this.lobbyActive = true;
+        this._markLobbyOpeningGrace();
+        this._startWatchdog();
         if (!alreadyStartedByGesture) {
             this._loadStoredSettings();
         }
@@ -491,6 +701,9 @@ export class SeelenfunkeLobbyAudio {
     onLobbyClose() {
         this.lobbyOpen = false;
         this.lobbyActive = false;
+        this._modalConfirmedOpen = false;
+        this._openedGraceUntil = 0;
+        this._stopWatchdog();
         this._clearOneShotUnlock();
         this._stopBothBgmElements(true);
         this.updateLavaAmbience(999, false);
@@ -498,6 +711,14 @@ export class SeelenfunkeLobbyAudio {
         if (typeof window !== 'undefined') {
             window.removeEventListener('pointerdown', this._boundGestureUnlock);
             window.removeEventListener('keydown', this._boundGestureUnlock);
+            if (!this._inCloseSequence && typeof window.__sfForceStopAllLobbyAudio === 'function') {
+                this._inCloseSequence = true;
+                try {
+                    window.__sfForceStopAllLobbyAudio();
+                } finally {
+                    this._inCloseSequence = false;
+                }
+            }
         }
 
         if (this._ctx && this._ctx.state === 'running') {
@@ -685,6 +906,7 @@ export class SeelenfunkeLobbyAudio {
             if (!el) {
                 el = new Audio(url);
                 el.preload = 'auto';
+                registerLobbyAudioElement(el);
                 this._mp3Pool[kind] = el;
             }
             el.pause();
@@ -1559,6 +1781,8 @@ export class SeelenfunkeLobbyAudio {
     }
 
     playProductTransition() {
+        // BGM beim Verlassen in Richtung Produktseite sofort stummschalten
+        this._stopBothBgmElements(true);
         if (!this._canPlaySfx()) return;
         // Sanft gleitender Elfenbein-Gold-Uebergangsklang (~680 ms) beim Wechsel zum Produkt-Konfigurator
         this._triggerMatteWhoosh({
@@ -1670,15 +1894,18 @@ export class SeelenfunkeLobbyAudio {
 
     dispose() {
         this.onLobbyClose();
+        this._stopWatchdog();
         if (this._serverSyncTimer) {
             clearTimeout(this._serverSyncTimer);
             this._serverSyncTimer = null;
         }
+        const reg = ensureGlobalLobbyAudioRegistry();
         if (this._calmBgmEl) {
             try {
                 this._calmBgmEl.pause();
                 this._calmBgmEl.removeAttribute('src');
             } catch (e) {}
+            if (reg) reg.delete(this._calmBgmEl);
             this._calmBgmEl = null;
         }
         if (this._magmaBgmEl) {
@@ -1686,6 +1913,7 @@ export class SeelenfunkeLobbyAudio {
                 this._magmaBgmEl.pause();
                 this._magmaBgmEl.removeAttribute('src');
             } catch (e) {}
+            if (reg) reg.delete(this._magmaBgmEl);
             this._magmaBgmEl = null;
         }
         if (this._ctx) {
@@ -1700,18 +1928,219 @@ export class SeelenfunkeLobbyAudio {
     }
 }
 
-let sharedLobbyAudioSingleton = null;
+export function forceStopAllLobbyAudio() {
+    clearGlobalLobbyWatchdogTimer();
+
+    const inst = (typeof window !== 'undefined' && window.__sfLobbyAudioSingleton)
+        ? window.__sfLobbyAudioSingleton
+        : null;
+
+    if (typeof window !== 'undefined') {
+        window.__sfLobbyAudioGraceUntil = 0;
+    }
+
+    if (inst) {
+        inst.lobbyOpen = false;
+        inst.lobbyActive = false;
+        inst._modalConfirmedOpen = false;
+        inst._openedGraceUntil = 0;
+        if (inst._watchdogTimer) {
+            clearInterval(inst._watchdogTimer);
+            inst._watchdogTimer = null;
+        }
+        if (typeof inst._cancelCrossfade === 'function') {
+            inst._cancelCrossfade();
+        }
+        if (typeof inst._clearOneShotUnlock === 'function') {
+            inst._clearOneShotUnlock();
+        }
+        if (typeof window !== 'undefined' && inst._boundGestureUnlock) {
+            window.removeEventListener('pointerdown', inst._boundGestureUnlock);
+            window.removeEventListener('keydown', inst._boundGestureUnlock);
+        }
+    }
+
+    const toSilence = new Set();
+    const reg = ensureGlobalLobbyAudioRegistry();
+    if (reg) {
+        reg.forEach((el) => {
+            if (el) toSilence.add(el);
+        });
+    }
+    if (inst) {
+        if (inst._calmBgmEl) toSilence.add(inst._calmBgmEl);
+        if (inst._magmaBgmEl) toSilence.add(inst._magmaBgmEl);
+        if (inst._mp3Pool) {
+            if (inst._mp3Pool.shield) toSilence.add(inst._mp3Pool.shield);
+            if (inst._mp3Pool.sprint) toSilence.add(inst._mp3Pool.sprint);
+        }
+    }
+    if (typeof window !== 'undefined' && window.__sfPrewarmLobbyBgmEl) {
+        const preEl = window.__sfPrewarmLobbyBgmEl;
+        registerLobbyAudioElement(preEl);
+        toSilence.add(preEl);
+        if (inst && !inst._calmBgmEl) {
+            preEl.loop = true;
+            inst._calmBgmEl = preEl;
+        }
+        window.__sfPrewarmLobbyBgmEl = null;
+    }
+    if (typeof document !== 'undefined') {
+        const domAudios = document.querySelectorAll('audio');
+        for (let i = 0; i < domAudios.length; i++) {
+            const domEl = domAudios[i];
+            const srcAttr = String(domEl.getAttribute('src') || domEl.currentSrc || domEl.src || '');
+            let hasFunkiBgm = srcAttr.indexOf('bgm_funki') !== -1;
+            if (!hasFunkiBgm) {
+                const sourceChild = domEl.querySelector('source[src*="bgm_funki"]');
+                hasFunkiBgm = Boolean(sourceChild);
+            }
+            if (hasFunkiBgm) {
+                toSilence.add(domEl);
+            }
+        }
+    }
+
+    toSilence.forEach((el) => {
+        silenceSingleAudioElement(el, true);
+    });
+
+    if (inst) {
+        if (typeof inst.updateLavaAmbience === 'function') {
+            inst.updateLavaAmbience(999, false);
+        }
+        if (inst._ctx && inst._ctx.state === 'running') {
+            inst._ctx.suspend().catch(() => {});
+        }
+        if (typeof inst._emitChange === 'function') {
+            inst._emitChange();
+        }
+    }
+}
 
 export function getLobbyAudioInstance(options = {}) {
-    if (!sharedLobbyAudioSingleton) {
-        sharedLobbyAudioSingleton = new SeelenfunkeLobbyAudio(options);
-    } else if (options.isAuthenticated !== undefined) {
-        sharedLobbyAudioSingleton.setAuthenticated(options.isAuthenticated);
+    if (typeof window === 'undefined') {
+        return new SeelenfunkeLobbyAudio(options);
     }
-    return sharedLobbyAudioSingleton;
+
+    const existing = window.__sfLobbyAudioSingleton;
+    if (existing) {
+        if (existing instanceof SeelenfunkeLobbyAudio || typeof existing._startWatchdog === 'function') {
+            if (options.isAuthenticated !== undefined && typeof existing.setAuthenticated === 'function') {
+                existing.setAuthenticated(options.isAuthenticated);
+            }
+            return existing;
+        }
+
+        // Sichere Migration einer aelteren Modul-Instanz auf window.__sfLobbyAudioSingleton (0 verlorene Audio-Elemente!)
+        const migrated = new SeelenfunkeLobbyAudio({
+            isAuthenticated: options.isAuthenticated !== undefined ? options.isAuthenticated : existing.isAuthenticated,
+            initialZone: existing.currentZone || options.initialZone || 'gallery',
+        });
+        if (existing._calmBgmEl) {
+            registerLobbyAudioElement(existing._calmBgmEl);
+            migrated._calmBgmEl = existing._calmBgmEl;
+            existing._calmBgmEl = null;
+        }
+        if (existing._magmaBgmEl) {
+            registerLobbyAudioElement(existing._magmaBgmEl);
+            migrated._magmaBgmEl = existing._magmaBgmEl;
+            existing._magmaBgmEl = null;
+        }
+        if (existing._mp3Pool) {
+            if (existing._mp3Pool.shield) registerLobbyAudioElement(existing._mp3Pool.shield);
+            if (existing._mp3Pool.sprint) registerLobbyAudioElement(existing._mp3Pool.sprint);
+        }
+        if (existing._crossfadeTimer) {
+            clearInterval(existing._crossfadeTimer);
+            existing._crossfadeTimer = null;
+        }
+        if (typeof existing._clearOneShotUnlock === 'function') {
+            existing._clearOneShotUnlock();
+        }
+        if (existing._boundGestureUnlock) {
+            window.removeEventListener('pointerdown', existing._boundGestureUnlock);
+            window.removeEventListener('keydown', existing._boundGestureUnlock);
+        }
+        if (existing._ctx && existing._ctx.state === 'running') {
+            existing._ctx.suspend().catch(() => {});
+        }
+        const wasActive = Boolean(existing.lobbyOpen && existing.lobbyActive && isAny3dLobbyModalVisibleInDom());
+        existing.lobbyOpen = false;
+        existing.lobbyActive = false;
+        window.__sfLobbyAudioSingleton = migrated;
+        if (wasActive) {
+            migrated.onLobbyOpen(migrated.isAuthenticated, migrated.currentZone);
+        } else {
+            forceStopAllLobbyAudio();
+        }
+        return migrated;
+    }
+
+    const created = new SeelenfunkeLobbyAudio(options);
+    window.__sfLobbyAudioSingleton = created;
+    return created;
+}
+
+function bindGlobalLobbyAudioLifecycleGuards() {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    window.__sfForceStopAllLobbyAudio = forceStopAllLobbyAudio;
+    ensureGlobalLobbyAudioRegistry();
+
+    if (window.__sfLobbyAudioLifecycleGuardsBound) return;
+    window.__sfLobbyAudioLifecycleGuardsBound = true;
+
+    const stopIfNoModalVisible = () => {
+        if (!isAny3dLobbyModalVisibleInDom()) {
+            forceStopAllLobbyAudio();
+        }
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(() => {
+                if (!isAny3dLobbyModalVisibleInDom()) {
+                    forceStopAllLobbyAudio();
+                }
+            });
+        }
+        setTimeout(() => {
+            if (!isAny3dLobbyModalVisibleInDom()) {
+                forceStopAllLobbyAudio();
+            }
+        }, 80);
+    };
+
+    document.addEventListener('livewire:navigating', () => {
+        forceStopAllLobbyAudio();
+    });
+    document.addEventListener('livewire:navigated', stopIfNoModalVisible);
+    window.addEventListener('popstate', stopIfNoModalVisible);
+    window.addEventListener('pagehide', () => {
+        forceStopAllLobbyAudio();
+    });
+    window.addEventListener('beforeunload', () => {
+        forceStopAllLobbyAudio();
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            forceStopAllLobbyAudio();
+            return;
+        }
+        // Falls Tab wieder sichtbar wird und 3D-Lobby-Modal offen ist, beim naechsten Klick im Modal reaktivieren
+        if (isAny3dLobbyModalVisibleInDom()) {
+            const resumeOnInteract = () => {
+                if (!document.hidden && isAny3dLobbyModalVisibleInDom() && window.__sfLobbyAudioSingleton) {
+                    window.__sfLobbyAudioSingleton.onLobbyOpen(
+                        window.__sfLobbyAudioSingleton.isAuthenticated,
+                        window.__sfLobbyAudioSingleton.currentZone
+                    );
+                }
+            };
+            window.addEventListener('pointerdown', resumeOnInteract, { once: true, passive: true });
+        }
+    });
 }
 
 if (typeof window !== 'undefined') {
     window.SeelenfunkeLobbyAudio = SeelenfunkeLobbyAudio;
     window.getSeelenfunkeLobbyAudio = getLobbyAudioInstance;
+    bindGlobalLobbyAudioLifecycleGuards();
 }

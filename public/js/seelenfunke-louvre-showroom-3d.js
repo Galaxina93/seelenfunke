@@ -4,7 +4,7 @@
  * On-Demand ES-Modul: 0 KB Initial-Last auf /shop & /mein-konto, 0 % CPU/GPU nach dem Schliessen.
  */
 
-import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v6';
+import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v7';
 
 const TWO_PI = Math.PI * 2;
 const PROXIMITY_FOCUS_ENTER = 3.4;
