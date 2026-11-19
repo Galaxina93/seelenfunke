@@ -336,6 +336,11 @@ namespace FunkenwerkMcp
                 return await RunStageLaserRelayOnceCliAsync(args);
             }
 
+            if (args.Any(a => string.Equals(a, "--stage-laser-relay-daemon", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunStageLaserRelayDaemonCliAsync(args);
+            }
+
             if (args.Any(a => string.Equals(a, "--tresor-list", StringComparison.OrdinalIgnoreCase)))
             {
                 return RunTresorListCli();
@@ -1948,19 +1953,61 @@ namespace FunkenwerkMcp
             {
                 McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
                 bool captureCamera = args.Any(a => string.Equals(a, "--capture-camera", StringComparison.OrdinalIgnoreCase));
+                bool respectMiniPc = args.Any(a => string.Equals(a, "--respect-minipc", StringComparison.OrdinalIgnoreCase));
                 var report = await McpStageLaserFailoverRelay.RunSingleFailoverCycleAsync(
                     sendExplicitHeartbeat: true,
                     runDiagnosticCameraTest: captureCamera,
-                    forceRefreshProbes: true);
+                    forceRefreshProbes: true,
+                    primaryNotebookMode: !respectMiniPc);
 
                 Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(report, JsonPretty)));
                 return string.Equals(report.Status, "ok", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"❌ Stage-Laser-Failover-Relay Fehler: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                Console.Error.WriteLine($"❌ Stage-Laser-Relay Fehler: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
                 return 1;
             }
+        }
+
+        private static async Task<int> RunStageLaserRelayDaemonCliAsync(string[] args)
+        {
+            using var singleInstanceMutex = new Mutex(true, @"Local\FunkenwerkNotebookLaserRelaySingleInstance", out bool createdNew);
+            if (!createdNew)
+            {
+                Console.WriteLine("ℹ️ Notebook-Laser-Brücke läuft bereits im Hintergrund (Single-Instance aktiv).");
+                return 0;
+            }
+
+            McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+            bool respectMiniPc = args.Any(a => string.Equals(a, "--respect-minipc", StringComparison.OrdinalIgnoreCase));
+
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
+            {
+                e.Cancel = true;
+                try { cts.Cancel(); } catch { }
+            };
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+                try { cts.Cancel(); } catch { }
+            };
+
+            try
+            {
+                await McpStageLaserFailoverRelay.RunSingleFailoverCycleAsync(
+                    sendExplicitHeartbeat: true,
+                    runDiagnosticCameraTest: false,
+                    forceRefreshProbes: true,
+                    ct: cts.Token,
+                    primaryNotebookMode: !respectMiniPc).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+
+            await McpStageLaserFailoverRelay.RunDaemonLoopAsync(cts.Token, primaryNotebookMode: !respectMiniPc).ConfigureAwait(false);
+            return 0;
         }
 
         private static async Task<(bool Success, int ExitCode, string ErrorSummary, string? ExtractedUuid)> StartNewAgentConversationSafeAsync(

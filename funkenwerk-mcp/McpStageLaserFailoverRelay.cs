@@ -2069,26 +2069,32 @@ namespace FunkenwerkMcp
             bool sendExplicitHeartbeat = false,
             bool runDiagnosticCameraTest = false,
             bool forceRefreshProbes = false,
-            CancellationToken ct = default)
+            CancellationToken ct = default,
+            bool primaryNotebookMode = false)
         {
             var report = new FailoverCycleReportDto
             {
                 TimestampUtc = DateTime.UtcNow.ToString("O")
             };
 
-            // HARD COLLISION GUARD: If Mini-PC (192.168.188.151:22) is awake, remain 100% passive (0 Stage polls!)
-            bool miniPcAwake = await IsMiniPcAwakeAsync(forceRefreshProbes).ConfigureAwait(false);
-            report.MiniPcOnline = miniPcAwake;
-            if (miniPcAwake)
+            if (!primaryNotebookMode || TestMiniPcProbeOverride != null)
             {
-                report.Status = "ok";
-                report.Mode = "passive_minipc_online";
-                report.PolledStage = false;
-                report.HeartbeatSent = false;
-                return report;
+                // Legacy/Test failover guard: If Mini-PC (192.168.188.151:22) is awake, remain passive
+                bool miniPcAwake = await IsMiniPcAwakeAsync(forceRefreshProbes).ConfigureAwait(false);
+                report.MiniPcOnline = miniPcAwake;
+                if (miniPcAwake)
+                {
+                    report.Status = "ok";
+                    report.Mode = "passive_minipc_online";
+                    report.PolledStage = false;
+                    report.HeartbeatSent = false;
+                    return report;
+                }
             }
 
-            report.Mode = "active_windows_failover";
+            report.Mode = primaryNotebookMode && TestMiniPcProbeOverride == null
+                ? "primary_notebook_relay"
+                : "active_windows_failover";
 
             try
             {
@@ -2249,9 +2255,9 @@ namespace FunkenwerkMcp
             }
         }
 
-        public static async Task RunDaemonLoopAsync(CancellationToken ct)
+        public static async Task RunDaemonLoopAsync(CancellationToken ct, bool primaryNotebookMode = true)
         {
-            int nextDelayMs = 600;
+            int nextDelayMs = 400;
 
             while (!ct.IsCancellationRequested)
             {
@@ -2263,7 +2269,8 @@ namespace FunkenwerkMcp
                         sendExplicitHeartbeat: false,
                         runDiagnosticCameraTest: false,
                         forceRefreshProbes: false,
-                        ct: ct).ConfigureAwait(false);
+                        ct: ct,
+                        primaryNotebookMode: primaryNotebookMode).ConfigureAwait(false);
 
                     if (cycle.MiniPcOnline)
                     {

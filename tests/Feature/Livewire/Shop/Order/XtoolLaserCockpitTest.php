@@ -982,7 +982,7 @@ class XtoolLaserCockpitTest extends TestCase
                 ->assertDispatched('order-feedback', function (string $name, array $params): bool {
                     return ($params['type'] ?? null) === 'warning'
                         && ($params['title'] ?? null) === 'Kein Live-Bild vom Laser empfangen'
-                        && str_contains((string) ($params['message'] ?? ''), '192.168.188.151');
+                        && str_contains((string) ($params['message'] ?? ''), 'Laser-Brücke (Notebook)');
                 });
         } finally {
             if (is_dir($isolatedRelayDir)) {
@@ -990,7 +990,7 @@ class XtoolLaserCockpitTest extends TestCase
             }
         }
 
-        // 1b. Lokaler Betrieb (!$isCloud) ohne Mini-PC-Relay meldet ehrlich den lokalen Laser-Socket (192.168.188.150:28900) statt 192.168.188.151
+        // 1b. Lokaler Betrieb (!$isCloud) ohne Notebook-Relay meldet ehrlich den lokalen Laser-Socket (192.168.188.150:28900) statt Laser-Brücke (Notebook)
         $localOfflineCockpit = new class extends XtoolLaserCockpitService {
             public function isCloudEnvironment(): bool
             {
@@ -1015,7 +1015,7 @@ class XtoolLaserCockpitTest extends TestCase
                 return ($params['type'] ?? null) === 'warning'
                     && ($params['title'] ?? null) === 'Kein Live-Bild vom Laser empfangen'
                     && str_contains($msg, '192.168.188.150:28900')
-                    && !str_contains($msg, '192.168.188.151');
+                    && !str_contains($msg, 'Laser-Brücke (Notebook)');
             });
 
         // 2. Echtes Live-Bild via minipc_lan_relay -> grüne Erfolgsmeldung!

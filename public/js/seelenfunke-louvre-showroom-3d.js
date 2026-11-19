@@ -2932,12 +2932,12 @@ function buildStelePlaqueTexture(THREE, maxAniso, product, disposables) {
 
     const cat = sanitizeDisplayText(product.category_name || 'KOLLEKTION').toUpperCase();
     ctx.fillStyle = '#9A7738';
-    ctx.font = '700 18px system-ui, -apple-system, sans-serif';
-    ctx.fillText(cat, W * 0.5, 52, W - 72);
+    ctx.font = '700 17px system-ui, -apple-system, sans-serif';
+    ctx.fillText(cat, W * 0.5, 44, W - 72);
 
     const name = sanitizeDisplayText(product.name || 'Unikat');
     ctx.fillStyle = '#111827';
-    ctx.font = '700 30px Georgia, serif';
+    ctx.font = '700 28px Georgia, serif';
     if (name.length > 24) {
         const words = name.split(' ');
         let line1 = '';
@@ -2950,20 +2950,20 @@ function buildStelePlaqueTexture(THREE, maxAniso, product, disposables) {
             }
         }
         if (line2) {
-            ctx.fillText(line1, W * 0.5, 104, W - 64);
-            ctx.fillText(line2, W * 0.5, 140, W - 64);
+            ctx.fillText(line1, W * 0.5, 90, W - 64);
+            ctx.fillText(line2, W * 0.5, 124, W - 64);
         } else {
-            ctx.fillText(name, W * 0.5, 120, W - 64);
+            ctx.fillText(name, W * 0.5, 104, W - 64);
         }
     } else {
-        ctx.fillText(name, W * 0.5, 120, W - 64);
+        ctx.fillText(name, W * 0.5, 104, W - 64);
     }
 
     ctx.strokeStyle = 'rgba(197, 160, 89, 0.45)';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(136, 170);
-    ctx.lineTo(W - 136, 170);
+    ctx.moveTo(136, 152);
+    ctx.lineTo(W - 136, 152);
     ctx.stroke();
 
     const rawPrice = sanitizeDisplayText(product.price_formatted || '');
@@ -2972,8 +2972,12 @@ function buildStelePlaqueTexture(THREE, maxAniso, product, disposables) {
         : rawPrice;
 
     ctx.fillStyle = '#111827';
-    ctx.font = '800 30px system-ui, -apple-system, sans-serif';
-    ctx.fillText(displayPrice, W * 0.5, 206, W - 72);
+    ctx.font = '800 28px system-ui, -apple-system, sans-serif';
+    ctx.fillText(displayPrice, W * 0.5, 183, W - 72);
+
+    ctx.fillStyle = '#6B7280';
+    ctx.font = '500 13px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Darstellung nicht originalgetreu', W * 0.5, 215, W - 72);
 
     const tex = new THREE.CanvasTexture(c);
     tex.generateMipmaps = true;

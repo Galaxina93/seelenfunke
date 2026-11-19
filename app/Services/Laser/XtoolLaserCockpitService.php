@@ -291,7 +291,7 @@ class XtoolLaserCockpitService
                         $relayError = (string) ($relayResult['error'] ?? 'Laser antwortet im Werkstatt-LAN nicht.');
                     }
                 } elseif ($isCloud || (app()->runningUnitTests() && $this->allowRelayInTests && !$this->allowV2SocketInTests)) {
-                    $relayError = 'Werkstatt-Brücke (Mini-PC 192.168.188.151) nicht verbunden oder Laser im lokalen Netzwerk nicht erreichbar.';
+                    $relayError = 'Laser-Brücke (Notebook) nicht verbunden oder Laser (' . self::DEFAULT_LASER_IP . ') im lokalen Netzwerk nicht erreichbar.';
                 } else {
                     $relayError = $laserOnline
                         ? "xTool F2 Ultra UV ({$safeIp}:" . self::DEFAULT_V2_PORT . ') war erreichbar, aber die Live-Kamera-Übertragung wurde unterbrochen.'
@@ -5893,11 +5893,11 @@ class XtoolLaserCockpitService
                         $sendResult = [
                             'ok'      => false,
                             'task_id' => null,
-                            'error'   => (string) ($relayRes['error'] ?? 'Übertragung über Werkstatt-Brücke fehlgeschlagen.'),
+                            'error'   => (string) ($relayRes['error'] ?? 'Übertragung über Laser-Brücke (Notebook) fehlgeschlagen.'),
                         ];
                     }
                 } elseif ($sendResult['error'] === null) {
-                    $sendResult['error'] = 'Werkstatt-Brücke (Mini-PC 192.168.188.151) nicht verbunden oder Laser im lokalen Netzwerk nicht erreichbar.';
+                    $sendResult['error'] = 'Laser-Brücke (Notebook) nicht verbunden oder Laser (' . self::DEFAULT_LASER_IP . ') im lokalen Netzwerk nicht erreichbar.';
                 }
             }
         }
@@ -7015,7 +7015,7 @@ class XtoolLaserCockpitService
             'ok'           => false,
             'laser_online' => false,
             'state'        => 'RELAY_TIMEOUT',
-            'error'        => 'Zeitüberschreitung der Werkstatt-Brücke (Mini-PC hat den Laser-Befehl nicht rechtzeitig quittiert).',
+            'error'        => 'Zeitüberschreitung der Laser-Brücke (Notebook hat den Laser-Befehl nicht rechtzeitig quittiert).',
         ];
     }
 
