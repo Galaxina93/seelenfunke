@@ -105,6 +105,43 @@ class OrderOverview extends Component
     public int $laserWorkflowStep = 1;
     public int $laserCameraRefreshToken = 0;
     public ?string $laserLastActionStatus = null;
+    public string $laserCameraLightMode = 'anti_glare';
+
+    // LASER-FOTO-STUDIO MODAL STATE
+    public bool $isLaserPhotoStudioOpen = false;
+    #[\Livewire\Attributes\Locked]
+    public ?string $photoStudioItemId = null;
+    #[\Livewire\Attributes\Locked]
+    public ?string $photoStudioFileKey = null;
+    #[\Livewire\Attributes\Locked]
+    public ?string $photoStudioFileName = null;
+    #[\Livewire\Attributes\Locked]
+    public ?string $photoStudioOriginalRelPath = null;
+    #[\Livewire\Attributes\Locked]
+    public ?string $photoStudioOriginalUrl = null;
+    #[\Livewire\Attributes\Locked]
+    public ?string $photoStudioPreviewUrl = null;
+    #[\Livewire\Attributes\Locked]
+    public bool $photoStudioIsDarkSurface = false;
+    #[\Livewire\Attributes\Locked]
+    public int $photoStudioDpi = 600;
+    #[\Livewire\Attributes\Locked]
+    public string $photoStudioMaterialHint = '';
+    #[\Livewire\Attributes\Locked]
+    public array $photoStudioProfiles = [];
+    public string $photoStudioActiveProfileId = '';
+    public array $photoStudioParams = [
+        'enabled'       => true,
+        'grayscale'     => true,
+        'invert'        => false,
+        'brightness'    => 0,
+        'contrast'      => 12,
+        'gamma'         => 1.15,
+        'highlight_cap' => 85,
+        'sharpness'     => 85,
+        'dither_mode'   => 'jarvis',
+        'threshold'     => 128,
+    ];
 
     private function notifyOrderFeedback(string $type, string $title, string $message): void
     {
@@ -302,6 +339,7 @@ class OrderOverview extends Component
         $this->stepOneTab = 'cockpit';
         $this->showLaserDetails = false;
         $this->activeHeaderModal = null;
+        $this->closeLaserPhotoStudio();
         $this->dispatch('order-ui-sync', headerModal: null, stepOneTab: 'cockpit', showLaserDetails: false);
 
         // Order laden (Eager Loading für Performance)
@@ -347,6 +385,7 @@ class OrderOverview extends Component
         $this->stepOneTab = 'cockpit';
         $this->showLaserDetails = false;
         $this->activeHeaderModal = null;
+        $this->closeLaserPhotoStudio();
         $this->dispatch('order-ui-sync', headerModal: null, stepOneTab: 'cockpit', showLaserDetails: false);
         $this->reset(['status', 'payment_status', 'notes', 'workshopNote', 'workshopFollowupMode', 'cancellationReason', 'laserLastActionStatus']);
     }
@@ -392,6 +431,8 @@ class OrderOverview extends Component
             return;
         }
 
+        $this->selectedOrder->loadMissing(['items.product.supplier', 'invoices', 'shipments']);
+
         if ($this->selectedOrder->status === 'pending') {
             $this->selectedOrder->update(['status' => 'processing']);
             $this->status = 'processing';
@@ -400,8 +441,14 @@ class OrderOverview extends Component
         $this->activeOrderStep = 1;
         $this->laserWorkflowStep = 1;
         $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
-        $this->selectedOrder->refresh();
-        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+
+        if (!$this->selectedOrderItemId && $this->selectedOrder->items->isNotEmpty()) {
+            $preferredItem = $this->selectedOrder->items->first(fn ($i) => !$i->is_completed)
+                ?: $this->selectedOrder->items->first();
+            $this->selectedOrderItemId = $preferredItem?->id;
+            $this->initializeLaserCockpitForPreviewItem(false);
+        }
+
         $this->invalidateSmartQueueCache();
 
         $this->notifyOrderFeedback(
@@ -685,6 +732,174 @@ class OrderOverview extends Component
         $this->selectedOrderItemId = $itemId;
         $this->laserCockpitSide = 'front';
         $this->initializeLaserCockpitForPreviewItem(false);
+    }
+
+    #[\Livewire\Attributes\On('order-item-updated')]
+    public function onOrderItemConfigurationSaved($itemId = null): void
+    {
+        if (!$this->selectedOrder) {
+            return;
+        }
+
+        $resolvedItemId = is_array($itemId) ? (string) ($itemId['itemId'] ?? '') : (string) ($itemId ?? '');
+        if ($resolvedItemId !== '' && (string) $this->selectedOrderItemId !== $resolvedItemId) {
+            $belongs = $this->selectedOrder->items()->where('id', $resolvedItemId)->exists();
+            if ($belongs) {
+                $this->selectedOrderItemId = $resolvedItemId;
+            }
+        }
+
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+        $this->laserCameraRefreshToken++;
+        $this->initializeLaserCockpitForPreviewItem(false);
+        $this->invalidateSmartQueueCache();
+
+        $this->notifyOrderFeedback(
+            'success',
+            'Design & Blueprint aktualisiert',
+            'Design & Blueprint aktualisiert · Laser-Cockpit synchronisiert'
+        );
+    }
+
+    public static function resolveOrderBlueprintSnapshotUrl(?string $rawPath): ?string
+    {
+        if ($rawPath === null) {
+            return null;
+        }
+        $trimmed = trim($rawPath);
+        if ($trimmed === '' || str_contains($trimmed, "\0") || str_contains($trimmed, '..') || str_contains($trimmed, '\\')) {
+            return null;
+        }
+
+        if (str_starts_with($trimmed, 'data:') || str_starts_with($trimmed, 'http://') || str_starts_with($trimmed, 'https://')) {
+            return resolve_snapshot_url($trimmed);
+        }
+
+        $clean = ltrim(preg_replace('#^/?storage/#', '', $trimmed) ?? $trimmed, '/');
+        if ($clean === '' || str_contains($clean, '..') || str_contains($clean, '\\')) {
+            return null;
+        }
+
+        $candidates = [];
+        if (str_starts_with($clean, 'snapshots/')) {
+            $candidates[] = 'system/' . $clean;
+            $candidates[] = $clean;
+        } elseif (str_starts_with($clean, 'system/snapshots/')) {
+            $candidates[] = $clean;
+            $candidates[] = substr($clean, 7);
+        } else {
+            $candidates[] = 'system/snapshots/' . $clean;
+            $candidates[] = 'system/' . $clean;
+            $candidates[] = $clean;
+        }
+
+        $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
+        foreach ($candidates as $cand) {
+            if ($publicDisk->exists($cand)) {
+                return asset('storage/' . $cand);
+            }
+        }
+
+        return resolve_snapshot_url($clean, asset('storage/' . $clean));
+    }
+
+    /**
+     * Baut die chronologische Blueprint-Verlaufsleiste für Schritt 1 (Admin) aus configuration_history + aktuellem Stand.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function buildItemBlueprintTimeline(?OrderOrderItem $item): array
+    {
+        if (!$item) {
+            return [];
+        }
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $rawHistory = is_array($conf['configuration_history'] ?? null)
+            ? array_values(array_filter($conf['configuration_history'], 'is_array'))
+            : [];
+
+        if (empty($rawHistory)) {
+            return [];
+        }
+
+        usort($rawHistory, static fn (array $a, array $b): int => ((int) ($a['version'] ?? 0)) <=> ((int) ($b['version'] ?? 0)));
+
+        $formatTs = static function (?string $iso, $fallbackDt = null): string {
+            try {
+                if ($iso !== null && trim($iso) !== '') {
+                    return \Carbon\Carbon::parse($iso)->timezone('Europe/Berlin')->format('d.m.Y, H:i \U\h\r');
+                }
+                if ($fallbackDt instanceof \Carbon\CarbonInterface) {
+                    return $fallbackDt->copy()->timezone('Europe/Berlin')->format('d.m.Y, H:i \U\h\r');
+                }
+            } catch (\Throwable) {
+            }
+
+            return '';
+        };
+
+        $steps = [];
+        foreach ($rawHistory as $idx => $entry) {
+            $ver = max(1, (int) ($entry['version'] ?? ($idx + 1)));
+            $actorType = strtolower((string) ($entry['actor_type'] ?? 'customer')) === 'admin' ? 'admin' : 'customer';
+            $cleanLabel = trim(str_replace([" \u{2013} ", " \u{2014} "], ' · ', (string) ($entry['actor_label'] ?? '')));
+            if ($cleanLabel === '') {
+                $cleanLabel = $actorType === 'admin' ? 'Mein-Seelenfunke Admin' : 'Original-Entwurf beim Kauf';
+            }
+
+            $snap = $entry['snapshot_path'] ?? null;
+            $frontUrl = is_array($snap)
+                ? self::resolveOrderBlueprintSnapshotUrl($snap['front'] ?? null)
+                : (is_string($snap) ? self::resolveOrderBlueprintSnapshotUrl($snap) : null);
+            $backUrl = is_array($snap) ? self::resolveOrderBlueprintSnapshotUrl($snap['back'] ?? null) : null;
+
+            $steps[] = [
+                'version'        => $ver,
+                'actor_type'     => $actorType,
+                'actor_label'    => $cleanLabel,
+                'saved_at_label' => $formatTs($entry['saved_at'] ?? null, $item->created_at),
+                'front_url'      => $frontUrl,
+                'back_url'       => $backUrl,
+                'has_back'       => $backUrl !== null && $backUrl !== '',
+                'is_current'     => false,
+            ];
+        }
+
+        $maxVer = !empty($steps) ? max(array_column($steps, 'version')) : 0;
+        $adj = is_array($conf['last_admin_adjustment'] ?? null) ? $conf['last_admin_adjustment'] : null;
+        $currVer = ($adj !== null && (int) ($adj['version'] ?? 0) > $maxVer)
+            ? (int) $adj['version']
+            : ($maxVer + 1);
+        $currActorType = $adj !== null ? 'admin' : 'customer';
+        $currActorLabel = $adj !== null
+            ? (trim(str_replace([" \u{2013} ", " \u{2014} "], ' · ', (string) ($adj['adjusted_by'] ?? ''))) ?: 'Mein-Seelenfunke Admin')
+            : 'Kunden-Entwurf';
+
+        $currSnap = $conf['snapshot_path'] ?? null;
+        $hasBackContent = collect($conf['texts_back'] ?? [])->contains(fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '')
+            || !empty($conf['logos_back']);
+        $currFrontUrl = is_array($currSnap)
+            ? self::resolveOrderBlueprintSnapshotUrl($currSnap['front'] ?? null)
+            : (is_string($currSnap) ? self::resolveOrderBlueprintSnapshotUrl($currSnap) : null);
+        $currBackUrl = (is_array($currSnap) && $hasBackContent)
+            ? self::resolveOrderBlueprintSnapshotUrl($currSnap['back'] ?? null)
+            : null;
+
+        $steps[] = [
+            'version'        => $currVer,
+            'actor_type'     => $currActorType,
+            'actor_label'    => $currActorLabel,
+            'saved_at_label' => $formatTs($adj['adjusted_at'] ?? null, $item->updated_at),
+            'front_url'      => $currFrontUrl,
+            'back_url'       => $currBackUrl,
+            'has_back'       => $currBackUrl !== null && $currBackUrl !== '',
+            'is_current'     => true,
+        ];
+
+        return $steps;
     }
 
     // --- ACTIONS: SPEICHERN ---
@@ -1740,9 +1955,11 @@ class OrderOverview extends Component
         }
 
         $this->syncOrderItemConfigInMemory($item);
-        $profiles = $item->product->getLaserProfiles();
+        $profiles = $this->resolveProductLaserProfilesWithPhotoStudio($item->product);
         $cleanId = preg_replace('/^profile:/i', '', trim($profileId)) ?? trim($profileId);
         $matched = collect($profiles)->first(fn ($p) => ($p['id'] ?? '') === $cleanId || ($p['title'] ?? '') === $cleanId);
+        $resolvedProfileId = is_array($matched) ? (string) ($matched['id'] ?? $cleanId) : $cleanId;
+        $this->persistOrderItemActiveProfileId($item, $effectiveSide, $resolvedProfileId);
         $titleLabel = is_array($matched) ? (string) ($matched['title'] ?? 'Profil') : 'Profil';
 
         $this->laserLastActionStatus = "Profil geladen: {$titleLabel} ({$effective['focus_formatted']} · {$effective['power_percent']} % · {$effective['dot_duration_us']} µs)";
@@ -1750,7 +1967,7 @@ class OrderOverview extends Component
             'laser-params-sync',
             params: $effective,
             profiles: $profiles,
-            active_profile_id: is_array($matched) ? (string) ($matched['id'] ?? '') : $cleanId,
+            active_profile_id: $resolvedProfileId,
             seq: $clientSeq
         );
     }
@@ -1881,6 +2098,38 @@ class OrderOverview extends Component
         );
     }
 
+    protected function normalizeCameraLightMode(?string $mode): string
+    {
+        $clean = strtolower(trim((string) $mode));
+
+        return in_array($clean, ['anti_glare', 'dim', 'normal'], true) ? $clean : 'anti_glare';
+    }
+
+    public function setLaserCameraLightMode(string $mode, ?string $itemId = null): void
+    {
+        $this->laserCameraLightMode = $this->normalizeCameraLightMode($mode);
+        $item = $this->resolveOrderItemForLaserAction($itemId);
+        if (!$item) {
+            return;
+        }
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $conf['laser_camera_light_mode'] = $this->laserCameraLightMode;
+        $item->configuration = $conf;
+        $item->saveQuietly();
+        $this->syncOrderItemConfigInMemory($item);
+    }
+
+    public function updatedLaserCameraLightMode($value): void
+    {
+        $this->setLaserCameraLightMode((string) $value);
+    }
+
+    public function captureLaserCameraSnapshot(?string $side = null, ?array $inlineParams = null): void
+    {
+        $this->refreshLaserCameraAndAlign($side, $inlineParams);
+    }
+
     protected function persistLaserCoordinatesOnItem(
         ?OrderOrderItem $item,
         string $side,
@@ -1900,11 +2149,11 @@ class OrderOverview extends Component
             $conf['laser_cockpit_coordinates'] = [];
         }
         $conf['laser_cockpit_coordinates'][$effectiveSide] = [
-            'x_mm'       => round($xMm, 1),
-            'y_mm'       => round($yMm, 1),
-            'angle_deg'  => round($angleDeg, 1),
-            'w_mm'       => round($wMm, 1),
-            'h_mm'       => round($hMm, 1),
+            'x_mm'       => round($xMm, 2),
+            'y_mm'       => round($yMm, 2),
+            'angle_deg'  => round($angleDeg, 2),
+            'w_mm'       => round($wMm, 2),
+            'h_mm'       => round($hMm, 2),
             'updated_at' => now()->toIso8601String(),
         ];
 
@@ -1931,6 +2180,8 @@ class OrderOverview extends Component
 
         $effectiveSide = $this->laserCockpitSide === 'back' ? 'back' : 'front';
         $conf = is_array($item->configuration) ? $item->configuration : [];
+        $this->laserCameraLightMode = $this->normalizeCameraLightMode($conf['laser_camera_light_mode'] ?? 'anti_glare');
+        $conf['laser_camera_light_mode'] = $this->laserCameraLightMode;
         $savedSide = $conf['laser_cockpit_coordinates'][$effectiveSide] ?? null;
 
         try {
@@ -1939,10 +2190,11 @@ class OrderOverview extends Component
                 $item->product,
                 $conf,
                 $effectiveSide,
-                $forceCameraSync
+                $forceCameraSync,
+                $this->laserCameraLightMode
             );
-            $defaultW = round((float) ($detected['engrave_width_mm'] ?? $detected['blank_width_mm'] ?? 40.0), 1);
-            $defaultH = round((float) ($detected['engrave_height_mm'] ?? $detected['blank_height_mm'] ?? 40.0), 1);
+            $defaultW = round((float) ($detected['engrave_width_mm'] ?? $detected['blank_width_mm'] ?? 40.0), 2);
+            $defaultH = round((float) ($detected['engrave_height_mm'] ?? $detected['blank_height_mm'] ?? 40.0), 2);
 
             if (
                 !$forceCameraSync
@@ -1951,21 +2203,21 @@ class OrderOverview extends Component
                 && is_numeric($savedSide['x_mm'])
                 && is_numeric($savedSide['y_mm'])
             ) {
-                $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $savedSide['x_mm'])), 1);
-                $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $savedSide['y_mm'])), 1);
+                $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $savedSide['x_mm'])), 2);
+                $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $savedSide['y_mm'])), 2);
                 $this->laserAngleDeg = isset($savedSide['angle_deg']) && is_numeric($savedSide['angle_deg'])
-                    ? round(max(-45.0, min(45.0, (float) $savedSide['angle_deg'])), 1)
+                    ? round(max(-45.0, min(45.0, (float) $savedSide['angle_deg'])), 2)
                     : 0.0;
                 $this->laserWidthMm = isset($savedSide['w_mm']) && is_numeric($savedSide['w_mm']) && (float) $savedSide['w_mm'] > 0.5
-                    ? round(max(2.5, min(195.0, (float) $savedSide['w_mm'])), 1)
+                    ? round(max(2.5, min(195.0, (float) $savedSide['w_mm'])), 2)
                     : $defaultW;
                 $this->laserHeightMm = isset($savedSide['h_mm']) && is_numeric($savedSide['h_mm']) && (float) $savedSide['h_mm'] > 0.5
-                    ? round(max(2.5, min(195.0, (float) $savedSide['h_mm'])), 1)
+                    ? round(max(2.5, min(195.0, (float) $savedSide['h_mm'])), 2)
                     : $defaultH;
             } else {
-                $this->laserCenterXMm = (float) $detected['center_x_mm'];
-                $this->laserCenterYMm = (float) $detected['center_y_mm'];
-                $this->laserAngleDeg = (float) $detected['angle_deg'];
+                $this->laserCenterXMm = round((float) $detected['center_x_mm'], 2);
+                $this->laserCenterYMm = round((float) $detected['center_y_mm'], 2);
+                $this->laserAngleDeg = round((float) $detected['angle_deg'], 2);
                 $this->laserWidthMm = $defaultW;
                 $this->laserHeightMm = $defaultH;
             }
@@ -2016,21 +2268,31 @@ class OrderOverview extends Component
             $item = $this->resolveOrderItemForLaserAction((string) $item->id) ?: $item;
         }
 
+        $this->laserCameraLightMode = $this->normalizeCameraLightMode($this->laserCameraLightMode);
+        $configWithLightMode = is_array($item->configuration) ? $item->configuration : [];
+        if (($configWithLightMode['laser_camera_light_mode'] ?? null) !== $this->laserCameraLightMode) {
+            $configWithLightMode['laser_camera_light_mode'] = $this->laserCameraLightMode;
+            $item->configuration = $configWithLightMode;
+            $item->saveQuietly();
+            $this->syncOrderItemConfigInMemory($item);
+        }
+
         try {
             $this->laserCameraRefreshToken++;
             $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
             $detected = $cockpit->detectBlankPositionOnBed(
                 $item->product,
-                $item->configuration ?? [],
+                $configWithLightMode,
                 $this->laserCockpitSide,
-                true
+                true,
+                $this->laserCameraLightMode
             );
 
-            $this->laserCenterXMm = (float) $detected['center_x_mm'];
-            $this->laserCenterYMm = (float) $detected['center_y_mm'];
-            $this->laserAngleDeg = (float) $detected['angle_deg'];
-            $this->laserWidthMm = round((float) ($detected['engrave_width_mm'] ?? $detected['blank_width_mm'] ?? 40.0), 1);
-            $this->laserHeightMm = round((float) ($detected['engrave_height_mm'] ?? $detected['blank_height_mm'] ?? 40.0), 1);
+            $this->laserCenterXMm = round((float) $detected['center_x_mm'], 2);
+            $this->laserCenterYMm = round((float) $detected['center_y_mm'], 2);
+            $this->laserAngleDeg = round((float) $detected['angle_deg'], 2);
+            $this->laserWidthMm = round((float) ($detected['engrave_width_mm'] ?? $detected['blank_width_mm'] ?? 40.0), 2);
+            $this->laserHeightMm = round((float) ($detected['engrave_height_mm'] ?? $detected['blank_height_mm'] ?? 40.0), 2);
             $this->laserConfidence = (int) $detected['confidence'];
             $this->laserAutoAligned = true;
             $this->laserWorkflowStep = 2;
@@ -2054,9 +2316,9 @@ class OrderOverview extends Component
                 h: $this->laserHeightMm
             );
 
-            $xFmt = number_format($this->laserCenterXMm, 1, ',', '.');
-            $yFmt = number_format($this->laserCenterYMm, 1, ',', '.');
-            $aFmt = number_format($this->laserAngleDeg, 1, ',', '.');
+            $xFmt = number_format($this->laserCenterXMm, 2, ',', '.');
+            $yFmt = number_format($this->laserCenterYMm, 2, ',', '.');
+            $aFmt = number_format($this->laserAngleDeg, 2, ',', '.');
             $camTime = (string) ($detected['camera_updated_at'] ?? now()->format('d.m.Y H:i:s'));
             $liveSource = (string) ($detected['source'] ?? '');
             $isRealLiveCapture = in_array($liveSource, ['laser_live_v2_ws', 'laser_live_http', 'minipc_lan_relay'], true);
@@ -2087,8 +2349,8 @@ class OrderOverview extends Component
     }
 
     /**
-     * Aktualisiert und persistiert die Laser-Koordinaten (X, Y, Winkel sowie optional skalierte Breite/Höhe wMm x hMm).
-     * Abwärtskompatibel zu bisherigen Aufrufen updateLaserCoordinates($xMm, $yMm, $angleDeg).
+     * Aktualisiert und persistiert die Laser-Koordinaten (X, Y, Winkel sowie optional skalierte Breite/Höhe wMm x hMm)
+     * in echter 0,01 mm (10 µm) Präzision. Abwärtskompatibel zu bisherigen Aufrufen updateLaserCoordinates($xMm, $yMm, $angleDeg).
      */
     public function updateLaserCoordinates(
         $itemId,
@@ -2122,13 +2384,13 @@ class OrderOverview extends Component
         }
 
         if ($rawX !== null && is_numeric($rawX)) {
-            $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $rawX)), 1);
+            $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $rawX)), 2);
         }
         if ($rawY !== null && is_numeric($rawY)) {
-            $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $rawY)), 1);
+            $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $rawY)), 2);
         }
         if ($rawAngle !== null && is_numeric($rawAngle)) {
-            $this->laserAngleDeg = round(max(-45.0, min(45.0, (float) $rawAngle)), 1);
+            $this->laserAngleDeg = round(max(-45.0, min(45.0, (float) $rawAngle)), 2);
         }
 
         if (($rawW !== null && is_numeric($rawW)) || ($rawH !== null && is_numeric($rawH))) {
@@ -2154,8 +2416,8 @@ class OrderOverview extends Component
                 $nextH *= $factor;
             }
 
-            $this->laserWidthMm = round(max(2.5, min(195.0, $nextW)), 1);
-            $this->laserHeightMm = round(max(2.5, min(195.0, $nextH)), 1);
+            $this->laserWidthMm = round(max(2.5, min(195.0, $nextW)), 2);
+            $this->laserHeightMm = round(max(2.5, min(195.0, $nextH)), 2);
         }
 
         $targetItem = null;
@@ -2178,8 +2440,8 @@ class OrderOverview extends Component
                     $targetItem->configuration ?? [],
                     false
                 );
-                $this->laserWidthMm = round((float) $wa['engraveWidthMm'], 1);
-                $this->laserHeightMm = round((float) $wa['engraveHeightMm'], 1);
+                $this->laserWidthMm = round((float) $wa['engraveWidthMm'], 2);
+                $this->laserHeightMm = round((float) $wa['engraveHeightMm'], 2);
             }
 
             $this->persistLaserCoordinatesOnItem(
@@ -2209,9 +2471,9 @@ class OrderOverview extends Component
 
     public function nudgeLaserPosition(float $dxMm = 0.0, float $dyMm = 0.0, float $dAngleDeg = 0.0): void
     {
-        $this->laserCenterXMm = round(max(5.0, min(195.0, $this->laserCenterXMm + $dxMm)), 1);
-        $this->laserCenterYMm = round(max(5.0, min(195.0, $this->laserCenterYMm + $dyMm)), 1);
-        $this->laserAngleDeg = round(max(-45.0, min(45.0, $this->laserAngleDeg + $dAngleDeg)), 1);
+        $this->laserCenterXMm = round(max(5.0, min(195.0, $this->laserCenterXMm + $dxMm)), 2);
+        $this->laserCenterYMm = round(max(5.0, min(195.0, $this->laserCenterYMm + $dyMm)), 2);
+        $this->laserAngleDeg = round(max(-45.0, min(45.0, $this->laserAngleDeg + $dAngleDeg)), 2);
 
         $this->persistLaserCoordinatesOnItem(
             $this->previewItem,
@@ -2259,8 +2521,8 @@ class OrderOverview extends Component
                 $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null
             );
 
-            $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
-            $yFmt = number_format((float) $job['center_y_mm'], 1, ',', '.');
+            $xFmt = number_format((float) $job['center_x_mm'], 2, ',', '.');
+            $yFmt = number_format((float) $job['center_y_mm'], 2, ',', '.');
             $sentDirect = !empty($job['sent_direct']);
             $this->laserWorkflowStep = max(2, $this->laserWorkflowStep);
 
@@ -2311,8 +2573,8 @@ class OrderOverview extends Component
                 $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null
             );
 
-            $xFmt = number_format((float) $job['center_x_mm'], 1, ',', '.');
-            $yFmt = number_format((float) $job['center_y_mm'], 1, ',', '.');
+            $xFmt = number_format((float) $job['center_x_mm'], 2, ',', '.');
+            $yFmt = number_format((float) $job['center_y_mm'], 2, ',', '.');
             $sentDirect = !empty($job['sent_direct']);
 
             if ($sentDirect) {
@@ -2326,11 +2588,11 @@ class OrderOverview extends Component
             } else {
                 $this->laserWorkflowStep = app()->runningUnitTests() ? 3 : 2;
                 $errDetail = (string) ($job['delivery_error'] ?? 'Laser nicht im WLAN erreichbar.');
-                $this->laserLastActionStatus = "Laser offline ({$job['laser_ip']}) · .xcs unter Dateien verfügbar";
+                $this->laserLastActionStatus = "Laser offline ({$job['laser_ip']}) · .xcs unter Medien verfügbar";
                 $this->notifyOrderFeedback(
                     'warning',
                     'Laser konnte im WLAN nicht erreicht werden',
-                    "Auftrag #{$job['order_number']} wurde vorbereitet, aber der xTool F2 Ultra UV ({$job['laser_ip']}:28900) hat nicht geantwortet ({$errDetail}). Bitte Laser einschalten oder .xcs unter „Dateien“ herunterladen."
+                    "Auftrag #{$job['order_number']} wurde vorbereitet, aber der xTool F2 Ultra UV ({$job['laser_ip']}:28900) hat nicht geantwortet ({$errDetail}). Bitte Laser einschalten oder .xcs unter „Medien“ herunterladen."
                 );
             }
         } catch (\Throwable $e) {
@@ -2380,7 +2642,8 @@ class OrderOverview extends Component
                 $confForCache['laser_cockpit_coordinates'],
                 $confForCache['manufacturing_checklist'],
                 $confForCache['laser_parameter_overrides'],
-                $confForCache['laser_cockpit_parameters']
+                $confForCache['laser_cockpit_parameters'],
+                $confForCache['laser_camera_light_mode']
             );
 
             // Schneller Disk-Cache für das hochauflösende WYSIWYG-Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
@@ -2486,9 +2749,1531 @@ class OrderOverview extends Component
                 'ghost_d_path'      => $ghostDPath,
                 'preview_data_url'  => $previewUrl,
                 'last_status'       => $this->laserLastActionStatus,
+                'camera_light_mode' => $this->normalizeCameraLightMode($conf['laser_camera_light_mode'] ?? $this->laserCameraLightMode),
             ];
         } catch (\Throwable) {
             return null;
+        }
+    }
+
+    // --- MEDIEN-DROPDOWN & LASER-FOTO-STUDIO ---
+
+    protected function normalizeRelativeStoragePath(?string $rawPath): string
+    {
+        $p = trim(str_replace('\\', '/', (string) $rawPath));
+        if ($p === '' || str_contains($p, '..') || str_contains($p, "\0")) {
+            return '';
+        }
+        $p = preg_replace('#^https?://[^/]+/#i', '', $p) ?? $p;
+        $p = ltrim($p, '/');
+        if (str_starts_with($p, 'storage/')) {
+            $p = substr($p, 8);
+        }
+
+        return ltrim($p, '/');
+    }
+
+    protected function resolveStorageAbsPath(string $relPath): ?string
+    {
+        $clean = $this->normalizeRelativeStoragePath($relPath);
+        if ($clean === '') {
+            return null;
+        }
+
+        $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
+        if ($publicDisk->exists($clean)) {
+            $full = $publicDisk->path($clean);
+            if (!is_link($full)) {
+                return $full;
+            }
+        }
+
+        if (str_starts_with($clean, 'bestellungen/')) {
+            $localDisk = \Illuminate\Support\Facades\Storage::disk('local');
+            if ($localDisk->exists($clean)) {
+                $full = $localDisk->path($clean);
+                if (!is_link($full)) {
+                    return $full;
+                }
+            }
+        }
+
+        $fallbackPublic = $publicDisk->path($clean);
+        if (@is_file($fallbackPublic) && !is_link($fallbackPublic)) {
+            return $fallbackPublic;
+        }
+
+        return null;
+    }
+
+    public function buildItemMediaPayload(?OrderOrderItem $item): array
+    {
+        if (!$item) {
+            return [
+                'snapshots'            => [],
+                'customer_files'       => [],
+                'voucher_files'        => [],
+                'has_front_export'     => false,
+                'has_back_export'      => false,
+                'has_open_photo_issue' => false,
+                'total_count'          => 0,
+            ];
+        }
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $isCustomFields = (($conf['personalization_mode'] ?? null) === 'custom_fields')
+            || !empty($conf['custom_fields_data']);
+        $customFieldsClean = array_filter($conf['custom_fields_data'] ?? [], function ($cfd) {
+            if (!is_array($cfd)) {
+                return false;
+            }
+            $v = trim((string) ($cfd['value'] ?? ''));
+
+            return $v !== '' && ($cfd['type'] ?? 'text') !== 'font' && !in_array(mb_strtolower($v), ['kein symbol', 'keine', 'nein', '-'], true);
+        });
+        $hasCustomContent = $isCustomFields && !empty($customFieldsClean);
+
+        $frontTexts = array_filter($conf['texts'] ?? [], fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
+        $backTexts = array_filter($conf['texts_back'] ?? [], fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
+        $hasFrontLogo = !$isCustomFields && (!empty($conf['logos']) || !empty($conf['logo_storage_path']));
+        $hasBackLogo = !$isCustomFields && !empty($conf['logos_back']);
+
+        $hasFrontExport = !empty($frontTexts) || $hasFrontLogo || $hasCustomContent || !empty($conf['text']);
+        $hasBackExport = !$isCustomFields && (!empty($backTexts) || $hasBackLogo);
+
+        $snapshots = [];
+        $snapshotPath = $conf['snapshot_path'] ?? null;
+        if (!empty($snapshotPath)) {
+            if (is_array($snapshotPath)) {
+                foreach ($snapshotPath as $sideKey => $sPath) {
+                    if ($sideKey === 'back' && !$hasBackExport) {
+                        continue;
+                    }
+                    $cleanSnap = $this->normalizeRelativeStoragePath((string) $sPath);
+                    if ($cleanSnap === '') {
+                        continue;
+                    }
+                    $ext = strtolower(pathinfo($cleanSnap, PATHINFO_EXTENSION) ?: 'png');
+                    $sideLabel = $sideKey === 'front' ? 'Vorderseite' : ($sideKey === 'back' ? 'Rückseite' : ucfirst((string) $sideKey));
+                    $snapshots[] = [
+                        'label'         => "Sicherung ({$sideLabel})",
+                        'path'          => $cleanSnap,
+                        'ext'           => $ext,
+                        'is_image'      => in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'], true),
+                        'preview_url'   => asset('storage/' . $cleanSnap),
+                        'download_url'  => asset('storage/' . $cleanSnap),
+                        'download_name' => 'Sicherung_' . $sideLabel . '.' . $ext,
+                    ];
+                }
+            } else {
+                $cleanSnap = $this->normalizeRelativeStoragePath((string) $snapshotPath);
+                if ($cleanSnap !== '') {
+                    $ext = strtolower(pathinfo($cleanSnap, PATHINFO_EXTENSION) ?: 'png');
+                    $snapshots[] = [
+                        'label'         => 'Sicherung (Konfiguration)',
+                        'path'          => $cleanSnap,
+                        'ext'           => $ext,
+                        'is_image'      => in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'], true),
+                        'preview_url'   => asset('storage/' . $cleanSnap),
+                        'download_url'  => asset('storage/' . $cleanSnap),
+                        'download_name' => 'Sicherung_Konfiguration.' . $ext,
+                    ];
+                }
+            }
+        }
+
+        $voucherFiles = [];
+        $isVoucherItem = ($item->product?->slug ?? '') === 'geschenkgutschein' || !empty($conf['is_gift_voucher']);
+        if ($isVoucherItem) {
+            $giftVouchers = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $item->id)->get();
+            foreach ($giftVouchers as $gv) {
+                $voucherFiles[] = [
+                    'label'        => 'Laser-Vorlage 86x54 mm Goldkarte (' . $gv->code . ')',
+                    'download_url' => route('customer.gift-voucher.download', ['voucher' => $gv->id, 'format' => 'laser_svg']),
+                    'ext'          => 'svg',
+                ];
+                $voucherFiles[] = [
+                    'label'        => 'Gutschein PDF (' . $gv->code . ')',
+                    'download_url' => route('customer.gift-voucher.download', $gv->id),
+                    'ext'          => 'pdf',
+                ];
+            }
+        }
+
+        $rawCandidates = [];
+        if (!empty($conf['logo_storage_path']) && is_string($conf['logo_storage_path'])) {
+            $cPath = $this->normalizeRelativeStoragePath($conf['logo_storage_path']);
+            if ($cPath !== '') {
+                $rawCandidates[$cPath] = [
+                    'raw_key' => $cPath,
+                    'label'   => basename($cPath) ?: 'Kunden-Logo',
+                ];
+            }
+        }
+
+        foreach (($conf['files'] ?? []) as $mf) {
+            if (!is_string($mf)) {
+                continue;
+            }
+            $cPath = $this->normalizeRelativeStoragePath($mf);
+            if ($cPath !== '' && !isset($rawCandidates[$cPath])) {
+                $rawCandidates[$cPath] = [
+                    'raw_key' => $cPath,
+                    'label'   => basename($cPath),
+                ];
+            }
+        }
+
+        foreach (['logos', 'logos_back'] as $logoListKey) {
+            foreach (($conf[$logoListKey] ?? []) as $logoEntry) {
+                if (!is_array($logoEntry)) {
+                    continue;
+                }
+                $lType = strtolower((string) ($logoEntry['type'] ?? ''));
+                if ($lType === 'vector') {
+                    continue;
+                }
+                $candidateVal = (string) ($logoEntry['value'] ?? $logoEntry['url'] ?? '');
+                if (str_starts_with($candidateVal, 'data:') || str_contains($candidateVal, 'produkte/configurator/vectors/')) {
+                    continue;
+                }
+                $cPath = $this->normalizeRelativeStoragePath($candidateVal);
+                if ($cPath !== '' && !isset($rawCandidates[$cPath])) {
+                    $rawCandidates[$cPath] = [
+                        'raw_key' => $cPath,
+                        'label'   => basename($cPath),
+                    ];
+                }
+            }
+        }
+
+        // Falls sowohl eine Arbeitsdatei als auch deren *_raw.* Schwesterdatei in files[] stehen, _raw-Duplikat ausblenden
+        $allKeys = array_keys($rawCandidates);
+        foreach ($allKeys as $k) {
+            if (preg_match('/^(.*)_raw(\.[a-z0-9]+)$/i', $k, $m)) {
+                $basePrefix = $m[1];
+                foreach ($allKeys as $other) {
+                    if ($other !== $k && str_starts_with($other, $basePrefix . '.')) {
+                        unset($rawCandidates[$k]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        $photoIssue = is_array($conf['photo_issue'] ?? null) ? $conf['photo_issue'] : null;
+        $adjustments = is_array($conf['laser_photo_adjustments'] ?? null) ? $conf['laser_photo_adjustments'] : [];
+        $hasOpenPhotoIssue = $photoIssue !== null && empty($photoIssue['resolved']);
+
+        $customerFiles = [];
+        foreach ($rawCandidates as $rawKey => $entry) {
+            $ext = strtolower(pathinfo($rawKey, PATHINFO_EXTENSION));
+            $isRaster = in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true);
+            $isImage = in_array($ext, ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'], true);
+
+            $origRel = $isRaster ? $this->studioResolveOriginalPhotoRelPath($rawKey, $conf) : $rawKey;
+            $origRel = $this->normalizeRelativeStoragePath($origRel) ?: $rawKey;
+            $hasUntouched = $isRaster && $this->studioHasUntouchedOriginal($rawKey, $conf);
+
+            $adj = is_array($adjustments[$rawKey] ?? null) ? $adjustments[$rawKey] : null;
+            $isLaserOptimized = !empty($adj['enabled']);
+            $editedRel = ($isLaserOptimized && !empty($adj['edited_path']))
+                ? $this->normalizeRelativeStoragePath((string) $adj['edited_path'])
+                : '';
+
+            $matchesIssue = $photoIssue !== null && (
+                ($this->normalizeRelativeStoragePath((string) ($photoIssue['file'] ?? '')) === $rawKey)
+                || (($photoIssue['file_name'] ?? '') === $entry['label'])
+            );
+            $issueResolved = $matchesIssue && !empty($photoIssue['resolved']);
+
+            $customerFiles[] = [
+                'raw_key'                => $rawKey,
+                'label'                  => $entry['label'],
+                'ext'                    => $ext ?: 'file',
+                'is_raster'              => $isRaster,
+                'is_image'               => $isImage,
+                'original_rel_path'      => $origRel,
+                'has_untouched_original' => $hasUntouched,
+                'is_laser_optimized'     => $isLaserOptimized,
+                'edited_rel_path'        => $editedRel,
+                'preview_url'            => asset('storage/' . ($editedRel !== '' ? $editedRel : $origRel)),
+                'original_preview_url'   => asset('storage/' . $origRel),
+                'download_url'           => asset('storage/' . $origRel),
+                'download_name'          => basename($origRel) ?: $entry['label'],
+                'has_photo_issue'        => $matchesIssue,
+                'photo_issue_resolved'   => $issueResolved,
+                'photo_issue_reason'     => $matchesIssue ? (string) ($photoIssue['reason'] ?? '') : '',
+            ];
+        }
+
+        return [
+            'snapshots'            => $snapshots,
+            'customer_files'       => $customerFiles,
+            'voucher_files'        => $voucherFiles,
+            'has_front_export'     => $hasFrontExport,
+            'has_back_export'      => $hasBackExport,
+            'has_open_photo_issue' => $hasOpenPhotoIssue,
+            'total_count'          => count($snapshots) + count($customerFiles) + count($voucherFiles),
+        ];
+    }
+
+    protected function sanitizePhotoStudioParams(array $raw): array
+    {
+        $ditherMode = strtolower(trim((string) ($raw['dither_mode'] ?? 'jarvis')));
+        if (!in_array($ditherMode, ['jarvis', 'stucki', 'grayscale', 'threshold'], true)) {
+            $ditherMode = 'jarvis';
+        }
+
+        return [
+            'enabled'       => array_key_exists('enabled', $raw) ? (bool) $raw['enabled'] : true,
+            'grayscale'     => array_key_exists('grayscale', $raw) ? (bool) $raw['grayscale'] : true,
+            'invert'        => array_key_exists('invert', $raw) ? (bool) $raw['invert'] : false,
+            'brightness'    => max(-100, min(100, (int) round((float) ($raw['brightness'] ?? 0)))),
+            'contrast'      => max(-100, min(100, (int) round((float) ($raw['contrast'] ?? 0)))),
+            'gamma'         => round(max(0.35, min(2.50, (float) str_replace(',', '.', (string) ($raw['gamma'] ?? 1.15)))), 2),
+            'highlight_cap' => max(30, min(100, (int) round((float) ($raw['highlight_cap'] ?? 85)))),
+            'sharpness'     => max(0, min(200, (int) round((float) ($raw['sharpness'] ?? 85)))),
+            'dither_mode'   => $ditherMode,
+            'threshold'     => max(10, min(245, (int) round((float) ($raw['threshold'] ?? 128)))),
+        ];
+    }
+
+    protected function studioResolveOriginalPhotoRelPath(string $configuredRelPath, array $itemConfiguration = []): string
+    {
+        $clean = $this->normalizeRelativeStoragePath($configuredRelPath);
+        if ($clean === '') {
+            return '';
+        }
+
+        $prep = app(\App\Services\Laser\LaserPhotoPreprocessor::class);
+        if (method_exists($prep, 'resolveOriginalPhotoRelPath')) {
+            $resolved = (string) $prep->resolveOriginalPhotoRelPath($clean, $itemConfiguration);
+            $norm = $this->normalizeRelativeStoragePath($resolved);
+            if ($norm !== '') {
+                return $norm;
+            }
+        }
+
+        if (!empty($itemConfiguration['raw_files'][$clean]) && is_string($itemConfiguration['raw_files'][$clean])) {
+            $cand = $this->normalizeRelativeStoragePath($itemConfiguration['raw_files'][$clean]);
+            if ($cand !== '' && $this->resolveStorageAbsPath($cand) !== null) {
+                return $cand;
+            }
+        }
+
+        if (!empty($itemConfiguration['laser_photo_adjustments'][$clean]['original_path'])) {
+            $cand = $this->normalizeRelativeStoragePath((string) $itemConfiguration['laser_photo_adjustments'][$clean]['original_path']);
+            if ($cand !== '' && $this->resolveStorageAbsPath($cand) !== null) {
+                return $cand;
+            }
+        }
+
+        if (!preg_match('/_raw\.[a-z0-9]+$/i', $clean)) {
+            $dir = pathinfo($clean, PATHINFO_DIRNAME);
+            $dirPrefix = ($dir !== '' && $dir !== '.') ? ($dir . '/') : '';
+            $stem = pathinfo($clean, PATHINFO_FILENAME);
+            $origExt = strtolower(pathinfo($clean, PATHINFO_EXTENSION));
+            foreach (array_unique(array_filter([$origExt, 'png', 'jpg', 'jpeg', 'webp'])) as $tryExt) {
+                $rawCand = $dirPrefix . $stem . '_raw.' . $tryExt;
+                if ($this->resolveStorageAbsPath($rawCand) !== null) {
+                    return $rawCand;
+                }
+            }
+        }
+
+        return $clean;
+    }
+
+    protected function studioHasUntouchedOriginal(string $configuredRelPath, array $itemConfiguration = []): bool
+    {
+        $clean = $this->normalizeRelativeStoragePath($configuredRelPath);
+        if ($clean === '') {
+            return false;
+        }
+
+        $prep = app(\App\Services\Laser\LaserPhotoPreprocessor::class);
+        if (method_exists($prep, 'hasUntouchedOriginal')) {
+            return (bool) $prep->hasUntouchedOriginal($clean, $itemConfiguration);
+        }
+
+        $orig = $this->studioResolveOriginalPhotoRelPath($clean, $itemConfiguration);
+
+        return $orig !== ''
+            && ($orig !== $clean || (bool) preg_match('/_raw\.[a-z0-9]+$/i', $orig))
+            && $this->resolveStorageAbsPath($orig) !== null;
+    }
+
+    protected function studioDefaultParams(bool $isDarkSurface = false, int $dpi = 600): array
+    {
+        $prep = app(\App\Services\Laser\LaserPhotoPreprocessor::class);
+        if (method_exists($prep, 'defaultStudioParams')) {
+            return $this->sanitizePhotoStudioParams($prep->defaultStudioParams($isDarkSurface, $dpi));
+        }
+
+        return $this->sanitizePhotoStudioParams([
+            'enabled'       => true,
+            'grayscale'     => true,
+            'invert'        => $isDarkSurface,
+            'brightness'    => 0,
+            'contrast'      => $isDarkSurface ? 18 : 12,
+            'gamma'         => $isDarkSurface ? 1.50 : 1.15,
+            'highlight_cap' => $isDarkSurface ? 78 : 88,
+            'sharpness'     => $dpi >= 800 ? 95 : 85,
+            'dither_mode'   => 'jarvis',
+            'threshold'     => 128,
+        ]);
+    }
+
+    protected function studioComputeAutoParams(string $sourceAbsPath, bool $isDarkSurface = false, int $dpi = 600, string $materialHint = ''): array
+    {
+        $prep = app(\App\Services\Laser\LaserPhotoPreprocessor::class);
+        if (method_exists($prep, 'computeMathematicalAutoParams')) {
+            return $this->sanitizePhotoStudioParams(
+                $prep->computeMathematicalAutoParams($sourceAbsPath, $isDarkSurface, $dpi, $materialHint)
+            );
+        }
+
+        $defaults = $this->studioDefaultParams($isDarkSurface, $dpi);
+        if (!@is_file($sourceAbsPath) || !function_exists('imagecreatefromstring')) {
+            return array_merge($defaults, ['enabled' => true]);
+        }
+
+        $bytes = @file_get_contents($sourceAbsPath);
+        $img = is_string($bytes) ? @imagecreatefromstring($bytes) : false;
+        if (!$img) {
+            return array_merge($defaults, ['enabled' => true]);
+        }
+
+        $w = imagesx($img);
+        $h = imagesy($img);
+        $step = max(1, (int) floor(max($w, $h) / 200));
+        $hist = array_fill(0, 256, 0);
+        $visible = 0;
+        $lumSum = 0.0;
+
+        for ($y = 0; $y < $h; $y += $step) {
+            for ($x = 0; $x < $w; $x += $step) {
+                $c = imagecolorat($img, $x, $y);
+                $a = ($c >> 24) & 0x7F;
+                if ($a >= 120) {
+                    continue;
+                }
+                $r = ($c >> 16) & 0xFF;
+                $g = ($c >> 8) & 0xFF;
+                $b = $c & 0xFF;
+                $lum = (int) round(0.299 * $r + 0.587 * $g + 0.114 * $b);
+                $lum = max(0, min(255, $lum));
+                $hist[$lum]++;
+                $lumSum += $lum;
+                $visible++;
+            }
+        }
+        imagedestroy($img);
+
+        if ($visible < 16) {
+            return array_merge($defaults, ['enabled' => true]);
+        }
+
+        $meanLum = ($lumSum / $visible) / 255.0;
+        $p5Target = max(1, (int) round($visible * 0.05));
+        $p95Target = max(1, (int) round($visible * 0.95));
+        $cum = 0;
+        $p5 = 0;
+        $p95 = 255;
+        $foundP5 = false;
+        for ($i = 0; $i <= 255; $i++) {
+            $cum += $hist[$i];
+            if (!$foundP5 && $cum >= $p5Target) {
+                $p5 = $i;
+                $foundP5 = true;
+            }
+            if ($cum >= $p95Target) {
+                $p95 = $i;
+                break;
+            }
+        }
+
+        $span = ($p95 - $p5) / 255.0;
+        $kind = \App\Services\Laser\LaserPhotoPreprocessor::classifyHistogram($hist, $visible);
+        $isSilhouette = ($kind === 'silhouette');
+
+        $targetMean = $isDarkSurface ? 0.46 : 0.52;
+        $brightness = (int) round(max(-45.0, min(45.0, ($targetMean - $meanLum) * 90.0)));
+        $contrast = $span < 0.45
+            ? (int) round(min(55.0, (0.65 - $span) * 95.0))
+            : ($isDarkSurface ? 22 : 16);
+        $gamma = $isDarkSurface
+            ? round(max(1.20, min(2.10, 1.45 + max(0.0, ($meanLum - 0.50) * 0.95))), 2)
+            : round(max(0.85, min(1.75, 1.15 + ($meanLum - 0.52) * 0.65)), 2);
+        $highlightCap = $isDarkSurface ? ($dpi >= 800 ? 74 : 78) : 88;
+        $sharpness = $isSilhouette ? 40 : ($dpi >= 800 ? 110 : 95);
+        $ditherMode = $isSilhouette ? 'threshold' : 'jarvis';
+        $threshold = (int) round(($p5 + $p95) / 2);
+
+        return $this->sanitizePhotoStudioParams([
+            'enabled'       => true,
+            'grayscale'     => true,
+            'invert'        => $isDarkSurface,
+            'brightness'    => $brightness,
+            'contrast'      => $contrast,
+            'gamma'         => $gamma,
+            'highlight_cap' => $highlightCap,
+            'sharpness'     => $sharpness,
+            'dither_mode'   => $ditherMode,
+            'threshold'     => $threshold,
+        ]);
+    }
+
+    protected function studioRenderProcessedGdResource(string $sourceAbsPath, array $params, int $maxDim = 0)
+    {
+        if (!@is_file($sourceAbsPath) || !function_exists('imagecreatefromstring')) {
+            return null;
+        }
+        $bytes = @file_get_contents($sourceAbsPath);
+        $src = is_string($bytes) ? @imagecreatefromstring($bytes) : false;
+        if (!$src) {
+            return null;
+        }
+
+        $srcW = imagesx($src);
+        $srcH = imagesy($src);
+        $dstW = $srcW;
+        $dstH = $srcH;
+        if ($maxDim > 0 && max($srcW, $srcH) > $maxDim) {
+            $scale = $maxDim / max($srcW, $srcH);
+            $dstW = max(1, (int) round($srcW * $scale));
+            $dstH = max(1, (int) round($srcH * $scale));
+        }
+
+        $work = imagecreatetruecolor($dstW, $dstH);
+        imagealphablending($work, false);
+        imagesavealpha($work, true);
+        $trans = imagecolorallocatealpha($work, 255, 255, 255, 127);
+        imagefill($work, 0, 0, $trans);
+        imagecopyresampled($work, $src, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
+        imagedestroy($src);
+
+        $p = $this->sanitizePhotoStudioParams($params);
+        $brightOffset = ($p['brightness'] / 100.0) * 128.0;
+        $cVal = ($p['contrast'] / 100.0) * 100.0;
+        $contrastFactor = (259.0 * ($cVal + 255.0)) / (255.0 * (259.0 - $cVal));
+        $gammaExp = max(0.35, min(2.50, (float) $p['gamma']));
+        $capRatio = max(0.30, min(1.00, $p['highlight_cap'] / 100.0));
+        $minAllowedGray = (int) round(255.0 * (1.0 - $capRatio));
+
+        $lumBuf = array_fill(0, $dstW * $dstH, 255.0);
+        $alphaBuf = array_fill(0, $dstW * $dstH, 127);
+
+        for ($y = 0; $y < $dstH; $y++) {
+            $row = $y * $dstW;
+            for ($x = 0; $x < $dstW; $x++) {
+                $px = imagecolorat($work, $x, $y);
+                $a = ($px >> 24) & 0x7F;
+                $idx = $row + $x;
+                $alphaBuf[$idx] = $a;
+                if ($a >= 125) {
+                    continue;
+                }
+                $r = ($px >> 16) & 0xFF;
+                $g = ($px >> 8) & 0xFF;
+                $b = $px & 0xFF;
+                $lum = $p['grayscale'] ? (0.299 * $r + 0.587 * $g + 0.114 * $b) : (($r + $g + $b) / 3.0);
+                $lum = $contrastFactor * ($lum + $brightOffset - 128.0) + 128.0;
+                $norm = max(0.0, min(1.0, $lum / 255.0));
+                $norm = pow($norm, $gammaExp);
+                if ($p['invert']) {
+                    $norm = 1.0 - $norm;
+                }
+                $lumBuf[$idx] = $norm * 255.0;
+            }
+        }
+
+        if ($p['sharpness'] > 0 && $dstW >= 3 && $dstH >= 3) {
+            $amount = ($p['sharpness'] / 100.0) * 0.85;
+            $copy = $lumBuf;
+            for ($y = 1; $y < $dstH - 1; $y++) {
+                $row = $y * $dstW;
+                for ($x = 1; $x < $dstW - 1; $x++) {
+                    $idx = $row + $x;
+                    if ($alphaBuf[$idx] >= 125) {
+                        continue;
+                    }
+                    $blur = (
+                        $copy[$idx - $dstW]
+                        + $copy[$idx - 1]
+                        + ($copy[$idx] * 4.0)
+                        + $copy[$idx + 1]
+                        + $copy[$idx + $dstW]
+                    ) / 8.0;
+                    $lumBuf[$idx] = max(0.0, min(255.0, $copy[$idx] + $amount * ($copy[$idx] - $blur)));
+                }
+            }
+        }
+
+        for ($i = 0, $len = $dstW * $dstH; $i < $len; $i++) {
+            if ($alphaBuf[$i] < 125) {
+                $lumBuf[$i] = max((float) $minAllowedGray, min(255.0, $lumBuf[$i]));
+            }
+        }
+
+        $ditherMode = $p['dither_mode'];
+        if (in_array($ditherMode, ['jarvis', 'stucki'], true)) {
+            $divisor = $ditherMode === 'stucki' ? 42.0 : 48.0;
+            $kernel = $ditherMode === 'stucki'
+                ? [
+                    [1, 0, 8], [2, 0, 4],
+                    [-2, 1, 2], [-1, 1, 4], [0, 1, 8], [1, 1, 4], [2, 1, 2],
+                    [-2, 2, 1], [-1, 2, 2], [0, 2, 4], [1, 2, 2], [2, 2, 1],
+                ]
+                : [
+                    [1, 0, 7], [2, 0, 5],
+                    [-2, 1, 3], [-1, 1, 5], [0, 1, 7], [1, 1, 5], [2, 1, 3],
+                    [-2, 2, 1], [-1, 2, 3], [0, 2, 5], [1, 2, 3], [2, 2, 1],
+                ];
+
+            $black = imagecolorallocatealpha($work, 0, 0, 0, 0);
+            $white = imagecolorallocatealpha($work, 255, 255, 255, 0);
+            for ($y = 0; $y < $dstH; $y++) {
+                $row = $y * $dstW;
+                for ($x = 0; $x < $dstW; $x++) {
+                    $idx = $row + $x;
+                    if ($alphaBuf[$idx] >= 125) {
+                        imagesetpixel($work, $x, $y, $trans);
+                        continue;
+                    }
+                    $old = $lumBuf[$idx];
+                    $new = $old < 128.0 ? 0.0 : 255.0;
+                    imagesetpixel($work, $x, $y, $new === 0.0 ? $black : $white);
+                    $err = $old - $new;
+                    if ($err == 0.0) {
+                        continue;
+                    }
+                    foreach ($kernel as [$dx, $dy, $wgt]) {
+                        $nx = $x + $dx;
+                        $ny = $y + $dy;
+                        if ($nx < 0 || $nx >= $dstW || $ny >= $dstH) {
+                            continue;
+                        }
+                        $ni = ($ny * $dstW) + $nx;
+                        if ($alphaBuf[$ni] < 125) {
+                            $lumBuf[$ni] += ($err * $wgt) / $divisor;
+                        }
+                    }
+                }
+            }
+        } elseif ($ditherMode === 'threshold') {
+            $thr = (float) $p['threshold'];
+            $black = imagecolorallocatealpha($work, 0, 0, 0, 0);
+            $white = imagecolorallocatealpha($work, 255, 255, 255, 0);
+            for ($y = 0; $y < $dstH; $y++) {
+                $row = $y * $dstW;
+                for ($x = 0; $x < $dstW; $x++) {
+                    $idx = $row + $x;
+                    if ($alphaBuf[$idx] >= 125) {
+                        imagesetpixel($work, $x, $y, $trans);
+                        continue;
+                    }
+                    imagesetpixel($work, $x, $y, $lumBuf[$idx] < $thr ? $black : $white);
+                }
+            }
+        } else {
+            for ($y = 0; $y < $dstH; $y++) {
+                $row = $y * $dstW;
+                for ($x = 0; $x < $dstW; $x++) {
+                    $idx = $row + $x;
+                    if ($alphaBuf[$idx] >= 125) {
+                        imagesetpixel($work, $x, $y, $trans);
+                        continue;
+                    }
+                    $g = max(0, min(255, (int) round($lumBuf[$idx])));
+                    $col = imagecolorallocatealpha($work, $g, $g, $g, $alphaBuf[$idx]);
+                    imagesetpixel($work, $x, $y, $col);
+                }
+            }
+        }
+
+        return $work;
+    }
+
+    protected function studioRenderPreviewDataUrl(string $sourceAbsPath, array $params, int $maxDim = 800): string
+    {
+        $prep = app(\App\Services\Laser\LaserPhotoPreprocessor::class);
+        if (method_exists($prep, 'renderStudioPreviewDataUrl')) {
+            return (string) $prep->renderStudioPreviewDataUrl($sourceAbsPath, $params, $maxDim);
+        }
+
+        $gd = $this->studioRenderProcessedGdResource($sourceAbsPath, $params, $maxDim);
+        if (!$gd) {
+            return '';
+        }
+        ob_start();
+        imagepng($gd);
+        $png = (string) ob_get_clean();
+        imagedestroy($gd);
+
+        return 'data:image/png;base64,' . base64_encode($png);
+    }
+
+    protected function studioRenderPreviewAssetUrl(string $sourceAbsPath, array $params, int $maxDim = 680): string
+    {
+        $sanitized = $this->sanitizePhotoStudioParams($params);
+        $maxDim = max(120, min(1200, $maxDim));
+        $hash = substr(sha1(
+            $sourceAbsPath . '|'
+            . (@filemtime($sourceAbsPath) ?: 0) . '|'
+            . (@filesize($sourceAbsPath) ?: 0) . '|'
+            . $maxDim . '|'
+            . json_encode($sanitized)
+        ), 0, 24);
+
+        $relPreview = 'bestellungen/xtool/photo-edits/preview_' . $hash . '.png';
+        $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
+
+        if (!$publicDisk->exists($relPreview)) {
+            $dataUrl = $this->studioRenderPreviewDataUrl($sourceAbsPath, $sanitized, $maxDim);
+            if (str_starts_with($dataUrl, 'data:image/png;base64,')) {
+                $pngBytes = base64_decode(substr($dataUrl, strlen('data:image/png;base64,')), true);
+                if (is_string($pngBytes) && $pngBytes !== '') {
+                    $publicDisk->put($relPreview, $pngBytes);
+                }
+            }
+        }
+
+        return $publicDisk->exists($relPreview)
+            ? asset('storage/' . $relPreview)
+            : '';
+    }
+
+    protected function cleanupStaleStudioPreviewFiles(int $maxAgeSeconds = 7200): void
+    {
+        try {
+            $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
+            $dir = 'bestellungen/xtool/photo-edits';
+            if (!$publicDisk->exists($dir)) {
+                return;
+            }
+            $cutoff = time() - max(300, $maxAgeSeconds);
+            foreach ($publicDisk->files($dir) as $file) {
+                $base = basename($file);
+                if (str_starts_with($base, 'preview_') && (int) @$publicDisk->lastModified($file) < $cutoff) {
+                    $publicDisk->delete($file);
+                }
+            }
+        } catch (\Throwable) {
+            // Bereinigung temporärer Vorschau-Dateien ist optional
+        }
+    }
+
+    protected function studioSaveProcessedLaserPng(string $sourceAbsPath, array $params, string $targetSubDir = 'bestellungen/xtool/photo-edits'): string
+    {
+        $prep = app(\App\Services\Laser\LaserPhotoPreprocessor::class);
+        if (method_exists($prep, 'saveStudioProcessedLaserPng')) {
+            return $this->normalizeRelativeStoragePath(
+                (string) $prep->saveStudioProcessedLaserPng($sourceAbsPath, $params, $targetSubDir)
+            );
+        }
+
+        $gd = $this->studioRenderProcessedGdResource($sourceAbsPath, $params, 0);
+        if (!$gd) {
+            throw new \RuntimeException('Quelldatei konnte für die Laser-Aufbereitung nicht gelesen werden.');
+        }
+
+        ob_start();
+        imagepng($gd);
+        $pngBytes = (string) ob_get_clean();
+        imagedestroy($gd);
+
+        $cleanDir = trim($this->normalizeRelativeStoragePath($targetSubDir), '/');
+        if ($cleanDir === '') {
+            $cleanDir = 'bestellungen/xtool/photo-edits';
+        }
+        $stem = preg_replace('/[^A-Za-z0-9_-]/', '_', pathinfo($sourceAbsPath, PATHINFO_FILENAME)) ?: 'photo';
+        $relTarget = $cleanDir . '/' . $stem . '_laser_' . substr(sha1($sourceAbsPath . '|' . json_encode($params) . '|' . microtime(true)), 0, 12) . '.png';
+
+        \Illuminate\Support\Facades\Storage::disk('public')->put($relTarget, $pngBytes);
+
+        return $relTarget;
+    }
+
+    protected function verifyAndResolveCustomerFileKey(OrderOrderItem $item, string $fileKey): ?string
+    {
+        $cleanKey = $this->normalizeRelativeStoragePath($fileKey);
+        if ($cleanKey === '') {
+            return null;
+        }
+
+        $media = $this->buildItemMediaPayload($item);
+        foreach ($media['customer_files'] as $cf) {
+            if ($cf['raw_key'] === $cleanKey && $cf['is_raster']) {
+                return $cleanKey;
+            }
+        }
+
+        return null;
+    }
+
+    protected function buildOriginalDataOrAssetUrl(string $origRelPath, ?string $sourceAbsPath): string
+    {
+        $cleanRel = $this->normalizeRelativeStoragePath($origRelPath);
+        $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
+        $ver = ($sourceAbsPath !== null && @is_file($sourceAbsPath)) ? (int) (@filemtime($sourceAbsPath) ?: 1) : 1;
+
+        if ($cleanRel !== '' && $publicDisk->exists($cleanRel)) {
+            return asset('storage/' . $cleanRel) . '?v=' . $ver;
+        }
+
+        if ($sourceAbsPath !== null && @is_file($sourceAbsPath)) {
+            $ext = strtolower(pathinfo($sourceAbsPath, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
+                $ext = 'png';
+            }
+            $hash = substr(sha1($sourceAbsPath . '|' . $ver . '|' . (@filesize($sourceAbsPath) ?: 0)), 0, 24);
+            $stageRel = 'bestellungen/xtool/photo-edits/preview_src_' . $hash . '.' . $ext;
+            if (!$publicDisk->exists($stageRel)) {
+                $raw = @file_get_contents($sourceAbsPath);
+                if (is_string($raw) && $raw !== '') {
+                    $publicDisk->put($stageRel, $raw);
+                }
+            }
+            if ($publicDisk->exists($stageRel)) {
+                return asset('storage/' . $stageRel);
+            }
+        }
+
+        return asset('storage/' . ($cleanRel !== '' ? $cleanRel : ltrim($origRelPath, '/')));
+    }
+
+    protected function ensureStaffAuthorizedForLaserStudio(): void
+    {
+        if (
+            !\Illuminate\Support\Facades\Auth::guard('admin')->check()
+            && !\App\Services\AI\AiAuthHelper::isEmployee()
+            && !\App\Services\AI\AiAuthHelper::isAdmin()
+        ) {
+            abort(403, 'Nicht autorisierter Zugriff auf das Laser-Foto-Studio.');
+        }
+    }
+
+    protected function extractPhotoStudioTemplatePayload(array $raw): array
+    {
+        $sanitized = $this->sanitizePhotoStudioParams($raw);
+
+        return [
+            'grayscale'     => (bool) $sanitized['grayscale'],
+            'invert'        => (bool) $sanitized['invert'],
+            'contrast'      => (int) $sanitized['contrast'],
+            'brightness'    => (int) $sanitized['brightness'],
+            'gamma'         => (float) $sanitized['gamma'],
+            'highlight_cap' => (int) $sanitized['highlight_cap'],
+            'sharpness'     => (int) $sanitized['sharpness'],
+            'dither_mode'   => (string) $sanitized['dither_mode'],
+            'threshold'     => (int) $sanitized['threshold'],
+        ];
+    }
+
+    protected function mapBitmapModeToStudioDitherMode(?string $bitmapMode, string $fallback = 'jarvis'): string
+    {
+        $b = mb_strtolower(trim((string) $bitmapMode));
+        if ($b === '') {
+            return $fallback;
+        }
+        if (str_contains($b, 'stucki')) {
+            return 'stucki';
+        }
+        if (str_contains($b, 'schwellenwert') || str_contains($b, 'threshold')) {
+            return 'threshold';
+        }
+        if (str_contains($b, 'graustufen') || str_contains($b, 'greyscale') || str_contains($b, 'grayscale')) {
+            return 'grayscale';
+        }
+        if (str_contains($b, 'jarvis') || str_contains($b, 'raster')) {
+            return 'jarvis';
+        }
+
+        return $fallback;
+    }
+
+    protected function mapStudioDitherModeToBitmapMode(string $ditherMode): string
+    {
+        return match (strtolower(trim($ditherMode))) {
+            'stucki'    => 'Stucki',
+            'threshold' => 'Schwellenwert',
+            'grayscale' => 'Graustufen',
+            default     => 'Jarvis',
+        };
+    }
+
+    protected function persistOrderItemActiveProfileId(OrderOrderItem $item, string $side, string $profileId): void
+    {
+        $cleanId = preg_replace('/^profile:/i', '', trim($profileId)) ?? trim($profileId);
+        if ($cleanId === '') {
+            return;
+        }
+
+        $effectiveSide = ($side === 'back') ? 'back' : 'front';
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        if (!isset($conf['laser_cockpit_parameters'][$effectiveSide]) || !is_array($conf['laser_cockpit_parameters'][$effectiveSide])) {
+            $conf['laser_cockpit_parameters'][$effectiveSide] = [];
+        }
+        if (!isset($conf['laser_parameter_overrides'][$effectiveSide]) || !is_array($conf['laser_parameter_overrides'][$effectiveSide])) {
+            $conf['laser_parameter_overrides'][$effectiveSide] = [];
+        }
+
+        $conf['laser_cockpit_parameters'][$effectiveSide]['profile_id'] = $cleanId;
+        $conf['laser_parameter_overrides'][$effectiveSide]['profile_id'] = $cleanId;
+
+        $item->configuration = $conf;
+        $item->saveQuietly();
+        $this->syncOrderItemConfigInMemory($item);
+    }
+
+    protected function resolveProductLaserProfilesWithPhotoStudio(?\App\Models\Product\Product $product): array
+    {
+        if (!$product) {
+            return [];
+        }
+
+        $rawSettings = is_string($product->configurator_settings)
+            ? (json_decode($product->configurator_settings, true) ?: [])
+            : (is_array($product->configurator_settings) ? $product->configurator_settings : []);
+
+        $rawPhotoStudioById = [];
+        $rawPhotoStudioByTitle = [];
+        if (isset($rawSettings['xtool_profiles']) && is_array($rawSettings['xtool_profiles'])) {
+            foreach ($rawSettings['xtool_profiles'] as $rawProf) {
+                if (!is_array($rawProf) || !isset($rawProf['photo_studio']) || !is_array($rawProf['photo_studio'])) {
+                    continue;
+                }
+                $cleanStudio = $this->extractPhotoStudioTemplatePayload($rawProf['photo_studio']);
+                $rId = trim((string) ($rawProf['id'] ?? $rawProf['key'] ?? ''));
+                $rTitle = mb_strtolower(trim((string) ($rawProf['title'] ?? $rawProf['label'] ?? '')));
+                if ($rId !== '') {
+                    $rawPhotoStudioById[$rId] = $cleanStudio;
+                }
+                if ($rTitle !== '') {
+                    $rawPhotoStudioByTitle[$rTitle] = $cleanStudio;
+                }
+            }
+        }
+
+        $profiles = $product->getLaserProfiles();
+
+        if (empty($profiles)) {
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            if (method_exists($cockpit, 'getEditableProductLaserBaseline')) {
+                $base = (array) $cockpit->getEditableProductLaserBaseline($product);
+            } else {
+                $base = $product->getLaserInstructionSummary();
+            }
+
+            $profiles = [[
+                'id'              => 'prof_standard',
+                'title'           => 'Standard',
+                'is_default'      => true,
+                'focus_mm'        => (float) ($base['focus_mm'] ?? 19.5),
+                'element_type'    => (string) ($base['element_type'] ?? 'Bild'),
+                'engrave_tab'     => (string) ($base['engrave_tab'] ?? 'Gravieren'),
+                'preset_mode'     => (string) ($base['preset_mode'] ?? 'Benutzerdefiniert'),
+                'dot_duration_us' => (int) ($base['dot_duration_us'] ?? 210),
+                'power_percent'   => (int) ($base['power_percent'] ?? 70),
+                'dpi'             => max(50, min(2540, (int) ($base['dpi'] ?? 600))),
+                'frequency_khz'   => (int) ($base['frequency_khz'] ?? 60),
+                'speed_mms'       => (int) ($base['speed_mms'] ?? 200),
+                'passes'          => (int) ($base['passes'] ?? 1),
+                'bitmap_mode'     => trim((string) ($base['bitmap_mode'] ?? '')) !== '' ? (string) $base['bitmap_mode'] : 'Jarvis',
+                'engrave_mode'    => trim((string) ($base['engrave_mode'] ?? '')) !== '' ? (string) $base['engrave_mode'] : 'Bidirektional',
+                'vector_note'     => (string) ($base['vector_note'] ?? ''),
+            ]];
+        }
+
+        $result = [];
+        foreach ($profiles as $prof) {
+            if (!is_array($prof)) {
+                continue;
+            }
+            $pId = (string) ($prof['id'] ?? 'prof_standard');
+            $pTitle = trim(str_replace([" \u{2013} ", " \u{2014} "], ' · ', (string) ($prof['title'] ?? 'Standard'))) ?: 'Standard';
+            $pTitleLower = mb_strtolower($pTitle);
+
+            $studio = null;
+            if (isset($prof['photo_studio']) && is_array($prof['photo_studio'])) {
+                $studio = $this->extractPhotoStudioTemplatePayload($prof['photo_studio']);
+            } elseif (isset($rawPhotoStudioById[$pId])) {
+                $studio = $rawPhotoStudioById[$pId];
+            } elseif (isset($rawPhotoStudioByTitle[$pTitleLower])) {
+                $studio = $rawPhotoStudioByTitle[$pTitleLower];
+            }
+
+            $prof['id'] = $pId;
+            $prof['title'] = $pTitle;
+            $prof['is_default'] = (bool) ($prof['is_default'] ?? false);
+            $prof['dpi'] = max(50, min(2540, (int) ($prof['dpi'] ?? 600)));
+            $prof['bitmap_mode'] = trim((string) ($prof['bitmap_mode'] ?? '')) !== '' ? (string) $prof['bitmap_mode'] : 'Jarvis';
+            $prof['photo_studio'] = $studio;
+
+            $result[] = $prof;
+        }
+
+        return array_values($result);
+    }
+
+    protected function ensurePhotoStudioPersistedOnProductProfile(
+        \App\Models\Product\Product $product,
+        string $profileId,
+        array $studioTemplate
+    ): \App\Models\Product\Product {
+        $fresh = $product->fresh() ?: $product;
+        $settings = is_string($fresh->configurator_settings)
+            ? (json_decode($fresh->configurator_settings, true) ?: [])
+            : (is_array($fresh->configurator_settings) ? $fresh->configurator_settings : []);
+
+        $profiles = isset($settings['xtool_profiles']) && is_array($settings['xtool_profiles'])
+            ? array_values(array_filter($settings['xtool_profiles'], 'is_array'))
+            : $this->resolveProductLaserProfilesWithPhotoStudio($fresh);
+
+        $foundIdx = null;
+        foreach ($profiles as $idx => $prof) {
+            if ((string) ($prof['id'] ?? '') === $profileId) {
+                $foundIdx = $idx;
+                break;
+            }
+        }
+        if ($foundIdx === null && !empty($profiles)) {
+            foreach ($profiles as $idx => $prof) {
+                if (!empty($prof['is_default'])) {
+                    $foundIdx = $idx;
+                    break;
+                }
+            }
+            if ($foundIdx === null) {
+                $foundIdx = 0;
+            }
+        }
+
+        if ($foundIdx !== null) {
+            $existingStudio = $profiles[$foundIdx]['photo_studio'] ?? null;
+            if (!is_array($existingStudio) || $existingStudio !== $studioTemplate) {
+                $profiles[$foundIdx]['photo_studio'] = $studioTemplate;
+                $settings['xtool_profiles'] = $profiles;
+                $fresh->configurator_settings = $settings;
+                $fresh->saveQuietly();
+            }
+        }
+
+        return $fresh->fresh() ?: $fresh;
+    }
+
+    public function openLaserPhotoStudio(string $itemId, string $fileKey): void
+    {
+        $this->ensureStaffAuthorizedForLaserStudio();
+
+        $item = $this->resolveOrderItemForLaserAction($itemId);
+        if (!$item) {
+            $this->notifyOrderFeedback('error', 'Artikel nicht gefunden', 'Die gewählte Bestellposition konnte nicht geladen werden.');
+            return;
+        }
+
+        $verifiedKey = $this->verifyAndResolveCustomerFileKey($item, $fileKey);
+        if ($verifiedKey === null) {
+            $this->notifyOrderFeedback('error', 'Ungültige Bilddatei', 'Nur Rasterbilder dieser Bestellposition können im Laser-Foto-Studio bearbeitet werden.');
+            return;
+        }
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $origRelPath = $this->studioResolveOriginalPhotoRelPath($verifiedKey, $conf);
+        $sourceAbsPath = $this->resolveStorageAbsPath($origRelPath) ?? $this->resolveStorageAbsPath($verifiedKey);
+        if ($sourceAbsPath === null) {
+            $this->notifyOrderFeedback('error', 'Originalbild nicht gefunden', 'Die Bilddatei konnte im Speicher nicht gefunden werden.');
+            return;
+        }
+
+        $effectiveSide = $this->laserCockpitSide === 'back' ? 'back' : 'front';
+        $downloadService = app(\App\Services\Export\FileDownloadService::class);
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $laserParams = $item->product
+            ? $cockpit->resolveEffectiveLaserParameters($item, $effectiveSide)
+            : [];
+        $productCfg = is_string($item->product?->configurator_settings)
+            ? (json_decode($item->product->configurator_settings, true) ?: [])
+            : ($item->product?->configurator_settings ?? []);
+        if (!empty($laserParams['material'])) {
+            $productCfg['xtool_material'] = (string) $laserParams['material'];
+        }
+
+        $isDarkSurface = $item->product
+            ? $downloadService->isFrostedLightEngravingSurface($item->product, $productCfg)
+            : false;
+        $dpi = max(50, min(2540, (int) ($laserParams['dpi'] ?? 600)));
+        $materialHint = (string) ($laserParams['material'] ?? '');
+
+        $profiles = $item->product ? $this->resolveProductLaserProfilesWithPhotoStudio($item->product) : [];
+        $savedProfIdRaw = (string) (
+            $conf['laser_cockpit_parameters'][$effectiveSide]['profile_id']
+            ?? ($conf['laser_parameter_overrides'][$effectiveSide]['profile_id'] ?? '')
+        );
+        $savedProfId = preg_replace('/^profile:/i', '', trim($savedProfIdRaw)) ?? trim($savedProfIdRaw);
+
+        $activeProfile = null;
+        if ($savedProfId !== '') {
+            $activeProfile = collect($profiles)->first(
+                fn ($p) => (string) ($p['id'] ?? '') === $savedProfId || (string) ($p['title'] ?? '') === $savedProfId
+            );
+        }
+        if (!is_array($activeProfile)) {
+            $activeProfile = collect($profiles)->first(fn ($p) => !empty($p['is_default'])) ?: ($profiles[0] ?? null);
+        }
+        $activeProfileId = is_array($activeProfile) ? (string) ($activeProfile['id'] ?? '') : '';
+
+        $existingAdjust = is_array($conf['laser_photo_adjustments'][$verifiedKey] ?? null)
+            ? $conf['laser_photo_adjustments'][$verifiedKey]
+            : null;
+
+        if ($existingAdjust !== null) {
+            $initialParams = $this->sanitizePhotoStudioParams(
+                array_merge($this->studioDefaultParams($isDarkSurface, $dpi), $existingAdjust, ['enabled' => true])
+            );
+        } elseif (is_array($activeProfile['photo_studio'] ?? null) && !empty($activeProfile['photo_studio'])) {
+            $initialParams = $this->sanitizePhotoStudioParams(
+                array_merge($this->studioDefaultParams($isDarkSurface, $dpi), $activeProfile['photo_studio'], ['enabled' => true])
+            );
+        } else {
+            $initialParams = $this->sanitizePhotoStudioParams(
+                array_merge($this->studioDefaultParams($isDarkSurface, $dpi), ['enabled' => true])
+            );
+        }
+
+        $this->cleanupStaleStudioPreviewFiles();
+
+        $this->photoStudioItemId = (string) $item->id;
+        $this->photoStudioFileKey = $verifiedKey;
+        $this->photoStudioFileName = basename($verifiedKey);
+        $this->photoStudioOriginalRelPath = $origRelPath;
+        $this->photoStudioIsDarkSurface = $isDarkSurface;
+        $this->photoStudioDpi = $dpi;
+        $this->photoStudioMaterialHint = $materialHint;
+        $this->photoStudioProfiles = $profiles;
+        $this->photoStudioActiveProfileId = $activeProfileId;
+        $this->photoStudioParams = $initialParams;
+        $this->photoStudioOriginalUrl = $this->buildOriginalDataOrAssetUrl($origRelPath, $sourceAbsPath);
+        $this->photoStudioPreviewUrl = $this->studioRenderPreviewAssetUrl($sourceAbsPath, $this->photoStudioParams, 680);
+        $this->isLaserPhotoStudioOpen = true;
+
+        $this->dispatch(
+            'laser-studio-params-synced',
+            params: $this->photoStudioParams,
+            originalUrl: $this->photoStudioOriginalUrl,
+            isDarkSurface: $this->photoStudioIsDarkSurface,
+            activeProfileId: $this->photoStudioActiveProfileId,
+            dpi: $this->photoStudioDpi
+        );
+    }
+
+    public function closeLaserPhotoStudio(): void
+    {
+        $this->isLaserPhotoStudioOpen = false;
+        $this->photoStudioItemId = null;
+        $this->photoStudioFileKey = null;
+        $this->photoStudioFileName = null;
+        $this->photoStudioOriginalRelPath = null;
+        $this->photoStudioOriginalUrl = null;
+        $this->photoStudioPreviewUrl = null;
+        $this->photoStudioProfiles = [];
+        $this->photoStudioActiveProfileId = '';
+    }
+
+    public function selectPhotoStudioLaserProfile(string $profileId): void
+    {
+        $this->ensureStaffAuthorizedForLaserStudio();
+
+        if (!$this->isLaserPhotoStudioOpen) {
+            return;
+        }
+
+        $item = $this->resolveOrderItemForLaserAction($this->photoStudioItemId ?: ($this->previewItem->id ?? null));
+        if (!$item || !$item->product) {
+            return;
+        }
+
+        $cleanId = preg_replace('/^profile:/i', '', trim($profileId)) ?? trim($profileId);
+        if ($cleanId === '') {
+            return;
+        }
+
+        $effectiveSide = $this->laserCockpitSide === 'back' ? 'back' : 'front';
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $effective = $cockpit->applyProductLaserProfileToOrderItem($item, $effectiveSide, $cleanId);
+
+        $profiles = $this->resolveProductLaserProfilesWithPhotoStudio($item->product->fresh() ?: $item->product);
+        $matched = collect($profiles)->first(
+            fn ($p) => (string) ($p['id'] ?? '') === $cleanId || (string) ($p['title'] ?? '') === $cleanId
+        );
+        if (!is_array($matched)) {
+            return;
+        }
+
+        $resolvedProfileId = (string) ($matched['id'] ?? $cleanId);
+        $this->persistOrderItemActiveProfileId($item, $effectiveSide, $resolvedProfileId);
+
+        $nextDpi = max(50, min(2540, (int) ($effective['dpi'] ?? $matched['dpi'] ?? $this->photoStudioDpi ?: 600)));
+        $this->photoStudioProfiles = $profiles;
+        $this->photoStudioActiveProfileId = $resolvedProfileId;
+        $this->photoStudioDpi = $nextDpi;
+
+        if (is_array($matched['photo_studio'] ?? null) && !empty($matched['photo_studio'])) {
+            $nextParams = $this->sanitizePhotoStudioParams(
+                array_merge($this->studioDefaultParams($this->photoStudioIsDarkSurface, $nextDpi), $matched['photo_studio'], ['enabled' => true])
+            );
+        } else {
+            $defaults = $this->studioDefaultParams($this->photoStudioIsDarkSurface, $nextDpi);
+            $defaults['dither_mode'] = $this->mapBitmapModeToStudioDitherMode(
+                (string) ($matched['bitmap_mode'] ?? ($effective['bitmap_mode'] ?? 'Jarvis')),
+                'jarvis'
+            );
+            $nextParams = $this->sanitizePhotoStudioParams(array_merge($defaults, ['enabled' => true]));
+        }
+
+        $this->photoStudioParams = $nextParams;
+        $this->refreshLaserPhotoStudioPreview();
+
+        if (is_array($effective)) {
+            $this->dispatch(
+                'laser-params-sync',
+                params: $effective,
+                profiles: $this->photoStudioProfiles,
+                active_profile_id: $this->photoStudioActiveProfileId
+            );
+        }
+
+        $this->dispatch(
+            'laser-studio-params-synced',
+            params: $this->photoStudioParams,
+            activeProfileId: $this->photoStudioActiveProfileId,
+            dpi: $this->photoStudioDpi
+        );
+    }
+
+    public function savePhotoStudioToActiveLaserProfile(string $profileId, array $clientParams): void
+    {
+        $this->ensureStaffAuthorizedForLaserStudio();
+
+        $item = $this->resolveOrderItemForLaserAction($this->photoStudioItemId ?: ($this->previewItem->id ?? null));
+        if (!$item || !$item->product) {
+            $this->notifyOrderFeedback('error', 'Produkt nicht gefunden', 'Das zugehörige Produkt konnte nicht geladen werden.');
+            return;
+        }
+
+        $studioTemplate = $this->extractPhotoStudioTemplatePayload($clientParams);
+        $this->photoStudioParams = array_merge($studioTemplate, ['enabled' => true]);
+
+        $cleanId = preg_replace('/^profile:/i', '', trim($profileId)) ?? trim($profileId);
+        if ($cleanId === '') {
+            $cleanId = $this->photoStudioActiveProfileId;
+        }
+
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $updatedId = $cleanId;
+
+        try {
+            if (method_exists($cockpit, 'updateProductLaserProfilePhotoStudio')) {
+                $res = $cockpit->updateProductLaserProfilePhotoStudio($item->product, $cleanId, $studioTemplate);
+                if (is_array($res['updated_profile'] ?? null) && !empty($res['updated_profile']['id'])) {
+                    $updatedId = (string) $res['updated_profile']['id'];
+                }
+            } else {
+                $profiles = $this->resolveProductLaserProfilesWithPhotoStudio($item->product);
+                $matchedIdx = null;
+                foreach ($profiles as $idx => $p) {
+                    if ((string) ($p['id'] ?? '') === $cleanId) {
+                        $matchedIdx = $idx;
+                        break;
+                    }
+                }
+                if ($matchedIdx === null && !empty($profiles)) {
+                    $matchedIdx = 0;
+                }
+                if ($matchedIdx !== null) {
+                    $profiles[$matchedIdx]['photo_studio'] = $studioTemplate;
+                    $profiles[$matchedIdx]['bitmap_mode'] = $this->mapStudioDitherModeToBitmapMode($studioTemplate['dither_mode']);
+                    $updatedId = (string) ($profiles[$matchedIdx]['id'] ?? $cleanId);
+
+                    $settings = is_string($item->product->configurator_settings)
+                        ? (json_decode($item->product->configurator_settings, true) ?: [])
+                        : (is_array($item->product->configurator_settings) ? $item->product->configurator_settings : []);
+                    $settings['xtool_profiles'] = $profiles;
+                    $settings = \App\Models\Product\Product::syncLaserProfilesAndPrimarySettings($settings, false);
+                    $item->product->configurator_settings = $settings;
+                    $item->product->saveQuietly();
+                }
+            }
+
+            $freshProduct = $this->ensurePhotoStudioPersistedOnProductProfile($item->product, $updatedId, $studioTemplate);
+            $item->setRelation('product', $freshProduct);
+            if ($this->selectedOrder && $this->selectedOrder->relationLoaded('items')) {
+                $loaded = $this->selectedOrder->items->firstWhere('id', $item->id);
+                if ($loaded) {
+                    $loaded->setRelation('product', $freshProduct);
+                }
+            }
+
+            $this->photoStudioProfiles = $this->resolveProductLaserProfilesWithPhotoStudio($freshProduct);
+            if ($updatedId === '' && !empty($this->photoStudioProfiles)) {
+                $updatedId = (string) ($this->photoStudioProfiles[0]['id'] ?? '');
+            }
+            $this->photoStudioActiveProfileId = $updatedId;
+
+            $effectiveSide = $this->laserCockpitSide === 'back' ? 'back' : 'front';
+            $this->persistOrderItemActiveProfileId($item, $effectiveSide, $updatedId);
+
+            $matchedTitle = (string) (collect($this->photoStudioProfiles)->firstWhere('id', $updatedId)['title'] ?? 'Standard');
+
+            $this->dispatch(
+                'laser-studio-profiles-synced',
+                profiles: $this->photoStudioProfiles,
+                activeProfileId: $updatedId
+            );
+
+            $this->notifyOrderFeedback(
+                'success',
+                'Laserprofil am Produkt gespeichert',
+                "Laserprofil am Produkt gespeichert ({$matchedTitle})."
+            );
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Profil-Speicherung fehlgeschlagen', $e->getMessage());
+        }
+    }
+
+    public function createLaserProfileFromPhotoStudio(string $newTitle, ?string $baseProfileId, array $clientParams): void
+    {
+        $this->ensureStaffAuthorizedForLaserStudio();
+
+        $item = $this->resolveOrderItemForLaserAction($this->photoStudioItemId ?: ($this->previewItem->id ?? null));
+        if (!$item || !$item->product) {
+            $this->notifyOrderFeedback('error', 'Produkt nicht gefunden', 'Das zugehörige Produkt konnte nicht geladen werden.');
+            return;
+        }
+
+        $cleanTitle = trim(str_replace([" \u{2013} ", " \u{2014} "], ' · ', strip_tags($newTitle)));
+        $titleLen = mb_strlen($cleanTitle);
+        if ($titleLen < 2 || $titleLen > 80) {
+            $this->notifyOrderFeedback('error', 'Ungültiger Profilname', 'Bitte gib einen Profilnamen zwischen 2 und 80 Zeichen ein.');
+            return;
+        }
+
+        $studioTemplate = $this->extractPhotoStudioTemplatePayload($clientParams);
+        $this->photoStudioParams = array_merge($studioTemplate, ['enabled' => true]);
+
+        $cleanBaseId = ($baseProfileId !== null && trim($baseProfileId) !== '')
+            ? (preg_replace('/^profile:/i', '', trim($baseProfileId)) ?? trim($baseProfileId))
+            : ($this->photoStudioActiveProfileId !== '' ? $this->photoStudioActiveProfileId : null);
+
+        $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+        $createdId = '';
+
+        try {
+            if (method_exists($cockpit, 'createProductLaserProfileFromPhotoStudio')) {
+                $res = $cockpit->createProductLaserProfileFromPhotoStudio(
+                    $item->product,
+                    $cleanTitle,
+                    $cleanBaseId,
+                    $studioTemplate,
+                    false
+                );
+                if (is_array($res['created_profile'] ?? null) && !empty($res['created_profile']['id'])) {
+                    $createdId = (string) $res['created_profile']['id'];
+                }
+            } else {
+                $existingProfiles = $this->resolveProductLaserProfilesWithPhotoStudio($item->product);
+                $baseProf = ($cleanBaseId !== null)
+                    ? collect($existingProfiles)->firstWhere('id', $cleanBaseId)
+                    : null;
+                if (!is_array($baseProf)) {
+                    $baseProf = collect($existingProfiles)->first(fn ($p) => !empty($p['is_default'])) ?: ($existingProfiles[0] ?? []);
+                }
+
+                $baseParams = is_array($baseProf) ? $baseProf : [];
+                $baseParams['bitmap_mode'] = $this->mapStudioDitherModeToBitmapMode($studioTemplate['dither_mode']);
+
+                $saved = $cockpit->saveLaserProfileToProduct($item->product, $cleanTitle, $baseParams, false);
+                $createdId = (string) ($saved['profile']['id'] ?? '');
+            }
+
+            $freshProduct = $this->ensurePhotoStudioPersistedOnProductProfile($item->product, $createdId, $studioTemplate);
+            $item->setRelation('product', $freshProduct);
+            if ($this->selectedOrder && $this->selectedOrder->relationLoaded('items')) {
+                $loaded = $this->selectedOrder->items->firstWhere('id', $item->id);
+                if ($loaded) {
+                    $loaded->setRelation('product', $freshProduct);
+                }
+            }
+
+            $this->photoStudioProfiles = $this->resolveProductLaserProfilesWithPhotoStudio($freshProduct);
+            if ($createdId === '' && !empty($this->photoStudioProfiles)) {
+                $lastProf = end($this->photoStudioProfiles);
+                $createdId = is_array($lastProf) ? (string) ($lastProf['id'] ?? '') : '';
+            }
+
+            $effectiveSide = $this->laserCockpitSide === 'back' ? 'back' : 'front';
+            $effective = null;
+            if ($createdId !== '') {
+                $effective = $cockpit->applyProductLaserProfileToOrderItem($item, $effectiveSide, $createdId);
+                $this->persistOrderItemActiveProfileId($item, $effectiveSide, $createdId);
+                $this->photoStudioActiveProfileId = $createdId;
+                $createdMeta = collect($this->photoStudioProfiles)->firstWhere('id', $createdId);
+                if (is_array($createdMeta) && !empty($createdMeta['dpi'])) {
+                    $this->photoStudioDpi = max(50, min(2540, (int) $createdMeta['dpi']));
+                }
+            }
+
+            $this->dispatch(
+                'laser-studio-profiles-synced',
+                profiles: $this->photoStudioProfiles,
+                activeProfileId: $this->photoStudioActiveProfileId
+            );
+
+            if (is_array($effective)) {
+                $this->dispatch(
+                    'laser-params-sync',
+                    params: $effective,
+                    profiles: $this->photoStudioProfiles,
+                    active_profile_id: $this->photoStudioActiveProfileId
+                );
+            }
+
+            $this->notifyOrderFeedback(
+                'success',
+                'Neues Laserprofil angelegt',
+                "Neues Laserprofil angelegt ({$cleanTitle})."
+            );
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Neues Laserprofil fehlgeschlagen', $e->getMessage());
+        }
+    }
+
+    public function updatedPhotoStudioParams(): void
+    {
+        $this->photoStudioParams = $this->sanitizePhotoStudioParams($this->photoStudioParams);
+    }
+
+    public function refreshLaserPhotoStudioPreview(): void
+    {
+        $this->photoStudioParams = $this->sanitizePhotoStudioParams($this->photoStudioParams);
+        if (!$this->isLaserPhotoStudioOpen || !$this->photoStudioOriginalRelPath) {
+            return;
+        }
+
+        $sourceAbsPath = $this->resolveStorageAbsPath($this->photoStudioOriginalRelPath)
+            ?? ($this->photoStudioFileKey ? $this->resolveStorageAbsPath($this->photoStudioFileKey) : null);
+        if ($sourceAbsPath === null) {
+            return;
+        }
+
+        $this->photoStudioPreviewUrl = $this->studioRenderPreviewAssetUrl($sourceAbsPath, $this->photoStudioParams, 680);
+    }
+
+    public function autoOptimizeLaserPhoto(): void
+    {
+        if (!$this->isLaserPhotoStudioOpen || !$this->photoStudioOriginalRelPath) {
+            return;
+        }
+
+        $sourceAbsPath = $this->resolveStorageAbsPath($this->photoStudioOriginalRelPath)
+            ?? ($this->photoStudioFileKey ? $this->resolveStorageAbsPath($this->photoStudioFileKey) : null);
+        if ($sourceAbsPath === null) {
+            return;
+        }
+
+        $auto = $this->studioComputeAutoParams(
+            $sourceAbsPath,
+            $this->photoStudioIsDarkSurface,
+            $this->photoStudioDpi,
+            $this->photoStudioMaterialHint
+        );
+
+        $this->photoStudioParams = $this->sanitizePhotoStudioParams(array_merge($this->photoStudioParams, $auto, ['enabled' => true]));
+        $this->photoStudioPreviewUrl = $this->studioRenderPreviewAssetUrl($sourceAbsPath, $this->photoStudioParams, 680);
+        $this->dispatch('laser-studio-params-synced', params: $this->photoStudioParams);
+    }
+
+    public function resetLaserPhotoStudioParams(): void
+    {
+        if (!$this->isLaserPhotoStudioOpen) {
+            return;
+        }
+
+        $defaults = $this->studioDefaultParams($this->photoStudioIsDarkSurface, $this->photoStudioDpi);
+        $this->photoStudioParams = $this->sanitizePhotoStudioParams(array_merge($defaults, ['enabled' => true]));
+        $this->refreshLaserPhotoStudioPreview();
+        $this->dispatch('laser-studio-params-synced', params: $this->photoStudioParams);
+    }
+
+    public function saveLaserPhotoStudio(?array $clientParams = null): void
+    {
+        if (!$this->isLaserPhotoStudioOpen || !$this->photoStudioItemId || !$this->photoStudioFileKey) {
+            return;
+        }
+
+        if (is_array($clientParams)) {
+            $this->photoStudioParams = $this->sanitizePhotoStudioParams(
+                array_merge($this->photoStudioParams, $clientParams, ['enabled' => true])
+            );
+        }
+
+        $item = $this->resolveOrderItemForLaserAction($this->photoStudioItemId);
+        if (!$item) {
+            $this->notifyOrderFeedback('error', 'Speichern fehlgeschlagen', 'Die Bestellposition konnte nicht gefunden werden.');
+            return;
+        }
+
+        $verifiedKey = $this->verifyAndResolveCustomerFileKey($item, $this->photoStudioFileKey);
+        if ($verifiedKey === null) {
+            $this->notifyOrderFeedback('error', 'Ungültige Bilddatei', 'Die Bildzuordnung der Bestellposition ist ungültig.');
+            return;
+        }
+
+        $origRel = $this->photoStudioOriginalRelPath ?: $this->studioResolveOriginalPhotoRelPath($verifiedKey, $item->configuration ?? []);
+        $sourceAbsPath = $this->resolveStorageAbsPath($origRel) ?? $this->resolveStorageAbsPath($verifiedKey);
+        if ($sourceAbsPath === null) {
+            $this->notifyOrderFeedback('error', 'Originalbild fehlt', 'Die Quelldatei konnte für den Laser-Export nicht geladen werden.');
+            return;
+        }
+
+        try {
+            $cleanParams = $this->sanitizePhotoStudioParams(array_merge($this->photoStudioParams, ['enabled' => true]));
+            $savedRelPath = $this->studioSaveProcessedLaserPng($sourceAbsPath, $cleanParams, 'bestellungen/xtool/photo-edits');
+
+            $conf = is_array($item->configuration) ? $item->configuration : [];
+            if (!isset($conf['laser_photo_adjustments']) || !is_array($conf['laser_photo_adjustments'])) {
+                $conf['laser_photo_adjustments'] = [];
+            }
+
+            $conf['laser_photo_adjustments'][$verifiedKey] = array_merge($cleanParams, [
+                'enabled'       => true,
+                'original_path' => $origRel,
+                'edited_path'   => $savedRelPath,
+                'updated_at'    => now()->toIso8601String(),
+            ]);
+
+            $item->configuration = $conf;
+            $item->save();
+            $this->syncOrderItemConfigInMemory($item);
+
+            if ($this->selectedOrder) {
+                $this->selectedOrder->refresh();
+                $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+            }
+
+            $this->laserCameraRefreshToken++;
+            $fileName = $this->photoStudioFileName ?: basename($verifiedKey);
+            $this->closeLaserPhotoStudio();
+
+            $this->notifyOrderFeedback(
+                'success',
+                'Laser-Foto übernommen',
+                "„{$fileName}“ wurde für die Lasergravur gespeichert und in die Live-Vorschau übernommen."
+            );
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Laser-Aufbereitung fehlgeschlagen', $e->getMessage());
         }
     }
 

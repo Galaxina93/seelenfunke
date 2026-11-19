@@ -73,11 +73,10 @@ Die Bestelldetail-Ansicht in `/admin/orders` ([`order-offer-detail-content.blade
 
 1. **2-Ebenen-Clean-Design des Bestelldetails-Kopfbereichs (`h-9`-Raster in `detail-header.blade.php` & `header-modals.blade.php`, `47/47 Tests Grün`):**
    * **Obere Ebene (Identität & Steuerung):** Zurück-Button, `#Auftragsnummer`, Express- und Zahlstatus-Badge (`✓ Bezahlt` / `Zahlung offen`), direkt bedienbare Status-/Zahlungs-Dropdowns im einheitlichen `h-9`-Höhenraster sowie Schließen-Button `×` rechts außen.
-   * **Untere Ebene (Pipeline & Segmented-Toolbar):** Neben der 3-Schritte-Pipeline (`Schritt 1 · In Bearbeitung (X/N)`, `Schritt 2 · Versand`, `Schritt 3 · Abgeschlossen`) sitzt die ruhige Segmented-Toolbar **`Dateien | Kosten | Kunde | Adresse`** als 0-ms-Modals:
-     1. **`Dateien`** (`openHeaderModal('files')`): Kunden-Uploads, Konfigurations-Sicherungen, Foto-Mangel-Meldung sowie `.xcs`-, `Laser-SVG`- und `Kontur-PNG`-Downloads.
-     2. **`Kosten`** (`openHeaderModal('costs')`): Vollständige Kostenübersicht (`<x-shop.cost-summary>`).
-     3. **`Kunde`** (`openHeaderModal('customer')`): Kunden- & Rechnungsdaten, E-Mail-Schnellkopie sowie GoBD-konforme Löschfunktion für unbezahlte Testbestellungen.
-     4. **`Adresse`** (`openHeaderModal('shipping')`): Lieferadresse inklusive Hinweis bei abweichender Lieferanschrift.
+   * **Untere Ebene (Pipeline & Segmented-Toolbar):** Neben der 3-Schritte-Pipeline (`Schritt 1 · In Bearbeitung (X/N)`, `Schritt 2 · Versand`, `Schritt 3 · Abgeschlossen`) sitzt die ruhige 3er Segmented-Toolbar **`Kosten | Kunde | Adresse`** als 0-ms-Modals, während alle Produktionsdateien, Original-Uploads (`_raw`), das mathematische **Laser-Foto-Studio (`⚙`)** und die Laser-Exporte (`XTOOL PROJEKT (.XCS)`, `LASER-SVG`, `KONTUR-PNG`) direkt im aufklappbaren **`Medien`**-Dropdown unter `Laserparameter anpassen` gebündelt sind (siehe [`Bestellungen_Laser_Cockpit_Medien_Originalfoto_und_Foto_Studio.md`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/Bestellungen/Bestellungen_Laser_Cockpit_Medien_Originalfoto_und_Foto_Studio.md)):
+     1. **`Kosten`** (`openHeaderModalClient('costs')`): Vollständige Kostenübersicht (`<x-shop.cost-summary>`) inkl. Rechnungs-PDFs.
+     2. **`Kunde`** (`openHeaderModalClient('customer')`): Kunden- & Rechnungsdaten sowie 1-Klick E-Mail-Kopie.
+     3. **`Adresse`** (`openHeaderModalClient('shipping')`): Lieferadresse inklusive Hinweis bei abweichender Lieferanschrift.
 2. **Start-Kachel „Wartend“ (`status = pending`):**
    * Zeigt `Konfigurator-Vorgaben` nur dann an, wenn tatsächlich ein Kundenwunsch, Geschenkpapier oder eine Schmuckbox gebucht wurde. Klick auf **`Jetzt starten`** (`startOrderProcessing`) setzt den Status autonom auf `processing` und öffnet Schritt 1.
 3. **Schritt 1 · In Bearbeitung (2-Tab Ansicht + `Details anzeigen` + 2-Klick-Lasersteuerung):**

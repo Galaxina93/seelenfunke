@@ -3,12 +3,12 @@
 namespace App\Livewire\Shop\Wishlist;
 
 use App\Services\WishlistService;
-use Livewire\Attributes\On;
 use Livewire\Component;
 
 class WishlistIcon extends Component
 {
     public int $count = 0;
+    public array $productIds = [];
     public array $previewItems = [];
 
     public function mount(WishlistService $service): void
@@ -16,30 +16,23 @@ class WishlistIcon extends Component
         $this->updateStats($service);
     }
 
-    #[On('wishlist-updated')]
     public function updateStats(WishlistService $service): void
     {
-        $items = $service->getItems();
-        $this->count = $items->count();
-
-        $this->previewItems = $items->take(4)->map(function ($item) {
-            $product = $item->product;
-            $resolvedMeta = $product->resolveMainImageMeta();
-            return [
-                'product_id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'formatted_price' => $product->formatted_price,
-                'preview_url' => $resolvedMeta['url'] ?? $product->preview_url,
-            ];
-        })->all();
+        $payload = $service->buildStatePayload();
+        $this->count = $payload['count'];
+        $this->productIds = $payload['product_ids'];
+        $this->previewItems = $payload['preview_items'];
     }
 
     public function removeItem(string $productId, WishlistService $service): void
     {
-        $service->remove($productId);
+        $service->setWishlisted($productId, false);
         $this->updateStats($service);
-        $this->dispatch('wishlist-updated');
+        $this->dispatch(
+            'wishlist-updated',
+            count: $this->count,
+            productIds: $this->productIds
+        );
     }
 
     public function render()

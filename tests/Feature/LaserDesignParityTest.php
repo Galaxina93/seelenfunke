@@ -669,9 +669,11 @@ class LaserDesignParityTest extends TestCase
         $svgXml = (string) ob_get_clean();
         $this->assertStringContainsString('<g clip-path="url(#workingAreaClip)">', $svgXml);
 
-        // Mini-PC WorkshopFocusApiController nutzt exakt denselben v6-cockpit-wysiwyg + Kalibrierungs-Cache-Salt wie OrderOverview
+        // Mini-PC WorkshopFocusApiController nutzt exakt denselben v8-cockpit-photo-layers + Kalibrierungs-Cache-Salt wie OrderOverview
         $focusSource = (string) file_get_contents(app_path('Http/Controllers/Api/WorkshopFocusApiController.php'));
-        $this->assertStringContainsString("'v6-cockpit-wysiwyg|'", $focusSource);
+        $orderSource = (string) file_get_contents(app_path('Livewire/Shop/Order/OrderOverview.php'));
+        $this->assertStringContainsString("'v8-cockpit-photo-layers|'", $focusSource);
+        $this->assertStringContainsString("'v8-cockpit-photo-layers|'", $orderSource);
         $this->assertStringContainsString('json_encode($calibration)', $focusSource);
     }
 

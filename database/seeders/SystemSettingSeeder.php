@@ -48,6 +48,7 @@ class SystemSettingSeeder extends Seeder
             'shop_is_live'              => $defaultShopIsLive,
             'shop_live_unlocked'        => $defaultShopIsLive,
             'maintenance_mode'          => 'false',
+            'quote_calculator_enabled'  => 'true',
             'send_order_email_to_admin' => 'true',
 
             // Inhaber Daten (Echte Daten von Alina - für juristische Erwähnungen)
@@ -132,11 +133,12 @@ class SystemSettingSeeder extends Seeder
             'active_countries'          => json_encode($countries),
         ];
 
-        // 3. Daten in die Datenbank schreiben (shop_is_live, shop_live_unlocked, maintenance_mode sowie Google-Tag-Einstellungen per firstOrCreate schützen, damit aktive Einstellungen niemals überschrieben werden)
+        // 3. Daten in die Datenbank schreiben (shop_is_live, shop_live_unlocked, maintenance_mode, quote_calculator_enabled sowie Google-Tag-Einstellungen per firstOrCreate schützen, damit aktive Einstellungen niemals überschrieben werden)
         $protectedFirstOrCreateKeys = [
             'shop_is_live',
             'shop_live_unlocked',
             'maintenance_mode',
+            'quote_calculator_enabled',
             'google_tag_enabled',
             'google_tag_id',
             'google_ads_conversion_label',

@@ -949,8 +949,12 @@
                 <div class="flex flex-wrap items-center gap-2.5">
                     <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2">
                         <x-heroicon-o-chat-bubble-bottom-center-text class="w-6 h-6 text-[var(--theme-color)]" />
-                        Spruch- & Widmungs-Bibliothek („Kreativ-Starthilfe“)
+                        Spruch- & Widmungs-Bibliothek
                     </h2>
+                    <span title="Gravurfähige Sprüche und Widmungen im Konfigurator-Reiter Sprüche (manuell oder per KI-Vorschlag pflegbar)."
+                          class="w-5 h-5 rounded-full border border-[var(--theme-color-40)] bg-[var(--theme-color-10)] text-[var(--theme-color)] text-[11px] font-black inline-flex items-center justify-center cursor-help select-none">
+                        !
+                    </span>
                     <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                         {{ $quoteStats['active'] ?? 0 }} aktiv im Konfigurator
                     </span>
@@ -960,9 +964,6 @@
                         </span>
                     @endif
                 </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Feste Gravur-Sprüche & Widmungen im Konfigurator-Reiter „Sprüche“ gegen die „Angst vor dem leeren Blatt“. Kann hier jederzeit manuell ergänzt oder per Knopfdruck durch die KI erweitert werden.
-                </p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2.5">
@@ -986,14 +987,15 @@
         @if($showQuoteCategoryManager)
             <div class="p-5 rounded-3xl bg-gray-50/90 dark:bg-gray-950/70 border border-gray-200 dark:border-gray-800 space-y-4">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
+                    <div class="flex items-center gap-2">
                         <h3 class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white flex items-center gap-2">
                             <x-heroicon-o-tag class="w-4 h-4 text-[var(--theme-color)]" />
-                            Spruch-Anlässe & Kategorien sortieren oder umbenennen
+                            Anlass-Kategorien
                         </h3>
-                        <p class="text-[11px] text-gray-500 mt-0.5">
-                            Die Reihenfolge bestimmt direkt die Tabs unter „Sprüche“ im Kunden-Konfigurator.
-                        </p>
+                        <span title="Die Reihenfolge bestimmt direkt die Tabs unter Sprüche im Kunden-Konfigurator."
+                              class="w-4 h-4 rounded-full border border-[var(--theme-color-40)] bg-[var(--theme-color-10)] text-[var(--theme-color)] text-[10px] font-black inline-flex items-center justify-center cursor-help select-none">
+                            !
+                        </span>
                     </div>
 
                     <form wire:submit.prevent="createQuoteCategory" class="flex items-center gap-2">
@@ -1092,6 +1094,29 @@
                         </div>
                     </div>
 
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Feiertag (optional)</label>
+                            <select wire:model="newQuoteHoliday"
+                                    class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]">
+                                <option value="">Kein fester Feiertag</option>
+                                @foreach($quoteHolidays ?? [] as $hOpt)
+                                    <option value="{{ $hOpt }}">{{ $hOpt }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Jahreszeit (optional)</label>
+                            <select wire:model="newQuoteSeason"
+                                    class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]">
+                                <option value="">Ganzjährig</option>
+                                @foreach($quoteSeasons ?? [] as $sOpt)
+                                    <option value="{{ $sOpt }}">{{ $sOpt }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
                     <div>
                         <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Spruchtext für die Lasergravur</label>
                         <textarea wire:model="newQuoteText"
@@ -1114,7 +1139,7 @@
             </form>
 
             {{-- Spalte B: KI-Spruch-Generator per Knopfdruck --}}
-            <div class="p-5 rounded-3xl bg-gradient-to-br from-amber-500/5 via-transparent to-purple-500/5 border border-[var(--theme-color-30)] flex flex-col justify-between space-y-4">
+            <div class="p-5 rounded-3xl bg-gray-50/70 dark:bg-gray-950/50 border border-[var(--theme-color-30)] flex flex-col justify-between space-y-4">
                 <div class="space-y-3">
                     <div class="flex items-center justify-between">
                         <span class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white flex items-center gap-1.5">
@@ -1125,10 +1150,6 @@
                             Vorab-Generierung im Admin
                         </span>
                     </div>
-
-                    <p class="text-[11px] text-gray-500 dark:text-gray-400">
-                        Lass dir per Knopfdruck 5 neue, gravurfertige Sprüche vorschlagen und übernimm deine Favoriten mit einem Klick fest in die Bibliothek (im Shop selbst wird keine Live-KI benötigt).
-                    </p>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -1144,9 +1165,32 @@
                             <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Maximale Länge</label>
                             <select wire:model="aiQuoteMaxLength"
                                     class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]">
-                                <option value="35">Kurz – max. 35 Zeichen (Schmuck / Anhänger)</option>
-                                <option value="60">Mittel – max. 60 Zeichen (Standard)</option>
-                                <option value="100">Lang – max. 100 Zeichen (Kristall / Schiefer)</option>
+                                <option value="35">Kurz (max. 35 Zeichen, Schmuck)</option>
+                                <option value="60">Mittel (max. 60 Zeichen, Standard)</option>
+                                <option value="100">Lang (max. 100 Zeichen, Kristall)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Feiertag (optional)</label>
+                            <select wire:model="aiQuoteHoliday"
+                                    class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]">
+                                <option value="">Kein fester Feiertag</option>
+                                @foreach($quoteHolidays ?? [] as $hOpt)
+                                    <option value="{{ $hOpt }}">{{ $hOpt }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Jahreszeit (optional)</label>
+                            <select wire:model="aiQuoteSeason"
+                                    class="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:border-[var(--theme-color)]">
+                                <option value="">Ganzjährig</option>
+                                @foreach($quoteSeasons ?? [] as $sOpt)
+                                    <option value="{{ $sOpt }}">{{ $sOpt }}</option>
+                                @endforeach
                             </select>
                         </div>
                     </div>
@@ -1183,7 +1227,7 @@
                     <div class="flex items-center gap-2">
                         <x-heroicon-o-sparkles class="w-4 h-4 text-[var(--theme-color)]" />
                         <span class="text-xs font-black uppercase tracking-widest text-gray-900 dark:text-white">
-                            KI-Vorschläge ({{ count($aiGeneratedQuotes) }}) – Klicke auf „+ Übernehmen“ zum Speichern
+                            KI-Vorschläge ({{ count($aiGeneratedQuotes) }})
                         </span>
                     </div>
                     <button type="button"
@@ -1197,11 +1241,17 @@
                     @foreach($aiGeneratedQuotes as $idx => $gen)
                         <div class="p-3.5 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3">
                             <div class="min-w-0 flex-1">
-                                <div class="flex items-center gap-2 mb-1">
+                                <div class="flex flex-wrap items-center gap-1.5 mb-1">
                                     <span class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)]">{{ $gen['title'] ?? 'Vorschlag' }}</span>
+                                    @if(!empty($gen['holiday']))
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25">{{ $gen['holiday'] }}</span>
+                                    @endif
+                                    @if(!empty($gen['season']))
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/25">{{ $gen['season'] }}</span>
+                                    @endif
                                     <span class="text-[10px] text-gray-400 font-mono">{{ $gen['length'] ?? mb_strlen($gen['text'] ?? '') }} Zeichen</span>
                                 </div>
-                                <p class="text-xs font-serif text-gray-900 dark:text-white leading-snug">„{{ $gen['text'] ?? '' }}“</p>
+                                <p class="text-xs font-serif text-gray-900 dark:text-white leading-snug whitespace-pre-line">„{{ $gen['text'] ?? '' }}“</p>
                             </div>
                             <div class="flex items-center gap-1.5 shrink-0">
                                 <button type="button"
@@ -1288,6 +1338,22 @@
                                         @endforeach
                                     </select>
                                 </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <select wire:model="editQuoteHoliday"
+                                            class="w-full px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-[11px] font-bold text-gray-800 dark:text-gray-200 focus:outline-none">
+                                        <option value="">Kein Feiertag</option>
+                                        @foreach($quoteHolidays ?? [] as $hOpt)
+                                            <option value="{{ $hOpt }}">{{ $hOpt }}</option>
+                                        @endforeach
+                                    </select>
+                                    <select wire:model="editQuoteSeason"
+                                            class="w-full px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 text-[11px] font-bold text-gray-800 dark:text-gray-200 focus:outline-none">
+                                        <option value="">Ganzjährig</option>
+                                        @foreach($quoteSeasons ?? [] as $sOpt)
+                                            <option value="{{ $sOpt }}">{{ $sOpt }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
                                 <textarea wire:model="editQuoteText"
                                           rows="2"
                                           class="w-full px-2.5 py-1.5 rounded-lg border border-[var(--theme-color)] bg-white dark:bg-gray-950 text-xs font-serif text-gray-900 dark:text-white focus:outline-none resize-none"></textarea>
@@ -1295,28 +1361,38 @@
                                     <button type="submit" class="flex-1 py-1.5 rounded-lg bg-[var(--theme-color)] text-gray-900 font-black text-[10px] uppercase tracking-wider cursor-pointer">
                                         Speichern
                                     </button>
-                                    <button type="button" wire:click="cancelEditQuote" class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 text-[10px] font-bold cursor-pointer">
+                                    <button type="button" wire:click="cancelEditQuote" class="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-300 text-[10px] font-bold cursor-pointer">
                                         Abbrechen
                                     </button>
                                 </div>
                             </form>
                         @else
                             <div class="space-y-2">
-                                <div class="flex items-center justify-between gap-2">
-                                    <div class="flex items-center gap-1.5 min-w-0">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex flex-wrap items-center gap-1.5 min-w-0">
                                         <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] truncate">
                                             {{ $q['category'] }}
                                         </span>
+                                        @if(!empty($q['holiday']))
+                                            <span class="px-2 py-0.5 rounded-md text-[9px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25 truncate">
+                                                {{ $q['holiday'] }}
+                                            </span>
+                                        @endif
+                                        @if(!empty($q['season']))
+                                            <span class="px-2 py-0.5 rounded-md text-[9px] font-bold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/25 truncate">
+                                                {{ $q['season'] }}
+                                            </span>
+                                        @endif
                                         @if(!empty($q['title']))
                                             <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400 truncate">• {{ $q['title'] }}</span>
                                         @endif
                                     </div>
                                     <div class="flex items-center gap-1 shrink-0">
                                         @if(($q['source'] ?? '') === 'ai')
-                                            <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/20">KI</span>
+                                            <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">KI</span>
                                         @endif
                                         <button type="button"
-                                                wire:click="startEditQuote('{{ $q['id'] }}', '{{ addslashes($q['text']) }}', '{{ addslashes($q['title'] ?? '') }}', '{{ addslashes($q['category']) }}')"
+                                                wire:click="startEditQuote('{{ $q['id'] }}')"
                                                 class="p-1 rounded-lg text-gray-400 hover:text-[var(--theme-color)] transition-colors cursor-pointer"
                                                 title="Spruch bearbeiten">
                                             <x-heroicon-o-pencil-square class="w-3.5 h-3.5" />
@@ -1337,9 +1413,7 @@
                                     </div>
                                 </div>
 
-                                <p class="text-sm font-serif text-gray-900 dark:text-white leading-relaxed">
-                                    „{{ $q['text'] }}“
-                                </p>
+                                <p class="text-sm font-serif text-gray-900 dark:text-white leading-relaxed whitespace-pre-line">„{{ $q['text'] }}“</p>
                             </div>
 
                             <div class="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800/80 text-[10px] text-gray-400">

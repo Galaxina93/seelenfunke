@@ -29,6 +29,11 @@ class Cart extends Component
 
     public function edit($itemId)
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            $this->editingItemId = null;
+            return;
+        }
+
         // Wenn bereits offen, dann schließen, sonst öffnen (Toggle-Logik)
         if ($this->editingItemId === $itemId) {
             $this->closeModal();
@@ -98,6 +103,11 @@ class Cart extends Component
     #[On('add-to-cart')]
     public function addToCartHandler($productId, $qty = 1, $config = null)
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            session()->flash('error', 'Wir führen gerade kurze Wartungsarbeiten durch. Das Bestellen ist in Kürze wieder freigeschaltet.');
+            return;
+        }
+
         try {
             $qty = max(1, min(100, (int) $qty));
             $config = is_array($config) ? $config : null;
@@ -194,10 +204,23 @@ class Cart extends Component
         ]);
     }
 
+    public function proceedToCheckout()
+    {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            $msg = 'Wir führen gerade kurze Wartungsarbeiten durch. Der Checkout ist in Kürze wieder freigeschaltet.';
+            $this->addError('maintenance', $msg);
+            session()->flash('error', $msg);
+            return null;
+        }
+
+        return redirect()->route('checkout');
+    }
+
     public function render()
     {
-        if (shop_setting('maintenance_mode', false) && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
-            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
+        $isMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+        if ($isMaintenance && $this->editingItemId !== null) {
+            $this->editingItemId = null;
         }
 
         $cart = $this->cartService->getCart(false);

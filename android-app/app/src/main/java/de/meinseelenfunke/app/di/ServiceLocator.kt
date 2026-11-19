@@ -52,6 +52,7 @@ object ServiceLocator {
     private lateinit var sharedPreferences: SharedPreferences
 
     private var retrofit: Retrofit? = null
+    private var httpClient: OkHttpClient? = null
     private var authApi: AuthApi? = null
     private var aiApi: AiApi? = null
     private var financeApi: FinanceApi? = null
@@ -583,7 +584,19 @@ object ServiceLocator {
             .build()
     }
 
+    fun evictConnectionPool() {
+        try {
+            httpClient?.connectionPool?.evictAll()
+        } catch (_: Throwable) {
+        }
+    }
+
     private fun rebuildRetrofit() {
+        try {
+            httpClient?.connectionPool?.evictAll()
+        } catch (_: Throwable) {
+        }
+        httpClient = null
         retrofit = null
         authApi = null
         aiApi = null
@@ -654,6 +667,7 @@ object ServiceLocator {
                 }
                 .build()
 
+            httpClient = okHttpClient
             retrofit = Retrofit.Builder()
                 .baseUrl(getBaseUrl())
                 .client(okHttpClient)

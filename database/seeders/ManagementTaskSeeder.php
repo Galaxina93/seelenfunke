@@ -21,7 +21,7 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#818CF8',
                 ],
                 'taks' => [
-                    ['title' => 'Burger was noch fehlt', 'priority' => 'niedrig'],
+
                 ],
             ],
             [
@@ -32,7 +32,6 @@ class ManagementTaskSeeder extends Seeder
                 ],
                 'taks' => [
                     ['title' => 'Echte Produktbilder erstellen (siehe detaillierte Checklisten in PHASE 1 - PRODUKTE)', 'priority' => 'hoch'],
-                    ['title' => 'Weitere Produkte raussuchen', 'priority' => 'niedrig'],
                 ],
             ],
             [
@@ -321,7 +320,6 @@ class ManagementTaskSeeder extends Seeder
                         ],
                     ],
                     ['title' => 'Zum Start des neuen Instagram Accounts das Handy in eine Schleife tun und aufmachen. Filmen und Instagram Seite auf den Handy offen haben (zweit Handy nutzen)', 'priority' => 'mittel'],
-                    ['title' => 'ETSY nur als Booster nutzen und auf Produkt Konfigurator weiterleiten', 'priority' => 'hoch'],
                     ['title' => 'QR Code, Insta, tiktok mit ins Paket legen', 'priority' => 'mittel'],
                 ],
             ],
@@ -366,7 +364,6 @@ class ManagementTaskSeeder extends Seeder
                     ],
                     ['title' => 'Arbeitslosenversicherung abschließen - https://www.arbeitsagentur.de/freiwillige-arbeitslosenversicherung', 'priority' => 'mittel'],
                     ['title' => 'Verpackungslizenz erwerben -> https://lucid.verpackungsregister.org/Hersteller/Registrierung/Teil-1 https://www.lizenzero.de/verpackungsmengen-kalkulator/', 'priority' => 'mittel'],
-                    ['title' => 'Google Bewertungen aktivieren', 'priority' => 'hoch'],
                 ],
             ],
             [
@@ -376,8 +373,6 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#805AD5',
                 ],
                 'taks' => [
-                    ['title' => 'blog Ordner in Storage ziehen', 'priority' => 'hoch'],
-                    ['title' => 'env Datei anpassen', 'priority' => 'hoch'],
                     ['title' => 'Web Socket Einrichten (Env Files beachten Pusher Variablen, REVERB und BROADCAST_CONNECTION)', 'priority' => 'hoch'],
                     ['title' => 'DB Seeder die nicht gebraucht werden deaktivieren', 'priority' => 'mittel'],
                     ['title' => 'DHL API Keys auf Live anpassen', 'priority' => 'hoch'],

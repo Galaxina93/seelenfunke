@@ -2,7 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Product\Product;
+use App\Models\Product\ProductTemplate;
 use App\Models\System\SystemSetting;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -36,12 +40,14 @@ class ProductConfiguratorService
 
     public const DEFAULT_QUOTE_CATEGORIES = [
         'Liebe & Partnerschaft',
-        'Trauer & Gedenken',
+        'Familie & Freundschaft',
+        'Bibelsprüche & Segen',
         'Hochzeit & Jahrestag',
         'Taufe & Geburt',
-        'Familie & Freundschaft',
+        'Trauer & Gedenken',
         'Haustiere & Pfotenliebe',
         'Kurze Gravuren (Schmuck)',
+        'Saison & Feiertage',
     ];
 
     // =========================================================================
@@ -852,8 +858,56 @@ class ProductConfiguratorService
     // =========================================================================
 
     /**
+     * Normalisiert einen optionalen Feiertags-Wert auf einen kanonischen Schlüssel aus ProductTemplate::HOLIDAYS.
+     */
+    public function normalizeQuoteHoliday(?string $holiday): ?string
+    {
+        if ($holiday === null || trim($holiday) === '') {
+            return null;
+        }
+
+        $classified = ProductTemplate::classifyHolidaySlot($holiday);
+        if ($classified['type'] === 'holiday' && in_array($classified['canonical'], ProductTemplate::HOLIDAYS, true)) {
+            return $classified['canonical'];
+        }
+
+        $norm = mb_strtolower(trim($holiday));
+        foreach (ProductTemplate::HOLIDAYS as $canonical) {
+            if (mb_strtolower($canonical) === $norm) {
+                return $canonical;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normalisiert einen optionalen Jahreszeiten-Wert auf einen kanonischen Schlüssel aus ProductTemplate::SEASONS.
+     */
+    public function normalizeQuoteSeason(?string $season): ?string
+    {
+        if ($season === null || trim($season) === '') {
+            return null;
+        }
+
+        $classified = ProductTemplate::classifyHolidaySlot($season);
+        if ($classified['type'] === 'season' && in_array($classified['canonical'], ProductTemplate::SEASONS, true)) {
+            return $classified['canonical'];
+        }
+
+        $norm = mb_strtolower(trim($season));
+        foreach (ProductTemplate::SEASONS as $canonical) {
+            if (mb_strtolower($canonical) === $norm) {
+                return $canonical;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Stellt sicher, dass das Spruch-Manifest unter storage/app/public/produkte/configurator/quotes/manifest.json
-     * existiert und mit den Standard-Kategorien sowie kuratierten Seelenfunke-Sprüchen initialisiert ist.
+     * existiert, alle Standard-Kategorien und kuratierten Seed-Sprüche enthält und 100 % frei von Gedankenstrichen ist.
      */
     public function ensureQuotesInitialized(): array
     {
@@ -869,6 +923,7 @@ class ProductConfiguratorService
         ];
 
         $isFirstInit = !is_file($manifestPath);
+        $needsSave = false;
 
         if (!$isFirstInit) {
             $decoded = json_decode((string) @file_get_contents($manifestPath), true);
@@ -881,32 +936,110 @@ class ProductConfiguratorService
             }
         }
 
-        if (empty($manifest['categories'])) {
-            $manifest['categories'] = self::DEFAULT_QUOTE_CATEGORIES;
-        }
+        $legacyDefaultCategories = [
+            'Liebe & Partnerschaft',
+            'Trauer & Gedenken',
+            'Hochzeit & Jahrestag',
+            'Taufe & Geburt',
+            'Familie & Freundschaft',
+            'Haustiere & Pfotenliebe',
+            'Kurze Gravuren (Schmuck)',
+        ];
 
-        if ($isFirstInit || empty($manifest['items'])) {
-            $seedItems = $this->getDefaultSeedQuotes();
-            $manifest['items'] = $seedItems;
-            $this->saveQuotesManifest($manifest);
+        if (empty($manifest['categories']) || $manifest['categories'] === $legacyDefaultCategories) {
+            if ($manifest['categories'] !== self::DEFAULT_QUOTE_CATEGORIES) {
+                $manifest['categories'] = self::DEFAULT_QUOTE_CATEGORIES;
+                $needsSave = true;
+            }
         } else {
-            // Aktualisiere unformatierte Standard-Sprüche (seed_*) einmalig auf saubere Mehrzeilen-Umbrüche
-            $seedItems = $this->getDefaultSeedQuotes();
-            $updatedSeeds = false;
-            foreach ($seedItems as $seedId => $seedData) {
-                if (
-                    isset($manifest['items'][$seedId])
-                    && ($manifest['items'][$seedId]['source'] ?? 'default') === 'default'
-                    && !str_contains((string) ($manifest['items'][$seedId]['text'] ?? ''), "\n")
-                    && str_contains($seedData['text'], "\n")
-                ) {
-                    $manifest['items'][$seedId]['text'] = $seedData['text'];
-                    $updatedSeeds = true;
+            foreach (self::DEFAULT_QUOTE_CATEGORIES as $defCat) {
+                if (!in_array($defCat, $manifest['categories'], true)) {
+                    $manifest['categories'][] = $defCat;
+                    $needsSave = true;
                 }
             }
-            if ($updatedSeeds) {
-                $this->saveQuotesManifest($manifest);
+        }
+
+        $seedItems = $this->getDefaultSeedQuotes();
+
+        if ($isFirstInit || empty($manifest['items'])) {
+            $manifest['items'] = $seedItems;
+            $needsSave = true;
+        } else {
+            // 1. Fehlende Seed-Einträge ergänzen und bestehende Default-Seeds aktualisieren (archived beibehalten)
+            foreach ($seedItems as $seedId => $seedData) {
+                if (!isset($manifest['items'][$seedId]) || !is_array($manifest['items'][$seedId])) {
+                    $manifest['items'][$seedId] = $seedData;
+                    $needsSave = true;
+                    continue;
+                }
+
+                if (($manifest['items'][$seedId]['source'] ?? 'default') === 'default') {
+                    $existing = $manifest['items'][$seedId];
+                    $existingHoliday = $this->normalizeQuoteHoliday($existing['holiday'] ?? null);
+                    $existingSeason = $this->normalizeQuoteSeason($existing['season'] ?? null);
+
+                    if (
+                        ($existing['text'] ?? '') !== $seedData['text']
+                        || ($existing['title'] ?? '') !== $seedData['title']
+                        || ($existing['category'] ?? '') !== $seedData['category']
+                        || $existingHoliday !== ($seedData['holiday'] ?? null)
+                        || $existingSeason !== ($seedData['season'] ?? null)
+                        || !array_key_exists('holiday', $existing)
+                        || !array_key_exists('season', $existing)
+                    ) {
+                        $manifest['items'][$seedId]['title'] = $seedData['title'];
+                        $manifest['items'][$seedId]['text'] = $seedData['text'];
+                        $manifest['items'][$seedId]['category'] = $seedData['category'];
+                        $manifest['items'][$seedId]['holiday'] = $seedData['holiday'] ?? null;
+                        $manifest['items'][$seedId]['season'] = $seedData['season'] ?? null;
+                        $manifest['items'][$seedId]['archived'] = (bool) ($existing['archived'] ?? false);
+                        $needsSave = true;
+                    }
+                }
             }
+        }
+
+        // 2. Harte Null-Gedankenstrich-Garantie & Metadaten-Normalisierung über ALLE Items im Manifest
+        foreach ($manifest['items'] as $itemId => &$item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $rawText = (string) ($item['text'] ?? '');
+            if ($rawText !== '' && (preg_match('/[\x{2013}\x{2014}\r]/u', $rawText) || preg_match('/\s-\s/u', $rawText))) {
+                $sanitized = $this->sanitizeQuoteText($rawText);
+                if ($sanitized !== $rawText) {
+                    $item['text'] = $sanitized;
+                    $needsSave = true;
+                }
+            }
+
+            $rawTitle = (string) ($item['title'] ?? '');
+            if ($rawTitle !== '' && (preg_match('/[\x{2013}\x{2014}]/u', $rawTitle) || preg_match('/\s-\s/u', $rawTitle))) {
+                $cleanTitle = preg_replace('/\s*[\x{2013}\x{2014}]\s*/u', ', ', $rawTitle) ?? $rawTitle;
+                $cleanTitle = preg_replace('/\s+-\s+/u', ', ', $cleanTitle) ?? $cleanTitle;
+                $cleanTitle = trim($cleanTitle, " \t\n\r\0\x0B,");
+                if ($cleanTitle !== $rawTitle) {
+                    $item['title'] = $cleanTitle;
+                    $needsSave = true;
+                }
+            }
+
+            $normHoliday = $this->normalizeQuoteHoliday($item['holiday'] ?? null);
+            $normSeason = $this->normalizeQuoteSeason($item['season'] ?? null);
+            if (!array_key_exists('holiday', $item) || $item['holiday'] !== $normHoliday) {
+                $item['holiday'] = $normHoliday;
+                $needsSave = true;
+            }
+            if (!array_key_exists('season', $item) || $item['season'] !== $normSeason) {
+                $item['season'] = $normSeason;
+                $needsSave = true;
+            }
+        }
+        unset($item);
+
+        if ($needsSave) {
+            $this->saveQuotesManifest($manifest);
         }
 
         return $manifest;
@@ -932,9 +1065,25 @@ class ProductConfiguratorService
     }
 
     /**
+     * Berechnet die saisonale Priorität eines Spruchs zum Referenzzeitpunkt analog zu ProductTemplate:
+     * - 10: Aktiver Haupt-Feiertag (bzw. nächster bevorstehender Feiertag im 35-Tage-Vorlauf)
+     * - 15: Sekundärer aktiver/bevorstehender Feiertag im Vorlauf
+     * - 20: Aktuelle Jahreszeit
+     * - 30: Zeitloser Klassiker ohne saisonale Einschränkung
+     * - 40: Fremder Feiertag oder fremde Jahreszeit (im Direkt-Vorschlag gesperrt)
+     */
+    public function resolveQuoteSeasonalPriority(array $quote, ?CarbonInterface $now = null): int
+    {
+        $holiday = $this->normalizeQuoteHoliday($quote['holiday'] ?? null);
+        $season = $this->normalizeQuoteSeason($quote['season'] ?? null);
+
+        return ProductTemplate::resolveHolidaySlotPriority($holiday, $season, $now);
+    }
+
+    /**
      * Liefert alle aktiven (nicht archivierten) Sprüche gruppiert nach Kategorie für den Frontend-Konfigurator.
      */
-    public function getActiveQuotesGrouped(): array
+    public function getActiveQuotesGrouped(?CarbonInterface $now = null): array
     {
         $manifest = $this->ensureQuotesInitialized();
         $categories = $manifest['categories'] ?? self::DEFAULT_QUOTE_CATEGORIES;
@@ -945,6 +1094,7 @@ class ProductConfiguratorService
             $grouped[$cat] = [];
         }
 
+        $orderIndex = 0;
         foreach ($items as $id => $meta) {
             if (!empty($meta['archived'])) {
                 continue;
@@ -953,24 +1103,41 @@ class ProductConfiguratorService
             if ($text === '') {
                 continue;
             }
-            $cat = $meta['category'] ?? ($categories[0] ?? 'Allgemein');
+            $cat = $meta['category'] ?? ($categories[0] ?? 'Liebe & Partnerschaft');
             if (!isset($grouped[$cat])) {
                 $grouped[$cat] = [];
             }
 
+            $holiday = $this->normalizeQuoteHoliday($meta['holiday'] ?? null);
+            $season = $this->normalizeQuoteSeason($meta['season'] ?? null);
+
             $grouped[$cat][] = [
-                'id'       => $id,
-                'title'    => $meta['title'] ?? '',
-                'text'     => $text,
-                'category' => $cat,
-                'length'   => mb_strlen($text),
+                'id'        => (string) $id,
+                'title'     => (string) ($meta['title'] ?? ''),
+                'text'      => $text,
+                'category'  => $cat,
+                'holiday'   => $holiday,
+                'season'    => $season,
+                'length'    => mb_strlen($text),
+                '_prio'     => ProductTemplate::resolveHolidaySlotPriority($holiday, $season, $now),
+                '_ord'      => $orderIndex++,
             ];
         }
 
         foreach ($grouped as $cat => &$list) {
             if (empty($list)) {
                 unset($grouped[$cat]);
+                continue;
             }
+
+            if ($cat === 'Saison & Feiertage') {
+                usort($list, static fn (array $a, array $b): int => [$a['_prio'], $a['_ord']] <=> [$b['_prio'], $b['_ord']]);
+            }
+
+            foreach ($list as &$entry) {
+                unset($entry['_prio'], $entry['_ord']);
+            }
+            unset($entry);
         }
         unset($list);
 
@@ -978,7 +1145,387 @@ class ProductConfiguratorService
     }
 
     /**
-     * Liefert die komplette Spruch-Datenstruktur für das Admin-Panel (/admin/product-configurator).
+     * Analysiert ein Produkt anhand von Name, Slug, Konfigurator-Paket und Kategorien auf seinen Themen- & Größenkontext.
+     *
+     * @return array{is_memorial: bool, is_pet: bool, is_baptism_birth: bool, is_jewelry: bool}
+     */
+    protected function detectProductQuoteContext(?Product $product): array
+    {
+        if (!$product) {
+            return [
+                'is_memorial'      => false,
+                'is_pet'           => false,
+                'is_baptism_birth' => false,
+                'is_jewelry'       => false,
+            ];
+        }
+
+        $parts = [
+            (string) ($product->name ?? ''),
+            (string) ($product->slug ?? ''),
+        ];
+
+        $cfg = is_array($product->configurator_settings ?? null) ? $product->configurator_settings : [];
+        if (!empty($cfg['template_package']) && is_string($cfg['template_package'])) {
+            $parts[] = $cfg['template_package'];
+        }
+
+        try {
+            if ($product->relationLoaded('categories')) {
+                foreach ($product->categories as $cat) {
+                    $parts[] = (string) ($cat->name ?? '');
+                    $parts[] = (string) ($cat->slug ?? '');
+                }
+            } elseif ($product->exists) {
+                foreach ($product->categories()->get(['name', 'slug']) as $cat) {
+                    $parts[] = (string) ($cat->name ?? '');
+                    $parts[] = (string) ($cat->slug ?? '');
+                }
+            }
+        } catch (\Throwable $e) {
+            // Sicherheits-Fallback für unpersistierte Produkt-Instanzen in Tests
+        }
+
+        $haystack = mb_strtolower(implode(' ', $parts));
+
+        $isMemorial = (bool) preg_match('/(trauer|gedenk|grab|regenbogenbruecke|regenbogenbrücke|erinnerungslicht|kondolenz|urne|sternenkind)/u', $haystack);
+        $isPet = (bool) preg_match('/(pfote|hund|katze|haustier|seelenhund|hundemarke|tierliebe)/u', $haystack);
+        $isBaptismBirth = (bool) (
+            preg_match('/(taufe|kommunion|konfirmation|taufgeschenk)/u', $haystack)
+            || preg_match('/geburt(?!stag)/u', $haystack)
+        );
+        $isJewelry = (bool) (
+            preg_match('/(armband|anhaenger|anhänger|schmuck|kette|collier|talisman|charm|schluessel|schlüssel|hundemarke)/u', $haystack)
+            || preg_match('/(^|[\s\-_])(ring|fingerring|ehering|partnerring)($|[\s\-_])/u', $haystack)
+        );
+
+        return [
+            'is_memorial'      => $isMemorial,
+            'is_pet'           => $isPet,
+            'is_baptism_birth' => $isBaptismBirth,
+            'is_jewelry'       => $isJewelry,
+        ];
+    }
+
+    /**
+     * Ermittelt das kurze, saubere Anlass- oder Saison-Label für das Badge im Konfigurator.
+     */
+    protected function resolveActiveOccasionLabel(?CarbonInterface $now = null): string
+    {
+        $ref = $now ? Carbon::instance($now)->copy() : Carbon::now()->copy();
+        $ctx = Product::resolveActivePrimarySeasonalSlot($ref);
+
+        if (($ctx['group'] ?? '') === 'holiday' && !empty($ctx['slot'])) {
+            return (string) $ctx['slot'];
+        }
+
+        foreach (ProductTemplate::HOLIDAYS as $holiday) {
+            if (ProductTemplate::resolveHolidaySlotPriority($holiday, null, $ref) === 10) {
+                return $holiday;
+            }
+        }
+
+        if (!empty($ctx['upcoming_holiday_slot'])) {
+            $upPrio = ProductTemplate::resolveHolidaySlotPriority((string) $ctx['upcoming_holiday_slot'], null, $ref);
+            if ($upPrio <= 15) {
+                return (string) $ctx['upcoming_holiday_slot'];
+            }
+        }
+
+        foreach (ProductTemplate::HOLIDAYS as $holiday) {
+            if (ProductTemplate::resolveHolidaySlotPriority($holiday, null, $ref) === 15) {
+                return $holiday;
+            }
+        }
+
+        return (string) ($ctx['season_slot'] ?? 'Winter');
+    }
+
+    /**
+     * Intelligente 6er-Auswahl-Engine für den Produkt-Konfigurator:
+     * Liefert exakt bis zu $limit saison- und produktkontext-passende Direkt-Vorschläge (niemals fremde Feiertage!)
+     * sowie das gruppierte Gesamt-Bundle für „Alle Sprüche anzeigen“.
+     *
+     * @return array{
+     *     recommended: array<int, array{id: string, title: string, text: string, category: string, holiday: ?string, season: ?string, length: int}>,
+     *     occasion_label: string,
+     *     grouped: array<string, array<int, array{id: string, title: string, text: string, category: string, holiday: ?string, season: ?string, length: int}>>,
+     *     total_count: int,
+     *     hidden_count: int
+     * }
+     */
+    public function getStorefrontQuotesBundle(?Product $product = null, ?CarbonInterface $now = null, int $limit = 6): array
+    {
+        $ref = $now ? Carbon::instance($now)->copy() : Carbon::now()->copy();
+        $limit = max(1, $limit);
+
+        $grouped = $this->getActiveQuotesGrouped($ref);
+        $manifest = $this->ensureQuotesInitialized();
+        $items = $manifest['items'] ?? [];
+
+        $allActive = [];
+        $orderIndex = 0;
+        foreach ($items as $id => $meta) {
+            if (!is_array($meta) || !empty($meta['archived'])) {
+                continue;
+            }
+            $text = trim((string) ($meta['text'] ?? ''));
+            if ($text === '') {
+                continue;
+            }
+
+            $holiday = $this->normalizeQuoteHoliday($meta['holiday'] ?? null);
+            $season = $this->normalizeQuoteSeason($meta['season'] ?? null);
+
+            $allActive[] = [
+                'id'       => (string) $id,
+                'title'    => (string) ($meta['title'] ?? ''),
+                'text'     => $text,
+                'category' => (string) ($meta['category'] ?? 'Liebe & Partnerschaft'),
+                'holiday'  => $holiday,
+                'season'   => $season,
+                'length'   => mb_strlen($text),
+                '_prio'    => ProductTemplate::resolveHolidaySlotPriority($holiday, $season, $ref),
+                '_ord'     => $orderIndex++,
+            ];
+        }
+
+        $totalCount = count($allActive);
+        // Eiserne Regel: Priorität 40 (fremde Feiertage & fremde Jahreszeiten) NIEMALS in den Direkt-Vorschlägen anzeigen!
+        $eligible = array_values(array_filter($allActive, static fn (array $q): bool => $q['_prio'] < 40));
+
+        $pCtx = $this->detectProductQuoteContext($product);
+        $isJewelry = $pCtx['is_jewelry'];
+
+        $sortByJewelryPreference = static function (array $list) use ($isJewelry): array {
+            if (!$isJewelry) {
+                usort($list, static fn (array $a, array $b): int => $a['_ord'] <=> $b['_ord']);
+                return $list;
+            }
+            usort($list, static fn (array $a, array $b): int => [
+                $a['length'] <= 48 ? 0 : 1,
+                $a['_ord'],
+            ] <=> [
+                $b['length'] <= 48 ? 0 : 1,
+                $b['_ord'],
+            ]);
+            return $list;
+        };
+
+        $recommendedRaw = [];
+
+        if ($pCtx['is_memorial']) {
+            // 1. Trauer-/Gedenk-Produkt: Keine Party-/Feiertagssprüche, sondern Trauer & Gedenken + tröstende Bibelsprüche
+            $occasionLabel = 'Trauer & Trost';
+
+            $memorialQuotes = $sortByJewelryPreference(array_values(array_filter(
+                $eligible,
+                static fn (array $q): bool => $q['category'] === 'Trauer & Gedenken'
+                    || ($pCtx['is_pet'] && str_contains(mb_strtolower($q['text'] . ' ' . $q['title']), 'regenbogen'))
+            )));
+
+            $comfortBibleQuotes = $sortByJewelryPreference(array_values(array_filter(
+                $eligible,
+                static fn (array $q): bool => $q['category'] === 'Bibelsprüche & Segen'
+                    && $q['holiday'] === null
+                    && (bool) preg_match('/(psalm 23|psalm 27|ps\.\s*91|jes\.\s*41|matth\.\s*28|hirte|licht|fürchte|engeln|alle tage)/iu', $q['text'])
+            )));
+
+            $pickedIds = [];
+            foreach (array_slice($memorialQuotes, 0, min(4, $limit)) as $item) {
+                $recommendedRaw[] = $item;
+                $pickedIds[$item['id']] = true;
+            }
+            foreach ($comfortBibleQuotes as $item) {
+                if (count($recommendedRaw) >= $limit) {
+                    break;
+                }
+                if (!isset($pickedIds[$item['id']])) {
+                    $recommendedRaw[] = $item;
+                    $pickedIds[$item['id']] = true;
+                }
+            }
+            foreach (array_merge($memorialQuotes, $comfortBibleQuotes) as $item) {
+                if (count($recommendedRaw) >= $limit) {
+                    break;
+                }
+                if (!isset($pickedIds[$item['id']])) {
+                    $recommendedRaw[] = $item;
+                    $pickedIds[$item['id']] = true;
+                }
+            }
+        } elseif ($pCtx['is_baptism_birth']) {
+            // 2. Taufe / Geburt / Kommunion / Konfirmation: Mix aus Taufe & Geburt + kurzen Bibelsprüchen & Segen
+            $occasionLabel = 'Taufe & Segen';
+
+            $baptismQuotes = $sortByJewelryPreference(array_values(array_filter(
+                $eligible,
+                static fn (array $q): bool => $q['category'] === 'Taufe & Geburt'
+            )));
+
+            $blessingBibleQuotes = $sortByJewelryPreference(array_values(array_filter(
+                $eligible,
+                static fn (array $q): bool => $q['category'] === 'Bibelsprüche & Segen' && $q['holiday'] === null
+            )));
+
+            $pickedIds = [];
+            foreach (array_slice($baptismQuotes, 0, min(3, $limit)) as $item) {
+                $recommendedRaw[] = $item;
+                $pickedIds[$item['id']] = true;
+            }
+            foreach (array_slice($blessingBibleQuotes, 0, max(0, $limit - count($recommendedRaw))) as $item) {
+                if (!isset($pickedIds[$item['id']])) {
+                    $recommendedRaw[] = $item;
+                    $pickedIds[$item['id']] = true;
+                }
+            }
+            foreach (array_merge($baptismQuotes, $blessingBibleQuotes) as $item) {
+                if (count($recommendedRaw) >= $limit) {
+                    break;
+                }
+                if (!isset($pickedIds[$item['id']])) {
+                    $recommendedRaw[] = $item;
+                    $pickedIds[$item['id']] = true;
+                }
+            }
+        } elseif ($pCtx['is_pet']) {
+            // 3. Haustier- / Pfoten-Produkt: Vorrangig Pfotenliebe + passende aktuelle Saison/Kurzgravuren
+            $occasionLabel = 'Pfotenliebe';
+
+            $petQuotes = $sortByJewelryPreference(array_values(array_filter(
+                $eligible,
+                static fn (array $q): bool => $q['category'] === 'Haustiere & Pfotenliebe'
+                    && !str_contains(mb_strtolower($q['text'] . ' ' . $q['title']), 'regenbogen')
+            )));
+
+            $seasonalOrShortFillers = array_values(array_filter(
+                $eligible,
+                static fn (array $q): bool => $q['category'] !== 'Haustiere & Pfotenliebe'
+                    && $q['category'] !== 'Trauer & Gedenken'
+            ));
+            usort($seasonalOrShortFillers, static fn (array $a, array $b): int => [
+                $a['_prio'],
+                $isJewelry ? ($a['length'] <= 48 ? 0 : 1) : 0,
+                $a['_ord'],
+            ] <=> [
+                $b['_prio'],
+                $isJewelry ? ($b['length'] <= 48 ? 0 : 1) : 0,
+                $b['_ord'],
+            ]);
+
+            $pickedIds = [];
+            foreach (array_slice($petQuotes, 0, min(4, $limit)) as $item) {
+                $recommendedRaw[] = $item;
+                $pickedIds[$item['id']] = true;
+            }
+            foreach ($seasonalOrShortFillers as $item) {
+                if (count($recommendedRaw) >= $limit) {
+                    break;
+                }
+                if (!isset($pickedIds[$item['id']])) {
+                    $recommendedRaw[] = $item;
+                    $pickedIds[$item['id']] = true;
+                }
+            }
+            foreach ($petQuotes as $item) {
+                if (count($recommendedRaw) >= $limit) {
+                    break;
+                }
+                if (!isset($pickedIds[$item['id']])) {
+                    $recommendedRaw[] = $item;
+                    $pickedIds[$item['id']] = true;
+                }
+            }
+        } else {
+            // 4. Standard Kalender-Steuerung: Prio 10/15 (Feiertag) -> Prio 20 (Jahreszeit) -> Prio 30 (Evergreen)
+            $occasionLabel = $this->resolveActiveOccasionLabel($ref);
+
+            $standardCandidates = array_values(array_filter(
+                $eligible,
+                static fn (array $q): bool => $q['category'] !== 'Trauer & Gedenken'
+                    && !str_contains(mb_strtolower($q['text'] . ' ' . $q['title']), 'regenbogenbrücke')
+            ));
+
+            $evergreenCategoryRank = $isJewelry
+                ? [
+                    'Kurze Gravuren (Schmuck)' => 1,
+                    'Liebe & Partnerschaft'    => 2,
+                    'Bibelsprüche & Segen'     => 3,
+                    'Familie & Freundschaft'   => 4,
+                    'Hochzeit & Jahrestag'     => 5,
+                ]
+                : [
+                    'Liebe & Partnerschaft'    => 1,
+                    'Familie & Freundschaft'   => 2,
+                    'Bibelsprüche & Segen'     => 3,
+                    'Hochzeit & Jahrestag'     => 4,
+                    'Kurze Gravuren (Schmuck)' => 5,
+                ];
+
+            usort($standardCandidates, static function (array $a, array $b) use ($isJewelry, $evergreenCategoryRank): int {
+                $lenRankA = $isJewelry ? ($a['length'] <= 48 ? 0 : 1) : 0;
+                $lenRankB = $isJewelry ? ($b['length'] <= 48 ? 0 : 1) : 0;
+
+                // Innerhalb von Feiertags-Sprüchen (10/15) bevorzugen wir direkte Saison-Widmungen vor Bibelversen auf den vorderen Rängen
+                $catRankA = ($a['_prio'] <= 20)
+                    ? ($a['category'] === 'Saison & Feiertage' ? 0 : 1)
+                    : ($evergreenCategoryRank[$a['category']] ?? 9);
+                $catRankB = ($b['_prio'] <= 20)
+                    ? ($b['category'] === 'Saison & Feiertage' ? 0 : 1)
+                    : ($evergreenCategoryRank[$b['category']] ?? 9);
+
+                return [
+                    $a['_prio'],
+                    $lenRankA,
+                    $catRankA,
+                    $a['_ord'],
+                ] <=> [
+                    $b['_prio'],
+                    $lenRankB,
+                    $catRankB,
+                    $b['_ord'],
+                ];
+            });
+
+            $recommendedRaw = array_slice($standardCandidates, 0, $limit);
+        }
+
+        // Sicherheits-Auffüller, falls ein Spezialkontext weniger als $limit Einträge fand
+        if (count($recommendedRaw) < $limit) {
+            $pickedIds = array_fill_keys(array_column($recommendedRaw, 'id'), true);
+            foreach ($eligible as $fallbackItem) {
+                if (count($recommendedRaw) >= $limit) {
+                    break;
+                }
+                if ($pCtx['is_memorial'] && ($fallbackItem['holiday'] !== null || $fallbackItem['category'] === 'Saison & Feiertage')) {
+                    continue;
+                }
+                if (!$pCtx['is_memorial'] && $fallbackItem['category'] === 'Trauer & Gedenken') {
+                    continue;
+                }
+                if (!isset($pickedIds[$fallbackItem['id']])) {
+                    $recommendedRaw[] = $fallbackItem;
+                    $pickedIds[$fallbackItem['id']] = true;
+                }
+            }
+        }
+
+        $recommended = array_map(static function (array $item): array {
+            unset($item['_prio'], $item['_ord']);
+            return $item;
+        }, array_slice($recommendedRaw, 0, $limit));
+
+        return [
+            'recommended'    => $recommended,
+            'occasion_label' => $occasionLabel,
+            'grouped'        => $grouped,
+            'total_count'    => $totalCount,
+            'hidden_count'   => max(0, $totalCount - count($recommended)),
+        ];
+    }
+
+    /**
+     * Liefert die komplette Spruch-Datenstruktur für das Admin-Panel (/admin/product-configurator-settings).
      */
     public function getAdminQuotesData(): array
     {
@@ -1011,10 +1558,12 @@ class ProductConfiguratorService
             }
 
             $quotes[] = [
-                'id'         => $id,
+                'id'         => (string) $id,
                 'title'      => trim((string) ($meta['title'] ?? '')),
                 'text'       => $text,
                 'category'   => $cat,
+                'holiday'    => $this->normalizeQuoteHoliday($meta['holiday'] ?? null),
+                'season'     => $this->normalizeQuoteSeason($meta['season'] ?? null),
                 'archived'   => $isArchived,
                 'source'     => $meta['source'] ?? 'default',
                 'length'     => mb_strlen($text),
@@ -1038,8 +1587,14 @@ class ProductConfiguratorService
     /**
      * Fügt einen neuen Spruch (manuell oder aus dem KI-Generator übernommen) hinzu.
      */
-    public function addQuote(string $text, string $category, string $title = '', string $source = 'manual'): array
-    {
+    public function addQuote(
+        string $text,
+        string $category,
+        string $title = '',
+        string $source = 'manual',
+        ?string $holiday = null,
+        ?string $season = null
+    ): array {
         $manifest = $this->ensureQuotesInitialized();
         $cleanText = $this->sanitizeQuoteText($text);
         if ($cleanText === '') {
@@ -1051,12 +1606,19 @@ class ProductConfiguratorService
             $manifest['categories'][] = $cleanCategory;
         }
 
+        $cleanTitle = trim(strip_tags($title));
+        $cleanTitle = preg_replace('/\s*[\x{2013}\x{2014}]\s*/u', ', ', $cleanTitle) ?? $cleanTitle;
+        $cleanTitle = preg_replace('/\s+-\s+/u', ', ', $cleanTitle) ?? $cleanTitle;
+        $cleanTitle = trim($cleanTitle, " \t\n\r\0\x0B,");
+
         $id = 'q_' . substr(md5($cleanCategory . '|' . $cleanText . '|' . microtime(true)), 0, 12);
         $entry = [
             'id'         => $id,
-            'title'      => trim(strip_tags($title)),
+            'title'      => $cleanTitle,
             'text'       => $cleanText,
             'category'   => $cleanCategory,
+            'holiday'    => $this->normalizeQuoteHoliday($holiday),
+            'season'     => $this->normalizeQuoteSeason($season),
             'archived'   => false,
             'source'     => $source,
             'created_at' => date('Y-m-d H:i:s'),
@@ -1066,14 +1628,20 @@ class ProductConfiguratorService
         $manifest['items'] = [$id => $entry] + ($manifest['items'] ?? []);
         $this->saveQuotesManifest($manifest);
 
-        return $entry;
+        return array_merge($entry, ['length' => mb_strlen($cleanText)]);
     }
 
     /**
-     * Aktualisiert einen bestehenden Spruch (Text, Titel und/oder Kategorie).
+     * Aktualisiert einen bestehenden Spruch (Text, Titel, Kategorie sowie optional Feiertag & Jahreszeit).
      */
-    public function updateQuote(string $id, string $text, string $category, string $title = ''): bool
-    {
+    public function updateQuote(
+        string $id,
+        string $text,
+        string $category,
+        string $title = '',
+        ?string $holiday = null,
+        ?string $season = null
+    ): bool {
         $manifest = $this->ensureQuotesInitialized();
         if (!isset($manifest['items'][$id])) {
             return false;
@@ -1089,10 +1657,22 @@ class ProductConfiguratorService
             $manifest['categories'][] = $cleanCategory;
         }
 
+        $cleanTitle = trim(strip_tags($title));
+        $cleanTitle = preg_replace('/\s*[\x{2013}\x{2014}]\s*/u', ', ', $cleanTitle) ?? $cleanTitle;
+        $cleanTitle = preg_replace('/\s+-\s+/u', ', ', $cleanTitle) ?? $cleanTitle;
+        $cleanTitle = trim($cleanTitle, " \t\n\r\0\x0B,");
+
         $manifest['items'][$id]['text'] = $cleanText;
-        $manifest['items'][$id]['title'] = trim(strip_tags($title));
+        $manifest['items'][$id]['title'] = $cleanTitle;
         if ($cleanCategory !== '') {
             $manifest['items'][$id]['category'] = $cleanCategory;
+        }
+
+        if (func_num_args() >= 5) {
+            $manifest['items'][$id]['holiday'] = $this->normalizeQuoteHoliday($holiday);
+        }
+        if (func_num_args() >= 6) {
+            $manifest['items'][$id]['season'] = $this->normalizeQuoteSeason($season);
         }
 
         $this->saveQuotesManifest($manifest);
@@ -1245,17 +1825,25 @@ class ProductConfiguratorService
     }
 
     /**
-     * Generiert per Knopfdruck passende, gravurfähige Sprüche (ohne Emojis) über Gemini KI
+     * Generiert per Knopfdruck passende, gravurfähige Sprüche (ohne Emojis, ohne Gedankenstriche) über Gemini KI
      * (mit kuratiertem Kreativ-Fallback, falls der API-Key fehlt oder offline ist).
      *
-     * @return array<int, array{title: string, text: string, category: string}>
+     * @return array<int, array{title: string, text: string, category: string, holiday: ?string, season: ?string, length: int}>
      */
-    public function generateAiQuotes(string $category, string $styleHint = '', int $maxLength = 60, int $count = 5): array
-    {
+    public function generateAiQuotes(
+        string $category,
+        string $styleHint = '',
+        int $maxLength = 60,
+        int $count = 5,
+        ?string $holiday = null,
+        ?string $season = null
+    ): array {
         $category = trim($category) !== '' ? trim($category) : 'Liebe & Partnerschaft';
         $styleHint = trim($styleHint);
         $maxLength = max(20, min(140, $maxLength));
         $count = max(1, min(10, $count));
+        $normHoliday = $this->normalizeQuoteHoliday($holiday);
+        $normSeason = $this->normalizeQuoteSeason($season);
 
         $manifest = $this->ensureQuotesInitialized();
         $existingTexts = array_map(
@@ -1264,9 +1852,22 @@ class ProductConfiguratorService
         );
 
         if (\App\Services\AI\VertexAiService::hasCredentials()) {
-            $hintInstruction = $styleHint !== ''
-                ? "Zusätzlicher Wunsch / Anlass / Stil-Hinweis: \"{$styleHint}\"."
-                : "Stil: Emotional, edel, zeitlos und perfekt für eine hochwertige Geschenk-Gravur der Manufaktur 'Mein Seelenfunke'.";
+            $contextParts = [];
+            if ($normHoliday !== null) {
+                $contextParts[] = "Feiertags-Anlass: {$normHoliday}.";
+            }
+            if ($normSeason !== null) {
+                $contextParts[] = "Jahreszeit: {$normSeason}.";
+            }
+            if ($category === 'Bibelsprüche & Segen') {
+                $contextParts[] = "Nutze ausschließlich gemeinfreie Bibelworte nach der Lutherbibel 1912 inklusive kurzer Stellenangabe in Klammern wie (Ps. 23,1).";
+            }
+            if ($styleHint !== '') {
+                $contextParts[] = "Zusätzlicher Wunsch / Stil-Hinweis: \"{$styleHint}\".";
+            } else {
+                $contextParts[] = "Stil: Emotional, edel, zeitlos und perfekt für eine hochwertige Geschenk-Gravur der Manufaktur 'Mein Seelenfunke'.";
+            }
+            $hintInstruction = implode(' ', $contextParts);
 
             $prompt = <<<PROMPT
 Du bist Chef-Texter für 'Mein Seelenfunke', eine deutsche Manufaktur für personalisierte Lasergravur-Unikate (Kristallglas, Schmuckanhänger, Schiefer, Holz).
@@ -1275,10 +1876,11 @@ Erstelle exakt {$count} verschiedene, tiefgründige und sofort gravierbare Sprü
 
 WICHTIGE REGELN FÜR DIE LASERGRAVUR:
 1. Maximale Zeichenlänge pro Spruch: ca. {$maxLength} Zeichen (kurz, prägnant, ästhetisch auf kleiner Fläche).
-2. ZEILENUMBRÜCHE (\n): Füge bei Sprüchen ab 22 Zeichen sinnvolle, harmonische Zeilenumbrüche (\n) nach ca. 18–24 Zeichen pro Zeile ein, damit der Spruch zentriert perfekt auf die Gravurfläche passt und nicht über den Rand hinausragt!
-3. KEINE Emojis oder Farb-Icons verwenden (ein Laser kann keine Emojis gravieren!). Erlaubt sind normale Satzzeichen, Punkte (•) oder kaufmännisches Und (&).
-4. Keine Dubletten zu bestehenden Standardsprüchen.
-5. Gib ausschließlich ein valides JSON-Array mit Objekten im Format [{"title": "Kurzer Anlass/Titel (2-3 Wörter)", "text": "Zeile 1\nZeile 2"}] zurück. Kein Markdown, kein Text drumherum.
+2. ZEILENUMBRÜCHE (\n): Füge bei Sprüchen ab 22 Zeichen sinnvolle, harmonische Zeilenumbrüche (\n) nach ca. 18 bis 24 Zeichen pro Zeile ein, damit der Spruch zentriert perfekt auf die Gravurfläche passt und nicht über den Rand hinausragt!
+3. ABSOLUTES VERBOT von Gedankenstrichen (\u{2013} oder \u{2014} oder Leerzeichen-Bindestrich-Leerzeichen)! Nutze stattdessen Kommas, Punkte oder Zeilenumbrüche (\n).
+4. KEINE Emojis oder Farb-Icons verwenden (ein Laser kann keine Emojis gravieren!). Erlaubt sind normale Satzzeichen, Punkte (•) oder kaufmännisches Und (&).
+5. Keine Dubletten zu bestehenden Standardsprüchen.
+6. Gib ausschließlich ein valides JSON-Array mit Objekten im Format [{"title": "Kurzer Anlass/Titel (2-3 Wörter)", "text": "Zeile 1\nZeile 2"}] zurück. Kein Markdown, kein Text drumherum.
 PROMPT;
 
             $payload = [
@@ -1308,11 +1910,16 @@ PROMPT;
                             foreach ($parsed as $row) {
                                 $qText = $this->sanitizeQuoteText((string) ($row['text'] ?? ''));
                                 $qTitle = trim(strip_tags((string) ($row['title'] ?? $category)));
+                                $qTitle = preg_replace('/\s*[\x{2013}\x{2014}]\s*/u', ', ', $qTitle) ?? $qTitle;
+                                $qTitle = preg_replace('/\s+-\s+/u', ', ', $qTitle) ?? $qTitle;
+                                $qTitle = trim($qTitle, " \t\n\r\0\x0B,");
                                 if ($qText !== '' && !in_array(mb_strtolower($qText), $existingTexts, true)) {
                                     $results[] = [
                                         'title'    => $qTitle,
                                         'text'     => $qText,
                                         'category' => $category,
+                                        'holiday'  => $normHoliday,
+                                        'season'   => $normSeason,
                                         'length'   => mb_strlen($qText),
                                     ];
                                     $existingTexts[] = mb_strtolower($qText);
@@ -1330,19 +1937,49 @@ PROMPT;
         }
 
         // Deterministischer Kreativ-Fallback (falls kein API-Key gesetzt ist oder Offline-Modus)
-        return $this->getFallbackGeneratedQuotes($category, $styleHint, $maxLength, $count, $existingTexts);
+        return $this->getFallbackGeneratedQuotes($category, $styleHint, $maxLength, $count, $existingTexts, $normHoliday, $normSeason);
     }
 
     /**
-     * Bereinigt Spruchtexte für den Laser (keine HTML-Tags, keine Emojis, saubere Zeilenumbrüche).
+     * Bereinigt Spruchtexte für den Laser (keine HTML-Tags, keine Emojis, harte Null-Gedankenstrich-Garantie, saubere Zeilenumbrüche).
      */
     public function sanitizeQuoteText(string $value): string
     {
         $clean = strip_tags($value);
         // Entferne Emojis / Pictographs, lasse deutsche Umlaute, Satzzeichen und Zeilenumbrüche intakt
         $clean = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE00}-\x{FE0F}]/u', '', $clean) ?? $clean;
-        $clean = preg_replace("/[ \t]+/u", ' ', $clean) ?? $clean;
         $clean = preg_replace("/\r\n|\r/", "\n", $clean) ?? $clean;
+
+        // 1. Gedankenstrich vor Zeilenumbruch -> ",\n" (nach Satzzeichen reines "\n")
+        $clean = preg_replace_callback('/([^\n])?[ \t]*[\x{2013}\x{2014}][ \t]*\n/u', static function (array $m): string {
+            $prev = $m[1] ?? '';
+            if ($prev === '' || preg_match('/[\s\.\!\?\:\,\;\(]/u', $prev)) {
+                return rtrim($prev) . "\n";
+            }
+            return $prev . ",\n";
+        }, $clean) ?? $clean;
+
+        // 2. Gedankenstrich am Zeilenanfang oder Textende restlos entfernen
+        $clean = preg_replace('/(^|\n)[ \t]*[\x{2013}\x{2014}][ \t]*/u', '$1', $clean) ?? $clean;
+        $clean = preg_replace('/[ \t]*[\x{2013}\x{2014}][ \t]*$/u', '', $clean) ?? $clean;
+
+        // 3. Mit Leerzeichen umschlossene Gedankenstriche -> ", " (bzw. " " nach Satzzeichen)
+        $clean = preg_replace_callback('/([^\s])[ \t]+(?:[\x{2013}\x{2014}]|-)[ \t]+/u', static function (array $m): string {
+            $prev = $m[1];
+            if (preg_match('/[\.\!\?\:\,\;]/u', $prev)) {
+                return $prev . ' ';
+            }
+            return $prev . ', ';
+        }, $clean) ?? $clean;
+
+        // 4. Direkt an ein Satzzeichen anschließender Gedankenstrich mit Folge-Leerzeichen
+        $clean = preg_replace('/([\.\!\?\:\,\;])[\x{2013}\x{2014}][ \t]+/u', '$1 ', $clean) ?? $clean;
+
+        // 5. Verbleibende Gedankenstriche (z. B. zwischen Zahlen) -> kurzer Bindestrich "-"
+        $clean = str_replace(["\u{2013}", "\u{2014}"], '-', $clean);
+
+        $clean = preg_replace("/[ \t]+/u", ' ', $clean) ?? $clean;
+        $clean = preg_replace("/ *\n */u", "\n", $clean) ?? $clean;
         $clean = trim($clean);
 
         // Falls ein längerer Spruch noch gar keinen Zeilenumbruch hat, harmonisch umbrechen
@@ -1354,7 +1991,7 @@ PROMPT;
     }
 
     /**
-     * Bricht zu lange Einzelzeilen harmonisch an Wortgrenzen um (ca. 22–24 Zeichen pro Zeile),
+     * Bricht zu lange Einzelzeilen harmonisch an Wortgrenzen um (ca. 22 bis 24 Zeichen pro Zeile),
      * damit Sprüche im Konfigurator nicht über die Gravurfläche hinausragen.
      */
     public function formatQuoteLineBreaks(string $text, int $maxLineChars = 24): string
@@ -1391,17 +2028,18 @@ PROMPT;
     }
 
     /**
-     * Kuratierte Initial-Bibliothek für die „Kreativ-Starthilfe“ im Produkt-Konfigurator.
+     * Kuratierte Initial-Bibliothek für die „Kreativ-Starthilfe“ im Produkt-Konfigurator
+     * (100 % gedankenstrichfrei, inkl. gemeinfreier Lutherbibel 1912 & Saison-/Feiertagssteuerung).
      */
     protected function getDefaultSeedQuotes(): array
     {
         $seeds = [
             // 1. Liebe & Partnerschaft
-            ['category' => 'Liebe & Partnerschaft', 'title' => 'Seelenverwandt', 'text' => "Du bist mein Lieblingsmensch –\nheute, morgen und für immer."],
+            ['category' => 'Liebe & Partnerschaft', 'title' => 'Seelenverwandt', 'text' => "Du bist mein Lieblingsmensch,\nheute, morgen und für immer."],
             ['category' => 'Liebe & Partnerschaft', 'title' => 'Heimatgefühl',   'text' => "Wo du bist,\nist mein Zuhause."],
             ['category' => 'Liebe & Partnerschaft', 'title' => 'Ewige Liebe',    'text' => "Zwei Herzen, ein Takt,\nein gemeinsamer Weg."],
             ['category' => 'Liebe & Partnerschaft', 'title' => 'Liebesbeweis',   'text' => "Unter Millionen Sternen\nbist du mein hellster Funke."],
-            ['category' => 'Liebe & Partnerschaft', 'title' => 'Zusammenhalt',   'text' => "Hand in Hand –\nein Leben lang."],
+            ['category' => 'Liebe & Partnerschaft', 'title' => 'Zusammenhalt',   'text' => "Hand in Hand,\nein Leben lang."],
 
             // 2. Trauer & Gedenken
             ['category' => 'Trauer & Gedenken', 'title' => 'Unvergessen',       'text' => "Aus dem Leben bist du uns genommen,\naber nicht aus unseren Herzen."],
@@ -1411,10 +2049,10 @@ PROMPT;
             ['category' => 'Trauer & Gedenken', 'title' => 'Spuren der Liebe',  'text' => "Deine Schritte sind verstummt,\ndoch die Spuren deiner Liebe\nbleiben überall."],
 
             // 3. Hochzeit & Jahrestag
-            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Ja-Wort',        'text' => "Ein Ja für den Moment –\nein Versprechen für die Ewigkeit."],
-            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Eheglück',       'text' => "Aus Du und Ich\nwurde unser schönstes Wir."],
-            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Jahrestag',      'text' => "Jeder Tag mit dir\nist mein liebster Tag."],
-            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Lebensreise',    'text' => "Liebe heißt, gemeinsam\nin die gleiche Richtung\nzu blicken."],
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Ja-Wort',           'text' => "Ein Ja für den Moment,\nein Versprechen für die Ewigkeit."],
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Eheglück',          'text' => "Aus Du und Ich\nwurde unser schönstes Wir."],
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Jahrestag',         'text' => "Jeder Tag mit dir\nist mein liebster Tag."],
+            ['category' => 'Hochzeit & Jahrestag', 'title' => 'Lebensreise',       'text' => "Liebe heißt, gemeinsam\nin die gleiche Richtung\nzu blicken."],
             ['category' => 'Hochzeit & Jahrestag', 'title' => 'Für das Brautpaar', 'text' => "Möge eure Liebe jeden Tag\naufs Neue funkeln."],
 
             // 4. Taufe & Geburt
@@ -1422,14 +2060,14 @@ PROMPT;
             ['category' => 'Taufe & Geburt', 'title' => 'Schutzengel-Segen',   'text' => "Mögen Engel dich begleiten\nauf all deinen Wegen."],
             ['category' => 'Taufe & Geburt', 'title' => 'Zur Geburt',          'text' => "Die Sterne, die Blumen\nund das Leuchten\nin deinen Kinderaugen."],
             ['category' => 'Taufe & Geburt', 'title' => 'Wurzeln & Flügel',    'text' => "Wurzeln, die dich halten,\nund Flügel, die dich tragen."],
-            ['category' => 'Taufe & Geburt', 'title' => 'Taufspruch',          'text' => "Behütet, geliebt und getragen –\nvom ersten Augenblick an."],
+            ['category' => 'Taufe & Geburt', 'title' => 'Taufspruch',          'text' => "Behütet, geliebt und getragen,\nvom ersten Augenblick an."],
 
             // 5. Familie & Freundschaft
             ['category' => 'Familie & Freundschaft', 'title' => 'Familienbande', 'text' => "Familie ist da, wo das Leben\nbeginnt und die Liebe\nniemals endet."],
             ['category' => 'Familie & Freundschaft', 'title' => 'Beste Mama',    'text' => "Für die Welt bist du eine Mama,\ndoch für uns bist du\ndie ganze Welt."],
             ['category' => 'Familie & Freundschaft', 'title' => 'Bester Papa',   'text' => "Danke, dass du immer\nunser Fels in der Brandung bist."],
             ['category' => 'Familie & Freundschaft', 'title' => 'Wahre Freunde', 'text' => "Gute Freunde sind wie Sterne:\nMan sieht sie nicht immer,\naber sie sind immer da."],
-            ['category' => 'Familie & Freundschaft', 'title' => 'Dankbarkeit',   'text' => "Schön, dass es dich gibt –\ndanke für jeden Moment."],
+            ['category' => 'Familie & Freundschaft', 'title' => 'Dankbarkeit',   'text' => "Schön, dass es dich gibt,\ndanke für jeden Moment."],
 
             // 6. Haustiere & Pfotenliebe
             ['category' => 'Haustiere & Pfotenliebe', 'title' => 'Pfotenabdruck',    'text' => "Kleine Pfoten hinterlassen\ndie größten Spuren\nin unseren Herzen."],
@@ -1438,12 +2076,132 @@ PROMPT;
             ['category' => 'Haustiere & Pfotenliebe', 'title' => 'Seelenhund',       'text' => "Ein Seelenhund bleibt\nfür immer an deiner Seite."],
 
             // 7. Kurze Gravuren (Schmuck)
-            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Klassiker',       'text' => "Für immer im Herzen"],
-            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Verbundenheit',   'text' => "Für immer & ewig"],
-            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Seelenfunke',     'text' => "Mein kleiner\nSeelenfunke"],
-            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Glücksbringer',   'text' => "Dein Schutzengel"],
-            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Unendlichkeit',   'text' => "Unendlich geliebt"],
-            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Erinnerung',      'text' => "Unvergessen"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Klassiker',     'text' => "Für immer im Herzen"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Verbundenheit', 'text' => "Für immer & ewig"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Seelenfunke',   'text' => "Mein kleiner\nSeelenfunke"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Glücksbringer', 'text' => "Dein Schutzengel"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Unendlichkeit', 'text' => "Unendlich geliebt"],
+            ['category' => 'Kurze Gravuren (Schmuck)', 'title' => 'Erinnerung',    'text' => "Unvergessen"],
+
+            // 8. Bibelsprüche & Segen (Gemeinfreie Lutherbibel 1912, kurz & gravurtauglich)
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Gott ist Liebe',          'text' => "Gott ist die Liebe.\n(1. Joh. 4,16)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Glaube, Hoffnung, Liebe', 'text' => "Nun aber bleibt Glaube,\nHoffnung, Liebe. (1. Kor. 13,13)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Alles in Liebe',          'text' => "Alle eure Dinge lasset\nin Liebe geschehen (1.Kor. 16,14)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Aaronitischer Segen',     'text' => "Der Herr segne dich\nund behüte dich. (4. Mose 6,24)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Mut & Vertrauen',         'text' => "Der Herr, dein Gott,\nist mit dir. (Josua 1,9)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Engelschutz',             'text' => "Er hat seinen Engeln\nbefohlen über dir. (Ps. 91,11)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Guter Hirte',             'text' => "Der Herr ist mein Hirte.\n(Psalm 23,1)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Fürchte dich nicht',      'text' => "Fürchte dich nicht,\nich bin mit dir. (Jes. 41,10)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Licht & Heil',            'text' => "Der Herr ist mein Licht\nund mein Heil. (Psalm 27,1)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Alle Tage bei euch',      'text' => "Ich bin bei euch\nalle Tage. (Matth. 28,20)"],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Friede auf Erden',        'text' => "Und Friede auf Erden!\n(Luk. 2,14)", 'holiday' => 'Weihnachten'],
+            ['category' => 'Bibelsprüche & Segen', 'title' => 'Licht der Welt',          'text' => "Ich bin das Licht der Welt.\n(Joh. 8,12)", 'holiday' => 'Ostern'],
+
+            // 9. Kurze Ergänzungen für Trauer & Pfotenliebe (ideal für Schmuck-Gravuren)
+            ['category' => 'Trauer & Gedenken',       'title' => 'Herzenskraft',     'text' => "Dem Auge fern,\ndem Herzen ewig nah."],
+            ['category' => 'Trauer & Gedenken',       'title' => 'Erinnerungslicht', 'text' => "Ein Licht der Erinnerung,\ndas niemals erlischt."],
+            ['category' => 'Haustiere & Pfotenliebe', 'title' => 'Pfotenherz',       'text' => "Pfote im Herzen,\nfür alle Zeit."],
+            ['category' => 'Haustiere & Pfotenliebe', 'title' => 'Treuer Freund',    'text' => "Mein treuer Begleiter\nauf allen Wegen."],
+
+            // 10. Saison & Feiertage: Weihnachten (6)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weihnachten', 'title' => 'Weihnachtszauber', 'text' => "Frohe Weihnachten\nund funkelnde Festtage!"],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weihnachten', 'title' => 'Lichterglanz',     'text' => "Ein Licht voll Wärme\nfür deine Weihnachtszeit."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weihnachten', 'title' => 'Herzensfest',      'text' => "Frohes Fest, du bist mein\nschönstes Geschenk."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weihnachten', 'title' => 'Stille Nacht',     'text' => "Besinnliche Stunden,\nWärme und Geborgenheit."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weihnachten', 'title' => 'Weihnachtsfunke',  'text' => "Ein kleiner Seelenfunke\nzum Weihnachtsfest."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weihnachten', 'title' => 'Fest der Liebe',   'text' => "Von Herzen frohe\nund gesegnete Weihnachten."],
+
+            // Saison & Feiertage: Neujahr (6)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Neujahr', 'title' => 'Glücksjahr',       'text' => "Ein neues Jahr voll Glück,\nMut und Zuversicht."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Neujahr', 'title' => 'Neuanfang',        'text' => "365 neue Tage,\n365 neue Lichtmomente."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Neujahr', 'title' => 'Neujahrssegen',    'text' => "Gesundheit, Liebe und Glück\nfür dein neues Jahr."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Neujahr', 'title' => 'Sternstunden',     'text' => "Möge das neue Jahr für dich\nhell erstrahlen."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Neujahr', 'title' => 'Gemeinsames Jahr', 'text' => "Auf all die schönen Wege,\ndie vor uns liegen."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Neujahr', 'title' => 'Frohes Neues',     'text' => "Frohes neues Jahr\nvoller kleiner Wunder."],
+
+            // Saison & Feiertage: Valentinstag (6)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Valentinstag', 'title' => 'Mein Valentin', 'text' => "Für meinen Lieblingsmenschen\nzum Valentinstag."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Valentinstag', 'title' => 'Herzschlag',    'text' => "Mein Herz schlägt für dich,\nheute und jeden Tag."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Valentinstag', 'title' => 'Ewiger Funke',  'text' => "Du bist mein schönstes Glück,\nTag für Tag."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Valentinstag', 'title' => 'Seelenliebe',   'text' => "Zwei Herzen, eine Seele,\nfür immer verbunden."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Valentinstag', 'title' => 'Nur mit dir',   'text' => "Jeder Moment mit dir\nist ein Geschenk."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Valentinstag', 'title' => 'Liebesgruß',    'text' => "In Liebe für dich,\nmein Herzensmensch."],
+
+            // Saison & Feiertage: Weltfrauentag (4)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weltfrauentag', 'title' => 'Starke Frau',  'text' => "Für eine wundervolle Frau\nvoll Stärke und Herz."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weltfrauentag', 'title' => 'Einzigartig',  'text' => "Bleib genauso mutig\nund strahlend, wie du bist."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weltfrauentag', 'title' => 'Herzensfrau',  'text' => "Danke für deine Stärke\nund dein großes Herz."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Weltfrauentag', 'title' => 'Frauenpower',  'text' => "Stark, mutig, wunderbar:\nAlles Liebe für dich."],
+
+            // Saison & Feiertage: Ostern (6)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Ostern', 'title' => 'Osterfreude',   'text' => "Frohe Ostern und sonnige\nFrühlingstage für dich."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Ostern', 'title' => 'Ostersegen',    'text' => "Gesegnete Ostern voll\nLicht und neuer Hoffnung."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Ostern', 'title' => 'Frühlingsgruß', 'text' => "Kleine Osterfreude,\nvon Herzen für dich."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Ostern', 'title' => 'Neues Leben',   'text' => "Frühlingslicht im Herzen\nund frohe Ostertage."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Ostern', 'title' => 'Osterglück',    'text' => "Sonnenschein und Freude\nzum frohen Osterfest."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Ostern', 'title' => 'Herzensgruß',   'text' => "Frohe Ostern für einen\nganz besonderen Menschen."],
+
+            // Saison & Feiertage: Muttertag (6)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Muttertag', 'title' => 'Beste Mama',    'text' => "Alles Liebe zum Muttertag,\ndu wundervolle Mama."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Muttertag', 'title' => 'Herzensmama',   'text' => "Danke, liebe Mama,\nfür deine unendliche Liebe."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Muttertag', 'title' => 'Mein Anker',    'text' => "Mama, du bist das Herz\nunserer ganzen Familie."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Muttertag', 'title' => 'Für Mama',      'text' => "Für die beste Mama der Welt,\nvon ganzem Herzen."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Muttertag', 'title' => 'Geborgenheit',  'text' => "Bei dir, liebe Mama,\nbin ich immer zuhause."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Muttertag', 'title' => 'Danke Mama',    'text' => "Danke für jedes Lächeln\nund jede Umarmung, Mama."],
+
+            // Saison & Feiertage: Vatertag (6)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Vatertag', 'title' => 'Bester Papa',          'text' => "Alles Gute zum Vatertag,\nfür den besten Papa."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Vatertag', 'title' => 'Vorbild & Halt',       'text' => "Mein Vorbild, mein Halt:\nDanke für alles, Papa."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Vatertag', 'title' => 'Fels in der Brandung', 'text' => "Danke, Papa, dass du immer\nhinter uns stehst."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Vatertag', 'title' => 'Auf dich, Papa',       'text' => "Auf dich, lieber Papa,\nschön, dass es dich gibt."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Vatertag', 'title' => 'Vaterherz',            'text' => "Starke Hand, großes Herz:\nBester Papa der Welt."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Vatertag', 'title' => 'Danke Papa',           'text' => "Für meinen Papa,\nmit Stolz und Dankbarkeit."],
+
+            // Saison & Feiertage: Einschulung (6)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Einschulung', 'title' => 'Schulkind',         'text' => "Endlich Schulkind!\nViel Freude auf deinem Weg."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Einschulung', 'title' => 'Neues Abenteuer',   'text' => "Mutig und voller Freude\nin die große Schulzeit!"],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Einschulung', 'title' => 'Glücksbringer',     'text' => "Ein kleiner Schutzengel\nfür deine Schulzeit."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Einschulung', 'title' => 'Wissensdurst',      'text' => "Glaube fest an dich,\nkleines großes Schulkind."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Einschulung', 'title' => 'Schulanfang',       'text' => "Alles Liebe und viel Glück\nzum ersten Schultag."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Einschulung', 'title' => 'Kleiner Entdecker', 'text' => "Geh mutig deinen Weg,\nwir sind stolz auf dich."],
+
+            // Saison & Feiertage: Halloween (4)
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Halloween', 'title' => 'Herbstzauber', 'text' => "Magische Herbstnacht\nvoll funkelnder Lichter."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Halloween', 'title' => 'Kürbislicht',  'text' => "Ein leuchtender Funke\nin dunkler Oktobernacht."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Halloween', 'title' => 'Nachtzauber',  'text' => "Kleine Magie für\ngemütliche Geisterstunden."],
+            ['category' => 'Saison & Feiertage', 'holiday' => 'Halloween', 'title' => 'Oktoberfunke', 'text' => "Heller Lichterschein\nzur magischen Herbstnacht."],
+
+            // Saison & Feiertage: Frühling (6)
+            ['category' => 'Saison & Feiertage', 'season' => 'Frühling', 'title' => 'Frühlingslicht',  'text' => "Neue Blüten, neues Glück\nund Sonne im Herzen."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Frühling', 'title' => 'Aufblühen',       'text' => "Möge jeder Tag für dich\nwie der Frühling blühen."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Frühling', 'title' => 'Sonnenstrahl',    'text' => "Ein warmer Frühlingsgruß,\nvon Herzen für dich."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Frühling', 'title' => 'Lebensfreude',    'text' => "Wo Liebe wächst,\nblüht das Leben auf."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Frühling', 'title' => 'Morgentau',       'text' => "Frischer Mut und Freude\nfür jeden neuen Tag."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Frühling', 'title' => 'Blütenzeit',      'text' => "Kleine Lichtmomente\nfür sonnige Frühlingstage."],
+
+            // Saison & Feiertage: Sommer (6)
+            ['category' => 'Saison & Feiertage', 'season' => 'Sommer', 'title' => 'Sommerfunke',    'text' => "Sonne im Herzen und\nfunkelnde Sommermomente."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Sommer', 'title' => 'Goldene Zeit',   'text' => "Auf laue Abende und\nunvergessliche Sommertage."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Sommer', 'title' => 'Sonnenschein',   'text' => "Du bist mein hellster\nSonnenschein im Leben."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Sommer', 'title' => 'Leichtigkeit',   'text' => "Barfuß im Herzen und\nvoller Lebensfreude."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Sommer', 'title' => 'Sommerglück',    'text' => "Ein Stück Sommerglück,\nfür immer festgehalten."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Sommer', 'title' => 'Lichtsommer',    'text' => "Warme Sonnenstrahlen\nund unbeschwertes Glück."],
+
+            // Saison & Feiertage: Herbst (6)
+            ['category' => 'Saison & Feiertage', 'season' => 'Herbst', 'title' => 'Goldener Herbst', 'text' => "Goldenes Laub und warme\nMomente für dein Herz."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Herbst', 'title' => 'Herbstwärme',     'text' => "Gemütliche Stunden voll\nWärme und Geborgenheit."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Herbst', 'title' => 'Dankbare Ernte',  'text' => "Dankbar für all das Gute,\ndas uns verbindet."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Herbst', 'title' => 'Lichtmoment',     'text' => "Ein warmes Licht für\ngoldene Herbsttage."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Herbst', 'title' => 'Geborgen',        'text' => "Wenn draußen Stürme ziehen,\nwärmt uns die Liebe."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Herbst', 'title' => 'Herbstleuchten',  'text' => "Bunte Blätter, stilles Glück\nund warme Gedanken."],
+
+            // Saison & Feiertage: Winter (6)
+            ['category' => 'Saison & Feiertage', 'season' => 'Winter', 'title' => 'Winterzauber', 'text' => "Stille Schneeflocken und\nein Herz voller Wärme."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Winter', 'title' => 'Seelenwärme',  'text' => "Ein heller Lichtfunke\nfür kalte Wintertage."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Winter', 'title' => 'Winterlicht',  'text' => "Draußen stiller Winter,\ndrinnen Herzenswärme."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Winter', 'title' => 'Sternenklar',  'text' => "Unter klarem Winterhimmel\nleuchtet unser Glück."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Winter', 'title' => 'Wintergruß',   'text' => "Wärme, Ruhe und Licht\nfür deine Winterzeit."],
+            ['category' => 'Saison & Feiertage', 'season' => 'Winter', 'title' => 'Kuschelzeit',  'text' => "Zeit für Ruhe, Nähe\nund funkelnde Momente."],
         ];
 
         $items = [];
@@ -1454,6 +2212,8 @@ PROMPT;
                 'title'      => $seed['title'],
                 'text'       => $seed['text'],
                 'category'   => $seed['category'],
+                'holiday'    => $seed['holiday'] ?? null,
+                'season'     => $seed['season'] ?? null,
                 'archived'   => false,
                 'source'     => 'default',
                 'created_at' => '2026-01-01 00:00:00',
@@ -1463,8 +2223,15 @@ PROMPT;
         return $items;
     }
 
-    protected function getFallbackGeneratedQuotes(string $category, string $styleHint, int $maxLength, int $count, array $existingTexts): array
-    {
+    protected function getFallbackGeneratedQuotes(
+        string $category,
+        string $styleHint,
+        int $maxLength,
+        int $count,
+        array $existingTexts,
+        ?string $holiday = null,
+        ?string $season = null
+    ): array {
         $pool = [
             'Liebe & Partnerschaft' => [
                 ['title' => 'Herzensmensch',   'text' => "Mit dir wird jeder Augenblick\nzu einem Funken Ewigkeit."],
@@ -1474,7 +2241,7 @@ PROMPT;
                 ['title' => 'Sternstunde',     'text' => "Unter tausend Wegen würde ich\nimmer wieder deinen wählen."],
             ],
             'Trauer & Gedenken' => [
-                ['title' => 'Stilles Licht',   'text' => "Ein Seelenfunke erlischt nie –\ner leuchtet im Herzen weiter."],
+                ['title' => 'Stilles Licht',   'text' => "Ein Seelenfunke erlischt nie,\ner leuchtet im Herzen weiter."],
                 ['title' => 'In Liebe',        'text' => "Du fehlst uns jeden Tag,\ndoch deine Liebe trägt uns weiter."],
                 ['title' => 'Himmelsstern',    'text' => "Jetzt leuchtest du als hellster Stern\nüber unseren Wegen."],
                 ['title' => 'Ewige Nähe',      'text' => "Dem Auge fern, dem Herzen\nfür alle Zeit ganz nah."],
@@ -1492,21 +2259,35 @@ PROMPT;
                 ['title' => 'Kleiner Stern',   'text' => "Folge deinem Herzen und leuchte\nauf deine eigene Weise."],
                 ['title' => 'Gottes Segen',    'text' => "Geborgen in Liebe auf all\ndeinen künftigen Wegen."],
                 ['title' => 'Glückskind',      'text' => "Mit dir ist die Welt ein Stück\nheller und wärmer geworden."],
-                ['title' => 'Beschützt',       'text' => "Ein Schutzengel an deiner Seite –\nheute und für immer."],
+                ['title' => 'Beschützt',       'text' => "Ein Schutzengel an deiner Seite,\nheute und für immer."],
             ],
             'Familie & Freundschaft' => [
                 ['title' => 'Herzensband',     'text' => "Zeit vergeht, doch echte\nVerbundenheit bleibt für immer."],
                 ['title' => 'Lebensmensch',    'text' => "Danke, dass du mein Leben\nso viel heller machst."],
-                ['title' => 'Zusammenhalt',    'text' => "Gemeinsam stark – durch jeden\nSturm und jeden Sonnenschein."],
+                ['title' => 'Zusammenhalt',    'text' => "Gemeinsam stark durch jeden\nSturm und jeden Sonnenschein."],
                 ['title' => 'Familienherz',    'text' => "Unsere Wurzeln geben uns Halt,\nunsere Liebe gibt uns Kraft."],
                 ['title' => 'Freundschaft',    'text' => "Wahre Freundschaft ist ein Schatz,\nder nie seinen Glanz verliert."],
             ],
             'Haustiere & Pfotenliebe' => [
-                ['title' => 'Pfotenherz',      'text' => "Vier Pfoten, die mein Herz\nfür immer erobert haben."],
-                ['title' => 'Treuer Begleiter','text' => "Danke für deine bedingungslose\nTreue an jedem einzelnen Tag."],
-                ['title' => 'Sternenpfote',    'text' => "Dein Platz in unserem Herzen\nbleibt für immer dein Zuhause."],
-                ['title' => 'Lieblingstier',   'text' => "Du warst nicht nur ein Tier,\ndu warst Familie."],
-                ['title' => 'Für immer treu',  'text' => "Spuren im Sand verwehen,\nSpuren im Herzen bleiben."],
+                ['title' => 'Pfotenherz',       'text' => "Vier Pfoten, die mein Herz\nfür immer erobert haben."],
+                ['title' => 'Treuer Begleiter', 'text' => "Danke für deine bedingungslose\nTreue an jedem einzelnen Tag."],
+                ['title' => 'Sternenpfote',     'text' => "Dein Platz in unserem Herzen\nbleibt für immer dein Zuhause."],
+                ['title' => 'Lieblingstier',    'text' => "Du warst nicht nur ein Tier,\ndu warst Familie."],
+                ['title' => 'Für immer treu',   'text' => "Spuren im Sand verwehen,\nSpuren im Herzen bleiben."],
+            ],
+            'Bibelsprüche & Segen' => [
+                ['title' => 'Wegweisung',       'text' => "Dein Wort ist meines Fußes\nLeuchte. (Psalm 119,105)"],
+                ['title' => 'Starker Schild',   'text' => "Der Herr ist meine Stärke\nund mein Schild. (Psalm 28,7)"],
+                ['title' => 'Hoffnungsvoll',    'text' => "Seid fröhlich in Hoffnung,\ngeduldig in Trübsal. (Röm. 12,12)"],
+                ['title' => 'Gottes Nähe',      'text' => "Gott ist unsre Zuversicht\nund Stärke. (Psalm 46,2)"],
+                ['title' => 'Treuer Hirte',     'text' => "Befiehl dem Herrn deine Wege\nund hoffe auf ihn. (Ps. 37,5)"],
+            ],
+            'Saison & Feiertage' => [
+                ['title' => 'Festmoment',       'text' => "Ein leuchtender Gruß für\nbesondere Festmomente."],
+                ['title' => 'Herzenswärme',     'text' => "Wärme, Licht und Freude\nfür diese besondere Zeit."],
+                ['title' => 'Sternenglanz',     'text' => "Kleine Augenblicke, die im\nHerzen ewig weiterfunkeln."],
+                ['title' => 'Glücksmoment',     'text' => "Von Herzen alles Liebe\nzu diesem schönen Anlass."],
+                ['title' => 'Lichtergruß',      'text' => "Ein kleiner Funke Glück\nfür wundervolle Stunden."],
             ],
             'Kurze Gravuren (Schmuck)' => [
                 ['title' => 'Kurz & Edel',     'text' => "Immer bei dir"],
@@ -1521,7 +2302,7 @@ PROMPT;
         $results = [];
 
         foreach ($candidates as $cand) {
-            $text = $cand['text'];
+            $text = $this->sanitizeQuoteText($cand['text']);
             if ($styleHint !== '' && mb_strlen($text) + mb_strlen($styleHint) + 3 <= $maxLength) {
                 $title = ucfirst(mb_substr($styleHint, 0, 24));
             } else {
@@ -1530,7 +2311,7 @@ PROMPT;
             if (mb_strlen($text) > $maxLength && $maxLength <= 40) {
                 $shortPool = $pool['Kurze Gravuren (Schmuck)'];
                 $shortCand = $shortPool[count($results) % count($shortPool)];
-                $text = $shortCand['text'];
+                $text = $this->sanitizeQuoteText($shortCand['text']);
                 $title = $shortCand['title'];
             }
 
@@ -1539,6 +2320,8 @@ PROMPT;
                     'title'    => $title,
                     'text'     => $text,
                     'category' => $category,
+                    'holiday'  => $holiday,
+                    'season'   => $season,
                     'length'   => mb_strlen($text),
                 ];
             }
@@ -1550,11 +2333,14 @@ PROMPT;
 
         if (empty($results)) {
             foreach ($candidates as $cand) {
+                $text = $this->sanitizeQuoteText($cand['text']);
                 $results[] = [
                     'title'    => $cand['title'],
-                    'text'     => $cand['text'],
+                    'text'     => $text,
                     'category' => $category,
-                    'length'   => mb_strlen($cand['text']),
+                    'holiday'  => $holiday,
+                    'season'   => $season,
+                    'length'   => mb_strlen($text),
                 ];
                 if (count($results) >= $count) {
                     break;

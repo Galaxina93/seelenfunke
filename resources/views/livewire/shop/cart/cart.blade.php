@@ -1,6 +1,10 @@
 <div class="bg-gray-50 min-h-screen py-12 md:py-16 relative">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
+        @php
+            $isCartMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+        @endphp
+
         <h1 class="text-3xl font-serif font-bold text-gray-900 mb-8">Dein Warenkorb</h1>
 
         @if(session()->has('success'))
@@ -324,7 +328,7 @@
                                         </div>
 
                                         <div class="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">
-                                            @if($type === 'physical' && $prod?->isPersonalizable())
+                                            @if(!$isCartMaintenance && $type === 'physical' && $prod?->isPersonalizable())
                                                 <button wire:click="edit('{{ $item->id }}')" class="flex-1 sm:flex-none inline-flex justify-center items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 hover:text-primary hover:border-primary transition whitespace-nowrap cursor-pointer">
                                                     <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                     Bearbeiten
@@ -504,14 +508,18 @@
                             </div>
                         @endif
 
-                        <a href="{{ route('checkout') }}"
-                           data-sf-portal="checkout"
-                           class="w-full bg-primary text-white py-4 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-white hover:text-primary border border-transparent hover:border-primary transition transform hover:-translate-y-1 flex justify-center gap-2 items-center">
-                            <span>Zur Kasse</span>
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-                            </svg>
-                        </a>
+                        @if($isCartMaintenance)
+                            <x-alerts.shop-maintenance-notice />
+                        @else
+                            <a href="{{ route('checkout') }}"
+                               data-sf-portal="checkout"
+                               class="w-full bg-primary text-white py-4 rounded-full font-bold shadow-lg shadow-primary/30 hover:bg-white hover:text-primary border border-transparent hover:border-primary transition transform hover:-translate-y-1 flex justify-center gap-2 items-center">
+                                <span>Zur Kasse</span>
+                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                                </svg>
+                            </a>
+                        @endif
 
                         <div class="mt-5">
                             <p class="text-[10px] text-gray-400 text-center mb-2">Sichere Zahlung mit</p>
@@ -566,7 +574,7 @@
     <x-shop.addon-preview-modal />
 
     {{-- NEU: Configurator als Modal Overlay (verhindert Layout-Verschiebungen) --}}
-    @if($editingItemId)
+    @if(!$isCartMaintenance && $editingItemId)
         @php
             $editingItem = $items->firstWhere('id', $editingItemId);
         @endphp

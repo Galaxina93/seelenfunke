@@ -622,7 +622,7 @@ class SystemPrepareLiveCommand extends Command
             ],
             [
                 'Prüfpunkt' => 'Wartungsmodus (maintenance_mode)',
-                'Ist-Wert' => $actualMaintenanceState ? 'true (aktiv)' : 'false (inaktiv)',
+                'Ist-Wert' => $actualMaintenanceState ? 'true (Schaufenster aktiv)' : 'false (inaktiv)',
                 'Status' => $actualMaintenanceState === $expectedMaintenanceState ? 'OK' : 'FEHLER',
                 'passed' => $actualMaintenanceState === $expectedMaintenanceState,
             ],

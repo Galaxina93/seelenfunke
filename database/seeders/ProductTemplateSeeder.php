@@ -38,589 +38,270 @@ class ProductTemplateSeeder extends Seeder
     }
 
     /**
-     * Berechnet optimale 2D-Koordinaten, Textgrößen & Umbrüche exakt abgestimmt auf die jeweilige
-     * Produktgeometrie und Clipping-Kontur (Kristall, Alu-Herz, Weizenglas, Dog-Tag Talisman, Hundeknochen, 14k Gold-Herz).
+     * Berechnet maßstabsgerechte 2D-Koordinaten, Textgrößen und Symbolgrößen anhand der realen
+     * physischen Rohlingsmaße (fontSizeMm = text_size * (4 * blankWidthMm / plateBoxWidthPct),
+     * logoWidthMm = logo_size * (blankWidthMm / (5 * plateBoxWidthPct))).
      */
     private function getLayoutMetrics(string $slug, string $holiday = 'default'): array
     {
         return match ($slug) {
             'seelen-kristall' => [
-                'logo_x' => 50, 'logo_y' => 31, 'logo_size' => 80,
-                'text_x' => 50, 'text_y' => 55.5,
-                'text_size' => match ($holiday) {
-                    'weihnachten'  => 1.25,
-                    'ostern'       => 1.30,
-                    'hochzeit'     => 1.35,
-                    'geburtstag'   => 1.20,
-                    'valentinstag' => 1.35,
-                    'halloween'    => 1.15,
-                    'muttertag'    => 1.38,
-                    'vatertag'     => 1.20,
-                    default        => 1.25,
+                // K9 Kristall Ø 161,5 mm (plateW = 82 %, Kreis X=16..84, Y=11.6..79.6)
+                'logo_x' => 50.0,
+                'logo_y' => 30.5,
+                'logo_size' => match ($holiday) {
+                    'hochzeit', 'valentinstag', 'muttertag' => 98,
+                    'weihnachten', 'geburtstag'             => 94,
+                    default                                 => 90,
                 },
-                'back_texts' => [],
+                'text_x' => 50.0,
+                'text_y' => 56.5,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 1.32,
+                    'ostern'       => 1.38,
+                    'hochzeit'     => 1.44,
+                    'geburtstag'   => 1.30,
+                    'valentinstag' => 1.46,
+                    'halloween'    => 1.28,
+                    'muttertag'    => 1.48,
+                    'vatertag'     => 1.30,
+                    default        => 1.34,
+                },
             ],
             'seelen-anhaenger' => [
-                // Herz-Schlüsselanhänger (Herzfläche X: 28.14..71.86, Y: 54.19..94.52, Kerbe oben Y=59.45)
-                'logo_x' => 50, 'logo_y' => 65, 'logo_size' => 36,
-                'text_x' => 50, 'text_y' => 75.5,
-                'text_size' => match ($holiday) {
-                    'weihnachten'  => 0.65,
-                    'ostern'       => 0.72,
-                    'hochzeit'     => 0.74,
-                    'geburtstag'   => 0.66,
-                    'valentinstag' => 0.74,
-                    'halloween'    => 0.60,
-                    'muttertag'    => 0.76,
-                    'vatertag'     => 0.66,
-                    default        => 0.70,
+                // Alu-Herz 45 x 40 mm (plateW = 48.25 %, 1.0 = 3,73 mm; Bezier-Herz X=28.07..71.93, Y=54.05..94.43, Kerbe Y=59.47)
+                'logo_x' => 50.0,
+                'logo_y' => 66.0,
+                'logo_size' => match ($holiday) {
+                    'hochzeit', 'valentinstag', 'muttertag' => 62,
+                    'weihnachten', 'ostern'                 => 58,
+                    default                                 => 56,
                 },
-                'back_texts' => [],
+                'text_x' => 50.0,
+                'text_y' => 77.5,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 1.10,
+                    'ostern'       => 1.20,
+                    'hochzeit'     => 1.24,
+                    'geburtstag'   => 1.12,
+                    'valentinstag' => 1.26,
+                    'halloween'    => 1.08,
+                    'muttertag'    => 1.28,
+                    'vatertag'     => 1.12,
+                    default        => 1.16,
+                },
             ],
             'weizenglas-personalisiert' => [
-                'logo_x' => 50, 'logo_y' => 34, 'logo_size' => 74,
-                'text_x' => 50, 'text_y' => 55,
+                'logo_x' => 50.0,
+                'logo_y' => 34.0,
+                'logo_size' => 76,
+                'text_x' => 50.0,
+                'text_y' => 55.0,
                 'text_size' => match ($holiday) {
-                    'weihnachten'  => 1.05,
-                    'ostern'       => 1.10,
-                    'hochzeit'     => 1.15,
-                    'geburtstag'   => 1.00,
-                    'valentinstag' => 1.15,
-                    'halloween'    => 0.96,
-                    'muttertag'    => 1.18,
-                    'vatertag'     => 1.00,
-                    default        => 1.05,
+                    'weihnachten'  => 1.10,
+                    'ostern'       => 1.15,
+                    'hochzeit'     => 1.20,
+                    'geburtstag'   => 1.08,
+                    'valentinstag' => 1.20,
+                    'halloween'    => 1.05,
+                    'muttertag'    => 1.22,
+                    'vatertag'     => 1.08,
+                    default        => 1.12,
                 },
-                'back_texts' => [],
             ],
             'seelen-talisman' => [
-                // Schmale Hochformat-Plakette (X: 35.2..64.8 => 29.6% Gesamtbreite, Y: 46.8..93.8)
-                'logo_x' => 50, 'logo_y' => 56, 'logo_size' => 46,
-                'text_x' => 50, 'text_y' => 73,
-                'text_size' => match ($holiday) {
-                    'weihnachten'  => 0.62,
-                    'ostern'       => 0.74,
-                    'hochzeit'     => 0.74,
-                    'geburtstag'   => 0.76,
-                    'valentinstag' => 0.76,
-                    'halloween'    => 0.58,
-                    'muttertag'    => 0.82,
-                    'vatertag'     => 0.68,
-                    default        => 0.72,
+                // Dog-Tag Plakette 28 x 50 mm (plateW = 32.25 %, 1.0 = 3,47 mm; X=34.25..65.25, Y=46.84..94.24)
+                'logo_x' => 50.0,
+                'logo_y' => 56.5,
+                'logo_size' => match ($holiday) {
+                    'hochzeit', 'valentinstag', 'muttertag' => 62,
+                    'weihnachten', 'ostern'                 => 58,
+                    default                                 => 56,
                 },
-                'back_texts' => [],
+                'text_x' => 50.0,
+                'text_y' => 74.5,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 1.10,
+                    'ostern'       => 1.22,
+                    'hochzeit'     => 1.25,
+                    'geburtstag'   => 1.14,
+                    'valentinstag' => 1.26,
+                    'halloween'    => 1.08,
+                    'muttertag'    => 1.30,
+                    'vatertag'     => 1.14,
+                    default        => 1.18,
+                },
             ],
             'seelen-pfote-hundemarke' => [
-                // Knochenform mit Pfoten-Durchbruch rechts (nutzbare Breite links/mitte X: 18..60 => Zentrum X=41, Mittelsteg Y: 37.5..62.5)
-                'logo_x' => 41, 'logo_y' => 43, 'logo_size' => 32,
-                'text_x' => 41, 'text_y' => 53.5,
-                'text_size' => match ($holiday) {
-                    'weihnachten'  => 0.72,
-                    'ostern'       => 0.65,
-                    'hochzeit'     => 0.78,
-                    'geburtstag'   => 0.64,
-                    'valentinstag' => 0.72,
-                    'halloween'    => 0.62,
-                    'muttertag'    => 0.72,
-                    'vatertag'     => 0.64,
-                    default        => 0.68,
+                // Knochen 40 x 22 mm (plateW = 80 %, 1.0 = 2,00 mm; Symbol links im Knochenkopf X=23.5, Text im Steg X=48.5, Y=39.2..63.3)
+                'logo_x' => 23.5,
+                'logo_y' => 50.0,
+                'logo_size' => match ($holiday) {
+                    'hochzeit', 'valentinstag', 'muttertag' => 64,
+                    'weihnachten', 'ostern'                 => 60,
+                    default                                 => 58,
                 },
-                'back_texts' => [],
+                'text_x' => 48.5,
+                'text_y' => 51.0,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 1.90,
+                    'ostern'       => 1.85,
+                    'hochzeit'     => 2.05,
+                    'geburtstag'   => 2.15,
+                    'valentinstag' => 2.00,
+                    'halloween'    => 1.80,
+                    'muttertag'    => 1.95,
+                    'vatertag'     => 1.85,
+                    default        => 1.95,
+                },
             ],
             'goldenes-seelen-herz',
             'echtgold-seelen-herz' => [
-                // 14k / 585er Gold-Herz (Kerbe oben Y=42.2, Spitze unten Y=90.5, sichere Innenbreite bei Y=61.5 ca. 40%)
-                'logo_x' => 50, 'logo_y' => 49, 'logo_size' => 42,
-                'text_x' => 50, 'text_y' => 61.5,
-                'text_size' => match ($holiday) {
-                    'weihnachten'  => 0.80,
-                    'ostern'       => 0.86,
-                    'hochzeit'     => 0.88,
-                    'geburtstag'   => 0.80,
-                    'valentinstag' => 0.88,
-                    'halloween'    => 0.72,
-                    'muttertag'    => 0.92,
-                    'vatertag'     => 0.78,
-                    default        => 0.82,
+                // Gold-Herz 25 x 22 mm (plateW = 65 %, 1.0 = 1,54 mm; Kerbe Y=40.63, Spitze Y=91.97)
+                'logo_x' => 50.0,
+                'logo_y' => 50.5,
+                'logo_size' => match ($holiday) {
+                    'hochzeit', 'valentinstag', 'muttertag' => 84,
+                    'weihnachten', 'ostern'                 => 78,
+                    default                                 => 76,
                 },
-                'back_texts' => [],
+                'text_x' => 50.0,
+                'text_y' => 67.0,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 2.25,
+                    'ostern'       => 2.25,
+                    'hochzeit'     => 2.50,
+                    'geburtstag'   => 2.18,
+                    'valentinstag' => 2.45,
+                    'halloween'    => 2.15,
+                    'muttertag'    => 2.35,
+                    'vatertag'     => 2.20,
+                    default        => 2.25,
+                },
             ],
             'id-armband-silber-herz',
             'id-armband-gold-herz' => [
-                // FBM ID-Armband (Gravurplatte X=20..80, Y=42..58; Herz-Durchbruch links, sichere Gravurzone X=35.5..78.5, Y=44..56)
-                'logo_x' => 41, 'logo_y' => 50, 'logo_size' => 24,
-                'text_x' => 60, 'text_y' => 50,
-                'text_size' => match ($holiday) {
-                    'weihnachten'  => 0.54,
-                    'ostern'       => 0.62,
-                    'hochzeit'     => 0.60,
-                    'geburtstag'   => 0.58,
-                    'valentinstag' => 0.60,
-                    'halloween'    => 0.52,
-                    'muttertag'    => 0.62,
-                    'vatertag'     => 0.56,
-                    default        => 0.58,
+                // FBM ID-Armband 24 x 5,5 mm (4,5 mm Plattenhöhe, plateW = 66 %, 1.0 = 1,45 mm; Gravurzone X=35.1..78.6, Y=43.85..56.15)
+                'logo_x' => 41.5,
+                'logo_y' => 50.0,
+                'logo_size' => match ($holiday) {
+                    'hochzeit', 'valentinstag', 'muttertag' => 48,
+                    default                                 => 46,
                 },
-                'back_texts' => [],
-            ],
-            'seelen-kristall' => [
-                'logo_x' => 50, 'logo_y' => 21, 'logo_size' => 40,
-                'text_x' => 50, 'text_y' => 62, 'text_size' => 1.15,
-                'back_texts' => [],
+                'text_x' => 62.5,
+                'text_y' => 50.0,
+                'text_size' => match ($holiday) {
+                    'weihnachten'  => 2.25,
+                    'ostern'       => 2.22,
+                    'hochzeit'     => 2.20,
+                    'geburtstag'   => 2.22,
+                    'valentinstag' => 2.25,
+                    'halloween'    => 2.18,
+                    'muttertag'    => 2.30,
+                    'vatertag'     => 2.25,
+                    default        => 2.22,
+                },
             ],
             default => [
-                'logo_x' => 50, 'logo_y' => 34, 'logo_size' => 76,
-                'text_x' => 50, 'text_y' => 56, 'text_size' => 1.10,
-                'back_texts' => [],
+                'logo_x' => 50.0,
+                'logo_y' => 34.0,
+                'logo_size' => 84,
+                'text_x' => 50.0,
+                'text_y' => 56.0,
+                'text_size' => 1.20,
             ],
         };
     }
 
-    private function createChristmasTemplate(Product $product): void
+    /**
+     * Erzeugt optionale, maßstabsgerechte Rückseiten-Texte für beidseitig gravierbare Schmuckstücke.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildBackTexts(string $slug, string $holiday, string $font): array
     {
-        $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 'weihnachten');
-        $textContent = match ($slug) {
-            'seelen-pfote-hundemarke' => "BALU\nFrohe Weihnachten",
-            'seelen-talisman'         => "Frohe\nWeihnachten!\nFamilie Mustermann",
+        return match ($slug) {
             'id-armband-silber-herz',
-            'id-armband-gold-herz'    => "Frohe Weihnachten\n24.12.2026",
+            'id-armband-gold-herz' => [[
+                'id' => Str::uuid()->toString(),
+                'text' => match ($holiday) {
+                    'weihnachten'  => '24.12.2026',
+                    'ostern'       => 'Frohe Ostern',
+                    'hochzeit'     => '24.08.2026',
+                    'geburtstag'   => '18.11.2026',
+                    'valentinstag' => '14.02.2027',
+                    'halloween'    => 'Seelenzauber',
+                    'muttertag'    => 'Danke Mama',
+                    'vatertag'     => 'Danke Papa',
+                    default        => 'Für immer',
+                },
+                'font' => $font,
+                'align' => 'center',
+                'x' => 42.5,
+                'y' => 50.0,
+                'size' => 2.18,
+                'rotation' => 0,
+            ]],
+            'seelen-pfote-hundemarke' => [[
+                'id' => Str::uuid()->toString(),
+                'text' => match ($holiday) {
+                    'geburtstag' => "0151 / 12345678\nIch bin gechipt",
+                    default      => "0151 / 12345678\nRuf mich an",
+                },
+                'font' => 'Montserrat',
+                'align' => 'center',
+                'x' => 58.0,
+                'y' => 51.0,
+                'size' => 1.65,
+                'rotation' => 0,
+            ]],
             'goldenes-seelen-herz',
-            'echtgold-seelen-herz',
-            'seelen-anhaenger',
-            'weizenglas-personalisiert' => "Frohe Weihnachten!\nFamilie Mustermann",
-            default                   => "Frohe Weihnachten!\n- Familie Mustermann -",
+            'echtgold-seelen-herz' => [[
+                'id' => Str::uuid()->toString(),
+                'text' => match ($holiday) {
+                    'weihnachten'  => '24.12.2026',
+                    'hochzeit'     => '24.08.2026',
+                    'valentinstag' => '14. Februar',
+                    'geburtstag'   => 'Alles Liebe',
+                    'muttertag'    => 'Von Herzen',
+                    'vatertag'     => 'Für immer',
+                    default        => 'Dein Unikat',
+                },
+                'font' => $font,
+                'align' => 'center',
+                'x' => 50.0,
+                'y' => 59.5,
+                'size' => 2.18,
+                'rotation' => 0,
+            ]],
+            default => [],
         };
-
-        $config = [
-            'text' => $textContent,
-            'type' => 'physical',
-            'background_theme' => 'winter',
-            'files' => [],
-            'texts' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'text' => $textContent,
-                    'font' => 'Dancing Script',
-                    'align' => 'center',
-                    'x' => $m['text_x'],
-                    'y' => $m['text_y'],
-                    'size' => $m['text_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logos' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'type' => 'vector',
-                    'value' => 'vectors/Feiertage/weihnachtsbaum.svg',
-                    'url' => '/storage/produkte/configurator/vectors/Feiertage/weihnachtsbaum.svg',
-                    'x' => $m['logo_x'],
-                    'y' => $m['logo_y'],
-                    'size' => $m['logo_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logo_path' => 'vectors/Feiertage/weihnachtsbaum.svg',
-            'is_digital' => false,
-            'is_express' => false,
-            'texts_back' => $m['back_texts'],
-            'logos_back' => [],
-            'notes' => '',
-            'uploaded_files' => [],
-        ];
-
-        ProductTemplate::create([
-            'product_id' => $product->id,
-            'name' => 'Frohe Weihnachten',
-            'configuration' => $config,
-            'is_active' => true,
-            'is_ai_generated' => true,
-            'holiday' => 'Weihnachten',
-            'preview_image' => null,
-        ]);
     }
 
-    private function createEasterTemplate(Product $product): void
-    {
-        $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 'ostern');
-        $textContent = match ($slug) {
-            'seelen-pfote-hundemarke' => "BALU\nOster-Spürhund",
-            default                   => "Frohes\nOsterfest!",
-        };
+    private function createTemplateRecord(
+        Product $product,
+        string $name,
+        string $holidayLabel,
+        string $holidayKey,
+        string $theme,
+        string $font,
+        string $vectorRel,
+        string $textContent
+    ): void {
+        $slug = (string) $product->slug;
+        $m = $this->getLayoutMetrics($slug, $holidayKey);
+        $backTexts = $this->buildBackTexts($slug, $holidayKey, $font);
 
         $config = [
             'text' => $textContent,
             'type' => 'physical',
-            'background_theme' => 'ostern',
+            'background_theme' => $theme,
             'files' => [],
             'texts' => [
                 [
                     'id' => Str::uuid()->toString(),
                     'text' => $textContent,
-                    'font' => 'Pacifico',
-                    'align' => 'center',
-                    'x' => $m['text_x'],
-                    'y' => $m['text_y'],
-                    'size' => $m['text_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logos' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'type' => 'vector',
-                    'value' => 'vectors/Tiere/haeschen.svg',
-                    'url' => '/storage/produkte/configurator/vectors/Tiere/haeschen.svg',
-                    'x' => $m['logo_x'],
-                    'y' => $m['logo_y'],
-                    'size' => $m['logo_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logo_path' => 'vectors/Tiere/haeschen.svg',
-            'is_digital' => false,
-            'is_express' => false,
-            'texts_back' => $m['back_texts'],
-            'logos_back' => [],
-            'notes' => '',
-            'uploaded_files' => [],
-        ];
-
-        ProductTemplate::create([
-            'product_id' => $product->id,
-            'name' => 'Frohes Osterfest',
-            'configuration' => $config,
-            'is_active' => true,
-            'is_ai_generated' => true,
-            'holiday' => 'Ostern',
-            'preview_image' => null,
-        ]);
-    }
-
-    private function createWeddingTemplate(Product $product): void
-    {
-        $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 'hochzeit');
-        $textContent = match ($slug) {
-            'seelen-pfote-hundemarke' => "BALU\nSeelenhund",
-            default                   => "Lieblingsmensch\n24.08.2026",
-        };
-
-        $config = [
-            'text' => $textContent,
-            'type' => 'physical',
-            'background_theme' => 'hochzeit',
-            'files' => [],
-            'texts' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'text' => $textContent,
-                    'font' => 'Great Vibes',
-                    'align' => 'center',
-                    'x' => $m['text_x'],
-                    'y' => $m['text_y'],
-                    'size' => $m['text_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logos' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'type' => 'vector',
-                    'value' => 'vectors/Liebe/eheringe.svg',
-                    'url' => '/storage/produkte/configurator/vectors/Liebe/eheringe.svg',
-                    'x' => $m['logo_x'],
-                    'y' => $m['logo_y'],
-                    'size' => $m['logo_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logo_path' => 'vectors/Liebe/eheringe.svg',
-            'is_digital' => false,
-            'is_express' => false,
-            'texts_back' => $m['back_texts'],
-            'logos_back' => [],
-            'notes' => '',
-            'uploaded_files' => [],
-        ];
-
-        ProductTemplate::create([
-            'product_id' => $product->id,
-            'name' => 'Lieblingsmensch / Hochzeit',
-            'configuration' => $config,
-            'is_active' => true,
-            'is_ai_generated' => true,
-            'holiday' => 'Hochzeit',
-            'preview_image' => null,
-        ]);
-    }
-
-    private function createBirthdayTemplate(Product $product): void
-    {
-        $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 'geburtstag');
-        $textContent = match ($slug) {
-            'seelen-pfote-hundemarke' => "BALU\nIch bin gechipt!",
-            default                   => "Happy\nBirthday!",
-        };
-
-        $config = [
-            'text' => $textContent,
-            'type' => 'physical',
-            'background_theme' => 'geburtstag',
-            'files' => [],
-            'texts' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'text' => $textContent,
-                    'font' => 'Montserrat',
-                    'align' => 'center',
-                    'x' => $m['text_x'],
-                    'y' => $m['text_y'],
-                    'size' => $m['text_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logos' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'type' => 'vector',
-                    'value' => 'vectors/Feiertage/geschenk.svg',
-                    'url' => '/storage/produkte/configurator/vectors/Feiertage/geschenk.svg',
-                    'x' => $m['logo_x'],
-                    'y' => $m['logo_y'],
-                    'size' => $m['logo_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logo_path' => 'vectors/Feiertage/geschenk.svg',
-            'is_digital' => false,
-            'is_express' => false,
-            'texts_back' => $m['back_texts'],
-            'logos_back' => [],
-            'notes' => '',
-            'uploaded_files' => [],
-        ];
-
-        ProductTemplate::create([
-            'product_id' => $product->id,
-            'name' => 'Alles Gute zum Geburtstag',
-            'configuration' => $config,
-            'is_active' => true,
-            'is_ai_generated' => true,
-            'holiday' => 'Geburtstag',
-            'preview_image' => null,
-        ]);
-    }
-
-    private function createValentinesTemplate(Product $product): void
-    {
-        $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 'valentinstag');
-        $textContent = match ($slug) {
-            'seelen-pfote-hundemarke' => "BALU\nLiebling auf 4 Pfoten",
-            'id-armband-silber-herz',
-            'id-armband-gold-herz'    => "Für immer Dein\n14. Februar",
-            default                   => "Für immer Dein\n- 14. Februar -",
-        };
-
-        $config = [
-            'text' => $textContent,
-            'type' => 'physical',
-            'background_theme' => 'hochzeit',
-            'files' => [],
-            'texts' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'text' => $textContent,
-                    'font' => 'Great Vibes',
-                    'align' => 'center',
-                    'x' => $m['text_x'],
-                    'y' => $m['text_y'],
-                    'size' => $m['text_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logos' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'type' => 'vector',
-                    'value' => 'vectors/Liebe/doppelherzen.svg',
-                    'url' => '/storage/produkte/configurator/vectors/Liebe/doppelherzen.svg',
-                    'x' => $m['logo_x'],
-                    'y' => $m['logo_y'],
-                    'size' => $m['logo_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logo_path' => 'vectors/Liebe/doppelherzen.svg',
-            'is_digital' => false,
-            'is_express' => false,
-            'texts_back' => $m['back_texts'],
-            'logos_back' => [],
-            'notes' => '',
-            'uploaded_files' => [],
-        ];
-
-        ProductTemplate::create([
-            'product_id' => $product->id,
-            'name' => 'Für immer Dein / Valentinstag',
-            'configuration' => $config,
-            'is_active' => true,
-            'is_ai_generated' => true,
-            'holiday' => 'Valentinstag',
-            'preview_image' => null,
-        ]);
-    }
-
-    private function createHalloweenTemplate(Product $product): void
-    {
-        $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 'halloween');
-        $textContent = match ($slug) {
-            'seelen-pfote-hundemarke'   => "BALU\nNachtwächter",
-            'seelen-talisman'           => "Magische\nNacht\nSeelenzauber",
-            'id-armband-silber-herz',
-            'id-armband-gold-herz',
-            'goldenes-seelen-herz',
-            'echtgold-seelen-herz',
-            'seelen-anhaenger'          => "Magische Nacht\nSeelenzauber",
-            'weizenglas-personalisiert' => "Magische Nacht\n- Hexengebräu -",
-            default                     => "Magische Nacht\n- Seelenzauber -",
-        };
-
-        $config = [
-            'text' => $textContent,
-            'type' => 'physical',
-            'background_theme' => 'herbst',
-            'files' => [],
-            'texts' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'text' => $textContent,
-                    'font' => 'Cinzel',
-                    'align' => 'center',
-                    'x' => $m['text_x'],
-                    'y' => $m['text_y'],
-                    'size' => $m['text_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logos' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'type' => 'vector',
-                    'value' => 'vectors/Symbole/mond_und_sterne.svg',
-                    'url' => '/storage/produkte/configurator/vectors/Symbole/mond_und_sterne.svg',
-                    'x' => $m['logo_x'],
-                    'y' => $m['logo_y'],
-                    'size' => $m['logo_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logo_path' => 'vectors/Symbole/mond_und_sterne.svg',
-            'is_digital' => false,
-            'is_express' => false,
-            'texts_back' => $m['back_texts'],
-            'logos_back' => [],
-            'notes' => '',
-            'uploaded_files' => [],
-        ];
-
-        ProductTemplate::create([
-            'product_id' => $product->id,
-            'name' => 'Magische Nacht / Halloween',
-            'configuration' => $config,
-            'is_active' => true,
-            'is_ai_generated' => true,
-            'holiday' => 'Halloween',
-            'preview_image' => null,
-        ]);
-    }
-
-    private function createMothersDayTemplate(Product $product): void
-    {
-        $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 'muttertag');
-        $textContent = match ($slug) {
-            'seelen-pfote-hundemarke' => "BALU\nFrauchens Liebling",
-            default                   => "Beste Mama\nder Welt",
-        };
-
-        $config = [
-            'text' => $textContent,
-            'type' => 'physical',
-            'background_theme' => 'hochzeit',
-            'files' => [],
-            'texts' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'text' => $textContent,
-                    'font' => 'Dancing Script',
-                    'align' => 'center',
-                    'x' => $m['text_x'],
-                    'y' => $m['text_y'],
-                    'size' => $m['text_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logos' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'type' => 'vector',
-                    'value' => 'vectors/Ornamente/herzkranz.svg',
-                    'url' => '/storage/produkte/configurator/vectors/Ornamente/herzkranz.svg',
-                    'x' => $m['logo_x'],
-                    'y' => $m['logo_y'],
-                    'size' => $m['logo_size'],
-                    'rotation' => 0,
-                ],
-            ],
-            'logo_path' => 'vectors/Ornamente/herzkranz.svg',
-            'is_digital' => false,
-            'is_express' => false,
-            'texts_back' => $m['back_texts'],
-            'logos_back' => [],
-            'notes' => '',
-            'uploaded_files' => [],
-        ];
-
-        ProductTemplate::create([
-            'product_id' => $product->id,
-            'name' => 'Beste Mama der Welt / Muttertag',
-            'configuration' => $config,
-            'is_active' => true,
-            'is_ai_generated' => true,
-            'holiday' => 'Muttertag',
-            'preview_image' => null,
-        ]);
-    }
-
-    private function createFathersDayTemplate(Product $product): void
-    {
-        $slug = $product->slug;
-        $m = $this->getLayoutMetrics($slug, 'vatertag');
-        $vectorRel = $slug === 'weizenglas-personalisiert'
-            ? 'vectors/Symbole/bierkrug.svg'
-            : 'vectors/Symbole/siegerpokal.svg';
-
-        $textContent = match ($slug) {
-            'seelen-pfote-hundemarke' => "BALU\nBester Kumpel",
-            default                   => "Bester Papa\nder Welt!",
-        };
-
-        $config = [
-            'text' => $textContent,
-            'type' => 'physical',
-            'background_theme' => 'geburtstag',
-            'files' => [],
-            'texts' => [
-                [
-                    'id' => Str::uuid()->toString(),
-                    'text' => $textContent,
-                    'font' => 'Montserrat',
+                    'font' => $font,
                     'align' => 'center',
                     'x' => $m['text_x'],
                     'y' => $m['text_y'],
@@ -643,7 +324,7 @@ class ProductTemplateSeeder extends Seeder
             'logo_path' => $vectorRel,
             'is_digital' => false,
             'is_express' => false,
-            'texts_back' => $m['back_texts'],
+            'texts_back' => $backTexts,
             'logos_back' => [],
             'notes' => '',
             'uploaded_files' => [],
@@ -651,12 +332,214 @@ class ProductTemplateSeeder extends Seeder
 
         ProductTemplate::create([
             'product_id' => $product->id,
-            'name' => 'Bester Papa / Vatertag',
+            'name' => $name,
             'configuration' => $config,
             'is_active' => true,
             'is_ai_generated' => true,
-            'holiday' => 'Vatertag',
+            'holiday' => $holidayLabel,
             'preview_image' => null,
         ]);
+    }
+
+    private function createChristmasTemplate(Product $product): void
+    {
+        $slug = (string) $product->slug;
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nLiebling",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => 'LENA',
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz'    => "Frohes\nFest",
+            'seelen-talisman'         => "Frohes\nFest!",
+            'seelen-anhaenger'        => "Frohes Fest\nIn Liebe",
+            default                   => "Frohe Weihnachten!\nFamilie Mustermann",
+        };
+
+        $this->createTemplateRecord(
+            $product,
+            'Frohe Weihnachten',
+            'Weihnachten',
+            'weihnachten',
+            'winter',
+            'Dancing Script',
+            'vectors/Feiertage/weihnachtsbaum.svg',
+            $textContent
+        );
+    }
+
+    private function createEasterTemplate(Product $product): void
+    {
+        $slug = (string) $product->slug;
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "MILO\nSpürhund",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => 'CLARA',
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz'    => "Frohe\nOstern",
+            default                   => "Frohes\nOsterfest!",
+        };
+
+        $this->createTemplateRecord(
+            $product,
+            'Frohes Osterfest',
+            'Ostern',
+            'ostern',
+            'ostern',
+            'Pacifico',
+            'vectors/Tiere/haeschen.svg',
+            $textContent
+        );
+    }
+
+    private function createWeddingTemplate(Product $product): void
+    {
+        $slug = (string) $product->slug;
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BELLA\nSeelenhund",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => 'EWIG DEIN',
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz'    => 'L & M',
+            'seelen-talisman'         => "Für immer\n24.08.2026",
+            default                   => "Lieblingsmensch\n24.08.2026",
+        };
+
+        $this->createTemplateRecord(
+            $product,
+            'Lieblingsmensch / Hochzeit',
+            'Hochzeit',
+            'hochzeit',
+            'hochzeit',
+            'Great Vibes',
+            'vectors/Liebe/eheringe.svg',
+            $textContent
+        );
+    }
+
+    private function createBirthdayTemplate(Product $product): void
+    {
+        $slug = (string) $product->slug;
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => 'BALU',
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => 'SOFIA',
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz'    => "Happy\nBirthday",
+            default                   => "Happy\nBirthday!",
+        };
+
+        $this->createTemplateRecord(
+            $product,
+            'Alles Gute zum Geburtstag',
+            'Geburtstag',
+            'geburtstag',
+            'geburtstag',
+            'Montserrat',
+            'vectors/Feiertage/geschenk.svg',
+            $textContent
+        );
+    }
+
+    private function createValentinesTemplate(Product $product): void
+    {
+        $slug = (string) $product->slug;
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "MILO\nLiebling",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => 'LIEBE',
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz'    => "Für\nDich",
+            'seelen-talisman'         => "Für immer\nDein",
+            default                   => "Für immer Dein\n14. Februar",
+        };
+
+        $this->createTemplateRecord(
+            $product,
+            'Für immer Dein / Valentinstag',
+            'Valentinstag',
+            'valentinstag',
+            'hochzeit',
+            'Great Vibes',
+            'vectors/Liebe/doppelherzen.svg',
+            $textContent
+        );
+    }
+
+    private function createHalloweenTemplate(Product $product): void
+    {
+        $slug = (string) $product->slug;
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke'   => "LUNA\nWächter",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'      => 'LUNA',
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz'      => "Magie\nNacht",
+            'seelen-talisman'           => "Magische\nNacht",
+            'weizenglas-personalisiert' => "Magische Nacht\nHexengebräu",
+            default                     => "Magische Nacht\nSeelenzauber",
+        };
+
+        $this->createTemplateRecord(
+            $product,
+            'Magische Nacht / Halloween',
+            'Halloween',
+            'halloween',
+            'herbst',
+            'Cinzel',
+            'vectors/Symbole/mond_und_sterne.svg',
+            $textContent
+        );
+    }
+
+    private function createMothersDayTemplate(Product $product): void
+    {
+        $slug = (string) $product->slug;
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BELLA\nLiebling",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => 'MAMA',
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz'    => "Beste\nMama",
+            default                   => "Beste Mama\nder Welt",
+        };
+
+        $this->createTemplateRecord(
+            $product,
+            'Beste Mama der Welt / Muttertag',
+            'Muttertag',
+            'muttertag',
+            'hochzeit',
+            'Dancing Script',
+            'vectors/Ornamente/herzkranz.svg',
+            $textContent
+        );
+    }
+
+    private function createFathersDayTemplate(Product $product): void
+    {
+        $slug = (string) $product->slug;
+        $vectorRel = $slug === 'weizenglas-personalisiert'
+            ? 'vectors/Symbole/bierkrug.svg'
+            : 'vectors/Symbole/siegerpokal.svg';
+
+        $textContent = match ($slug) {
+            'seelen-pfote-hundemarke' => "BALU\nKumpel",
+            'id-armband-silber-herz',
+            'id-armband-gold-herz'    => 'PAPA',
+            'goldenes-seelen-herz',
+            'echtgold-seelen-herz'    => "Bester\nPapa",
+            default                   => "Bester Papa\nder Welt!",
+        };
+
+        $this->createTemplateRecord(
+            $product,
+            'Bester Papa / Vatertag',
+            'Vatertag',
+            'vatertag',
+            'geburtstag',
+            'Montserrat',
+            $vectorRel,
+            $textContent
+        );
     }
 }

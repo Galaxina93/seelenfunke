@@ -315,7 +315,7 @@
         };
     }
 </script>
-@include('components.gamification.persistent-bgm-dock')
+@include('components.layouts.partials.sf-spark-flow')
 @include('livewire.customer.partials.scripts-partials.funki_hub')
 </body>
 </html>

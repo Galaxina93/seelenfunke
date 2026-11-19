@@ -198,8 +198,11 @@
                 </div>
             @endif
 
+            @php
+                $isAdminOrderEditFooter = ($context === 'order_edit') && auth()->guard('admin')->check();
+            @endphp
             <div :class="isMaximized ? 'flex flex-col lg:flex-row lg:items-center gap-2' : 'space-y-3'">
-                @if($context !== 'calculator')
+                @if($context !== 'calculator' && !$isAdminOrderEditFooter)
                     <div x-ref="confirmBox"
                          :class="[
                              (confirmWarning || {{ $errors->has('config_confirmed') ? 'true' : 'false' }})
@@ -207,11 +210,21 @@
                                  : '{{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-50 border-gray-200' }}',
                              isMaximized ? 'px-3 py-2 flex-1 min-w-0' : 'p-3'
                          ]"
-                         class="rounded-xl border transition-all duration-200">
+                         class="sf-magic-thin-aura relative rounded-xl border transition-all duration-200">
+                        <span aria-hidden="true"
+                              data-snapshot-ignore="1"
+                              x-show="requiresConfirm && !configConfirmed && !confirmWarning && !{{ $errors->has('config_confirmed') ? 'true' : 'false' }}"
+                              x-transition:enter="transition ease-out duration-300"
+                              x-transition:enter-start="opacity-0"
+                              x-transition:enter-end="opacity-100"
+                              x-transition:leave="transition ease-in duration-200"
+                              x-transition:leave-start="opacity-100"
+                              x-transition:leave-end="opacity-0"
+                              class="sf-magic-thin-aura-ring"></span>
                         <label class="flex items-start gap-2.5 cursor-pointer group">
                             <input type="checkbox"
                                    wire:model="config_confirmed"
-                                   @change="if($el.checked) confirmWarning = false"
+                                   @change="onConfirmToggle($event)"
                                    :class="(confirmWarning || {{ $errors->has('config_confirmed') ? 'true' : 'false' }}) ? 'border-red-500 ring-2 ring-red-500/30' : '{{ $isDark ? 'border-gray-700 bg-gray-950' : 'border-gray-300' }}'"
                                    class="mt-0.5 w-4 h-4 text-primary rounded focus:ring-primary cursor-pointer transition-all shrink-0">
                             <span class="text-[11px] leading-snug transition-colors {{ $isDark ? 'text-gray-400 group-hover:text-gray-200' : 'text-gray-600 group-hover:text-gray-900' }}">
@@ -226,7 +239,7 @@
                                 @else
                                     Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.@if(count($uploaded_files ?? []) > 0) Zudem bestätige ich, dass ich alle erforderlichen Rechte an meinen hochgeladenen Motiven besitze (<a href="/agb#urheberrecht-freistellung" target="_blank" class="underline font-semibold">§ 3 AGB</a>).@endif
                                 @endif
-                                @if($context !== 'template_admin')
+                                @if($context !== 'template_admin' && !$isAdminOrderEditFooter)
                                     <a href="{{ route('agb') }}" target="_blank" class="text-primary underline font-bold ml-1">AGB</a> &amp; <a href="{{ route('widerruf') }}" target="_blank" class="text-primary underline font-bold">Widerrufsbelehrung</a>.
                                 @endif
                             </span>
@@ -244,7 +257,7 @@
                     </div>
                 @endif
 
-                @if($context !== 'template_admin' && ($this->product->type ?? 'physical') !== 'geschenkgutschein')
+                @if($context !== 'template_admin' && !$isAdminOrderEditFooter && ($this->product->type ?? 'physical') !== 'geschenkgutschein')
                     @php
                         $configuratorBonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents((int) $totalPrice);
                     @endphp
@@ -282,17 +295,38 @@
                 @endif
 
                 <button type="button"
+                        x-ref="addToCartBtn"
+                        @mouseenter="onLockedCtaHover()"
                         @click.prevent="submitConfig()"
                         :disabled="isSaving"
                         wire:loading.attr="disabled"
-                        :class="saved
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white scale-[1.01] shadow-[0_10px_28px_rgba(16,185,129,0.35)]'
-                            : (isSaving
-                                ? 'opacity-90 pointer-events-none cursor-wait {{ $isDark ? 'bg-primary text-gray-900' : 'bg-gray-900 text-white' }}'
-                                : '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark cursor-pointer active:scale-[0.99]' : 'bg-gray-900 text-white hover:bg-black cursor-pointer active:scale-[0.99]' }}')"
-                        class="w-full sm:flex-1 h-14 sm:h-12 shrink-0 rounded-2xl sm:rounded-xl font-black sm:font-bold text-lg sm:text-base tracking-wide sm:tracking-normal transition-all duration-500 ease-out flex items-center justify-center shadow-xl sm:shadow-lg hover:shadow-2xl disabled:shadow-none relative overflow-hidden group">
-                    @if($context !== 'template_admin')
-                        <div class="absolute left-0 top-0 bottom-0 bg-black/10 px-4 flex flex-col justify-center items-start border-r border-black/10 min-w-[100px] sm:min-w-[90px] pointer-events-none transition-colors duration-500">
+                        :class="[
+                            saved
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white border border-transparent scale-[1.01] shadow-[0_10px_28px_rgba(16,185,129,0.35)]'
+                                : (isSaving
+                                    ? 'opacity-90 pointer-events-none cursor-wait border border-transparent shadow-md {{ $isDark ? 'bg-primary text-gray-900' : 'bg-gray-900 text-white' }}'
+                                    : (isCtaMuted
+                                        ? '{{ $isDark ? 'bg-gray-800/80 text-gray-500 border border-gray-700 shadow-none hover:bg-gray-800' : 'bg-gray-200/95 text-gray-500 border border-gray-300/90 shadow-none hover:bg-gray-200' }}'
+                                        : '{{ $isDark ? 'bg-primary text-gray-900 hover:bg-primary-dark border border-transparent shadow-xl sm:shadow-lg hover:shadow-2xl active:scale-[0.99]' : 'bg-gray-900 text-white hover:bg-black border border-transparent shadow-xl sm:shadow-lg hover:shadow-2xl active:scale-[0.99]' }}')),
+                            (requiresConfirm && !configConfirmed && !saved && !isSaving) ? 'cursor-not-allowed' : (!isSaving ? 'cursor-pointer' : '')
+                        ]"
+                        class="sf-magic-thin-aura sf-magic-thin-aura-cta w-full sm:flex-1 h-14 sm:h-12 shrink-0 rounded-2xl sm:rounded-xl font-black sm:font-bold text-lg sm:text-base tracking-wide sm:tracking-normal transition-all duration-500 ease-out flex items-center justify-center disabled:shadow-none relative overflow-hidden group">
+                    <span aria-hidden="true"
+                          data-snapshot-ignore="1"
+                          x-show="isCtaReady && !saved && !isSaving"
+                          x-cloak
+                          x-transition:enter="transition ease-out duration-300"
+                          x-transition:enter-start="opacity-0"
+                          x-transition:enter-end="opacity-100"
+                          x-transition:leave="transition ease-in duration-200"
+                          x-transition:leave-start="opacity-100"
+                          x-transition:leave-end="opacity-0"
+                          class="sf-magic-thin-aura-ring"></span>
+                    @if($context !== 'template_admin' && !$isAdminOrderEditFooter)
+                        <div :class="isCtaMuted
+                                ? '{{ $isDark ? 'bg-gray-900/50 border-gray-700 text-gray-500' : 'bg-gray-300/45 border-gray-300/80 text-gray-500' }}'
+                                : 'bg-black/10 border-black/10'"
+                             class="absolute left-0 top-0 bottom-0 px-4 flex flex-col justify-center items-start border-r min-w-[100px] sm:min-w-[90px] pointer-events-none transition-colors duration-500">
                             <span class="font-serif font-bold leading-none tracking-wide text-lg sm:text-base {{ $qty > 1 ? 'sm:text-sm' : 'sm:text-base' }}">{{ number_format($totalPrice / 100, 2, ',', '.') }} €</span>
                             @if($qty > 1)
                                 <span class="text-xs sm:text-[9px] opacity-80 font-normal leading-none mt-1 sm:mt-0.5">je {{ number_format($currentPrice / 100, 2, ',', '.') }} €</span>
@@ -316,7 +350,7 @@
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                             </svg>
-                            <span>{{ $context === 'template_admin' ? 'Gespeichert!' : 'Hinzugefügt!' }}</span>
+                            <span>{{ in_array($context, ['template_admin', 'order_edit', 'edit'], true) ? 'Gespeichert!' : 'Hinzugefügt!' }}</span>
                         </div>
 
                         {{-- STATUS: LADEN --}}
@@ -372,7 +406,7 @@
                 </button>
             </div>
 
-            @if($context !== 'template_admin')
+            @if($context !== 'template_admin' && !$isAdminOrderEditFooter)
                 <div class="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
                     <span>
                         @if(!empty($this->priceBreakdown['compare_at_cents']))

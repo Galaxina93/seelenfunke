@@ -152,14 +152,38 @@ object FalconCameraController {
 
     fun clearLastCapturedPhoto() {
         _lastCapturedPhoto.value = null
+        AgDirectInboxManager.clearStagedAttachment()
     }
 
     fun markLastPhotoAttached() {
         _lastCapturedPhoto.value = _lastCapturedPhoto.value?.copy(attachedToInbox = true)
+        AgDirectInboxManager.clearStagedAttachment()
+    }
+
+    fun syncFromPreparedAttachment(prepared: PreparedAgAttachment?) {
+        AgDirectInboxManager.setStagedAttachment(prepared)
+        if (prepared == null) {
+            _lastCapturedPhoto.value = null
+        } else if (!prepared.isAudio && prepared.previewBitmap != null) {
+            _lastCapturedPhoto.value = FalconCapturedPhoto(
+                base64Jpeg = prepared.base64Jpeg,
+                mimeType = prepared.mimeType,
+                fileName = prepared.fileName,
+                previewBitmap = prepared.previewBitmap,
+                width = prepared.width,
+                height = prepared.height,
+                capturedAtMs = System.currentTimeMillis(),
+                sessionId = null,
+                attachedToInbox = false
+            )
+        }
     }
 
     internal fun setLastCapturedPhotoForTest(photo: FalconCapturedPhoto?) {
         _lastCapturedPhoto.value = photo
+        AgDirectInboxManager.setStagedAttachment(
+            photo?.takeIf { !it.attachedToInbox }?.toPreparedAgAttachment()
+        )
     }
 
     private fun ensureCameraHandler(): Handler {
@@ -290,6 +314,7 @@ object FalconCameraController {
 
                 if (photo != null) {
                     _lastCapturedPhoto.value = photo
+                    AgDirectInboxManager.setStagedAttachment(photo.toPreparedAgAttachment())
                     try {
                         SoundManager.playSound(R.raw.click_file_in_project_brain)
                     } catch (_: Throwable) {
@@ -325,6 +350,7 @@ object FalconCameraController {
                 attachedToInbox = false
             )
             _lastCapturedPhoto.value = photo
+            AgDirectInboxManager.setStagedAttachment(photo.toPreparedAgAttachment())
             try {
                 SoundManager.playSound(R.raw.click_file_in_project_brain)
             } catch (_: Throwable) {

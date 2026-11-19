@@ -19,6 +19,14 @@ class XtoolLaserCockpitTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Storage::fake('public');
+        Storage::fake('local');
+    }
+
     protected function createAdmin(): Admin
     {
         return Admin::create([
@@ -270,7 +278,7 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSet('laserWorkflowStep', 1)
             ->assertSet('showLaserDetails', false)
             ->assertSee('In Bearbeitung (0/1)')
-            ->assertSee('Dateien')
+            ->assertSee('Medien')
             ->assertSee('Kosten')
             ->assertSee('Kunde')
             ->assertSee('Adresse')
@@ -695,7 +703,7 @@ class XtoolLaserCockpitTest extends TestCase
             }
         }
 
-        // Prüfe zudem 0,1-mm-Synchronität zwischen HUD & Input im Livewire-Cockpit (Seelen-Kristall zeigt exakt 133,9 × 133,9 mm)
+        // Prüfe zudem 0,01-mm-Synchronität zwischen HUD & Input im Livewire-Cockpit (Seelen-Kristall zeigt exakt 133,93 × 133,93 mm)
         $admin = $this->createAdmin();
         $kristallItem = $order->items()->first();
         Livewire::actingAs($admin, 'admin')
@@ -707,12 +715,12 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSet('laserCenterXMm', 103.8)
             ->assertSet('laserCenterYMm', 99.0)
             ->assertSet('laserAngleDeg', 0.0)
-            ->assertSet('laserWidthMm', 133.9)
-            ->assertSet('laserHeightMm', 133.9)
-            ->assertSee('step="0.1"', false)
+            ->assertSet('laserWidthMm', 133.93)
+            ->assertSet('laserHeightMm', 133.93)
+            ->assertSee('step="0.01"', false)
             ->assertSee('x-model.number="xMm"', false)
             ->assertSee('@laser-cockpit-sync.window', false)
-            ->assertSee('133,9 × 133,9 mm');
+            ->assertSee('133,93 × 133,93 mm');
     }
 
     #[Test]
@@ -982,6 +990,34 @@ class XtoolLaserCockpitTest extends TestCase
             }
         }
 
+        // 1b. Lokaler Betrieb (!$isCloud) ohne Mini-PC-Relay meldet ehrlich den lokalen Laser-Socket (192.168.188.150:28900) statt 192.168.188.151
+        $localOfflineCockpit = new class extends XtoolLaserCockpitService {
+            public function isCloudEnvironment(): bool
+            {
+                return false;
+            }
+
+            protected function probeDirectLaserSocket(string $ip = self::DEFAULT_LASER_IP, bool $force = false): bool
+            {
+                return false;
+            }
+        };
+        $localOfflineCockpit->setV2SocketTestingMode(true);
+        $this->app->instance(XtoolLaserCockpitService::class, $localOfflineCockpit);
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->call('refreshLaserCameraAndAlign')
+            ->assertDispatched('order-feedback', function (string $name, array $params): bool {
+                $msg = (string) ($params['message'] ?? '');
+
+                return ($params['type'] ?? null) === 'warning'
+                    && ($params['title'] ?? null) === 'Kein Live-Bild vom Laser empfangen'
+                    && str_contains($msg, '192.168.188.150:28900')
+                    && !str_contains($msg, '192.168.188.151');
+            });
+
         // 2. Echtes Live-Bild via minipc_lan_relay -> grüne Erfolgsmeldung!
         $liveMock = \Mockery::mock(XtoolLaserCockpitService::class)->makePartial();
         $liveMock->shouldReceive('detectBlankPositionOnBed')
@@ -1082,12 +1118,12 @@ class XtoolLaserCockpitTest extends TestCase
                 ],
             ]);
 
-            // 1. Initiales Öffnen lädt exakt die innere Gravurfläche (133,9 x 133,9 mm) und rendert alle 4 Resize-Anfasser
+            // 1. Initiales Öffnen lädt exakt die innere Gravurfläche (133,93 x 133,93 mm) und rendert alle 4 Resize-Anfasser
             $component = Livewire::actingAs($admin, 'admin')
                 ->test(OrderOverview::class)
                 ->call('openDetail', $order->id)
-                ->assertSet('laserWidthMm', 133.9)
-                ->assertSet('laserHeightMm', 133.9)
+                ->assertSet('laserWidthMm', 133.93)
+                ->assertSet('laserHeightMm', 133.93)
                 ->assertSee('data-resize-handle="nw"', false)
                 ->assertSee('data-resize-handle="ne"', false)
                 ->assertSee('data-resize-handle="se"', false)
@@ -1161,10 +1197,10 @@ class XtoolLaserCockpitTest extends TestCase
             $this->assertGreaterThan(57.5, $maxRadius, 'Skalierter Laser-Job muss den 59,0-mm-Radius ausfüllen');
             $this->assertLessThanOrEqual(59.6, $maxRadius, 'Skalierter Laser-Job darf den 118,0-mm-Kreis (r = 59,0 mm) nicht überschreiten');
 
-            // 6. "1 KAMERA & KI-AUSRICHTEN" setzt wMm x hMm proportional wieder auf die innere Gravurfläche (133,9 mm)
+            // 6. "1 KAMERA & KI-AUSRICHTEN" setzt wMm x hMm proportional wieder auf die innere Gravurfläche (133,93 mm)
             $reopened->call('refreshLaserCameraAndAlign')
-                ->assertSet('laserWidthMm', 133.9)
-                ->assertSet('laserHeightMm', 133.9);
+                ->assertSet('laserWidthMm', 133.93)
+                ->assertSet('laserHeightMm', 133.93);
         } finally {
             Storage::disk('public')->delete($relUpload);
         }
@@ -1183,7 +1219,8 @@ class XtoolLaserCockpitTest extends TestCase
         $component = Livewire::actingAs($admin, 'admin')
             ->test(OrderOverview::class)
             ->call('openDetail', $order->id)
-            ->assertSee('.xcs Backup')
+            ->assertSee('Medien')
+            ->assertSee('XTOOL PROJEKT (.XCS)')
             ->assertSee('wire:target="downloadLaserXcsFile"', false)
             ->call('downloadLaserXcsFile', $item->id, 'front')
             ->assertFileDownloaded();

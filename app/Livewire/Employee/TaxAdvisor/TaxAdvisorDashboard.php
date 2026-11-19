@@ -835,7 +835,8 @@ class TaxAdvisorDashboard extends Component
             $isIncomeGroup = ($group->type === 'income');
             foreach ($group->items as $item) {
                 $isBusiness = (bool) $item->is_business;
-                $rate = $isSmallBusinessYear ? 0.0 : (float) ($item->tax_rate ?? ($isBusiness ? shop_setting('default_tax_rate', 19.0) : 0));
+                $rawItemRate = $item->tax_rate ?? 0;
+                $rate = (!$isSmallBusinessYear && FinancialService::isEligibleGermanInputVatRate($rawItemRate)) ? (float) round((float) $rawItemRate) : 0.0;
                 $gross = abs((float) $item->amount);
                 $net = $rate > 0 ? ($gross / (1 + ($rate / 100))) : $gross;
                 $vat = $gross - $net;
@@ -947,7 +948,8 @@ class TaxAdvisorDashboard extends Component
 
         foreach ($allPeriodSpecials as $special) {
             $isBusiness = (bool) $special->is_business;
-            $rate = $isSmallBusinessYear ? 0.0 : (float) ($special->tax_rate ?? ($isBusiness ? shop_setting('default_tax_rate', 19.0) : 0));
+            $rawSpecialRate = $special->tax_rate ?? 0;
+            $rate = (!$isSmallBusinessYear && FinancialService::isEligibleGermanInputVatRate($rawSpecialRate)) ? (float) round((float) $rawSpecialRate) : 0.0;
             $signedGross = (float) $special->amount;
             $absGross = abs($signedGross);
             $absNet = $rate > 0 ? ($absGross / (1 + ($rate / 100))) : $absGross;

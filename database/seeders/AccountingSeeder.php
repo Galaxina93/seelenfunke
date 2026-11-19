@@ -380,6 +380,7 @@ class AccountingSeeder extends Seeder
                 'start_date'        => '2026-11-01',
                 'contract_end_date' => '2027-10-31',
                 'is_business'       => 1,
+                'tax_rate'          => 0,
                 'provider_company'  => 'Hiscox SA Niederlassung für Deutschland',
                 'provider_street'   => 'Bernhard-Wicki-Str.',
                 'provider_house_number' => '3',
@@ -511,6 +512,7 @@ class AccountingSeeder extends Seeder
                 'interval'    => 12, // yearly
                 'start_date'  => '2026-04-15',
                 'is_business' => 1,
+                'tax_rate'    => 19,
                 'provider_company' => 'Interzero Recycling Alliance GmbH',
                 'provider_street'  => 'Stollwerckstr.',
                 'provider_house_number' => '9a',
@@ -526,10 +528,11 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Vertrag & Lizenz',
                 'name'        => 'Hosting',
-                'amount'      => -48,79,
+                'amount'      => -48.79,
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-04-15',
                 'is_business' => 1,
+                'tax_rate'    => 19,
                 'provider_company' => 'Mittwald CM Service GmbH & Co. KG',
                 'provider_street'  => 'Königsberger Straße 4-6',
                 'provider_zip'     => '32339',
@@ -542,10 +545,11 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Vertrag & Lizenz',
                 'name'        => 'Google AI Pro',
-                'amount'      => -21,99,
+                'amount'      => -21.99,
                 'interval'    => 1,
                 'start_date'  => '2026-10-25',
                 'is_business' => 1,
+                'tax_rate'    => 19,
                 'provider_company' => 'Google Commerce Limited',
                 'provider_street'  => 'Gordon House, Barrow Street',
                 'provider_zip'     => 'Dublin 4',
@@ -625,6 +629,7 @@ class AccountingSeeder extends Seeder
                     'last_payment_date'  => $item['last_date'] ?? null,
                     'description'        => $item['description'],
                     'is_business'        => $item['is_business'] ?? false,
+                    'tax_rate'           => $item['tax_rate'] ?? 0,
                     'requires_contract'  => $item['requires_contract'] ?? true,
                     'tags'               => $item['tags'] ?? [],
                     'contract_file_path' => $item['contract_file_path'] ?? null,
@@ -646,6 +651,19 @@ class AccountingSeeder extends Seeder
         // --- 3. Sonderausgaben erstellen (Gewerblich) ---
 
         $specialIssues = [
+            [
+                'title'          => 'Google AI Ultra (30 TB, Google One)',
+                'location'       => 'Google Payment Ireland Ltd.',
+                'amount'         => -219.99,
+                'date'           => '2026-11-17',
+                'category'       => 'Software & Lizenzen',
+                'tax_rate'       => 19,
+                'invoice_number' => '280448147924227333 (PayPal 0KD07321R5763162R)',
+                'note'           => "Rechnungsnummer: 280448147924227333 | PayPal-Transaktionscode: 0KD07321R5763162R | Datum: 17.11.2026 (Belegausdruck 17.11.2026, 23:11 Uhr) | Zahlungsart: PayPal Zahlung im Einzugsverfahren (Volksbank eG Braunschweig Wolfsburg x-6000)\nVerkäufer: Google Payment Ireland Ltd. (noreply+support@google.com)\nPosition:\n- 1x Google AI Ultra (30 TB) (Google One): 219,99 € brutto (184,87 € netto zzgl. 35,12 € USt. bei 19 %)\nSumme (Brutto): 219,99 €",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-17_Google-Payment-Ireland_Google-AI-Ultra-30TB-Google-One-PayPal-280448147924227333.pdf'
+                ]
+            ],
             [
                 'title'          => '5000 AI Credits (Google One)',
                 'location'       => 'Google Payment Ireland Ltd.',
@@ -920,9 +938,9 @@ class AccountingSeeder extends Seeder
                 'amount'         => -145.95,
                 'date'           => '2026-11-02',
                 'category'       => 'Verpackungen',
-                'tax_rate'       => 25,
+                'tax_rate'       => 0,
                 'invoice_number' => '29000069521 (Klischee L247401 / Kd.-Nr. 7164015)',
-                'note'           => "Bestellung Order #29000069521 vom 02.11.2026 (Order-ID: 485928) | Kundennummer: 7164015 | Westpack Klischee-Nr.: L247401\nLogokorrektur / Proof vom 03.11.2026 (Azizah Fitria Nada Zahra, afz@westpack.com): Logo \"mein-seelenfunke – EIN FUNKE, DER BLEIBT\" (60 x h11,4 mm mittig auf Schachteldeckel 86 x 86 x 17 mm)\nPositionen:\n- 96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr.: 30286060102, Schwarz matt, 86 x 86 x 17 mm inkl. Schaumstoffeinlage & eigenem Mein-Seelenfunke-Logodruck): Einzelpreis 1,06 € netto = 101,76 € netto\n- 1x Klischeekosten / Druckstempel (Art.-Nr.: 60000002000, Klischee-Nr. L247401): 0,00 €\nZwischensumme: 101,76 € netto | Versand & Bearbeitung (Standard nach DE): 15,00 € netto | Steuer (25% DK MwSt.): 29,19 € | Gesamtsumme: 145,95 € brutto (1,52 € brutto / Stk.)\nZahlungsart: PayPal (Alina Steinhauer - Mein Seelenfunke)\nHändler: Westpack A/S, Sletten 21, 7500 Holstebro, Dänemark, USt-IdNr.: DK15505908, Kontakt Klischee: afz@westpack.com\nProdukt-Link: https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html",
+                'note'           => "Bestellung Order #29000069521 vom 02.11.2026 (Order-ID: 485928) | Kundennummer: 7164015 | Westpack Klischee-Nr.: L247401\nSteuer-Hinweis: 25 % dänische MOMS = 29,19 €, kein deutscher Vorsteuerabzug in Kz 66 (voller Bruttobetrag 145,95 € als Betriebsausgabe in der EÜR).\nLogokorrektur / Proof vom 03.11.2026 (Azizah Fitria Nada Zahra, afz@westpack.com): Logo \"mein-seelenfunke\" (60 x h11,4 mm mittig auf Schachteldeckel 86 x 86 x 17 mm)\nPositionen:\n- 96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr.: 30286060102, Schwarz matt, 86 x 86 x 17 mm inkl. Schaumstoffeinlage & eigenem Mein-Seelenfunke-Logodruck): Einzelpreis 1,06 € netto = 101,76 € netto\n- 1x Klischeekosten / Druckstempel (Art.-Nr.: 60000002000, Klischee-Nr. L247401): 0,00 €\nZwischensumme: 101,76 € netto | Versand & Bearbeitung (Standard nach DE): 15,00 € netto | Steuer (25% DK MwSt.): 29,19 € | Gesamtsumme: 145,95 € brutto (1,52 € brutto / Stk.)\nZahlungsart: PayPal (Alina Steinhauer / Mein Seelenfunke)\nHändler: Westpack A/S, Sletten 21, 7500 Holstebro, Dänemark, USt-IdNr.: DK15505908, Kontakt Klischee: afz@westpack.com\nProdukt-Link: https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html",
                 'file_paths'     => [
                     'buchhaltung/receipts/2026/11/2026-11-02_Westpack_96x-Frankfurt-ECO-Schmuckschachtel-Order-29000069521.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-03_Westpack_Logokorrektur-Klischee-L247401-Kundennr-7164015.pdf',
@@ -1073,12 +1091,15 @@ class AccountingSeeder extends Seeder
                 'file_paths' => ['buchhaltung/receipts/2026/04/2026-04-23_Luminus-Institut_Laserschutzschulung.pdf']
             ],
             [
-                'title'    => 'Lenovo Docking Station',
-                'location' => 'AFB Social & Green IT',
-                'amount'   => -84.90,
-                'date'     => '2026-02-27',
-                'category' => 'Arbeitsmaterial',
-                'file_paths' => ['buchhaltung/receipts/2026/02/2026-02-27_AFB-Social-Green-IT_Lenovo-Docking-Station.pdf']
+                'title'          => 'Lenovo Docking Station',
+                'location'       => 'AFB Social & Green IT',
+                'amount'         => -84.90,
+                'date'           => '2026-02-27',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 7,
+                'invoice_number' => 'RDE-1194711',
+                'note'           => 'Rechnung RDE-1194711 vom 27.02.2026 (AfB gemeinnützige GmbH): 79,35 € netto zzgl. 5,55 € MwSt. (7 % ermäßigter Steuersatz nach § 12 Abs. 2 Nr. 8a UStG) = 84,90 € brutto.',
+                'file_paths'     => ['buchhaltung/receipts/2026/02/2026-02-27_AFB-Social-Green-IT_Lenovo-Docking-Station.pdf']
             ],
             [
                 'title'    => 'Laserschutzbrille',
@@ -1201,11 +1222,13 @@ class AccountingSeeder extends Seeder
                 'file_paths' => ['buchhaltung/receipts/2026/01/2026-01-02_Amazon_Feuerloescher-CO2.pdf']
             ],
             [
-                'title'    => 'Tisch',
-                'location' => 'eBay Kleinanzeigen',
-                'amount'   => -75.00,
-                'date'     => '2026-01-01',
-                'category' => 'Arbeitsmaterial',
+                'title'      => 'Tisch',
+                'location'   => 'eBay Kleinanzeigen',
+                'amount'     => -75.00,
+                'date'       => '2026-01-01',
+                'category'   => 'Arbeitsmaterial',
+                'tax_rate'   => 0,
+                'note'       => 'Privatkauf über eBay Kleinanzeigen ohne Umsatzsteuerausweis (0 % Vorsteuer).',
                 'file_paths' => ['buchhaltung/receipts/2026/01/2026-01-01_eBay-Kleinanzeigen_Tisch.pdf']
             ],
             [

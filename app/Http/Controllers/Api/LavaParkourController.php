@@ -352,6 +352,177 @@ class LavaParkourController extends Controller
         return response()->json($result['body'], $result['status'], $this->securityHeaders());
     }
 
+    public function buyPotion(Request $request, LavaParkourService $lavaParkour): JsonResponse
+    {
+        [$customer, $admin, $actorKey] = $this->resolveActors();
+        $rawAll = $request->all();
+        $tamper = LobbyInstanceService::inspectRequestTampering($rawAll, $request->path(), $actorKey);
+
+        if ($customer === null && $admin === null) {
+            return $this->guestForbiddenResponse($lavaParkour);
+        }
+
+        if (
+            $tamper['has_explicit_cheat']
+            || $tamper['has_invalid_coords']
+            || LobbyInstanceService::containsForbiddenPayloadKeys($rawAll)
+        ) {
+            return $this->invalidRunJsonResponse('Ungültige Anfrage.');
+        }
+
+        if ($request->has('quantity') && $request->input('quantity') !== null && $request->input('quantity') !== '') {
+            $rawQty = $request->input('quantity');
+            if (is_array($rawQty) || is_object($rawQty) || is_bool($rawQty) || !LobbyInstanceService::isValidFiniteNumeric($rawQty)) {
+                return $this->invalidRunJsonResponse('Ungültige Menge.');
+            }
+        }
+
+        $validator = Validator::make($rawAll, [
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:5'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->invalidRunJsonResponse('Ungültige Menge.');
+        }
+
+        $validated = $validator->validated();
+        $qty = isset($validated['quantity']) ? (int) $validated['quantity'] : 1;
+
+        if ($customer === null && $admin !== null) {
+            $result = $lavaParkour->handleAdminPreviewAction($admin, 'buy_potion', ['quantity' => $qty]);
+
+            return response()->json($result['body'], $result['status'], $this->securityHeaders());
+        }
+
+        if ($denied = $lavaParkour->checkSanctumAccess($customer)) {
+            return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
+        }
+
+        $result = $lavaParkour->buyHealingPotion($customer, $qty);
+
+        return response()->json($result['body'], $result['status'], $this->securityHeaders());
+    }
+
+    public function useItem(Request $request, LavaParkourService $lavaParkour): JsonResponse
+    {
+        [$customer, $admin, $actorKey] = $this->resolveActors();
+        $rawAll = $request->all();
+        $tamper = LobbyInstanceService::inspectRequestTampering($rawAll, $request->path(), $actorKey);
+
+        if ($customer === null && $admin === null) {
+            return $this->guestForbiddenResponse($lavaParkour);
+        }
+
+        if (
+            $tamper['has_explicit_cheat']
+            || $tamper['has_invalid_coords']
+            || LobbyInstanceService::containsForbiddenPayloadKeys($rawAll)
+        ) {
+            return $this->invalidRunJsonResponse('Ungültige Anfrage.');
+        }
+
+        if (is_array($request->input('item_key')) || is_array($request->input('slot'))) {
+            return $this->invalidRunJsonResponse('Ungültige Anfrage.');
+        }
+
+        $validator = Validator::make($rawAll, [
+            'item_key' => ['required', 'string', 'in:healing_potion'],
+            'slot' => ['nullable', 'integer', 'in:1,2'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->invalidRunJsonResponse('Ungültiger Gegenstand.');
+        }
+
+        $validated = $validator->validated();
+        $slot = isset($validated['slot']) ? (int) $validated['slot'] : null;
+
+        if ($customer === null && $admin !== null) {
+            $result = $lavaParkour->handleAdminPreviewAction($admin, 'use_item', $validated);
+
+            return response()->json($result['body'], $result['status'], $this->securityHeaders());
+        }
+
+        if ($denied = $lavaParkour->checkSanctumAccess($customer)) {
+            return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
+        }
+
+        $result = $lavaParkour->useInventoryItem($customer, (string) $validated['item_key'], $slot);
+
+        return response()->json($result['body'], $result['status'], $this->securityHeaders());
+    }
+
+    public function equipSlot(Request $request, LavaParkourService $lavaParkour): JsonResponse
+    {
+        [$customer, $admin, $actorKey] = $this->resolveActors();
+        $rawAll = $request->all();
+        $tamper = LobbyInstanceService::inspectRequestTampering($rawAll, $request->path(), $actorKey);
+
+        if ($customer === null && $admin === null) {
+            return $this->guestForbiddenResponse($lavaParkour);
+        }
+
+        if (
+            $tamper['has_explicit_cheat']
+            || $tamper['has_invalid_coords']
+            || LobbyInstanceService::containsForbiddenPayloadKeys($rawAll)
+        ) {
+            return $this->invalidRunJsonResponse('Ungültige Anfrage.');
+        }
+
+        foreach (['quick_slot', 'item_key', 'from_bag_slot', 'to_bag_slot'] as $field) {
+            if (array_key_exists($field, $rawAll) && (is_array($rawAll[$field]) || is_object($rawAll[$field]) || is_bool($rawAll[$field]))) {
+                return $this->invalidRunJsonResponse('Ungültige Slot-Daten.');
+            }
+        }
+
+        $normalizedInput = $rawAll;
+        if (array_key_exists('item_key', $normalizedInput) && $normalizedInput['item_key'] === '') {
+            $normalizedInput['item_key'] = null;
+        }
+
+        $validator = Validator::make($normalizedInput, [
+            'quick_slot' => ['nullable', 'integer', 'in:1,2'],
+            'item_key' => ['nullable', 'string', 'in:healing_potion,none'],
+            'from_bag_slot' => ['nullable', 'integer', 'min:0', 'max:5'],
+            'to_bag_slot' => ['nullable', 'integer', 'min:0', 'max:5'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->invalidRunJsonResponse('Ungültige Slot-Daten.');
+        }
+
+        $validated = $validator->validated();
+        $quickSlot = isset($validated['quick_slot']) ? (int) $validated['quick_slot'] : null;
+        $rawItemKey = $validated['item_key'] ?? null;
+        $itemKey = ($rawItemKey === 'healing_potion') ? 'healing_potion' : null;
+        $fromBagSlot = array_key_exists('from_bag_slot', $validated) && $validated['from_bag_slot'] !== null
+            ? (int) $validated['from_bag_slot']
+            : null;
+        $toBagSlot = array_key_exists('to_bag_slot', $validated) && $validated['to_bag_slot'] !== null
+            ? (int) $validated['to_bag_slot']
+            : null;
+
+        if ($customer === null && $admin !== null) {
+            $result = $lavaParkour->handleAdminPreviewAction($admin, 'equip_slot', [
+                'quick_slot' => $quickSlot,
+                'item_key' => $itemKey,
+                'from_bag_slot' => $fromBagSlot,
+                'to_bag_slot' => $toBagSlot,
+            ]);
+
+            return response()->json($result['body'], $result['status'], $this->securityHeaders());
+        }
+
+        if ($denied = $lavaParkour->checkSanctumAccess($customer)) {
+            return response()->json($denied['body'], $denied['status'], $this->securityHeaders());
+        }
+
+        $result = $lavaParkour->equipInventorySlot($customer, $quickSlot, $itemKey, $fromBagSlot, $toBagSlot);
+
+        return response()->json($result['body'], $result['status'], $this->securityHeaders());
+    }
+
     /**
      * Konsistenter Guard-Resolver analog zu CustomerLobbyController / LobbyInstanceService::resolveActorFromAuth.
      *

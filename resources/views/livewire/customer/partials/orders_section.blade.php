@@ -208,30 +208,141 @@
                                             @endif
                                         </div>
 
-                                        <div class="mt-6 flex flex-col items-start gap-4">
+                                        @php
+                                            $secAdminAdjustment = \App\Livewire\Customer\CustomerOrdersComponent::resolveAdminAdjustmentInfo($item);
+                                            $secBlueprintTimeline = \App\Livewire\Customer\CustomerOrdersComponent::buildItemBlueprintTimeline($item);
+                                            $secHasPersonalization = !empty($item->config_fingerprint)
+                                                || !empty($item->configuration)
+                                                || $secAdminAdjustment !== null
+                                                || !empty($secBlueprintTimeline);
+                                        @endphp
+
+                                        <div class="mt-6 flex flex-wrap items-center gap-3.5">
                                             @if(!empty($item->configuration))
-                                                <button wire:click="openPreview('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $previewItemId == $item->id ? 'bg-primary text-gray-900 shadow-[0_0_15px_rgba(197,160,89,0.4)]' : 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700' }}">
+                                                <button wire:click="openPreview('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer {{ $previewItemId == $item->id ? 'bg-[#C5A059] text-gray-950 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200' }}">
                                                     <span>{{ $previewItemId == $item->id ? 'Design verbergen' : 'Design ansehen' }}</span>
                                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                                 </button>
                                             @endif
+
+                                            @if($secAdminAdjustment !== null)
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#C5A059]/15 text-[#6E5119] border border-[#C5A059]/50 text-[10px] font-black uppercase tracking-widest">
+                                                    <span class="text-[#C5A059]">✦</span>
+                                                    <span>Manufaktur-Feinschliff</span>
+                                                </span>
+                                            @elseif($secHasPersonalization)
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF8F5] text-gray-700 border border-gray-200 text-[10px] font-black uppercase tracking-widest">
+                                                    <span class="text-[#C5A059]">✦</span>
+                                                    <span>Original-Design hinterlegt</span>
+                                                </span>
+                                            @endif
                                         </div>
+
+                                        @if($secAdminAdjustment !== null)
+                                            <p class="mt-2.5 text-xs font-semibold text-gray-700 flex items-center gap-2">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-[#C5A059] shrink-0"></span>
+                                                <span>{{ $secAdminAdjustment['sentence'] }}</span>
+                                            </p>
+                                        @endif
+
+                                        @if(!empty($secBlueprintTimeline))
+                                            <div x-data="{
+                                                    timeline: @js($secBlueprintTimeline),
+                                                    lightboxOpen: false,
+                                                    activeIdx: {{ max(0, count($secBlueprintTimeline) - 1) }},
+                                                    activeSide: 'front',
+                                                    openLb(idx) { this.activeIdx = idx; this.activeSide = 'front'; this.lightboxOpen = true; },
+                                                    closeLb() { this.lightboxOpen = false; },
+                                                    currentStep() { return this.timeline[this.activeIdx] || this.timeline[0] || {}; },
+                                                    currentImageUrl() {
+                                                        const st = this.currentStep();
+                                                        return (this.activeSide === 'back' && st.back_url) ? st.back_url : (st.front_url || '');
+                                                    }
+                                                 }"
+                                                 @keydown.escape.window="if (lightboxOpen) closeLb()"
+                                                 class="mt-4 p-4 rounded-2xl bg-[#FAF8F5] border border-[#C5A059]/35 space-y-2.5 text-gray-900">
+                                                <div class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-800">
+                                                    ✦ Änderungsverlauf · Blueprints
+                                                </div>
+                                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                    @foreach($secBlueprintTimeline as $sIdx => $sStep)
+                                                        <button type="button"
+                                                                @click="openLb({{ $sIdx }})"
+                                                                class="flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all cursor-pointer {{ $sStep['is_current'] ? 'bg-white border-[#C5A059]' : 'bg-white/90 border-gray-200 hover:border-[#C5A059]/60' }}">
+                                                            <div class="w-12 h-12 rounded-lg bg-[#FAF8F5] border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                                                                @if(!empty($sStep['front_url']))
+                                                                    <img src="{{ $sStep['front_url'] }}" alt="Version {{ $sStep['version'] }}" class="w-full h-full object-contain">
+                                                                @else
+                                                                    <span class="text-xs font-serif font-bold text-[#C5A059]">V{{ $sStep['version'] }}</span>
+                                                                @endif
+                                                            </div>
+                                                            <div class="min-w-0 flex-1">
+                                                                <div class="flex flex-wrap items-center gap-1.5">
+                                                                    <span class="text-[10px] font-black uppercase tracking-wider text-gray-900">Version {{ $sStep['version'] }}</span>
+                                                                    @if($sStep['is_current'])
+                                                                        <span class="px-1.5 py-0.5 rounded-full bg-[#C5A059] text-gray-950 text-[9px] font-black uppercase">Aktuell</span>
+                                                                    @endif
+                                                                </div>
+                                                                <p class="text-xs font-bold text-gray-800 truncate">{{ $sStep['actor_label'] }}</p>
+                                                                @if(!empty($sStep['saved_at_label']))
+                                                                    <p class="text-[10px] text-gray-500 truncate">{{ $sStep['saved_at_label'] }}</p>
+                                                                @endif
+                                                            </div>
+                                                        </button>
+                                                    @endforeach
+                                                </div>
+
+                                                <div x-cloak
+                                                     :class="lightboxOpen ? 'flex' : 'hidden'"
+                                                     @click.self="closeLb()"
+                                                     class="hidden fixed inset-0 z-[165] items-center justify-center bg-gray-900/55 backdrop-blur-xs p-4">
+                                                    <div class="bg-white border border-gray-200 rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[90vh] text-gray-900">
+                                                        <div class="px-5 py-3.5 border-b border-gray-200 bg-[#FAF8F5] flex flex-wrap items-center justify-between gap-2">
+                                                            <div class="flex flex-wrap items-center gap-1">
+                                                                <template x-for="(st, idx) in timeline" :key="'sec-lb-' + st.version + '-' + idx">
+                                                                    <button type="button"
+                                                                            @click="activeIdx = idx; if (!st.has_back) activeSide = 'front';"
+                                                                            :class="activeIdx === idx ? 'bg-[#C5A059] text-gray-950 font-black' : 'bg-white text-gray-700 font-bold border border-gray-200'"
+                                                                            class="px-2.5 py-1 rounded-lg text-[10px] uppercase tracking-wider cursor-pointer">
+                                                                        <span x-text="'Version ' + st.version + (st.is_current ? ' · Aktuell' : '')"></span>
+                                                                    </button>
+                                                                </template>
+                                                            </div>
+                                                            <button type="button" @click="closeLb()" class="w-8 h-8 rounded-xl bg-white border border-gray-200 text-gray-500 hover:text-gray-900 flex items-center justify-center cursor-pointer">✕</button>
+                                                        </div>
+                                                        <div class="p-6 bg-[#FAF8F5] flex-1 overflow-auto flex items-center justify-center min-h-[280px]">
+                                                            <template x-if="currentImageUrl()">
+                                                                <img :src="currentImageUrl()" alt="Blueprint" class="max-w-full max-h-[60vh] object-contain rounded-xl bg-white border border-gray-200 p-2">
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endif
                                     </div>
                                 </li>
 
                                 @if($previewItemId == $item->id && $this->previewItem)
-                                    <div class="bg-gray-950 p-8 border-y border-gray-800 animate-fade-in-down shadow-inner">
+                                    @php
+                                        $secPrevAdj = \App\Livewire\Customer\CustomerOrdersComponent::resolveAdminAdjustmentInfo($this->previewItem);
+                                    @endphp
+                                    <div class="bg-[#FAF8F5] p-8 border-y border-gray-200 animate-fade-in-down shadow-inner">
                                         <div class="flex justify-between items-center mb-6">
-                                            <h4 class="text-sm font-black text-gray-500 uppercase tracking-[0.3em]">Manufaktur Details</h4>
-                                            @if($item->config_fingerprint)
-                                                <span class="text-[10px] bg-green-500/10 text-green-400 px-3 py-1 rounded-full border border-green-500/30 flex items-center gap-2 font-black uppercase tracking-widest shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                                                    Versiegelt
+                                            <h4 class="text-sm font-black text-gray-600 uppercase tracking-[0.3em]">Manufaktur Details</h4>
+                                            @if($secPrevAdj !== null)
+                                                <span class="text-[10px] bg-[#C5A059]/15 text-[#6E5119] px-3 py-1 rounded-full border border-[#C5A059]/50 flex items-center gap-1.5 font-black uppercase tracking-widest">
+                                                    <span class="text-[#C5A059]">✦</span>
+                                                    <span>Manufaktur-Feinschliff</span>
+                                                </span>
+                                            @elseif($item->config_fingerprint || !empty($item->configuration))
+                                                <span class="text-[10px] bg-white text-gray-700 px-3 py-1 rounded-full border border-gray-200 flex items-center gap-1.5 font-black uppercase tracking-widest">
+                                                    <span class="text-[#C5A059]">✦</span>
+                                                    <span>Original-Design hinterlegt</span>
                                                 </span>
                                             @endif
                                         </div>
-                                        <div class="bg-gray-900 rounded-[2rem] border border-gray-800 overflow-hidden shadow-2xl w-full">
-                                            <livewire:shop.product.product-configurator.product-configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" design="dark" />
+                                        <div class="bg-white rounded-[2rem] border border-gray-200 overflow-hidden shadow-sm w-full">
+                                            <livewire:shop.product.product-configurator.product-configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-'.$this->previewItem->id" design="light" />
                                         </div>
                                     </div>
                                 @endif

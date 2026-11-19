@@ -20,6 +20,7 @@ import android.telecom.VideoProfile
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import java.util.concurrent.ConcurrentHashMap
 import de.meinseelenfunke.app.MainActivity
@@ -811,22 +812,14 @@ class FunkiraPhoneConciergeService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-
-        val notif = builder
-            .setSmallIcon(R.mipmap.ic_launcher)
+        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setContentIntent(openPending)
             .setOngoing(true)
-            .addAction(
-                Notification.Action.Builder(null, "Auflegen", stopPending).build()
-            )
+            .addAction(0, "Auflegen", stopPending)
             .build()
 
         val hasMicPerm = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
@@ -864,17 +857,12 @@ class FunkiraPhoneConciergeService : Service() {
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-        val notif = builder
-            .setSmallIcon(R.mipmap.ic_launcher)
+        val notif = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle("📞 Funkira Sekretärin · $callerLabel")
             .setContentText(summary)
-            .setStyle(Notification.BigTextStyle().bigText(summary))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(summary))
             .setContentIntent(openPending)
             .setAutoCancel(true)
             .build()

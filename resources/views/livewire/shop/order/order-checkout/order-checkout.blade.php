@@ -23,7 +23,17 @@
     {{-- DURCHGEHENDE MAGIE-BÜHNE (Lade-Animation -> Nahtloser Übergang in "Vielen Dank!" & Endinfos) --}}
     @include('livewire.shop.order.order-checkout.order-checkout-success', ['isEmbeddedInCheckout' => true])
 
+    @php
+        $isCheckoutMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+    @endphp
+
     @if (!$isFinished)
+    @if ($isCheckoutMaintenance)
+        <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+            <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 mb-6 text-center">Kasse</h1>
+            <x-alerts.shop-maintenance-notice :showShopButton="true" />
+        </div>
+    @else
     {{-- HAUPT-FORMULAR --}}
     <div wire:loading.class="opacity-30 blur-[2px] pointer-events-none"
          wire:target="handlePaymentSuccess"
@@ -193,6 +203,7 @@
                 });
             });
         </script>
+    @endif
     @endif
     @endif
 </div>

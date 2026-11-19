@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="utf-8">
-    <title>Steuerprotokoll & UStVA - {{ $data['month_number'] }}/{{ $data['year'] }}</title>
+    <title>Steuerprotokoll & UStVA ({{ $data['month_number'] }}/{{ $data['year'] }})</title>
     <style>
         @page { margin: 40px 40px 100px 40px; }
         body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #222; line-height: 1.5; font-size: 11px; background: #fff; }
@@ -61,7 +61,7 @@
         <td class="report-meta" style="width: 50%;">
             <h1>Steuer- & Umsatzprotokoll</h1>
             <div class="subtitle">Veranlagungszeitraum: <strong>{{ $data['month_name'] }} {{ $data['year'] }}</strong></div>
-            <div class="subtitle">Datum der Erstellung: {{ date('d.m.Y - H:i') }} Uhr</div>
+            <div class="subtitle">Datum der Erstellung: {{ date('d.m.Y, H:i') }} Uhr</div>
         </td>
     </tr>
 </table>
@@ -98,10 +98,20 @@
 <h2>Umsatzsteuer-Voranmeldung (Berechnungsschema)</h2>
 <p style="font-size: 10px; color: #555; margin-bottom: 10px;">Dieses Schema bildet die Grundlage für die Übermittlung der Zahllast an das zuständige Finanzamt gemäß UStG.</p>
 
+@php
+    $vat19 = $data['vat_collected_19'] ?? ($data['vat_collected'] ?? 0);
+    $vat7 = $data['vat_collected_7'] ?? 0;
+    $kz81Base = $data['kz81_base'] ?? (int) floor(max(0, (float) ($data['revenue_net_19'] ?? $data['revenue_net'] ?? 0)));
+    $kz86Base = $data['kz86_base'] ?? (int) floor(max(0, (float) ($data['revenue_net_7'] ?? 0)));
+@endphp
 <table class="calc-table">
     <tr>
-        <td class="label">Umsatzsteuer (aus steuerpflichtigen Verkäufen)</td>
-        <td class="amount">+ {{ number_format($data['vat_collected'] ?? 0, 2, ',', '.') }} €</td>
+        <td class="label">Steuerpflichtige Umsätze 19 % (Kz 81: {{ number_format($kz81Base, 0, ',', '.') }} € Netto)</td>
+        <td class="amount">+ {{ number_format($vat19, 2, ',', '.') }} €</td>
+    </tr>
+    <tr>
+        <td class="label">Steuerpflichtige Umsätze 7 % (Kz 86: {{ number_format($kz86Base, 0, ',', '.') }} € Netto)</td>
+        <td class="amount">+ {{ number_format($vat7, 2, ',', '.') }} €</td>
     </tr>
     <tr>
         <td class="label">Steuer aus innergemeinschaftlichem Erwerb (§ 1a UStG)</td>
@@ -116,11 +126,11 @@
         <td class="amount">{{ number_format($data['total_tax'] ?? ($data['vat_collected'] ?? 0), 2, ',', '.') }} €</td>
     </tr>
     <tr>
-        <td class="label">Abziehbare Vorsteuer (aus Eingangsrechnungen / Fixkosten)</td>
+        <td class="label">Abziehbare Vorsteuer Kz 66 (nur deutsche USt. 7 % / 19 %)</td>
         <td class="amount" style="color: #dc2626;">- {{ number_format($data['vat_paid'] ?? 0, 2, ',', '.') }} €</td>
     </tr>
     <tr class="final-row">
-        <td class="label">{{ ($data['zahllast'] ?? 0) > 0 ? 'Verbleibende Umsatzsteuer-Vorauszahlung (Zahllast)' : 'Verbleibender Erstattungsanspruch' }}</td>
+        <td class="label">{{ ($data['zahllast'] ?? 0) > 0 ? 'Verbleibende Umsatzsteuer-Vorauszahlung (Kz 83 Zahllast)' : 'Verbleibender Erstattungsanspruch (Kz 83)' }}</td>
         <td class="amount" style="color: #C5A059;">{{ number_format($data['zahllast'] ?? 0, 2, ',', '.') }} €</td>
     </tr>
 </table>
@@ -167,12 +177,12 @@
     <tbody>
     @php
         $isSmallBusinessYear = !empty($data['is_small_business_year']);
-        $defaultTaxRate = (float) shop_setting('default_tax_rate', 19.0);
         $expenseCount = $data['expense_count'] ?? (count($data['raw_specials'] ?? []) + count($data['raw_fixed'] ?? []));
     @endphp
     @foreach($data['raw_specials'] ?? [] as $sp)
         @php
-            $rate = $isSmallBusinessYear ? 0.0 : (float) ($sp->tax_rate ?? $defaultTaxRate);
+            $rawRate = $sp->tax_rate ?? 0;
+            $rate = (!$isSmallBusinessYear && \App\Services\FinancialService::isEligibleGermanInputVatRate($rawRate)) ? (float) round((float) $rawRate) : 0.0;
             $amt = abs($sp->amount);
             $vPaid = $rate > 0 ? ($amt - ($amt / (1 + ($rate / 100)))) : 0.0;
         @endphp
@@ -188,7 +198,8 @@
 
     @foreach($data['raw_fixed'] ?? [] as $fix)
         @php
-            $rate = $isSmallBusinessYear ? 0.0 : (float) ($fix->tax_rate ?? $defaultTaxRate);
+            $rawRate = $fix->tax_rate ?? 0;
+            $rate = (!$isSmallBusinessYear && \App\Services\FinancialService::isEligibleGermanInputVatRate($rawRate)) ? (float) round((float) $rawRate) : 0.0;
             $amt = abs($fix->amount);
             $vPaid = $rate > 0 ? ($amt - ($amt / (1 + ($rate / 100)))) : 0.0;
         @endphp

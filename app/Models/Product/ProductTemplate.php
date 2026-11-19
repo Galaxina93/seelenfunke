@@ -108,11 +108,35 @@ use HasFactory, HasUuids, SoftDeletes;
     ];
 
     /**
+     * Kanonische Feiertags-Schlüssel für Vorlagen & Spruch-Steuerung.
+     *
+     * @var array<int, string>
+     */
+    public const HOLIDAYS = [
+        'Weihnachten',
+        'Neujahr',
+        'Valentinstag',
+        'Weltfrauentag',
+        'Ostern',
+        'Muttertag',
+        'Vatertag',
+        'Einschulung',
+        'Halloween',
+    ];
+
+    /**
      * Kanonische Jahreszeiten-Schlüssel (Teilmenge von SEASONAL_HOLIDAY_SLOTS).
      *
      * @var array<int, string>
      */
-    public const SEASONAL_SEASON_KEYS = ['Frühling', 'Sommer', 'Herbst', 'Winter'];
+    public const SEASONS = ['Frühling', 'Sommer', 'Herbst', 'Winter'];
+
+    /**
+     * Kanonische Jahreszeiten-Schlüssel (Alias für SEASONS).
+     *
+     * @var array<int, string>
+     */
+    public const SEASONAL_SEASON_KEYS = self::SEASONS;
 
     /**
      * Zeitlose Ganzjahres-Klassiker und neutrale Werte (365 Tage im Jahr relevant).
@@ -207,12 +231,32 @@ use HasFactory, HasUuids, SoftDeletes;
      * - 30: Zeitloser Ganzjahres-Klassiker (Geburtstag, Hochzeit, Taufe, neutral usw.)
      * - 40: Außerhalb der Saison liegender Feiertag / fremde Jahreszeit
      */
-    public static function resolveHolidaySlotPriority(?string $rawHoliday, ?\Carbon\CarbonInterface $referenceDate = null): int
-    {
+    public static function resolveHolidaySlotPriority(
+        ?string $rawHoliday,
+        \Carbon\CarbonInterface|string|null $referenceDateOrSeason = null,
+        ?\Carbon\CarbonInterface $explicitReferenceDate = null
+    ): int {
+        $seasonFallback = null;
+        if ($referenceDateOrSeason instanceof \Carbon\CarbonInterface) {
+            $referenceDate = $referenceDateOrSeason;
+        } else {
+            $seasonFallback = is_string($referenceDateOrSeason) ? $referenceDateOrSeason : null;
+            $referenceDate = $explicitReferenceDate;
+        }
+
         $classified = self::classifyHolidaySlot($rawHoliday);
 
         if ($classified['type'] === 'evergreen') {
-            return 30;
+            if ($seasonFallback !== null && trim($seasonFallback) !== '') {
+                $seasonClassified = self::classifyHolidaySlot($seasonFallback);
+                if ($seasonClassified['type'] !== 'evergreen') {
+                    $classified = $seasonClassified;
+                } else {
+                    return 30;
+                }
+            } else {
+                return 30;
+            }
         }
 
         $now = $referenceDate

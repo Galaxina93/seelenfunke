@@ -61,19 +61,14 @@ class EnforceShopMaintenanceMode
      *   Das gesamte öffentliche Frontend bleibt ausnahmslos hinter HTTP 503 (errors.maintenance)
      *   verborgen, selbst für eingeloggte Administratoren. Nur Login, Admin-Backend, Technik-APIs
      *   und § 5 DDG Pflichtseiten bleiben erreichbar; Registrierung und OAuth sind gesperrt.
-     * - Stufe 2 (shop_is_live && maintenance_mode): Klassischer Wartungsmodus (HTTP 503 für Gäste
-     *   und Kunden, während eingeloggte Administratoren das Frontend vorab prüfen können).
-     * - Stufe 3 (shop_is_live && !maintenance_mode): Shop öffentlich erreichbar.
+     * - Stufe 2 (shop_is_live && maintenance_mode): Schaufenster-Wartungsmodus (HTTP 200 für Besucher
+     *   und Suchmaschinen auf Startseite, Shop, Produktseiten, Magazin und Rechtstexten; Kaufabschluss,
+     *   Konfigurator, Kalkulator, Warenkorb und Checkout pausieren gezielt auf Komponenten-Ebene).
+     * - Stufe 3 (shop_is_live && !maintenance_mode): Shop regulär öffentlich erreichbar.
      */
     public function handle(Request $request, Closure $next): Response
     {
         $shopIsLive = self::isShopLive($request);
-        $maintenanceMode = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
-
-        // Stufe 3: Öffentlich Live (erst wenn Live gehen = AN und Wartungsmodus = AUS)
-        if ($shopIsLive && !$maintenanceMode) {
-            return $next($request);
-        }
 
         // Stufe 1: Harte Go-Live-Sperre (!shop_is_live) - gilt im Frontend selbst für eingeloggte Admins
         if (!$shopIsLive) {
@@ -108,41 +103,8 @@ class EnforceShopMaintenanceMode
             return $this->maintenanceResponse($request);
         }
 
-        // Stufe 2: Klassischer Wartungsmodus (shop_is_live && maintenance_mode)
-        if (Auth::guard('admin')->check() || $request->user('admin') instanceof Admin) {
-            return $next($request);
-        }
-
-        if ($request->is(
-            'login',
-            'login/*',
-            'logout',
-            'auth/*',
-            'password/*',
-            'admin',
-            'admin/*',
-            'livewire',
-            'livewire/*',
-            'api',
-            'api/*',
-            'stripe',
-            'stripe/*',
-            'up',
-            'gemini-live*',
-            'twilio*',
-            'system/cronjob/*',
-            'system/cache/clear/*',
-            'notfall',
-            'notfall/*',
-            'impressum',
-            'datenschutz',
-            'datenschutzerklaerung',
-            'barrierefreiheit'
-        )) {
-            return $next($request);
-        }
-
-        return $this->maintenanceResponse($request);
+        // Stufe 2 (Schaufenster-Wartungsmodus) & Stufe 3 (Regulärer Betrieb): Öffentliches Frontend liefert HTTP 200
+        return $next($request);
     }
 
     private function maintenanceResponse(Request $request): Response

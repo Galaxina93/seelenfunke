@@ -148,7 +148,7 @@ class LivePreparationMaintenanceTest extends TestCase
         $verifyOutput = Artisan::output();
         $this->assertStringContainsString('Live gehen (shop_is_live)', $verifyOutput);
         $this->assertStringContainsString('false (Gesperrt / 503)', $verifyOutput);
-        $this->assertStringNotContainsString('digital.mein-seelenfunke.de', $verifyOutput);
+        $this->assertStringNotContainsString('Digitaler Shop (Live-Freigabe)', $verifyOutput);
     }
 
     public function test_live_go_live_switch_and_maintenance_mode_workflow_for_alina_and_visitors(): void
@@ -185,7 +185,7 @@ class LivePreparationMaintenanceTest extends TestCase
         $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/shop')->assertStatus(503);
         $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/admin/settings')->assertStatus(200);
 
-        // 2. Stufe 2: Alina schaltet "Live gehen" ein, lässt "Wartungsmodus" aber noch aktiv -> Admin sieht 200, Besucher weiterhin 503!
+        // 2. Stufe 2: Alina schaltet "Live gehen" ein, lässt "Wartungsmodus (Schaufenster)" aber noch aktiv -> Admin & Besucher sehen auf / und /shop HTTP 200 (Schaufenster-Modus)!
         $component = Livewire::actingAs($admin, 'admin')
             ->test(SystemShopConfig::class)
             ->assertSet('shop_is_live', false)
@@ -193,15 +193,18 @@ class LivePreparationMaintenanceTest extends TestCase
             ->call('toggleShopIsLive')
             ->assertSet('shop_is_live', true);
 
+        $this->assertTrue(\App\Http\Middleware\EnforceShopMaintenanceMode::isMaintenanceModeActive());
         $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/')->assertStatus(200);
+        $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/shop')->assertStatus(200);
 
         Auth::guard('admin')->logout();
         $this->app['auth']->forgetGuards();
         $this->flushSession();
 
-        $this->get('https://mein-seelenfunke.de/')->assertStatus(503);
+        $this->get('https://mein-seelenfunke.de/')->assertStatus(200);
+        $this->get('https://mein-seelenfunke.de/shop')->assertStatus(200);
 
-        // 3. Stufe 3: Alina schaltet auch den Wartungsmodus aus -> Shop ist öffentlich Live (200 für Besucher)!
+        // 3. Stufe 3: Alina schaltet auch den Wartungsmodus aus -> Regulärer Vollbetrieb (200 für Besucher, isMaintenanceModeActive = false)!
         $component = Livewire::actingAs($admin, 'admin')
             ->test(SystemShopConfig::class)
             ->assertSet('shop_is_live', true)
@@ -210,12 +213,14 @@ class LivePreparationMaintenanceTest extends TestCase
             ->assertSet('settings.maintenance_mode', false);
 
         $this->assertNotNull($component);
+        $this->assertFalse(\App\Http\Middleware\EnforceShopMaintenanceMode::isMaintenanceModeActive());
 
         Auth::guard('admin')->logout();
         $this->app['auth']->forgetGuards();
         $this->flushSession();
 
         $this->get('https://mein-seelenfunke.de/')->assertStatus(200);
+        $this->get('https://mein-seelenfunke.de/shop')->assertStatus(200);
     }
 
     public function test_htaccess_enforces_precise_www_to_apex_301_redirect_without_touching_subdomains_or_webhooks(): void

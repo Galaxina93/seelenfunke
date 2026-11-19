@@ -3,6 +3,7 @@
 namespace App\Livewire\Auth;
 
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 class AuthLoginDropdown extends Component
@@ -12,6 +13,12 @@ class AuthLoginDropdown extends Component
     public function mount($isMobile = false)
     {
         $this->isMobile = $isMobile;
+    }
+
+    #[On('auth-status-changed')]
+    public function refreshAuthStatus(): void
+    {
+        // Aktualisiert das Login-/Profil-Dropdown sofort ohne Seiten-Reload
     }
 
     public function logout()

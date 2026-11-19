@@ -20,6 +20,12 @@ trait HandlesOrderCreation
      */
     public function validateCheckoutData()
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN) && !Auth::guard('admin')->check()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'cart' => 'Der Shop befindet sich aktuell im Wartungsmodus. Bestellungen sind vorübergehend pausiert.'
+            ]);
+        }
+
         // Wir validieren hier NUR die rechtlichen Checkboxen.
         // Die Adresse kommt später direkt von Apple/Google Pay.
         $rules = [
@@ -44,7 +50,7 @@ trait HandlesOrderCreation
      */
     public function validateAndCreateOrder()
     {
-        if (shop_setting('maintenance_mode', false) && !Auth::guard('admin')->check()) {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN) && !Auth::guard('admin')->check()) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'cart' => 'Der Shop befindet sich aktuell im Wartungsmodus. Bestellungen sind vorübergehend pausiert.'
             ]);

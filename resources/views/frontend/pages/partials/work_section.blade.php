@@ -119,17 +119,19 @@
                         </li>
                     </ul>
 
-                    {{-- Button zum Kalkulator --}}
-                    <div class="mt-10 flex justify-start md:justify-end">
-                        <a href="/calculator"
-                           title="Individuelles Angebot für Firmenawards und Vereinsgeschenke berechnen"
-                           class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-primary transition shadow-lg transform hover:-translate-y-1">
-                            Jetzt Serien-Preis berechnen
-                            <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                            </svg>
-                        </a>
-                    </div>
+                    @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
+                        {{-- Button zum Kalkulator --}}
+                        <div class="mt-10 flex justify-start md:justify-end">
+                            <a href="/calculator"
+                               title="Individuelles Angebot für Firmenawards und Vereinsgeschenke berechnen"
+                               class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-primary transition shadow-lg transform hover:-translate-y-1">
+                                Jetzt Serien-Preis berechnen
+                                <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                </svg>
+                            </a>
+                        </div>
+                    @endif
 
                 </div>
 

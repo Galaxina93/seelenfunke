@@ -156,25 +156,98 @@
                 </div>
             @else
                 @if(!$hasAcceptedPrivacy)
-                    <div class="p-1.5 sm:p-3 text-center animate-fade-in-up mt-1 mb-1">
-                        <div class="mx-auto mb-3 bg-white p-3 rounded-xl border border-gray-100 shadow-sm text-left max-h-[32vh] overflow-y-auto">
-                            <label class="flex items-start gap-2.5 sm:gap-3 cursor-pointer group">
-                                <input type="checkbox" wire:model.live="privacyChecked" class="mt-0.5 w-4 h-4 shrink-0 text-cyan-500 rounded border-gray-300 focus:ring-cyan-500">
-                                <span class="text-[11px] text-gray-600 leading-snug sm:leading-relaxed group-hover:text-gray-900 transition-colors">
-                                    Ich willige gemäß Art. 6 Abs. 1 lit. a DSGVO ein, dass meine Eingaben sowie (falls eingeloggt) meine Konto-, Bestell- und Ticketdaten zur Bearbeitung meiner Support-Anfrage durch das <strong>Seelenfunke KI-Support-System (unter Nutzung von Google Cloud / Gemini)</strong> verarbeitet werden dürfen. Diese Einwilligung ist freiwillig und kann jederzeit in den Profileinstellungen (bzw. bei Gästen durch Zurücksetzen der Sitzung oder Löschen des Cookies sf_chat_uuid) mit Wirkung für die Zukunft widerrufen werden. Es gelten die <a href="/agb" target="_blank" class="text-cyan-600 underline font-bold">AGB</a> und die <a href="/datenschutz#ki-support-datenzugriff" target="_blank" class="text-cyan-600 underline font-bold">Datenschutzerklärung</a>.
-                                </span>
-                            </label>
+                    <div class="p-1.5 sm:p-3 text-center animate-fade-in-up mt-1 mb-1"
+                         x-data="{
+                            privacyAccepted: $wire.entangle('privacyChecked').live,
+                            ctaAuraArrived: false,
+                            _prevPrivacyAccepted: false,
+                            syncPrivacySparkFlow(isInitial = false) {
+                                const nowAccepted = Boolean(this.privacyAccepted);
+                                if (isInitial) {
+                                    this._prevPrivacyAccepted = nowAccepted;
+                                    this.ctaAuraArrived = nowAccepted;
+                                    return;
+                                }
+                                if (nowAccepted === this._prevPrivacyAccepted) {
+                                    return;
+                                }
+                                this._prevPrivacyAccepted = nowAccepted;
+                                if (nowAccepted) {
+                                    this.ctaAuraArrived = false;
+                                    if (window.sfSparkFlow) {
+                                        window.sfSparkFlow.fly(this.$refs.privacyBox, this.$refs.privacyStartBtn, {
+                                            mode: 'unlock',
+                                            runKey: 'support-chat-privacy-flow',
+                                            onArrival: () => { this.ctaAuraArrived = true; }
+                                        });
+                                    } else {
+                                        this.ctaAuraArrived = true;
+                                    }
+                                } else {
+                                    this.ctaAuraArrived = false;
+                                    window.sfSparkFlow?.fly(this.$refs.privacyStartBtn, this.$refs.privacyBox, {
+                                        mode: 'relock',
+                                        runKey: 'support-chat-privacy-flow'
+                                    });
+                                }
+                            },
+                            triggerPrivacyHint(btnEl) {
+                                if (this.privacyAccepted) return;
+                                window.sfSparkFlow?.fly(btnEl, this.$refs.privacyBox, {
+                                    mode: 'hint',
+                                    cooldownKey: 'support-chat-privacy-hint'
+                                });
+                            },
+                            handlePrivacySubmit(btnEl) {
+                                if (!this.privacyAccepted) {
+                                    this.triggerPrivacyHint(btnEl);
+                                    this.$refs.privacyBox?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                    return;
+                                }
+                                $wire.acceptPrivacy();
+                            },
+                            initPrivacySparkFlow() {
+                                this.syncPrivacySparkFlow(true);
+                                this.$watch('privacyAccepted', () => this.syncPrivacySparkFlow(false));
+                            }
+                         }"
+                         x-init="initPrivacySparkFlow()">
+                        <div x-ref="privacyBox"
+                             class="sf-magic-thin-aura mx-auto mb-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                            <span x-show="!privacyAccepted"
+                                  x-cloak
+                                  class="sf-magic-thin-aura-ring"
+                                  aria-hidden="true"></span>
+                            <div class="p-3 text-left max-h-[32vh] overflow-y-auto rounded-xl">
+                                <label class="flex items-start gap-2.5 sm:gap-3 cursor-pointer group">
+                                    <input type="checkbox"
+                                           x-model="privacyAccepted"
+                                           wire:model.live="privacyChecked"
+                                           class="mt-0.5 w-4 h-4 shrink-0 text-cyan-500 rounded border-gray-300 focus:ring-cyan-500 cursor-pointer">
+                                    <span class="text-[11px] text-gray-600 leading-snug sm:leading-relaxed group-hover:text-gray-900 transition-colors">
+                                        Ich willige gemäß Art. 6 Abs. 1 lit. a DSGVO ein, dass meine Eingaben sowie (falls eingeloggt) meine Konto-, Bestell- und Ticketdaten zur Bearbeitung meiner Support-Anfrage durch das <strong>Seelenfunke KI-Support-System (unter Nutzung von Google Cloud / Gemini)</strong> verarbeitet werden dürfen. Diese Einwilligung ist freiwillig und kann jederzeit in den Profileinstellungen (bzw. bei Gästen durch Zurücksetzen der Sitzung oder Löschen des Cookies sf_chat_uuid) mit Wirkung für die Zukunft widerrufen werden. Es gelten die <a href="/agb" target="_blank" class="text-cyan-600 underline font-bold">AGB</a> und die <a href="/datenschutz#ki-support-datenzugriff" target="_blank" class="text-cyan-600 underline font-bold">Datenschutzerklärung</a>.
+                                    </span>
+                                </label>
+                            </div>
                         </div>
-                        
-                        <button wire:click="acceptPrivacy" @class([
-                            'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg shadow-sm transition-all text-center text-[11px] font-bold uppercase tracking-wider',
-                            'bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-700 hover:to-cyan-600 text-white cursor-pointer' => $privacyChecked,
-                            'bg-gray-200 text-gray-400 cursor-not-allowed' => !$privacyChecked
-                        ]) @if(!$privacyChecked) disabled @endif>
+
+                        <button type="button"
+                                x-ref="privacyStartBtn"
+                                @mouseenter="triggerPrivacyHint($el)"
+                                @click="handlePrivacySubmit($el)"
+                                :aria-disabled="!privacyAccepted"
+                                :class="privacyAccepted
+                                    ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-700 hover:to-cyan-600 text-white cursor-pointer shadow-sm'
+                                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'"
+                                class="sf-magic-thin-aura sf-magic-thin-aura-cta w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all text-center text-[11px] font-bold uppercase tracking-wider">
+                            <span x-show="privacyAccepted && ctaAuraArrived"
+                                  x-cloak
+                                  class="sf-magic-thin-aura-ring"
+                                  aria-hidden="true"></span>
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                             </svg>
-                            Zustimmen & Chat starten
+                            <span>Zustimmen &amp; Chat starten</span>
                         </button>
                         
                         <div class="mt-2 text-center">

@@ -358,12 +358,122 @@ class SystemSecurityService
         return in_array($cleanHost, ['127.0.0.1', '::1', 'localhost'], true);
     }
 
+    /**
+     * Erkennt typische automatisierte Schwachstellen- und Exploit-Scanner-Pfade
+     * (z. B. /.env, /.git, /wp-admin, /wp-login.php, /phpmyadmin, /vendor/phpunit, /xmlrpc.php).
+     * Liefert die erkannte Signatur zurück oder null bei regulären Shop-Aufrufen.
+     */
+    public static function detectExploitScannerPath(string $rawPath, ?string $rawQuery = null): ?string
+    {
+        $decodedPath = rawurldecode($rawPath);
+        $normPath = '/' . ltrim(strtolower(trim($decodedPath)), '/');
+        $normQuery = strtolower(rawurldecode((string) ($rawQuery ?? '')));
+
+        // 1. Exakte oder Präfix-basierte Scanner- & Honeypot-Pfade
+        $exploitPrefixes = [
+            '/.env'                         => '/.env (Environment-Leak-Scan)',
+            '/.git'                         => '/.git (Git-Repository-Scan)',
+            '/.aws'                         => '/.aws (Cloud-Credentials-Scan)',
+            '/.ssh'                         => '/.ssh (SSH-Key-Scan)',
+            '/.vscode'                      => '/.vscode (IDE-Config-Scan)',
+            '/wp-admin'                     => '/wp-admin (WordPress-Scanner)',
+            '/wp-login.php'                 => '/wp-login.php (WordPress-Brute-Force)',
+            '/wp-config'                    => '/wp-config (WordPress-Config-Scan)',
+            '/wp-includes/wlwmanifest.xml'  => '/wp-includes/wlwmanifest.xml (WordPress-Scanner)',
+            '/wp-content/'                  => '/wp-content/ (WordPress-Plugin-Scanner)',
+            '/xmlrpc.php'                   => '/xmlrpc.php (WordPress-XMLRPC-Exploit)',
+            '/phpmyadmin'                   => '/phpmyadmin (DB-Admin-Scanner)',
+            '/pma'                          => '/pma (DB-Admin-Scanner)',
+            '/myadmin'                      => '/myadmin (DB-Admin-Scanner)',
+            '/mysqladmin'                   => '/mysqladmin (DB-Admin-Scanner)',
+            '/adminer'                      => '/adminer (DB-Admin-Scanner)',
+            '/vendor/phpunit'               => '/vendor/phpunit (PHPUnit-RCE-Exploit)',
+            '/_ignition/execute-solution'   => '/_ignition/execute-solution (Ignition-RCE-Exploit)',
+            '/actuator/'                    => '/actuator/ (Spring-Actuator-Scanner)',
+            '/cgi-bin/'                     => '/cgi-bin/ (CGI-Shellshock-Scanner)',
+            '/boaform/'                     => '/boaform/ (IoT-Botnet-Scanner)',
+            '/autodiscover/autodiscover.xml'=> '/Autodiscover.xml (Exchange-Scanner)',
+            '/ecp/current/'                 => '/ecp/Current/ (Exchange-ProxyLogon-Scanner)',
+            '/hnap1'                        => '/HNAP1 (Router-Exploit-Scanner)',
+            '/phpinfo.php'                  => '/phpinfo.php (Info-Disclosure-Scan)',
+        ];
+
+        foreach ($exploitPrefixes as $prefix => $signatureLabel) {
+            if ($normPath === $prefix || str_starts_with($normPath, $prefix . '/') || str_starts_with($normPath, $prefix . '.')) {
+                return $signatureLabel;
+            }
+        }
+
+        // 2. Bekannte Webshell- & Backdoor-Dateinamen auf beliebiger Pfadtiefe
+        if (preg_match('#/(eval-stdin|c99|r57|wso|alfa|b374k|shell|cmd|backdoor|setup-config)\.php$#i', $normPath, $m)) {
+            return '/' . strtolower($m[1]) . '.php (Webshell-/Backdoor-Scan)';
+        }
+
+        // 3. LFI / Path-Traversal-Signaturen in Pfad oder Query-String
+        $combined = $normPath . ($normQuery !== '' ? ('?' . $normQuery) : '');
+        if (
+            str_contains($combined, 'etc/passwd')
+            || str_contains($combined, 'proc/self/environ')
+            || str_contains($combined, 'win.ini')
+            || str_contains($combined, 'php://filter')
+            || str_contains($combined, 'expect://')
+        ) {
+            return 'LFI / Path-Traversal-Exploit-Scan';
+        }
+
+        return null;
+    }
+
+    /**
+     * Sperrt eine IP-Adresse nach einem erkannten Exploit-/Scanner-Aufruf automatisch für 24 Stunden
+     * und protokolliert den Vorfall für den Threat-Monitor (/admin/dashboard).
+     */
+    public static function blockExploitScannerIp(Request $request, string $matchedSignature): void
+    {
+        try {
+            $ip = trim((string) $request->ip());
+            if ($ip === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+                return;
+            }
+
+            $isLoopback = in_array($ip, ['127.0.0.1', '::1'], true);
+            $alreadyBlocked = !$isLoopback && SystemBlockedIp::isBlocked($ip);
+
+            if (!$isLoopback && !$alreadyBlocked) {
+                SystemBlockedIp::blockIp(
+                    $ip,
+                    "Auto-Firewall (24h): Scanner-/Exploit-Pfad aufgerufen ({$matchedSignature})",
+                    24,
+                    'Auto-Defense'
+                );
+            }
+
+            if (!$alreadyBlocked) {
+                self::logEvent(
+                    'security:exploit_path_ban',
+                    'Auto-Firewall: Scanner-IP für 24h gesperrt',
+                    "IP {$ip} hat den geschützten Honeypot-/Exploit-Pfad [{$matchedSignature}] unter '{$request->getRequestUri()}' aufgerufen und wurde automatisch für 24 Stunden gesperrt.",
+                    'error',
+                    [
+                        'category' => 'bot_defense',
+                        'ip_address' => $ip,
+                        'matched_signature' => $matchedSignature,
+                        'request_uri' => substr((string) $request->getRequestUri(), 0, 255),
+                        'method' => $request->method(),
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            // Fail-safe
+        }
+    }
+
     private static function inferCategory(string $actionId): string
     {
         if (str_contains($actionId, '2fa') || str_contains($actionId, 'oauth') || str_contains($actionId, 'emergency_auth') || str_contains($actionId, 'password_reset')) {
             return 'auth_2fa';
         }
-        if (str_contains($actionId, 'honeypot') || str_contains($actionId, 'bot') || str_contains($actionId, 'spam') || str_contains($actionId, 'flood') || str_contains($actionId, 'voucher_brute')) {
+        if (str_contains($actionId, 'honeypot') || str_contains($actionId, 'exploit') || str_contains($actionId, 'scanner') || str_contains($actionId, 'bot') || str_contains($actionId, 'spam') || str_contains($actionId, 'flood') || str_contains($actionId, 'voucher_brute')) {
             return 'bot_defense';
         }
         if (str_contains($actionId, 'rate_limit') || str_contains($actionId, 'brute') || str_contains($actionId, 'ip_ban')) {

@@ -141,6 +141,7 @@ class SpielerCockpitCompleteTest extends TestCase
             'first_name' => 'Lena',
             'last_name' => 'Stern',
             'email' => 'lena@example.com',
+            'email_verified_at' => now(),
             'password' => bcrypt('password123'),
         ]);
 
@@ -153,15 +154,33 @@ class SpielerCockpitCompleteTest extends TestCase
             'funken_total_earned' => 600,
         ]);
 
-        // Magie aktivieren im Dashboard + Button "Ins Funkenreich" pruefen
-        Livewire::actingAs($customer, 'customer')
+        // Kostenloses Magie aktivieren im Dashboard (ohne Bestellung!) + Clean-Design Kachel + "Magie deaktivieren" + 5 % Audio-Default
+        $component = Livewire::actingAs($customer, 'customer')
             ->test(CustomerDashboardComponent::class)
+            ->assertSet('funkiAudioVolume', 5)
             ->assertSee('Ins Funkenreich')
+            ->assertSee('grayscale-[0.65]', false)
+            ->assertSee('data-testid="dashboard-activate-magic-btn"', false)
+            ->assertSee('x-ref="magicTermsBox"', false)
+            ->assertSee('x-ref="magicActivateBtn"', false)
+            ->assertSee('sf-magic-thin-aura-ring', false)
+            ->assertSee('onMagicTermsChange()', false)
+            ->assertDontSee(':disabled="!agreedToTerms || isActivating"', false)
+            ->assertDontSee('Durch deinen Einkauf freigeschaltet')
+            ->assertDontSee('Klicke auf dein Funki-Profilbild, um deine Evolutionsstufen')
+            ->assertDontSee('data-testid="dashboard-deactivate-magic-btn"', false)
             ->assertDontSee('3D-Lobby öffnen')
+            ->assertDontSee('sf-funki-bgm-persistent-root', false)
+            ->assertDontSee('bgm_funki_game', false)
+            ->assertDontSee('Musik laufen lassen')
             ->set('acceptTerms', true)
             ->set('optInPublicNameOnActivate', true)
             ->call('activateGamification')
             ->assertSet('hasActivatedGamification', true)
+            ->assertSet('isGameModeActive', true)
+            ->assertSee('Cockpit öffnen')
+            ->assertSee('data-testid="dashboard-deactivate-magic-btn"', false)
+            ->assertSee('Magie deaktivieren')
             ->call('redeemFunkenVoucher', 'voucher_10'); // 600 Funken -> 10% Rabatt
 
         $profile->refresh();
@@ -171,6 +190,15 @@ class SpielerCockpitCompleteTest extends TestCase
         $this->assertEquals(0, $profile->funken_balance);
         $this->assertEquals(600, $profile->funken_total_earned);
         $this->assertEquals(3, $profile->funki_level);
+
+        // Magie wieder deaktivieren sperrt die Kachel sauber (Fortschritt bleibt erhalten)
+        $component->call('deactivateSeelenfunke')
+            ->assertSet('isGameModeActive', false)
+            ->assertSee('grayscale-[0.65]', false);
+
+        $profile->refresh();
+        $this->assertFalse((bool) $profile->is_active);
+        $this->assertEquals(600, $profile->funken_total_earned);
     }
 
     public function test_admin_can_adjust_customer_funki_level_and_sparks_in_user_management(): void

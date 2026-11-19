@@ -371,6 +371,32 @@ object FalconClientTools {
         }
     }
 
+    fun buildSilentClientContextPacket(prompt: String): JsonObject {
+        return JsonObject().apply {
+            add("clientContent", JsonObject().apply {
+                add("turns", JsonArray().apply {
+                    add(JsonObject().apply {
+                        addProperty("role", "user")
+                        add("parts", JsonArray().apply {
+                            add(JsonObject().apply {
+                                addProperty("text", prompt)
+                            })
+                        })
+                    })
+                })
+                addProperty("turnComplete", false)
+            })
+        }
+    }
+
+    fun buildAttachedMediaSystemDirective(staged: PreparedAgAttachment?): String? {
+        if (staged == null) return null
+        return "WICHTIGER APP-STATUS: Alina hat BEREITS ein Foto/Screenshot in der App hinterlegt ('${staged.fileName}')! " +
+            "Frage NICHT, ob du ein Foto machen sollst, und rufe NIEMALS falcon_camera_control / take_photo / Kamera-Aufnahme auf, " +
+            "solange sie nicht ausdrücklich 'mach ein neues Foto' verlangt! Nutze direkt das bereits hinterlegte Bild " +
+            "(beim Senden an Antigravity wird es automatisch angehängt)."
+    }
+
     fun normalizeGermanSmartHomeText(raw: String?): String {
         if (raw.isNullOrBlank()) return ""
         return raw
@@ -476,16 +502,12 @@ object FalconClientTools {
     fun shouldAttachCapturedPhoto(
         explicitAttachFlag: Boolean?,
         photo: FalconCapturedPhoto?,
-        currentSessionId: String?,
-        nowMs: Long = System.currentTimeMillis()
+        @Suppress("UNUSED_PARAMETER") currentSessionId: String?,
+        @Suppress("UNUSED_PARAMETER") nowMs: Long = System.currentTimeMillis()
     ): Boolean {
         if (photo == null) return false
-        if (explicitAttachFlag == false) return false
-        if (explicitAttachFlag == true) return true
-        if (photo.attachedToInbox) return false
-        val sameSession = !currentSessionId.isNullOrBlank() && photo.sessionId == currentSessionId
-        val recentCapture = (nowMs - photo.capturedAtMs) in 0L..180_000L
-        return sameSession || recentCapture
+        if (!photo.attachedToInbox) return true
+        return explicitAttachFlag == true
     }
 
     fun isSportQuery(query: String?): Boolean {
@@ -703,7 +725,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_camera_control")
                 addProperty(
                     "description",
-                    "Steuert Falcones Kamera-Augen auf dem Smartphone (Live-Sicht ein-/ausschalten, Kamera wechseln oder scharfes hochauflösendes Foto schießen)."
+                    "Steuert Falcones Kamera-Augen auf dem Smartphone (Live-Sicht ein-/ausschalten, Kamera wechseln oder scharfes hochauflösendes Foto schießen). WICHTIG: Rufe NIEMALS take_photo oder enable_vision auf, wenn Alina bereits ein Foto/Screenshot in der App hinterlegt hat, außer sie verlangt ausdrücklich ein NEUES Kamerafoto (force_new_photo=true) oder Live-Kamera (force_live_vision=true)!"
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -715,6 +737,14 @@ object FalconClientTools {
                         add("lens", JsonObject().apply {
                             addProperty("type", "STRING")
                             addProperty("description", "Optionale Linse: back oder front")
+                        })
+                        add("force_new_photo", JsonObject().apply {
+                            addProperty("type", "BOOLEAN")
+                            addProperty("description", "Nur auf true setzen, wenn Alina trotz bereits hinterlegtem Bild ausdrücklich verlangt, ein neues Foto mit der Kamera aufzunehmen.")
+                        })
+                        add("force_live_vision", JsonObject().apply {
+                            addProperty("type", "BOOLEAN")
+                            addProperty("description", "Nur auf true setzen, wenn Alina ausdrücklich Live-Kamera-Sicht ('mach deine Kamera an') wünscht.")
                         })
                     })
                     add("required", JsonArray().apply { add("action") })
@@ -1079,6 +1109,23 @@ object FalconClientTools {
             "falcon_camera_control" -> {
                 val action = args.optString("action").ifBlank { "enable_vision" }.lowercase(Locale.ROOT)
                 val lens = args.optString("lens").takeIf { it.isNotBlank() }
+                val forceNewPhoto = args.optNullableBoolean("force_new_photo") == true
+                val forceLiveVision = args.optNullableBoolean("force_live_vision") == true
+                val existingAttachment = AgDirectInboxManager.getActiveStagedAttachment()
+
+                val isPhotoCaptureRequest = action in setOf("take_photo", "photo", "snapshot")
+                val isImplicitVisionWhenPhotoAttached = action == "enable_vision" && !forceLiveVision && !forceNewPhoto
+                if (existingAttachment != null && ((isPhotoCaptureRequest && !forceNewPhoto) || isImplicitVisionWhenPhotoAttached)) {
+                    return JsonObject().apply {
+                        addProperty("status", "already_attached")
+                        addProperty("has_attached_image", true)
+                        addProperty("file_name", existingAttachment.fileName)
+                        addProperty(
+                            "message",
+                            "Alina hat bereits ein Foto/Screenshot in der App hinterlegt. Kamera wurde NICHT erneut geöffnet; das hinterlegte Bild steht bereit und wird beim Direktauftrag automatisch mitgesendet."
+                        )
+                    }
+                }
 
                 if (action != "disable_vision" && !FalconCameraController.hasCameraPermission(appCtx)) {
                     FalconCameraController.requestPermissionForAction(action, lens)
@@ -1163,16 +1210,16 @@ object FalconClientTools {
                 val channel = AgDirectInboxManager.normalizeChannel(args.optString("channel"))
                 val explicitAttach = args.optNullableBoolean("attach_captured_photo")
 
+                val stagedAttachment = AgDirectInboxManager.getActiveStagedAttachment()
                 val currentPhoto = FalconCameraController.lastCapturedPhoto.value
-                val attachPhoto = shouldAttachCapturedPhoto(
-                    explicitAttachFlag = explicitAttach,
-                    photo = currentPhoto,
-                    currentSessionId = chatSessionId
-                )
-                val preparedAttachment = if (attachPhoto && currentPhoto != null) {
-                    currentPhoto.toPreparedAgAttachment()
-                } else {
-                    null
+                val preparedAttachment = when {
+                    stagedAttachment != null -> stagedAttachment
+                    shouldAttachCapturedPhoto(
+                        explicitAttachFlag = explicitAttach,
+                        photo = currentPhoto,
+                        currentSessionId = chatSessionId
+                    ) && currentPhoto != null -> currentPhoto.toPreparedAgAttachment()
+                    else -> null
                 }
 
                 val combinedText = when {

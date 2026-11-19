@@ -56,6 +56,9 @@
 
             {{-- VIEW: DASHBOARD (MAIN) --}}
         @else
+            @php
+                $isQuoteMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+            @endphp
             <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100 animate-fade-in">
 
                 {{-- Header --}}
@@ -219,7 +222,7 @@
                                     <td class="px-4 py-3 text-center align-middle font-bold">{{ $item->quantity }}</td>
                                     <td class="px-4 py-3 text-right whitespace-nowrap align-middle font-mono">{{ number_format($item->total_price / 100, 2, ',', '.') }} €</td>
                                     <td class="px-4 py-3 text-right align-middle">
-                                        @if($quote->isValid())
+                                        @if(!$isQuoteMaintenance && $quote->isValid())
                                             <button wire:click="editItem('{{ $item->id }}')" class="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded-lg transition" title="Bearbeiten">
                                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
                                             </button>
@@ -417,6 +420,9 @@
 
                         {{-- Actions Area --}}
                         <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm flex flex-col justify-center">
+                        @if($isQuoteMaintenance)
+                            <x-alerts.shop-maintenance-notice />
+                        @else
                         <h3 class="font-bold text-gray-800 mb-4 text-center">Wie möchten Sie fortfahren?</h3>
 
                         <div class="flex justify-center">
@@ -428,7 +434,7 @@
                                         wire:loading.attr="disabled"
                                         class="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-[var(--theme-color)] to-[#9a7428] text-white rounded-full hover:shadow-lg hover:scale-[1.02] transition font-bold text-base shadow-md flex items-center justify-center gap-2 cursor-pointer">
                                     <svg class="w-5 h-5 text-white/90" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
-                                    <span>Zur Kasse & Bezahlen</span>
+                                    <span>Zur Kasse &amp; Bezahlen</span>
                                 </button>
                             @else
                                 <button disabled class="px-6 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-bold text-sm">
@@ -451,6 +457,7 @@
                                     Kein Interesse? Angebot ablehnen.
                                 </button>
                             </div>
+                        @endif
                         @endif
                         </div>
                     </div>

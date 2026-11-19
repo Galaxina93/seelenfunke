@@ -292,6 +292,195 @@ class CustomerOrdersComponent extends Component
         })->with('product')->find($this->editItemId);
     }
 
+    public static function resolveBlueprintSnapshotUrl(?string $rawPath): ?string
+    {
+        if ($rawPath === null) {
+            return null;
+        }
+        $trimmed = trim($rawPath);
+        if ($trimmed === '' || str_contains($trimmed, "\0") || str_contains($trimmed, '..') || str_contains($trimmed, '\\')) {
+            return null;
+        }
+
+        if (str_starts_with($trimmed, 'data:') || str_starts_with($trimmed, 'http://') || str_starts_with($trimmed, 'https://')) {
+            return resolve_snapshot_url($trimmed);
+        }
+
+        $clean = ltrim(preg_replace('#^/?storage/#', '', $trimmed) ?? $trimmed, '/');
+        if ($clean === '' || str_contains($clean, '..') || str_contains($clean, '\\')) {
+            return null;
+        }
+
+        $candidates = [];
+        if (str_starts_with($clean, 'snapshots/')) {
+            $candidates[] = 'system/' . $clean;
+            $candidates[] = $clean;
+        } elseif (str_starts_with($clean, 'system/snapshots/')) {
+            $candidates[] = $clean;
+            $candidates[] = substr($clean, 7);
+        } else {
+            $candidates[] = 'system/snapshots/' . $clean;
+            $candidates[] = 'system/' . $clean;
+            $candidates[] = $clean;
+        }
+
+        $publicDisk = \Illuminate\Support\Facades\Storage::disk('public');
+        foreach ($candidates as $cand) {
+            if ($publicDisk->exists($cand)) {
+                return asset('storage/' . $cand);
+            }
+        }
+
+        return resolve_snapshot_url($clean, asset('storage/' . $clean));
+    }
+
+    /**
+     * Löst Metadaten einer erfolgten Manufaktur-/Admin-Anpassung an einer Bestellposition auf.
+     *
+     * @return array{adjusted_by: string, adjusted_at: string, adjusted_formatted: string, version: int, sentence: string}|null
+     */
+    public static function resolveAdminAdjustmentInfo(?OrderOrderItem $item): ?array
+    {
+        if (!$item) {
+            return null;
+        }
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $adj = $conf['last_admin_adjustment'] ?? null;
+        if (!is_array($adj) || empty($adj)) {
+            return null;
+        }
+
+        $adjustedBy = trim(str_replace([" \u{2013} ", " \u{2014} ", 'Mein-Seelenfunke Admin'], [' · ', ' · ', 'Mein Seelenfunke Admin'], (string) ($adj['adjusted_by'] ?? 'Mein Seelenfunke Admin')));
+        if ($adjustedBy === '') {
+            $adjustedBy = 'Mein Seelenfunke Admin';
+        }
+
+        $rawAt = trim((string) ($adj['adjusted_at'] ?? ''));
+        $formattedAt = '';
+        try {
+            if ($rawAt !== '') {
+                $formattedAt = \Carbon\Carbon::parse($rawAt)->timezone('Europe/Berlin')->format('d.m.Y \u\m H:i \U\h\r');
+            } elseif ($item->updated_at) {
+                $formattedAt = $item->updated_at->copy()->timezone('Europe/Berlin')->format('d.m.Y \u\m H:i \U\h\r');
+            }
+        } catch (\Throwable) {
+            $formattedAt = $item->updated_at
+                ? $item->updated_at->copy()->timezone('Europe/Berlin')->format('d.m.Y \u\m H:i \U\h\r')
+                : '';
+        }
+
+        return [
+            'adjusted_by'        => $adjustedBy,
+            'adjusted_at'        => $rawAt,
+            'adjusted_formatted' => $formattedAt,
+            'version'            => max(1, (int) ($adj['version'] ?? 2)),
+            'sentence'           => $formattedAt !== ''
+                ? "{$adjustedBy} · Änderungsmaßnahme am {$formattedAt} durchgeführt"
+                : "{$adjustedBy} · Änderungsmaßnahme durchgeführt",
+        ];
+    }
+
+    /**
+     * Baut den chronologischen Blueprint-Änderungsverlauf (configuration_history + aktueller Stand) für den Kundenbereich.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function buildItemBlueprintTimeline(?OrderOrderItem $item): array
+    {
+        if (!$item) {
+            return [];
+        }
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $rawHistory = is_array($conf['configuration_history'] ?? null)
+            ? array_values(array_filter($conf['configuration_history'], 'is_array'))
+            : [];
+
+        if (empty($rawHistory)) {
+            return [];
+        }
+
+        usort($rawHistory, static fn (array $a, array $b): int => ((int) ($a['version'] ?? 0)) <=> ((int) ($b['version'] ?? 0)));
+
+        $formatTs = static function (?string $iso, $fallbackDt = null): string {
+            try {
+                if ($iso !== null && trim($iso) !== '') {
+                    return \Carbon\Carbon::parse($iso)->timezone('Europe/Berlin')->format('d.m.Y, H:i \U\h\r');
+                }
+                if ($fallbackDt instanceof \Carbon\CarbonInterface) {
+                    return $fallbackDt->copy()->timezone('Europe/Berlin')->format('d.m.Y, H:i \U\h\r');
+                }
+            } catch (\Throwable) {
+            }
+
+            return '';
+        };
+
+        $steps = [];
+        foreach ($rawHistory as $idx => $entry) {
+            $ver = max(1, (int) ($entry['version'] ?? ($idx + 1)));
+            $actorType = strtolower((string) ($entry['actor_type'] ?? 'customer')) === 'admin' ? 'admin' : 'customer';
+            $rawLabel = trim(str_replace([" \u{2013} ", " \u{2014} "], ' · ', (string) ($entry['actor_label'] ?? '')));
+
+            if ($actorType === 'customer' && ($rawLabel === '' || $rawLabel === 'Original-Entwurf beim Kauf')) {
+                $displayLabel = $ver === 1 ? 'Dein Original-Entwurf' : 'Deine Anpassung';
+            } elseif ($rawLabel !== '') {
+                $displayLabel = $rawLabel;
+            } else {
+                $displayLabel = $actorType === 'admin' ? 'Mein-Seelenfunke Admin' : 'Dein Original-Entwurf';
+            }
+
+            $snap = $entry['snapshot_path'] ?? null;
+            $frontUrl = is_array($snap)
+                ? self::resolveBlueprintSnapshotUrl($snap['front'] ?? null)
+                : (is_string($snap) ? self::resolveBlueprintSnapshotUrl($snap) : null);
+            $backUrl = is_array($snap) ? self::resolveBlueprintSnapshotUrl($snap['back'] ?? null) : null;
+
+            $steps[] = [
+                'version'        => $ver,
+                'actor_type'     => $actorType,
+                'actor_label'    => $displayLabel,
+                'saved_at_label' => $formatTs($entry['saved_at'] ?? null, $item->created_at),
+                'front_url'      => $frontUrl,
+                'back_url'       => $backUrl,
+                'has_back'       => $backUrl !== null && $backUrl !== '',
+                'is_current'     => false,
+            ];
+        }
+
+        $maxVer = !empty($steps) ? max(array_column($steps, 'version')) : 0;
+        $adjInfo = self::resolveAdminAdjustmentInfo($item);
+        $currVer = ($adjInfo !== null && $adjInfo['version'] > $maxVer)
+            ? $adjInfo['version']
+            : ($maxVer + 1);
+        $currActorType = $adjInfo !== null ? 'admin' : 'customer';
+        $currActorLabel = $adjInfo !== null ? $adjInfo['adjusted_by'] : 'Dein aktueller Entwurf';
+
+        $currSnap = $conf['snapshot_path'] ?? null;
+        $hasBackContent = collect($conf['texts_back'] ?? [])->contains(fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '')
+            || !empty($conf['logos_back']);
+        $currFrontUrl = is_array($currSnap)
+            ? self::resolveBlueprintSnapshotUrl($currSnap['front'] ?? null)
+            : (is_string($currSnap) ? self::resolveBlueprintSnapshotUrl($currSnap) : null);
+        $currBackUrl = (is_array($currSnap) && $hasBackContent)
+            ? self::resolveBlueprintSnapshotUrl($currSnap['back'] ?? null)
+            : null;
+
+        $steps[] = [
+            'version'        => $currVer,
+            'actor_type'     => $currActorType,
+            'actor_label'    => $currActorLabel,
+            'saved_at_label' => $formatTs($adjInfo['adjusted_at'] ?? null, $item->updated_at),
+            'front_url'      => $currFrontUrl,
+            'back_url'       => $currBackUrl,
+            'has_back'       => $currBackUrl !== null && $currBackUrl !== '',
+            'is_current'     => true,
+        ];
+
+        return $steps;
+    }
+
     public function render()
     {
         $user = Auth::guard('customer')->user();

@@ -287,8 +287,10 @@ class OrderCheckout extends Component
         // Standardmäßig Lieferland an Rechnungsland angleichen
         $this->shipping_country = $this->country;
 
-        // Stripe Intent sofort erstellen, damit das Payment Element laden kann
-        $this->createPaymentIntent();
+        if (!filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            // Stripe Intent sofort erstellen, damit das Payment Element laden kann
+            $this->createPaymentIntent();
+        }
 
         $this->checkDisposableEmail();
     }
@@ -470,10 +472,6 @@ class OrderCheckout extends Component
 
     public function render()
     {
-        if (shop_setting('maintenance_mode', false) && !Auth::guard('admin')->check()) {
-            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
-        }
-
         $cartService = app(CartService::class);
         $cart = $this->isFinished ? null : $cartService->getCart();
 

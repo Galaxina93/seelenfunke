@@ -13,8 +13,50 @@
         terms: @entangle('terms_accepted').live,
         privacy: true,
         digitalWaiver: @entangle('digital_waiver_accepted').live,
-        requiresDigitalWaiver: {{ $hasDigitalOrIngame ? 'true' : 'false' }}
+        requiresDigitalWaiver: {{ $hasDigitalOrIngame ? 'true' : 'false' }},
+        ctaAuraArrived: false,
+        _prevLegalConfirmed: false,
+        isLegalConfirmed() {
+            return Boolean(this.terms && (!this.requiresDigitalWaiver || this.digitalWaiver));
+        },
+        syncLegalSparkFlow(isInitial = false) {
+            const nowConfirmed = this.isLegalConfirmed();
+            if (isInitial) {
+                this._prevLegalConfirmed = nowConfirmed;
+                this.ctaAuraArrived = nowConfirmed;
+                return;
+            }
+            if (nowConfirmed === this._prevLegalConfirmed) {
+                return;
+            }
+            this._prevLegalConfirmed = nowConfirmed;
+            if (nowConfirmed) {
+                this.showLegalWarning = false;
+                this.ctaAuraArrived = false;
+                if (window.sfSparkFlow) {
+                    window.sfSparkFlow.fly('#checkout-legal-box', '#submit-button', {
+                        mode: 'unlock',
+                        runKey: 'checkout-legal-flow',
+                        onArrival: () => { this.ctaAuraArrived = true; }
+                    });
+                } else {
+                    this.ctaAuraArrived = true;
+                }
+            } else {
+                this.ctaAuraArrived = false;
+                window.sfSparkFlow?.fly('#submit-button', '#checkout-legal-box', {
+                    mode: 'relock',
+                    runKey: 'checkout-legal-flow'
+                });
+            }
+        },
+        initCheckoutSparkFlow() {
+            this.syncLegalSparkFlow(true);
+            this.$watch('terms', () => this.syncLegalSparkFlow(false));
+            this.$watch('digitalWaiver', () => this.syncLegalSparkFlow(false));
+        }
      }"
+     x-init="initCheckoutSparkFlow()"
      @checkout-legal-warning.window="showLegalWarning = true"
      @checkout-processing-done.window="isProcessing = false"
      @checkout-processing.window="isProcessing = true">
@@ -56,21 +98,14 @@
                 $targetCountry = ($has_separate_shipping && !empty($shipping_country)) ? $shipping_country : $country;
             @endphp
 
-            @if($targetCountry === 'DE' && $hasStandardPhysical)
+            @if($targetCountry === 'DE' && $hasStandardPhysical && !$isFree)
                 <div class="mb-4 bg-gray-50 p-3.5 rounded-xl border border-gray-200">
-                    @if($isFree)
-                        <div class="flex items-center gap-2 text-green-600 font-bold text-sm animate-fade-in">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                            Glückwunsch! Versandkostenfrei.
-                        </div>
-                    @else
-                        <p class="text-sm text-gray-700 font-medium mb-1.5">
-                            Noch <span class="text-primary font-bold whitespace-nowrap">{{ number_format($missing / 100, 2, ',', '.') }}&nbsp;€</span> bis zum <span class="text-green-600 font-bold">kostenlosen Versand!</span>
-                        </p>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                            <div class="bg-primary h-2 rounded-full transition-all duration-500" style="width: {{ $percent }}%"></div>
-                        </div>
-                    @endif
+                    <p class="text-sm text-gray-700 font-medium mb-1.5">
+                        Noch <span class="text-primary font-bold whitespace-nowrap">{{ number_format($missing / 100, 2, ',', '.') }}&nbsp;€</span> bis zum <span class="text-green-600 font-bold">kostenlosen Versand!</span>
+                    </p>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-primary h-2 rounded-full transition-all duration-500" style="width: {{ $percent }}%"></div>
+                    </div>
                 </div>
             @elseif(!$hasStandardPhysical && $hasPostalVoucher)
                 <div class="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200 text-amber-800 text-xs sm:text-sm flex items-center gap-2.5 shadow-2xs font-medium">
@@ -443,18 +478,6 @@
                     }
                 }
             @endphp
-            @if($hasPhysical)
-                <div class="mt-4 p-3 {{ $hasCheckoutBackorder ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-emerald-50/70 border-emerald-100 text-emerald-900' }} border rounded-xl flex items-center gap-3 text-xs">
-                    <span class="text-base shrink-0">🚚</span>
-                    <div class="min-w-0">
-                        <span class="font-bold block {{ $hasCheckoutBackorder ? 'text-amber-950' : 'text-emerald-950' }}">{{ $checkoutDeliveryText }}</span>
-                        @if($hasCheckoutBackorder)
-                            <span class="block text-[10px] text-amber-800 mt-0.5">Enthält Auftragsfertigung (Rohling wird für deine Bestellung frisch bezogen &amp; in Gifhorn veredelt).</span>
-                        @endif
-                    </div>
-                </div>
-            @endif
-
             {{-- OPTIONALES KUNDENKONTO (DSK-Beschluss vom 24.03.2022 / Art. 5 Abs. 1 lit. c DSGVO) --}}
             @if(!auth('customer')->check())
                 <div class="mt-3">
@@ -468,9 +491,13 @@
                 </div>
             @endif
 
-            {{-- Gesamtsumme inkl. MwSt. & Versandkosten (§ 312j Abs. 2 & 3 BGB) --}}
+            {{-- Gesamtsumme inkl. MwSt., Versandkosten & Lieferzeit (§ 312j Abs. 2 & 3 BGB) --}}
             <div class="mt-4 pt-4 border-t border-gray-100">
-                <x-shop.cost-summary :totals="$totals" :country="$targetCountry" :showTitle="false">
+                <x-shop.cost-summary :totals="$totals"
+                                     :country="$targetCountry"
+                                     :showTitle="false"
+                                     :deliveryText="$hasPhysical ? $checkoutDeliveryText : null"
+                                     :hasBackorder="$hasCheckoutBackorder">
                     <button type="button" wire:click="removeCoupon" class="text-red-400 hover:text-red-600 transition cursor-pointer" title="Gutschein entfernen">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
@@ -480,8 +507,12 @@
             {{-- KOMPAKTE RECHTS- & GEWÄHRLEISTUNGS-BOX DIREKT ÜBER DEM BESTELL-BUTTON --}}
             <div id="checkout-legal-box"
                  x-data="{ zoomModal: false }"
-                 class="p-3.5 rounded-xl mt-4 border transition-all duration-200"
-                 :class="showLegalWarning && (!terms || !privacy || (requiresDigitalWaiver && !digitalWaiver)) ? 'bg-red-50/40 border-red-400 ring-2 ring-red-500/15' : 'bg-gray-50/90 border-gray-200/80'">
+                 class="sf-magic-thin-aura p-3.5 rounded-xl mt-4 border transition-all duration-200"
+                 :class="showLegalWarning && !isLegalConfirmed() ? 'bg-red-50/40 border-red-400 ring-2 ring-red-500/15' : 'bg-gray-50/90 border-gray-200/80'">
+                <span x-show="!isLegalConfirmed() && !showLegalWarning"
+                      x-cloak
+                      class="sf-magic-thin-aura-ring"
+                      aria-hidden="true"></span>
                 <div class="flex items-start rounded-lg transition-all duration-200"
                      :class="showLegalWarning && !terms ? 'bg-red-50 border border-red-300 p-2 -mx-1' : ''">
                     <div class="flex h-5 items-center">
@@ -629,11 +660,16 @@
                 <button id="submit-button"
                         type="submit"
                         x-bind:disabled="isProcessing"
-                        @click="if (!terms || (requiresDigitalWaiver && !digitalWaiver)) { $event.preventDefault(); $event.stopPropagation(); showLegalWarning = true; document.getElementById('checkout-legal-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }"
-                        :class="(!terms || (requiresDigitalWaiver && !digitalWaiver))
-                            ? 'bg-gray-300 text-gray-500 shadow-none hover:bg-gray-300'
-                            : 'bg-gray-900 text-white shadow-lg shadow-gray-900/20 hover:bg-black enabled:hover:-translate-y-0.5'"
-                        class="w-full rounded-full border border-transparent py-3.5 px-4 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform cursor-pointer">
+                        @mouseenter="if (!isLegalConfirmed() && !isProcessing) { window.sfSparkFlow?.fly($el, '#checkout-legal-box', { mode: 'hint', cooldownKey: 'checkout-cta-hint' }); }"
+                        @click="if (!isLegalConfirmed()) { $event.preventDefault(); $event.stopPropagation(); showLegalWarning = true; window.sfSparkFlow?.fly($el, '#checkout-legal-box', { mode: 'hint', cooldownKey: 'checkout-cta-hint' }); document.getElementById('checkout-legal-box')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }"
+                        :class="!isLegalConfirmed()
+                            ? 'bg-gray-300 text-gray-500 shadow-none hover:bg-gray-300 cursor-not-allowed'
+                            : 'bg-gray-900 text-white shadow-lg shadow-gray-900/20 hover:bg-black enabled:hover:-translate-y-0.5 cursor-pointer'"
+                        class="sf-magic-thin-aura sf-magic-thin-aura-cta w-full rounded-full border border-transparent py-3.5 px-4 text-base font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all transform">
+                    <span x-show="isLegalConfirmed() && ctaAuraArrived && !isProcessing"
+                          x-cloak
+                          class="sf-magic-thin-aura-ring"
+                          aria-hidden="true"></span>
                     <span id="button-text">Zahlungspflichtig bestellen</span>
                     <div id="spinner" class="hidden flex items-center justify-center gap-2">
                         <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -645,47 +681,90 @@
                 </button>
                 <p class="text-[11px] text-gray-400 text-center mt-2.5">Durch Klicken auf den Button schließt du einen zahlungspflichtigen Kaufvertrag ab.</p>
 
-                {{-- Sinnstiftung: Freude schenken, Soziales leisten & Funken sammeln --}}
-                <div class="mt-4 pt-3.5 border-t border-gray-100">
-                    <div class="relative overflow-hidden rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-amber-500/10 border border-amber-200/60 p-3.5 shadow-2xs">
-                        <div class="w-fit sm:w-full mx-auto flex flex-col sm:grid sm:grid-cols-3 items-start sm:items-center justify-between gap-2.5 sm:gap-2 text-left sm:text-center">
-                            <div class="flex sm:flex-col items-center gap-2.5 sm:gap-1.5">
-                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-xs shrink-0">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                {{-- Sinnstiftung (Kompakt ohne Subtitel, Info-Tooltip beim Hover/Tap auf das Icon) --}}
+                @php
+                    $checkoutHerzensEuro = \App\Services\HerzensprojektService::resolveFormattedEuro();
+                    $checkoutHerzensUnit = \App\Services\HerzensprojektService::resolveUnitLabel(true);
+                @endphp
+                <div class="mt-3.5 pt-3 border-t border-gray-100"
+                     x-data="{ activeTip: null }"
+                     @click.outside="activeTip = null">
+                    <div class="relative rounded-xl bg-[#FAF7F0] border border-[#E8DEC8]/80 px-2 py-2 shadow-2xs">
+                        <div class="grid grid-cols-3 items-center divide-x divide-[#E8DEC8]/80">
+                            {{-- 1. Freude schenken --}}
+                            <div class="relative flex items-center justify-center gap-1.5 px-1">
+                                <button type="button"
+                                        @mouseenter="activeTip = 'freude'"
+                                        @mouseleave="if (activeTip === 'freude') activeTip = null"
+                                        @focus="activeTip = 'freude'"
+                                        @blur="if (activeTip === 'freude') activeTip = null"
+                                        @click.stop="activeTip = activeTip === 'freude' ? null : 'freude'"
+                                        aria-label="Info zu Freude schenken"
+                                        class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-2xs shrink-0 cursor-help transition-transform hover:scale-110 focus:outline-none">
+                                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7" />
                                     </svg>
-                                </span>
-                                <div>
-                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight">Freude schenken</p>
-                                    <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Mit Herz gefertigt</p>
+                                </button>
+                                <span class="text-[11px] font-bold text-gray-900 leading-tight tracking-tight truncate">Freude schenken</span>
+
+                                <div x-show="activeTip === 'freude'"
+                                     x-cloak
+                                     x-transition.opacity.duration.150ms
+                                     class="absolute bottom-full left-0 mb-2.5 w-52 p-2.5 rounded-xl bg-white border border-[#E6D7BC] shadow-xl text-left text-[11px] text-gray-700 leading-snug z-50 pointer-events-none">
+                                    <strong class="block text-gray-900 font-bold mb-0.5">Mit Herz gefertigt</strong>
+                                    Jedes Unikat wird mit Liebe und höchster Präzision in unserer Manufaktur in Gifhorn veredelt.
                                 </div>
                             </div>
 
-                            <div class="flex sm:flex-col items-center gap-2.5 sm:gap-1.5 sm:border-x sm:border-amber-200/70 sm:px-1">
-                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 text-white shadow-xs shrink-0">
-                                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                            {{-- 2. Soziales leisten --}}
+                            <div class="relative flex items-center justify-center gap-1.5 px-1">
+                                <button type="button"
+                                        @mouseenter="activeTip = 'soziales'"
+                                        @mouseleave="if (activeTip === 'soziales') activeTip = null"
+                                        @focus="activeTip = 'soziales'"
+                                        @blur="if (activeTip === 'soziales') activeTip = null"
+                                        @click.stop="activeTip = activeTip === 'soziales' ? null : 'soziales'"
+                                        aria-label="Info zu Soziales leisten"
+                                        class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-rose-400 to-rose-600 text-white shadow-2xs shrink-0 cursor-help transition-transform hover:scale-110 focus:outline-none">
+                                    <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24">
                                         <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
                                     </svg>
-                                </span>
-                                @php
-                                    $checkoutHerzensEuro = \App\Services\HerzensprojektService::resolveFormattedEuro();
-                                    $checkoutHerzensUnit = \App\Services\HerzensprojektService::resolveUnitLabel(true);
-                                @endphp
-                                <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" title="Wir führen {{ $checkoutHerzensEuro }} € {{ $checkoutHerzensUnit }} aus unseren Unternehmenserlösen an unsere regionalen Herzensprojekte für Kinder ab (Details & Transparenzhinweis)" class="group hover:opacity-90 transition-opacity">
-                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight group-hover:text-primary transition-colors">Soziales leisten</p>
-                                    <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Kinder aktiv unterstützen ({{ $checkoutHerzensEuro }}&nbsp;€ {{ $checkoutHerzensUnit }})</p>
+                                </button>
+                                <a href="{{ route('manufacture') }}#herzensprojekte" target="_blank" class="text-[11px] font-bold text-gray-900 hover:text-primary leading-tight tracking-tight truncate transition-colors">
+                                    Soziales leisten
                                 </a>
+
+                                <div x-show="activeTip === 'soziales'"
+                                     x-cloak
+                                     x-transition.opacity.duration.150ms
+                                     class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-56 p-2.5 rounded-xl bg-white border border-[#E6D7BC] shadow-xl text-left text-[11px] text-gray-700 leading-snug z-50 pointer-events-none">
+                                    <strong class="block text-gray-900 font-bold mb-0.5">Kinder aktiv unterstützen</strong>
+                                    Wir führen {{ $checkoutHerzensEuro }}&nbsp;€ {{ $checkoutHerzensUnit }} aus unseren Erlösen an regionale Herzensprojekte für Kinder ab.
+                                </div>
                             </div>
 
-                            <div class="flex sm:flex-col items-center gap-2.5 sm:gap-1.5">
-                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 text-white shadow-xs shrink-0">
-                                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                            {{-- 3. Funken sammeln --}}
+                            <div class="relative flex items-center justify-center gap-1.5 px-1">
+                                <button type="button"
+                                        @mouseenter="activeTip = 'funken'"
+                                        @mouseleave="if (activeTip === 'funken') activeTip = null"
+                                        @focus="activeTip = 'funken'"
+                                        @blur="if (activeTip === 'funken') activeTip = null"
+                                        @click.stop="activeTip = activeTip === 'funken' ? null : 'funken'"
+                                        aria-label="Info zu Funken sammeln"
+                                        class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 text-white shadow-2xs shrink-0 cursor-help transition-transform hover:scale-110 focus:outline-none">
+                                    <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24">
                                         <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/>
                                     </svg>
-                                </span>
-                                <div>
-                                    <p class="text-xs font-bold text-gray-900 leading-tight tracking-tight">Funken sammeln</p>
-                                    <p class="text-[11px] sm:text-[10px] text-amber-900/80 font-medium leading-tight mt-0.5">Treuepunkte &amp; Rabatte</p>
+                                </button>
+                                <span class="text-[11px] font-bold text-gray-900 leading-tight tracking-tight truncate">Funken sammeln</span>
+
+                                <div x-show="activeTip === 'funken'"
+                                     x-cloak
+                                     x-transition.opacity.duration.150ms
+                                     class="absolute bottom-full right-0 mb-2.5 w-52 p-2.5 rounded-xl bg-white border border-[#E6D7BC] shadow-xl text-left text-[11px] text-gray-700 leading-snug z-50 pointer-events-none">
+                                    <strong class="block text-gray-900 font-bold mb-0.5">Treuepunkte &amp; Rabatte</strong>
+                                    Mit deiner Bestellung sammelst du automatisch wertvolle Seelenfunken für Treue-Prämien.
                                 </div>
                             </div>
                         </div>

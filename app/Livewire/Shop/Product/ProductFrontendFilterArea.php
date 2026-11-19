@@ -98,10 +98,14 @@ class ProductFrontendFilterArea extends Component
         $this->resetPage();
     }
 
-    public function toggleWishlist(string $productId, \App\Services\WishlistService $wishlistService): void
+    public function toggleWishlist(string $productId, \App\Services\WishlistService $wishlistService, ?bool $shouldBeWishlisted = null): void
     {
-        $wishlistService->toggle($productId);
-        $this->dispatch('wishlist-updated');
+        $wishlistService->setWishlisted($productId, $shouldBeWishlisted);
+        $this->dispatch(
+            'wishlist-updated',
+            count: $wishlistService->getCount(),
+            productIds: $wishlistService->getProductIds()
+        );
     }
 
     public function addToCart(string $productId, \App\Services\CartService $cartService): bool
@@ -128,13 +132,6 @@ class ProductFrontendFilterArea extends Component
     #[Title('Unsere Kollektion · Mein Seelenfunke')]
     public function render()
     {
-        // Wartungsmodus Check (Admins dürfen trotz Wartungsmodus testen)
-        $isMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)
-            || filter_var(shop_setting('shop_maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
-        if ($isMaintenance && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
-            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
-        }
-
 
         $this->collectionWorld = 'all';
         $this->filterType = 'all';

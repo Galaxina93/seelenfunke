@@ -136,7 +136,9 @@ fun AgDirectInboxSheet(
     val checklistItems = remember { mutableStateListOf<String>() }
     var executionMode by remember { mutableStateOf("concept") }
     var selectedChannel by remember { mutableStateOf(AgDirectChannel.LEITUNG.code) }
-    var selectedAttachment by remember { mutableStateOf(initialAttachment) }
+    var selectedAttachment by remember {
+        mutableStateOf(initialAttachment ?: AgDirectInboxManager.getActiveStagedAttachment())
+    }
     var isPreparingImage by remember { mutableStateOf(false) }
     var isPreparingAudio by remember { mutableStateOf(false) }
     var expandedItemId by remember(initialExpandedItemId) { mutableStateOf(initialExpandedItemId) }
@@ -175,6 +177,7 @@ fun AgDirectInboxSheet(
                 isPreparingImage = false
                 if (prepared != null) {
                     selectedAttachment = prepared
+                    de.meinseelenfunke.app.util.FalconCameraController.syncFromPreparedAttachment(prepared)
                 } else {
                     Toast.makeText(context, "Bild konnte nicht geladen werden.", Toast.LENGTH_SHORT).show()
                 }
@@ -192,6 +195,7 @@ fun AgDirectInboxSheet(
                 isPreparingAudio = false
                 if (prepared != null) {
                     selectedAttachment = prepared
+                    de.meinseelenfunke.app.util.FalconCameraController.syncFromPreparedAttachment(prepared)
                 } else {
                     Toast.makeText(context, "Audiodatei konnte nicht geladen werden.", Toast.LENGTH_SHORT).show()
                 }
@@ -527,7 +531,10 @@ fun AgDirectInboxSheet(
                                 .size(28.dp)
                                 .clip(CircleShape)
                                 .background(AppTheme.colors.cardBackground)
-                                .clickable { selectedAttachment = null },
+                                .clickable {
+                                    selectedAttachment = null
+                                    de.meinseelenfunke.app.util.FalconCameraController.clearLastCapturedPhoto()
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -585,7 +592,10 @@ fun AgDirectInboxSheet(
                                 .size(28.dp)
                                 .clip(CircleShape)
                                 .background(AppTheme.colors.cardBackground)
-                                .clickable { selectedAttachment = null },
+                                .clickable {
+                                    selectedAttachment = null
+                                    de.meinseelenfunke.app.util.FalconCameraController.clearLastCapturedPhoto()
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -736,6 +746,7 @@ fun AgDirectInboxSheet(
                     executionMode = "concept"
                     selectedChannel = AgDirectChannel.LEITUNG.code
                     if (attachmentSnapshot != null) {
+                        de.meinseelenfunke.app.util.FalconCameraController.clearLastCapturedPhoto()
                         onAttachmentSubmitted()
                     }
 

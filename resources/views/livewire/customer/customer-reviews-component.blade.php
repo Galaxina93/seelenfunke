@@ -131,8 +131,12 @@
                                     @if(!$isCurrentReviewEditing)
                                         <div class="flex items-center gap-1 mt-2">
                                             @for($s = 1; $s <= 5; $s++)
-                                                <svg class="w-4 h-4 {{ $s <= (int) $review->rating ? 'text-[#C5A059]' : 'text-gray-300 dark:text-gray-700' }}" viewBox="0 0 20 20" fill="currentColor">
-                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                                <svg class="w-4 h-4 text-[#CBD5E1] dark:text-[#64748B]"
+                                                     viewBox="0 0 24 24"
+                                                     fill="{{ $s <= (int) $review->rating ? '#F5B301' : 'none' }}"
+                                                     stroke="{{ $s <= (int) $review->rating ? '#D97706' : 'currentColor' }}"
+                                                     stroke-width="1.8">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                                                 </svg>
                                             @endfor
                                             <span class="text-[11px] text-gray-400 dark:text-gray-500 ml-2">{{ $review->created_at->format('d.m.Y') }}</span>
@@ -298,10 +302,14 @@
                             @for($star = 1; $star <= 5; $star++)
                                 <button type="button"
                                         wire:click="rateExperience('{{ $area }}', {{ $star }})"
-                                        class="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-transform hover:scale-110 focus:outline-none"
+                                        class="p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-transform hover:scale-110 focus:outline-none cursor-pointer"
                                         aria-label="{{ $card['title'] }} {{ $star }} Sterne">
-                                    <svg class="w-7 h-7 {{ $star <= $currentRating ? 'text-[#C5A059]' : 'text-gray-300 dark:text-gray-700' }}" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                    <svg class="w-7 h-7 text-[#CBD5E1] dark:text-[#64748B] transition-all duration-150"
+                                         viewBox="0 0 24 24"
+                                         fill="{{ $star <= $currentRating ? '#F5B301' : 'none' }}"
+                                         stroke="{{ $star <= $currentRating ? '#D97706' : 'currentColor' }}"
+                                         stroke-width="1.8">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                                     </svg>
                                 </button>
                             @endfor
@@ -352,10 +360,14 @@
                             <div class="min-w-0">
                                 <div class="flex items-center gap-2 flex-wrap">
                                     <span class="font-serif font-bold text-gray-900 text-base sm:text-lg truncate" x-text="mediaLightbox.author"></span>
-                                    <div class="flex text-amber-400">
+                                    <div class="flex items-center gap-0.5">
                                         <template x-for="star in 5" :key="star">
-                                            <svg class="w-4 h-4" :class="star <= mediaLightbox.rating ? 'text-amber-400' : 'text-gray-200'" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                                            <svg class="w-4 h-4 text-[#CBD5E1]"
+                                                 viewBox="0 0 24 24"
+                                                 :fill="star <= mediaLightbox.rating ? '#F5B301' : 'none'"
+                                                 :stroke="star <= mediaLightbox.rating ? '#D97706' : 'currentColor'"
+                                                 stroke-width="1.8">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                                             </svg>
                                         </template>
                                     </div>

@@ -118,6 +118,7 @@ class FunkiraLiveViewModel : ViewModel() {
     private var activeVoiceName: String = "Orus"
     private var activeToolsJson: String? = null
     @Volatile private var pendingProactiveKickPrompt: String? = null
+    @Volatile private var lastSyncedAttachmentKeyForSocket: String? = null
 
     @Volatile private var shouldEndCall = false
     @Volatile private var shouldEnterStandbyAfterTurn = false
@@ -127,6 +128,15 @@ class FunkiraLiveViewModel : ViewModel() {
 
     init {
         loadAgents()
+        viewModelScope.launch {
+            de.meinseelenfunke.app.util.AgDirectInboxManager.stagedAttachmentFlow.collect { staged ->
+                if (staged == null) {
+                    lastSyncedAttachmentKeyForSocket = null
+                } else if (_isConnected.value && setupCompletedForCurrentSocket) {
+                    pushStagedAttachmentContextToLiveSocket(staged, isMidSessionSelection = true)
+                }
+            }
+        }
     }
 
     private fun isFalconeAgentName(name: String?): Boolean {
@@ -285,11 +295,28 @@ class FunkiraLiveViewModel : ViewModel() {
             val host = parsedUri?.host ?: "stage.mein-seelenfunke.de"
             val defaultOrigin = if (baseUrl.startsWith("https://", ignoreCase = true)) "https://$host" else "https://mein-seelenfunke.de"
 
-            aiRepository.getLiveCredentials(
+            val firstCredResult = aiRepository.getLiveCredentials(
                 agentId = _selectedAgent.value?.id,
                 chatSessionId = chatSessionId,
                 client = "android_native"
             )
+            val finalCredResult = if (firstCredResult.isFailure &&
+                isRetryableCredentialIoFailure(firstCredResult.exceptionOrNull())
+            ) {
+                ServiceLocator.evictConnectionPool()
+                try { client.connectionPool.evictAll() } catch (_: Throwable) {}
+                addLog("[Netzwerk-Heilung]: Verbindung kurz unterbrochen, erneuter Handshake...")
+                delay(850L)
+                aiRepository.getLiveCredentials(
+                    agentId = _selectedAgent.value?.id,
+                    chatSessionId = chatSessionId,
+                    client = "android_native"
+                )
+            } else {
+                firstCredResult
+            }
+
+            finalCredResult
                 .onSuccess { creds ->
                     if (connectJob?.isActive != true || userInitiatedHangup) return@onSuccess
                     if (!isMidCallReconnect) {
@@ -464,11 +491,7 @@ class FunkiraLiveViewModel : ViewModel() {
                     _isConnecting.value = false
                     de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive = false
                     val credErrDetail = safeErrorDetail(err) ?: err.javaClass.simpleName.ifBlank { "Unbekannter Fehler" }
-                    _error.value = if (de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientWebSocketDisconnect(err)) {
-                        formatWebSocketFailureMessage(err, httpStatusCode = null, setupWasComplete = false)
-                    } else {
-                        "Authentifizierung fehlgeschlagen: $credErrDetail"
-                    }
+                    _error.value = formatCredentialFailureForUser(err)
                     addLog("Fehler: ${_error.value}")
                     if (!de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientWebSocketDisconnect(err)) {
                         de.meinseelenfunke.app.util.ErrorSentinelReporter.captureError(
@@ -494,6 +517,7 @@ class FunkiraLiveViewModel : ViewModel() {
         directBearerToken: String? = null
     ) {
         setupCompletedForCurrentSocket = false
+        lastSyncedAttachmentKeyForSocket = null
         val encodedToken = android.net.Uri.encode(token)
         val resolvedDirectBearer = if (isDirectGoogle) {
             directBearerToken?.takeIf { it.isNotBlank() }
@@ -572,9 +596,15 @@ class FunkiraLiveViewModel : ViewModel() {
                                     if (!strictPrompt.contains("TOKEN-SPAR-DISZIPLIN")) {
                                         strictPrompt = "$strictPrompt\n\n$brevityRule"
                                     }
-                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (z.B. action='play_sport' für Sport-/Workout-Musik) und bestätige danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für Smart-Home-Steckdosen und Lichterketten (wie Fußleisten Lichterkette, Spiegel Lichterkette oder Packtisch) sofort falcon_smarthome_control (action='turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off', 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo'), für Entwicklungsaufträge/Ideen/Bugs an deinen Leitstand Antigravity falcon_send_to_antigravity (setze attach_captured_photo=true wenn gerade ein Foto geschossen wurde), für Statusabfragen falcon_check_antigravity_status, zum Öffnen von App-Bereichen falcon_app_navigate und für deinen 3D-Ausdruck falcon_set_emotion."
+                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (z.B. action='play_sport' für Sport-/Workout-Musik) und bestätige danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für Smart-Home-Steckdosen und Lichterketten (wie Fußleisten Lichterkette, Spiegel Lichterkette oder Packtisch) sofort falcon_smarthome_control (action='turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off', 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), für Entwicklungsaufträge/Ideen/Bugs an deinen Leitstand Antigravity falcon_send_to_antigravity (bereits in der App hinterlegte oder gerade geschossene Fotos/Dateien werden automatisch angehängt), für Statusabfragen falcon_check_antigravity_status, zum Öffnen von App-Bereichen falcon_app_navigate und für deinen 3D-Ausdruck falcon_set_emotion."
                                     if (!strictPrompt.contains("LOKALE SMARTPHONE-SUPERTOOLS")) {
                                         strictPrompt = "$strictPrompt\n\n$falconDeviceToolsRule"
+                                    }
+                                    val attachedDirective = de.meinseelenfunke.app.util.FalconClientTools.buildAttachedMediaSystemDirective(
+                                        de.meinseelenfunke.app.util.AgDirectInboxManager.getActiveStagedAttachment()
+                                    )
+                                    if (!attachedDirective.isNullOrBlank() && !strictPrompt.contains("WICHTIGER APP-STATUS: Alina hat BEREITS")) {
+                                        strictPrompt = "$strictPrompt\n\n$attachedDirective"
                                     }
                                     addProperty("text", strictPrompt)
                                 })
@@ -832,6 +862,9 @@ class FunkiraLiveViewModel : ViewModel() {
                 addLog("[System]: Setup vollständig abgeschlossen. Gespräch bereit.")
                 if (!userMutedMic) {
                     startRecording()
+                }
+                de.meinseelenfunke.app.util.AgDirectInboxManager.getActiveStagedAttachment()?.let { staged ->
+                    pushStagedAttachmentContextToLiveSocket(staged, isMidSessionSelection = false)
                 }
                 val kickPrompt = pendingProactiveKickPrompt?.trim()?.takeIf { it.isNotEmpty() }
                 pendingProactiveKickPrompt = null
@@ -1542,6 +1575,37 @@ class FunkiraLiveViewModel : ViewModel() {
         ws.send(gson.toJson(packet))
     }
 
+    private fun pushStagedAttachmentContextToLiveSocket(
+        staged: de.meinseelenfunke.app.util.PreparedAgAttachment,
+        isMidSessionSelection: Boolean
+    ) {
+        val ws = webSocket ?: return
+        if (!_isConnected.value || !setupCompletedForCurrentSocket) return
+        val key = "${staged.fileName}:${staged.base64Jpeg.length}"
+        if (lastSyncedAttachmentKeyForSocket == key) return
+        lastSyncedAttachmentKeyForSocket = key
+
+        try {
+            if (!staged.isAudio && staged.base64Jpeg.isNotBlank()) {
+                val framePacket = de.meinseelenfunke.app.util.FalconClientTools.buildRealtimeVideoFramePacket(staged.base64Jpeg)
+                ws.send(gson.toJson(framePacket))
+            }
+            val directive = de.meinseelenfunke.app.util.FalconClientTools.buildAttachedMediaSystemDirective(staged)
+            if (!directive.isNullOrBlank()) {
+                val contextPacket = de.meinseelenfunke.app.util.FalconClientTools.buildSilentClientContextPacket(directive)
+                ws.send(gson.toJson(contextPacket))
+            }
+            addLog(
+                if (isMidSessionSelection) {
+                    "[Anhang]: Hinterlegte Datei '${staged.fileName}' live an Falcone übermittelt."
+                } else {
+                    "[Anhang]: Bereits hinterlegte Datei '${staged.fileName}' in Live-Kontext geladen."
+                }
+            )
+        } catch (_: Throwable) {
+        }
+    }
+
     private fun startInactivityWatchdog() {
         inactivityWatchJob?.cancel()
         inactivityWatchJob = viewModelScope.launch(Dispatchers.IO) {
@@ -1884,6 +1948,88 @@ class FunkiraLiveViewModel : ViewModel() {
             return cleanWs ?: de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_WS_URL
         }
 
+        const val FRIENDLY_SSL_INTERRUPTED_MESSAGE =
+            "Sichere Serververbindung kurzzeitig unterbrochen. Bitte WLAN/Empfang prüfen und erneut antippen."
+
+        fun isSslOrCertificateFailure(t: Throwable?): Boolean {
+            var cur = t
+            var depth = 0
+            while (cur != null && depth < 8) {
+                if (cur is javax.net.ssl.SSLException ||
+                    cur is java.security.cert.CertificateException ||
+                    cur is java.security.cert.CertPathValidatorException
+                ) {
+                    return true
+                }
+                val msg = cur.message.orEmpty()
+                val cls = cur.javaClass.name
+                if (cls.contains("CertPathValidator", ignoreCase = true) ||
+                    cls.contains("SSLHandshake", ignoreCase = true) ||
+                    msg.contains("CertPathValidator", ignoreCase = true) ||
+                    msg.contains("Trust anchor", ignoreCase = true) ||
+                    msg.contains("SSLHandshake", ignoreCase = true)
+                ) {
+                    return true
+                }
+                cur = cur.cause
+                depth++
+            }
+            return false
+        }
+
+        fun isRetryableCredentialIoFailure(t: Throwable?): Boolean {
+            if (t == null) return false
+            if (t is retrofit2.HttpException && (t.code() == 401 || t.code() == 403)) return false
+            if (isSslOrCertificateFailure(t)) return true
+            var cur = t
+            var depth = 0
+            while (cur != null && depth < 6) {
+                if (cur is java.io.IOException) return true
+                cur = cur.cause
+                depth++
+            }
+            return false
+        }
+
+        fun formatCredentialFailureForUser(t: Throwable): String {
+            if (isSslOrCertificateFailure(t)) {
+                return FRIENDLY_SSL_INTERRUPTED_MESSAGE
+            }
+            if (t is retrofit2.HttpException && (t.code() == 401 || t.code() == 403)) {
+                return "Sitzung abgelaufen. Bitte kurz neu anmelden."
+            }
+            if (de.meinseelenfunke.app.util.ErrorSentinelReporter.isTransientWebSocketDisconnect(t)) {
+                return formatWebSocketFailureMessage(t, httpStatusCode = null, setupWasComplete = false)
+            }
+            var cur: Throwable? = t
+            var depth = 0
+            while (cur != null && depth < 6) {
+                when (cur) {
+                    is java.net.UnknownHostException,
+                    is java.net.ConnectException,
+                    is java.net.NoRouteToHostException -> return "Keine Internetverbindung. Bitte WLAN/Empfang prüfen."
+                    is java.net.SocketTimeoutException -> return "Zeitüberschreitung der Verbindung. Bitte erneut antippen."
+                }
+                cur = cur.cause
+                depth++
+            }
+            val clean = stripRawJavaExceptionClassNames(safeErrorDetail(t))
+            return if (!clean.isNullOrBlank()) {
+                "Verbindung nicht möglich: $clean"
+            } else {
+                "Verbindung zum Server fehlgeschlagen. Bitte Empfang prüfen."
+            }
+        }
+
+        private fun stripRawJavaExceptionClassNames(raw: String?): String? {
+            if (raw.isNullOrBlank()) return null
+            val stripped = raw
+                .replace(Regex("""\b(?:java|javax|okhttp3|retrofit2)\.[A-Za-z0-9_.$]+Exception:\s*"""), "")
+                .replace(Regex("""\b(?:java|javax|okhttp3|retrofit2)\.[A-Za-z0-9_.$]+"""), "")
+                .trim()
+            return stripped.takeIf { it.isNotBlank() }
+        }
+
         fun safeErrorDetail(t: Throwable?): String? {
             if (t == null) return null
             return t.localizedMessage?.trim()?.takeIf {
@@ -1901,6 +2047,29 @@ class FunkiraLiveViewModel : ViewModel() {
             if (deviceTypes.contains(AudioDeviceInfo.TYPE_USB_HEADSET)) return AudioDeviceInfo.TYPE_USB_HEADSET
             if (deviceTypes.contains(AudioDeviceInfo.TYPE_BUILTIN_SPEAKER)) return AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
             return deviceTypes.firstOrNull() ?: AudioDeviceInfo.TYPE_UNKNOWN
+        }
+
+        fun isCertPathValidatorFailure(t: Throwable?): Boolean {
+            var cur = t
+            var depth = 0
+            while (cur != null && depth < 8) {
+                if (cur is java.security.cert.CertPathValidatorException ||
+                    cur is java.security.cert.CertificateException
+                ) {
+                    return true
+                }
+                val msg = cur.message.orEmpty()
+                val cls = cur.javaClass.name
+                if (cls.contains("CertPathValidator", ignoreCase = true) ||
+                    msg.contains("CertPathValidator", ignoreCase = true) ||
+                    msg.contains("Trust anchor", ignoreCase = true)
+                ) {
+                    return true
+                }
+                cur = cur.cause
+                depth++
+            }
+            return false
         }
 
         fun formatWebSocketFailureMessage(
@@ -1935,7 +2104,11 @@ class FunkiraLiveViewModel : ViewModel() {
                 return "Verbindung getrennt"
             }
 
-            val detail = safeErrorDetail(t)
+            if (isCertPathValidatorFailure(t)) {
+                return FRIENDLY_SSL_INTERRUPTED_MESSAGE
+            }
+
+            val detail = stripRawJavaExceptionClassNames(safeErrorDetail(t))
             val httpSuffix = if (httpStatusCode != null && httpStatusCode > 0) " (HTTP $httpStatusCode)" else ""
             return when {
                 detail != null -> "Verbindungsfehler: $detail$httpSuffix"

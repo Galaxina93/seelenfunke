@@ -11,7 +11,7 @@
                     <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Gesperrt</span>
                 @endif
                 <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                    <button type="button" @click.prevent="open = !open" title="Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Erst wenn Live gehen aktiv und der Wartungsmodus aus ist, ist der Shop öffentlich sichtbar." class="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[11px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
+                    <button type="button" @click.prevent="open = !open" title="Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Sobald Live gehen aktiv ist, wird das Schaufenster öffentlich sichtbar." class="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[11px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
                     <div x-show="open" x-cloak class="absolute left-0 top-7 z-30 w-72 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 p-3 text-xs text-gray-700 dark:text-gray-300 shadow-xl pointer-events-none">
                         {{ $infoTexts['shop_is_live'] }}
                     </div>
@@ -30,11 +30,11 @@
 
         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4">
             <div class="flex items-center gap-2.5 min-w-0">
-                <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-sans">Wartungsmodus</h2>
+                <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-sans">Wartungsmodus (Schaufenster)</h2>
                 @if(!empty($settings['maintenance_mode']))
-                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv</span>
+                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Aktiv (Kauf pausiert)</span>
                 @else
-                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv</span>
+                    <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Inaktiv (Regulär)</span>
                 @endif
                 @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
             </div>

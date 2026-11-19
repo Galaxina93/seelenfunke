@@ -45,6 +45,100 @@
 
 @if($isOrder && $model->status === 'pending')
     {{-- START-ANSICHT FÜR WARTENDE BESTELLUNGEN --}}
+    @once
+        <style>
+            .sf-order-magic-ring {
+                position: absolute;
+                inset: 0;
+                padding: 1.5px;
+                border-radius: inherit;
+                pointer-events: none;
+                z-index: 20;
+                overflow: hidden;
+                -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+                -webkit-mask-composite: xor;
+                mask-composite: exclude;
+            }
+            .sf-order-magic-ring::before {
+                content: '';
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 240%;
+                aspect-ratio: 1 / 1;
+                transform: translate(-50%, -50%) rotate(0deg);
+                background: conic-gradient(
+                    from 0deg,
+                    transparent 0deg,
+                    var(--theme-color-20) 50deg,
+                    var(--theme-color) 105deg,
+                    #C5A059 135deg,
+                    #FDE68A 158deg,
+                    #FFFBEB 172deg,
+                    #C5A059 196deg,
+                    var(--theme-color-20) 255deg,
+                    transparent 360deg
+                );
+                animation: sfOrderMagicRingSpin 2.6s linear infinite;
+                will-change: transform;
+            }
+            .sf-order-magic-star {
+                display: inline-block;
+                animation: sfOrderMagicStarPulse 1.4s ease-in-out infinite;
+                will-change: transform, opacity;
+            }
+            .sf-order-micro-spark {
+                position: absolute;
+                pointer-events: none;
+                color: #C5A059;
+                font-size: 9px;
+                line-height: 1;
+                opacity: 0;
+                animation: sfOrderMicroSparkRise 1.5s ease-out infinite;
+                will-change: transform, opacity;
+            }
+            .sf-order-magic-btn-shimmer::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                background: linear-gradient(
+                    110deg,
+                    transparent 20%,
+                    rgba(255, 251, 235, 0.42) 50%,
+                    transparent 80%
+                );
+                transform: translateX(-120%);
+                animation: sfOrderMagicBtnSweep 1.6s ease-in-out infinite;
+                will-change: transform;
+            }
+            @keyframes sfOrderMagicRingSpin {
+                from { transform: translate(-50%, -50%) rotate(0deg); }
+                to   { transform: translate(-50%, -50%) rotate(360deg); }
+            }
+            @keyframes sfOrderMagicStarPulse {
+                0%, 100% { transform: scale(0.94) rotate(0deg); opacity: 0.88; }
+                50%      { transform: scale(1.14) rotate(12deg); opacity: 1; }
+            }
+            @keyframes sfOrderMicroSparkRise {
+                0%   { transform: translate3d(0, 6px, 0) scale(0.55); opacity: 0; }
+                30%  { opacity: 0.95; }
+                100% { transform: translate3d(var(--sx, 0px), -20px, 0) scale(1.05); opacity: 0; }
+            }
+            @keyframes sfOrderMagicBtnSweep {
+                0%   { transform: translateX(-120%); }
+                100% { transform: translateX(120%); }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .sf-order-magic-ring::before,
+                .sf-order-magic-star,
+                .sf-order-micro-spark,
+                .sf-order-magic-btn-shimmer::after {
+                    animation: none;
+                }
+            }
+        </style>
+    @endonce
     @php
         $hasAnyPendingSpecials = $mfgOverview && (
             !empty($mfgOverview['has_notes'])
@@ -53,11 +147,35 @@
         );
     @endphp
     <div class="w-full flex-1 flex flex-col items-center justify-start sm:justify-center p-4 sm:p-10 overflow-y-auto custom-scrollbar">
-        <div class="max-w-lg w-full shrink-0 bg-white dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-[2.5rem] p-8 sm:p-10 shadow-xl dark:shadow-2xl text-center flex flex-col items-center relative">
-            <div class="w-16 h-16 rounded-2xl bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center mb-5 shadow-sm">
-                <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <div x-data="{ startingMagic: false }"
+             data-pending-order-card
+             :class="startingMagic ? 'border-[var(--theme-color-50)]' : 'border-gray-200 dark:border-gray-800'"
+             class="max-w-lg w-full shrink-0 bg-white dark:bg-gray-900/95 border rounded-[2.5rem] p-8 sm:p-10 shadow-xl dark:shadow-2xl text-center flex flex-col items-center relative transition-colors duration-300">
+
+            {{-- Zarter umlaufender Seelenfunke-Magie-Rand beim Starten --}}
+            <div x-cloak
+                 x-show="startingMagic"
+                 x-transition.opacity.duration.200ms
+                 style="display: none;"
+                 class="sf-order-magic-ring"
+                 aria-hidden="true"></div>
+
+            <div class="relative w-16 h-16 rounded-2xl bg-[var(--theme-color-10)] border border-[var(--theme-color-30)] text-[var(--theme-color)] flex items-center justify-center mb-5 shadow-sm">
+                <svg x-show="!startingMagic" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
+
+                <div x-cloak
+                     x-show="startingMagic"
+                     style="display: none;"
+                     class="relative w-full h-full flex items-center justify-center"
+                     aria-hidden="true">
+                    <span class="sf-order-magic-star text-2xl leading-none select-none text-[var(--theme-color)]">✦</span>
+                    <span class="sf-order-micro-spark" style="left: 18%; top: 34%; --sx: -5px; animation-delay: 0s;">✦</span>
+                    <span class="sf-order-micro-spark" style="right: 18%; top: 30%; --sx: 6px; animation-delay: 0.35s;">✦</span>
+                    <span class="sf-order-micro-spark" style="left: 32%; top: 20%; --sx: -3px; animation-delay: 0.7s;">✦</span>
+                    <span class="sf-order-micro-spark" style="right: 28%; top: 44%; --sx: 4px; animation-delay: 1.05s;">✦</span>
+                </div>
             </div>
 
             <h2 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight mb-2">
@@ -140,12 +258,20 @@
             @endif
 
             <button type="button"
-                    wire:click="startOrderProcessing"
-                    class="w-full sm:w-auto min-w-[240px] inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-sm font-black uppercase tracking-widest shadow-lg transition-all cursor-pointer">
-                <span>Jetzt starten</span>
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-                </svg>
+                    data-start-order-btn
+                    @click="if (!startingMagic) { startingMagic = true; $wire.startOrderProcessing(); }"
+                    :disabled="startingMagic"
+                    :class="startingMagic ? 'sf-order-magic-btn-shimmer cursor-wait' : 'hover:brightness-95 cursor-pointer'"
+                    class="relative overflow-hidden w-full sm:w-auto min-w-[240px] inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-[var(--theme-color)] text-gray-950 text-sm font-black uppercase tracking-widest shadow-lg transition-all">
+                <span x-show="!startingMagic" class="inline-flex items-center justify-center gap-3">
+                    <span>Jetzt starten</span>
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                    </svg>
+                </span>
+                <span x-cloak x-show="startingMagic" style="display: none;" class="inline-flex items-center justify-center gap-2">
+                    <span>✦ Magie wird aktiviert...</span>
+                </span>
             </button>
         </div>
     </div>
@@ -298,20 +424,168 @@
                         @php
                             $isItemCustomFields = (($previewItem->configuration['personalization_mode'] ?? null) === 'custom_fields')
                                 || !empty($previewItem->configuration['custom_fields_data']);
+                            $isAdminOrderEditable = !in_array((string) ($model->status ?? ''), ['shipped', 'completed', 'cancelled', 'refunded'], true);
+                            $adminBlueprintTimeline = \App\Livewire\Shop\Order\OrderOverview::buildItemBlueprintTimeline($previewItem);
                         @endphp
                         <div @if($hasPhysicalCockpit) x-cloak x-show="stepOneTab === 'preview'" style="display: none;" @endif
-                             class="rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden {{ $isItemCustomFields ? 'min-h-0' : 'min-h-[500px]' }} flex flex-col">
-                            @if($previewItem->product)
-                                <livewire:shop.product.product-configurator.product-configurator
-                                    :product="$previewItem->product->id"
-                                    :initialData="$previewItem->configuration"
-                                    :qty="$previewItem->quantity"
-                                    context="preview"
-                                    :key="'admin-step1-preview-'.$previewItem->id"
-                                />
-                            @else
-                                <div class="p-10 text-center text-xs font-bold text-gray-500">
-                                    Produkt nicht mehr im Katalog vorhanden.
+                             class="space-y-3">
+                            <div class="rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 overflow-hidden {{ $isItemCustomFields ? 'min-h-0' : 'min-h-[500px]' }} flex flex-col">
+                                @if($previewItem->product)
+                                    @if($isAdminOrderEditable)
+                                        <livewire:shop.product.product-configurator.product-configurator
+                                            :product="$previewItem->product->id"
+                                            :cartItem="$previewItem"
+                                            :qty="$previewItem->quantity"
+                                            context="order_edit"
+                                            :key="'admin-step1-edit-'.$previewItem->id"
+                                        />
+                                    @else
+                                        <livewire:shop.product.product-configurator.product-configurator
+                                            :product="$previewItem->product->id"
+                                            :initialData="$previewItem->configuration"
+                                            :qty="$previewItem->quantity"
+                                            context="preview"
+                                            :key="'admin-step1-preview-'.$previewItem->id"
+                                        />
+                                    @endif
+                                @else
+                                    <div class="p-10 text-center text-xs font-bold text-gray-500">
+                                        Produkt nicht mehr im Katalog vorhanden.
+                                    </div>
+                                @endif
+                            </div>
+
+                            {{-- Schlanke Blueprint-Verlaufsleiste für den Admin inkl. Lightbox im selben Fenster --}}
+                            @if(!empty($adminBlueprintTimeline))
+                                <div data-admin-blueprint-history
+                                     x-data="{
+                                        timeline: @js($adminBlueprintTimeline),
+                                        lbOpen: false,
+                                        lbIdx: 0,
+                                        lbSide: 'front',
+                                        openBlueprint(idx) {
+                                            this.lbIdx = idx;
+                                            this.lbSide = 'front';
+                                            this.lbOpen = true;
+                                        },
+                                        closeBlueprint() {
+                                            this.lbOpen = false;
+                                        },
+                                        activeEntry() {
+                                            return this.timeline[this.lbIdx] || this.timeline[0] || {};
+                                        }
+                                     }"
+                                     @keydown.escape.window="if (lbOpen) closeBlueprint()"
+                                     class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950/90 border border-gray-200 dark:border-gray-800 space-y-2.5">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                            Blueprint-Verlauf ({{ count($adminBlueprintTimeline) }})
+                                        </span>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        @foreach($adminBlueprintTimeline as $bIdx => $bStep)
+                                            <button type="button"
+                                                    @click="openBlueprint({{ $bIdx }})"
+                                                    class="flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all cursor-pointer {{ $bStep['is_current']
+                                                        ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-40)]'
+                                                        : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
+                                                <div class="w-11 h-11 rounded-lg bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 overflow-hidden flex items-center justify-center shrink-0">
+                                                    @if(!empty($bStep['front_url']))
+                                                        <img src="{{ $bStep['front_url'] }}" alt="Version {{ $bStep['version'] }}" class="w-full h-full object-contain">
+                                                    @else
+                                                        <span class="text-[10px] font-mono font-black text-[var(--theme-color)]">V{{ $bStep['version'] }}</span>
+                                                    @endif
+                                                </div>
+                                                <div class="min-w-0 flex-1">
+                                                    <div class="flex flex-wrap items-center gap-1.5">
+                                                        <span class="text-[10px] font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                                                            Version {{ $bStep['version'] }}
+                                                        </span>
+                                                        @if($bStep['is_current'])
+                                                            <span class="px-1.5 py-0.5 rounded bg-[var(--theme-color)] text-gray-950 text-[9px] font-black uppercase tracking-wider">
+                                                                Aktuell
+                                                            </span>
+                                                        @endif
+                                                    </div>
+                                                    <div class="text-[11px] font-bold text-gray-700 dark:text-gray-300 truncate">
+                                                        {{ $bStep['actor_label'] }}
+                                                    </div>
+                                                    @if(!empty($bStep['saved_at_label']))
+                                                        <div class="text-[10px] font-mono text-gray-500 dark:text-gray-400 truncate">
+                                                            {{ $bStep['saved_at_label'] }}
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </button>
+                                        @endforeach
+                                    </div>
+
+                                    {{-- In-Window Lightbox für den Admin Blueprint-Vergleich --}}
+                                    <div x-cloak
+                                         data-admin-blueprint-lightbox
+                                         :class="lbOpen ? 'flex' : 'hidden'"
+                                         @click.self="closeBlueprint()"
+                                         class="hidden fixed inset-0 z-[165] items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+                                        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+                                            <div class="px-5 py-3.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 flex flex-wrap items-center justify-between gap-2">
+                                                <div class="flex flex-wrap items-center gap-1.5">
+                                                    <template x-for="(st, idx) in timeline" :key="'adm-bp-' + st.version + '-' + idx">
+                                                        <button type="button"
+                                                                @click="lbIdx = idx; if (!st.has_back) lbSide = 'front';"
+                                                                :class="lbIdx === idx
+                                                                    ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]'
+                                                                    : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800'"
+                                                                class="px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wider cursor-pointer">
+                                                            <span x-text="'Version ' + st.version + (st.is_current ? ' · Aktuell' : '')"></span>
+                                                        </button>
+                                                    </template>
+                                                </div>
+
+                                                <div class="flex items-center gap-2 ml-auto">
+                                                    <div :class="activeEntry().has_back ? 'inline-flex' : 'hidden'"
+                                                         class="p-0.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                                        <button type="button"
+                                                                @click="lbSide = 'front'"
+                                                                :class="lbSide === 'front' ? 'bg-[var(--theme-color)] text-gray-950' : 'text-gray-600 dark:text-gray-400'"
+                                                                class="px-2 py-1 rounded-md text-[10px] font-black uppercase cursor-pointer">
+                                                            Vorderseite
+                                                        </button>
+                                                        <button type="button"
+                                                                @click="lbSide = 'back'"
+                                                                :class="lbSide === 'back' ? 'bg-[var(--theme-color)] text-gray-950' : 'text-gray-600 dark:text-gray-400'"
+                                                                class="px-2 py-1 rounded-md text-[10px] font-black uppercase cursor-pointer">
+                                                            Rückseite
+                                                        </button>
+                                                    </div>
+
+                                                    <button type="button"
+                                                            @click="closeBlueprint()"
+                                                            class="w-8 h-8 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-white flex items-center justify-center cursor-pointer">
+                                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div class="p-6 bg-[#FAF8F5] dark:bg-gray-950 flex-1 overflow-auto flex items-center justify-center min-h-[300px]">
+                                                <template x-if="(lbSide === 'back' && activeEntry().back_url) ? activeEntry().back_url : activeEntry().front_url">
+                                                    <img :src="(lbSide === 'back' && activeEntry().back_url) ? activeEntry().back_url : activeEntry().front_url"
+                                                         alt="Blueprint"
+                                                         class="max-w-full max-h-[62vh] object-contain rounded-xl">
+                                                </template>
+                                                <template x-if="!((lbSide === 'back' && activeEntry().back_url) ? activeEntry().back_url : activeEntry().front_url)">
+                                                    <span class="text-xs font-bold text-gray-500">Kein Blueprint-Vorschaubild für diese Version hinterlegt.</span>
+                                                </template>
+                                            </div>
+
+                                            <div class="px-5 py-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                                <span class="font-bold text-gray-900 dark:text-white" x-text="'Version ' + (activeEntry().version || 1) + ' · ' + (activeEntry().actor_label || '')"></span>
+                                                <span class="font-mono text-[11px] text-gray-500 dark:text-gray-400" x-text="activeEntry().saved_at_label || ''"></span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             @endif
                         </div>

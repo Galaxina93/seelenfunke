@@ -135,16 +135,18 @@
 
         {{-- CALL TO ACTION --}}
         <div class="text-center mt-20 fade-in">
-            <p class="text-xl text-gray-500 mb-10 italic font-serif max-w-3xl mx-auto">
+            <p class="text-xl text-gray-500 {{ \App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled() ? 'mb-10' : 'mb-0' }} italic font-serif max-w-3xl mx-auto">
                 "Verlassen Sie sich auf einen reibungslosen Ablauf und ein Ergebnis, das begeistert."
             </p>
 
-            <a href="{{ route('calculator') }}"
-               title="Kalkulieren Sie jetzt den Preis für Ihr individuelles Geschenk"
-               class="inline-flex items-center gap-3 bg-primary text-gray-900 px-10 py-4 rounded-full font-bold text-lg shadow-lg hover:bg-primary-dark hover:text-white transition-all transform hover:scale-105 hover:shadow-2xl">
-                <span>Jetzt Preis berechnen</span>
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
-            </a>
+            @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
+                <a href="{{ route('calculator') }}"
+                   title="Kalkulieren Sie jetzt den Preis für Ihr individuelles Geschenk"
+                   class="inline-flex items-center gap-3 bg-primary text-gray-900 px-10 py-4 rounded-full font-bold text-lg shadow-lg hover:bg-primary-dark hover:text-white transition-all transform hover:scale-105 hover:shadow-2xl">
+                    <span>Jetzt Preis berechnen</span>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                </a>
+            @endif
         </div>
     </div>
 </section>

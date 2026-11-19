@@ -24,14 +24,22 @@ class WishlistPage extends Component
 
     public function removeItem(string $productId, WishlistService $wishlistService): void
     {
-        $wishlistService->remove($productId);
-        $this->dispatch('wishlist-updated');
+        $wishlistService->setWishlisted($productId, false);
+        $this->dispatch(
+            'wishlist-updated',
+            count: $wishlistService->getCount(),
+            productIds: $wishlistService->getProductIds()
+        );
     }
 
-    public function toggleWishlist(string $productId, WishlistService $wishlistService): void
+    public function toggleWishlist(string $productId, WishlistService $wishlistService, ?bool $shouldBeWishlisted = null): void
     {
-        $wishlistService->toggle($productId);
-        $this->dispatch('wishlist-updated');
+        $wishlistService->setWishlisted($productId, $shouldBeWishlisted);
+        $this->dispatch(
+            'wishlist-updated',
+            count: $wishlistService->getCount(),
+            productIds: $wishlistService->getProductIds()
+        );
     }
 
     public function importSharedWishlist(WishlistService $wishlistService): void
@@ -46,14 +54,16 @@ class WishlistPage extends Component
             ->pluck('id');
 
         foreach ($products as $pid) {
-            if (!$wishlistService->has((string) $pid)) {
-                $wishlistService->toggle((string) $pid);
-            }
+            $wishlistService->setWishlisted((string) $pid, true);
         }
 
         $this->isSharedView = false;
         $this->sharedSlugsRaw = '';
-        $this->dispatch('wishlist-updated');
+        $this->dispatch(
+            'wishlist-updated',
+            count: $wishlistService->getCount(),
+            productIds: $wishlistService->getProductIds()
+        );
     }
 
     public function addToCart(string $productId, CartService $cartService): void

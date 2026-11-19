@@ -51,12 +51,14 @@
                     Sortiment öffnen
                 </a>
 
-                {{-- Button 2: Sekundär (Kosten Kalkulator B2B) --}}
-                <a href="/calculator" target="_blank"
-                   class="bg-transparent border-2 border-primary text-primary px-8 py-4 rounded-full font-semibold text-lg hover:bg-primary hover:text-white transition-all transform hover:scale-105"
-                   aria-label="Angebotskalkulator">
-                    Angebotskalkulator öffnen
-                </a>
+                @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
+                    {{-- Button 2: Sekundär (Kosten Kalkulator B2B) --}}
+                    <a href="/calculator" target="_blank"
+                       class="bg-transparent border-2 border-primary text-primary px-8 py-4 rounded-full font-semibold text-lg hover:bg-primary hover:text-white transition-all transform hover:scale-105"
+                       aria-label="Angebotskalkulator">
+                        Angebotskalkulator öffnen
+                    </a>
+                @endif
             </div>
 
             {{-- Trust-Elemente --}}

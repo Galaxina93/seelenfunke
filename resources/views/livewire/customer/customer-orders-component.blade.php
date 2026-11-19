@@ -335,9 +335,18 @@
                                                 @endif
                                             </div>
 
-                                            <div class="mt-6 flex flex-wrap items-center gap-4">
+                                            @php
+                                                $itemAdminAdjustment = \App\Livewire\Customer\CustomerOrdersComponent::resolveAdminAdjustmentInfo($item);
+                                                $itemBlueprintTimeline = \App\Livewire\Customer\CustomerOrdersComponent::buildItemBlueprintTimeline($item);
+                                                $hasPersonalizationRecord = !empty($item->config_fingerprint)
+                                                    || ($item->product && $item->product->isPersonalizable() && !empty($item->configuration))
+                                                    || $itemAdminAdjustment !== null
+                                                    || !empty($itemBlueprintTimeline);
+                                            @endphp
+
+                                            <div class="mt-6 flex flex-wrap items-center gap-3.5">
                                                 @if(!empty($item->configuration) && $item->product && $item->product->isPersonalizable())
-                                                    <button wire:click="openPreview('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $previewItemId == $item->id ? 'bg-primary text-gray-900 shadow-sm dark:shadow-[0_0_15px_rgba(197,160,89,0.4)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700' }}">
+                                                    <button wire:click="openPreview('{{ $item->id }}')" class="inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer {{ $previewItemId == $item->id ? 'bg-[#C5A059] text-gray-950 shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200' }}">
                                                         <span>{{ $previewItemId == $item->id ? 'Design verbergen' : 'Design ansehen' }}</span>
                                                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                                                     </button>
@@ -355,7 +364,7 @@
                                                          @mouseenter="showEditHint = true"
                                                          @mouseleave="showEditHint = false"
                                                          @click.outside="showEditHint = false">
-                                                        <button wire:click="openEdit('{{ $item->id }}')" class="relative inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-sm dark:shadow-[0_0_15px_rgba(6,182,212,0.4)]' : ($hasPhotoIssue ? 'bg-amber-500 text-gray-950 hover:bg-amber-600 shadow-md ring-2 ring-amber-400/50' : 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500 hover:text-white border border-cyan-200 dark:border-cyan-500/30') }}">
+                                                        <button wire:click="openEdit('{{ $item->id }}')" class="relative inline-flex items-center gap-3 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer {{ $editItemId == $item->id ? 'bg-cyan-500 text-white shadow-sm' : ($hasPhotoIssue ? 'bg-amber-500 text-gray-950 hover:bg-amber-600 shadow-md ring-2 ring-amber-400/50' : 'bg-cyan-50 text-cyan-700 hover:bg-cyan-500 hover:text-white border border-cyan-200') }}">
                                                             <span>{{ $editItemId == $item->id ? 'Abbrechen' : ($hasPhotoIssue ? 'Foto jetzt nachbessern' : 'Artikel anpassen') }}</span>
                                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                                         </button>
@@ -365,7 +374,7 @@
                                                                   title="Wichtiger Hinweis: Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich."
                                                                   class="absolute -top-2 -right-2 z-10 flex h-5 w-5 items-center justify-center cursor-help select-none">
                                                                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-35" style="animation-duration: 2.4s;"></span>
-                                                                <span class="relative inline-flex items-center justify-center h-4.5 w-4.5 rounded-full bg-amber-500 text-white text-[10px] font-black leading-none shadow-sm ring-2 ring-white dark:ring-gray-900 animate-pulse">
+                                                                <span class="relative inline-flex items-center justify-center h-4.5 w-4.5 rounded-full bg-amber-500 text-white text-[10px] font-black leading-none shadow-sm ring-2 ring-white animate-pulse">
                                                                     !
                                                                 </span>
                                                             </span>
@@ -378,67 +387,318 @@
                                                                  x-transition:leave="transition ease-in duration-150"
                                                                  x-transition:leave-start="opacity-100 translate-y-0"
                                                                  x-transition:leave-end="opacity-0 translate-y-1"
-                                                                 class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2.5 w-64 sm:w-72 p-3 rounded-xl bg-amber-50 dark:bg-gray-800 border border-amber-200 dark:border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs leading-snug font-medium shadow-lg z-30 pointer-events-none text-left">
+                                                                 class="absolute bottom-full right-0 sm:left-1/2 sm:-translate-x-1/2 mb-2.5 w-64 sm:w-72 p-3 rounded-xl bg-white border border-gray-200 text-gray-800 text-xs leading-snug font-medium shadow-lg z-30 pointer-events-none text-left">
                                                                 <div class="flex items-start gap-2">
-                                                                    <svg class="w-4 h-4 text-amber-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                                    <svg class="w-4 h-4 text-[#C5A059] shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                                     <span><strong>Wichtiger Hinweis:</strong> Solange die Bestellung nicht in Bearbeitung geht, sind Anpassungen möglich.</span>
                                                                 </div>
                                                             </div>
                                                         @endif
                                                     </div>
                                                 @endif
+
+                                                {{-- Design-Herkunft & Manufaktur-Status Badge --}}
+                                                @if($itemAdminAdjustment !== null)
+                                                    <span data-design-status-badge="admin-adjusted"
+                                                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#C5A059]/15 text-[#6E5119] border border-[#C5A059]/50 text-[10px] font-black uppercase tracking-widest">
+                                                        <span class="text-[#C5A059]">✦</span>
+                                                        <span>Manufaktur-Feinschliff</span>
+                                                    </span>
+                                                @elseif($hasPersonalizationRecord)
+                                                    <span data-design-status-badge="original"
+                                                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FAF8F5] text-gray-700 border border-gray-200 text-[10px] font-black uppercase tracking-widest">
+                                                        <span class="text-[#C5A059]">✦</span>
+                                                        <span>Original-Design hinterlegt</span>
+                                                    </span>
+                                                @endif
                                             </div>
+
+                                            @if($itemAdminAdjustment !== null)
+                                                <p data-admin-adjustment-note
+                                                   class="mt-2.5 text-xs font-semibold text-gray-700 flex items-center gap-2">
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-[#C5A059] shrink-0"></span>
+                                                    <span>{{ $itemAdminAdjustment['sentence'] }}</span>
+                                                </p>
+                                            @endif
+
+                                            {{-- Interaktiver Änderungsverlauf mit klickbaren Blueprints + Lightbox im selben Fenster (Light-Mode) --}}
+                                            @if(!empty($itemBlueprintTimeline))
+                                                <div data-customer-blueprint-timeline
+                                                     x-data="{
+                                                        timeline: @js($itemBlueprintTimeline),
+                                                        lightboxOpen: false,
+                                                        activeIdx: {{ max(0, count($itemBlueprintTimeline) - 1) }},
+                                                        activeSide: 'front',
+                                                        openBlueprintLightbox(idx) {
+                                                            this.activeIdx = idx;
+                                                            this.activeSide = 'front';
+                                                            this.lightboxOpen = true;
+                                                        },
+                                                        closeBlueprintLightbox() {
+                                                            this.lightboxOpen = false;
+                                                        },
+                                                        selectVersion(idx) {
+                                                            if (idx < 0 || idx >= this.timeline.length) return;
+                                                            this.activeIdx = idx;
+                                                            const step = this.timeline[idx] || {};
+                                                            if (this.activeSide === 'back' && !step.has_back) {
+                                                                this.activeSide = 'front';
+                                                            }
+                                                        },
+                                                        currentStep() {
+                                                            return this.timeline[this.activeIdx] || this.timeline[0] || {};
+                                                        },
+                                                        currentImageUrl() {
+                                                            const st = this.currentStep();
+                                                            if (this.activeSide === 'back' && st.back_url) {
+                                                                return st.back_url;
+                                                            }
+                                                            return st.front_url || '';
+                                                        }
+                                                     }"
+                                                     @keydown.escape.window="if (lightboxOpen) closeBlueprintLightbox()"
+                                                     @keydown.left.window="if (lightboxOpen && activeIdx > 0) selectVersion(activeIdx - 1)"
+                                                     @keydown.right.window="if (lightboxOpen && activeIdx < timeline.length - 1) selectVersion(activeIdx + 1)"
+                                                     class="mt-4 p-4 sm:p-5 rounded-2xl bg-[#FAF8F5] border border-[#C5A059]/35 space-y-3">
+
+                                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                                        <span class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-800 flex items-center gap-2">
+                                                            <span class="text-[#C5A059]">✦</span>
+                                                            <span>Änderungsverlauf · Blueprints</span>
+                                                        </span>
+                                                        <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                                                            {{ count($itemBlueprintTimeline) }} Stände zum Anklicken
+                                                        </span>
+                                                    </div>
+
+                                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                                        @foreach($itemBlueprintTimeline as $bpIdx => $bpStep)
+                                                            <button type="button"
+                                                                    data-blueprint-version-card="{{ $bpStep['version'] }}"
+                                                                    @click="openBlueprintLightbox({{ $bpIdx }})"
+                                                                    class="group/bp flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer {{ $bpStep['is_current']
+                                                                        ? 'bg-white border-[#C5A059] shadow-2xs'
+                                                                        : 'bg-white/90 border-gray-200 hover:border-[#C5A059]/60' }}">
+                                                                <div class="w-14 h-14 rounded-xl bg-[#FAF8F5] border border-gray-200 overflow-hidden flex items-center justify-center shrink-0 group-hover/bp:border-[#C5A059]/60 transition-colors">
+                                                                    @if(!empty($bpStep['front_url']))
+                                                                        <img src="{{ $bpStep['front_url'] }}"
+                                                                             alt="Version {{ $bpStep['version'] }}"
+                                                                             class="w-full h-full object-contain group-hover/bp:scale-105 transition-transform duration-200">
+                                                                    @else
+                                                                        <span class="text-xs font-serif font-bold text-[#C5A059]">V{{ $bpStep['version'] }}</span>
+                                                                    @endif
+                                                                </div>
+
+                                                                <div class="min-w-0 flex-1">
+                                                                    <div class="flex flex-wrap items-center gap-1.5">
+                                                                        <span class="text-[11px] font-black uppercase tracking-wider text-gray-900">
+                                                                            Version {{ $bpStep['version'] }}
+                                                                        </span>
+                                                                        @if($bpStep['is_current'])
+                                                                            <span class="px-2 py-0.5 rounded-full bg-[#C5A059] text-gray-950 text-[9px] font-black uppercase tracking-wider">
+                                                                                Aktuell
+                                                                            </span>
+                                                                        @endif
+                                                                        @if($bpStep['has_back'])
+                                                                            <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200 text-[9px] font-bold">
+                                                                                2 Seiten
+                                                                            </span>
+                                                                        @endif
+                                                                    </div>
+                                                                    <p class="text-xs font-bold text-gray-800 truncate mt-0.5">
+                                                                        {{ $bpStep['actor_label'] }}
+                                                                    </p>
+                                                                    @if(!empty($bpStep['saved_at_label']))
+                                                                        <p class="text-[11px] font-medium text-gray-500 truncate">
+                                                                            {{ $bpStep['saved_at_label'] }}
+                                                                        </p>
+                                                                    @endif
+                                                                </div>
+                                                            </button>
+                                                        @endforeach
+                                                    </div>
+
+                                                    {{-- Edle Lightbox-Vergleichsansicht im selben Fenster (100 % heller Light-Mode, #C5A059) --}}
+                                                    <div x-cloak
+                                                         data-customer-blueprint-lightbox
+                                                         :class="lightboxOpen ? 'flex' : 'hidden'"
+                                                         @click.self="closeBlueprintLightbox()"
+                                                         class="hidden fixed inset-0 z-[165] items-center justify-center bg-gray-900/55 backdrop-blur-xs p-3 sm:p-6 overflow-y-auto">
+                                                        <div class="bg-white border border-gray-200 rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden my-auto flex flex-col max-h-[92vh] text-gray-900">
+                                                            {{-- Lightbox Header mit Versions-Direktumschalter & Seitenwahl --}}
+                                                            <div class="px-5 sm:px-6 py-4 border-b border-gray-200 bg-[#FAF8F5] flex flex-wrap items-center justify-between gap-3">
+                                                                <div class="min-w-0">
+                                                                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-[#8A6B2F]">
+                                                                        Blueprint-Vergleich
+                                                                    </p>
+                                                                    <h4 class="text-base sm:text-lg font-serif font-bold text-gray-900 truncate">
+                                                                        {{ $item->product_name }}
+                                                                    </h4>
+                                                                </div>
+
+                                                                <div class="flex flex-wrap items-center gap-2 ml-auto">
+                                                                    <div class="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-white border border-gray-200">
+                                                                        <template x-for="(st, sIdx) in timeline" :key="'cust-lb-tab-' + st.version + '-' + sIdx">
+                                                                            <button type="button"
+                                                                                    @click="selectVersion(sIdx)"
+                                                                                    :class="activeIdx === sIdx
+                                                                                        ? 'bg-[#C5A059] text-gray-950 font-black shadow-2xs'
+                                                                                        : 'text-gray-700 hover:text-gray-950 font-bold'"
+                                                                                    class="px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider transition-all cursor-pointer">
+                                                                                <span x-text="'Version ' + st.version + (st.is_current ? ' · Aktuell' : '')"></span>
+                                                                            </button>
+                                                                        </template>
+                                                                    </div>
+
+                                                                    <div :class="currentStep().has_back ? 'inline-flex' : 'hidden'"
+                                                                         class="items-center p-1 rounded-xl bg-white border border-gray-200">
+                                                                        <button type="button"
+                                                                                @click="activeSide = 'front'"
+                                                                                :class="activeSide === 'front' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'"
+                                                                                class="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer">
+                                                                            Vorderseite
+                                                                        </button>
+                                                                        <button type="button"
+                                                                                @click="activeSide = 'back'"
+                                                                                :class="activeSide === 'back' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900'"
+                                                                                class="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer">
+                                                                            Rückseite
+                                                                        </button>
+                                                                    </div>
+
+                                                                    <button type="button"
+                                                                            @click="closeBlueprintLightbox()"
+                                                                            title="Schließen"
+                                                                            class="w-9 h-9 rounded-xl bg-white border border-gray-200 text-gray-500 hover:text-gray-900 flex items-center justify-center transition-colors cursor-pointer">
+                                                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                                                                        </svg>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            {{-- Lightbox Bildbühne (Heller Light-Mode) --}}
+                                                            <div class="relative flex-1 bg-[#FAF8F5] p-5 sm:p-8 overflow-auto flex items-center justify-center min-h-[320px]">
+                                                                <button type="button"
+                                                                        :class="activeIdx > 0 ? 'flex' : 'hidden'"
+                                                                        @click="selectVersion(activeIdx - 1)"
+                                                                        title="Vorherige Version"
+                                                                        class="hidden absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white border border-gray-200 hover:border-[#C5A059] text-gray-700 hover:text-gray-950 shadow-md items-center justify-center transition-all cursor-pointer z-10">
+                                                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+                                                                    </svg>
+                                                                </button>
+
+                                                                <template x-if="currentImageUrl()">
+                                                                    <img :src="currentImageUrl()"
+                                                                         :alt="'Blueprint Version ' + (currentStep().version || 1)"
+                                                                         class="max-w-full max-h-[60vh] object-contain rounded-2xl bg-white border border-gray-200 p-2 shadow-sm">
+                                                                </template>
+                                                                <template x-if="!currentImageUrl()">
+                                                                    <div class="text-center py-12 px-6 rounded-2xl bg-white border border-gray-200">
+                                                                        <p class="text-sm font-bold text-gray-700">Für diese Version liegt kein gespeichertes Vorschaubild vor.</p>
+                                                                    </div>
+                                                                </template>
+
+                                                                <button type="button"
+                                                                        :class="activeIdx < timeline.length - 1 ? 'flex' : 'hidden'"
+                                                                        @click="selectVersion(activeIdx + 1)"
+                                                                        title="Nächste Version"
+                                                                        class="hidden absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white border border-gray-200 hover:border-[#C5A059] text-gray-700 hover:text-gray-950 shadow-md items-center justify-center transition-all cursor-pointer z-10">
+                                                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+
+                                                            {{-- Lightbox Footer --}}
+                                                            <div class="px-5 sm:px-6 py-4 border-t border-gray-200 bg-white flex flex-wrap items-center justify-between gap-3">
+                                                                <div class="min-w-0">
+                                                                    <div class="flex flex-wrap items-center gap-2">
+                                                                        <span class="text-xs font-black uppercase tracking-wider text-gray-900"
+                                                                              x-text="'Version ' + (currentStep().version || 1)"></span>
+                                                                        <span class="text-gray-300">·</span>
+                                                                        <span class="text-xs font-bold text-[#7A5C1E]"
+                                                                              x-text="currentStep().actor_label || ''"></span>
+                                                                        <template x-if="currentStep().saved_at_label">
+                                                                            <span class="text-xs font-medium text-gray-500"
+                                                                                  x-text="'· ' + currentStep().saved_at_label"></span>
+                                                                        </template>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div class="flex items-center gap-2 ml-auto">
+                                                                    @if($previewItemId != $item->id)
+                                                                        <button type="button"
+                                                                                @click="$wire.openPreview('{{ $item->id }}'); closeBlueprintLightbox();"
+                                                                                class="px-4 py-2 rounded-xl bg-[#FAF8F5] hover:border-[#C5A059] text-gray-900 border border-gray-200 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer">
+                                                                            Aktuellen Stand in 2D/3D öffnen
+                                                                        </button>
+                                                                    @endif
+                                                                    <template x-if="currentImageUrl()">
+                                                                        <a :href="currentImageUrl()"
+                                                                           :download="'Seelenfunke_Blueprint_V' + (currentStep().version || 1) + '.png'"
+                                                                           class="px-4 py-2 rounded-xl bg-[#C5A059] hover:brightness-95 text-gray-950 text-xs font-black uppercase tracking-wider transition-all inline-flex items-center gap-1.5">
+                                                                            <span>Herunterladen</span>
+                                                                        </a>
+                                                                    </template>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @endif
                                             @if($selectedOrder->status === 'pending' && $type === 'physical' && $item->product && $item->product->isPersonalizable())
                                                 <div x-data="{ successMsg: false }"
                                                      x-on:order-item-updated.window="if($event.detail.itemId == '{{ $item->id }}') { successMsg = true; setTimeout(() => successMsg = false, 5000) }">
 
                                                     {{-- MANUFAKTUR-RÜCKFRAGE HINWEISBOX --}}
                                                     @if($hasPhotoIssue)
-                                                        <div class="mt-4 bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-400 dark:border-amber-600 rounded-2xl p-4 shadow-sm">
+                                                        <div class="mt-4 bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 shadow-sm">
                                                             <div class="flex items-start gap-3.5">
-                                                                <div class="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                                                                <div class="p-2.5 rounded-xl bg-amber-500/20 text-amber-600 shrink-0">
                                                                     <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                                                     </svg>
                                                                 </div>
                                                                 <div class="flex-1 min-w-0">
                                                                     <div class="flex items-center justify-between gap-2">
-                                                                        <h5 class="text-xs font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                                                                        <h5 class="text-xs font-black uppercase tracking-wider text-amber-900">
                                                                             📸 Manufaktur-Rückfrage: Foto bitte nachbessern
                                                                         </h5>
-                                                                        <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                                                                        <span class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900">
                                                                             Aktion erforderlich
                                                                         </span>
                                                                     </div>
-                                                                    <p class="text-xs text-amber-800 dark:text-amber-300 mt-1 font-medium">
+                                                                    <p class="text-xs text-amber-800 mt-1 font-medium">
                                                                         <strong>Beanstandung:</strong> {{ $photoIssue['reason'] ?? 'Qualität nicht optimal' }}
                                                                     </p>
                                                                     @if(!empty($photoIssue['note']))
-                                                                        <p class="text-xs text-amber-700 dark:text-amber-400 mt-1.5 p-2.5 rounded-xl bg-white/80 dark:bg-gray-900/80 border border-amber-200 dark:border-amber-800/60 italic">
+                                                                        <p class="text-xs text-amber-700 mt-1.5 p-2.5 rounded-xl bg-white/90 border border-amber-200 italic">
                                                                             💬 „{{ $photoIssue['note'] }}“
                                                                         </p>
                                                                     @endif
-                                                                    <p class="text-[11px] text-amber-700/90 dark:text-amber-400/90 mt-2 leading-relaxed">
+                                                                    <p class="text-[11px] text-amber-700/90 mt-2 leading-relaxed">
                                                                         Klicke oben auf <strong>„Foto jetzt nachbessern“</strong>, um dein Bild im Konfigurator auszutauschen. Sobald du speicherst, starten wir umgehend mit der Gravur!
                                                                     </p>
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     @elseif($isPhotoIssueResolved)
-                                                        <div class="mt-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 rounded-xl p-3 flex items-center gap-3 shadow-sm">
-                                                            <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                                        <div class="mt-4 bg-emerald-50 border border-emerald-300 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+                                                            <svg class="w-5 h-5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
                                                             </svg>
-                                                            <p class="text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                                                            <p class="text-xs text-emerald-800 font-medium">
                                                                 <strong>Danke!</strong> Dein Foto wurde aktualisiert. Unser Manufaktur-Team prüft die neue Datei und setzt die Fertigung fort.
                                                             </p>
                                                         </div>
                                                     @endif
 
                                                     <template x-if="successMsg">
-                                                        <div x-transition class="mt-2 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl p-3 flex items-center gap-3 shadow-sm">
+                                                        <div x-transition class="mt-2 bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-3 shadow-sm">
                                                             <svg class="w-5 h-5 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                                                            <p class="text-xs text-green-700 dark:text-green-400 font-medium">
+                                                            <p class="text-xs text-green-700 font-medium">
                                                                 Sicherungsscreenshot unter Dokumente aktualisiert.
                                                             </p>
                                                         </div>
@@ -449,27 +709,35 @@
                                     </li>
 
                                     @if($previewItemId == $item->id && $this->previewItem)
-                                        <div class="bg-gray-50 dark:bg-gray-950 p-6 sm:p-8 border-y border-gray-200 dark:border-gray-800 animate-fade-in-down shadow-inner" x-data="{ showHints: true }">
+                                        @php
+                                            $previewAdminAdj = \App\Livewire\Customer\CustomerOrdersComponent::resolveAdminAdjustmentInfo($this->previewItem);
+                                        @endphp
+                                        <div class="bg-[#FAF8F5] p-6 sm:p-8 border-y border-gray-200 animate-fade-in-down shadow-inner" x-data="{ showHints: true }">
                                             <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                                                <h4 class="text-sm font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.3em]">Manufaktur Details</h4>
-                                                <div class="flex items-center gap-3">
+                                                <h4 class="text-sm font-black text-gray-600 uppercase tracking-[0.3em]">Manufaktur Details</h4>
+                                                <div class="flex flex-wrap items-center gap-3">
                                                     @if($item->product && !$item->product->isDigital() && !$item->product->isService())
                                                         <button type="button"
                                                                 @click="showHints = !showHints; window.dispatchEvent(new CustomEvent('toggle-configurator-hints', { detail: { show: showHints } }))"
-                                                                class="text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
+                                                                class="text-[11px] font-bold text-gray-600 hover:text-gray-900 bg-white border border-gray-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer">
                                                             <svg class="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                             <span x-text="showHints ? 'Hinweise ausblenden' : 'Hinweise einblenden'"></span>
                                                         </button>
                                                     @endif
-                                                    @if($item->config_fingerprint)
-                                                        <span class="text-[10px] bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 px-3 py-1 rounded-full border border-green-200 dark:border-green-500/30 flex items-center gap-2 font-black uppercase tracking-widest shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                                                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                                                            Versiegelt
+                                                    @if($previewAdminAdj !== null)
+                                                        <span class="text-[10px] bg-[#C5A059]/15 text-[#6E5119] px-3 py-1 rounded-full border border-[#C5A059]/50 flex items-center gap-1.5 font-black uppercase tracking-widest">
+                                                            <span class="text-[#C5A059]">✦</span>
+                                                            <span>Manufaktur-Feinschliff</span>
+                                                        </span>
+                                                    @elseif($item->config_fingerprint || !empty($item->configuration))
+                                                        <span class="text-[10px] bg-white text-gray-700 px-3 py-1 rounded-full border border-gray-200 flex items-center gap-1.5 font-black uppercase tracking-widest">
+                                                            <span class="text-[#C5A059]">✦</span>
+                                                            <span>Original-Design hinterlegt</span>
                                                         </span>
                                                     @endif
                                                 </div>
                                             </div>
-                                            <div class="bg-white dark:bg-gray-900 rounded-[2rem] border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm dark:shadow-2xl w-full">
+                                            <div class="bg-white rounded-[2rem] border border-gray-200 overflow-hidden shadow-sm w-full">
                                                 <livewire:shop.product.product-configurator.product-configurator :product="$this->previewItem->product" :initialData="$this->previewItem->configuration" :qty="$this->previewItem->quantity" context="preview" :key="'conf-prev-'.$this->previewItem->id" />
                                             </div>
                                         </div>

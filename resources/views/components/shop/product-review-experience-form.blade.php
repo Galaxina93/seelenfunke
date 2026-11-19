@@ -58,7 +58,11 @@
      data-product-review-experience-form="true"
      x-data="{
          hoverRating: 0,
-         selectedRating: @entangle('rating'),
+         selectedRating: {{ isset($this) ? "\$wire.entangle('rating')" : '5' }},
+         termsAccepted: {{ isset($this) ? "\$wire.entangle('acceptReviewTerms').live" : 'false' }},
+         ctaReady: {{ (isset($this) && !empty($this->acceptReviewTerms)) ? 'true' : 'false' }},
+         termsWarning: false,
+         _reviewFlowActive: false,
          funkiImages: {
              1: '{{ funki_asset('shop/projekt/funki/reviews/1_funki_1_star.webp') }}',
              2: '{{ funki_asset('shop/projekt/funki/reviews/2_funki_2_stars.webp') }}',
@@ -66,10 +70,86 @@
              4: '{{ funki_asset('shop/projekt/funki/reviews/4_funki_4_stars.webp') }}',
              5: '{{ funki_asset('shop/projekt/funki/reviews/5_funki_5_stars.webp') }}'
          },
+         init() {
+             this.$watch('termsAccepted', (val) => {
+                 if (!val) {
+                     this.ctaReady = false;
+                 } else {
+                     this.termsWarning = false;
+                     setTimeout(() => {
+                         if (this.termsAccepted && !this._reviewFlowActive) {
+                             this.ctaReady = true;
+                         }
+                     }, 45);
+                 }
+             });
+         },
          currentFunki() {
              let r = this.hoverRating !== 0 ? this.hoverRating : this.selectedRating;
              if (r === 0 || r === null || r > 5) r = 5;
              return this.funkiImages[r];
+         },
+         onReviewTermsToggle(e) {
+             const checked = Boolean(e && e.target ? e.target.checked : this.termsAccepted);
+             this.termsAccepted = checked;
+             if (checked) {
+                 this.termsWarning = false;
+                 this.ctaReady = false;
+                 this._reviewFlowActive = true;
+                 if (window.sfSparkFlow && this.$refs.reviewTermsBox && this.$refs.reviewSubmitBtn) {
+                     const h = window.sfSparkFlow.fly(this.$refs.reviewTermsBox, this.$refs.reviewSubmitBtn, {
+                         mode: 'unlock',
+                         runKey: 'review-terms-flow',
+                         onArrival: () => {
+                             this._reviewFlowActive = false;
+                             if (this.termsAccepted) this.ctaReady = true;
+                         }
+                     });
+                     if (!h) {
+                         this._reviewFlowActive = false;
+                         this.ctaReady = true;
+                     }
+                 } else {
+                     this._reviewFlowActive = false;
+                     this.ctaReady = true;
+                 }
+             } else {
+                 this._reviewFlowActive = false;
+                 this.ctaReady = false;
+                 if (window.sfSparkFlow && this.$refs.reviewSubmitBtn && this.$refs.reviewTermsBox) {
+                     window.sfSparkFlow.fly(this.$refs.reviewSubmitBtn, this.$refs.reviewTermsBox, {
+                         mode: 'relock',
+                         runKey: 'review-terms-flow'
+                     });
+                 }
+             }
+         },
+         onLockedReviewSubmitHover() {
+             if (this.termsAccepted) return;
+             if (window.sfSparkFlow && this.$refs.reviewSubmitBtn && this.$refs.reviewTermsBox) {
+                 window.sfSparkFlow.fly(this.$refs.reviewSubmitBtn, this.$refs.reviewTermsBox, {
+                     mode: 'hint',
+                     cooldownKey: 'review-submit-hint'
+                 });
+             }
+         },
+         onLockedReviewSubmitClick(e) {
+             if (this.termsAccepted) return;
+             if (e) {
+                 e.preventDefault();
+                 e.stopPropagation();
+             }
+             this.termsWarning = true;
+             if (this.$refs.reviewTermsBox) {
+                 this.$refs.reviewTermsBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+             }
+             if (window.sfSparkFlow && this.$refs.reviewSubmitBtn && this.$refs.reviewTermsBox) {
+                 window.sfSparkFlow.fly(this.$refs.reviewSubmitBtn, this.$refs.reviewTermsBox, {
+                     mode: 'hint',
+                     cooldownKey: 'review-submit-click-hint',
+                     cooldownMs: 350
+                 });
+             }
          }
      }">
     <div class="mb-6">
@@ -96,11 +176,13 @@
                                 @click="selectedRating = {{ $i }}"
                                 @mouseenter="hoverRating = {{ $i }}"
                                 aria-label="{{ $i }} {{ $i === 1 ? 'Stern' : 'Sterne' }}"
-                                class="focus:outline-none focus:ring-2 focus:ring-amber-500 rounded-full transition-transform hover:scale-110">
-                            <svg class="h-10 w-10 sm:h-12 sm:w-12 transition-colors"
-                                 :class="(hoverRating >= {{ $i }} || (hoverRating === 0 && selectedRating >= {{ $i }})) ? 'text-amber-400' : '{{ $darkAware ? 'text-gray-300 dark:text-gray-700' : 'text-gray-300' }}'"
-                                 viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" />
+                                class="focus:outline-none focus:ring-2 focus:ring-[#F5B301] rounded-full transition-transform hover:scale-110 cursor-pointer">
+                            <svg class="h-10 w-10 sm:h-12 sm:w-12 transition-all duration-150 {{ $darkAware ? 'text-[#CBD5E1] dark:text-[#64748B]' : 'text-[#CBD5E1]' }}"
+                                 viewBox="0 0 24 24"
+                                 :fill="(hoverRating >= {{ $i }} || (hoverRating === 0 && selectedRating >= {{ $i }})) ? '#F5B301' : 'none'"
+                                 :stroke="(hoverRating >= {{ $i }} || (hoverRating === 0 && selectedRating >= {{ $i }})) ? '#D97706' : 'currentColor'"
+                                 stroke-width="1.6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
                             </svg>
                         </button>
                     @endfor
@@ -233,22 +315,50 @@
             </div>
 
             {{-- Rechtliche Einwilligung (Veröffentlichung & Bildrechte) --}}
-            <div class="{{ $optionBoxBaseClass }} @error('acceptReviewTerms') border border-red-400 ring-1 ring-red-400/30 @else {{ $optionBorderNormalClass }} @enderror">
+            <div x-ref="reviewTermsBox"
+                 :class="(termsWarning || {{ $errors->has('acceptReviewTerms') ? 'true' : 'false' }}) ? 'border border-red-400 ring-1 ring-red-400/30' : '{{ $optionBorderNormalClass }}'"
+                 class="sf-magic-thin-aura relative {{ $optionBoxBaseClass }}">
+                <span aria-hidden="true"
+                      x-show="!termsAccepted && !termsWarning && !{{ $errors->has('acceptReviewTerms') ? 'true' : 'false' }}"
+                      x-transition.opacity.duration.250ms
+                      class="sf-magic-thin-aura-ring"></span>
                 <label class="flex items-start gap-3.5 cursor-pointer select-none">
                     <div class="pt-0.5 shrink-0">
-                        <input type="checkbox" wire:model.live="acceptReviewTerms" class="h-5 w-5 rounded {{ $darkAware ? 'border-gray-300 dark:border-gray-700 dark:bg-gray-900' : 'border-gray-300' }} text-amber-600 focus:ring-amber-500 cursor-pointer transition">
+                        <input type="checkbox"
+                               wire:model.live="acceptReviewTerms"
+                               @change="onReviewTermsToggle($event)"
+                               class="h-5 w-5 rounded {{ $darkAware ? 'border-gray-300 dark:border-gray-700 dark:bg-gray-900' : 'border-gray-300' }} text-[#C5A059] focus:ring-[#C5A059] cursor-pointer transition">
                     </div>
                     <div class="text-xs {{ $darkAware ? 'text-gray-600 dark:text-gray-300' : 'text-gray-600' }} leading-relaxed">
                         Ich bestätige, dass meine Bewertung auf eigener Erfahrung mit dem gekauften Produkt beruht. Sofern ich Fotos oder Videos hochlade, besitze ich sämtliche Bildrechte (keine unbefugte Abbildung Dritter gem. § 22 KUG) und bin mit der öffentlichen Anzeige im Shop sowie auf der Startseite („Was unsere Kunden sagen“) gemäß den <a href="{{ route('agb') }}" target="_blank" class="{{ $darkAware ? 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300' : 'text-amber-700 hover:text-amber-900' }} underline font-semibold">AGB (§ 8a)</a> und der <a href="{{ route('datenschutz') }}" target="_blank" class="{{ $darkAware ? 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300' : 'text-amber-700 hover:text-amber-900' }} underline font-semibold">Datenschutzerklärung</a> einverstanden. <span class="text-red-500 font-bold">*</span>
                     </div>
                 </label>
+                <p x-show="termsWarning && !termsAccepted" x-cloak class="text-red-500 text-xs mt-1.5 font-bold flex items-center gap-1">
+                    <span>Bitte bestätige zunächst die Hinweise zur Veröffentlichung und den Bildrechten.</span>
+                </p>
                 @error('acceptReviewTerms') <span class="text-red-500 text-xs mt-1.5 block font-bold">{{ $message }}</span> @enderror
             </div>
         </div>
 
         <div class="pt-6 mt-4 border-t {{ $darkAware ? 'border-amber-200/50 dark:border-gray-800' : 'border-amber-200/50' }} w-full">
             <div class="flex flex-col sm:flex-row items-center gap-4 w-full">
-                <button type="submit" wire:loading.attr="disabled" class="w-full sm:w-auto inline-flex justify-center py-3.5 px-10 rounded-xl shadow-md text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-all transform hover:-translate-y-0.5 uppercase tracking-widest">
+                <button type="submit"
+                        x-ref="reviewSubmitBtn"
+                        wire:loading.attr="disabled"
+                        @mouseenter="onLockedReviewSubmitHover()"
+                        @click="onLockedReviewSubmitClick($event)"
+                        :class="[
+                            (!termsAccepted || !ctaReady)
+                                ? '{{ $darkAware ? 'bg-gray-200 dark:bg-gray-800/80 text-gray-500 border border-gray-300 dark:border-gray-700 shadow-none' : 'bg-gray-200 text-gray-500 border border-gray-300 shadow-none' }}'
+                                : 'bg-gray-900 text-white hover:bg-black border border-transparent shadow-md transform hover:-translate-y-0.5',
+                            !termsAccepted ? 'cursor-not-allowed' : 'cursor-pointer'
+                        ]"
+                        class="sf-magic-thin-aura sf-magic-thin-aura-cta relative overflow-hidden w-full sm:w-auto inline-flex justify-center py-3.5 px-10 rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#C5A059] transition-all duration-300 uppercase tracking-widest">
+                    <span aria-hidden="true"
+                          x-show="termsAccepted && ctaReady"
+                          x-cloak
+                          x-transition.opacity.duration.250ms
+                          class="sf-magic-thin-aura-ring"></span>
                     <span wire:loading.remove wire:target="{{ $submitAction }}">{{ $isEditing ? 'Änderungen speichern' : 'Bewertung absenden' }}</span>
                     <span wire:loading wire:target="{{ $submitAction }}">Speichert...</span>
                 </button>

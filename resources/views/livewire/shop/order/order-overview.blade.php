@@ -486,15 +486,40 @@
 
         {{-- VIEW 2: DETAIL ANSICHT --}}
     @else
+        @php
+            $currentPreviewItem = $this->previewItem ?: $selectedOrder->items->first();
+            $isPreviewDigital = !empty($currentPreviewItem?->configuration['is_digital']);
+            $isPreviewService = ($currentPreviewItem?->product?->type ?? null) === 'service';
+            $isCockpitRenderedInStepOne = $selectedOrder->status !== 'pending'
+                && (int) ($this->activeOrderStep ?? 1) === 1
+                && $currentPreviewItem
+                && $currentPreviewItem->product
+                && $currentPreviewItem->product->isPhysical()
+                && !$isPreviewDigital
+                && !$isPreviewService
+                && $this->laserCockpitData !== null;
+        @endphp
         <div class="min-h-[calc(100vh-2rem)] lg:h-[calc(100vh-2rem)] flex flex-col bg-white dark:bg-gray-900/90 backdrop-blur-xl rounded-[2.5rem] shadow-xl dark:shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-gray-200 dark:border-gray-800 lg:overflow-hidden animate-fade-in-up">
             @include("livewire.shop.order.order-overview-partials.detail-header")
-            <div class="flex flex-col lg:flex-row flex-1 lg:overflow-hidden bg-gray-50/50 dark:bg-gray-950/50">
+            <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col bg-gray-50/50 dark:bg-gray-950/50">
                 @include('livewire.shop.order.order-offer-detail-content', [
                     'model' => $selectedOrder,
                     'context' => 'order',
                     'selectedItemId' => $selectedOrderItemId,
                     'previewItem' => $this->previewItem
                 ])
+
+                @if($currentPreviewItem)
+                    <div @if($isCockpitRenderedInStepOne) x-cloak x-show="stepOneTab !== 'cockpit'" style="display: none;" @endif
+                         data-order-media-fallback
+                         class="max-w-3xl w-full mx-auto px-4 sm:px-8 pb-6 shrink-0">
+                        @include('livewire.shop.order.order-overview-partials.media-dropdown-card', [
+                            'targetItem' => $currentPreviewItem,
+                            'inCockpit' => false,
+                            'showItemSwitcher' => $selectedOrder->status === 'pending' || (int) ($this->activeOrderStep ?? 1) !== 1,
+                        ])
+                    </div>
+                @endif
             </div>
         </div>
     @endif
@@ -502,11 +527,14 @@
     {{-- VERSAND-MODAL --}}
     @include("livewire.shop.order.order-overview-partials.shipping-modal")
 
-    {{-- HEADER-SCHNELLZUGRIFF MODALS (Dateien, Kostenübersicht, Kunden Infos, Lieferadresse) --}}
+    {{-- HEADER-SCHNELLZUGRIFF MODALS (Kostenübersicht, Kunden Infos, Lieferadresse) --}}
     @include("livewire.shop.order.order-overview-partials.header-modals")
 
     {{-- FOTO-BEANSTANDUNG / NACHBESSERUNGS-MODAL --}}
     @include("livewire.shop.order.order-overview-partials.photo-issue-modal")
+
+    {{-- LASER-FOTO-STUDIO MODAL --}}
+    @include("livewire.shop.order.order-overview-partials.laser-photo-studio-modal")
 
     {{-- DHL MEHRPAKET MODAL --}}
     @if($dhlModalOrderId)

@@ -498,14 +498,24 @@ class WorkshopFocusApiController extends Controller
             $calibration = $this->exportService->resolveEngravingWorkingAreaCalibration($item->product, $productCfg, $itemConf, false);
 
             $confForCache = $itemConf;
-            unset($confForCache['laser_cockpit_coordinates'], $confForCache['manufacturing_checklist']);
+            unset(
+                $confForCache['laser_cockpit_coordinates'],
+                $confForCache['manufacturing_checklist'],
+                $confForCache['laser_parameter_overrides'],
+                $confForCache['laser_cockpit_parameters'],
+                $confForCache['laser_camera_light_mode']
+            );
+            $effectiveLaserGuide = $item->product
+                ? $this->laserService->resolveEffectiveLaserParameters($item, $effectiveSide)
+                : [];
 
             $cacheHash = sha1(
-                'v6-cockpit-wysiwyg|'
+                'v8-cockpit-photo-layers|'
                 . $item->id . '|'
                 . $effectiveSide . '|'
                 . ($item->updated_at?->timestamp ?? 0) . '|'
                 . ($item->product?->updated_at?->timestamp ?? 0) . '|'
+                . ($effectiveLaserGuide['material'] ?? '') . '|'
                 . json_encode($calibration) . '|'
                 . json_encode($confForCache)
             );

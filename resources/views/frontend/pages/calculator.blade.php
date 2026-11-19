@@ -1,4 +1,10 @@
 @php
+    if (!filter_var(shop_setting('quote_calculator_enabled', true), FILTER_VALIDATE_BOOLEAN)) {
+        abort(404);
+    }
+
+    $isCalculatorMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+
     $calcSchema = [
         '@context' => 'https://schema.org',
         '@graph' => [
@@ -51,6 +57,8 @@
         </section>
 
     </x-sections.page-container>
-    <script src="{{ asset('vendor/html2canvas/html2canvas.min.js') }}"></script>
-    <script src="{{ asset('js/admin-bundle.js') }}"></script>
+    @if(!$isCalculatorMaintenance)
+        <script src="{{ asset('vendor/html2canvas/html2canvas.min.js') }}"></script>
+        <script src="{{ asset('js/admin-bundle.js') }}"></script>
+    @endif
 </x-layouts.frontend_layout>

@@ -9,9 +9,6 @@
 
     $nextInQueue = $this->nextQueueOrder;
     $hasDiffShipping = $this->selectedOrder->hasDifferentShippingAddress();
-    $hasOpenPhotoIssue = $this->selectedOrder->items->contains(function ($it) {
-        return !empty($it->configuration['photo_issue']) && empty($it->configuration['photo_issue']['resolved']);
-    });
 
     $orderStatusDotClass = match ($this->selectedOrder->status) {
         'pending' => 'bg-amber-500',
@@ -110,32 +107,12 @@
     {{-- EBENE 2: HARMONISCHE SEGMENTED-INFO-TOOLBAR · WORKFLOW-PIPELINE & KONTEXT-AKTIONEN --}}
     <div class="pt-3 border-t border-gray-200/80 dark:border-gray-800 flex flex-col xl:flex-row xl:items-center justify-between gap-2.5">
 
-        {{-- Links: Einheitliche 4er Segmented-Pill-Leiste (grid-cols-4 auf Mobile, Inline-Segmented-Bar auf Desktop) --}}
+        {{-- Links: Einheitliche 3er Segmented-Pill-Leiste (Kosten | Kunde | Adresse) --}}
         <div role="toolbar"
              aria-label="Bestelldetails Schnellzugriff"
-             class="grid grid-cols-4 sm:inline-grid sm:grid-flow-col sm:auto-cols-auto items-center gap-1 h-9 p-0.5 rounded-xl bg-gray-100/80 dark:bg-gray-950/90 border border-gray-200/80 dark:border-gray-800 w-full sm:w-auto shrink-0">
+             class="grid grid-cols-3 sm:inline-grid sm:grid-flow-col sm:auto-cols-auto items-center gap-1 h-9 p-0.5 rounded-xl bg-gray-100/80 dark:bg-gray-950/90 border border-gray-200/80 dark:border-gray-800 w-full sm:w-auto shrink-0">
 
-            {{-- 1. Dateien --}}
-            <button type="button"
-                    @click="openHeaderModalClient('files')"
-                    title="Dateien & Downloads"
-                    aria-label="Dateien & Downloads"
-                    :class="headerModal === 'files'
-                        ? 'bg-[var(--theme-color-15)] text-gray-900 dark:text-white border-[var(--theme-color)] shadow-2xs'
-                        : 'bg-transparent text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-white hover:bg-white/80 dark:hover:bg-gray-900/70'"
-                    class="h-full px-2 sm:px-3.5 rounded-[9px] border inline-flex items-center justify-center gap-1.5 text-[10px] sm:text-[11px] font-bold tracking-wide transition-all cursor-pointer">
-                <svg class="w-3.5 h-3.5 shrink-0 transition-colors"
-                     :class="headerModal === 'files' ? 'text-[var(--theme-color)]' : ''"
-                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-                </svg>
-                <span class="truncate">Dateien</span>
-                @if($hasOpenPhotoIssue)
-                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Foto-Nachbesserung offen"></span>
-                @endif
-            </button>
-
-            {{-- 2. Kosten --}}
+            {{-- 1. Kosten --}}
             <button type="button"
                     @click="openHeaderModalClient('costs')"
                     title="Kostenübersicht"

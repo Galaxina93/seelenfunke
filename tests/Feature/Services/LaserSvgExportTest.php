@@ -7,10 +7,12 @@ use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderOrderItem;
 use App\Models\Product\Product;
 use App\Services\Export\FileDownloadService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class LaserSvgExportTest extends TestCase
 {
+    use RefreshDatabase;
     protected function setUp(): void
     {
         parent::setUp();

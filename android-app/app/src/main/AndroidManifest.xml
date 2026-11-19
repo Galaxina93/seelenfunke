@@ -41,6 +41,13 @@
         android:theme="@style/Theme.Seelenfunke"
         android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="false">
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_funkenwerk" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/funkenwerk_notification_gold" />
         
         <service
             android:name=".services.WakeWordService"

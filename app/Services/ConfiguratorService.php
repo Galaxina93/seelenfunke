@@ -199,6 +199,18 @@ class ConfiguratorService
     }
 
     /**
+     * Liefert das saison- und produktkontext-gesteuerte Spruch-Bundle (6 Direkt-Vorschläge + Vollkatalog)
+     * für den Storefront-Konfigurator.
+     */
+    public function getStorefrontQuotesBundle(
+        ?\App\Models\Product\Product $product = null,
+        ?\Carbon\CarbonInterface $now = null,
+        int $limit = 6
+    ): array {
+        return app(ProductConfiguratorService::class)->getStorefrontQuotesBundle($product, $now, $limit);
+    }
+
+    /**
      * Zentrale Definition aller Standard-Werte für das 3D/2D Setup.
      */
     public function getDefaultSettings(): array

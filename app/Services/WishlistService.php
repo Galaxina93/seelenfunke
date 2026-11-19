@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Cart\WishlistItem;
+use App\Models\Product\Product;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
@@ -21,7 +22,7 @@ class WishlistService
     }
 
     /**
-     * Führt Gast-Wunschliste automatisch mit dem Kundenkonto zusammen, sobald der Kunde eingeloggt ist.
+     * Fuehrt Gast-Wunschliste automatisch und dublettenfrei mit dem Kundenkonto zusammen, sobald der Kunde eingeloggt ist.
      */
     protected function syncSessionToCustomerIfAuthenticated(): void
     {
@@ -34,11 +35,24 @@ class WishlistService
 
         $guestItems = WishlistItem::where('session_id', $sessionId)
             ->whereNull('customer_id')
+            ->orderBy('id')
             ->get();
 
+        if ($guestItems->isEmpty()) {
+            return;
+        }
+
+        $seenGuestProductIds = [];
         foreach ($guestItems as $guestItem) {
+            $pid = (string) $guestItem->product_id;
+            if ($pid === '' || isset($seenGuestProductIds[$pid])) {
+                $guestItem->delete();
+                continue;
+            }
+            $seenGuestProductIds[$pid] = true;
+
             $exists = WishlistItem::where('customer_id', $customerId)
-                ->where('product_id', $guestItem->product_id)
+                ->where('product_id', $pid)
                 ->exists();
 
             if ($exists) {
@@ -73,7 +87,7 @@ class WishlistService
             return [];
         }
 
-        return $this->baseQuery()
+        return $this->getItems()
             ->pluck('product_id')
             ->map(fn ($id) => (string) $id)
             ->values()
@@ -91,6 +105,7 @@ class WishlistService
             ->latest()
             ->get()
             ->filter(fn (WishlistItem $item) => $item->product !== null && $item->product->status === 'active')
+            ->unique(fn (WishlistItem $item) => (string) $item->product_id)
             ->values();
     }
 
@@ -111,26 +126,75 @@ class WishlistService
 
         return $this->baseQuery()
             ->where('product_id', $productId)
+            ->whereHas('product', fn ($q) => $q->where('status', 'active'))
             ->exists();
     }
 
     /**
-     * Toggles a product on the wishlist.
-     *
-     * @return bool true if added, false if removed
+     * Setzt den Wunschlisten-Zustand idempotent (oder toggelt bei null) und bereinigt evtl. Dubletten restlos.
      */
-    public function toggle(string $productId): bool
+    public function setWishlisted(string $productId, ?bool $shouldBeWishlisted = null): bool
     {
         if (!Schema::hasTable('wishlist_items') || $productId === '') {
             return false;
         }
 
-        $existing = $this->baseQuery()
-            ->where('product_id', $productId)
-            ->first();
+        if ($shouldBeWishlisted === false) {
+            $this->baseQuery()
+                ->where('product_id', $productId)
+                ->delete();
 
-        if ($existing) {
-            $existing->delete();
+            return false;
+        }
+
+        $isActiveProduct = Product::where('id', $productId)
+            ->where('status', 'active')
+            ->exists();
+
+        if ($shouldBeWishlisted === true) {
+            if (!$isActiveProduct) {
+                $this->baseQuery()
+                    ->where('product_id', $productId)
+                    ->delete();
+
+                return false;
+            }
+
+            $existingRows = $this->baseQuery()
+                ->where('product_id', $productId)
+                ->orderBy('id')
+                ->get();
+
+            if ($existingRows->isEmpty()) {
+                WishlistItem::create([
+                    'customer_id' => $this->getCustomerId(),
+                    'session_id' => $this->getSessionId(),
+                    'product_id' => $productId,
+                ]);
+            } elseif ($existingRows->count() > 1) {
+                $keepId = $existingRows->first()->id;
+                $this->baseQuery()
+                    ->where('product_id', $productId)
+                    ->where('id', '!=', $keepId)
+                    ->delete();
+            }
+
+            return true;
+        }
+
+        $exists = $this->baseQuery()
+            ->where('product_id', $productId)
+            ->exists();
+
+        if ($exists) {
+            $this->baseQuery()
+                ->where('product_id', $productId)
+                ->delete();
+
+            return false;
+        }
+
+        if (!$isActiveProduct) {
             return false;
         }
 
@@ -143,14 +207,49 @@ class WishlistService
         return true;
     }
 
+    /**
+     * Toggles a product on the wishlist.
+     *
+     * @return bool true if added, false if removed
+     */
+    public function toggle(string $productId): bool
+    {
+        return $this->setWishlisted($productId, null);
+    }
+
     public function remove(string $productId): void
     {
-        if (!Schema::hasTable('wishlist_items') || $productId === '') {
-            return;
-        }
+        $this->setWishlisted($productId, false);
+    }
 
-        $this->baseQuery()
-            ->where('product_id', $productId)
-            ->delete();
+    /**
+     * Liefert das konsistente JSON-/Initial-State-Payload fuer Header-Icons und Herz-Buttons.
+     *
+     * @return array{count: int, product_ids: array<int, string>, preview_items: array<int, array<string, string|null>>}
+     */
+    public function buildStatePayload(): array
+    {
+        $items = $this->getItems();
+        $productIds = $items->pluck('product_id')->map(fn ($id) => (string) $id)->values()->all();
+
+        $previewItems = $items->take(4)->map(function (WishlistItem $item): array {
+            $product = $item->product;
+            $resolvedMeta = $product->resolveMainImageMeta();
+
+            return [
+                'product_id' => (string) $product->id,
+                'name' => (string) $product->name,
+                'slug' => (string) $product->slug,
+                'url' => route('product.show', $product->slug),
+                'formatted_price' => (string) $product->formatted_price,
+                'preview_url' => $resolvedMeta['url'] ?? $product->preview_url,
+            ];
+        })->values()->all();
+
+        return [
+            'count' => count($productIds),
+            'product_ids' => $productIds,
+            'preview_items' => $previewItems,
+        ];
     }
 }

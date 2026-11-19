@@ -56,8 +56,12 @@ class ProductConfiguratorSettings extends Component
     public string $newQuoteText = '';
     public string $newQuoteTitle = '';
     public string $newQuoteCategory = 'Liebe & Partnerschaft';
+    public string $newQuoteHoliday = '';
+    public string $newQuoteSeason = '';
 
     public string $aiQuoteCategory = 'Liebe & Partnerschaft';
+    public string $aiQuoteHoliday = '';
+    public string $aiQuoteSeason = '';
     public string $aiQuoteStyleHint = '';
     public int $aiQuoteMaxLength = 60;
     public array $aiGeneratedQuotes = [];
@@ -67,6 +71,8 @@ class ProductConfiguratorSettings extends Component
     public string $editQuoteText = '';
     public string $editQuoteTitle = '';
     public string $editQuoteCategory = '';
+    public string $editQuoteHoliday = '';
+    public string $editQuoteSeason = '';
 
     public bool $showQuoteCategoryManager = false;
     public string $newQuoteCategoryName = '';
@@ -180,7 +186,7 @@ class ProductConfiguratorSettings extends Component
             'themes_success',
             $nextVal !== ''
                 ? "Themen-Welt „{$themes[$themeKey]['label']}“ wurde als aktive Live-Bühne im Konfigurator fixiert."
-                : 'Manuelle Fixierung aufgehoben – Kalender-Automatik (Jahreszeiten & Feiertage) ist wieder aktiv.'
+                : 'Manuelle Fixierung aufgehoben: Kalender-Automatik (Jahreszeiten & Feiertage) ist wieder aktiv.'
         );
     }
 
@@ -406,6 +412,8 @@ class ProductConfiguratorSettings extends Component
             'newQuoteText'     => 'required|string|min:2|max:240',
             'newQuoteTitle'    => 'nullable|string|max:60',
             'newQuoteCategory' => 'required|string|max:80',
+            'newQuoteHoliday'  => 'nullable|string|max:40',
+            'newQuoteSeason'   => 'nullable|string|max:40',
         ], [
             'newQuoteText.required' => 'Bitte gib einen Spruchtext ein.',
             'newQuoteText.max'      => 'Der Spruch sollte maximal 240 Zeichen lang sein.',
@@ -415,11 +423,15 @@ class ProductConfiguratorSettings extends Component
             $this->newQuoteText,
             $this->newQuoteCategory,
             $this->newQuoteTitle,
-            'manual'
+            'manual',
+            $this->newQuoteHoliday !== '' ? $this->newQuoteHoliday : null,
+            $this->newQuoteSeason !== '' ? $this->newQuoteSeason : null
         );
 
         $this->newQuoteText = '';
         $this->newQuoteTitle = '';
+        $this->newQuoteHoliday = '';
+        $this->newQuoteSeason = '';
         session()->flash('quotes_success', 'Neuer Spruch wurde zur Kreativ-Starthilfe hinzugefügt.');
     }
 
@@ -427,6 +439,8 @@ class ProductConfiguratorSettings extends Component
     {
         $this->validate([
             'aiQuoteCategory'  => 'required|string|max:80',
+            'aiQuoteHoliday'   => 'nullable|string|max:40',
+            'aiQuoteSeason'    => 'nullable|string|max:40',
             'aiQuoteStyleHint' => 'nullable|string|max:120',
             'aiQuoteMaxLength' => 'required|integer|min:20|max:140',
         ]);
@@ -435,7 +449,9 @@ class ProductConfiguratorSettings extends Component
             $this->aiQuoteCategory,
             $this->aiQuoteStyleHint,
             $this->aiQuoteMaxLength,
-            5
+            5,
+            $this->aiQuoteHoliday !== '' ? $this->aiQuoteHoliday : null,
+            $this->aiQuoteSeason !== '' ? $this->aiQuoteSeason : null
         );
 
         session()->flash(
@@ -455,7 +471,9 @@ class ProductConfiguratorSettings extends Component
             (string) ($q['text'] ?? ''),
             (string) ($q['category'] ?? $this->aiQuoteCategory),
             (string) ($q['title'] ?? ''),
-            'ai'
+            'ai',
+            $q['holiday'] ?? ($this->aiQuoteHoliday !== '' ? $this->aiQuoteHoliday : null),
+            $q['season'] ?? ($this->aiQuoteSeason !== '' ? $this->aiQuoteSeason : null)
         );
 
         unset($this->aiGeneratedQuotes[$index]);
@@ -477,7 +495,9 @@ class ProductConfiguratorSettings extends Component
                 (string) ($q['text'] ?? ''),
                 (string) ($q['category'] ?? $this->aiQuoteCategory),
                 (string) ($q['title'] ?? ''),
-                'ai'
+                'ai',
+                $q['holiday'] ?? ($this->aiQuoteHoliday !== '' ? $this->aiQuoteHoliday : null),
+                $q['season'] ?? ($this->aiQuoteSeason !== '' ? $this->aiQuoteSeason : null)
             );
             $count++;
         }
@@ -494,12 +514,28 @@ class ProductConfiguratorSettings extends Component
         }
     }
 
-    public function startEditQuote(string $id, string $text, string $title, string $category): void
-    {
+    public function startEditQuote(
+        string $id,
+        string $text = '',
+        string $title = '',
+        string $category = '',
+        ?string $holiday = null,
+        ?string $season = null
+    ): void {
+        $found = null;
+        foreach (app(ProductConfiguratorService::class)->getAdminQuotesData()['quotes'] as $q) {
+            if ($q['id'] === $id) {
+                $found = $q;
+                break;
+            }
+        }
+
         $this->editingQuoteId = $id;
-        $this->editQuoteText = $text;
-        $this->editQuoteTitle = $title;
-        $this->editQuoteCategory = $category;
+        $this->editQuoteText = $found['text'] ?? $text;
+        $this->editQuoteTitle = $found['title'] ?? $title;
+        $this->editQuoteCategory = $found['category'] ?? $category;
+        $this->editQuoteHoliday = (string) ($found['holiday'] ?? $holiday ?? '');
+        $this->editQuoteSeason = (string) ($found['season'] ?? $season ?? '');
     }
 
     public function cancelEditQuote(): void
@@ -508,6 +544,8 @@ class ProductConfiguratorSettings extends Component
         $this->editQuoteText = '';
         $this->editQuoteTitle = '';
         $this->editQuoteCategory = '';
+        $this->editQuoteHoliday = '';
+        $this->editQuoteSeason = '';
     }
 
     public function saveEditQuote(): void
@@ -520,13 +558,17 @@ class ProductConfiguratorSettings extends Component
             'editQuoteText'     => 'required|string|min:2|max:240',
             'editQuoteTitle'    => 'nullable|string|max:60',
             'editQuoteCategory' => 'required|string|max:80',
+            'editQuoteHoliday'  => 'nullable|string|max:40',
+            'editQuoteSeason'   => 'nullable|string|max:40',
         ]);
 
         app(ProductConfiguratorService::class)->updateQuote(
             $this->editingQuoteId,
             $this->editQuoteText,
             $this->editQuoteCategory,
-            $this->editQuoteTitle
+            $this->editQuoteTitle,
+            $this->editQuoteHoliday !== '' ? $this->editQuoteHoliday : null,
+            $this->editQuoteSeason !== '' ? $this->editQuoteSeason : null
         );
 
         $this->cancelEditQuote();
@@ -538,7 +580,14 @@ class ProductConfiguratorSettings extends Component
         $data = app(ProductConfiguratorService::class)->getAdminQuotesData();
         foreach ($data['quotes'] as $q) {
             if ($q['id'] === $id) {
-                app(ProductConfiguratorService::class)->updateQuote($id, $q['text'], $newCategory, $q['title']);
+                app(ProductConfiguratorService::class)->updateQuote(
+                    $id,
+                    $q['text'],
+                    $newCategory,
+                    $q['title'],
+                    $q['holiday'] ?? null,
+                    $q['season'] ?? null
+                );
                 break;
             }
         }
@@ -666,7 +715,9 @@ class ProductConfiguratorSettings extends Component
             }
             if (trim($this->quoteSearch) !== '') {
                 $needle = mb_strtolower(trim($this->quoteSearch));
-                $haystack = mb_strtolower($q['text'] . ' ' . $q['title'] . ' ' . $q['category']);
+                $haystack = mb_strtolower(
+                    $q['text'] . ' ' . $q['title'] . ' ' . $q['category'] . ' ' . ($q['holiday'] ?? '') . ' ' . ($q['season'] ?? '')
+                );
                 if (!str_contains($haystack, $needle)) {
                     return false;
                 }
@@ -692,6 +743,8 @@ class ProductConfiguratorSettings extends Component
             'quoteCategoryCounts' => $quotesData['category_counts'],
             'quotes'              => $filteredQuotes,
             'quoteStats'          => $quotesData['stats'],
+            'quoteHolidays'       => \App\Models\Product\ProductTemplate::HOLIDAYS,
+            'quoteSeasons'        => \App\Models\Product\ProductTemplate::SEASONS,
         ]);
     }
 }

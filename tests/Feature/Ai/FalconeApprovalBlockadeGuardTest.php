@@ -56,21 +56,21 @@ class FalconeApprovalBlockadeGuardTest extends TestCase
         // 1. Konzept-Ticket -> completeItem() setzt zwingend status = awaiting_go statt completed
         $conceptCreated = $this->inboxService->createItem([
             'channel' => 'shop',
-            'title' => 'Konzept Reine Digital-Domain Instant-Shop',
-            'body' => 'Bitte Architektur fuer digitale Sofort-Downloads ausarbeiten.',
+            'title' => 'Konzept Magma-Parkour Erweiterung',
+            'body' => 'Bitte Architektur fuer die neuen Magma-Raeume ausarbeiten.',
             'execution_mode' => 'concept',
         ]);
         $conceptId = (string) $conceptCreated['item']['id'];
 
         $afterConceptComplete = $this->inboxService->completeItem(
             $conceptId,
-            'Konzept fertiggestellt. Sollen wir mit digital.mein-seelenfunke.de starten?'
+            'Konzept fertiggestellt. Sollen wir mit Magma-Raum 6 starten?'
         );
 
         $this->assertNotNull($afterConceptComplete);
         $this->assertSame('awaiting_go', $afterConceptComplete['status']);
         $this->assertSame(
-            'Konzept fertiggestellt. Sollen wir mit digital.mein-seelenfunke.de starten?',
+            'Konzept fertiggestellt. Sollen wir mit Magma-Raum 6 starten?',
             $afterConceptComplete['pending_question']
         );
         $this->assertNotEmpty($afterConceptComplete['awaiting_go_at']);
@@ -190,14 +190,14 @@ class FalconeApprovalBlockadeGuardTest extends TestCase
 
         $concept = $this->inboxService->createItem([
             'channel' => 'shop',
-            'title' => 'Digital-Shop Subdomain Architektur',
-            'body' => 'Konzept fuer Instant-Downloads',
+            'title' => 'Magma-Parkour Raum-Architektur',
+            'body' => 'Konzept fuer neue Parkour-Stufen',
             'execution_mode' => 'concept',
         ]);
         $conceptId = (string) $concept['item']['id'];
         $this->inboxService->completeItem(
             $conceptId,
-            'Konzept bereit. Welche Domain soll verwendet werden?'
+            'Konzept bereit. Mit welchem Raum soll gestartet werden?'
         );
 
         $admin = $this->createAdmin();
@@ -211,7 +211,7 @@ class FalconeApprovalBlockadeGuardTest extends TestCase
                 'args' => [
                     'item_id' => $conceptId,
                     'decision' => 'approved',
-                    'answer_text' => 'Starte mit digital.mein-seelenfunke.de',
+                    'answer_text' => 'Starte mit Magma-Raum 6',
                 ],
             ])
             ->assertStatus(200);
@@ -226,8 +226,8 @@ class FalconeApprovalBlockadeGuardTest extends TestCase
         $this->assertSame('shop', $followup['channel']);
         $this->assertSame('direct', $followup['execution_mode']);
         $this->assertSame('pending', $followup['status']);
-        $this->assertStringContainsString('GO & Antwort zu: Digital-Shop Subdomain Architektur', $followup['title']);
-        $this->assertStringContainsString('Starte mit digital.mein-seelenfunke.de', $followup['body']);
+        $this->assertStringContainsString('GO & Antwort zu: Magma-Parkour Raum-Architektur', $followup['title']);
+        $this->assertStringContainsString('Starte mit Magma-Raum 6', $followup['body']);
         $this->assertStringContainsString($conceptId, $followup['body']);
 
         // 2. Direkter 1-Tap-Endpunkt POST /api/funkenwerk/ag-inbox/{id}/resolve (dismissed)

@@ -10,6 +10,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import de.meinseelenfunke.app.MainActivity
+import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.FunkenwerkAlarmManager
 import kotlinx.coroutines.CoroutineScope
@@ -238,7 +239,8 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                 }.joinToString(" · ").ifBlank { "Guten Morgen!" }
 
                 val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                    .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+                    .setColor(0xFFC5A059.toInt())
                     .setContentTitle("⏰ $scheduledTime Uhr · $alarmLabel")
                     .setContentText("$subInfo (Wegwischen = Wecker aus)")
                     .setPriority(NotificationCompat.PRIORITY_MAX)

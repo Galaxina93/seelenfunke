@@ -336,7 +336,7 @@ class LiveServerHealthPulseTest extends TestCase
         // Sicherstellen, dass bei fehlendem DNS kein HTTP-Versuch auf www.mein-seelenfunke.de gefeuert wurde!
         Http::assertNotSent(fn (HttpClientRequest $req): bool => str_contains($req->url(), 'www.mein-seelenfunke.de'));
 
-        // LiveCredentials enthält die verbindliche rückfragefreie Subdomain-Direktive ohne Verweise auf digital.mein-seelenfunke.de
+        // LiveCredentials enthält die verbindliche rückfragefreie Subdomain-Direktive ohne verworfene Subdomain-Verweise
         Auth::forgetGuards();
         $credRes = $this->withHeader('Authorization', 'Bearer ' . $bearerToken)
             ->getJson('/api/ai/live-credentials?agent_id=' . $falcone->id . '&client=android_native');
@@ -346,7 +346,7 @@ class LiveServerHealthPulseTest extends TestCase
         $coreSysInstr = explode('=== AKTIVER FREIGABE-', $sysInstr)[0];
         $this->assertStringContainsString('SUBDOMAIN- & SERVER-STATUS-DIREKTIVE', $coreSysInstr);
         $this->assertStringContainsString('system_get_server_status', $coreSysInstr);
-        $this->assertStringNotContainsString('digital.mein-seelenfunke.de', $coreSysInstr);
+        $this->assertStringNotContainsString('Digitaler Shop (Live-Freigabe)', $coreSysInstr);
         $this->assertStringNotContainsString(" \u{2013} ", $coreSysInstr);
     }
 
@@ -370,7 +370,6 @@ class LiveServerHealthPulseTest extends TestCase
             ->assertSee('stage.mein-seelenfunke.de')
             ->assertSee('ws.mein-seelenfunke.de')
             ->assertSee('api-live-bridge.mein-seelenfunke.de')
-            ->assertDontSee('digital.mein-seelenfunke.de')
             ->assertDontSee('Digital-Schalter');
     }
 }

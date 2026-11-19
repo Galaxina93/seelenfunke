@@ -1779,6 +1779,22 @@ use HasFactory, HasUuids, SoftDeletes;
         $bitmapMode = $cleanText((string) ($raw['bitmap_mode'] ?? ($raw['xtool_bitmap_mode'] ?? ($fallbackSettings['xtool_bitmap_mode'] ?? ''))));
         $engraveMode = $cleanText((string) ($raw['engrave_mode'] ?? ($raw['xtool_engrave_mode'] ?? ($fallbackSettings['xtool_engrave_mode'] ?? ''))));
 
+        $photoStudio = null;
+        if (isset($raw['photo_studio']) && is_array($raw['photo_studio'])) {
+            $ps = $raw['photo_studio'];
+            $photoStudio = [
+                'grayscale'     => isset($ps['grayscale']) ? (is_bool($ps['grayscale']) ? $ps['grayscale'] : filter_var($ps['grayscale'], FILTER_VALIDATE_BOOLEAN)) : true,
+                'invert'        => isset($ps['invert']) ? (is_bool($ps['invert']) ? $ps['invert'] : filter_var($ps['invert'], FILTER_VALIDATE_BOOLEAN)) : false,
+                'contrast'      => max(-100, min(100, (int) round((float) ($ps['contrast'] ?? 15)))),
+                'brightness'    => max(-100, min(100, (int) round((float) ($ps['brightness'] ?? 0)))),
+                'gamma'         => round(max(0.35, min(2.50, (float) str_replace(',', '.', (string) ($ps['gamma'] ?? 1.0)))), 2),
+                'highlight_cap' => max(30, min(100, (int) round((float) ($ps['highlight_cap'] ?? 75)))),
+                'sharpness'     => max(0, min(200, (int) round((float) ($ps['sharpness'] ?? 85)))),
+                'dither_mode'   => in_array($dm = strtolower(trim((string) ($ps['dither_mode'] ?? 'jarvis'))), ['jarvis', 'stucki', 'grayscale', 'threshold'], true) ? $dm : 'jarvis',
+                'threshold'     => max(10, min(245, (int) round((float) ($ps['threshold'] ?? 128)))),
+            ];
+        }
+
         $item = [
             'id'              => $rawId,
             'title'           => $title,
@@ -1796,6 +1812,7 @@ use HasFactory, HasUuids, SoftDeletes;
             'bitmap_mode'     => $bitmapMode,
             'engrave_mode'    => $engraveMode,
             'vector_note'     => $vectorNote,
+            'photo_studio'    => $photoStudio,
         ];
 
         foreach (['equipment_key', 'process_mode', 'material'] as $optKey) {
@@ -1940,7 +1957,7 @@ use HasFactory, HasUuids, SoftDeletes;
                 $existingId = (string) ($normalized[$defaultIndex]['id'] ?? 'prof_standard');
                 $updatedDefault = self::extractPrimaryLaserProfileFromSettings($settings, $existingTitle, $existingId);
                 $updatedDefault['is_default'] = true;
-                foreach (['equipment_key', 'process_mode', 'material'] as $optK) {
+                foreach (['equipment_key', 'process_mode', 'material', 'photo_studio'] as $optK) {
                     if (isset($normalized[$defaultIndex][$optK])) {
                         $updatedDefault[$optK] = $normalized[$defaultIndex][$optK];
                     }

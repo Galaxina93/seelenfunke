@@ -317,6 +317,7 @@ trait HandlesConfiguratorLogic
 
         $url = $vectorService->resolveVectorUrl($canonicalRel);
         $nextZ = $this->resolveNextTopStageZIndex();
+        $defaultVectorSize = $this->resolveDefaultStudioLogoSize(true);
 
         $newItem = [
             'id' => Str::uuid()->toString(),
@@ -325,7 +326,7 @@ trait HandlesConfiguratorLogic
             'url' => $url,
             'x' => $centerX,
             'y' => $centerY,
-            'size' => 100,
+            'size' => $defaultVectorSize,
             'rotation' => 0,
             'zIndex' => $nextZ,
         ];
@@ -405,23 +406,51 @@ trait HandlesConfiguratorLogic
         $centerX = $spawn['x'];
         $centerY = $spawn['y'];
 
-        $resolvedUrl = str_starts_with($value, 'vectors/')
+        $isVectorLogo = str_starts_with($value, 'vectors/');
+        $resolvedUrl = $isVectorLogo
             ? app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($value)
             : asset('storage/' . $value);
+        $defaultLogoSize = $this->resolveDefaultStudioLogoSize($isVectorLogo);
 
         // Ansonsten zur aktuellen Seite hinzufügen
-        $this->$targetProperty[] = [
+        $logoEntry = [
             'id' => Str::uuid()->toString(),
-            'type' => str_starts_with($value, 'vectors/') ? 'vector' : 'saved',
+            'type' => $isVectorLogo ? 'vector' : 'saved',
             'value' => $value,
             'url' => $resolvedUrl,
             'x' => $centerX,
             'y' => $centerY,
-            'size' => 130,
+            'size' => $defaultLogoSize,
             'rotation' => 0
         ];
+        if (!str_starts_with($value, 'vectors/')) {
+            $rawForValue = $this->resolveRawFileForProcessedPath($value);
+            if ($rawForValue !== null) {
+                $logoEntry['raw_value'] = $rawForValue;
+            }
+        }
+        $this->$targetProperty[] = $logoEntry;
 
         $this->clearUnusedEmptyTextsOnActiveSide();
+    }
+
+    protected function resolveRawFileForProcessedPath(string $path): ?string
+    {
+        if (!property_exists($this, 'raw_files') || !is_array($this->raw_files)) {
+            return null;
+        }
+        $raw = $this->raw_files[$path] ?? null;
+        if (
+            is_string($raw)
+            && $raw !== ''
+            && str_starts_with($raw, 'bestellungen/cart-uploads/')
+            && !str_contains($raw, '..')
+            && !str_contains($raw, "\0")
+            && !str_contains($raw, '\\')
+        ) {
+            return $raw;
+        }
+        return null;
     }
 
     protected function addFilesToStage($newPaths = null)
@@ -444,7 +473,7 @@ trait HandlesConfiguratorLogic
                 $exists = collect($this->$targetProperty)->contains('value', $path);
 
                 if (!$exists) {
-                    $this->$targetProperty[] = [
+                    $logoEntry = [
                         'id' => Str::uuid()->toString(),
                         'type' => 'saved',
                         'value' => $path,
@@ -454,6 +483,11 @@ trait HandlesConfiguratorLogic
                         'size' => 130,
                         'rotation' => 0
                     ];
+                    $rawForPath = $this->resolveRawFileForProcessedPath($path);
+                    if ($rawForPath !== null) {
+                        $logoEntry['raw_value'] = $rawForPath;
+                    }
+                    $this->$targetProperty[] = $logoEntry;
                     $addedAny = true;
                 }
             }
@@ -484,20 +518,46 @@ trait HandlesConfiguratorLogic
         unset($this->uploaded_files[$index]);
         $this->uploaded_files = array_values($this->uploaded_files);
 
-        // WICHTIG: Pfad validieren & nur Session-eigene (nicht in Templates genutzte) Dateien physisch löschen
+        $rawToCleanup = [];
+        if (property_exists($this, 'raw_files') && is_array($this->raw_files)) {
+            foreach ([$path, $path . ':initial'] as $rk) {
+                if (!empty($this->raw_files[$rk]) && is_string($this->raw_files[$rk])) {
+                    $rawToCleanup[] = $this->raw_files[$rk];
+                }
+                unset($this->raw_files[$rk]);
+            }
+        }
+
+        // WICHTIG: Pfad validieren & nur Session-eigene (nirgends in Orders/Quotes/Carts/Templates genutzte) Dateien physisch löschen
         $ownedUploads = (array) session('configurator_owned_uploads', []);
         $isStaff = auth()->guard('admin')->check()
             || \App\Services\AI\AiAuthHelper::isAdmin()
             || \App\Services\AI\AiAuthHelper::isEmployee();
-        if (
-            is_string($path)
-            && str_starts_with($path, 'bestellungen/cart-uploads/')
-            && !str_contains($path, '..')
-            && ($isStaff || in_array($path, $ownedUploads, true))
-            && !app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($path))
-        ) {
-            if (Storage::disk('public')->exists($path)) {
-                Storage::disk('public')->delete($path);
+        $cleanupService = app(\App\Services\CartFileCleanupService::class);
+
+        $pathsToDelete = array_values(array_unique(array_merge([$path], $rawToCleanup)));
+        $remainingRawRefs = (property_exists($this, 'raw_files') && is_array($this->raw_files))
+            ? array_values($this->raw_files)
+            : [];
+
+        foreach ($pathsToDelete as $candidatePath) {
+            if (in_array($candidatePath, $remainingRawRefs, true) || in_array($candidatePath, $this->uploaded_files, true)) {
+                continue;
+            }
+            $base = basename((string) $candidatePath);
+            if (
+                is_string($candidatePath)
+                && str_starts_with($candidatePath, 'bestellungen/cart-uploads/')
+                && !str_contains($candidatePath, '..')
+                && ($isStaff || in_array($candidatePath, $ownedUploads, true))
+                && !$cleanupService->isFileUsedInTemplates($base)
+                && !$cleanupService->isFileUsedInOrders($base)
+                && !$cleanupService->isFileUsedInQuotes($base)
+                && !$cleanupService->isFileUsedInCarts($base)
+            ) {
+                if (Storage::disk('public')->exists($candidatePath)) {
+                    Storage::disk('public')->delete($candidatePath);
+                }
             }
         }
     }
@@ -513,8 +573,8 @@ trait HandlesConfiguratorLogic
                 $owned[] = $p;
             }
         }
-        if (count($owned) > 50) {
-            $owned = array_slice($owned, -50);
+        if (count($owned) > 120) {
+            $owned = array_slice($owned, -120);
         }
         session(['configurator_owned_uploads' => $owned]);
     }
@@ -740,7 +800,7 @@ trait HandlesConfiguratorLogic
                             continue;
                         }
 
-                        $vertFactor = min(1.0, $symVertH / max(8.0, min(22.0, $bboxH * 0.62)));
+                        $vertFactor = min(1.0, $symVertH / max(8.0, min(20.5, $bboxH * 0.52)));
                         $distNorm = abs($ty - $cy) / $bboxH;
                         $centroidFactor = 1.0 - min(0.50, $distNorm * 1.18);
 
@@ -777,6 +837,36 @@ trait HandlesConfiguratorLogic
             'inscribedWidthPct'  => round(max(8.0, $bestW), 2),
             'inscribedHeightPct' => round(max(6.0, $bestH), 2),
         ];
+    }
+
+    /**
+     * Berechnet die maßstabsgerechte Startgröße neu eingefügter Symbole/Uploads im Studio-Modus.
+     * Bei kleinen Schmuck-Rohlingen (blankWidthMm <= 45) startet das Motiv sofort kräftig, aber plattenkonform.
+     */
+    protected function resolveDefaultStudioLogoSize(bool $isVector = true): int
+    {
+        $settings = is_array($this->configSettings ?? null) && !empty($this->configSettings)
+            ? $this->configSettings
+            : (is_array($this->product->configurator_settings ?? null) ? $this->product->configurator_settings : []);
+
+        $blankWidthMm = (float) ($settings['xtool_plane_width'] ?? ($settings['xtool_d_top'] ?? ($this->product->width ?? 0)));
+        $blankHeightMm = (float) ($settings['xtool_plane_height'] ?? ($settings['xtool_height'] ?? ($this->product->height ?? 0)));
+        $pkgKey = (string) ($settings['template_package'] ?? ($this->product->slug ?? ''));
+
+        if (in_array($pkgKey, ['id-armband-silber-herz', 'id-armband-gold-herz'], true) || ($blankWidthMm > 0 && $blankWidthMm <= 45.0 && $blankHeightMm > 0 && $blankHeightMm <= 8.0)) {
+            return $isVector ? 48 : 54;
+        }
+
+        if ($blankWidthMm > 0 && $blankWidthMm <= 45.0) {
+            $coords = $this->getBeginnerPositionCoordinates($settings);
+            $baseSymSize = (int) round((float) ($coords['symbol_size'] ?? 64));
+
+            return $isVector
+                ? max(58, min(92, $baseSymSize + 4))
+                : max(84, min(130, (int) round($baseSymSize * 1.35)));
+        }
+
+        return $isVector ? 100 : 130;
     }
 
     /**
@@ -819,77 +909,87 @@ trait HandlesConfiguratorLogic
         $defaultTextSize = 0.85;
         $defaultStudioTextSize = round(max(0.48, min(0.88, ($w - 10.0) / 36.0)), 2);
 
+        $blankWidthMm = (float) ($settings['xtool_plane_width'] ?? 0);
+        if ($blankWidthMm > 0 && $blankWidthMm <= 45.0) {
+            $plateBoxW = (float) ($settings['xtool_plate_box_pct']['width'] ?? $w);
+            $mmPerEm = (4.0 * $blankWidthMm) / max(10.0, $plateBoxW);
+            $mmPerLogo = $blankWidthMm / (5.0 * max(10.0, $plateBoxW));
+            $defaultTextSize = round(max(1.05, min(2.40, 3.6 / max(0.5, $mmPerEm))), 2);
+            $defaultStudioTextSize = round(max(1.05, min(2.35, 3.4 / max(0.5, $mmPerEm))), 2);
+            $defaultSymbolSize = round(max(46.0, min(92.0, 6.2 / max(0.02, $mmPerLogo))), 1);
+        }
+
         $pkgKey = (string) ($settings['template_package'] ?? ($this->product->slug ?? ''));
         if ($pkgKey === 'seelen-anhaenger') {
             $centerX = 50.0;
             $centerY = 72.0;
             $defaultSymbolX = 50.0;
             $defaultSymbolY = 65.5;
-            $defaultSymbolSize = 38.0;
+            $defaultSymbolSize = 58.0;
             $defaultTextX = 50.0;
             $defaultTextY = 76.0;
-            $defaultTextSize = 0.72;
-            $defaultStudioTextSize = 0.66;
+            $defaultTextSize = 1.15;
+            $defaultStudioTextSize = 1.10;
         } elseif ($pkgKey === 'seelen-pfote-hundemarke') {
             $centerX = 41.0;
             $centerY = 50.0;
             $defaultSymbolX = 41.0;
             $defaultSymbolY = 44.5;
-            $defaultSymbolSize = 34.0;
+            $defaultSymbolSize = 58.0;
             $defaultTextX = 41.0;
             $defaultTextY = 54.5;
-            $defaultTextSize = 0.70;
-            $defaultStudioTextSize = 0.56;
+            $defaultTextSize = 1.85;
+            $defaultStudioTextSize = 1.80;
         } elseif ($pkgKey === 'seelen-talisman') {
             $centerX = 50.0;
             $centerY = 66.0;
             $defaultSymbolX = 50.0;
             $defaultSymbolY = 56.0;
-            $defaultSymbolSize = 46.0;
+            $defaultSymbolSize = 58.0;
             $defaultTextX = 50.0;
             $defaultTextY = 73.0;
-            $defaultTextSize = 0.74;
-            $defaultStudioTextSize = 0.58;
+            $defaultTextSize = 1.15;
+            $defaultStudioTextSize = 1.10;
         } elseif (in_array($pkgKey, ['goldenes-seelen-herz', 'echtgold-seelen-herz'], true)) {
             $centerX = 50.0;
             $centerY = 57.0;
             $defaultSymbolX = 50.0;
             $defaultSymbolY = 49.0;
-            $defaultSymbolSize = 42.0;
+            $defaultSymbolSize = 76.0;
             $defaultTextX = 50.0;
             $defaultTextY = 61.5;
-            $defaultTextSize = 0.82;
-            $defaultStudioTextSize = 0.62;
+            $defaultTextSize = 2.25;
+            $defaultStudioTextSize = 2.15;
         } elseif (in_array($pkgKey, ['id-armband-silber-herz', 'id-armband-gold-herz'], true)) {
             $centerX = 57.0;
             $centerY = 50.0;
             $defaultSymbolX = 57.0;
             $defaultSymbolY = 46.5;
-            $defaultSymbolSize = 22.0;
+            $defaultSymbolSize = 46.0;
             $defaultTextX = 57.0;
             $defaultTextY = 53.0;
-            $defaultTextSize = 0.56;
-            $defaultStudioTextSize = 0.50;
+            $defaultTextSize = 2.18;
+            $defaultStudioTextSize = 2.15;
         } elseif ($pkgKey === 'seelen-kristall') {
             $centerX = 50.0;
             $centerY = 45.6;
             $defaultSymbolX = 50.0;
             $defaultSymbolY = 32.0;
-            $defaultSymbolSize = 80.0;
+            $defaultSymbolSize = 92.0;
             $defaultTextX = 50.0;
             $defaultTextY = 55.5;
-            $defaultTextSize = 1.20;
-            $defaultStudioTextSize = 0.88;
+            $defaultTextSize = 1.32;
+            $defaultStudioTextSize = 1.25;
         } elseif ($pkgKey === 'weizenglas-personalisiert') {
             $centerX = 50.0;
             $centerY = 47.0;
             $defaultSymbolX = 50.0;
             $defaultSymbolY = 35.0;
-            $defaultSymbolSize = 72.0;
+            $defaultSymbolSize = 74.0;
             $defaultTextX = 50.0;
             $defaultTextY = 55.0;
-            $defaultTextSize = 1.05;
-            $defaultStudioTextSize = 0.85;
+            $defaultTextSize = 1.10;
+            $defaultStudioTextSize = 0.95;
         }
 
         $symbolX = isset($settings['beginner_symbol_x']) && $settings['beginner_symbol_x'] !== '' && is_numeric($settings['beginner_symbol_x'])

@@ -4,7 +4,9 @@
     'country' => null, // Optional für Checkout (Versand DE/AT...)
     'showTitle' => true, // Ob die Überschrift "Abrechnung/Kostenübersicht" angezeigt werden soll
     'design' => 'light', // 'light' oder 'dark'
-    'containerOverride' => null // Optional: Überschreibt die kompletten Container-Klassen
+    'containerOverride' => null, // Optional: Überschreibt die kompletten Container-Klassen
+    'deliveryText' => null, // Optional: Kompakte Lieferzeit-Zeile direkt unter Versand
+    'hasBackorder' => false // Optional: Hinweis auf Auftragsfertigung
 ])
 
 @php
@@ -282,6 +284,20 @@
                 @endif
             @endif
         </div>
+
+        @if(!empty($deliveryText))
+            <div class="pt-0.5 flex items-start gap-2 text-xs {{ $hasBackorder ? 'text-amber-800' : 'text-emerald-800' }}">
+                <svg class="w-4 h-4 shrink-0 mt-0.5 {{ $hasBackorder ? 'text-amber-700' : 'text-emerald-700' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                </svg>
+                <div class="min-w-0 leading-snug">
+                    <span class="font-bold">{{ $deliveryText }}</span>
+                    @if($hasBackorder)
+                        <span class="block text-[10px] text-amber-700 font-medium mt-0.5">Enthält Auftragsfertigung (Rohling wird frisch bezogen &amp; in Gifhorn veredelt).</span>
+                    @endif
+                </div>
+            </div>
+        @endif
 
         {{-- Wertgutschein Abzug (wird erst nach Versand & Express abgezogen) --}}
         @if($data['discount_amount'] > 0 && $isGiftVoucher)

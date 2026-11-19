@@ -86,6 +86,51 @@ class ProductCalculator extends Component
     #[\Livewire\Attributes\Locked]
     public $dbProducts = [];
 
+    #[\Livewire\Attributes\Locked]
+    public bool $isAdminContext = false;
+
+    protected function isPublicFrontendCalculator(): bool
+    {
+        if ($this->isAdminContext) {
+            return false;
+        }
+
+        $req = request();
+        if ($req && ($req->is('admin', 'admin/*') || str_contains((string) $req->headers->get('referer', ''), '/admin/'))) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function isPublicMaintenanceActive(): bool
+    {
+        return $this->isPublicFrontendCalculator()
+            && filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    protected function assertPublicCalculatorEnabled(): void
+    {
+        if ($this->isPublicFrontendCalculator() && !filter_var(shop_setting('quote_calculator_enabled', true), FILTER_VALIDATE_BOOLEAN)) {
+            abort(404);
+        }
+    }
+
+    protected function blockIfMaintenanceActive(): bool
+    {
+        if (!$this->isPublicMaintenanceActive()) {
+            return false;
+        }
+
+        $msg = 'Der Angebotskalkulator befindet sich kurzzeitig in Wartung. Bitte versuche es in Kürze erneut.';
+        $this->addError('maintenance', $msg);
+        $this->addError('cart', $msg);
+        session()->flash('error', $msg);
+        $this->dispatch('quote-submit-failed');
+
+        return true;
+    }
+
     protected function rules()
     {
         $allowedCountries = implode(',', array_keys(shop_setting('active_countries', ['DE' => 'Deutschland'])));
@@ -99,9 +144,16 @@ class ProductCalculator extends Component
         ];
     }
 
-    public function mount()
+    public function mount(bool $isAdminContext = false)
     {
+        $this->isAdminContext = $isAdminContext;
+        $this->assertPublicCalculatorEnabled();
+
         $this->loadProducts();
+
+        if ($this->isPublicMaintenanceActive()) {
+            return;
+        }
 
         if (session()->has('calc_cart')) {
             $this->cartItems = session('calc_cart');
@@ -203,6 +255,11 @@ class ProductCalculator extends Component
 
     public function startCalculator()
     {
+        $this->assertPublicCalculatorEnabled();
+        if ($this->blockIfMaintenanceActive()) {
+            return;
+        }
+
         if (!$this->agb_accepted) {
             $this->addError('agb', 'Bitte akzeptieren Sie die Hinweise zur Konfiguration und die AGB, um fortzufahren.');
             ProductTrackingService::trackCalculatorValidationFailed(0, ['agb' => 'not_accepted']);
@@ -215,6 +272,11 @@ class ProductCalculator extends Component
     // --- NEU: Vorlagen Logik Start ---
     public function openConfig($productId, $templateId = null)
     {
+        $this->assertPublicCalculatorEnabled();
+        if ($this->blockIfMaintenanceActive()) {
+            return;
+        }
+
         $this->editingIndex = -1;
         $this->currentProduct = $this->dbProducts[$productId] ?? null;
         if(!$this->currentProduct) return;
@@ -264,6 +326,60 @@ class ProductCalculator extends Component
         }
 
         $this->dispatch('scroll-top');
+    }
+
+    protected function refreshCalculatorTemplates(string $productId, ?iterable $allActiveTemplates = null): void
+    {
+        $templates = $allActiveTemplates !== null
+            ? collect($allActiveTemplates)
+            : ProductTemplate::where('product_id', $productId)->where('is_active', true)->get();
+
+        if ($templates->isEmpty()) {
+            $this->productTemplates = [];
+            $this->hiddenSeasonalTemplatesCount = 0;
+            $this->showAllSeasonalTemplates = false;
+            return;
+        }
+
+        $allAsArrays = $templates->map(fn ($t) => $t instanceof ProductTemplate ? $t->toArray() : (array) $t)->values()->all();
+        $totalActive = count($allAsArrays);
+        $curated = ProductTemplate::filterAndSortForStorefront($allAsArrays, false);
+
+        if (empty($curated) || count($curated) === $totalActive) {
+            $this->productTemplates = empty($curated)
+                ? ProductTemplate::filterAndSortForStorefront($allAsArrays, true)
+                : $curated;
+            $this->hiddenSeasonalTemplatesCount = 0;
+            $this->showAllSeasonalTemplates = false;
+            return;
+        }
+
+        if ($this->showAllSeasonalTemplates) {
+            $this->productTemplates = ProductTemplate::filterAndSortForStorefront($allAsArrays, true);
+            $this->hiddenSeasonalTemplatesCount = 0;
+            return;
+        }
+
+        $this->productTemplates = $curated;
+        $this->hiddenSeasonalTemplatesCount = max(0, $totalActive - count($curated));
+    }
+
+    public function toggleShowAllTemplates(): void
+    {
+        if (method_exists($this, 'assertPublicCalculatorEnabled')) {
+            $this->assertPublicCalculatorEnabled();
+        }
+        if (method_exists($this, 'blockIfMaintenanceActive') && $this->blockIfMaintenanceActive()) {
+            return;
+        }
+
+        $productId = $this->currentProduct['id'] ?? null;
+        if (!$productId) {
+            return;
+        }
+
+        $this->showAllSeasonalTemplates = !$this->showAllSeasonalTemplates;
+        $this->refreshCalculatorTemplates((string) $productId);
     }
 
     public function openTemplatesList()
@@ -328,62 +444,13 @@ class ProductCalculator extends Component
     }
 
     #[On('calculator-save')]
-    protected function refreshCalculatorTemplates(string $productId, ?iterable $allActiveTemplates = null): void
-    {
-        $templates = $allActiveTemplates !== null
-            ? collect($allActiveTemplates)
-            : ProductTemplate::where('product_id', $productId)->where('is_active', true)->get();
-
-        if ($templates->isEmpty()) {
-            $this->productTemplates = [];
-            $this->hiddenSeasonalTemplatesCount = 0;
-            $this->showAllSeasonalTemplates = false;
-            return;
-        }
-
-        $allAsArrays = $templates->map(fn ($t) => $t instanceof ProductTemplate ? $t->toArray() : (array) $t)->values()->all();
-        $totalActive = count($allAsArrays);
-        $curated = ProductTemplate::filterAndSortForStorefront($allAsArrays, false);
-
-        if (empty($curated) || count($curated) === $totalActive) {
-            $this->productTemplates = empty($curated)
-                ? ProductTemplate::filterAndSortForStorefront($allAsArrays, true)
-                : $curated;
-            $this->hiddenSeasonalTemplatesCount = 0;
-            $this->showAllSeasonalTemplates = false;
-            return;
-        }
-
-        if ($this->showAllSeasonalTemplates) {
-            $this->productTemplates = ProductTemplate::filterAndSortForStorefront($allAsArrays, true);
-            $this->hiddenSeasonalTemplatesCount = 0;
-            return;
-        }
-
-        $this->productTemplates = $curated;
-        $this->hiddenSeasonalTemplatesCount = max(0, $totalActive - count($curated));
-    }
-
-    public function toggleShowAllTemplates(): void
-    {
-        if (method_exists($this, 'assertPublicCalculatorEnabled')) {
-            $this->assertPublicCalculatorEnabled();
-        }
-        if (method_exists($this, 'blockIfMaintenanceActive') && $this->blockIfMaintenanceActive()) {
-            return;
-        }
-
-        $productId = $this->currentProduct['id'] ?? null;
-        if (!$productId) {
-            return;
-        }
-
-        $this->showAllSeasonalTemplates = !$this->showAllSeasonalTemplates;
-        $this->refreshCalculatorTemplates((string) $productId);
-    }
-
     public function saveItemFromConfigurator($data)
     {
+        $this->assertPublicCalculatorEnabled();
+        if ($this->blockIfMaintenanceActive()) {
+            return;
+        }
+
         $productId = $data['product_id'] ?? null;
         if (!$productId || !isset($this->dbProducts[$productId])) {
             return;
@@ -758,6 +825,11 @@ class ProductCalculator extends Component
     public function updatedIsExpress() { $this->calculateTotal(); $this->persist(); }
 
     public function goNext() {
+        $this->assertPublicCalculatorEnabled();
+        if ($this->blockIfMaintenanceActive()) {
+            return;
+        }
+
         if (count($this->cartItems) == 0) {
             $this->addError('cart', 'Bitte wählen Sie Produkte aus.');
             return;
@@ -775,6 +847,11 @@ class ProductCalculator extends Component
 
     public function submit()
     {
+        $this->assertPublicCalculatorEnabled();
+        if ($this->blockIfMaintenanceActive()) {
+            return;
+        }
+
         $throttleKey = 'calculator-submit:' . request()->ip();
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             $seconds = RateLimiter::availableIn($throttleKey);
@@ -1007,9 +1084,8 @@ class ProductCalculator extends Component
 
     public function render()
     {
-        if (shop_setting('maintenance_mode', false) && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
-            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
-        }
+        $this->assertPublicCalculatorEnabled();
+        $isMaintenanceMode = $this->isPublicMaintenanceActive();
 
         // Kategorien mit aktiven physischen Produkten laden
         $categories = ProductCategory::whereHas('products', function ($query) {
@@ -1165,6 +1241,7 @@ class ProductCalculator extends Component
         $catalogProducts = $query->paginate($safePerPage);
 
         return view('livewire.shop.product.product-calculator.product-calculator', [
+            'isMaintenanceMode' => $isMaintenanceMode,
             'dbProducts' => $this->dbProducts,
             'catalogProducts' => $catalogProducts,
             'categories' => $categories,

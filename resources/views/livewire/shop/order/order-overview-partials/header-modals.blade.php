@@ -28,7 +28,6 @@
             : $rawShippingCompany;
 
         $isShippingDifferent = $selectedOrder->hasDifferentShippingAddress();
-        $modalPreviewItem = $this->previewItem ?: $selectedOrder->items->first();
     @endphp
 
     <div x-cloak
@@ -38,8 +37,7 @@
          class="fixed inset-0 z-[110] flex items-start sm:items-center justify-center bg-black/50 dark:bg-black/65 backdrop-blur-sm p-4 pt-[8vh] sm:pt-4 overflow-y-auto"
          @keydown.escape.window="closeHeaderModalClient()">
         <div @click.outside="closeHeaderModalClient()"
-             :class="headerModal === 'files' ? 'max-w-2xl' : 'max-w-lg'"
-             class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl w-full p-6 sm:p-7 relative my-auto space-y-5">
+             class="max-w-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl w-full p-6 sm:p-7 relative my-auto space-y-5">
 
             {{-- Modal Header --}}
             <div class="flex items-center justify-between gap-3 pb-4 border-b border-gray-200 dark:border-gray-800">
@@ -71,226 +69,16 @@
                 </button>
             </div>
 
-            {{-- 1. DATEIEN & DOWNLOADS MODAL --}}
-            <div x-show="headerModal === 'files'" class="space-y-4">
-                @if($selectedOrder->items->count() > 1)
-                    <div class="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-1">
-                        @foreach($selectedOrder->items as $mItem)
-                            @php $isSelMItem = $modalPreviewItem && (string) $mItem->id === (string) $modalPreviewItem->id; @endphp
-                            <button type="button"
-                                    wire:click="selectItemForPreview('{{ $mItem->id }}')"
-                                    class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer shrink-0 {{ $isSelMItem
-                                        ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]'
-                                        : 'bg-gray-50 dark:bg-gray-950 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-40)]' }}">
-                                {{ $mItem->quantity }}&times; {{ $mItem->product_name }}
-                            </button>
-                        @endforeach
-                    </div>
-                @endif
-
-                @php
-                    $isModalCustomFields = $modalPreviewItem && (
-                        (($modalPreviewItem->configuration['personalization_mode'] ?? null) === 'custom_fields')
-                        || !empty($modalPreviewItem->configuration['custom_fields_data'])
-                    );
-                    $customFieldsModalClean = $modalPreviewItem ? array_filter($modalPreviewItem->configuration['custom_fields_data'] ?? [], function ($cfd) {
-                        if (!is_array($cfd)) return false;
-                        $v = trim((string) ($cfd['value'] ?? ''));
-                        return $v !== '' && ($cfd['type'] ?? 'text') !== 'font' && !in_array(mb_strtolower($v), ['kein symbol', 'keine', 'nein', '-'], true);
-                    }) : [];
-                    $hasModalCustomContent = $isModalCustomFields && !empty($customFieldsModalClean);
-
-                    $modalFiles = $modalPreviewItem ? ($modalPreviewItem->configuration['files'] ?? []) : [];
-                    $modalLogoPath = $modalPreviewItem ? ($modalPreviewItem->configuration['logo_storage_path'] ?? null) : null;
-                    $modalSnapshotPath = $modalPreviewItem ? ($modalPreviewItem->configuration['snapshot_path'] ?? null) : null;
-                    $modalBackTexts = $modalPreviewItem
-                        ? array_filter($modalPreviewItem->configuration['texts_back'] ?? [], fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '')
-                        : [];
-                    $hasModalBackLogo = $modalPreviewItem && !$isModalCustomFields && !empty($modalPreviewItem->configuration['logos_back']);
-                    $hasModalBackContent = !$isModalCustomFields && (!empty($modalBackTexts) || $hasModalBackLogo);
-
-                    $allModalFiles = [];
-
-                    if ($modalPreviewItem) {
-                        $isVoucherItem = ($modalPreviewItem->product->slug ?? '') === 'geschenkgutschein' || (!empty($modalPreviewItem->configuration['is_gift_voucher']));
-                        if ($isVoucherItem) {
-                            $giftVouchers = \App\Models\Marketing\MarketingGiftVoucher::where('order_item_id', $modalPreviewItem->id)->get();
-                            foreach ($giftVouchers as $gv) {
-                                $allModalFiles[] = [
-                                    'label' => 'Laser-Vorlage 86×54mm Goldkarte (' . $gv->code . ')',
-                                    'download_url' => route('customer.gift-voucher.download', ['voucher' => $gv->id, 'format' => 'laser_svg']),
-                                    'ext' => 'svg',
-                                ];
-                                $allModalFiles[] = [
-                                    'label' => 'Gutschein PDF (' . $gv->code . ')',
-                                    'download_url' => route('customer.gift-voucher.download', $gv->id),
-                                    'ext' => 'pdf',
-                                ];
-                            }
-                        }
-                    }
-
-                    if ($modalLogoPath) {
-                        $allModalFiles[] = [
-                            'label' => 'Kunden-Logo',
-                            'path' => $modalLogoPath,
-                            'ext' => pathinfo($modalLogoPath, PATHINFO_EXTENSION),
-                            'is_customer_file' => true,
-                        ];
-                    }
-
-                    foreach ($modalFiles as $mf) {
-                        $allModalFiles[] = [
-                            'label' => basename($mf),
-                            'path' => $mf,
-                            'ext' => pathinfo($mf, PATHINFO_EXTENSION),
-                            'is_customer_file' => true,
-                        ];
-                    }
-
-                    if (!empty($modalSnapshotPath)) {
-                        if (is_array($modalSnapshotPath)) {
-                            foreach ($modalSnapshotPath as $sideKey => $sPath) {
-                                if ($sideKey === 'back' && !$hasModalBackContent) {
-                                    continue;
-                                }
-                                array_unshift($allModalFiles, [
-                                    'label' => 'Sicherung (' . ($sideKey === 'front' ? 'Vorderseite' : ($sideKey === 'back' ? 'Rückseite' : ucfirst($sideKey))) . ')',
-                                    'path' => $sPath,
-                                    'ext' => pathinfo($sPath, PATHINFO_EXTENSION),
-                                    'is_customer_file' => false,
-                                ]);
-                            }
-                        } else {
-                            array_unshift($allModalFiles, [
-                                'label' => 'Sicherung (Konfiguration)',
-                                'path' => $modalSnapshotPath,
-                                'ext' => pathinfo($modalSnapshotPath, PATHINFO_EXTENSION),
-                                'is_customer_file' => false,
-                            ]);
-                        }
-                    }
-
-                    $frontTextsModal = $modalPreviewItem
-                        ? array_filter($modalPreviewItem->configuration['texts'] ?? [], fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '')
-                        : [];
-                    $hasFrontLogoModal = $modalPreviewItem && !$isModalCustomFields && (!empty($modalPreviewItem->configuration['logos']) || !empty($modalPreviewItem->configuration['logo_storage_path']));
-                    $hasFrontExport = $modalPreviewItem && (!empty($frontTextsModal) || $hasFrontLogoModal || $hasModalCustomContent);
-                @endphp
-
-                <div class="space-y-2.5 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1">
-                    @forelse($allModalFiles as $fObj)
-                        @php
-                            $isCustFile = !empty($fObj['is_customer_file']);
-                            $fPath = $fObj['path'] ?? '';
-                            $fLabel = $fObj['label'] ?? '';
-                            $pIssue = $modalPreviewItem->configuration['photo_issue'] ?? null;
-                            $hasPIssue = $isCustFile && $pIssue && (($pIssue['file'] ?? '') === $fPath || ($pIssue['file_name'] ?? '') === $fLabel);
-                            $isPResolved = $hasPIssue && !empty($pIssue['resolved']);
-                        @endphp
-                        <div class="flex items-center justify-between gap-3 p-3 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-gray-950/70">
-                            <div class="flex items-center gap-3 min-w-0">
-                                <span class="w-10 h-10 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 flex items-center justify-center text-[10px] font-black uppercase text-[var(--theme-color)] shrink-0">
-                                    {{ $fObj['ext'] ?: 'FILE' }}
-                                </span>
-                                <div class="min-w-0">
-                                    <div class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ $fLabel }}</div>
-                                    @if($hasPIssue && !$isPResolved)
-                                        <div class="text-[10px] font-bold text-amber-600 dark:text-amber-400">Nachbesserung angefordert: {{ $pIssue['reason'] ?? '' }}</div>
-                                    @elseif($isPResolved)
-                                        <div class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">✓ Nachgebessert</div>
-                                    @endif
-                                </div>
-                            </div>
-
-                            <div class="flex items-center gap-1.5 shrink-0">
-                                @if($isCustFile && $modalPreviewItem)
-                                    <button type="button"
-                                            wire:click="openPhotoIssueModal('{{ $modalPreviewItem->id }}', '{{ $fPath }}', '{{ $fLabel }}')"
-                                            title="Foto bemängeln / Nachbesserung anfordern"
-                                            class="p-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-500 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] transition-colors cursor-pointer">
-                                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-                                    </button>
-                                    @if($hasPIssue && !$isPResolved)
-                                        <button type="button"
-                                                wire:click="resolvePhotoIssue('{{ $modalPreviewItem->id }}')"
-                                                title="Mangel als erledigt markieren"
-                                                class="p-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-colors cursor-pointer">
-                                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                                        </button>
-                                    @endif
-                                @endif
-
-                                <a href="{{ $fObj['download_url'] ?? asset('storage/' . $fPath) }}"
-                                   @if(empty($fObj['download_url'])) download="{{ $fLabel . '.' . $fObj['ext'] }}" @endif
-                                   target="_blank"
-                                   title="Herunterladen"
-                                   class="p-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:bg-[var(--theme-color)] hover:text-gray-950 hover:border-[var(--theme-color)] transition-colors">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                </a>
-                            </div>
-                        </div>
-                    @empty
-                        <div class="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
-                            Keine Kunden-Uploads für diese Position hinterlegt.
-                        </div>
-                    @endforelse
-                </div>
-
-                @if($modalPreviewItem && ($hasFrontExport || $hasModalBackContent))
-                    <div class="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
-                        @if($hasFrontExport)
-                            <div class="grid grid-cols-1 {{ $hasFrontLogoModal ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }} gap-2">
-                                <button type="button"
-                                        @click.stop
-                                        wire:click.prevent="downloadLaserXcsFile('{{ $modalPreviewItem->id }}', 'front')"
-                                        class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-950 text-[10px] font-black uppercase tracking-wider cursor-pointer">
-                                    <span>xTool Projekt (.xcs)</span>
-                                </button>
-                                <button type="button"
-                                        @click.stop
-                                        wire:click.prevent="downloadLaserFile('{{ $modalPreviewItem->id }}', 'front')"
-                                        class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider hover:border-[var(--theme-color)] cursor-pointer">
-                                    <span>Laser-SVG</span>
-                                </button>
-                                @if($hasFrontLogoModal)
-                                    <button type="button"
-                                            @click.stop
-                                            wire:click.prevent="downloadLaserPngFile('{{ $modalPreviewItem->id }}', 'front')"
-                                            class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider hover:border-[var(--theme-color)] cursor-pointer">
-                                        <span>Kontur-PNG</span>
-                                    </button>
-                                @endif
-                            </div>
-                        @endif
-
-                        @if($hasModalBackContent)
-                            <div class="grid grid-cols-1 {{ $hasModalBackLogo ? 'sm:grid-cols-3' : 'sm:grid-cols-2' }} gap-2">
-                                <button type="button"
-                                        @click.stop
-                                        wire:click.prevent="downloadLaserXcsFile('{{ $modalPreviewItem->id }}', 'back')"
-                                        class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-950 text-[10px] font-black uppercase tracking-wider cursor-pointer">
-                                    <span>.xcs (Rückseite)</span>
-                                </button>
-                                <button type="button"
-                                        wire:click.prevent="downloadLaserFile('{{ $modalPreviewItem->id }}', 'back')"
-                                        class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider hover:border-[var(--theme-color)] cursor-pointer">
-                                    <span>SVG (Rückseite)</span>
-                                </button>
-                                @if($hasModalBackLogo)
-                                    <button type="button"
-                                            wire:click.prevent="downloadLaserPngFile('{{ $modalPreviewItem->id }}', 'back')"
-                                            class="w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 text-[10px] font-black uppercase tracking-wider hover:border-[var(--theme-color)] cursor-pointer">
-                                        <span>PNG (Rückseite)</span>
-                                    </button>
-                                @endif
-                            </div>
-                        @endif
-                    </div>
-                @endif
+            {{-- Programmatischer Fallback für openHeaderModal('files') delegiert direkt an media-dropdown-card --}}
+            <div x-show="headerModal === 'files'" title="xTool Projekt (.xcs)" class="space-y-3">
+                @include('livewire.shop.order.order-overview-partials.media-dropdown-card', [
+                    'targetItem' => $this->previewItem ?: $selectedOrder->items->first(),
+                    'inCockpit' => false,
+                    'showItemSwitcher' => true,
+                ])
             </div>
 
-            {{-- 2. KOSTENÜBERSICHT MODAL --}}
+            {{-- 1. KOSTENÜBERSICHT MODAL --}}
             <div x-show="headerModal === 'costs'" class="space-y-4">
                 <x-shop.cost-summary :model="$selectedOrder" :showTitle="false" design="adaptive" containerOverride="p-4 sm:p-5 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200/80 dark:border-gray-800" />
 

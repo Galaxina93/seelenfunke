@@ -42,6 +42,8 @@ class ProductConfigurator extends Component
     public $new_files = [];
     #[Locked]
     public $uploaded_files = [];
+    #[Locked]
+    public array $raw_files = [];
     public $notes = '';
 
     public $configSettings = [];
@@ -55,6 +57,9 @@ class ProductConfigurator extends Component
     public array $fonts = [];
     public array $vectors = [];
     public array $quotes = [];
+    public array $recommendedQuotes = [];
+    public string $quoteOccasionLabel = '';
+    public int $totalQuotesCount = 0;
     public array $backgroundThemes = [];
     public string $backgroundTheme = 'standard';
     public string $selectedCategory = 'Allgemein';
@@ -80,14 +85,10 @@ class ProductConfigurator extends Component
     {
         $this->fonts = $configService->getFonts();
         $this->vectors = $configService->getStandardVectors();
-        $this->quotes = $configService->getStandardQuotes();
         $this->backgroundThemes = $configService->getBackgroundThemes();
-        
+
         if (!empty($this->vectors)) {
             $this->selectedCategory = array_key_first($this->vectors);
-        }
-        if (!empty($this->quotes)) {
-            $this->selectedQuoteCategory = array_key_first($this->quotes);
         }
 
         $isStaff = auth()->guard('admin')->check()
@@ -106,6 +107,15 @@ class ProductConfigurator extends Component
         if (!in_array($context, ['template_admin', 'preview'], true) && !$isStaff && $this->product->status !== 'active') {
             abort(404);
         }
+
+        $quoteBundle = $configService->getStorefrontQuotesBundle($this->product);
+        $this->quotes = $quoteBundle['grouped'] ?? [];
+        $this->recommendedQuotes = $quoteBundle['recommended'] ?? [];
+        $this->quoteOccasionLabel = (string) ($quoteBundle['occasion_label'] ?? '');
+        $this->totalQuotesCount = (int) ($quoteBundle['total_count'] ?? 0);
+        if (!empty($this->quotes)) {
+            $this->selectedQuoteCategory = array_key_first($this->quotes);
+        }
         $this->configSettings = $configService->mergeWithDefaults($this->product->configurator_settings ?? []);
         $this->context = $context;
         $this->cartItem = $cartItem;
@@ -120,6 +130,9 @@ class ProductConfigurator extends Component
 
         // IDOR-Schutz: Kunden dürfen nur eigene Bestellpositionen im Modus 'order_edit' öffnen
         if ($this->context === 'order_edit' && $this->cartItem) {
+            if ($isStaff) {
+                $this->config_confirmed = true;
+            }
             $orderItem = \App\Models\Order\OrderOrderItem::with('order')->find($this->cartItem->id ?? null);
             if ($orderItem && $orderItem->order) {
                 $customerId = auth()->guard('customer')->id();
@@ -269,9 +282,37 @@ class ProductConfigurator extends Component
         }
         $this->giftWrapMode = ($restoredWrapMode === 'loose') ? 'loose' : 'wrapped';
         $this->uploaded_files = is_array($source['files'] ?? null) ? $source['files'] : [];
+        $this->raw_files = [];
+        if (isset($source['raw_files']) && is_array($source['raw_files'])) {
+            foreach ($source['raw_files'] as $procKey => $rawPath) {
+                if (!is_string($procKey) || !is_string($rawPath)) {
+                    continue;
+                }
+                $cleanKey = trim($procKey);
+                $cleanRaw = trim($rawPath);
+                $baseKey = str_ends_with($cleanKey, ':initial') ? substr($cleanKey, 0, -8) : $cleanKey;
+                if (
+                    $baseKey !== ''
+                    && $cleanRaw !== ''
+                    && str_starts_with($baseKey, 'bestellungen/cart-uploads/')
+                    && str_starts_with($cleanRaw, 'bestellungen/cart-uploads/')
+                    && !str_contains($cleanKey, '..')
+                    && !str_contains($cleanKey, "\0")
+                    && !str_contains($cleanKey, '\\')
+                    && !str_contains($cleanRaw, '..')
+                    && !str_contains($cleanRaw, "\0")
+                    && !str_contains($cleanRaw, '\\')
+                ) {
+                    $this->raw_files[$cleanKey] = $cleanRaw;
+                }
+            }
+        }
         // Nur für eigene Warenkorb-Positionen (nicht bei Produkt-Vorlagen aus $initialData!) als Session-Eigentum registrieren
-        if (!empty($this->uploaded_files) && $this->cartItem && empty($initialData)) {
-            $this->registerSessionOwnedUploads($this->uploaded_files);
+        if ((!empty($this->uploaded_files) || !empty($this->raw_files)) && $this->cartItem && empty($initialData)) {
+            $this->registerSessionOwnedUploads(array_merge(
+                $this->uploaded_files,
+                array_values($this->raw_files)
+            ));
         }
         $rawSnapshot = $source['snapshot_path'] ?? [];
         if (is_array($rawSnapshot)) {
@@ -343,23 +384,45 @@ class ProductConfigurator extends Component
         $vectorService = app(\App\Services\ProductConfiguratorService::class);
 
         foreach ($this->logos as &$logo) {
-            if (isset($logo['value'])) {
+            if (isset($logo['value']) && is_string($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
                     $logo['url'] = $vectorService->resolveVectorUrl($logo['value']);
+                    unset($logo['raw_value']);
                 } else {
                     $logo['url'] = asset('storage/' . $logo['value']);
+                    if (!empty($logo['raw_value']) && is_string($logo['raw_value']) && str_starts_with($logo['raw_value'], 'bestellungen/cart-uploads/') && !str_contains($logo['raw_value'], '..') && !str_contains($logo['raw_value'], "\0") && !str_contains($logo['raw_value'], '\\')) {
+                        if (!isset($this->raw_files[$logo['value']]) && str_starts_with($logo['value'], 'bestellungen/cart-uploads/') && !str_contains($logo['value'], '..')) {
+                            $this->raw_files[$logo['value']] = $logo['raw_value'];
+                        }
+                    } elseif (isset($this->raw_files[$logo['value']])) {
+                        $logo['raw_value'] = $this->raw_files[$logo['value']];
+                    }
                 }
             }
         }
+        unset($logo);
 
         foreach ($this->logos_back as &$logo) {
-            if (isset($logo['value'])) {
+            if (isset($logo['value']) && is_string($logo['value'])) {
                 if (Str::startsWith($logo['value'], 'vectors/')) {
                     $logo['url'] = $vectorService->resolveVectorUrl($logo['value']);
+                    unset($logo['raw_value']);
                 } else {
                     $logo['url'] = asset('storage/' . $logo['value']);
+                    if (!empty($logo['raw_value']) && is_string($logo['raw_value']) && str_starts_with($logo['raw_value'], 'bestellungen/cart-uploads/') && !str_contains($logo['raw_value'], '..') && !str_contains($logo['raw_value'], "\0") && !str_contains($logo['raw_value'], '\\')) {
+                        if (!isset($this->raw_files[$logo['value']]) && str_starts_with($logo['value'], 'bestellungen/cart-uploads/') && !str_contains($logo['value'], '..')) {
+                            $this->raw_files[$logo['value']] = $logo['raw_value'];
+                        }
+                    } elseif (isset($this->raw_files[$logo['value']])) {
+                        $logo['raw_value'] = $this->raw_files[$logo['value']];
+                    }
                 }
             }
+        }
+        unset($logo);
+
+        if (!empty($this->raw_files) && $this->cartItem && empty($initialData)) {
+            $this->registerSessionOwnedUploads(array_values($this->raw_files));
         }
 
         $this->texts = $this->normalizeStageItemsList($this->texts, 'txt');
@@ -757,6 +820,12 @@ class ProductConfigurator extends Component
 
         // ... (Restlicher File-Upload Code bleibt gleich)
         if ($propertyName === 'new_files') {
+            if ($this->isBlockedByShopMaintenance()) {
+                $this->addError('new_files', 'Wir führen gerade kurze Wartungsarbeiten durch. Das Gestalten und Bestellen ist in Kürze wieder freigeschaltet.');
+                $this->reset('new_files');
+                return;
+            }
+
             try {
                 $this->rateLimit(20, 60);
             } catch (TooManyRequestsException $e) {
@@ -780,6 +849,7 @@ class ProductConfigurator extends Component
             ]);
 
             $newPaths = [];
+            $newRawPaths = [];
             $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'svg', 'pdf'];
             $allowedMimesByExt = [
                 'jpg'  => ['image/jpeg'],
@@ -837,21 +907,28 @@ class ProductConfigurator extends Component
                         continue;
                     }
 
-                    $tempStoredPath = $file->storeAs('bestellungen/cart-uploads', $safeUuid . '.' . $extension, 'public');
-                    $fullTempPath = Storage::disk('public')->path($tempStoredPath);
+                    // 100 % unberührte Originaldatei (exakte Original-Bytes ohne Skalierung/Schärfung/Graustufen) dauerhaft sichern
+                    $rawRelPath = $file->storeAs('bestellungen/cart-uploads', $safeUuid . '_raw.' . $extension, 'public');
+                    if (!$rawRelPath || !Storage::disk('public')->exists($rawRelPath)) {
+                        $this->addError('new_files.' . $key, "Die Originaldatei konnte nicht gespeichert werden.");
+                        continue;
+                    }
+                    $fullRawPath = Storage::disk('public')->path($rawRelPath);
 
-                    $newFileName = $this->applyLaserEffect($fullTempPath, $extension);
+                    $newFileName = $this->applyLaserEffect($fullRawPath, $extension);
                     if (!$newFileName) {
-                        if (Storage::disk('public')->exists($tempStoredPath)) {
-                            Storage::disk('public')->delete($tempStoredPath);
+                        if (Storage::disk('public')->exists($rawRelPath)) {
+                            Storage::disk('public')->delete($rawRelPath);
                         }
                         $this->addError('new_files.' . $key, "Die Bilddatei konnte nicht verarbeitet werden.");
                         continue;
                     }
 
                     $finalPath = 'bestellungen/cart-uploads/' . $newFileName;
+                    $this->raw_files[$finalPath] = $rawRelPath;
                     $this->uploaded_files[] = $finalPath;
                     $newPaths[] = $finalPath;
+                    $newRawPaths[] = $rawRelPath;
                     ProductTrackingService::trackFileUploaded($this->product->id ?? null, $extension, (int) round(($file->getSize() ?? 0) / 1024));
                 } elseif ($extension === 'svg') {
                     $tempStoredPath = $file->storeAs('bestellungen/cart-uploads', $safeUuid . '.svg', 'public');
@@ -885,7 +962,7 @@ class ProductConfigurator extends Component
 
             $this->reset('new_files');
             if (!empty($newPaths)) {
-                $this->registerSessionOwnedUploads($newPaths);
+                $this->registerSessionOwnedUploads(array_merge($newPaths, $newRawPaths));
                 $this->addFilesToStage($newPaths);
             }
         }
@@ -1038,18 +1115,29 @@ class ProductConfigurator extends Component
             }
         }
 
-        $newPath = preg_replace('/\.(jpg|jpeg|webp|png)$/i', '.png', $filePath);
-        if ($newPath === $filePath) {
-            $newPath = dirname($filePath) . '/' . pathinfo($filePath, PATHINFO_FILENAME) . '_proc.png';
+        $inputFilename = pathinfo($filePath, PATHINFO_FILENAME);
+        if (preg_match('/^(.+)_raw$/i', $inputFilename, $rawMatch)) {
+            $newPath = dirname($filePath) . '/' . $rawMatch[1] . '_proc.png';
+        } else {
+            $newPath = preg_replace('/\.(jpg|jpeg|webp|png)$/i', '.png', $filePath);
+            if ($newPath === $filePath) {
+                $newPath = dirname($filePath) . '/' . $inputFilename . '_proc.png';
+            }
         }
-        imagepng($laserImage, $newPath, 9);
+        $savedOk = @imagepng($laserImage, $newPath, 9);
 
-        if (file_exists($filePath) && $filePath !== $newPath) {
+        // NIEMALS eine _raw-Originaldatei physisch löschen!
+        $isRawSource = (bool) preg_match('/_raw\.[a-z0-9]+$/i', basename($filePath));
+        if (!$isRawSource && file_exists($filePath) && $filePath !== $newPath) {
             @unlink($filePath);
         }
 
         imagedestroy($image);
         imagedestroy($laserImage);
+
+        if (!$savedOk || !is_file($newPath)) {
+            return null;
+        }
 
         return basename($newPath);
     }
@@ -1095,6 +1183,18 @@ class ProductConfigurator extends Component
             return null;
         }
 
+        $initialRawPath = $this->raw_files[$oldValue . ':initial']
+            ?? $this->raw_files[$oldValue]
+            ?? null;
+        if ($initialRawPath === null) {
+            foreach (array_merge($this->logos ?? [], $this->logos_back ?? []) as $existingLogo) {
+                if (is_array($existingLogo) && ($existingLogo['value'] ?? '') === $oldValue && !empty($existingLogo['raw_value']) && is_string($existingLogo['raw_value'])) {
+                    $initialRawPath = $existingLogo['raw_value'];
+                    break;
+                }
+            }
+        }
+
         $extMap = [
             IMAGETYPE_PNG  => 'png',
             IMAGETYPE_JPEG => 'jpg',
@@ -1102,22 +1202,43 @@ class ProductConfigurator extends Component
         ];
         $ext = $extMap[$imageInfo[2]] ?? 'png';
         $safeUuid = (string) Str::uuid();
-        $tempRelPath = 'bestellungen/cart-uploads/' . $safeUuid . '.' . $ext;
+        $newRawRelPath = 'bestellungen/cart-uploads/' . $safeUuid . '_raw.' . $ext;
 
-        Storage::disk('public')->put($tempRelPath, $decoded);
-        $fullTempPath = Storage::disk('public')->path($tempRelPath);
+        // Farbiges Filerobot-Ergebnis (vor applyLaserEffect!) dauerhaft als _raw sichern
+        Storage::disk('public')->put($newRawRelPath, $decoded);
+        $fullRawPath = Storage::disk('public')->path($newRawRelPath);
 
-        $newFileName = $this->applyLaserEffect($fullTempPath, $ext);
+        $newFileName = $this->applyLaserEffect($fullRawPath, $ext);
         if (!$newFileName) {
-            if (Storage::disk('public')->exists($tempRelPath)) {
-                Storage::disk('public')->delete($tempRelPath);
+            if (Storage::disk('public')->exists($newRawRelPath)) {
+                Storage::disk('public')->delete($newRawRelPath);
             }
             return null;
         }
 
         $finalPath = 'bestellungen/cart-uploads/' . $newFileName;
         $finalUrl = asset('storage/' . $finalPath);
-        $this->registerSessionOwnedUploads([$finalPath]);
+
+        $this->raw_files[$finalPath] = $newRawRelPath;
+        if (
+            is_string($initialRawPath)
+            && $initialRawPath !== ''
+            && str_starts_with($initialRawPath, 'bestellungen/cart-uploads/')
+            && !str_contains($initialRawPath, '..')
+            && !str_contains($initialRawPath, "\0")
+            && !str_contains($initialRawPath, '\\')
+        ) {
+            $this->raw_files[$finalPath . ':initial'] = $initialRawPath;
+        }
+        if ($oldValue !== $finalPath) {
+            unset($this->raw_files[$oldValue], $this->raw_files[$oldValue . ':initial']);
+        }
+
+        $toRegister = [$finalPath, $newRawRelPath];
+        if (is_string($initialRawPath) && $initialRawPath !== '') {
+            $toRegister[] = $initialRawPath;
+        }
+        $this->registerSessionOwnedUploads($toRegister);
 
         foreach ($this->uploaded_files as $idx => $uf) {
             if ($uf === $oldValue) {
@@ -1129,6 +1250,7 @@ class ProductConfigurator extends Component
             if (($l['value'] ?? '') === $oldValue) {
                 $l['value'] = $finalPath;
                 $l['url'] = $finalUrl;
+                $l['raw_value'] = $newRawRelPath;
             }
         }
         unset($l);
@@ -1137,17 +1259,21 @@ class ProductConfigurator extends Component
             if (($lb['value'] ?? '') === $oldValue) {
                 $lb['value'] = $finalPath;
                 $lb['url'] = $finalUrl;
+                $lb['raw_value'] = $newRawRelPath;
             }
         }
         unset($lb);
 
-        if ($oldValue !== $finalPath && Storage::disk('public')->exists($oldValue)) {
+        // Nur die alte verarbeitete Vorschaudatei löschen, NIEMALS eine _raw-Originaldatei!
+        $oldIsRaw = (bool) preg_match('/_raw\.[a-z0-9]+$/i', basename($oldValue));
+        if (!$oldIsRaw && $oldValue !== $finalPath && Storage::disk('public')->exists($oldValue)) {
             Storage::disk('public')->delete($oldValue);
         }
 
         return [
-            'value' => $finalPath,
-            'url'   => $finalUrl,
+            'value'     => $finalPath,
+            'url'       => $finalUrl,
+            'raw_value' => $newRawRelPath,
         ];
     }
 
@@ -1239,12 +1365,32 @@ class ProductConfigurator extends Component
         }
 
         $finalUrl = asset('storage/' . $finalPath);
+        $sourceRaw = $this->raw_files[$originalValue]
+            ?? $this->raw_files[$oldValue]
+            ?? null;
+        $initialRaw = $this->raw_files[$originalValue . ':initial']
+            ?? $this->raw_files[$oldValue . ':initial']
+            ?? $sourceRaw;
+
+        if (is_string($sourceRaw) && $sourceRaw !== '') {
+            $this->raw_files[$finalPath] = $sourceRaw;
+        }
+        if (is_string($initialRaw) && $initialRaw !== '' && $initialRaw !== $sourceRaw) {
+            $this->raw_files[$finalPath . ':initial'] = $initialRaw;
+        }
+
         $toRegister = [$finalPath];
         if (
             str_starts_with($originalValue, 'bestellungen/cart-uploads/')
             && ($isStaff || in_array($originalValue, $ownedUploads, true) || in_array($originalValue, $this->uploaded_files ?? [], true))
         ) {
             $toRegister[] = $originalValue;
+        }
+        if (is_string($sourceRaw) && $sourceRaw !== '') {
+            $toRegister[] = $sourceRaw;
+        }
+        if (is_string($initialRaw) && $initialRaw !== '') {
+            $toRegister[] = $initialRaw;
         }
         $this->registerSessionOwnedUploads($toRegister);
 
@@ -1270,12 +1416,14 @@ class ProductConfigurator extends Component
             && !app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($oldValue))
             && Storage::disk('public')->exists($oldValue)
         ) {
+            unset($this->raw_files[$oldValue], $this->raw_files[$oldValue . ':initial']);
             Storage::disk('public')->delete($oldValue);
         }
 
         return [
-            'value' => $finalPath,
-            'url'   => $finalUrl,
+            'value'     => $finalPath,
+            'url'       => $finalUrl,
+            'raw_value' => $sourceRaw,
         ];
     }
 
@@ -1326,6 +1474,7 @@ class ProductConfigurator extends Component
             && !app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($currentValue))
             && Storage::disk('public')->exists($currentValue)
         ) {
+            unset($this->raw_files[$currentValue], $this->raw_files[$currentValue . ':initial']);
             Storage::disk('public')->delete($currentValue);
         }
 
@@ -1381,11 +1530,44 @@ class ProductConfigurator extends Component
         return true;
     }
 
+    protected function isBlockedByShopMaintenance(): bool
+    {
+        if (!filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            return false;
+        }
+
+        if (!in_array($this->context, ['add', 'edit', 'calculator'], true)) {
+            return false;
+        }
+
+        if ($this->context === 'edit' && auth()->guard('admin')->check()) {
+            $activeSessionCart = app(CartService::class)->getCart(false);
+            if ($this->cartItem && (!$activeSessionCart || (string) $this->cartItem->cart_id !== (string) $activeSessionCart->id)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function saveWithSnapshot($snapshotData, CartService $cartService, ?array $syncedStageState = null)
     {
         if ($this->context === 'preview') return;
 
-        if ($this->context !== 'calculator' && !$this->config_confirmed) {
+        $isAdminOrderEdit = $this->context === 'order_edit'
+            && (auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin());
+        if ($isAdminOrderEdit) {
+            $this->config_confirmed = true;
+        }
+
+        if (!$isAdminOrderEdit && $this->isBlockedByShopMaintenance()) {
+            $msg = 'Wir führen gerade kurze Wartungsarbeiten durch. Das Gestalten und Bestellen ist in Kürze wieder freigeschaltet.';
+            $this->addError('maintenance', $msg);
+            session()->flash('error', $msg);
+            return;
+        }
+
+        if ($this->context !== 'calculator' && !$isAdminOrderEdit && !$this->config_confirmed) {
             $this->addError('config_confirmed', 'Bitte setze noch diesen Haken zur Bestätigung deiner Angaben, um fortzufahren.');
             return;
         }
@@ -1463,7 +1645,20 @@ class ProductConfigurator extends Component
     {
         if ($this->context === 'preview') return;
 
-        if ($this->context !== 'calculator' && !$this->config_confirmed) {
+        $isAdminOrderEdit = $this->context === 'order_edit'
+            && (auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin());
+        if ($isAdminOrderEdit) {
+            $this->config_confirmed = true;
+        }
+
+        if (!$isAdminOrderEdit && $this->isBlockedByShopMaintenance()) {
+            $msg = 'Wir führen gerade kurze Wartungsarbeiten durch. Das Gestalten und Bestellen ist in Kürze wieder freigeschaltet.';
+            $this->addError('maintenance', $msg);
+            session()->flash('error', $msg);
+            return;
+        }
+
+        if ($this->context !== 'calculator' && !$isAdminOrderEdit && !$this->config_confirmed) {
             $this->addError('config_confirmed', 'Bitte bestätigen Sie Ihre Angaben.');
             return;
         }
@@ -1545,6 +1740,42 @@ class ProductConfigurator extends Component
                                 ? app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($val)
                                 : asset('storage/' . ltrim($val, '/'));
                         }
+                        if (str_starts_with($val, 'vectors/')) {
+                            unset($l['raw_value']);
+                        } elseif ($val !== '') {
+                            $mappedRaw = $this->raw_files[$val]
+                                ?? ((!empty($l['original_value']) && is_string($l['original_value'])) ? ($this->raw_files[$l['original_value']] ?? null) : null)
+                                ?? null;
+                            if (
+                                is_string($mappedRaw)
+                                && str_starts_with($mappedRaw, 'bestellungen/cart-uploads/')
+                                && !str_contains($mappedRaw, '..')
+                                && !str_contains($mappedRaw, "\0")
+                                && !str_contains($mappedRaw, '\\')
+                            ) {
+                                $l['raw_value'] = $mappedRaw;
+                            } elseif (!empty($l['raw_value']) && is_string($l['raw_value'])) {
+                                $rv = trim($l['raw_value']);
+                                $ownedUploads = (array) session('configurator_owned_uploads', []);
+                                $isStaff = auth()->guard('admin')->check()
+                                    || \App\Services\AI\AiAuthHelper::isAdmin()
+                                    || \App\Services\AI\AiAuthHelper::isEmployee();
+                                if (
+                                    str_starts_with($rv, 'bestellungen/cart-uploads/')
+                                    && !str_contains($rv, '..')
+                                    && !str_contains($rv, "\0")
+                                    && !str_contains($rv, '\\')
+                                    && ($isStaff || in_array($rv, $ownedUploads, true) || in_array($rv, array_values($this->raw_files), true) || app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($rv)))
+                                ) {
+                                    $l['raw_value'] = $rv;
+                                    $this->raw_files[$val] = $rv;
+                                } else {
+                                    unset($l['raw_value']);
+                                }
+                            } else {
+                                unset($l['raw_value']);
+                            }
+                        }
                         $cleaned[] = $l;
                     }
                     return $cleaned;
@@ -1620,6 +1851,40 @@ class ProductConfigurator extends Component
                     $finalSnapshotPath = 'system/' . $finalSnapshotPath;
                 }
 
+                $activeUploadRefs = is_array($this->uploaded_files) ? $this->uploaded_files : [];
+                foreach (array_merge($this->logos, $this->logos_back) as $stageLogo) {
+                    if (!empty($stageLogo['value']) && is_string($stageLogo['value'])) {
+                        $activeUploadRefs[] = $stageLogo['value'];
+                    }
+                    if (!empty($stageLogo['original_value']) && is_string($stageLogo['original_value'])) {
+                        $activeUploadRefs[] = $stageLogo['original_value'];
+                    }
+                }
+                $activeUploadRefs = array_values(array_unique($activeUploadRefs));
+
+                $cleanRawFiles = [];
+                foreach ($this->raw_files as $rk => $rv) {
+                    if (!is_string($rk) || !is_string($rv)) {
+                        continue;
+                    }
+                    $baseRk = str_ends_with($rk, ':initial') ? substr($rk, 0, -8) : $rk;
+                    if (
+                        $baseRk !== ''
+                        && $rv !== ''
+                        && in_array($baseRk, $activeUploadRefs, true)
+                        && str_starts_with($baseRk, 'bestellungen/cart-uploads/')
+                        && str_starts_with($rv, 'bestellungen/cart-uploads/')
+                        && !str_contains($rk, '..')
+                        && !str_contains($rk, "\0")
+                        && !str_contains($rk, '\\')
+                        && !str_contains($rv, '..')
+                        && !str_contains($rv, "\0")
+                        && !str_contains($rv, '\\')
+                    ) {
+                        $cleanRawFiles[$rk] = $rv;
+                    }
+                }
+
                 $configData = [
                     'personalization_mode' => $this->isUsingCustomFieldsMode() ? 'custom_fields' : $this->product->getPersonalizationMode(),
                     'custom_fields_data' => $customFieldsData,
@@ -1630,6 +1895,7 @@ class ProductConfigurator extends Component
                     'text' => $mainText,
                     'logo_path' => $mainLogo,
                     'files' => $this->uploaded_files,
+                    'raw_files' => $cleanRawFiles,
                     'notes' => $this->notes,
                     'type' => $this->type,
                     'is_digital' => $this->isDigital,
@@ -1693,7 +1959,7 @@ class ProductConfigurator extends Component
                         return;
                     }
 
-                    $isAdmin = auth()->guard('admin')->check();
+                    $isAdmin = auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin();
                     $customerId = auth()->guard('customer')->id();
                     $isOwner = $customerId && $orderItem->order->customer_id === $customerId;
 
@@ -1702,13 +1968,26 @@ class ProductConfigurator extends Component
                         return;
                     }
 
-                    if ($orderItem->order->status !== 'pending') {
+                    $orderStatus = (string) ($orderItem->order->status ?? '');
+                    if ($isAdmin) {
+                        if (in_array($orderStatus, ['shipped', 'completed', 'cancelled', 'refunded'], true)) {
+                            session()->flash('error', 'Versendete, abgeschlossene oder stornierte Bestellungen können nicht mehr geändert werden.');
+                            return;
+                        }
+                    } elseif ($orderStatus !== 'pending') {
                         session()->flash('error', 'Die Bestellung wird bereits bearbeitet. Änderungen sind nicht mehr möglich.');
                         return;
                     }
 
                     $configData = $cartService->sanitizeConfiguration($this->product, $configData) ?? $configData;
                     $existingConfig = is_array($orderItem->configuration) ? $orderItem->configuration : [];
+
+                    // Alle bestehenden Zusatz-Metadaten der Bestellposition (z. B. shipping_checklist, manufacturing_checks, raw_files) bewahren
+                    foreach (['shipping_checklist', 'order_packing_checks', 'manufacturing_checks', 'raw_files', 'laser_photo_adjustments'] as $preserveKey) {
+                        if (array_key_exists($preserveKey, $existingConfig) && !array_key_exists($preserveKey, $configData)) {
+                            $configData[$preserveKey] = $existingConfig[$preserveKey];
+                        }
+                    }
 
                     if (!$isAdmin) {
                         // Kunden dürfen im Nachbesserungsmodus ('order_edit') ausschließlich Gestaltungselemente ändern,
@@ -1723,18 +2002,51 @@ class ProductConfigurator extends Component
                         $configData['is_digital'] = $existingConfig['is_digital'] ?? (($this->product->type ?? 'physical') !== 'physical');
                     }
 
-                    // Alte Snapshots physisch vom Server löschen
-                    if (!empty($orderItem->configuration['snapshot_path'])) {
-                        $paths = is_array($orderItem->configuration['snapshot_path']) 
-                                    ? $orderItem->configuration['snapshot_path'] 
-                                    : ['front' => $orderItem->configuration['snapshot_path']];
-                        foreach($paths as $path) {
-                            $pathStr = (string) $path;
-                            $trimmedPath = ltrim($pathStr, '/');
-                            if ($pathStr !== '' && !str_contains($pathStr, '..') && !str_contains($pathStr, "\0") && (str_starts_with($trimmedPath, 'snapshots/') || str_starts_with($trimmedPath, 'system/snapshots/')) && \Illuminate\Support\Facades\Storage::disk('public')->exists($pathStr)) {
-                                \Illuminate\Support\Facades\Storage::disk('public')->delete($pathStr);
-                            }
-                        }
+                    // Chronologische Blueprint-Timeline aufbauen: Vorherigen Entwurf inkl. Snapshot-Pfaden archivieren (Snapshots bleiben für den Vergleich erhalten!)
+                    $history = is_array($existingConfig['configuration_history'] ?? null)
+                        ? array_values(array_filter($existingConfig['configuration_history'], 'is_array'))
+                        : [];
+                    $nextHistVersion = empty($history)
+                        ? 1
+                        : (max(array_map(static fn (array $h): int => (int) ($h['version'] ?? 0), $history)) + 1);
+                    $prevAdj = is_array($existingConfig['last_admin_adjustment'] ?? null) ? $existingConfig['last_admin_adjustment'] : null;
+                    $prevActorType = $prevAdj !== null ? 'admin' : 'customer';
+                    $prevActorLabel = $prevAdj !== null
+                        ? (trim((string) ($prevAdj['adjusted_by'] ?? '')) ?: 'Mein Seelenfunke Admin')
+                        : ($nextHistVersion === 1 ? 'Original-Entwurf beim Kauf' : 'Kunden-Anpassung');
+                    $prevSavedAt = ($prevAdj !== null && !empty($prevAdj['adjusted_at']))
+                        ? (string) $prevAdj['adjusted_at']
+                        : ($orderItem->created_at ? $orderItem->created_at->toIso8601String() : now()->toIso8601String());
+
+                    $history[] = [
+                        'version'            => $nextHistVersion,
+                        'actor_type'         => $prevActorType,
+                        'actor_label'        => $prevActorLabel,
+                        'saved_at'           => $prevSavedAt,
+                        'config_fingerprint' => (string) ($orderItem->config_fingerprint ?? ''),
+                        'snapshot_path'      => $existingConfig['snapshot_path'] ?? null,
+                        'texts'              => $existingConfig['texts'] ?? [],
+                        'texts_back'         => $existingConfig['texts_back'] ?? [],
+                        'logos'              => $existingConfig['logos'] ?? [],
+                        'logos_back'         => $existingConfig['logos_back'] ?? [],
+                    ];
+                    $configData['configuration_history'] = $history;
+
+                    $newCurrentVersion = $nextHistVersion + 1;
+                    $nowIso = now()->toIso8601String();
+                    if ($isAdmin) {
+                        $configData['last_admin_adjustment'] = [
+                            'adjusted_at' => $nowIso,
+                            'adjusted_by' => 'Mein Seelenfunke Admin',
+                            'version'     => $newCurrentVersion,
+                        ];
+                    } else {
+                        unset($configData['last_admin_adjustment']);
+                    }
+
+                    // Falls im schnellen Speichern kein neuer Snapshot mitkam, bisherigen Snapshot als Fallback behalten
+                    if (empty($configData['snapshot_path']) && !empty($existingConfig['snapshot_path'])) {
+                        $configData['snapshot_path'] = $existingConfig['snapshot_path'];
                     }
 
                     // Wenn zuvor ein Foto-Mangel beanstandet wurde, markiere diesen automatisch als nachgebessert!
@@ -1746,18 +2058,24 @@ class ProductConfigurator extends Component
 
                         // Vermerke die Nachbesserung in den Bestellnotizen
                         if ($orderItem->order) {
+                            $actorNoteLabel = $isAdmin ? 'Mein Seelenfunke Admin' : 'Kunde';
                             $orderItem->order->update([
-                                'notes' => trim(($orderItem->order->notes ?? '') . "\n[" . now()->format('d.m.Y H:i') . " Kunde]: Foto für " . $orderItem->product_name . " wurde erfolgreich nachgebessert.")
+                                'notes' => trim(($orderItem->order->notes ?? '') . "\n[" . now()->format('d.m.Y H:i') . " {$actorNoteLabel}]: Foto/Design für " . $orderItem->product_name . " wurde aktualisiert.")
                             ]);
                         }
                     }
 
+                    $fingerprintPayload = $configData;
+                    unset($fingerprintPayload['configuration_history'], $fingerprintPayload['last_admin_adjustment'], $fingerprintPayload['snapshot_path']);
+
                     $orderItem->update([
                         'configuration' => $configData,
+                        'config_fingerprint' => hash('sha256', json_encode($fingerprintPayload) ?: Str::random(16)),
                         // Preis- oder Mengenänderungen sind streng verboten in diesem Status.
                     ]);
 
-                    $this->dispatch('notify', message: 'Design erfolgreich aktualisiert!');
+                    $this->saved = true;
+                    $this->dispatch('notify', message: $isAdmin ? 'Manufaktur-Änderung gespeichert & in Timeline protokolliert!' : 'Design erfolgreich aktualisiert!');
                     $this->dispatch('order-item-updated', itemId: $orderItem->id);
                 }
             });

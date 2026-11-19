@@ -310,6 +310,7 @@
             {{-- Miniatur-Produkt-Overlay --}}
             <img x-show="Boolean(activeOverlayImg || config.fallbackImg)"
                  :src="activeOverlayImg || config.fallbackImg"
+                 :style="(isMirroredBackSide() && hasTransparentOverlay) ? 'transform: scaleX(-1); -webkit-transform: scaleX(-1);' : ''"
                  class="absolute inset-0 w-full h-full object-contain pointer-events-none z-[2]"
                  alt="">
             {{-- Miniatur-Arbeitsfläche (Grüne Gravurkontur zur Orientierung) --}}
@@ -317,7 +318,7 @@
                  class="absolute inset-0 w-full h-full z-[3] pointer-events-none"
                  viewBox="0 0 100 100"
                  preserveAspectRatio="none">
-                <polygon :points="getSmoothPolygonSvgPoints(config.custom_points)"
+                <polygon :points="getSmoothPolygonSvgPoints(getActiveCustomPoints())"
                          fill="rgba(16, 185, 129, 0.08)"
                          stroke="#10b981"
                          stroke-width="1.2" />
@@ -378,14 +379,14 @@
                  loading="eager"
                  decoding="sync"
                  :style="(Boolean(activeOverlayImg || config.fallbackImg) ? '' : 'display: none; ') + (hasTransparentOverlay
-                     ? 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform; filter: drop-shadow(0 12px 24px rgba(0,0,0,0.45));'
+                     ? ('transform: translate3d(0,0,0)' + (isMirroredBackSide() ? ' scaleX(-1)' : '') + '; -webkit-transform: translate3d(0,0,0)' + (isMirroredBackSide() ? ' scaleX(-1)' : '') + '; backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform; filter: drop-shadow(0 12px 24px rgba(0,0,0,0.45));')
                      : 'transform: translate3d(0,0,0); -webkit-transform: translate3d(0,0,0); backface-visibility: hidden; -webkit-backface-visibility: hidden; will-change: transform;')"
                  class="absolute inset-0 w-full h-full z-[15] object-contain pointer-events-none transition-opacity duration-500 {{ $isDark ? 'opacity-95 group-hover:opacity-100' : 'opacity-100' }}">
 
             <div x-show="config.area_shape !== 'custom'" data-snapshot-ignore="true" class="absolute z-[22] border-2 border-emerald-500 bg-emerald-500/5 pointer-events-none transition-all duration-500"
                  :style="config.area_shape === 'custom' ? 'display: none;' : `
                     top: ${config.area_top || 0}%;
-                    left: ${config.area_left || 0}%;
+                    left: ${getActiveAreaLeft()}%;
                     width: ${config.area_width || 100}%;
                     height: ${config.area_height || 100}%;
                     border-radius: ${config.area_shape === 'circle' ? '50%' : '0'};
@@ -398,7 +399,7 @@
                  class="absolute inset-0 w-full h-full z-[22] pointer-events-none"
                  viewBox="0 0 100 100"
                  preserveAspectRatio="none">
-                <polygon :points="getSmoothPolygonSvgPoints(config.custom_points)"
+                <polygon :points="getSmoothPolygonSvgPoints(getActiveCustomPoints())"
                          fill="rgba(16, 185, 129, 0.03)"
                          stroke="#10b981"
                          stroke-width="0.32"
@@ -416,7 +417,7 @@
                  class="absolute z-[26] pointer-events-none"
                  :style="((currentTexts.length === 0 && currentLogos.length === 0 && context !== 'preview' && !config.isBeginnerMode) ? '' : 'display: none !important; ') + `
                         top: ${config.area_shape === 'custom' ? 0 : (config.area_top ?? 0)}%;
-                        left: ${config.area_shape === 'custom' ? 0 : (config.area_left ?? 0)}%;
+                        left: ${config.area_shape === 'custom' ? 0 : getActiveAreaLeft()}%;
                         width: ${config.area_shape === 'custom' ? 100 : (config.area_width || 100)}%;
                         height: ${config.area_shape === 'custom' ? 100 : (config.area_height || 100)}%;
                      `">
@@ -475,13 +476,13 @@
             <div class="absolute z-[25] overflow-hidden pointer-events-none"
                  :style="`
                         top: ${config.area_shape === 'custom' ? 0 : (config.area_top ?? 0)}%;
-                        left: ${config.area_shape === 'custom' ? 0 : (config.area_left ?? 0)}%;
+                        left: ${config.area_shape === 'custom' ? 0 : getActiveAreaLeft()}%;
                         width: ${config.area_shape === 'custom' ? 100 : (config.area_width || 100)}%;
                         height: ${config.area_shape === 'custom' ? 100 : (config.area_height || 100)}%;
                         border-radius: ${config.area_shape === 'circle' ? '50%' : '0'};
                         clip-path: ${
                             config.area_shape === 'custom' && config.custom_points && config.custom_points.length > 0
-                            ? getSmoothPolygonClipPath(config.custom_points)
+                            ? getSmoothPolygonClipPath(getActiveCustomPoints())
                             : 'none'
                         };
                      `">
@@ -490,7 +491,7 @@
                     <div x-show="currentLogos[index] !== undefined"
                          :class="(context === 'preview' || config.isBeginnerMode) ? 'absolute pointer-events-none select-none' : 'absolute touch-none pointer-events-auto group/item'"
                          :style="currentLogos[index] ? `
-                            left: ${config.area_shape === 'custom' ? (currentLogos[index].x ?? areaCenterX) : ((currentLogos[index].x ?? areaCenterX)-(config.area_left ?? 0))/(config.area_width || 100)* 100}%;
+                            left: ${config.area_shape === 'custom' ? (currentLogos[index].x ?? areaCenterX) : ((currentLogos[index].x ?? areaCenterX)-getActiveAreaLeft())/(config.area_width || 100)* 100}%;
                             top: ${config.area_shape === 'custom' ? (currentLogos[index].y ?? areaCenterY) : ((currentLogos[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             width: ${((currentLogos[index].size || 100) * scaleFactor)}px;
                             transform: translate(-50%,-50%) rotate(${currentLogos[index].rotation || 0}deg);
@@ -592,7 +593,7 @@
                     <div x-show="currentTexts[index] !== undefined && ((context !== 'preview' && !config.isBeginnerMode && !isCapturing) || (currentTexts[index]?.text && String(currentTexts[index].text).trim() !== ''))"
                          :class="(context === 'preview' || config.isBeginnerMode) ? 'absolute pointer-events-none select-none' : 'absolute touch-none pointer-events-auto group/item'"
                          :style="(currentTexts[index] !== undefined && ((context !== 'preview' && !config.isBeginnerMode && !isCapturing) || (currentTexts[index]?.text && String(currentTexts[index].text).trim() !== ''))) ? `
-                            left: ${config.area_shape === 'custom' ? (currentTexts[index].x ?? areaCenterX) : ((currentTexts[index].x ?? areaCenterX)-(config.area_left ?? 0))/(config.area_width || 100)* 100}%;
+                            left: ${config.area_shape === 'custom' ? (currentTexts[index].x ?? areaCenterX) : ((currentTexts[index].x ?? areaCenterX)-getActiveAreaLeft())/(config.area_width || 100)* 100}%;
                             top: ${config.area_shape === 'custom' ? (currentTexts[index].y ?? areaCenterY) : ((currentTexts[index].y ?? areaCenterY)-(config.area_top ?? 0))/(config.area_height || 100)* 100}%;
                             transform-origin: ${currentTexts[index].align==='left'?'0% 50%':(currentTexts[index].align==='right'?'100% 50%':'50% 50%')};
                             transform: translate(${currentTexts[index].align==='left'?'0%':(currentTexts[index].align==='right'?'-100%':'-50%')},-50%) rotate(${currentTexts[index].rotation || 0}deg);

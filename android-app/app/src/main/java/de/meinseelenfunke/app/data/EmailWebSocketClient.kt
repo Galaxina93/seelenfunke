@@ -11,6 +11,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import de.meinseelenfunke.app.MainActivity
+import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.SecurityIntentHelper
 import de.meinseelenfunke.app.util.SoundManager
@@ -179,14 +180,16 @@ object EmailWebSocketClient {
         )
 
         val publicNotification = NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle("Funkenwerk Postfach")
             .setContentText("Neue E-Mail eingegangen")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
         val notification = NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle("Neue E-Mail von $from")
             .setContentText(if (subject.isNotBlank()) "$subject: $snippet" else snippet)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)

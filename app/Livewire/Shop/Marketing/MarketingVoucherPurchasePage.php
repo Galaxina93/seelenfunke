@@ -307,6 +307,13 @@ class MarketingVoucherPurchasePage extends Component
 
     public function addToCart(CartService $cartService)
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            $msg = 'Wir führen gerade kurze Wartungsarbeiten durch. Der Gutschein-Kauf ist in Kürze wieder freigeschaltet.';
+            $this->addError('maintenance', $msg);
+            session()->flash('error', $msg);
+            return null;
+        }
+
         // 1. Schrittweise Validierung über alle 3 Schritte hinweg
         foreach ([1, 2, 3] as $step) {
             try {

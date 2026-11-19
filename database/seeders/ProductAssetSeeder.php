@@ -128,10 +128,10 @@ class ProductAssetSeeder extends Seeder
         $this->ensureIdArmbandHerzGalleryAndTemplates($publicProductsPath, $goldArmbandDir, 'id-armband-gold-herz', 'gold', true);
 
         // 4. Saisonale Overlays auch für die bestehenden personalisierbaren Produkte sicherstellen
-        foreach (['seelen-kristall', 'seelen-anhaenger', 'weizenglas-personalisiert'] as $slug) {
+        foreach (['seelen-kristall', 'weizenglas-personalisiert'] as $slug) {
             $dir = $publicProductsPath . '/' . $slug;
             if (is_dir($dir) && file_exists($dir . '/overlay.png')) {
-                $this->ensureSeasonalOverlays($dir, $slug === 'seelen-anhaenger');
+                $this->ensureSeasonalOverlays($dir, false);
             }
         }
 
@@ -148,10 +148,13 @@ class ProductAssetSeeder extends Seeder
             $this->ensureSeasonalOverlays($kristallDir, true);
         }
 
-        // 4b. Der Seelenanhänger: 1:1 zum 800x800 Echtfoto-Overlay deckungsgleiches 3D-GLB-Mesh erzeugen
+        // 4b. Der Seelenanhänger: Echtfoto-Overlay bündig an die hardwareverifizierte custom_points-Arbeitsfläche
+        // kalibrieren, saisonale Overlays aktualisieren und 1:1 deckungsgleiches 3D-GLB-Mesh erzeugen
         $anhaengerDir = $publicProductsPath . '/seelen-anhaenger';
         $anhaengerOverlayPath = $anhaengerDir . '/overlay.png';
         if (is_file($anhaengerOverlayPath)) {
+            $this->calibrateSeelenAnhaengerOverlayToCustomPoints($anhaengerDir);
+            $this->ensureSeasonalOverlays($anhaengerDir, true);
             $anhaengerPngBytes = file_get_contents($anhaengerOverlayPath);
             $anhaengerMesh = $this->buildSeelenAnhaenger3DMesh();
             $anhaengerGlb = $this->buildSingleTexturedGlb($anhaengerMesh, $anhaengerPngBytes, 'SeelenAnhaenger');
@@ -270,18 +273,13 @@ SVG,
     }
 
     /**
-     * Erzeugt das exakt zum 800x800 Echtfoto-Overlay (`seelen-anhaenger/overlay.png`) deckungsgleiche
-     * 3D-Mesh für Den Seelenanhänger (Herz-Korpus y=418..772, Drehwirbel-Kette y=225..445, Spaltring y=28..256).
-     * Da min(y)+max(y) = 28+772 = 800 und min(x)+max(x) = 207+593 = 800 gilt, liegt die Bounding-Box-Mitte
-     * exakt bei (400, 400), sodass 2D-Overlay und 3D-Ansicht zu 100,0 % deckungsgleich sind.
+     * Liefert die exakt zur hardwareverifizierten `custom_points`-Arbeitsfläche gehörenden Pixel-Konturen
+     * (800x800 Raum: [$innerPx, $heartOuter]) für Den Seelenanhänger.
+     *
+     * @return array{0: array<int, array{0: float, 1: float}>, 1: array<int, array{0: float, 1: float}>}
      */
-    private function buildSeelenAnhaenger3DMesh(): array
+    private function getSeelenAnhaengerHeartContours(): array
     {
-        $positions = [];
-        $normals = [];
-        $uvs = [];
-        $indices = [];
-
         $innerPct = [
             [50.00, 59.47], [50.47, 59.22], [50.98, 58.84], [51.53, 58.34], [52.15, 57.77], [52.83, 57.15],
             [53.59, 56.51], [54.44, 55.89], [55.39, 55.31], [56.45, 54.80], [57.63, 54.41], [58.95, 54.14],
@@ -307,7 +305,6 @@ SVG,
             $dx = $next[0] - $prev[0];
             $dy = $next[1] - $prev[1];
             $len = hypot($dx, $dy) ?: 1.0;
-            // Im Uhrzeigersinn zeigt (dy, -dx) nach außen
             $nx = $dy / $len;
             $ny = -$dx / $len;
             $ox = $curr[0] + $nx * 16.0;
@@ -322,11 +319,289 @@ SVG,
             $heartOuter[] = [max(207.0, min(593.0, $ox)), max(418.0, min(772.0, $oy))];
         }
 
-        // Am oberen Herzeinschnitt kreuzen sich die Normalen-Offsets der dicht gesetzten Kerbpunkte
-        // (rechte Kerbpunkte landen links der Mittelachse und umgekehrt). Ohne Bereinigung entsteht im
-        // Fan-Dreiecksnetz ein umgeklapptes, überlappendes Dreieck von der Kerbe bis zur Herzmitte, das mit
-        // DoubleSide-Material als dunkler, flackernder Z-Fighting-Streifen sichtbar wird.
         $heartOuter = $this->sanitizeStarShapedContour($heartOuter, [400.0, 595.0]);
+
+        return [$innerPx, $heartOuter];
+    }
+
+    /**
+     * Passt das 800x800 Echtfoto-Overlay (`seelen-anhaenger/overlay.png`) im Herz-Korpus radial um (400, 595)
+     * bündig an die zu 100 % hardwareverifizierte `custom_points`-Arbeitsfläche an, ohne die Kette/Öse (y <= 444)
+     * oder die Arbeitsflächen-Koordinaten selbst anzutasten. Idempotent über `backup/overlay_unwarped_raw.png`.
+     */
+    private function calibrateSeelenAnhaengerOverlayToCustomPoints(string $anhaengerDir): void
+    {
+        $overlayPath = $anhaengerDir . '/overlay.png';
+        if (!is_file($overlayPath) || !function_exists('imagecreatefrompng')) {
+            return;
+        }
+
+        $backupDir = $anhaengerDir . '/backup';
+        File::ensureDirectoryExists($backupDir);
+        $rawSourcePath = $backupDir . '/overlay_unwarped_raw.png';
+
+        if (!is_file($rawSourcePath)) {
+            $probe = @imagecreatefrompng($overlayPath);
+            if (!$probe) {
+                return;
+            }
+            if (imagesx($probe) === 800 && imagesy($probe) === 800) {
+                // Prüfen, ob overlay.png bei (529, 670) [r=149px, 30°] noch die unkalibrierte breite Wange trägt
+                $cProbe = imagecolorat($probe, 529, 670);
+                $probeGdAlpha = ($cProbe >> 24) & 0x7F;
+                imagedestroy($probe);
+                if ($probeGdAlpha < 40) {
+                    copy($overlayPath, $rawSourcePath);
+                } else {
+                    // Bereits kalibriertes Overlay vorhanden und kein Raw-Backup nötig
+                    return;
+                }
+            } else {
+                imagedestroy($probe);
+                return;
+            }
+        }
+
+        $src = @imagecreatefrompng($rawSourcePath);
+        if (!$src) {
+            return;
+        }
+        $w = imagesx($src);
+        $h = imagesy($src);
+        if ($w !== 800 || $h !== 800) {
+            imagedestroy($src);
+            return;
+        }
+
+        [$innerPx, $heartOuter] = $this->getSeelenAnhaengerHeartContours();
+        $cx = 400.0;
+        $cy = 595.0;
+
+        $rayPolyRadius = static function (float $theta, array $poly) use ($cx, $cy): float {
+            $dx = cos($theta);
+            $dy = sin($theta);
+            $best = null;
+            $m = count($poly);
+            for ($i = 0; $i < $m; $i++) {
+                $x1 = $poly[$i][0] - $cx;
+                $y1 = $poly[$i][1] - $cy;
+                $x2 = $poly[($i + 1) % $m][0] - $cx;
+                $y2 = $poly[($i + 1) % $m][1] - $cy;
+                $sx = $x2 - $x1;
+                $sy = $y2 - $y1;
+                $denom = ($dx * $sy) - ($dy * $sx);
+                if (abs($denom) < 1e-9) {
+                    continue;
+                }
+                $t = (($x1 * $sy) - ($y1 * $sx)) / $denom;
+                $u = (($x1 * $dy) - ($y1 * $dx)) / $denom;
+                if ($t > 0.0 && $u >= -1e-6 && $u <= 1.0 + 1e-6) {
+                    if ($best === null || $t < $best) {
+                        $best = $t;
+                    }
+                }
+            }
+
+            return $best ?? 140.0;
+        };
+
+        $nAng = 720;
+        $rGreen = array_fill(0, $nAng, 0.0);
+        $rOuterTgt = array_fill(0, $nAng, 0.0);
+        $rInnerRaw = array_fill(0, $nAng, 0.0);
+        $rOuterRaw = array_fill(0, $nAng, 0.0);
+
+        for ($k = 0; $k < $nAng; $k++) {
+            $th = (($k / $nAng) * 2.0 * M_PI) - M_PI;
+            $cosT = cos($th);
+            $sinT = sin($th);
+            $rg = $rayPolyRadius($th, $innerPx);
+            $roT = max($rg + 12.0, $rayPolyRadius($th, $heartOuter));
+            $rGreen[$k] = $rg;
+            $rOuterTgt[$k] = $roT;
+
+            $ri = $rg;
+            for ($step = -12; $step <= 36; $step++) {
+                $r = $rg + ($step * 0.5);
+                $ix = (int) round($cx + ($r * $cosT));
+                $iy = (int) round($cy + ($r * $sinT));
+                if ($ix >= 0 && $ix < $w && $iy >= 0 && $iy < $h) {
+                    $c = imagecolorat($src, $ix, $iy);
+                    $gdA = ($c >> 24) & 0x7F;
+                    $R = ($c >> 16) & 0xFF;
+                    $G = ($c >> 8) & 0xFF;
+                    $B = $c & 0xFF;
+                    $lum = (0.299 * $R) + (0.587 * $G) + (0.114 * $B);
+                    if ($lum >= 42.0 && $gdA <= 28) {
+                        $ri = $r;
+                        break;
+                    }
+                }
+            }
+            $rInnerRaw[$k] = $ri;
+
+            $ro = $ri + 16.0;
+            for ($step = 12; $step <= 68; $step++) {
+                $r = $ri + ($step * 0.5);
+                $ix = (int) round($cx + ($r * $cosT));
+                $iy = (int) round($cy + ($r * $sinT));
+                if ($ix < 0 || $ix >= $w || $iy < 0 || $iy >= $h) {
+                    $ro = $r - 0.5;
+                    break;
+                }
+                $gdA = (imagecolorat($src, $ix, $iy) >> 24) & 0x7F;
+                if ($gdA >= 115) {
+                    $ro = $r - 0.5;
+                    break;
+                }
+            }
+            $rOuterRaw[$k] = max($ri + 10.0, $ro);
+        }
+
+        $rInnerSm = array_fill(0, $nAng, 0.0);
+        $rOuterSm = array_fill(0, $nAng, 0.0);
+        for ($k = 0; $k < $nAng; $k++) {
+            $s1 = 0.0;
+            $s2 = 0.0;
+            $ws = 0.0;
+            for ($d = -8; $d <= 8; $d++) {
+                $wt = exp(-($d * $d) / 20.0);
+                $idx = ($k + $d + $nAng) % $nAng;
+                $s1 += $rInnerRaw[$idx] * $wt;
+                $s2 += $rOuterRaw[$idx] * $wt;
+                $ws += $wt;
+            }
+            $rInnerSm[$k] = $s1 / $ws;
+            $rOuterSm[$k] = $s2 / $ws;
+        }
+
+        $dst = imagecreatetruecolor($w, $h);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+        imagefill($dst, 0, 0, $transparent);
+
+        // Oberer Ketten- & Spaltringbereich (y < 416) 1:1 kopieren
+        imagecopy($dst, $src, 0, 0, 0, 0, $w, 416);
+
+        for ($y = 416; $y < $h; $y++) {
+            for ($x = 0; $x < $w; $x++) {
+                // Drehwirbel-Verbindungsöse (x = 372..428, y <= 445) unberührt lassen
+                if ($y <= 445 && abs($x - 400) <= 28) {
+                    imagesetpixel($dst, $x, $y, imagecolorat($src, $x, $y));
+                    continue;
+                }
+
+                $dx = $x - $cx;
+                $dy = $y - $cy;
+                $rDst = hypot($dx, $dy);
+                if ($rDst < 1.0) {
+                    imagesetpixel($dst, $x, $y, imagecolorat($src, $x, $y));
+                    continue;
+                }
+
+                $th = atan2($dy, $dx);
+                $angPos = (($th + M_PI) / (2.0 * M_PI)) * $nAng;
+                $k0 = ((int) floor($angPos)) % $nAng;
+                if ($k0 < 0) {
+                    $k0 += $nAng;
+                }
+                $k1 = ($k0 + 1) % $nAng;
+                $af = $angPos - floor($angPos);
+
+                $rg = ($rGreen[$k0] * (1.0 - $af)) + ($rGreen[$k1] * $af);
+                $rInTgt = max(8.0, $rg - 1.1);
+                $rOutTgt = ($rOuterTgt[$k0] * (1.0 - $af)) + ($rOuterTgt[$k1] * $af);
+                $rInOrig = ($rInnerSm[$k0] * (1.0 - $af)) + ($rInnerSm[$k1] * $af);
+                $rOutOrig = ($rOuterSm[$k0] * (1.0 - $af)) + ($rOuterSm[$k1] * $af);
+
+                if ($rDst <= $rInTgt) {
+                    $rSrc = $rDst * ($rInOrig / $rInTgt);
+                } elseif ($rDst <= $rOutTgt) {
+                    $t = ($rDst - $rInTgt) / max(1.0, $rOutTgt - $rInTgt);
+                    $rSrc = $rInOrig + ($t * ($rOutOrig - $rInOrig));
+                } else {
+                    $rSrc = $rOutOrig + ($rDst - $rOutTgt);
+                }
+
+                // Sanfter Übergang an der Drehwirbel-Kerbe (y = 446..452, |x - 400| <= 28)
+                if ($y < 452 && abs($x - 400) <= 28) {
+                    $blend = ($y - 445.0) / 7.0;
+                    $rSrc = ($rDst * (1.0 - $blend)) + ($rSrc * $blend);
+                }
+
+                $sx = $cx + (($dx / $rDst) * $rSrc);
+                $sy = $cy + (($dy / $rDst) * $rSrc);
+                if ($sx < 0.0 || $sx >= ($w - 1) || $sy < 0.0 || $sy >= ($h - 1)) {
+                    continue;
+                }
+
+                $ix0 = (int) floor($sx);
+                $iy0 = (int) floor($sy);
+                $fx = $sx - $ix0;
+                $fy = $sy - $iy0;
+
+                $c00 = imagecolorat($src, $ix0, $iy0);
+                $c10 = imagecolorat($src, $ix0 + 1, $iy0);
+                $c01 = imagecolorat($src, $ix0, $iy0 + 1);
+                $c11 = imagecolorat($src, $ix0 + 1, $iy0 + 1);
+
+                $w00 = (1.0 - $fx) * (1.0 - $fy);
+                $w10 = $fx * (1.0 - $fy);
+                $w01 = (1.0 - $fx) * $fy;
+                $w11 = $fx * $fy;
+
+                $op00 = (127 - (($c00 >> 24) & 0x7F)) / 127.0;
+                $op10 = (127 - (($c10 >> 24) & 0x7F)) / 127.0;
+                $op01 = (127 - (($c01 >> 24) & 0x7F)) / 127.0;
+                $op11 = (127 - (($c11 >> 24) & 0x7F)) / 127.0;
+
+                $op = ($w00 * $op00) + ($w10 * $op10) + ($w01 * $op01) + ($w11 * $op11);
+                if ($op <= 0.004) {
+                    continue;
+                }
+
+                $pr = ($w00 * (($c00 >> 16) & 0xFF) * $op00)
+                    + ($w10 * (($c10 >> 16) & 0xFF) * $op10)
+                    + ($w01 * (($c01 >> 16) & 0xFF) * $op01)
+                    + ($w11 * (($c11 >> 16) & 0xFF) * $op11);
+                $pg = ($w00 * (($c00 >> 8) & 0xFF) * $op00)
+                    + ($w10 * (($c10 >> 8) & 0xFF) * $op10)
+                    + ($w01 * (($c01 >> 8) & 0xFF) * $op01)
+                    + ($w11 * (($c11 >> 8) & 0xFF) * $op11);
+                $pb = ($w00 * ($c00 & 0xFF) * $op00)
+                    + ($w10 * ($c10 & 0xFF) * $op10)
+                    + ($w01 * ($c01 & 0xFF) * $op01)
+                    + ($w11 * ($c11 & 0xFF) * $op11);
+
+                $outR = max(0, min(255, (int) round($pr / $op)));
+                $outG = max(0, min(255, (int) round($pg / $op)));
+                $outB = max(0, min(255, (int) round($pb / $op)));
+                $outGdA = max(0, min(127, (int) round((1.0 - min(1.0, $op)) * 127.0)));
+
+                imagesetpixel($dst, $x, $y, ($outGdA << 24) | ($outR << 16) | ($outG << 8) | $outB);
+            }
+        }
+
+        imagepng($dst, $overlayPath, 6);
+        imagedestroy($src);
+        imagedestroy($dst);
+    }
+
+    /**
+     * Erzeugt das exakt zum 800x800 Echtfoto-Overlay (`seelen-anhaenger/overlay.png`) deckungsgleiche
+     * 3D-Mesh für Den Seelenanhänger (Herz-Korpus y=418..772, Drehwirbel-Kette y=225..445, Spaltring y=28..256).
+     * Da min(y)+max(y) = 28+772 = 800 und min(x)+max(x) = 207+593 = 800 gilt, liegt die Bounding-Box-Mitte
+     * exakt bei (400, 400), sodass 2D-Overlay und 3D-Ansicht zu 100,0 % deckungsgleich sind.
+     */
+    private function buildSeelenAnhaenger3DMesh(): array
+    {
+        $positions = [];
+        $normals = [];
+        $uvs = [];
+        $indices = [];
+
+        [, $heartOuter] = $this->getSeelenAnhaengerHeartContours();
 
         // 1. Massiver Herz-Korpus (zHalf = 0.032)
         $this->extrudePixelContour($heartOuter, null, [400.0, 595.0], 0.032, $positions, $normals, $uvs, $indices, 1.5);

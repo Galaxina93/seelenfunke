@@ -107,14 +107,16 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
         val channelId = if (isNewOrder) "orders_notification_channel_v4" else "default_notification_channel"
         val publicNotification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle("Funkenwerk")
             .setContentText(if (isNewOrder) "Neue Bestellung eingegangen" else "Neue Benachrichtigung")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle(title)
             .setContentText(messageBody)
             .setAutoCancel(true)

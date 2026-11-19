@@ -36,10 +36,18 @@ class CartFileCleanupService
 
         foreach ($filePaths as $path) {
             $basename = basename($path);
+            $candidates = $this->resolveReferenceBasenames($basename);
+            if (empty($candidates)) {
+                continue;
+            }
 
-            // Check if file is still used by another active cart item
+            // Check if file (or its UUID stem for _raw.<ext>) is still used by another active cart item
             $usedInOtherCartItem = CartItem::where('id', '!=', $item->id)
-                ->where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')
+                ->where(function ($q) use ($candidates) {
+                    foreach ($candidates as $candidate) {
+                        $q->orWhere('configuration', 'LIKE', '%' . addcslashes($candidate, '%_\\') . '%');
+                    }
+                })
                 ->exists();
 
             if ($usedInOtherCartItem) {
@@ -351,13 +359,48 @@ class CartFileCleanupService
     }
 
     /**
+     * Resolves all reference basenames to check for a given file.
+     * If a file ends with `_raw.<ext>` (e.g. `<uuid>_raw.jpg`), it is also treated as actively referenced
+     * whenever `<uuid>.png` or `<uuid>_proc.png` is referenced in any Order, Quote, Cart, or ProductTemplate.
+     *
+     * @return array<int, string>
+     */
+    protected function resolveReferenceBasenames(string $basename): array
+    {
+        $basename = trim($basename);
+        if ($basename === '') {
+            return [];
+        }
+
+        $candidates = [$basename];
+
+        if (preg_match('/^(.+)_raw\.[a-z0-9]+$/i', $basename, $matches)) {
+            $stem = $matches[1];
+            if ($stem !== '') {
+                $candidates[] = $stem . '.png';
+                $candidates[] = $stem . '_proc.png';
+            }
+        }
+
+        return array_values(array_unique($candidates));
+    }
+
+    /**
      * Check if a file basename is used in any active (non-trashed) OrderOrderItem.
      */
     public function isFileUsedInOrders(string $basename): bool
     {
-        if (empty($basename)) return false;
+        $candidates = $this->resolveReferenceBasenames($basename);
+        if (empty($candidates)) {
+            return false;
+        }
+
         return OrderOrderItem::whereHas('order')
-            ->where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')
+            ->where(function ($q) use ($candidates) {
+                foreach ($candidates as $candidate) {
+                    $q->orWhere('configuration', 'LIKE', '%' . addcslashes($candidate, '%_\\') . '%');
+                }
+            })
             ->exists();
     }
 
@@ -366,8 +409,16 @@ class CartFileCleanupService
      */
     public function isFileUsedInQuotes(string $basename): bool
     {
-        if (empty($basename)) return false;
-        return OrderQuoteRequestItem::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')->exists();
+        $candidates = $this->resolveReferenceBasenames($basename);
+        if (empty($candidates)) {
+            return false;
+        }
+
+        return OrderQuoteRequestItem::where(function ($q) use ($candidates) {
+            foreach ($candidates as $candidate) {
+                $q->orWhere('configuration', 'LIKE', '%' . addcslashes($candidate, '%_\\') . '%');
+            }
+        })->exists();
     }
 
     /**
@@ -375,8 +426,16 @@ class CartFileCleanupService
      */
     public function isFileUsedInCarts(string $basename): bool
     {
-        if (empty($basename)) return false;
-        return CartItem::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')->exists();
+        $candidates = $this->resolveReferenceBasenames($basename);
+        if (empty($candidates)) {
+            return false;
+        }
+
+        return CartItem::where(function ($q) use ($candidates) {
+            foreach ($candidates as $candidate) {
+                $q->orWhere('configuration', 'LIKE', '%' . addcslashes($candidate, '%_\\') . '%');
+            }
+        })->exists();
     }
 
     /**
@@ -384,10 +443,18 @@ class CartFileCleanupService
      */
     public function isFileUsedInTemplates(string $basename): bool
     {
-        if (empty($basename)) return false;
-        return ProductTemplate::where('configuration', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')
-            ->orWhere('preview_image', 'LIKE', '%' . addcslashes($basename, '%_\\') . '%')
-            ->exists();
+        $candidates = $this->resolveReferenceBasenames($basename);
+        if (empty($candidates)) {
+            return false;
+        }
+
+        return ProductTemplate::where(function ($q) use ($candidates) {
+            foreach ($candidates as $candidate) {
+                $escaped = '%' . addcslashes($candidate, '%_\\') . '%';
+                $q->orWhere('configuration', 'LIKE', $escaped)
+                    ->orWhere('preview_image', 'LIKE', $escaped);
+            }
+        })->exists();
     }
 
     /**
@@ -406,6 +473,21 @@ class CartFileCleanupService
             foreach ($config['files'] as $f) {
                 if (is_string($f) && $this->isManagedPath($f)) {
                     $paths[] = $f;
+                }
+            }
+        }
+
+        // 1b. 'raw_files' key: map of processed path => lossless raw customer photo path
+        if (!empty($config['raw_files']) && is_array($config['raw_files'])) {
+            foreach ($config['raw_files'] as $procKey => $rawPath) {
+                if (is_string($rawPath) && $this->isManagedPath($rawPath)) {
+                    $paths[] = $rawPath;
+                }
+                if (is_string($procKey)) {
+                    $baseKey = str_ends_with($procKey, ':initial') ? substr($procKey, 0, -8) : $procKey;
+                    if ($this->isManagedPath($baseKey)) {
+                        $paths[] = $baseKey;
+                    }
                 }
             }
         }
@@ -430,22 +512,47 @@ class CartFileCleanupService
             }
         }
 
-        // 4. 'logos' array
+        // 4. 'logos' array (value & raw_value)
         if (!empty($config['logos']) && is_array($config['logos'])) {
             foreach ($config['logos'] as $logo) {
-                $val = $logo['value'] ?? null;
-                if (is_string($val) && $this->isManagedPath($val)) {
-                    $paths[] = $val;
+                if (!is_array($logo)) {
+                    continue;
+                }
+                foreach (['value', 'raw_value', 'original_value'] as $lKey) {
+                    $val = $logo[$lKey] ?? null;
+                    if (is_string($val) && $this->isManagedPath($val)) {
+                        $paths[] = $val;
+                    }
                 }
             }
         }
 
-        // 5. 'logos_back' array
+        // 5. 'logos_back' array (value & raw_value)
         if (!empty($config['logos_back']) && is_array($config['logos_back'])) {
             foreach ($config['logos_back'] as $logo) {
-                $val = $logo['value'] ?? null;
-                if (is_string($val) && $this->isManagedPath($val)) {
-                    $paths[] = $val;
+                if (!is_array($logo)) {
+                    continue;
+                }
+                foreach (['value', 'raw_value', 'original_value'] as $lKey) {
+                    $val = $logo[$lKey] ?? null;
+                    if (is_string($val) && $this->isManagedPath($val)) {
+                        $paths[] = $val;
+                    }
+                }
+            }
+        }
+
+        // 6. 'laser_photo_adjustments' array (edited_path, raw_path & original_path)
+        if (!empty($config['laser_photo_adjustments']) && is_array($config['laser_photo_adjustments'])) {
+            foreach ($config['laser_photo_adjustments'] as $adj) {
+                if (!is_array($adj)) {
+                    continue;
+                }
+                foreach (['edited_path', 'raw_path', 'original_path'] as $adjKey) {
+                    $adjPath = $adj[$adjKey] ?? null;
+                    if (is_string($adjPath) && $this->isManagedPath($adjPath)) {
+                        $paths[] = $adjPath;
+                    }
                 }
             }
         }

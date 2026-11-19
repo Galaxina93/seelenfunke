@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import de.meinseelenfunke.app.MainActivity
+import de.meinseelenfunke.app.R
 
 class CalendarAlarmReceiver : BroadcastReceiver() {
     companion object {
@@ -50,7 +51,8 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
         )
 
         val publicNotification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle("Funkenwerk Kalender")
             .setContentText("Anstehender Termin")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -58,7 +60,8 @@ class CalendarAlarmReceiver : BroadcastReceiver() {
 
         val contentText = if (eventTime.isNotBlank()) "Beginnt um $eventTime. $eventDesc" else eventDesc
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle(eventTitle)
             .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

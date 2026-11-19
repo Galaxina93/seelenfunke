@@ -696,6 +696,46 @@ class CartService
             }));
         }
 
+        // Validierung und Erhalt der verlustfreien Originalfoto-Zuordnung (raw_files: Map string => string unter bestellungen/cart-uploads/)
+        if (isset($configuration['raw_files'])) {
+            if (is_array($configuration['raw_files'])) {
+                $cleanRawFiles = [];
+                foreach ($configuration['raw_files'] as $procKey => $rawPath) {
+                    if (!is_string($procKey) || !is_string($rawPath)) {
+                        continue;
+                    }
+                    $cleanKey = trim($procKey);
+                    $cleanRaw = trim($rawPath);
+                    $baseKey = str_ends_with($cleanKey, ':initial')
+                        ? substr($cleanKey, 0, -8)
+                        : $cleanKey;
+
+                    if (
+                        $baseKey === ''
+                        || $cleanRaw === ''
+                        || !str_starts_with($baseKey, 'bestellungen/cart-uploads/')
+                        || !str_starts_with($cleanRaw, 'bestellungen/cart-uploads/')
+                        || str_contains($cleanKey, '..')
+                        || str_contains($cleanKey, "\0")
+                        || str_contains($cleanKey, '\\')
+                        || str_starts_with($cleanKey, '/')
+                        || preg_match('#^https?://#i', $cleanKey)
+                        || str_contains($cleanRaw, '..')
+                        || str_contains($cleanRaw, "\0")
+                        || str_contains($cleanRaw, '\\')
+                        || str_starts_with($cleanRaw, '/')
+                        || preg_match('#^https?://#i', $cleanRaw)
+                    ) {
+                        continue;
+                    }
+                    $cleanRawFiles[$cleanKey] = $cleanRaw;
+                }
+                $configuration['raw_files'] = $cleanRawFiles;
+            } else {
+                unset($configuration['raw_files']);
+            }
+        }
+
         foreach (['texts', 'texts_back'] as $textKey) {
             if (isset($configuration[$textKey]) && is_array($configuration[$textKey])) {
                 $configuration[$textKey] = array_values(array_map(function ($t) {
@@ -719,9 +759,11 @@ class CartService
             'seelenfunke.test',
         ]));
 
+        $sanitizedRawMap = is_array($configuration['raw_files'] ?? null) ? $configuration['raw_files'] : [];
+
         foreach (['logos', 'logos_back'] as $logoKey) {
             if (isset($configuration[$logoKey]) && is_array($configuration[$logoKey])) {
-                $configuration[$logoKey] = array_values(array_filter(array_map(function ($logo) use ($vectorService, $allowedHosts) {
+                $configuration[$logoKey] = array_values(array_filter(array_map(function ($logo) use ($vectorService, $allowedHosts, $sanitizedRawMap) {
                     if (!is_array($logo) || !isset($logo['value']) || !is_string($logo['value'])) {
                         return null;
                     }
@@ -737,6 +779,30 @@ class CartService
                         return null;
                     }
                     unset($logo['src']);
+                    if (str_starts_with($v, 'vectors/')) {
+                        unset($logo['raw_value']);
+                    } elseif (isset($logo['raw_value'])) {
+                        if (is_string($logo['raw_value'])) {
+                            $rv = trim($logo['raw_value']);
+                            if (
+                                $rv !== ''
+                                && str_starts_with($rv, 'bestellungen/cart-uploads/')
+                                && !str_contains($rv, '..')
+                                && !str_contains($rv, "\0")
+                                && !str_contains($rv, '\\')
+                                && !str_starts_with($rv, '/')
+                                && !preg_match('#^https?://#i', $rv)
+                            ) {
+                                $logo['raw_value'] = $rv;
+                            } else {
+                                unset($logo['raw_value']);
+                            }
+                        } else {
+                            unset($logo['raw_value']);
+                        }
+                    } elseif (!empty($sanitizedRawMap[$v])) {
+                        $logo['raw_value'] = $sanitizedRawMap[$v];
+                    }
                     if (isset($logo['url']) && is_string($logo['url'])) {
                         $u = trim($logo['url']);
                         if (
@@ -756,6 +822,55 @@ class CartService
                     }
                     return $logo;
                 }, $configuration[$logoKey])));
+            }
+        }
+
+        // Erhalt & Pfad-Sicherung von Manufaktur-Fotoanpassungen (laser_photo_adjustments & laser_camera_light_mode)
+        if (isset($configuration['laser_photo_adjustments'])) {
+            if (is_array($configuration['laser_photo_adjustments'])) {
+                $cleanAdjustments = [];
+                foreach ($configuration['laser_photo_adjustments'] as $adjKey => $adjEntry) {
+                    if ((!is_string($adjKey) && !is_int($adjKey)) || !is_array($adjEntry)) {
+                        continue;
+                    }
+                    $adjKeyStr = trim((string) $adjKey);
+                    if ($adjKeyStr === '' || str_contains($adjKeyStr, '..') || str_contains($adjKeyStr, "\0") || str_contains($adjKeyStr, '\\')) {
+                        continue;
+                    }
+                    foreach (['edited_path', 'raw_path', 'source_path'] as $adjPathKey) {
+                        if (isset($adjEntry[$adjPathKey])) {
+                            if (
+                                !is_string($adjEntry[$adjPathKey])
+                                || !str_starts_with(trim($adjEntry[$adjPathKey]), 'bestellungen/cart-uploads/')
+                                || str_contains($adjEntry[$adjPathKey], '..')
+                                || str_contains($adjEntry[$adjPathKey], "\0")
+                                || str_contains($adjEntry[$adjPathKey], '\\')
+                                || preg_match('#^https?://#i', $adjEntry[$adjPathKey])
+                            ) {
+                                unset($adjEntry[$adjPathKey]);
+                            } else {
+                                $adjEntry[$adjPathKey] = trim($adjEntry[$adjPathKey]);
+                            }
+                        }
+                    }
+                    $cleanAdjustments[$adjKey] = $adjEntry;
+                }
+                $configuration['laser_photo_adjustments'] = $cleanAdjustments;
+            } else {
+                unset($configuration['laser_photo_adjustments']);
+            }
+        }
+
+        if (isset($configuration['laser_camera_light_mode'])) {
+            if (is_scalar($configuration['laser_camera_light_mode'])) {
+                $lightMode = trim((string) $configuration['laser_camera_light_mode']);
+                if ($lightMode !== '' && !str_contains($lightMode, "\0") && mb_strlen($lightMode) <= 64) {
+                    $configuration['laser_camera_light_mode'] = $lightMode;
+                } else {
+                    unset($configuration['laser_camera_light_mode']);
+                }
+            } else {
+                unset($configuration['laser_camera_light_mode']);
             }
         }
 

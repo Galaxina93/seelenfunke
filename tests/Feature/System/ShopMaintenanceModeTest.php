@@ -178,40 +178,31 @@ class ShopMaintenanceModeTest extends TestCase
         $admin = $this->createAdmin('kontakt@mein-seelenfunke.de');
         $customer = Customer::factory()->create();
 
-        // Stufe 2: shop_is_live = true + maintenance_mode = true -> Gast & Kunde 503, eingeloggter Admin 200!
+        // Stufe 2: shop_is_live = true + maintenance_mode = true -> Schaufenster-Wartungsmodus (HTTP 200 für Gast, Kunde & Admin)!
         SystemSetting::updateOrCreate(['key' => 'shop_is_live'], ['value' => 'true']);
         SystemSetting::updateOrCreate(['key' => 'shop_live_unlocked'], ['value' => 'true']);
         SystemSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'true']);
         Cache::forget('global_shop_settings');
 
-        $homeGuest = $this->get('https://mein-seelenfunke.de/');
-        $homeGuest->assertStatus(503)
-            ->assertHeader('Retry-After', '3600')
-            ->assertHeader('X-Robots-Tag', 'noindex, noarchive')
-            ->assertSee('Wir bereiten gerade unseren Shop für dich vor')
-            ->assertSee('Alina Steinhauer')
-            ->assertSee('38518 Gifhorn')
-            ->assertSee('Impressum')
-            ->assertSee('Datenschutz')
-            ->assertDontSee(' – ');
-        $this->assertStringContainsString('class="light"', $homeGuest->getContent());
+        $this->assertTrue(\App\Http\Middleware\EnforceShopMaintenanceMode::isMaintenanceModeActive());
+        $this->get('https://mein-seelenfunke.de/')->assertStatus(200);
+        $this->get('https://mein-seelenfunke.de/shop')->assertStatus(200);
+        $this->get('https://mein-seelenfunke.de/produkt/' . $product->slug)->assertStatus(200);
+        $this->actingAs($customer, 'customer')->get('https://mein-seelenfunke.de/')->assertStatus(200);
 
-        $this->get('https://mein-seelenfunke.de/shop')->assertStatus(503);
-        $this->get('https://mein-seelenfunke.de/produkt/' . $product->slug)->assertStatus(503);
-        $this->actingAs($customer, 'customer')->get('https://mein-seelenfunke.de/')->assertStatus(503);
-
-        // Eingeloggte Administratorin kann in Stufe 2 das Frontend vorab prüfen (200)
+        // Eingeloggte Administratorin sieht ebenfalls regulär HTTP 200
         $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/')->assertStatus(200);
         $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/shop')->assertStatus(200);
         $this->actingAs($admin, 'admin')->get('https://mein-seelenfunke.de/produkt/' . $product->slug)->assertStatus(200);
 
-        // Stufe 3: shop_is_live = true + maintenance_mode = false -> Öffentlich Live (Gast 200)!
+        // Stufe 3: shop_is_live = true + maintenance_mode = false -> Öffentlich Live (Gast 200, isMaintenanceModeActive = false)!
         $this->app['auth']->forgetGuards();
         $this->flushSession();
 
         SystemSetting::updateOrCreate(['key' => 'maintenance_mode'], ['value' => 'false']);
         Cache::forget('global_shop_settings');
 
+        $this->assertFalse(\App\Http\Middleware\EnforceShopMaintenanceMode::isMaintenanceModeActive());
         $this->get('https://mein-seelenfunke.de/')->assertStatus(200);
         $this->get('https://mein-seelenfunke.de/shop')->assertStatus(200);
         $this->get('https://mein-seelenfunke.de/produkt/' . $product->slug)->assertStatus(200);

@@ -95,13 +95,15 @@
                                 <span aria-hidden="true">📖</span> Magazin & Ratgeber
                             </a>
                         </li>
-                        <li>
-                            <a href="{{ route('calculator') }}"
-                               title="B2B & Projekt-Kalkulator für Großbestellungen"
-                               class="text-white hover:text-primary transition flex items-center gap-2">
-                                <span aria-hidden="true">🧮</span> B2B Projekt-Kalkulator
-                            </a>
-                        </li>
+                        @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
+                            <li>
+                                <a href="{{ route('calculator') }}"
+                                   title="B2B & Projekt-Kalkulator für Großbestellungen"
+                                   class="text-white hover:text-primary transition flex items-center gap-2">
+                                    <span aria-hidden="true">🧮</span> B2B Projekt-Kalkulator
+                                </a>
+                            </li>
+                        @endif
                         <li>
                             <a href="{{ route('product.show', 'geschenkgutschein') }}"
                                title="Personalisierte Geschenkgutscheine bestellen"

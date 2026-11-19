@@ -54,7 +54,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
@@ -162,6 +164,8 @@ fun FalconFocusScreen(
     val previewBitmap by FalconCameraController.previewBitmap.collectAsState()
     val isCapturingPhoto by FalconCameraController.isCapturingPhoto.collectAsState()
     val lastCapturedPhoto by FalconCameraController.lastCapturedPhoto.collectAsState()
+    val stagedAttachment by AgDirectInboxManager.stagedAttachmentFlow.collectAsState()
+    val hasAttachedMedia = stagedAttachment != null || (lastCapturedPhoto != null && !lastCapturedPhoto!!.attachedToInbox)
 
     val isMusicPlaying by MusicPlayerManager.isPlaying.collectAsState()
     val agOpenCount by AgDirectInboxManager.openCountFlow.collectAsState()
@@ -230,7 +234,7 @@ fun FalconFocusScreen(
             scope.launch {
                 val imported = FalconCameraController.importPhotoFromUri(context, it)
                 if (imported != null) {
-                    showDirectInboxSheet = true
+                    Toast.makeText(context, "✓ Bild hinterlegt", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -404,7 +408,7 @@ fun FalconFocusScreen(
     }
 
     if (showDirectInboxSheet) {
-        val autoAttach = lastCapturedPhoto?.takeIf { !it.attachedToInbox }?.toPreparedAgAttachment()
+        val autoAttach = stagedAttachment ?: lastCapturedPhoto?.takeIf { !it.attachedToInbox }?.toPreparedAgAttachment()
         AgDirectInboxSheet(
             onDismiss = {
                 showDirectInboxSheet = false
@@ -507,7 +511,7 @@ fun FalconFocusScreen(
                         )
                     }
                     Text(
-                        text = "Bild wählen & an Antigravity senden",
+                        text = "Bild aus Galerie hinterlegen",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFFF8FAFC)
@@ -1201,46 +1205,74 @@ fun FalconFocusScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left: Photo Shutter + Captured Photo Lightbox Thumbnail
+                // Left: Photo Shutter (with Gold Checkmark Badge when media staged) + Staged Media Thumbnail
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(stageHudBg)
-                            .border(1.dp, Gold.copy(alpha = 0.60f), CircleShape)
-                            .combinedClickable(
-                                enabled = !isCapturingPhoto,
-                                onClick = { showCameraSourceMenu = true },
-                                onLongClick = { imagePickerLauncher.launch("image/*") }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isCapturingPhoto) {
-                            CircularProgressIndicator(
-                                color = Gold,
-                                strokeWidth = 2.dp,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.PhotoCamera,
-                                contentDescription = "Foto aufnehmen",
-                                tint = Gold,
-                                modifier = Modifier.size(21.dp)
-                            )
+                    Box(modifier = Modifier.size(50.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .align(Alignment.BottomStart)
+                                .clip(CircleShape)
+                                .background(stageHudBg)
+                                .border(
+                                    if (hasAttachedMedia) 1.5.dp else 1.dp,
+                                    if (hasAttachedMedia) Gold else Gold.copy(alpha = 0.60f),
+                                    CircleShape
+                                )
+                                .combinedClickable(
+                                    enabled = !isCapturingPhoto,
+                                    onClick = { showCameraSourceMenu = true },
+                                    onLongClick = { imagePickerLauncher.launch("image/*") }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isCapturingPhoto) {
+                                CircularProgressIndicator(
+                                    color = Gold,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.PhotoCamera,
+                                    contentDescription = "Foto aufnehmen oder Bild hinterlegen",
+                                    tint = Gold,
+                                    modifier = Modifier.size(21.dp)
+                                )
+                            }
+                        }
+
+                        if (hasAttachedMedia) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .align(Alignment.TopEnd)
+                                    .clip(CircleShape)
+                                    .background(Gold)
+                                    .border(1.dp, SpaceBlack, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Datei hinterlegt",
+                                    tint = SpaceBlack,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
                         }
                     }
 
-                    lastCapturedPhoto?.takeIf { !it.attachedToInbox }?.let { photo ->
+                    val activePhoto = lastCapturedPhoto?.takeIf { !it.attachedToInbox }
+                    val activeAudio = stagedAttachment?.takeIf { it.isAudio }
+                    if (activePhoto != null) {
                         Box(modifier = Modifier.size(52.dp)) {
                             Image(
-                                bitmap = photo.previewBitmap,
-                                contentDescription = photo.fileName,
+                                bitmap = activePhoto.previewBitmap,
+                                contentDescription = activePhoto.fileName,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(44.dp)
@@ -1249,7 +1281,6 @@ fun FalconFocusScreen(
                                     .border(1.5.dp, Gold, CircleShape)
                                     .clickable { showPhotoLightbox = true }
                             )
-                            // Schnell-Verwerfen (X) oben rechts
                             Box(
                                 modifier = Modifier
                                     .size(18.dp)
@@ -1267,7 +1298,6 @@ fun FalconFocusScreen(
                                     modifier = Modifier.size(11.dp)
                                 )
                             }
-                            // Schnell-Senden an Antigravity unten rechts
                             Box(
                                 modifier = Modifier
                                     .size(20.dp)
@@ -1283,6 +1313,43 @@ fun FalconFocusScreen(
                                     contentDescription = "An Antigravity senden",
                                     tint = SpaceBlack,
                                     modifier = Modifier.size(13.dp)
+                                )
+                            }
+                        }
+                    } else if (activeAudio != null) {
+                        Box(modifier = Modifier.size(52.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .align(Alignment.CenterStart)
+                                    .clip(CircleShape)
+                                    .background(stageHudBg)
+                                    .border(1.5.dp, Gold, CircleShape)
+                                    .clickable { showDirectInboxSheet = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.GraphicEq,
+                                    contentDescription = activeAudio.fileName,
+                                    tint = Gold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .align(Alignment.TopEnd)
+                                    .clip(CircleShape)
+                                    .background(SpaceBlack.copy(alpha = 0.90f))
+                                    .border(1.dp, Rose500, CircleShape)
+                                    .clickable { FalconCameraController.clearLastCapturedPhoto() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Audio verwerfen",
+                                    tint = Rose500,
+                                    modifier = Modifier.size(11.dp)
                                 )
                             }
                         }

@@ -23,8 +23,10 @@
                 {{ $this->product->name }}
             </h1>
             <button type="button"
-                    x-data="{ wishlisted: @js((bool) ($isWishlisted ?? false)) }"
-                    @click.prevent="wishlisted = !wishlisted; if (window.sfTriggerWishlistHeartEffect) window.sfTriggerWishlistHeartEffect($event, wishlisted); $wire.toggleWishlist()"
+                    x-data="window.sfWishlistButtonData('{{ $this->product->id }}', @js((bool) ($isWishlisted ?? false)))"
+                    @sf-wishlist-sync.window="syncFromStore($event.detail)"
+                    @wishlist-optimistic-delta.window="syncOptimistic($event.detail)"
+                    @click.prevent="toggle($event)"
                     :class="wishlisted ? 'bg-red-50 border-red-200 text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-white border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200'"
                     class="shrink-0 w-11 h-11 rounded-2xl border transition-all duration-200 flex items-center justify-center shadow-sm cursor-pointer"
                     :title="wishlisted ? 'Von deiner Wunschliste entfernen' : 'Auf deiner Wunschliste merken'"
@@ -188,8 +190,14 @@
 
         <hr class="border-gray-100 mb-8 w-full block clear-both">
 
-        {{-- KONFIGURATOR EINBINDUNG --}}
-        @if($isTrulyOutOfStock)
+        @php
+            $isShopMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+        @endphp
+
+        {{-- KONFIGURATOR EINBINDUNG / WARTUNGSHINWEIS --}}
+        @if($isShopMaintenance)
+            <x-alerts.shop-maintenance-notice />
+        @elseif($isTrulyOutOfStock)
             <div class="bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center shadow-inner w-full">
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm mb-4">
                     <svg class="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
@@ -365,7 +373,7 @@
                                     <div class="aspect-square w-full bg-gray-100 relative overflow-hidden flex items-center justify-center">
                                         @if(!empty($tpl['preview_image']))
                                             <img src="{{ \App\Models\Product\ProductTemplate::resolveImageUrl($tpl['preview_image']) }}"
-                                                 alt="{{ $tpl['name'] ?? $product->name }} – Design-Vorlage"
+                                                 alt="{{ $tpl['name'] ?? $product->name }} · Design-Vorlage"
                                                  loading="lazy"
                                                  decoding="async"
                                                  @if($tpl['is_ai_generated'] ?? true) data-is-ai-generated="true" @endif
@@ -518,7 +526,7 @@
                         <div>
                             <p class="font-bold text-gray-900 mb-0.5">Hersteller & Verantwortliche Person in der EU (Art. 19 GPSR):</p>
                             <p>
-                                {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} – Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
+                                {{ shop_setting('company_name', shop_setting('owner_name', 'Mein Seelenfunke')) }} · Inh. {{ shop_setting('owner_proprietor', 'Alina Steinhauer') }}<br>
                                 {{ shop_setting('company_street') ? trim(shop_setting('company_street') . ' ' . shop_setting('company_street_number', '')) : shop_setting('owner_street', 'Carl-Goerdeler-Ring 26') }}, {{ shop_setting('company_city') ? trim(shop_setting('company_zip', '38518') . ' ' . shop_setting('company_city')) : shop_setting('owner_city', '38518 Gifhorn') }}, Deutschland<br>
                                 E-Mail: <a href="mailto:{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}" class="text-[var(--theme-color)] underline">{{ shop_setting('company_email', shop_setting('owner_email', 'kontakt@mein-seelenfunke.de')) }}</a> | SKU: <span class="font-mono text-gray-800">{{ $product->sku ?: ('MSF-' . $product->id) }}</span>
                             </p>

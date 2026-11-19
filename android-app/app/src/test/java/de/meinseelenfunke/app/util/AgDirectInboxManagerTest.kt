@@ -490,13 +490,13 @@ class AgDirectInboxManagerTest {
         val serverStore = mutableListOf(
             AgDirectInboxItemDto(
                 id = "ag_20261116_191644_b4360f58",
-                title = "Reine Digital-Domain Instant-Shop",
+                title = "Magma-Parkour Erweiterung",
                 body = "Konzept ausgearbeitet",
                 execution_mode = "concept",
                 channel = "shop",
                 status = "awaiting_go",
-                ag_response_summary = "Mit digital.mein-seelenfunke.de starten oder eigene Domain?",
-                pending_question = "Mit digital.mein-seelenfunke.de starten oder eigene Domain?",
+                ag_response_summary = "Mit Magma-Raum 6 starten?",
+                pending_question = "Mit Magma-Raum 6 starten?",
                 awaiting_go_at = "2026-11-16T19:20:00+01:00"
             ),
             AgDirectInboxItemDto(
@@ -577,7 +577,7 @@ class AgDirectInboxManagerTest {
         assertEquals("ag_20261116_191644_b4360f58", initialBlockades[0].id)
         assertEquals(AgDirectStatus.AWAITING_GO, initialBlockades[0].status)
         assertEquals(
-            "Mit digital.mein-seelenfunke.de starten oder eigene Domain?",
+            "Mit Magma-Raum 6 starten?",
             initialBlockades[0].pendingQuestion
         )
         assertEquals(2, AgDirectInboxManager.openCountFlow.value)
@@ -591,13 +591,13 @@ class AgDirectInboxManagerTest {
             context = context,
             itemId = "ag_20261116_191644_b4360f58",
             decision = "info_provided",
-            answerText = "Starte mit digital.mein-seelenfunke.de",
+            answerText = "Starte mit Magma-Raum 6",
             apiOverride = fakeApi
         )
         assertTrue(ok)
         assertEquals(1, resolvedCalls.size)
         assertEquals("info_provided", resolvedCalls[0].second.decision)
-        assertEquals("Starte mit digital.mein-seelenfunke.de", resolvedCalls[0].second.answer_text)
+        assertEquals("Starte mit Magma-Raum 6", resolvedCalls[0].second.answer_text)
 
         // pendingBlockadesFlow must immediately clear to 0 and followup item must appear in itemsFlow
         assertEquals(0, AgDirectInboxManager.pendingBlockadesFlow.value.size)

@@ -166,7 +166,8 @@
                      passes: cs.xtool_passes ?? 1,
                      bitmap_mode: cs.xtool_bitmap_mode || 'Jarvis',
                      engrave_mode: cs.xtool_engrave_mode || 'Bidirektional',
-                     vector_note: cs.xtool_vector_note || ''
+                     vector_note: cs.xtool_vector_note || '',
+                     photo_studio: null
                  };
              },
              ensureLaserProfilesInitialized() {
@@ -177,6 +178,11 @@
                      const hasFocus = Number(String(initial.focus_mm || '').replace(',', '.')) > 0;
                      this.openProfileIndex = hasFocus ? null : 0;
                  } else {
+                     this.configSettings.xtool_profiles.forEach(p => {
+                         if (p && typeof p === 'object' && p.photo_studio === undefined) {
+                             p.photo_studio = null;
+                         }
+                     });
                      let hasDef = this.configSettings.xtool_profiles.some(p => p && p.is_default);
                      if (!hasDef && this.configSettings.xtool_profiles[0]) {
                          this.configSettings.xtool_profiles[0].is_default = true;
@@ -248,7 +254,10 @@
                      passes: Number(source.passes) || 1,
                      bitmap_mode: source.bitmap_mode || 'Jarvis',
                      engrave_mode: source.engrave_mode || 'Bidirektional',
-                     vector_note: source.vector_note || ''
+                     vector_note: source.vector_note || '',
+                     photo_studio: (source && source.photo_studio && typeof source.photo_studio === 'object')
+                         ? JSON.parse(JSON.stringify(source.photo_studio))
+                         : null
                  };
                  this.configSettings.xtool_profiles.push(copy);
                  this.openProfileIndex = this.configSettings.xtool_profiles.length - 1;
@@ -510,6 +519,11 @@
                                           x-cloak
                                           class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-color)] text-white dark:text-gray-900 text-[9px] font-black uppercase tracking-wider shrink-0">
                                         ✓ Standard
+                                    </span>
+                                    <span x-show="prof.photo_studio && typeof prof.photo_studio === 'object'"
+                                          x-cloak
+                                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider shrink-0">
+                                        Foto-Werte hinterlegt
                                     </span>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-mono font-bold text-gray-500 dark:text-gray-400">

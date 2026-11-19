@@ -29,6 +29,9 @@ class AccountingTax extends Component
 
     public $selectedYear;
     public $selectedMonth;
+    public int $selectedQuarter = 4;
+    public string $periodMode = 'month'; // 'month' oder 'quarter'
+    public string $refundScope = 'total_all'; // 'total_all', 'since_launch', 'selected_period'
     public $submissionType = 'Erstübermittlung';
     public int $activeStep = 1; // Schritt-für-Schritt Navigation: 1 (Zahlen/Belege), 2 (Parameter/Auth), 3 (Vorschau/Übermittlung)
     
@@ -80,11 +83,12 @@ class AccountingTax extends Component
             abort(403, 'Nur Administratoren haben Zugriff auf die Steuerzentrale.');
         }
 
-        $this->selectedYear = date('Y');
+        $this->selectedYear = (int) date('Y');
         $this->selectedMonth = date('n') == 1 ? 12 : date('n') - 1;
-        if(date('n') == 1) {
+        if (date('n') == 1) {
             $this->selectedYear--;
         }
+        $this->selectedQuarter = (int) ceil($this->selectedMonth / 3);
         
         $this->selectedCertName = $this->sanitizeCertFilename(shop_setting('eric_default_cert', ''));
         $this->scanTresorCertificates();
@@ -153,13 +157,49 @@ class AccountingTax extends Component
         }
     }
 
+    public function setPeriodMode(string $mode): void
+    {
+        if (!in_array($mode, ['month', 'quarter'], true)) {
+            return;
+        }
+        $this->periodMode = $mode;
+        if ($mode === 'quarter') {
+            $this->selectedQuarter = (int) ceil(max(1, min(12, (int) $this->selectedMonth)) / 3);
+        }
+        $this->globalLogs = [];
+        $label = $mode === 'quarter'
+            ? "Quartal Q{$this->selectedQuarter}/{$this->selectedYear}"
+            : "Monat " . str_pad((string) $this->selectedMonth, 2, '0', STR_PAD_LEFT) . "/{$this->selectedYear}";
+        $this->addLog('system', "Zeitraum-Modus gewechselt auf {$label}.");
+    }
+
+    public function setRefundScope(string $scope): void
+    {
+        if (in_array($scope, ['total_all', 'since_launch', 'selected_period'], true)) {
+            $this->refundScope = $scope;
+        }
+    }
+
     public function selectMonth($month)
     {
         $month = max(1, min(12, (int) $month));
         $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
         $this->selectedMonth = $month;
+        $this->selectedQuarter = (int) ceil($month / 3);
+        $this->periodMode = 'month';
         $this->globalLogs = []; // Logs beim Monatswechsel leeren
-        $this->addLog('system', "Monat " . str_pad($month, 2, '0', STR_PAD_LEFT) . "/{$this->selectedYear} geladen. Analysiere Belege...");
+        $this->addLog('system', "Monat " . str_pad((string) $month, 2, '0', STR_PAD_LEFT) . "/{$this->selectedYear} geladen. Analysiere Belege...");
+    }
+
+    public function selectQuarter(int $quarter): void
+    {
+        $quarter = max(1, min(4, $quarter));
+        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
+        $this->selectedQuarter = $quarter;
+        $this->selectedMonth = ($quarter - 1) * 3 + 1;
+        $this->periodMode = 'quarter';
+        $this->globalLogs = [];
+        $this->addLog('system', "Quartal Q{$quarter}/{$this->selectedYear} (ELSTER Zeitraum " . (40 + $quarter) . ") geladen. Analysiere Belege...");
     }
 
     public function setStep(int $step): void
@@ -185,20 +225,8 @@ class AccountingTax extends Component
     }
 
     // --- DYNAMISCHE DATEN-ERMITTLUNG (Zentralisiert via FinancialService) ---
-    public function getMonthData($month)
+    protected function enrichPeriodChecklist(array $data): array
     {
-        $month = max(1, min(12, (int) $month));
-        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
-        $adminId = auth()->guard('admin')->id();
-
-        $financialService = app(\App\Services\FinancialService::class);
-        $data = $financialService->getUstvaMonthData(
-            $adminId,
-            $month,
-            (int) $this->selectedYear,
-            (string) $this->submissionType
-        );
-
         $checklist = $data['checklist'];
 
         // Laufzeit-Prüfung, ob das konfigurierte Software-Zertifikat existiert!
@@ -218,7 +246,7 @@ class AccountingTax extends Component
             ];
         }
 
-        $allChecklistPassed = collect($checklist)->every(fn($item) => $item['passed']);
+        $allChecklistPassed = collect($checklist)->every(fn ($item) => $item['passed']);
         $status = $data['status'];
         if (!$data['is_future'] && $data['is_past']) {
             $status = $allChecklistPassed ? 'ready' : 'missing_data';
@@ -235,6 +263,49 @@ class AccountingTax extends Component
         );
 
         return $data;
+    }
+
+    public function getMonthData($month)
+    {
+        $month = max(1, min(12, (int) $month));
+        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
+        $adminId = auth()->guard('admin')->id();
+
+        $financialService = app(\App\Services\FinancialService::class);
+        $data = $financialService->getUstvaPeriodData(
+            (int) $this->selectedYear,
+            $month,
+            'month',
+            $adminId,
+            (string) $this->submissionType
+        );
+
+        return $this->enrichPeriodChecklist($data);
+    }
+
+    public function getQuarterData(int $quarter): array
+    {
+        $quarter = max(1, min(4, $quarter));
+        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
+        $adminId = auth()->guard('admin')->id();
+
+        $financialService = app(\App\Services\FinancialService::class);
+        $data = $financialService->getUstvaPeriodData(
+            (int) $this->selectedYear,
+            $quarter,
+            'quarter',
+            $adminId,
+            (string) $this->submissionType
+        );
+
+        return $this->enrichPeriodChecklist($data);
+    }
+
+    public function getActivePeriodData(): array
+    {
+        return $this->periodMode === 'quarter'
+            ? $this->getQuarterData($this->selectedQuarter)
+            : $this->getMonthData($this->selectedMonth);
     }
 
     public function uploadMissingReceipt($itemId, $type)
@@ -305,9 +376,9 @@ class AccountingTax extends Component
     public function generateDatevExport()
     {
         $this->addLog('info', 'Starte ZIP & PDF Export Generierung...');
-        $data = $this->getMonthData($this->selectedMonth);
+        $data = $this->getActivePeriodData();
 
-        $monthStr = $data['month_number'];
+        $periodSlug = $data['export_period_slug'] ?? $data['month_number'];
         $yearStr = $data['year'];
 
         $financialService = app(\App\Services\FinancialService::class);
@@ -320,7 +391,7 @@ class AccountingTax extends Component
         $this->addLog('success', 'Archiv erfolgreich komprimiert und verschlüsselt.');
 
         $this->loadArchivedExports();
-        session()->flash('success', "Steuer-Export (Zip) für $monthStr/$yearStr erfolgreich erstellt.");
+        session()->flash('success', "Steuer-Export (Zip) für {$periodSlug}/{$yearStr} erfolgreich erstellt.");
     }
 
     private function buildDatevCsv($data)
@@ -332,7 +403,7 @@ class AccountingTax extends Component
     public function transmitToElster()
     {
         $this->addLog('info', 'Initialisiere direkte ELSTER-ERiC Schnittstelle...');
-        $data = $this->getMonthData($this->selectedMonth);
+        $data = $this->getActivePeriodData();
 
         if ($data['status'] !== 'ready') {
             $this->addLog('error', 'Abbruch: Es fehlen noch zwingend erforderliche Belege oder Checklisten-Vorbedingungen (siehe UI rechts).');
@@ -436,15 +507,43 @@ class AccountingTax extends Component
             $data = $this->getMonthData($i);
             $monthsNav[$i] = [
                 'name' => mb_substr($data['month_name'], 0, 3),
-                'status' => $data['status']
+                'status' => $data['status'],
             ];
         }
 
-        $activeData = $this->getMonthData($this->selectedMonth);
+        $quarterRanges = [1 => 'Jan-Mär', 2 => 'Apr-Jun', 3 => 'Jul-Sep', 4 => 'Okt-Dez'];
+        $quartersNav = [];
+        for ($q = 1; $q <= 4; $q++) {
+            $qData = $this->getQuarterData($q);
+            $quartersNav[$q] = [
+                'name' => "Q{$q}",
+                'range' => $quarterRanges[$q],
+                'status' => $qData['status'],
+            ];
+        }
+
+        $activeData = $this->getActivePeriodData();
+
+        $financialService = app(\App\Services\FinancialService::class);
+        $refundSummary = $financialService->getPotentialTaxRefundSummary(
+            (int) $this->selectedYear,
+            $this->periodMode === 'quarter' ? $this->selectedQuarter : (int) $this->selectedMonth,
+            $this->periodMode,
+            auth()->guard('admin')->id()
+        );
+
+        $configuredBufa = shop_setting('owner_finanzamt_nr', shop_setting('owner_finanzamt_id'));
+        $formattedElsterTaxId = \App\Services\ElsterEricService::toElsterSteuernummer(
+            (string) shop_setting('owner_tax_id', ''),
+            $configuredBufa ? (string) $configuredBufa : null
+        );
 
         return view('livewire.shop.accounting.accounting-tax', [
             'monthsNav' => $monthsNav,
-            'activeData' => $activeData
+            'quartersNav' => $quartersNav,
+            'activeData' => $activeData,
+            'refundSummary' => $refundSummary,
+            'formattedElsterTaxId' => $formattedElsterTaxId,
         ]);
     }
 }

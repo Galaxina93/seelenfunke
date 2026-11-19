@@ -477,9 +477,9 @@ class GamificationServiceSecurityTest extends TestCase
             'password' => bcrypt('secret123'),
         ]);
 
-        // Default audio settings
+        // Default audio settings (5 % Standard-Lautstaerke)
         $initialAudio = $this->service->getAudioSettings($this->service->getProfile($customer));
-        $this->assertEquals(35, $initialAudio['volume']);
+        $this->assertEquals(5, $initialAudio['volume']);
         $this->assertTrue($initialAudio['muted']);
         $this->assertFalse($initialAudio['keep_playing']);
 
@@ -495,14 +495,28 @@ class GamificationServiceSecurityTest extends TestCase
         $this->assertTrue($reloaded['muted']);
         $this->assertTrue($reloaded['keep_playing']);
 
-        // Create 14 Hall of Fame customers and test pagination (10 per page)
+        // Create 14 Hall of Fame customers with valid paid order and test pagination (10 per page)
         for ($i = 1; $i <= 14; $i++) {
             $c = Customer::create([
                 'id' => (string) Str::uuid(),
                 'first_name' => 'Hero' . $i,
                 'last_name' => 'Tester',
                 'email' => "hero{$i}@example.com",
+                'email_verified_at' => now(),
                 'password' => bcrypt('secret123'),
+            ]);
+            \App\Models\Order\OrderOrder::create([
+                'order_number' => sprintf('ORD-HOF-%03d', $i),
+                'customer_id' => $c->id,
+                'email' => $c->email,
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'subtotal_price' => 2990,
+                'tax_amount' => 477,
+                'shipping_price' => 0,
+                'total_price' => 2990,
+                'billing_address' => ['first_name' => 'Hero' . $i, 'last_name' => 'Tester'],
+                'shipping_address' => ['first_name' => 'Hero' . $i, 'last_name' => 'Tester'],
             ]);
             $p = $this->service->getProfile($c);
             $p->update([
@@ -515,6 +529,40 @@ class GamificationServiceSecurityTest extends TestCase
                 'level' => GameConfig::getLevelForLifetimeSparks($i * 100),
             ]);
         }
+
+        // Admin-Anpassung inkl. magma_unlocked_level, magma_hearts, healing_potions & CustomerGamificationLog
+        $adjustedProfile = $this->service->adminAdjustCustomerGamification(
+            $customer,
+            120,
+            450,
+            4,
+            true,
+            true,
+            false,
+            'MelodyStar',
+            7,
+            4,
+            12
+        );
+        $this->assertSame(7, (int) $adjustedProfile->magma_unlocked_level);
+        $this->assertSame(4, (int) $adjustedProfile->magma_hearts);
+        $this->assertSame(12, (int) ($adjustedProfile->inventory_items['healing_potion'] ?? 0));
+        $this->assertSame(5, (int) ($adjustedProfile->inventory_items['bag_slots'][0]['qty'] ?? 0));
+        $this->assertSame(5, (int) ($adjustedProfile->inventory_items['bag_slots'][1]['qty'] ?? 0));
+        $this->assertSame(2, (int) ($adjustedProfile->inventory_items['bag_slots'][2]['qty'] ?? 0));
+        $this->assertNull($adjustedProfile->inventory_items['bag_slots'][3]);
+        $this->assertTrue(
+            \App\Models\Customer\CustomerGamificationLog::where('customer_id', $customer->id)
+                ->where('event_type', 'admin_adjustment')
+                ->exists()
+        );
+        $labels = GamificationService::getProfileFieldLabels();
+        $this->assertArrayHasKey('magma_unlocked_level', $labels);
+        $this->assertArrayHasKey('magma_hearts', $labels);
+        $this->assertArrayHasKey('healing_potions', $labels);
+
+        // Reset $customer so Hall of Fame count below remains 14 (no paid order on $customer)
+        $adjustedProfile->update(['is_active' => false]);
 
         $page1 = $this->service->getHallOfFamePaginated(1, 10);
         $this->assertEquals(14, $page1['total']);

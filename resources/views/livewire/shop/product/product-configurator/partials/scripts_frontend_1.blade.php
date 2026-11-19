@@ -104,6 +104,30 @@
             _emojiWarningTimeout: null,
             showNotice: true,
             confirmWarning: false,
+            configConfirmed: (params.wireModels && params.wireModels.configConfirmed !== undefined)
+                ? params.wireModels.configConfirmed
+                : (params.context === 'calculator'),
+            ctaAuraArrived: (params.context === 'calculator')
+                ? true
+                : Boolean(params.wireModels && params.wireModels.configConfirmed),
+            _sparkFlightActive: false,
+            _sparkFlightRaf: null,
+            _sparkFlightCanvas: null,
+            _ctaAuraTimer: null,
+            _manualUncheckActive: false,
+            _awaitingSaveToCartSpark: false,
+
+            get requiresConfirm() {
+                return this.context !== 'calculator';
+            },
+
+            get isCtaReady() {
+                return !this.requiresConfirm || (Boolean(this.configConfirmed) && Boolean(this.ctaAuraArrived));
+            },
+
+            get isCtaMuted() {
+                return this.requiresConfirm && (!this.configConfirmed || !this.ctaAuraArrived) && !this.saved && !this.isSaving;
+            },
 
             // Formular & Tabs
             activeTab: null,
@@ -164,19 +188,43 @@
                 return Array.isArray(list) ? list : this.normalizeArray(list);
             },
 
+            isMirroredBackSide() {
+                return Boolean(this.activeSide === 'back' && this.config?.has_back_side && this.config?.overlay_type !== 'cylinder');
+            },
+            getActiveCustomPoints() {
+                const pts = Array.isArray(this.config?.custom_points) ? this.config.custom_points : [];
+                if (!this.isMirroredBackSide() || pts.length === 0) {
+                    return pts;
+                }
+                return pts.slice().reverse().map(p => ({
+                    ...p,
+                    x: Math.round((100 - Number(p?.x ?? 50)) * 1000) / 1000,
+                    y: Number(p?.y ?? 50),
+                }));
+            },
+            getActiveAreaLeft() {
+                const left = Number(this.config?.area_left ?? 0);
+                if (!this.isMirroredBackSide()) {
+                    return left;
+                }
+                const width = Number(this.config?.area_width ?? 100);
+                return Math.max(0, Math.min(100, 100 - left - width));
+            },
+
             get areaCenterX() {
                 if (this.config && this.config.beginnerCoords && Number(this.config.beginnerCoords.center_x) > 0) {
-                    return Number(this.config.beginnerCoords.center_x);
+                    const cx = Number(this.config.beginnerCoords.center_x);
+                    return this.isMirroredBackSide() ? (100 - cx) : cx;
                 }
                 if (this.config && this.config.area_shape === 'custom') {
-                    const pts = this.config.custom_points || [];
+                    const pts = this.getActiveCustomPoints();
                     if (pts.length > 0) {
                         const xs = pts.map(p => Number(p.x ?? 50));
                         return (Math.min(...xs) + Math.max(...xs)) / 2;
                     }
                     return 50;
                 }
-                const left = Number(this.config?.area_left ?? 0);
+                const left = this.getActiveAreaLeft();
                 const width = Number(this.config?.area_width ?? 100);
                 return left + (width / 2);
             },
@@ -185,7 +233,7 @@
                     return Number(this.config.beginnerCoords.center_y);
                 }
                 if (this.config && this.config.area_shape === 'custom') {
-                    const pts = this.config.custom_points || [];
+                    const pts = this.getActiveCustomPoints();
                     if (pts.length > 0) {
                         const ys = pts.map(p => Number(p.y ?? 50));
                         return (Math.min(...ys) + Math.max(...ys)) / 2;
@@ -197,7 +245,8 @@
                 return top + (height / 2);
             },
             getCustomPolygonVisualCenter(rawPts = null) {
-                const source = Array.isArray(rawPts) ? rawPts : ((this.config && Array.isArray(this.config.custom_points)) ? this.config.custom_points : []);
+                const activePts = this.getActiveCustomPoints();
+                const source = Array.isArray(rawPts) ? rawPts : activePts;
                 const pts = [];
                 for (let i = 0; i < source.length; i++) {
                     const p = source[i];
@@ -671,6 +720,13 @@
                 this._onCartUpdated = () => {
                     this.hasAddedToCart = true;
                     this.saved = true;
+                    if (this._awaitingSaveToCartSpark && window.sfSparkFlow && this.$refs && this.$refs.addToCartBtn) {
+                        this._awaitingSaveToCartSpark = false;
+                        window.sfSparkFlow.fly(this.$refs.addToCartBtn, '[data-sf-cart-header-icon], a[aria-label="Warenkorb"]', {
+                            mode: 'to-cart',
+                            mountRoot: this.$root || document.body
+                        });
+                    }
                     if (this._savedResetTimer) clearTimeout(this._savedResetTimer);
                     this._savedResetTimer = setTimeout(() => { this.saved = false; }, 2500);
                 };
@@ -695,6 +751,7 @@
                 window.addEventListener('toggle-configurator-animation', this._onToggleAnim);
 
                 this._cleanupFullscreen = () => {
+                    this.cleanupSparkFlight();
                     try {
                         document.body.style.overflow = '';
                         document.documentElement.classList.remove('configurator-fullscreen-active');
@@ -947,6 +1004,22 @@
                     });
                 });
 
+                this.$watch('configConfirmed', (val) => {
+                    if (!val) {
+                        this.ctaAuraArrived = false;
+                        if (!this._manualUncheckActive) {
+                            this.cleanupSparkFlight(true);
+                        }
+                    } else {
+                        this.confirmWarning = false;
+                        setTimeout(() => {
+                            if (this.configConfirmed && !this._sparkFlightActive && !this._ctaAuraTimer) {
+                                this.ctaAuraArrived = true;
+                            }
+                        }, 45);
+                    }
+                });
+
                 this.$watch('showDrawingBoard', (value) => {
                     if (value === true) {
                         this.$nextTick(() => {
@@ -981,6 +1054,7 @@
             },
 
             destroy() {
+                this.cleanupSparkFlight();
                 if (this._savedResetTimer) clearTimeout(this._savedResetTimer);
                 if (this._curveRafId) cancelAnimationFrame(this._curveRafId);
                 if (this._onCartUpdated) window.removeEventListener('cart-updated', this._onCartUpdated);
@@ -1687,13 +1761,292 @@
                 }
             },
 
+            onLockedCtaHover() {
+                if (!this.requiresConfirm || this.configConfirmed || this.saved || this.isSaving) {
+                    return;
+                }
+                if (window.sfSparkFlow && this.$refs && this.$refs.addToCartBtn && this.$refs.confirmBox) {
+                    window.sfSparkFlow.fly(this.$refs.addToCartBtn, this.$refs.confirmBox, {
+                        mode: 'hint',
+                        cooldownKey: 'cfg-cta-hint',
+                        mountRoot: this.$root || document.body
+                    });
+                }
+            },
+
+            onConfirmToggle(event) {
+                const checked = Boolean(event && event.target ? event.target.checked : this.configConfirmed);
+                this.configConfirmed = checked;
+                if (checked) {
+                    this._manualUncheckActive = false;
+                    this.confirmWarning = false;
+                    this.ctaAuraArrived = false;
+                    this.triggerConfirmToCartSparkFlight();
+                } else {
+                    this._manualUncheckActive = true;
+                    this.ctaAuraArrived = false;
+                    this.cleanupSparkFlight(true);
+                    if (window.sfSparkFlow && this.$refs && this.$refs.addToCartBtn && this.$refs.confirmBox) {
+                        window.sfSparkFlow.fly(this.$refs.addToCartBtn, this.$refs.confirmBox, {
+                            mode: 'relock',
+                            runKey: 'cfg-confirm-flow',
+                            mountRoot: this.$root || document.body
+                        });
+                    }
+                    setTimeout(() => { this._manualUncheckActive = false; }, 120);
+                }
+            },
+
+            cleanupSparkFlight(cancelGlobalFlow = true) {
+                if (cancelGlobalFlow && window.sfSparkFlow && typeof window.sfSparkFlow.cancel === 'function') {
+                    window.sfSparkFlow.cancel('cfg-confirm-flow');
+                }
+                if (this._ctaAuraTimer) {
+                    clearTimeout(this._ctaAuraTimer);
+                    this._ctaAuraTimer = null;
+                }
+                if (this._sparkFlightRaf) {
+                    cancelAnimationFrame(this._sparkFlightRaf);
+                    this._sparkFlightRaf = null;
+                }
+                if (this._sparkFlightCanvas) {
+                    try {
+                        this._sparkFlightCanvas.remove();
+                    } catch (e) {}
+                    this._sparkFlightCanvas = null;
+                }
+                this._sparkFlightActive = false;
+            },
+
+            drawFourPointStar(ctx, x, y, outerR, innerR, rot = 0) {
+                ctx.save();
+                ctx.translate(x, y);
+                if (rot) ctx.rotate(rot);
+                ctx.beginPath();
+                for (let i = 0; i < 8; i++) {
+                    const r = (i % 2 === 0) ? outerR : innerR;
+                    const angle = (i * Math.PI) / 4;
+                    const px = Math.cos(angle) * r;
+                    const py = Math.sin(angle) * r;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            },
+
+            triggerConfirmToCartSparkFlight() {
+                this.cleanupSparkFlight(true);
+
+                const prefersReducedMotion = Boolean(
+                    window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                );
+                const srcEl = this.$refs ? this.$refs.confirmBox : null;
+                const dstEl = this.$refs ? this.$refs.addToCartBtn : null;
+                if (prefersReducedMotion || !srcEl || !dstEl) {
+                    this.ctaAuraArrived = true;
+                    return;
+                }
+
+                if (window.sfSparkFlow && typeof window.sfSparkFlow.fly === 'function') {
+                    this._sparkFlightActive = true;
+                    const handle = window.sfSparkFlow.fly(srcEl, dstEl, {
+                        mode: 'unlock',
+                        runKey: 'cfg-confirm-flow',
+                        mountRoot: this.$root || document.body,
+                        onArrival: () => {
+                            this._sparkFlightActive = false;
+                            if (this.configConfirmed) {
+                                this.ctaAuraArrived = true;
+                            }
+                        }
+                    });
+                    if (!handle) {
+                        this._sparkFlightActive = false;
+                        this.ctaAuraArrived = true;
+                    }
+                    return;
+                }
+
+                const srcRect = srcEl.getBoundingClientRect();
+                const dstRect = dstEl.getBoundingClientRect();
+                if (!srcRect || !dstRect || srcRect.width <= 0 || dstRect.width <= 0) {
+                    this.ctaAuraArrived = true;
+                    return;
+                }
+
+                this._ctaAuraTimer = setTimeout(() => {
+                    this._ctaAuraTimer = null;
+                    if (this.configConfirmed) {
+                        this.ctaAuraArrived = true;
+                    }
+                }, 340);
+
+                const vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+                const vh = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1);
+                const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+                const canvas = document.createElement('canvas');
+                canvas.setAttribute('aria-hidden', 'true');
+                canvas.setAttribute('data-snapshot-ignore', '1');
+                canvas.width = Math.round(vw * dpr);
+                canvas.height = Math.round(vh * dpr);
+                canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483647;';
+
+                const host = this.$root || document.body;
+                host.appendChild(canvas);
+                this._sparkFlightCanvas = canvas;
+                this._sparkFlightActive = true;
+
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    this.cleanupSparkFlight();
+                    this.ctaAuraArrived = true;
+                    return;
+                }
+                ctx.scale(dpr, dpr);
+
+                const palette = ['#C5A059', '#FDE68A', '#FFFBEB', '#E5C17B'];
+                const count = 40;
+                const particles = Array.from({ length: count }, (_, i) => {
+                    let sx;
+                    let sy;
+                    if (i < 14) {
+                        // Ursprung direkt rund um das gesetzte Haekchen links in der Checkbox-Kachel
+                        sx = srcRect.left + 18 + (Math.random() - 0.5) * 20;
+                        sy = srcRect.top + Math.min(22, srcRect.height * 0.5) + (Math.random() - 0.5) * 16;
+                    } else {
+                        // Ursprung entlang des oberen und unteren Kartenrands der Checkbox-Kachel
+                        const edgeIdx = i - 14;
+                        const edgeFrac = (edgeIdx + 0.5) / (count - 14);
+                        sx = srcRect.left + srcRect.width * (0.04 + 0.92 * edgeFrac) + (Math.random() - 0.5) * 10;
+                        sy = (edgeIdx % 2 === 0)
+                            ? (srcRect.bottom - 1 + (Math.random() - 0.5) * 4)
+                            : (srcRect.top + 1 + (Math.random() - 0.5) * 4);
+                    }
+
+                    return {
+                        sx,
+                        sy,
+                        uX: 0.08 + 0.84 * ((i + 0.5) / count),
+                        uY: (i % 2 === 0) ? 0.22 : 0.78,
+                        jitterX: (Math.random() - 0.5) * 12,
+                        jitterY: (Math.random() - 0.5) * 6,
+                        curveX: (i % 2 === 0 ? 1 : -1) * (12 + Math.random() * 32),
+                        curveLift: 14 + Math.random() * 24,
+                        delay: Math.random() * 0.14,
+                        speed: 0.94 + Math.random() * 0.22,
+                        size: 1.8 + Math.random() * 3.0,
+                        isStar: i % 3 === 0,
+                        color: palette[i % palette.length],
+                        rot: Math.random() * Math.PI * 2
+                    };
+                });
+
+                const duration = 0.54;
+                let startTs = null;
+
+                const step = (now) => {
+                    if (!this._sparkFlightActive || this._sparkFlightCanvas !== canvas) {
+                        try { canvas.remove(); } catch (e) {}
+                        return;
+                    }
+                    if (startTs === null) startTs = now;
+                    const elapsed = Math.max(0, (now - startTs) / 1000);
+                    const norm = elapsed / duration;
+
+                    try {
+                        ctx.clearRect(0, 0, vw, vh);
+                        const liveDst = dstEl.getBoundingClientRect();
+                        const targetRect = (liveDst && liveDst.width > 0) ? liveDst : dstRect;
+
+                        if (norm < 0.36) {
+                            const flashA = Math.sin((norm / 0.36) * Math.PI) * 0.34;
+                            const rCore = 10 + norm * 56;
+                            const gx = srcRect.left + 18;
+                            const gy = srcRect.top + Math.min(22, srcRect.height * 0.5);
+                            const grad = ctx.createRadialGradient(gx, gy, 2, gx, gy, rCore);
+                            grad.addColorStop(0, `rgba(255, 251, 235, ${flashA.toFixed(3)})`);
+                            grad.addColorStop(0.48, `rgba(253, 230, 138, ${(flashA * 0.62).toFixed(3)})`);
+                            grad.addColorStop(1, 'rgba(197, 160, 89, 0)');
+                            ctx.fillStyle = grad;
+                            ctx.beginPath();
+                            ctx.arc(gx, gy, rCore, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+
+                        let alive = 0;
+                        for (let i = 0; i < particles.length; i++) {
+                            const p = particles[i];
+                            const pt = ((norm - p.delay) * p.speed) / 0.80;
+                            if (pt < 0) {
+                                alive++;
+                                continue;
+                            }
+                            if (pt >= 1.0) continue;
+                            alive++;
+
+                            const u = pt < 0.5 ? 4 * pt * pt * pt : 1 - Math.pow(-2 * pt + 2, 3) / 2;
+                            const inv = 1 - u;
+                            const dx = targetRect.left + targetRect.width * p.uX + p.jitterX;
+                            const dy = targetRect.top + targetRect.height * p.uY + p.jitterY;
+                            const cx = (p.sx + dx) * 0.5 + p.curveX;
+                            const cy = (p.sy + dy) * 0.5 - p.curveLift;
+
+                            const x = inv * inv * p.sx + 2 * inv * u * cx + u * u * dx;
+                            const y = inv * inv * p.sy + 2 * inv * u * cy + u * u * dy;
+                            const alpha = Math.sin(Math.min(1, pt) * Math.PI);
+                            const sz = p.size * (0.55 + 0.65 * alpha);
+
+                            ctx.save();
+                            ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+                            ctx.fillStyle = p.color;
+                            if (p.isStar) {
+                                this.drawFourPointStar(ctx, x, y, sz * 1.45, sz * 0.38, p.rot + elapsed * 4.5);
+                            } else {
+                                ctx.beginPath();
+                                ctx.arc(x, y, sz * 0.55, 0, Math.PI * 2);
+                                ctx.fill();
+                            }
+                            ctx.restore();
+                        }
+
+                        if (norm >= 1.0 || alive === 0) {
+                            if (this.configConfirmed) {
+                                this.ctaAuraArrived = true;
+                            }
+                            this.cleanupSparkFlight();
+                            return;
+                        }
+
+                        this._sparkFlightRaf = requestAnimationFrame(step);
+                    } catch (err) {
+                        if (this.configConfirmed) {
+                            this.ctaAuraArrived = true;
+                        }
+                        this.cleanupSparkFlight();
+                    }
+                };
+
+                this._sparkFlightRaf = requestAnimationFrame(step);
+            },
+
             // NEU: Snapshot Capture vor dem Speichern in den Warenkorb mit Doppel-Klick Schutz & Mobile-Timeout
             async submitConfig() {
                 // 0. Prüfen, ob der Bestätigungs-Haken gesetzt wurde (Task 2.4)
-                if (this.context !== 'calculator' && this.$wire && !this.$wire.config_confirmed) {
+                if (this.requiresConfirm && (!this.configConfirmed || (this.$wire && !this.$wire.config_confirmed))) {
                     this.confirmWarning = true;
                     if (this.$refs && this.$refs.confirmBox) {
                         this.$refs.confirmBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        if (window.sfSparkFlow && this.$refs.addToCartBtn) {
+                            window.sfSparkFlow.fly(this.$refs.addToCartBtn, this.$refs.confirmBox, {
+                                mode: 'hint',
+                                cooldownKey: 'cfg-cta-click-hint',
+                                cooldownMs: 350,
+                                mountRoot: this.$root || document.body
+                            });
+                        }
                     }
                     return;
                 }
@@ -1702,6 +2055,7 @@
                 // 1. Doppel-Klick / Mehrfach-Klick Schutz!
                 if (this.isSaving) return;
                 this.isSaving = true;
+                this._awaitingSaveToCartSpark = (this.context === 'add');
 
                 let snapshotBase64 = null;
                 let snapshotBackBase64 = null;
@@ -1967,10 +2321,18 @@
                     };
 
                     await $wire.saveWithSnapshot(payload, syncedStageState);
+                    if (this.saved && this._awaitingSaveToCartSpark && window.sfSparkFlow && this.$refs && this.$refs.addToCartBtn) {
+                        this._awaitingSaveToCartSpark = false;
+                        window.sfSparkFlow.fly(this.$refs.addToCartBtn, '[data-sf-cart-header-icon], a[aria-label="Warenkorb"]', {
+                            mode: 'to-cart',
+                            mountRoot: this.$root || document.body
+                        });
+                    }
                 } catch (e) {
                     console.error("Fehler beim Speichern der Konfiguration:", e);
                 } finally {
                     this.isSaving = false;
+                    this._awaitingSaveToCartSpark = false;
                 }
             },
 
@@ -2380,7 +2742,7 @@
             isStagePointInsideArea(px, py) {
                 const c = this.config || {};
                 if (c.area_shape === 'custom') {
-                    const pts = Array.isArray(c.custom_points) ? c.custom_points : [];
+                    const pts = this.getActiveCustomPoints();
                     if (pts.length < 3) return true;
                     let inside = false;
                     for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -2390,7 +2752,7 @@
                     }
                     return inside;
                 }
-                const left = Number(c.area_left ?? 10), top = Number(c.area_top ?? 10);
+                const left = this.getActiveAreaLeft(), top = Number(c.area_top ?? 10);
                 const width = Math.max(8, Number(c.area_width ?? 80)), height = Math.max(8, Number(c.area_height ?? 80));
                 if (c.area_shape === 'circle') {
                     const rx = Math.max(4, width * 0.45), ry = Math.max(4, height * 0.45);
@@ -2991,13 +3353,14 @@
 
                     const clampToBoundaries = (nx, ny, c) => {
                         let res = { x: nx, y: ny };
+                        const activeLeft = this.getActiveAreaLeft();
                         if (c.area_shape === 'rect') {
-                            const minX = Number(c.area_left || 0); const maxX = minX + Number(c.area_width || 100);
+                            const minX = activeLeft; const maxX = minX + Number(c.area_width || 100);
                             const minY = Number(c.area_top || 0); const maxY = minY + Number(c.area_height || 100);
                             res.x = Math.max(minX, Math.min(maxX, nx));
                             res.y = Math.max(minY, Math.min(maxY, ny));
                         } else if (c.area_shape === 'circle') {
-                            const cx = Number(c.area_left || 0) + Number(c.area_width || 100) / 2;
+                            const cx = activeLeft + Number(c.area_width || 100) / 2;
                             const cy = Number(c.area_top || 0) + Number(c.area_height || 100) / 2;
                             const rX = Number(c.area_width || 100) / 2; const rY = Number(c.area_height || 100) / 2;
                             const dx = (nx - cx) / rX; const dy = (ny - cy) / rY;
@@ -3006,7 +3369,7 @@
                                 res.x = cx + (dx / dist) * rX; res.y = cy + (dy / dist) * rY;
                             }
                         } else if (c.area_shape === 'custom') {
-                            const pts = c.custom_points || [];
+                            const pts = this.getActiveCustomPoints();
                             if (pts.length > 2) {
                                 const isPointInside = (px, py) => {
                                     let inside = false;
@@ -3534,7 +3897,7 @@
                         if (item) {
                             e.preventDefault();
                             const step = e.shiftKey ? 2 : 0.5;
-                            const minX = (this.config.area_shape === 'rect') ? (this.config.area_left ?? 0) : 0;
+                            const minX = (this.config.area_shape === 'rect') ? this.getActiveAreaLeft() : 0;
                             const maxX = (this.config.area_shape === 'rect') ? (minX + (this.config.area_width || 100)) : 100;
                             const minY = (this.config.area_shape === 'rect') ? (this.config.area_top ?? 0) : 0;
                             const maxY = (this.config.area_shape === 'rect') ? (minY + (this.config.area_height || 100)) : 100;

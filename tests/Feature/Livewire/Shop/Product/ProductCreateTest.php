@@ -921,7 +921,7 @@ class ProductCreateTest extends TestCase
             ]
         );
 
-        // 1. Profi-Modus Leerstart auf Der Seelen-Talisman: Textfeld ist mittig (50, 66) und kompakt (size 0.58 statt 1.0)
+        // 1. Profi-Modus Leerstart auf Der Seelen-Talisman: Textfeld ist mittig (50, 66) und maßstabsgetreu kalibriert (size 1.10)
         $profiComp = Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [
             'product' => $talisman,
             'context' => 'add',
@@ -933,7 +933,7 @@ class ProductCreateTest extends TestCase
         $this->assertSame('', $texts[0]['text']);
         $this->assertEquals(50.0, $texts[0]['x']);
         $this->assertEquals(66.0, $texts[0]['y']);
-        $this->assertEquals(0.58, $texts[0]['size']);
+        $this->assertEquals(1.10, $texts[0]['size']);
 
         // 2. Alle Wunschsymbole im Neulings-Modus prüfen (Kleeblatt != Smiley, Schutzengel != Schild, etc.)
         $beginnerComp = Livewire::test(\App\Livewire\Shop\Product\ProductConfigurator\ProductConfigurator::class, [

@@ -76,6 +76,10 @@ class OrderQuoteAcceptance extends Component
      */
     public function editItem($itemId)
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
         if (!$this->quote || !$this->quote->isValid()) return;
 
         $this->editingItem = $this->quote->items->find($itemId);
@@ -102,6 +106,10 @@ class OrderQuoteAcceptance extends Component
     #[On('calculator-save')]
     public function saveItem($data)
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
         if (!$this->quote || !$this->editingItem || !$this->isValidAction() || !$this->quote->isValid()) return;
         if ($this->editingItem->quote_request_id !== $this->quote->id) return;
 
@@ -477,11 +485,23 @@ class OrderQuoteAcceptance extends Component
         $this->activeCoupon = null;
     }
 
+    public function acceptQuote(CartService $cartService)
+    {
+        return $this->proceedToCheckout($cartService);
+    }
+
     /**
      * Checkout Logik: Überträgt Items, Express-Status und Gutschein in den Warenkorb
      */
     public function proceedToCheckout(CartService $cartService)
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            $msg = 'Wir führen gerade kurze Wartungsarbeiten durch. Die Angebotsannahme ist in Kürze wieder freigeschaltet.';
+            $this->addError('maintenance', $msg);
+            session()->flash('error', $msg);
+            return null;
+        }
+
         if (!$this->quote || !$this->isValidAction()) return;
 
         Session::put('checkout_from_quote_id', $this->quote->id);
@@ -552,6 +572,11 @@ class OrderQuoteAcceptance extends Component
 
     public function render()
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN) && $this->viewState === 'editor') {
+            $this->viewState = 'dashboard';
+            $this->editingItem = null;
+        }
+
         return view('livewire.shop.order.order-quote-acceptance')
             ->layout('components.layouts.frontend_layout');
     }

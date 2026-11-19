@@ -167,20 +167,118 @@
 @endscript
 
 <div class="w-full" x-data="{ showLightbox: false, lightboxImage: '' }" @keydown.escape.window="showLightbox = false" @scroll-top.window="setTimeout(() => { document.getElementById('calculator-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50)">
+    @if(!empty($isMaintenanceMode))
+        <div class="max-w-2xl mx-auto py-8">
+            <x-alerts.shop-maintenance-notice
+                title="Angebotskalkulator kurzzeitig in Wartung"
+                :showShopButton="true"
+            />
+        </div>
+    @else
     @if($step === 0)
-        <div class="text-center py-12 bg-primary/5 rounded-2xl border border-primary/10 px-6">
+        <div class="text-center py-12 bg-primary/5 rounded-2xl border border-primary/10 px-6"
+             x-data="{
+                 agbAccepted: $wire.entangle('agb_accepted').live,
+                 ctaReady: @js((bool) $agb_accepted),
+                 agbWarning: false,
+                 _calcFlowActive: false,
+                 init() {
+                     this.$watch('agbAccepted', (val) => {
+                         if (!val) {
+                             this.ctaReady = false;
+                         } else {
+                             this.agbWarning = false;
+                             setTimeout(() => {
+                                 if (this.agbAccepted && !this._calcFlowActive) {
+                                     this.ctaReady = true;
+                                 }
+                             }, 45);
+                         }
+                     });
+                 },
+                 onAgbToggle(e) {
+                     const checked = Boolean(e && e.target ? e.target.checked : this.agbAccepted);
+                     this.agbAccepted = checked;
+                     if (checked) {
+                         this.agbWarning = false;
+                         this.ctaReady = false;
+                         this._calcFlowActive = true;
+                         if (window.sfSparkFlow && this.$refs.calcAgbBox && this.$refs.calcStartBtn) {
+                             const h = window.sfSparkFlow.fly(this.$refs.calcAgbBox, this.$refs.calcStartBtn, {
+                                 mode: 'unlock',
+                                 runKey: 'calc-agb-flow',
+                                 onArrival: () => {
+                                     this._calcFlowActive = false;
+                                     if (this.agbAccepted) this.ctaReady = true;
+                                 }
+                             });
+                             if (!h) {
+                                 this._calcFlowActive = false;
+                                 this.ctaReady = true;
+                             }
+                         } else {
+                             this._calcFlowActive = false;
+                             this.ctaReady = true;
+                         }
+                     } else {
+                         this._calcFlowActive = false;
+                         this.ctaReady = false;
+                         if (window.sfSparkFlow && this.$refs.calcStartBtn && this.$refs.calcAgbBox) {
+                             window.sfSparkFlow.fly(this.$refs.calcStartBtn, this.$refs.calcAgbBox, {
+                                 mode: 'relock',
+                                 runKey: 'calc-agb-flow'
+                             });
+                         }
+                     }
+                 },
+                 onLockedStartHover() {
+                     if (this.agbAccepted) return;
+                     if (window.sfSparkFlow && this.$refs.calcStartBtn && this.$refs.calcAgbBox) {
+                         window.sfSparkFlow.fly(this.$refs.calcStartBtn, this.$refs.calcAgbBox, {
+                             mode: 'hint',
+                             cooldownKey: 'calc-start-hint'
+                         });
+                     }
+                 },
+                 handleLockedStartClick() {
+                     this.agbWarning = true;
+                     if (this.$refs.calcAgbBox) {
+                         this.$refs.calcAgbBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                     }
+                     if (window.sfSparkFlow && this.$refs.calcStartBtn && this.$refs.calcAgbBox) {
+                         window.sfSparkFlow.fly(this.$refs.calcStartBtn, this.$refs.calcAgbBox, {
+                             mode: 'hint',
+                             cooldownKey: 'calc-start-click-hint',
+                             cooldownMs: 350
+                         });
+                     }
+                 }
+             }">
             <h2 class="text-2xl font-serif font-bold text-gray-900 mb-4">Individuelles Angebot erstellen</h2>
             <p class="text-gray-600 mb-6 max-w-xl mx-auto">
                 Sie planen eine Großbestellung für Ihren Verein, Ihre Firma oder ein Event? Nutzen Sie unseren Konfigurator für eine unverbindliche Preiskalkulation inklusive Staffelpreisen.
             </p>
 
-            <div class="max-w-md mx-auto mb-8 bg-white p-4 rounded-xl border border-gray-100 shadow-sm text-left">
+            <div x-ref="calcAgbBox"
+                 :class="(agbWarning || {{ $errors->has('agb') ? 'true' : 'false' }}) ? 'border-red-400 ring-2 ring-red-500/20 bg-red-50/40' : 'border-gray-200 bg-white'"
+                 class="sf-magic-thin-aura relative max-w-md mx-auto mb-8 p-4 rounded-xl border shadow-sm text-left transition-all duration-200">
+                <span aria-hidden="true"
+                      x-show="!agbAccepted && !agbWarning && !{{ $errors->has('agb') ? 'true' : 'false' }}"
+                      x-transition.opacity.duration.250ms
+                      class="sf-magic-thin-aura-ring"></span>
                 <label class="flex items-start gap-3 cursor-pointer group">
-                    <input type="checkbox" wire:model.live="agb_accepted" class="mt-1 w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary">
+                    <input type="checkbox"
+                           wire:model.live="agb_accepted"
+                           @change="onAgbToggle($event)"
+                           class="mt-1 w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer">
                     <span class="text-sm text-gray-600 leading-relaxed group-hover:text-gray-900 transition-colors">
                         Ich bestätige, dass der Konfigurator als <strong>Visualisierungshilfe</strong> dient (handwerkliche Toleranzen in Farbe und Platzierung möglich) und ich für hochgeladene Motive/Texte <strong>alle erforderlichen Urheber- &amp; Markenrechte</strong> besitze sowie Mein Seelenfunke von Ansprüchen Dritter freistelle. Es gelten die <a href="/agb#konfigurator" target="_blank" class="text-primary underline font-bold">Besonderen Bestimmungen &amp; Freistellungsregeln (§ 3 AGB)</a>.
                     </span>
                 </label>
+                <p x-show="agbWarning && !agbAccepted" x-cloak class="mt-2 text-xs text-red-600 font-bold flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <span>Bitte bestätigen Sie zunächst die Hinweise zur Kalkulation, um fortzufahren.</span>
+                </p>
                 @error('agb')
                 <p class="mt-2 text-xs text-red-600 font-bold flex items-center gap-1">
                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -191,12 +289,24 @@
                 @enderror
             </div>
 
-            <button wire:click="startCalculator" @class([
-                'px-8 py-3 rounded-md font-semibold transition shadow-lg transform hover:-translate-y-1',
-                'bg-primary text-white hover:bg-primary-dark' => $agb_accepted,
-                'bg-gray-300 text-gray-500 cursor-not-allowed' => !$agb_accepted
-            ])>
-                Jetzt Kalkulation starten
+            <button type="button"
+                    x-ref="calcStartBtn"
+                    wire:click="startCalculator"
+                    @mouseenter="onLockedStartHover()"
+                    @click="if (!agbAccepted) { $event.preventDefault(); $event.stopImmediatePropagation(); handleLockedStartClick(); }"
+                    :class="[
+                        (!agbAccepted || !ctaReady)
+                            ? 'bg-gray-200 text-gray-500 border border-gray-300 shadow-none hover:bg-gray-200'
+                            : 'bg-gray-900 text-white hover:bg-black border border-transparent shadow-lg transform hover:-translate-y-0.5',
+                        !agbAccepted ? 'cursor-not-allowed' : 'cursor-pointer'
+                    ]"
+                    class="sf-magic-thin-aura sf-magic-thin-aura-cta relative overflow-hidden inline-flex items-center justify-center px-8 py-3.5 rounded-xl font-bold transition-all duration-300">
+                <span aria-hidden="true"
+                      x-show="agbAccepted && ctaReady"
+                      x-cloak
+                      x-transition.opacity.duration.250ms
+                      class="sf-magic-thin-aura-ring"></span>
+                <span>Jetzt Kalkulation starten</span>
             </button>
         </div>
     @endif
@@ -226,6 +336,9 @@
 
             @if($step === 1)
                 <div class="p-6 md:p-8 animate-fade-in">
+                    @if(count($cartItems) > 0)
+                        <x-shop.experience-star-widget class="mb-3" area="calculator" wire:key="exp-star-calc-step1" />
+                    @endif
                     @include('livewire.shop.product.product-calculator.partials.selected_items')
                     @include('livewire.shop.product.product-calculator.partials.sortiment')
                 </div>
@@ -234,9 +347,6 @@
                     <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center shrink-0">
                         <h3 class="font-bold text-gray-800">Artikel anpassen</h3>
                         <button wire:click="cancelConfig" class="text-sm text-gray-500 hover:text-red-500">Abbrechen</button>
-                    @if(count($cartItems) > 0)
-                        <x-shop.experience-star-widget class="mb-3" area="calculator" wire:key="exp-star-calc-step1" />
-                    @endif
                     </div>
 
                     @if($showTemplateSelection)
@@ -319,6 +429,9 @@
                     @endif
                 </div>
             @elseif($step === 3)
+                <div class="max-w-3xl mx-auto px-8">
+                    <x-shop.experience-star-widget class="mt-6 -mb-2" area="calculator" wire:key="exp-star-calc-step3" />
+                </div>
                 @include('livewire.shop.product.product-calculator.partials.contact_form')
             @elseif($step === 4)
                 <div class="p-12 text-center animate-fade-in-up">
@@ -327,9 +440,6 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                     </div>
-                <div class="max-w-3xl mx-auto px-8">
-                    <x-shop.experience-star-widget class="mt-6 -mb-2" area="calculator" wire:key="exp-star-calc-step3" />
-                </div>
                     <h3 class="text-3xl font-serif font-bold text-gray-900 mb-3">Anfrage erfolgreich!</h3>
                     @if(!empty($lastQuoteNumber))
                         <p class="text-sm font-mono font-bold text-primary mb-3">Angebotsnummer: {{ $lastQuoteNumber }}</p>
@@ -597,6 +707,7 @@
                 </div>
             @endif
         </div>
+    @endif
     @endif
 
     <div x-show="showLightbox" style="display: none;" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4" x-transition.opacity>

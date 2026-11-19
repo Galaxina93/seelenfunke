@@ -163,6 +163,9 @@
             </div>
 
             {{-- STEP-BY-STEP KONFIGURATOR (Rechts, 7 Columns) --}}
+            @php
+                $isVoucherMaintenance = filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN);
+            @endphp
             <div class="lg:col-span-7 space-y-6" id="voucher-wizard-top">
 
                 {{-- Produktdetails Header --}}
@@ -173,6 +176,10 @@
                         In 3 einfachen Schritten zu deinem persönlichen Geschenkgutschein. Wir begleiten dich Schritt für Schritt bis zum Warenkorb.
                     </p>
                 </div>
+
+                @if($isVoucherMaintenance && $currentStep !== 3)
+                    <x-alerts.shop-maintenance-notice />
+                @endif
 
                 {{-- Fortschrittsanzeige (Step-by-Step Stepper) --}}
                 <div class="bg-gray-50 border border-gray-200/80 rounded-3xl p-4 sm:p-5">
@@ -655,12 +662,17 @@
 
                             {{-- Aktions-Buttons: In den Warenkorb legen über die volle Breite --}}
                             <div class="space-y-3 pt-1">
-                                <button type="button"
-                                        wire:click="addToCart"
-                                        class="w-full py-4 px-8 bg-primary text-white font-serif font-bold text-lg rounded-2xl hover:bg-primary/90 hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 shadow-md shadow-primary/15 flex items-center justify-center gap-3 cursor-pointer whitespace-nowrap">
-                                    <svg class="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-                                    <span>In den Warenkorb legen</span>
-                                </button>
+                                @if($isVoucherMaintenance)
+                                    <x-alerts.shop-maintenance-notice />
+                                @else
+                                    <button type="button"
+                                            @click="window.sfSparkFlow?.fly($el, '[data-sf-cart-header-icon]', { mode: 'to-cart' })"
+                                            wire:click="addToCart"
+                                            class="w-full py-4 px-8 bg-primary text-white font-serif font-bold text-lg rounded-2xl hover:bg-primary/90 hover:scale-[1.01] active:scale-[0.99] transition-all duration-300 shadow-md shadow-primary/15 flex items-center justify-center gap-3 cursor-pointer whitespace-nowrap">
+                                        <svg class="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+                                        <span>In den Warenkorb legen</span>
+                                    </button>
+                                @endif
 
                                 <button type="button"
                                         wire:click="previousStep"

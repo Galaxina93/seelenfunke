@@ -263,6 +263,7 @@ class FileDownloadService
         $productConfig = $product
             ? (is_string($product->configurator_settings) ? json_decode($product->configurator_settings, true) : ($product->configurator_settings ?? []))
             : [];
+        $productConfig = $this->applyBackSideMirrorToProductConfig(is_array($productConfig) ? $productConfig : [], (string) $side);
 
         // Fallback & Aufbereitung für Schnell-Personalisierung / Neuling-Modus (custom_fields_data)
         $hasNonEmptyTexts = collect($texts)->contains(fn($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
@@ -646,123 +647,30 @@ class FileDownloadService
                 $logoWidth = (((float) ($logo['size'] ?? 100)) / 500) * $widthMm;
 
                 $url = $logo['url'] ?? $logo['value'] ?? $logo['src'] ?? null;
-                if (!$url) continue;
+                if (!$url && empty($logo['value'])) continue;
 
-                $localPath = null;
-                $data = null;
-                $ext = null;
+                $resolvedLogoSource = $this->resolveEffectiveLogoSourceForLaser($logo, $item, is_array($config) ? $config : []);
+                $data = $resolvedLogoSource['bytes'];
+                $ext = $resolvedLogoSource['ext'];
+                $isStudioAdjustedLogo = (bool) ($resolvedLogoSource['is_adjusted'] ?? false);
+                $studioAdjustmentMeta = is_array($resolvedLogoSource['adjustment'] ?? null) ? $resolvedLogoSource['adjustment'] : null;
 
-                // Falls es eine Base64-URL ist
-                if (str_starts_with($url, 'data:image')) {
-                    if (preg_match('/^data:image\/([a-zA-Z0-9\+\-]+);base64,(.*)$/', $url, $matches)) {
-                        $ext = strtolower($matches[1]);
-                        if ($ext === 'svg+xml') $ext = 'svg';
-                        if (in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
-                            $data = base64_decode($matches[2]);
-                        }
-                    }
-                } else {
-                    $urlPath = rawurldecode(parse_url($url, PHP_URL_PATH) ?? $url);
-
-                    if (str_contains($urlPath, '..') || str_contains($urlPath, "\0") || str_contains($urlPath, '\\')) {
-                        \App\Services\System\SystemSecurityService::logEvent(
-                            'security:lfi_attempt_blocked',
-                            'LFI / Path-Traversal im Laser-SVG-Export blockiert',
-                            "Manipulierter Logo-Pfad im SVG-Export abgewiesen: " . substr((string) $urlPath, 0, 120),
-                            'error',
-                            ['order_item_id' => $item->id, 'path' => substr((string) $urlPath, 0, 120)]
-                        );
-                        continue;
-                    }
-
-                    if (str_contains($urlPath, '/storage/')) {
-                        $relativePath = substr($urlPath, strpos($urlPath, '/storage/') + 9);
-                        $localPath = storage_path('app/public/' . ltrim($relativePath, '/'));
-                    } elseif (str_contains($urlPath, '/images/')) {
-                        $relativePath = substr($urlPath, strpos($urlPath, '/images/') + 8);
-                        $localPath = public_path('shopverwaltung/images/' . ltrim($relativePath, '/'));
-                    } elseif (str_contains($urlPath, '/shop/')) {
-                        $relativePath = substr($urlPath, strpos($urlPath, '/shop/') + 6);
-                        $localPath = public_path('shop/' . ltrim($relativePath, '/'));
-                    } else {
-                        // Letzter Ausweg: Versuche, den Dateipfad relativ zum public-Ordner aufzulösen
-                        $localPath = public_path(ltrim($urlPath, '/'));
-                    }
-
-                    // Fallback-Suche: Falls Datei nicht am direkten Pfad liegt (z.B. verschoben oder alter Pfad)
-                    if (!$localPath || !file_exists($localPath)) {
-                        $baseName = basename($urlPath);
-                        $storageVectorPath = storage_path('app/public/produkte/configurator/vectors/' . $baseName);
-                        $vectorPath = public_path('shop/product/configurator/vectors/' . $baseName);
-                        if (file_exists($storageVectorPath)) {
-                            $localPath = $storageVectorPath;
-                        } elseif (file_exists($vectorPath)) {
-                            $localPath = $vectorPath;
-                        } else {
-                            // Rekursive Suche in beiden Vektoren-Verzeichnissen (Storage & Public)
-                            $searchDirs = [
-                                storage_path('app/public/produkte/configurator/vectors'),
-                                public_path('shop/product/configurator/vectors'),
-                            ];
-                            foreach ($searchDirs as $vectorsDir) {
-                                if (File::isDirectory($vectorsDir)) {
-                                    $allVectors = File::allFiles($vectorsDir);
-                                    foreach ($allVectors as $vFile) {
-                                        if ($vFile->getFilename() === $baseName) {
-                                            $localPath = $vFile->getPathname();
-                                            break 2;
-                                        }
-                                    }
-                                }
+                if ($data === null && $url && filter_var($url, FILTER_VALIDATE_URL) && str_starts_with(strtolower((string) $url), 'https://')) {
+                    $parsedHost = strtolower((string) parse_url((string) $url, PHP_URL_HOST));
+                    $appHost = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+                    $resolvedIps = $parsedHost !== '' ? (@gethostbynamel($parsedHost) ?: []) : [];
+                    $allIpsPublic = !empty($resolvedIps) && collect($resolvedIps)->every(
+                        fn ($ip) => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false
+                    );
+                    $candidateExt = strtolower(pathinfo((string) parse_url((string) $url, PHP_URL_PATH), PATHINFO_EXTENSION));
+                    if ($parsedHost !== '' && $parsedHost === $appHost && $allIpsPublic && in_array($candidateExt, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+                        try {
+                            $remoteResp = \Illuminate\Support\Facades\Http::timeout(5)->withoutRedirecting()->get((string) $url);
+                            if ($remoteResp->successful() && strlen($remoteResp->body()) <= 10 * 1024 * 1024) {
+                                $ext = $candidateExt;
+                                $data = $remoteResp->body();
                             }
-                        }
-                    }
-
-                    if ($localPath && file_exists($localPath) && is_file($localPath)) {
-                        $realLocalPath = realpath($localPath);
-                        $allowedRoots = array_filter([
-                            realpath(storage_path('app/public')),
-                            realpath(public_path('shop')),
-                            realpath(public_path('shopverwaltung/images')),
-                        ]);
-                        $isWithinAllowedRoot = false;
-                        if ($realLocalPath) {
-                            foreach ($allowedRoots as $root) {
-                                if (str_starts_with($realLocalPath, $root . DIRECTORY_SEPARATOR)) {
-                                    $isWithinAllowedRoot = true;
-                                    break;
-                                }
-                            }
-                        }
-                        $ext = strtolower(pathinfo($realLocalPath ?: $localPath, PATHINFO_EXTENSION));
-                        if ($isWithinAllowedRoot && in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
-                            $data = file_get_contents($realLocalPath);
-                        } else {
-                            \App\Services\System\SystemSecurityService::logEvent(
-                                'security:lfi_attempt_blocked',
-                                'Unzulässiger Dateizugriff im SVG-Export blockiert',
-                                "Zugriff auf Pfad außerhalb erlaubter Medienverzeichnisse verweigert.",
-                                'error',
-                                ['order_item_id' => $item->id, 'ext' => $ext]
-                            );
-                        }
-                    } elseif (filter_var($url, FILTER_VALIDATE_URL) && str_starts_with(strtolower($url), 'https://')) {
-                        $parsedHost = strtolower((string) parse_url($url, PHP_URL_HOST));
-                        $appHost = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
-                        $resolvedIps = $parsedHost !== '' ? (@gethostbynamel($parsedHost) ?: []) : [];
-                        $allIpsPublic = !empty($resolvedIps) && collect($resolvedIps)->every(
-                            fn ($ip) => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false
-                        );
-                        $candidateExt = strtolower(pathinfo((string) parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION));
-                        if ($parsedHost !== '' && $parsedHost === $appHost && $allIpsPublic && in_array($candidateExt, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
-                            try {
-                                $remoteResp = \Illuminate\Support\Facades\Http::timeout(5)->withoutRedirecting()->get($url);
-                                if ($remoteResp->successful() && strlen($remoteResp->body()) <= 10 * 1024 * 1024) {
-                                    $ext = $candidateExt;
-                                    $data = $remoteResp->body();
-                                }
-                            } catch (\Throwable) {
-                            }
+                        } catch (\Throwable) {
                         }
                     }
                 }
@@ -836,6 +744,11 @@ class FileDownloadService
                         continue; // base64 <image> wird übersprungen
                     } else {
                         $textsForThisRaster = ($logoIdx === $lastRasterLogoIndex && is_array($texts)) ? $texts : [];
+                        $svgLogoPhotoProfile = $this->resolveLaserPhotoProfile($product, is_array($productConfig) ? $productConfig : []);
+                        if ($isStudioAdjustedLogo) {
+                            $svgLogoPhotoProfile['skip_halftone_processing'] = true;
+                            $svgLogoPhotoProfile['studio_dither_mode'] = strtolower((string) ($studioAdjustmentMeta['dither_mode'] ?? 'jarvis'));
+                        }
                         $clippedRaster = $this->clipAndNormalizeRasterLogoForLaser(
                             $data,
                             $ext,
@@ -845,7 +758,7 @@ class FileDownloadService
                             $workingAreaPolygonPct,
                             $textsForThisRaster,
                             false,
-                            $this->resolveLaserPhotoProfile($product, is_array($productConfig) ? $productConfig : [])
+                            $svgLogoPhotoProfile
                         );
 
                         if ($clippedRaster !== null) {
@@ -1108,7 +1021,7 @@ class FileDownloadService
                     imagefill($cropGd, 0, 0, $cTrans);
                     imagecopy($cropGd, $stageGd, 0, 0, $tMinX, $tMinY, $cw, $ch);
                     ob_start();
-                    imagepng($cropGd, null, 6);
+                    imagepng($cropGd, null, 3);
                     $pngOut = (string) ob_get_clean();
                     imagedestroy($cropGd);
                 }
@@ -1118,61 +1031,19 @@ class FileDownloadService
 
         if (!$pngOut) {
         foreach ($logos as $logoItem) {
-            $url = $logoItem['url'] ?? '';
-            if (empty($url)) continue;
-
-            $data = null;
-            $ext = null;
-
-            if (str_starts_with($url, 'data:image/')) {
-                if (preg_match('/^data:image\/(\w+)(?:\+\w+)?;base64,(.+)$/s', $url, $matches)) {
-                    $ext = strtolower($matches[1]);
-                    if ($ext !== 'svg') {
-                        $data = base64_decode($matches[2]);
-                    }
-                }
-            } else {
-                $urlPath = rawurldecode(parse_url($url, PHP_URL_PATH) ?? $url);
-                if (str_contains($urlPath, '..') || str_contains($urlPath, "\0") || str_contains($urlPath, '\\')) {
-                    continue;
-                }
-                if (str_contains($urlPath, '/storage/')) {
-                    $relativePath = substr($urlPath, strpos($urlPath, '/storage/') + 9);
-                    $localPath = storage_path('app/public/' . ltrim($relativePath, '/'));
-                } elseif (str_contains($urlPath, '/images/')) {
-                    $relativePath = substr($urlPath, strpos($urlPath, '/images/') + 8);
-                    $localPath = public_path('shopverwaltung/images/' . ltrim($relativePath, '/'));
-                } elseif (str_contains($urlPath, '/shop/')) {
-                    $relativePath = substr($urlPath, strpos($urlPath, '/shop/') + 6);
-                    $localPath = public_path('shop/' . ltrim($relativePath, '/'));
-                } else {
-                    $localPath = public_path(ltrim($urlPath, '/'));
-                }
-
-                if ($localPath && file_exists($localPath) && is_file($localPath)) {
-                    $realLocalPath = realpath($localPath);
-                    $allowedRoots = array_filter([
-                        realpath(storage_path('app/public')),
-                        realpath(public_path('shop')),
-                        realpath(public_path('shopverwaltung/images')),
-                    ]);
-                    $isWithinAllowedRoot = false;
-                    if ($realLocalPath) {
-                        foreach ($allowedRoots as $root) {
-                            if (str_starts_with($realLocalPath, $root . DIRECTORY_SEPARATOR)) {
-                                $isWithinAllowedRoot = true;
-                                break;
-                            }
-                        }
-                    }
-                    $ext = strtolower(pathinfo($realLocalPath ?: $localPath, PATHINFO_EXTENSION));
-                    if ($isWithinAllowedRoot && in_array($ext, ['png', 'jpg', 'jpeg', 'webp'], true)) {
-                        $data = file_get_contents($realLocalPath);
-                    }
-                }
+            if (!is_array($logoItem)) {
+                continue;
             }
+            $resolvedPngLogo = $this->resolveEffectiveLogoSourceForLaser($logoItem, $item, is_array($config) ? $config : []);
+            $data = $resolvedPngLogo['bytes'];
+            $ext = $resolvedPngLogo['ext'];
 
             if ($data !== null && $ext !== 'svg') {
+                $pngLogoProfile = $this->resolveLaserPhotoProfile($product, is_array($productConfig) ? $productConfig : []);
+                if (!empty($resolvedPngLogo['is_adjusted'])) {
+                    $pngLogoProfile['skip_halftone_processing'] = true;
+                    $pngLogoProfile['studio_dither_mode'] = strtolower((string) ($resolvedPngLogo['adjustment']['dither_mode'] ?? 'jarvis'));
+                }
                 $clipped = $this->clipAndNormalizeRasterLogoForLaser(
                     $data,
                     $ext,
@@ -1182,7 +1053,7 @@ class FileDownloadService
                     $workingAreaPolygonPct,
                     is_array($texts) ? $texts : [],
                     false,
-                    $this->resolveLaserPhotoProfile($product, is_array($productConfig) ? $productConfig : [])
+                    $pngLogoProfile
                 );
                 if ($clipped !== null) {
                     $pngOut = $clipped['pngData'];
@@ -1349,6 +1220,7 @@ class FileDownloadService
         $productConfig = $product
             ? (is_string($product->configurator_settings) ? (json_decode($product->configurator_settings, true) ?: []) : ($product->configurator_settings ?? []))
             : [];
+        $productConfig = $this->applyBackSideMirrorToProductConfig(is_array($productConfig) ? $productConfig : [], $side);
 
         // Aufbereitung für Schnell-Personalisierung / Neuling-Modus (custom_fields_data)
         $hasNonEmptyTexts = collect($texts)->contains(fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
@@ -1597,6 +1469,8 @@ class FileDownloadService
             $this->resolveLaserPhotoProfile($product, $effectiveProductConfig, $isDarkSurface)
         );
 
+        $photoAdjustmentsHash = $this->computePhotoAdjustmentsCacheFingerprint(is_array($config) ? $config : []);
+
         return [
             'item'                   => $item,
             'product'                => $product,
@@ -1621,14 +1495,49 @@ class FileDownloadService
             'photoLayerInfo'         => $rendered['photoLayerInfo'] ?? null,
             'textKnockoutPixels'     => (int) ($rendered['knockoutPixels'] ?? 0),
             'stagePxPerMm'           => (float) ($rendered['pxPerMm'] ?? 0.0),
+            'photoAdjustmentsHash'   => $photoAdjustmentsHash,
         ];
+    }
+
+    /**
+     * Berechnet einen deterministischen Cache-Fingerprint über alle Einträge in configuration['laser_photo_adjustments']
+     * inkl. Dateigröße, Änderungszeit und Inhalts-Hash von edited_path auf Storage::disk('public'),
+     * damit sich die Live-Cockpit-Vorschau (<sha1>.png) nach jedem Zahnrad-Speichern sofort aktualisiert.
+     */
+    public function computePhotoAdjustmentsCacheFingerprint(array $itemConfig = []): string
+    {
+        $adjs = $itemConfig['laser_photo_adjustments'] ?? null;
+        if (!is_array($adjs) || empty($adjs)) {
+            return '';
+        }
+
+        $disk = Storage::disk('public');
+        $parts = [];
+        ksort($adjs);
+        foreach ($adjs as $fileKey => $adj) {
+            if (!is_array($adj)) {
+                continue;
+            }
+            $editedFileSig = 'none';
+            if (!empty($adj['edited_path']) && is_string($adj['edited_path'])) {
+                $rel = \App\Services\Laser\LaserPhotoPreprocessor::normalizePublicRelPath($adj['edited_path']);
+                if ($rel !== '' && $disk->exists($rel)) {
+                    $abs = $disk->path($rel);
+                    clearstatcache(true, $abs);
+                    $editedFileSig = $rel . ':' . (@filesize($abs) ?: 0) . ':' . (@filemtime($abs) ?: 0) . ':' . (@sha1_file($abs) ?: '');
+                }
+            }
+            $parts[] = (string) $fileKey . '=' . json_encode($adj) . '|' . $editedFileSig;
+        }
+
+        return empty($parts) ? '' : sha1(implode('||', $parts));
     }
 
     /**
      * Foto-Substrat-Profil für die physikalisch kalibrierte Foto-Pipeline (LaserPhotoPreprocessor):
      * Produktwert 'xtool_photo_substrate_polarity' (white_on_dark / dark_on_light) mit Fallback auf die Oberflächen-Erkennung.
      *
-     * @return array{polarity: string, is_dark_surface: bool}
+     * @return array{polarity: string, is_dark_surface: bool, dpi: int}
      */
     public function resolveLaserPhotoProfile($product = null, array $productConfig = [], ?bool $isDarkSurface = null): array
     {
@@ -1639,9 +1548,13 @@ class FileDownloadService
             $rawPolarity = '';
         }
 
+        $rawDpi = $productConfig['xtool_bitmap_dpi'] ?? ($productConfig['xtool_dpi'] ?? 600);
+        $resolvedDpi = is_numeric($rawDpi) && (int) $rawDpi >= 50 ? (int) $rawDpi : 600;
+
         return [
             'polarity'        => \App\Services\Laser\LaserPhotoPreprocessor::normalizePolarity($rawPolarity, $isDark),
             'is_dark_surface' => $isDark,
+            'dpi'             => $resolvedDpi,
         ];
     }
 
@@ -1791,7 +1704,7 @@ class FileDownloadService
             $contourShape = 'rect';
         }
 
-        return [
+        $calResult = [
             'blankWidthMm'      => $blankWidthMm,
             'blankHeightMm'     => $blankHeightMm,
             'engraveWidthMm'    => $engraveWidthMm,
@@ -1808,6 +1721,13 @@ class FileDownloadService
             'contourShape'      => $contourShape,
             'blankContourShape' => $blankContourShape,
         ];
+
+        $adjFingerprint = $this->computePhotoAdjustmentsCacheFingerprint($itemConfig);
+        if ($adjFingerprint !== '') {
+            $calResult['photoAdjustmentsHash'] = $adjFingerprint;
+        }
+
+        return $calResult;
     }
 
     /**
@@ -2250,42 +2170,21 @@ class FileDownloadService
                 $ptsMm[] = [$cx + $rx * cos($theta), $cy + $ry * sin($theta)];
             }
         } elseif ($contourShape === 'heart_anhaenger') {
-            $innerPct = [
-                [50.0, 59.45], [51.13, 58.73], [52.23, 58.01], [53.34, 57.29], [54.54, 56.57], [55.82, 55.84],
-                [57.26, 55.12], [58.83, 54.52], [60.42, 54.19], [62.68, 54.48], [64.54, 55.02], [66.13, 55.74],
-                [67.49, 56.57], [68.67, 57.6], [69.63, 58.73], [70.38, 59.97], [70.95, 61.31], [71.41, 62.75],
-                [71.7, 64.3], [71.86, 65.85], [71.86, 67.39], [71.66, 68.94], [71.35, 70.59], [70.87, 72.34],
-                [70.21, 74.1], [69.35, 75.95], [68.31, 77.81], [67.12, 79.67], [65.72, 81.52], [64.07, 83.38],
-                [62.27, 85.23], [60.21, 87.09], [57.94, 88.95], [55.57, 90.7], [53.47, 92.25], [51.55, 93.55],
-                [50.0, 94.52], [48.45, 93.55], [46.53, 92.25], [44.43, 90.7], [42.06, 88.95], [39.79, 87.09],
-                [37.73, 85.23], [35.93, 83.38], [34.28, 81.52], [32.88, 79.67], [31.68, 77.81], [30.65, 75.95],
-                [29.79, 74.1], [29.13, 72.34], [28.65, 70.59], [28.34, 68.94], [28.14, 67.39], [28.14, 65.85],
-                [28.3, 64.3], [28.59, 62.75], [29.04, 61.31], [29.62, 59.97], [30.37, 58.73], [31.33, 57.6],
-                [32.51, 56.57], [33.87, 55.74], [35.46, 55.02], [37.32, 54.48], [39.58, 54.19], [41.17, 54.52],
-                [42.74, 55.12], [44.18, 55.84], [45.46, 56.57], [46.66, 57.29], [47.77, 58.01], [48.87, 58.73],
-            ];
-            $innerPx = array_map(static fn (array $p): array => [$p[0] * 8.0, $p[1] * 8.0], $innerPct);
-            $n = count($innerPx);
-            $rawPts = [];
-            for ($i = 0; $i < $n; $i++) {
-                $prev = $innerPx[($i - 1 + $n) % $n];
-                $curr = $innerPx[$i];
-                $next = $innerPx[($i + 1) % $n];
-                $dx = $next[0] - $prev[0];
-                $dy = $next[1] - $prev[1];
-                $len = hypot($dx, $dy) ?: 1.0;
-                $ox = $curr[0] + ($dy / $len) * 16.0;
-                $oy = $curr[1] + (-$dx / $len) * 15.8;
-                if ($i === 0) {
-                    $ox = 400.0;
-                    $oy = 445.0;
-                } elseif ($i === 36) {
-                    $ox = 400.0;
-                    $oy = 772.0;
-                }
-                $rawPts[] = [max(207.0, min(593.0, $ox)), max(418.0, min(772.0, $oy))];
-            }
-            $ptsMm = $normalizePixelPointsToMm($rawPts);
+            // Auf 0,061 mm RMS vermessene symmetrische 3-Segment-Kubik-Bezier-Kurve des Seelenanhänger-Herzens
+            // im 800x800 Shop-Stage-%-Raum (area_top: 54.05, area_left: 28.07, area_width: 43.86, area_height: 40.38):
+            // 72 Punkte ohne Duplikate an der oberen V-Kerbe (Index 0) und unteren Spitze (Index 36).
+            $innerPct = [[50.00, 59.47]];
+            // Rechte Hälfte (50 + Delta-x): V-Kerbe -> Lobe-Scheitel -> Äußere Wange -> Untere Spitze
+            $sampleCubic($innerPct, [50.00, 59.47], [51.82, 58.81], [54.29, 54.05], [60.40, 54.05], 12);
+            $sampleCubic($innerPct, [60.40, 54.05], [66.78, 54.05], [71.93, 58.97], [71.93, 65.78], 12);
+            $sampleCubic($innerPct, [71.93, 65.78], [71.93, 75.40], [61.58, 86.69], [50.00, 94.43], 12);
+            // Gespiegelte linke Hälfte (50 - Delta-x): Untere Spitze -> Äußere Wange -> Lobe-Scheitel -> V-Kerbe
+            $sampleCubic($innerPct, [50.00, 94.43], [38.42, 86.69], [28.07, 75.40], [28.07, 65.78], 12);
+            $sampleCubic($innerPct, [28.07, 65.78], [28.07, 58.97], [33.22, 54.05], [39.60, 54.05], 12);
+            $sampleCubic($innerPct, [39.60, 54.05], [45.71, 54.05], [48.18, 58.81], [50.00, 59.47], 12);
+            array_pop($innerPct);
+
+            $ptsMm = $normalizePixelPointsToMm($innerPct);
         } elseif ($contourShape === 'heart_goldenes') {
             $rawPts = [[400.0, 311.0]];
             $sampleCubic($rawPts, [400.0, 311.0], [420.0, 290.0], [456.0, 281.0], [496.0, 281.0], 14);
@@ -2452,16 +2351,19 @@ class FileDownloadService
         // Gemeinsame zIndex-Sortierung von Logos (Default 10 + idx) und Texten (Default 30 + idx)
         // exakt identisch zur Kunden-Konfigurator-Engine (scripts_frontend_2.blade.php)
         $sortedQueue = $this->buildSortedLaserLayerQueue($logos, $texts);
+        $itemConfigForLogos = (is_object($item) && is_array($item->configuration ?? null)) ? $item->configuration : [];
 
         foreach ($sortedQueue as $entry) {
             if ($entry['kind'] === 'logo') {
                 $logo = $entry['data'];
                 $url = (string) ($logo['url'] ?? $logo['value'] ?? $logo['src'] ?? '');
-                if ($url === '') {
+                if ($url === '' && empty($logo['value'])) {
                     continue;
                 }
 
-                [$rawBytes, $ext] = $this->loadSafeLogoBytesAndExt($url, $item);
+                $resolvedSource = $this->resolveEffectiveLogoSourceForLaser($logo, $item, $itemConfigForLogos);
+                $rawBytes = $resolvedSource['bytes'];
+                $ext = $resolvedSource['ext'];
                 if ($rawBytes === null) {
                     continue;
                 }
@@ -2473,6 +2375,12 @@ class FileDownloadService
                         $hasVectorLayer = true;
                     }
                 } else {
+                    $entryPhotoProfile = $photoProfile;
+                    if (!empty($resolvedSource['is_adjusted'])) {
+                        $entryPhotoProfile = is_array($photoProfile) ? $photoProfile : ['polarity' => $isDarkSurface ? 'white_on_dark' : 'dark_on_light', 'is_dark_surface' => $isDarkSurface, 'dpi' => 600];
+                        $entryPhotoProfile['skip_halftone_processing'] = true;
+                        $entryPhotoProfile['studio_dither_mode'] = strtolower((string) ($resolvedSource['adjustment']['dither_mode'] ?? 'jarvis'));
+                    }
                     $clipped = $this->clipAndNormalizeRasterLogoForLaser(
                         $rawBytes,
                         $ext,
@@ -2482,7 +2390,7 @@ class FileDownloadService
                         $workingAreaPolygonPct,
                         [],
                         false,
-                        $photoProfile
+                        $entryPhotoProfile
                     );
                     if ($clipped !== null) {
                         $partImg = @imagecreatefromstring($clipped['pngData']);
@@ -2552,14 +2460,45 @@ class FileDownloadService
         $frostedWhiteLut = [];
         $darkHaloLut = [];
         $darkEngraveLut = [];
+        $frostedToneBuckets = [];
+        for ($b = 0; $b < 8; $b++) {
+            $tTone = $b / 7.0;
+            $tr = (int) round(184.0 + (64.0 * $tTone));
+            $tg = (int) round(192.0 + (58.0 * $tTone));
+            $tb = (int) round(204.0 + (49.0 * $tTone));
+            $frostedToneBuckets[$b] = [];
+            for ($a = 0; $a <= 127; $a++) {
+                $frostedToneBuckets[$b][$a] = imagecolorallocatealpha($previewCanvas, $tr, $tg, $tb, $a);
+            }
+        }
         for ($a = 0; $a <= 127; $a++) {
-            $frostedWhiteLut[$a] = imagecolorallocatealpha($previewCanvas, 248, 250, 253, $a);
+            $frostedWhiteLut[$a] = $frostedToneBuckets[7][$a];
             $darkHaloLut[$a] = imagecolorallocatealpha($previewCanvas, 15, 23, 42, $a);
             $darkEngraveLut[$a] = imagecolorallocatealpha($previewCanvas, 22, 19, 15, $a);
         }
 
-        // Hart an der Arbeitsbereich-Maske (workingAreaPolygonPct) clippen & visuelles WYSIWYG-Overlay ableiten
+        // Schritt A: Hart an der Arbeitsbereich-Maske (workingAreaPolygonPct) clippen & Roh-Dichtefeld speicherschonend als 1-Byte-Strings erfassen
+        static $chrLut = null;
+        static $inv255Lut = null;
+        static $opaqueRawChrLut = null;
+        if ($chrLut === null) {
+            $chrLut = [];
+            $inv255Lut = [];
+            $opaqueRawChrLut = [];
+            for ($i = 0; $i <= 255; $i++) {
+                $chrLut[$i] = chr($i);
+                $inv255Lut[$i] = $i / 255.0;
+                $rawVal = $i < 246 ? max(0.0, min(1.0, (246.0 - $i) / 224.0)) : 0.0;
+                $opaqueRawChrLut[$i] = chr((int) round($rawVal * 255.0));
+            }
+        }
+
+        $totalStagePx = $stageW * $stageH;
+        $rawBytes = str_repeat("\x00", $totalStagePx);
+        $maskBytes = str_repeat("\x00", $totalStagePx);
+
         for ($y = 0; $y < $stageH; $y++) {
+            $rowOff = $y * $stageW;
             for ($x = 0; $x < $stageW; $x++) {
                 if ((imagecolorat($maskImg, $x, $y) & 0xFF) === 0) {
                     imagesetpixel($canvas, $x, $y, $trans);
@@ -2570,66 +2509,161 @@ class FileDownloadService
                     continue;
                 }
 
+                $idx = $rowOff + $x;
+                $maskBytes[$idx] = "\x01";
                 $c = imagecolorat($canvas, $x, $y);
                 $gdAlpha = ($c >> 24) & 0x7F;
                 $gray = ($c >> 16) & 0xFF;
 
+                if ($gdAlpha < 126 && $gray < 246) {
+                    if ($gdAlpha === 0) {
+                        $rawBytes[$idx] = $opaqueRawChrLut[$gray];
+                    } else {
+                        $opacity = (127 - $gdAlpha) / 127.0;
+                        $r8 = (int) round(max(0.0, min(1.0, ((246.0 - $gray) / 224.0) * $opacity)) * 255.0);
+                        $rawBytes[$idx] = $chrLut[$r8];
+                    }
+                }
+            }
+        }
+
+        // Schritt B: 3x3 Halbton-Glättung für geditherte Punktraster auf gepackten Bytes (0 Vollbild-PHP-Arrays)
+        $smoothBytes = $rawBytes;
+        $zeroRowStr = str_repeat("\x00", $stageW);
+        for ($y = 1; $y < $stageH - 1; $y++) {
+            $rPrev = ($y - 1) * $stageW;
+            $rCurr = $y * $stageW;
+            $rNext = ($y + 1) * $stageW;
+            if (
+                substr($rawBytes, $rCurr, $stageW) === $zeroRowStr
+                && substr($rawBytes, $rPrev, $stageW) === $zeroRowStr
+                && substr($rawBytes, $rNext, $stageW) === $zeroRowStr
+            ) {
+                continue;
+            }
+            for ($x = 1; $x < $stageW - 1; $x++) {
+                $idx = $rCurr + $x;
+                if ($maskBytes[$idx] === "\x00") {
+                    continue;
+                }
+                $sum9 = ord($rawBytes[$rPrev + $x - 1]) + ord($rawBytes[$rPrev + $x]) + ord($rawBytes[$rPrev + $x + 1])
+                    + ord($rawBytes[$idx - 1]) + (ord($rawBytes[$idx]) << 1) + ord($rawBytes[$idx + 1])
+                    + ord($rawBytes[$rNext + $x - 1]) + ord($rawBytes[$rNext + $x]) + ord($rawBytes[$rNext + $x + 1]);
+                if ($sum9 > 0) {
+                    $smoothBytes[$idx] = $chrLut[intdiv($sum9 + 5, 10)];
+                }
+            }
+        }
+
+        // Schritt C: Differenzierte WYSIWYG-Cockpit-Vorschau mit feinem Gravur-Kontrast & dunkler Mikro-Kontur an Motivkanten
+        for ($y = 0; $y < $stageH; $y++) {
+            $rowOff = $y * $stageW;
+            $yM1 = max(0, $y - 1) * $stageW;
+            $yP1 = min($stageH - 1, $y + 1) * $stageW;
+            for ($x = 0; $x < $stageW; $x++) {
+                $idx = $rowOff + $x;
+                if ($maskBytes[$idx] === "\x00") {
+                    continue;
+                }
+
+                $rByte = ord($rawBytes[$idx]);
+                $sByte = ord($smoothBytes[$idx]);
                 $ov = imagecolorat($overlayTrackImg, $x, $y);
+
+                if ($rByte === 0 && $sByte === 0 && $ov === 0) {
+                    if (!$isDarkSurface) {
+                        continue;
+                    }
+                    $xM1 = max(0, $x - 1);
+                    $xP1 = min($stageW - 1, $x + 1);
+                    if (
+                        ord($smoothBytes[$rowOff + $xM1]) < 16
+                        && ord($smoothBytes[$rowOff + $xP1]) < 16
+                        && ord($smoothBytes[$yM1 + $x]) < 16
+                        && ord($smoothBytes[$yP1 + $x]) < 16
+                    ) {
+                        continue;
+                    }
+                }
+
                 $glyphCov = ($ov >> 16) & 0xFF;
                 $haloCov = ($ov >> 8) & 0xFF;
 
-                $rawStrength = 0.0;
-                if ($gdAlpha < 126 && $gray < 244) {
-                    $opacity = (127 - $gdAlpha) / 127.0;
-                    $rawStrength = max(0.0, min(1.0, ((244.0 - $gray) / 222.0) * $opacity));
-                }
+                $rawStrength = $inv255Lut[$rByte];
+                $smoothStrength = $inv255Lut[$sByte];
+                $effStrength = ($rawStrength * 0.42) + ($smoothStrength * 0.58);
+
+                $xM1 = max(0, $x - 1);
+                $xP1 = min($stageW - 1, $x + 1);
+                $nLeft = $inv255Lut[ord($smoothBytes[$rowOff + $xM1])];
+                $nRight = $inv255Lut[ord($smoothBytes[$rowOff + $xP1])];
+                $nUp = $inv255Lut[ord($smoothBytes[$yM1 + $x])];
+                $nDown = $inv255Lut[ord($smoothBytes[$yP1 + $x])];
+                $edgeGrad = abs($nRight - $nLeft) + abs($nDown - $nUp);
+                $neighborMax = max($nLeft, $nRight, $nUp, $nDown);
 
                 if ($isDarkSurface) {
                     if ($glyphCov > 20) {
-                        $visOpacity = min(0.97, max($rawStrength * 0.90, ($glyphCov / 235.0) * 0.97));
+                        $visOpacity = min(0.97, max($effStrength * 0.90, ($glyphCov / 235.0) * 0.97));
                         $pAlpha = max(0, min(127, (int) round(127.0 * (1.0 - $visOpacity))));
                         imagesetpixel($previewCanvas, $x, $y, $frostedWhiteLut[$pAlpha]);
                     } elseif ($haloCov > 20) {
-                        $haloWeight = ($haloCov / 255.0) * ($rawStrength > 0.02 ? 0.72 : 0.50);
+                        $haloWeight = ($haloCov / 255.0) * ($effStrength > 0.02 ? 0.72 : 0.50);
                         $pAlpha = max(0, min(127, (int) round(127.0 * (1.0 - $haloWeight))));
                         imagesetpixel($previewCanvas, $x, $y, $darkHaloLut[$pAlpha]);
-                    } elseif ($rawStrength > 0.008) {
-                        $visOpacity = min(0.92, pow($rawStrength, 0.90) * 0.90);
+                    } elseif ($edgeGrad > 0.14 && $smoothStrength < ($neighborMax - 0.06) && $effStrength < 0.30) {
+                        // Dunkle Mikro-Kontur an Augen, Haaren und Motivkanten für klaren Kontrast auf glänzendem Kamerabild
+                        $microWeight = min(0.56, $edgeGrad * 0.78);
+                        $pAlpha = max(0, min(126, (int) round(127.0 * (1.0 - $microWeight))));
+                        imagesetpixel($previewCanvas, $x, $y, $darkHaloLut[$pAlpha]);
+                    } elseif ($effStrength > 0.012) {
+                        // Abgestufte Silber-Gradation statt flächiger RGB(248,250,253) Nebel-Wand bei mittleren Dichten
+                        $toneNorm = min(1.0, max(0.0, ($effStrength - 0.04) / 0.48));
+                        $bucket = max(0, min(7, (int) round($toneNorm * 7.0)));
+                        if ($effStrength < 0.52) {
+                            $visOpacity = pow($effStrength / 0.52, 1.28) * 0.48;
+                        } else {
+                            $visOpacity = min(0.88, 0.48 + ((($effStrength - 0.52) / 0.48) * 0.40));
+                        }
+                        $visOpacity = min(0.90, $visOpacity + min(0.10, $edgeGrad * 0.16));
                         $pAlpha = max(0, min(126, (int) round(127.0 * (1.0 - $visOpacity))));
-                        imagesetpixel($previewCanvas, $x, $y, $frostedWhiteLut[$pAlpha]);
+                        imagesetpixel($previewCanvas, $x, $y, $frostedToneBuckets[$bucket][$pAlpha]);
                     }
                 } else {
                     if ($glyphCov > 20) {
-                        $visOpacity = min(0.95, max($rawStrength * 0.92, ($glyphCov / 235.0) * 0.95));
+                        $visOpacity = min(0.95, max($effStrength * 0.92, ($glyphCov / 235.0) * 0.95));
                         $pAlpha = max(0, min(127, (int) round(127.0 * (1.0 - $visOpacity))));
                         imagesetpixel($previewCanvas, $x, $y, $darkEngraveLut[$pAlpha]);
-                    } elseif ($haloCov > 20 && $rawStrength > 0.03) {
-                        // Auf hellem Metall/Holz reduziert der Halo darunterliegende dunkle Foto-Gravur sanft
-                        $reduced = $rawStrength * max(0.0, 1.0 - (($haloCov / 255.0) * 0.85));
+                    } elseif ($haloCov > 20 && $effStrength > 0.03) {
+                        $reduced = $effStrength * max(0.0, 1.0 - (($haloCov / 255.0) * 0.85));
                         if ($reduced > 0.01) {
                             $pAlpha = max(0, min(126, (int) round(127.0 * (1.0 - ($reduced * 0.90)))));
                             imagesetpixel($previewCanvas, $x, $y, $darkEngraveLut[$pAlpha]);
                         }
-                    } elseif ($rawStrength > 0.008) {
-                        $visOpacity = min(0.93, pow($rawStrength, 0.95) * 0.92);
+                    } elseif ($effStrength > 0.010) {
+                        $visOpacity = min(0.93, (pow($effStrength, 1.12) * 0.88) + min(0.08, $edgeGrad * 0.18));
                         $pAlpha = max(0, min(126, (int) round(127.0 * (1.0 - $visOpacity))));
                         imagesetpixel($previewCanvas, $x, $y, $darkEngraveLut[$pAlpha]);
                     }
                 }
             }
         }
+        unset($rawBytes, $smoothBytes, $maskBytes);
         imagedestroy($maskImg);
         imagedestroy($overlayTrackImg);
+        unset($maskImg, $overlayTrackImg);
 
         ob_start();
-        imagepng($canvas, null, 6);
+        imagepng($canvas, null, 3);
         $pngBytes = (string) ob_get_clean();
         imagedestroy($canvas);
+        unset($canvas);
 
         ob_start();
-        imagepng($previewCanvas, null, 6);
+        imagepng($previewCanvas, null, 3);
         $previewPngBytes = (string) ob_get_clean();
         imagedestroy($previewCanvas);
+        unset($previewCanvas);
 
         $photoLayerPngBytes = null;
         $vectorLayerPngBytes = null;
@@ -2646,16 +2680,17 @@ class FileDownloadService
             }
             if ($hasPhotoLayer) {
                 ob_start();
-                imagepng($photoCanvas, null, 6);
+                imagepng($photoCanvas, null, 3);
                 $photoLayerPngBytes = (string) ob_get_clean();
             }
             if ($hasVectorLayer) {
                 ob_start();
-                imagepng($vectorCanvas, null, 6);
+                imagepng($vectorCanvas, null, 3);
                 $vectorLayerPngBytes = (string) ob_get_clean();
             }
             imagedestroy($photoCanvas);
             imagedestroy($vectorCanvas);
+            unset($photoCanvas, $vectorCanvas);
         }
 
         return [
@@ -2910,6 +2945,10 @@ class FileDownloadService
             for ($g = 0; $g <= 255; $g++) {
                 $grayLut[$g] = imagecolorallocatealpha($canvas, $g, $g, $g, 0);
             }
+            $alphaBlackLut = [];
+            for ($a = 0; $a <= 127; $a++) {
+                $alphaBlackLut[$a] = imagecolorallocatealpha($canvas, 0, 0, 0, $a);
+            }
 
             for ($y = $bMinY; $y <= $bMaxY; $y++) {
                 for ($x = $bMinX; $x <= $bMaxX; $x++) {
@@ -2930,7 +2969,7 @@ class FileDownloadService
                         } else {
                             // Auf transparentem Grund scharf mit echtem Alpha-Anti-Aliasing zeichnen
                             $gdAlpha = max(0, min(127, (int) round(127.0 * (1.0 - min(1.0, $gVal / 240.0)))));
-                            imagesetpixel($canvas, $x, $y, imagecolorallocatealpha($canvas, 0, 0, 0, $gdAlpha));
+                            imagesetpixel($canvas, $x, $y, $alphaBlackLut[$gdAlpha]);
                         }
                         if ($overlayTrackImg) {
                             $prevGlyph = (imagecolorat($overlayTrackImg, $x, $y) >> 16) & 0xFF;
@@ -2961,6 +3000,108 @@ class FileDownloadService
 
         imagedestroy($glyphMask);
         imagedestroy($haloMask);
+    }
+
+    /**
+     * Löst für ein Logo-Element entweder das manuell im Laser-Foto-Studio gespeicherte Bild
+     * (configuration['laser_photo_adjustments'][fileKey]['edited_path']) oder automatisch das echte
+     * unberührte Originalfoto (_raw via resolveOriginalPhotoRelPath) inkl. EXIF-Korrektur auf.
+     *
+     * @return array{bytes: ?string, ext: ?string, is_adjusted: bool, adjustment: ?array<string, mixed>}
+     */
+    protected function resolveEffectiveLogoSourceForLaser(array $logo, $item = null, array $itemConfig = []): array
+    {
+        if (empty($itemConfig) && is_object($item) && is_array($item->configuration ?? null)) {
+            $itemConfig = $item->configuration;
+        }
+
+        $url = trim((string) ($logo['url'] ?? $logo['value'] ?? $logo['src'] ?? ''));
+        $rawVal = trim((string) ($logo['value'] ?? ''));
+        $isSvgCandidate = str_starts_with(strtolower($url), 'data:image/svg')
+            || str_ends_with(strtolower((string) (parse_url($url, PHP_URL_PATH) ?? $url)), '.svg')
+            || str_ends_with(strtolower($rawVal), '.svg');
+
+        if (!$isSvgCandidate) {
+            $activeAdj = \App\Services\Laser\LaserPhotoPreprocessor::findActivePhotoAdjustment($logo, $itemConfig);
+            if ($activeAdj !== null && !empty($activeAdj['resolved_edited_rel_path'])) {
+                $editedAbsPath = Storage::disk('public')->path((string) $activeAdj['resolved_edited_rel_path']);
+                if (@is_file($editedAbsPath)) {
+                    $editedBytes = @file_get_contents($editedAbsPath);
+                    if (is_string($editedBytes) && $editedBytes !== '') {
+                        return [
+                            'bytes'       => $editedBytes,
+                            'ext'         => 'png',
+                            'is_adjusted' => true,
+                            'adjustment'  => $activeAdj,
+                        ];
+                    }
+                }
+            }
+
+            // Kein manuelles edited_path: zuerst echtes Originalfoto (_raw) auf Storage::disk('public') prüfen
+            $candidateKey = $rawVal !== '' ? $rawVal : $url;
+            if ($candidateKey !== '' && !str_starts_with($candidateKey, 'data:')) {
+                $origRel = \App\Services\Laser\LaserPhotoPreprocessor::resolveOriginalPhotoRelPath($candidateKey, $itemConfig);
+                $origNorm = \App\Services\Laser\LaserPhotoPreprocessor::normalizePublicRelPath($origRel);
+                if ($origNorm !== '' && Storage::disk('public')->exists($origNorm)) {
+                    $origAbs = Storage::disk('public')->path($origNorm);
+                    $origExt = strtolower(pathinfo($origAbs, PATHINFO_EXTENSION));
+                    if (in_array($origExt, ['jpg', 'jpeg', 'png', 'webp'], true) && @is_file($origAbs)) {
+                        if (in_array($origExt, ['jpg', 'jpeg'], true) && function_exists('exif_read_data')) {
+                            $exif = @exif_read_data($origAbs);
+                            $orient = is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1;
+                            if (in_array($orient, [3, 6, 8], true)) {
+                                $orientedGd = \App\Services\Laser\LaserPhotoPreprocessor::loadOrientedGdImageFromPath($origAbs, 1600);
+                                if ($orientedGd) {
+                                    ob_start();
+                                    imagepng($orientedGd, null, 3);
+                                    $orientedPng = (string) ob_get_clean();
+                                    imagedestroy($orientedGd);
+                                    if ($orientedPng !== '') {
+                                        return [
+                                            'bytes'       => $orientedPng,
+                                            'ext'         => 'png',
+                                            'is_adjusted' => false,
+                                            'adjustment'  => null,
+                                        ];
+                                    }
+                                }
+                            }
+                        }
+                        $origBytes = @file_get_contents($origAbs);
+                        if (is_string($origBytes) && $origBytes !== '') {
+                            return [
+                                'bytes'       => $origBytes,
+                                'ext'         => $origExt,
+                                'is_adjusted' => false,
+                                'adjustment'  => null,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+
+        [$safeBytes, $safeExt] = $this->loadSafeLogoBytesAndExt($url !== '' ? $url : $rawVal, $item);
+
+        // Security-Log im LFI-Fall analog zum bisherigen Verhalten
+        $checkPath = rawurldecode((string) (parse_url($url !== '' ? $url : $rawVal, PHP_URL_PATH) ?? ''));
+        if ($safeBytes === null && (str_contains($checkPath, '..') || str_contains($checkPath, "\0") || str_contains($checkPath, '\\'))) {
+            \App\Services\System\SystemSecurityService::logEvent(
+                'security:lfi_attempt_blocked',
+                'LFI / Path-Traversal im Laser-Export blockiert',
+                'Manipulierter Logo-Pfad im Laser-Export abgewiesen: ' . substr($checkPath, 0, 120),
+                'error',
+                ['order_item_id' => is_object($item) ? ($item->id ?? null) : null, 'path' => substr($checkPath, 0, 120)]
+            );
+        }
+
+        return [
+            'bytes'       => $safeBytes,
+            'ext'         => $safeExt,
+            'is_adjusted' => false,
+            'adjustment'  => null,
+        ];
     }
 
     /**
@@ -3159,8 +3300,16 @@ class FileDownloadService
             return;
         }
 
+        static $chrLutSvg = null;
+        if ($chrLutSvg === null) {
+            $chrLutSvg = [];
+            for ($i = 0; $i <= 255; $i++) {
+                $chrLutSvg[$i] = chr($i);
+            }
+        }
+
         $totalPx = $bw * $bh;
-        $finalMask = array_fill(0, $totalPx, 0);
+        $finalMask = str_repeat("\x00", $totalPx);
         $subBuf = imagecreatetruecolor($bw, $bh);
         if (!$subBuf) {
             return;
@@ -3185,7 +3334,7 @@ class FileDownloadService
                         $rowOff = $ly * $bw;
                         for ($lx = 0; $lx < $bw; $lx++) {
                             if ((imagecolorat($subBuf, $lx, $ly) & 0xFF) > 0) {
-                                $finalMask[$rowOff + $lx] = 1;
+                                $finalMask[$rowOff + $lx] = "\x01";
                             }
                         }
                     }
@@ -3194,8 +3343,8 @@ class FileDownloadService
             }
 
             // Mehrere Sub-Pfade (z. B. weihnachtsbaum.svg mit 6 Kugel-Aussparungen oder brautpaar.svg Innenkleid):
-            // Exakte W3C evenodd- bzw. nonzero-Winding-Auswertung
-            $accum = array_fill(0, $totalPx, 0);
+            // Exakte W3C evenodd- bzw. nonzero-Winding-Auswertung auf gepacktem 1-Byte-String (Offset 128)
+            $accum = str_repeat("\x80", $totalPx);
             foreach ($group['subPolys'] as $tPts) {
                 imagefilledrectangle($subBuf, 0, 0, $bw - 1, $bh - 1, $subBlack);
                 $flat = [];
@@ -3219,7 +3368,8 @@ class FileDownloadService
                         $rowOff = $ly * $bw;
                         for ($lx = 0; $lx < $bw; $lx++) {
                             if ((imagecolorat($subBuf, $lx, $ly) & 0xFF) > 0) {
-                                $accum[$rowOff + $lx] ^= 1;
+                                $idx = $rowOff + $lx;
+                                $accum[$idx] = ($accum[$idx] === "\x80") ? "\x81" : "\x80";
                             }
                         }
                     }
@@ -3228,7 +3378,8 @@ class FileDownloadService
                         $rowOff = $ly * $bw;
                         for ($lx = 0; $lx < $bw; $lx++) {
                             if ((imagecolorat($subBuf, $lx, $ly) & 0xFF) > 0) {
-                                $accum[$rowOff + $lx] += $sign;
+                                $idx = $rowOff + $lx;
+                                $accum[$idx] = $chrLutSvg[max(1, min(254, ord($accum[$idx]) + $sign))];
                             }
                         }
                     }
@@ -3236,49 +3387,51 @@ class FileDownloadService
             }
 
             for ($idx = 0; $idx < $totalPx; $idx++) {
-                if ($accum[$idx] !== 0) {
-                    $finalMask[$idx] = 1;
+                if ($accum[$idx] !== "\x80") {
+                    $finalMask[$idx] = "\x01";
                 }
             }
+            unset($accum);
         }
 
         imagedestroy($subBuf);
 
-        // Schnelle 2-Pass Chamfer-3-4 Distanztransformation für einen glatten weißen Kontrast-Halo
-        // auf darunterliegenden opaken Foto-Pixeln (z. B. Weihnachtsbaum über dunklem Porträtfoto)
-        $inf = 9999;
-        $dist = array_fill(0, $totalPx, $inf);
+        // Schnelle 2-Pass Chamfer-3-4 Distanztransformation auf gepacktem 1-Byte-String (Inf = 250)
+        $dist = str_repeat("\xFA", $totalPx);
         for ($idx = 0; $idx < $totalPx; $idx++) {
-            if ($finalMask[$idx] === 1) {
-                $dist[$idx] = 0;
+            if ($finalMask[$idx] === "\x01") {
+                $dist[$idx] = "\x00";
             }
         }
+        unset($finalMask);
 
         if ($haloRadius > 0) {
             for ($ly = 0; $ly < $bh; $ly++) {
                 $rowOff = $ly * $bw;
                 for ($lx = 0; $lx < $bw; $lx++) {
                     $idx = $rowOff + $lx;
-                    $d = $dist[$idx];
+                    $d = ord($dist[$idx]);
                     if ($d === 0) {
                         continue;
                     }
-                    if ($lx > 0 && $dist[$idx - 1] + 3 < $d) {
-                        $d = $dist[$idx - 1] + 3;
+                    if ($lx > 0) {
+                        $cand = ord($dist[$idx - 1]) + 3;
+                        if ($cand < $d) $d = $cand;
                     }
                     if ($ly > 0) {
                         $up = $idx - $bw;
-                        if ($dist[$up] + 3 < $d) {
-                            $d = $dist[$up] + 3;
+                        $candUp = ord($dist[$up]) + 3;
+                        if ($candUp < $d) $d = $candUp;
+                        if ($lx > 0) {
+                            $candUl = ord($dist[$up - 1]) + 4;
+                            if ($candUl < $d) $d = $candUl;
                         }
-                        if ($lx > 0 && $dist[$up - 1] + 4 < $d) {
-                            $d = $dist[$up - 1] + 4;
-                        }
-                        if ($lx + 1 < $bw && $dist[$up + 1] + 4 < $d) {
-                            $d = $dist[$up + 1] + 4;
+                        if ($lx + 1 < $bw) {
+                            $candUr = ord($dist[$up + 1]) + 4;
+                            if ($candUr < $d) $d = $candUr;
                         }
                     }
-                    $dist[$idx] = $d;
+                    $dist[$idx] = $chrLutSvg[$d];
                 }
             }
 
@@ -3286,26 +3439,28 @@ class FileDownloadService
                 $rowOff = $ly * $bw;
                 for ($lx = $bw - 1; $lx >= 0; $lx--) {
                     $idx = $rowOff + $lx;
-                    $d = $dist[$idx];
+                    $d = ord($dist[$idx]);
                     if ($d === 0) {
                         continue;
                     }
-                    if ($lx + 1 < $bw && $dist[$idx + 1] + 3 < $d) {
-                        $d = $dist[$idx + 1] + 3;
+                    if ($lx + 1 < $bw) {
+                        $cand = ord($dist[$idx + 1]) + 3;
+                        if ($cand < $d) $d = $cand;
                     }
                     if ($ly + 1 < $bh) {
                         $dn = $idx + $bw;
-                        if ($dist[$dn] + 3 < $d) {
-                            $d = $dist[$dn] + 3;
+                        $candDn = ord($dist[$dn]) + 3;
+                        if ($candDn < $d) $d = $candDn;
+                        if ($lx + 1 < $bw) {
+                            $candDr = ord($dist[$dn + 1]) + 4;
+                            if ($candDr < $d) $d = $candDr;
                         }
-                        if ($lx + 1 < $bw && $dist[$dn + 1] + 4 < $d) {
-                            $d = $dist[$dn + 1] + 4;
-                        }
-                        if ($lx > 0 && $dist[$dn - 1] + 4 < $d) {
-                            $d = $dist[$dn - 1] + 4;
+                        if ($lx > 0) {
+                            $candDl = ord($dist[$dn - 1]) + 4;
+                            if ($candDl < $d) $d = $candDl;
                         }
                     }
-                    $dist[$idx] = $d;
+                    $dist[$idx] = $chrLutSvg[$d];
                 }
             }
         }
@@ -3322,7 +3477,7 @@ class FileDownloadService
             $gy = $bMinY + $ly;
             $rowOff = $ly * $bw;
             for ($lx = 0; $lx < $bw; $lx++) {
-                $d = $dist[$rowOff + $lx];
+                $d = ord($dist[$rowOff + $lx]);
                 if ($d > $maxHaloDist) {
                     continue;
                 }
@@ -3760,40 +3915,88 @@ class FileDownloadService
             }
 
             if (count($pts) >= 3) {
+                $initialCount = count($pts);
+                $maxEdgeLen = 0.0;
+                for ($i = 0; $i < $initialCount; $i++) {
+                    $nextPt = $pts[($i + 1) % $initialCount];
+                    $edgeLen = hypot($nextPt['x'] - $pts[$i]['x'], $nextPt['y'] - $pts[$i]['y']);
+                    if ($edgeLen > $maxEdgeLen) {
+                        $maxEdgeLen = $edgeLen;
+                    }
+                }
+
+                // Bereits fein abgetastete analytische Bezier-Konturen (z. B. 72-Punkte-Herz):
+                // 1:1 übernehmen, damit weder V-Kerbe/Spitze verrundet noch die konvexen oberen Lobe-Bögen nach innen abgeflacht werden.
+                if ($initialCount >= 48 && $maxEdgeLen <= 4.5) {
+                    return $pts;
+                }
+
+                $isSharpFeatureAt = static function (array $ring, int $idx, int $len): bool {
+                    $pPrev = $ring[($idx - 1 + $len) % $len];
+                    $pCurr = $ring[$idx];
+                    $pNext = $ring[($idx + 1) % $len];
+                    $v1x = $pCurr['x'] - $pPrev['x'];
+                    $v1y = $pCurr['y'] - $pPrev['y'];
+                    $v2x = $pNext['x'] - $pCurr['x'];
+                    $v2y = $pNext['y'] - $pCurr['y'];
+                    $l1 = hypot($v1x, $v1y);
+                    $l2 = hypot($v2x, $v2y);
+                    $cosA = ($l1 > 0.001 && $l2 > 0.001) ? (($v1x * $v2x + $v1y * $v2y) / ($l1 * $l2)) : 1.0;
+
+                    if ($cosA < 0.65) {
+                        return true;
+                    }
+
+                    // Vertikale Symmetrie-Kerbe (V-Notch oben) oder scharfe untere Spitze exakt eckig halten
+                    if ((($v1y > 0.02 && $v2y < -0.02) || ($v1y < -0.02 && $v2y > 0.02)) && $cosA < 0.88) {
+                        return true;
+                    }
+
+                    return false;
+                };
+
+                // Interpolierende 4-Punkt-Subdivision für grobe Stützpunkt-Polygone:
+                // Behält alle Scheitel, V-Kerben und Spitzen exakt bei und wölbt konvexe Bögen ohne Chaikin-Schrumpfung.
                 $current = $pts;
-                for ($pass = 0; $pass < 3; $pass++) {
-                    $smoothed = [];
+                for ($pass = 0; $pass < 2; $pass++) {
                     $n = count($current);
+                    $sharpFlags = [];
                     for ($i = 0; $i < $n; $i++) {
-                        $pPrev = $current[($i - 1 + $n) % $n];
-                        $pCurr = $current[$i];
-                        $pNext = $current[($i + 1) % $n];
+                        $sharpFlags[$i] = $isSharpFeatureAt($current, $i, $n);
+                    }
 
-                        $v1x = $pCurr['x'] - $pPrev['x'];
-                        $v1y = $pCurr['y'] - $pPrev['y'];
-                        $v2x = $pNext['x'] - $pCurr['x'];
-                        $v2y = $pNext['y'] - $pCurr['y'];
-                        $l1 = hypot($v1x, $v1y);
-                        $l2 = hypot($v2x, $v2y);
-                        $cosA = ($l1 > 0.001 && $l2 > 0.001) ? (($v1x * $v2x + $v1y * $v2y) / ($l1 * $l2)) : 1.0;
+                    $refined = [];
+                    for ($i = 0; $i < $n; $i++) {
+                        $iPrev = ($i - 1 + $n) % $n;
+                        $iNext = ($i + 1) % $n;
+                        $iNext2 = ($i + 2) % $n;
 
-                        if ($cosA < 0.55) {
-                            $smoothed[] = $pCurr;
-                        } else {
-                            $t1 = $l1 > 0.001 ? min(0.25, 1.2 / $l1) : 0.25;
-                            $t2 = $l2 > 0.001 ? min(0.25, 1.2 / $l2) : 0.25;
-                            $smoothed[] = [
-                                'x' => (1.0 - $t1) * $pCurr['x'] + $t1 * $pPrev['x'],
-                                'y' => (1.0 - $t1) * $pCurr['y'] + $t1 * $pPrev['y'],
+                        $p0 = $current[$i];
+                        $p1 = $current[$iNext];
+                        $refined[] = $p0;
+
+                        $segLen = hypot($p1['x'] - $p0['x'], $p1['y'] - $p0['y']);
+                        if ($segLen <= 1.2) {
+                            continue;
+                        }
+
+                        if ($sharpFlags[$i] || $sharpFlags[$iNext]) {
+                            $refined[] = [
+                                'x' => 0.5 * ($p0['x'] + $p1['x']),
+                                'y' => 0.5 * ($p0['y'] + $p1['y']),
                             ];
-                            $smoothed[] = [
-                                'x' => (1.0 - $t2) * $pCurr['x'] + $t2 * $pNext['x'],
-                                'y' => (1.0 - $t2) * $pCurr['y'] + $t2 * $pNext['y'],
+                        } else {
+                            $pMinus = $current[$iPrev];
+                            $p2 = $current[$iNext2];
+                            $refined[] = [
+                                'x' => 0.5625 * ($p0['x'] + $p1['x']) - 0.0625 * ($pMinus['x'] + $p2['x']),
+                                'y' => 0.5625 * ($p0['y'] + $p1['y']) - 0.0625 * ($pMinus['y'] + $p2['y']),
                             ];
                         }
                     }
-                    $current = $smoothed;
+                    $current = $refined;
                 }
+
                 return $current;
             }
         }
@@ -4234,10 +4437,13 @@ class FileDownloadService
                 $g = ($c >> 8) & 0xFF;
                 $b = $c & 0xFF;
 
-                $opacity = (127 - $a) / 127.0;
-                $lum = ($r * 0.299) + ($g * 0.587) + ($b * 0.114);
-                $gray = (int) round(($lum * $opacity) + (255.0 * (1.0 - $opacity)));
-                $gray = max(0, min(255, $gray));
+                if ($a === 0) {
+                    $gray = (($r * 77) + ($g * 150) + ($b * 29) + 128) >> 8;
+                } else {
+                    $opacity = (127 - $a) / 127.0;
+                    $lum = ($r * 0.299) + ($g * 0.587) + ($b * 0.114);
+                    $gray = max(0, min(255, (int) round(($lum * $opacity) + (255.0 * (1.0 - $opacity)))));
+                }
 
                 imagesetpixel($dst, $x, $y, $grayLut[$gray]);
                 $hist[$gray]++;
@@ -4272,7 +4478,38 @@ class FileDownloadService
         // (white_on_dark: Gamma 1,90 + Highlight-Deckel 78 %, dark_on_light: k^1,40 * 0,82).
         // Silhouetten / Strich-Logos bleiben randscharf unverändert (Schwellenwert).
         $photoMeta = ['class' => 'legacy', 'encoding' => null, 'polarity' => null, 'mean_density' => null];
-        if ($photoProfile !== null && $totalMaskedPixels > 0 && $tightMaxX >= $tightMinX) {
+        $skipAutoHalftone = is_array($photoProfile) && !empty($photoProfile['skip_halftone_processing']);
+
+        if ($skipAutoHalftone && $totalMaskedPixels > 0 && $tightMaxX >= $tightMinX) {
+            $photoPolarity = \App\Services\Laser\LaserPhotoPreprocessor::normalizePolarity(
+                (string) ($photoProfile['polarity'] ?? ''),
+                (bool) ($photoProfile['is_dark_surface'] ?? false)
+            );
+            $studioDither = strtolower(trim((string) ($photoProfile['studio_dither_mode'] ?? 'jarvis')));
+            if ($studioDither === 'greyscale') {
+                $studioDither = 'grayscale';
+            }
+            if ($studioDither === 'threshold') {
+                for ($y = $tightMinY; $y <= $tightMaxY; $y++) {
+                    for ($x = $tightMinX; $x <= $tightMaxX; $x++) {
+                        $c = imagecolorat($dst, $x, $y);
+                        if ((($c >> 24) & 0x7F) >= 126) {
+                            continue;
+                        }
+                        $bitG = ($c & 0xFF) < 128 ? 0 : 255;
+                        imagesetpixel($dst, $x, $y, $grayLut[$bitG]);
+                    }
+                }
+            }
+            $photoMeta = [
+                'class'              => $studioDither === 'threshold' ? 'silhouette' : 'halftone',
+                'encoding'           => 'studio_adjusted',
+                'polarity'           => $photoPolarity,
+                'studio_adjusted'    => true,
+                'studio_dither_mode' => $studioDither,
+                'mean_density'       => null,
+            ];
+        } elseif ($photoProfile !== null && $totalMaskedPixels > 0 && $tightMaxX >= $tightMinX) {
             $photoPolarity = \App\Services\Laser\LaserPhotoPreprocessor::normalizePolarity(
                 (string) ($photoProfile['polarity'] ?? ''),
                 (bool) ($photoProfile['is_dark_surface'] ?? false)
@@ -4292,6 +4529,9 @@ class FileDownloadService
             ];
 
             if ($photoClass === 'halftone') {
+                $profileDpi = isset($photoProfile['dpi']) && is_numeric($photoProfile['dpi'])
+                    ? (int) $photoProfile['dpi']
+                    : 600;
                 $photoStats = app(\App\Services\Laser\LaserPhotoPreprocessor::class)->processHalftoneInPlace(
                     $dst,
                     $tightMinX,
@@ -4300,7 +4540,8 @@ class FileDownloadService
                     $tightMaxY,
                     $photoPolarity,
                     $photoEncoding,
-                    $pxPerMm
+                    $pxPerMm,
+                    $profileDpi
                 );
                 $photoMeta['mean_density'] = $photoStats['mean_density'];
                 $photoMeta['p_low'] = $photoStats['p_low'];
@@ -4669,7 +4910,7 @@ class FileDownloadService
         imagedestroy($dst);
 
         ob_start();
-        imagepng($cropped, null, 6);
+        imagepng($cropped, null, 3);
         $pngData = ob_get_clean();
         imagedestroy($cropped);
 
@@ -4743,7 +4984,7 @@ class FileDownloadService
         }
 
         ob_start();
-        imagepng($dst, null, 6);
+        imagepng($dst, null, 3);
         $pngData = ob_get_clean();
 
         imagedestroy($src);
@@ -4754,5 +4995,42 @@ class FileDownloadService
         }
 
         return [$pngData, 'png'];
+    }
+
+    /**
+     * Spiegelt bei flachen (nicht-zylindrischen) zweiseitigen Produkten für die Rückseite ('back')
+     * die Arbeitsfläche horizontal (x -> 100 - x), da Durchbrüche wie das Herzloch beim Armband oder
+     * das Pfotenloch bei der Hundemarke beim Umdrehen des Rohlings um die Y-Achse auf die gegenüberliegende
+     * Seite wandern.
+     */
+    protected function applyBackSideMirrorToProductConfig(array $productConfig, string $side): array
+    {
+        if ($side !== 'back') {
+            return $productConfig;
+        }
+        $overlayType = (string) ($productConfig['overlay_type'] ?? 'plane');
+        if ($overlayType === 'cylinder') {
+            return $productConfig;
+        }
+
+        if (isset($productConfig['area_left'], $productConfig['area_width'])) {
+            $left = (float) $productConfig['area_left'];
+            $width = (float) $productConfig['area_width'];
+            $productConfig['area_left'] = round(max(0.0, min(100.0, 100.0 - $left - $width)), 4);
+        }
+
+        if (!empty($productConfig['custom_points']) && is_array($productConfig['custom_points'])) {
+            $mirrored = [];
+            foreach (array_reverse($productConfig['custom_points']) as $pt) {
+                if (!is_array($pt) || !isset($pt['x'], $pt['y'])) {
+                    continue;
+                }
+                $pt['x'] = round(100.0 - (float) $pt['x'], 4);
+                $mirrored[] = $pt;
+            }
+            $productConfig['custom_points'] = $mirrored;
+        }
+
+        return $productConfig;
     }
 }

@@ -99,7 +99,10 @@ class SupportContactFormComponent extends Component
         } elseif ($type === 'details') {
             $this->replyMessage = "Hallo {$name},\n\ndanke für deine Anfrage.\nUm dir bestmöglich und schnell weiterhelfen zu können, benötigen wir noch ein paar kleine Details von dir. Kannst du uns hierzu noch [BITTE AUSFÜLLEN] verraten?\n\nHerzliche Grüße,\nDein Seelenfunke Team";
         } elseif ($type === 'calculator') {
-            $url = url('/kalkulator');
+            if (!filter_var(shop_setting('quote_calculator_enabled', true), FILTER_VALIDATE_BOOLEAN)) {
+                return;
+            }
+            $url = route('calculator');
             $this->replyMessage = "Hallo {$name},\n\nwir können dir dein Projekt sehr gerne umsetzen!\nAm schnellsten und genauesten geht es, wenn du unseren interaktiven Gravur-Kalkulator nutzt. Dort siehst du auch sofort den Live-Preis:\n\n👉 {$url}\n\nBei Rückfragen antworte einfach auf diese E-Mail.\n\nHerzliche Grüße,\nDein Seelenfunke Team";
         }
     }

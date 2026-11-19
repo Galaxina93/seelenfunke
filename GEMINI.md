@@ -55,11 +55,11 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
    - KI-Agenten verarbeiten Kundendaten nur bei aktivem DSGVO-Opt-in klarnamentlich (sonst anonymisiert).
    - Urheberrechts-Freistellungs-Checkbox bei Kunden-Uploads; keine geschützten Drittmarken; Lieferländer im Checkout strikt an aktive Lieferzonen (`LogisticsShippingZone`) koppeln.
    - Rollen `influencer` und `tax_advisor` strikt über `EnsureEmployeeRole` / `EmployeeRoleIsolationHook` / `AiAuthHelper` isolieren; kritische Livewire-Properties mit `#[Locked]` schützen.
-9. **Funkenwerk Desktop Suite (`funkenwerk/`) & Android App (`android-app/`):**
-   - Vereint Mail (Thunderbird-Ersatz mit KI-Trichter & „Verarbeitet“-Ordner), Dateiverwaltung (Hauptverzeichnis `funkenwerk/files/` + Datenbank-Indexierung `AiWorkspaceDocument` & `funkenwerk_files_db.json` mit dynamischer unscharfer/Synonym-Suche), To-Do, Kalender, Kontakte, Musikplayer, Smarthome (ONVIF/RTSP-Kameras), Kamera-Studio (OBS-Szenen + `Deep-Live-Cam` + Virtual Cam) und Marketing-Content-Planer in **einer** App (Sync via REST-API).
-10. **Verbindliche Pflege der `Abschlussberichte/` & Verzeichnis-Reinigung:**
-    - Vor und nach Aufgaben `Abschlussberichte/README.md` sowie die Fachberichte in `Abschlussberichte/<Abteilung>/`, `Workflows/` und `Konzepte/` prüfen/aktualisieren. Keine losen Test-Skripte im Projekt-Root (`Workflow_Verzeichnis_Reinigung.md`).
-    - Nach neuen Models/Livewire/Controllern/Services/Seedern `php artisan ai:generate-map` ausführen (synchronisiert automatisch `ai_map.md` und diese `GEMINI.md`).
+9. **Nebensysteme im Feature-Freeze (`funkenwerk*/`, `android-app/`, `funkenwerk-os-linux/`):**
+   - Mini-PC (`192.168.188.151`), Desktop-Collection und Android-App sind bis zum Shop-Livegang eingefroren (nur echte Blocker auf expliziten Wunsch fixen; kein Auto-APK-Build, kein Mini-PC-Umbau).
+10. **Token-Spar-Modus, Lokal-First & Gebündelte Berichte:**
+    - Strikt lokal entwickeln (`http://127.0.0.1`). Kein `git push` oder `--stage-deploy` ohne explizite Freigabe von Alina.
+    - Direkt mit kleinen Datei-Ausschnitten arbeiten statt Subagenten-Ketten; keine losen Test-Skripte im Projekt-Root. `Abschlussberichte/` und `php artisan ai:generate-map` nur gebündelt bei Meilensteinen pflegen.
 11. **Live-Screen „Augen & Hände“-Brücke (`C:\Users\konta\Desktop\AgyLiveBridge\`):**
     - Für Live-Sprachführung und direkte Steuerung von Desktop-Apps (insb. **xTool Studio** am F2 Ultra UV) liegt auf dem Desktop die Direkt-Schnittstelle `C:\Users\konta\Desktop\AgyLiveBridge\invoke_hands.ps1` (gekoppelt an den Hintergrund-Task `AgyLiveScreen`).
     - **Sofort-Blick (Augen, `< 1,5 Sek.`):** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\konta\Desktop\AgyLiveBridge\invoke_hands.ps1" -Action capture` -> liefert sofort das unverdeckte `xTool Studio`-Fenster unter `C:\Users\konta\Desktop\AgyLiveBridge\xtool_live.png` sowie den Gesamtdesktop unter `desktop_live.png`.
@@ -69,7 +69,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-18 13:13)
+> Generiert via `php artisan ai:generate-map` (2026-11-18 21:32)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -161,7 +161,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Accounting**: `InvoiceDownloadController`
 - **Api**: `AgenticCommerceController, AntigravityDirectInboxController, CustomerLobbyController, FunkenwerkHeroesController, LavaParkourController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
 - **Customer**: `CustomerVerificationController, DigitalProductDownloadController, ExperienceReviewController, GiftVoucherDownloadController`
-- **Frontend**: `FunkenreichGatewayController, ShopShowroomController`
+- **Frontend**: `FunkenreichGatewayController, ShopShowroomController, WishlistController`
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 
 ## 7. Services & Geschäftslogik (`app/Services/<Domain>/*.php`)

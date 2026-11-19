@@ -1,86 +1,64 @@
-# Dokumentation: Buchhaltung - Steuern (ELSTER & ERiC-API)
+# Dokumentation: Buchhaltung & Umsatzsteuer-Zentrale (ELSTER, ERiC & Vorsteuer-Cockpit)
 
-Das Steuer-Modul berechnet die monatliche oder vierteljährliche Umsatzsteuer-Voranmeldung (UStVA) dynamisch anhand der erfassten Einnahmen und Ausgaben. Es bietet eine direkte, hochsichere Schnittstelle zu den Finanzbehörden über das offizielle ERiC-Modul (ElsterRichClient) der Steuerverwaltung.
+Die **Umsatzsteuer-Zentrale** (`/admin/financial-tax-exports`, [AccountingTax.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingTax.php)) berechnet die monatliche oder vierteljährliche Umsatzsteuer-Voranmeldung (UStVA) sowie den laufenden Vorsteuer-Erstattungsanspruch in Echtzeit. Sie verbindet die interne Finanzbuchhaltung ([FinancialService.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/FinancialService.php)), das Kanzlei-Portal ([TaxAdvisorDashboard.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Employee/TaxAdvisor/TaxAdvisorDashboard.php)) und die native C++-Schnittstelle der Finanzverwaltung ([ElsterEricService.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ElsterEricService.php)).
 
-## 1. Zielsetzung & Steuerliche Logik
-*   **Dynamische Zahllast-Ermittlung:** Kontinuierliche Berechnung der abzuführenden Umsatzsteuer (aus Shop-Bestellungen und manuellen Rechnungen) abzüglich der gezahlten Vorsteuer (aus Fixkosten und Belegen).
-*   **DATEV- & ELSTER-Konformität:** Exportieren von Buchungsstapeln im standardisierten DATEV EXTF-Format und direktes Übertragen der Nutzdaten via XML-Schnittstelle.
-*   **ERiC-Integration:** Direkte Ausführung des nativen C++ ERiC-Bibliotheken-Stacks auf dem Host-System zur authentifizierten Datenübermittlung.
+## 1. Prominente Karte: „Potenzielle Steuerrückgabe“ (`getPotentialTaxRefundSummary`)
 
----
+Ganz oben in [accounting-tax.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/accounting/accounting-tax.blade.php) zeigt die Umsatzsteuer-Zentrale den aktuellen Vorsteuer-Überhang (bzw. bei negativem Erstattungssaldo automatisch den Titel **„Voraussichtliche USt-Zahllast“**):
 
-## 2. Die UStVA-Checkliste (Pre-Flight)
-
-Vor jeder Übertragung an das Finanzamt erzwingt [AccountingTax](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Accounting/AccountingTax.php) eine dreistufige Validierung:
-
-1.  **Stammdaten-Validierung:** Vorhandensein von Steuernummer (`owner_tax_id`) und Inhaber-Name (`owner_proprietor`) in den Shop-Einstellungen.
-2.  **Beleg-Vollständigkeit:** 100%-ige Belegprüfung aller gewerblichen Ausgaben. Jedes `AccountingCostItem` und `AccountingSpecialIssue` im gewählten Monat muss eine verknüpfte PDF- oder Bilddatei besitzen. Fehlende Belege können direkt im Panel inline nachgeladen werden.
-3.  **Zertifikats-Tresor:** Das gewählte Software-Zertifikat (`.pfx`) muss physisch im sicheren Verzeichnis `storage/app/erictresor/` vorhanden sein.
+*   **Drei Echtzeit-Sichten per Tab-Umschalter:**
+    1.  **`Gesamt Bisher` (`total_all`, Standard-Ansicht):** Alle bisherigen gewerblichen Sonderausgaben (`AccountingSpecialIssue`, inkl. Vorgründungsausgaben `12/2025` und `2026`) plus alle bis zum heutigen Stichtag fälligen gewerblichen Fixkosten (`AccountingCostItem`, ohne zukünftige unbezahlte Monate) abzüglich der Ausgangs-Umsatzsteuer bezahlter Bestellungen/Rechnungen.
+    2.  **`Ab Gründung 11/26` (`since_launch`):** Alle gewerblichen Ausgaben und Umsätze ab dem offiziellen Gewerbestart `01.11.2026` bis heute.
+    3.  **`Gewählter Zeitraum` (`selected_period`):** Exakter Saldo des unten gewählten Monats oder Quartals.
+*   **Transparente Formel-Aufschlüsselung:** Zeigt nebeneinander `Vorsteuer Sonderausgaben` + `Vorsteuer Fixkosten` abzüglich `Umsatzsteuer Verkäufe`.
+*   **Belegsicherheits-Prüfung im `!`-Hover-Tooltip (Clean-Design nach Baustein 1):** Ohne erklärende Subtexte im Hauptlayout schlüsselt das `!`-Icon beim Überfahren `Belegsicher (7 % / 19 %)` gegenüber `Vorläufige Belege (Rechnung nachladen)` inkl. Postenanzahl auf (erkennt fehlende Dateien, Amazon-Bestellübersichten, Nicht-USt-Kaufbelege und PayPal-Transaktionsbelege ohne verknüpfte Originalrechnung).
 
 ---
 
-## 3. Native ERiC C++ Integration
+## 2. Zeitraum-Steuerung (`Monat` & `Quartal Q1-Q4`) und Kennzahlen (`Kz 81`, `Kz 86`, `Kz 66`, `Kz 83`)
 
-Die Übertragung an das Finanzamt erfolgt über den [ElsterEricService](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ElsterEricService.php):
+Über `FinancialService::getUstvaPeriodData(int $year, int $monthOrQuarter, string $mode)` unterstützt die Zentrale sowohl Monatszahler als auch Quartalszahler nach § 18 Abs. 2 UStG:
 
-### A. Server-Statusabfrage via RSS
-Vor dem Absenden fragt das System den offiziellen ELSTER-RSS-Feed (`https://www.elster.de/elsterweb/serverstatus_rss.xml`) ab und analysiert den Status für den Knoten *Anmeldungssteuern (authentifiziert)*. Liegt eine Störung vor, wird die Übermittlung abgebrochen, um Timeouts zu vermeiden.
-
-### B. Sandbox & Test-Modus
-Befindet sich die Applikation im Testmodus (`ERIC_TEST_MODE=true`), greifen folgende Sicherheits-Leitplanken zur Vermeidung irrtümlicher Echt-Übertragungen:
-*   Die Steuernummer wird hart auf die offizielle ELSTER-Sandbox-Steuernummer `9111081508152` umgeschrieben.
-*   Die Finanzamts-ID wird auf `9111` (München) gesetzt.
-*   Das XML-Dokument erhält den `<Testmerker>700000004</Testmerker>`, wodurch ELSTER die Nutzdaten ausschließlich im Sandbox-System verarbeitet.
-
-### C. Nativer C++ Binary-Call
-Falls das kompilierte C++ Executable `ericdemo` im Zertifikats-Tresor existiert und `ERIC_USE_NATIVE_BINARY=true` gesetzt ist, startet der Service einen Low-Level-Prozess auf dem Linux/Ubuntu-System:
-1.  **Payload-Generierung:** Das XML-Dokument wird nach dem offiziellen Finkonsens-Schema strukturiert.
-2.  **Kommandozeilen-Kopplung:** Aufruf des Binaries mit Pfaden zum Zertifikat, der XML-Nutzdatei, dem Antwort-Ausgabepfad und dem Pfad zu den geteilten C++ Bibliotheken (`libericapi.so`):
-    ```bash
-    ./ericdemo -v UStVA_2023 -x [temp_in.xml] -s [temp_out.xml] -d [lib_dir] -l [vault_dir] -c [cert.pfx] -p [pin]
-    ```
-3.  **Fehler-Parsing & Logging:** Schlägt der CLI-Aufruf fehl, extrahiert der Service die letzten Log-Meldungen aus `eric.log` sowie die XML-Fehlermeldungen aus dem Ausgabe-Dokument und wirft eine detaillierte Laravel-Exception, die im Log-Terminal des Livewire-UIs angezeigt wird.
+*   **Monats-Modus (`month`):** Voranmeldungszeiträume `01` bis `12`.
+*   **Quartals-Modus (`quarter`, `Q1-Q4`):** Aggregiert alle 3 Quartalsmonate (`Q1 = Jan-Mär`, `Q2 = Apr-Jun`, `Q3 = Jul-Sep`, `Q4 = Okt-Dez`), rundet die quartalsweise Netto-Bemessungsgrundlage nach ELSTER-Vorschrift auf volle Euro ab und übergibt die amtlichen ELSTER-Zeiträume `41` bis `44` (DATEV-ZIP-Archivierung als `TaxExport_YYYY_Q1..Q4.zip`).
+*   **Steuerpflichtige Umsätze `19 %` (`Kz 81`) & `7 %` (`Kz 86`):** Bezahlte Bestellungen (`OrderOrder`), manuelle Rechnungen (`AccountingInvoice`) und Gutschriften/Stornos werden positionsgenau auf `19 %` (`Kz 81`) und `7 %` (`Kz 86`) aufgeteilt (auch in [ustva_report.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/global/pdf/ustva_report.blade.php) und in der amtlichen XML-Formularvorschau).
+*   **Strikter deutscher Vorsteuer-Filter (`Kz 66`):** Über `FinancialService::isEligibleGermanInputVatRate()` fließen ausschließlich echte deutsche Vorsteuersätze (`7 %` und `19 %`) in `Kz 66` ein. Ausländische EU-Umsatzsteuer (z. B. `25 %` dänische MOMS bei Westpack) sowie `0 %` Versicherungssteuer (z. B. Hiscox Betriebshaftpflicht nach § 4 Nr. 10 UStG) oder `NULL`-Werte auf Fixkosten werden niemals fälschlich als Vorsteuer abgezogen, mindern aber mit ihrem vollen Bruttobetrag den Gewinn in der EÜR.
+*   **Direkte Seeder-Pflege ([AccountingSeeder.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/AccountingSeeder.php)):** Alle gewerblichen Fixkosten (`AccountingCostItem`) und Sonderausgaben (`AccountingSpecialIssue`) speichern ihren expliziten deutschen Vorsteuersatz (`0`, `7` oder `19`).
 
 ---
 
-## 4. Berechnungsmodell & Technischer Ablauf
+## 3. Native ELSTER/ERiC C++-Integration & 13-stellige Bundeseinheitliche Steuernummer
 
-*   **Umsatzsteuer (Kz 81):** Summe der Steuerbeträge aller Bestellungen mit Status `paid` im Abrechnungsmonat minus Steuerbeträge aus Gutschriften/Stornos (`credit_note`, `cancellation`).
-*   **Abziehbare Vorsteuer (Kz 66):** Summe der gezahlten Steuern aus verbuchten variablen Ausgaben und wiederkehrenden Fixkosten.
-*   **Zahllast (Kz 83):**
-    $$\text{Zahllast} = \text{Umsatzsteuer} - \text{Vorsteuer}$$
+Die Übertragung an die Clearingstelle `datenannahme.elster.de` erfolgt über [ElsterEricService.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/ElsterEricService.php):
+
+1.  **Automatische 13-stellige ELSTER-Steuernummer (`toElsterSteuernummer`):** Regionale Finanzamts-Steuernummern werden für das `<Steuernummer>`-Element automatisch in das 13-stellige Bundeseinheitliche ELSTER-Schema überführt (z. B. Niedersachsen / Finanzamt Gifhorn `2319`: `'19/143/11624'` wird zu `'2319014311624'`, `<Empfaenger id="F">2319</Empfaenger>`).
+2.  **Dynamisches Jahres-Schema (`v{$year}` / `UStVA_{$year}`):** Im Live-Betrieb (`ERIC_TEST_MODE=false`) erzeugt der Service dynamisch den passenden Finkonsens-Namespace `http://finkonsens.de/elster/elsteranmeldung/ustva/v2026` (`version="2026"`) inkl. `<Kz81>`, `<Kz86>`, `<Kz66>` und `<Kz83>` und übergibt die passende Datenart (`-v UStVA_2026`) an das kompilierte C++-Binary `ericdemo`.
+3.  **Abgesicherter Sandbox-Modus (`ERIC_TEST_MODE=true`):** Solange der Testmodus aktiv ist, nutzt das System automatisch `<Testmerker>700000004</Testmerker>` sowie die offizielle ELSTER-Sandbox-Kennung (`9111081508152` / FA `9111`), sodass Testläufe garantiert straffrei im ELSTER-Testsystem verbleiben.
+4.  **Pre-Flight-Checkliste:** Prüft vor jeder Freigabe lückenlose Belegdateien aller gewerblichen Posten im Zeitraum (inkl. Inline-Upload), hinterlegte Steuernummer, Inhabernamen sowie das `.pfx`-Zertifikat im Tresor (`storage/app/buchhaltung/erictresor`).
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Admin as Administrator
+    actor Admin as Inhaberin (Admin)
     participant UI as AccountingTax (Livewire)
-    participant Service as ElsterEricService
-    participant RSS as ELSTER RSS Feed
+    participant Fin as FinancialService
+    participant Eric as ElsterEricService
     participant CLI as ERiC C++ Binary (ericdemo)
 
-    Admin->>UI: Klicke "UStVA übermitteln"
-    UI->>UI: Prüfe Readiness-Checklist
-    Note over UI: Steuernummer, Inhaber, Belege & Zertifikat OK?
-    UI->>Service: transmitUStVA(data, type, cert, pin)
-    Service->>RSS: Get Server-Status XML
-    RSS-->>Service: Status OK
-    Service->>Service: Generiere UStVA XML-Payload
-    Service->>CLI: shell_exec(ericdemo -v UStVA...)
-    Note over CLI: Validiere XML-Schema & signiere mit PFX
-    CLI-->>Service: CLI Output (Erfolgreich / Fehlercode)
-    Service-->>UI: Transferticket (Ticket-ID)
-    UI-->>Admin: Zeige Status-Protokoll & Ticket-ID im Live-Terminal
+    Admin->>UI: Öffnet /admin/financial-tax-exports (Monat oder Q1-Q4)
+    UI->>Fin: getPotentialTaxRefundSummary() & getUstvaPeriodData()
+    Fin-->>UI: Vorsteuer-Überhang + Kz 81 / Kz 86 / Kz 66 / Kz 83
+    Admin->>UI: Klickt "Jetzt absenden" (Schritt 3)
+    UI->>Eric: transmitUStVA(data, submissionType, authMethod, pin)
+    Eric->>Eric: toElsterSteuernummer() & buildXmlPayload(vYear)
+    Eric->>CLI: ericdemo -v UStVA_Year -x payload.xml -c cert.pfx -p pin
+    CLI-->>Eric: Validierung & Transferticket
+    Eric-->>UI: Bestätigung & Ticket-ID im System-Protokoll
 ```
 
 ---
 
-## 5. Kanzlei-Portal: Aufgaben & Beleg-Rückfragen
+## 4. Kanzlei-Portal & Automatisierte Qualitätssicherung
 
-Zur Vermeidung zeitaufwändiger E-Mail-Ketten und teurer Kanzlei-Suchzeiten existiert im Steuerberater-Cockpit ([TaxAdvisorDashboard](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Employee/TaxAdvisor/TaxAdvisorDashboard.php)) der Tab **Aufgaben & Rückfragen**:
-
-1. **Native Kopplung an `ManagementTask`:** Alle Kanzlei-Aufgaben werden in der Systemliste `Kanzlei & Steuern` geführt.
-2. **Kommandozentrale:** Offene Rückfragen erscheinen für die Inhaberin direkt auf der zentralen To-Do-Liste auf `/admin/dashboard`.
-3. **Asynchroner Dialog:** Kanzlei und Mandantin können zu jeder Rückfrage Antworten mit Zeitstempel hinterlegen und Belege/Dokumente direkt anhängen.
-4. **Rollen-Isolation:** Das Kanzlei-Cockpit filtert strikt auf die Liste `Kanzlei & Steuern`. Betriebsinterne Aufgaben oder Kundendaten sind für die Kanzlei vollständig unzugänglich.
-
+*   **Steuerberater-Cockpit ([TaxAdvisorDashboard.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Employee/TaxAdvisor/TaxAdvisorDashboard.php)):** Streng rollenisoliert (`tax_advisor`), wendet denselben deutschen Vorsteuer-Filter (`7 %` / `19 %`) an, protokolliert jeden Dateiabruf GoBD-konform (`gobd_audit`) und koppelt Beleg-Rückfragen direkt an die Aufgabenliste `Kanzlei & Steuern` auf `/admin/dashboard`.
+*   **Feature-Test-Abdeckung:** Abgesichert durch [AccountingTaxCentralTest.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingTaxCentralTest.php), [AccountingTaxTest.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Livewire/Shop/Accounting/AccountingTaxTest.php), [AccountingTaxReceiptSecurityTest.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/AccountingTaxReceiptSecurityTest.php) und [TaxAdvisorDashboardTest.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/tests/Feature/Accounting/TaxAdvisorDashboardTest.php).

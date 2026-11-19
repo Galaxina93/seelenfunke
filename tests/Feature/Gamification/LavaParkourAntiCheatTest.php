@@ -623,12 +623,17 @@ class LavaParkourAntiCheatTest extends TestCase
             ->assertStatus(403)
             ->assertJsonPath('code', 'email_verification_required');
 
-        // Eingeloggter Kunde OHNE bezahlte Bestellung -> 403 order_required
+        // Eingeloggter Kunde OHNE bezahlte Bestellung mit aktivierter Magie -> Raum 1-5 frei, Raum 6 MASTER_KEY_REQUIRED!
         $noOrderCustomer = $this->makeActiveCustomer(91, 10, 10, 1, false);
         $this->actingAs($noOrderCustomer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 1])
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('level', 1);
+        $this->actingAs($noOrderCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 6])
             ->assertStatus(403)
-            ->assertJsonPath('code', 'order_required');
+            ->assertJsonPath('code', 'MASTER_KEY_REQUIRED');
 
         // Eingeloggter Kunde MIT bezahlter Bestellung, aber OHNE 'Magie aktivieren' -> 403 magic_activation_required
         $inactiveCustomer = Customer::create([
@@ -663,8 +668,11 @@ class LavaParkourAntiCheatTest extends TestCase
             ->assertStatus(403)
             ->assertJsonPath('code', 'magic_activation_required');
 
-        // Sobald Bestellung widerrufen wird, faellt auch ein aktiver Spieler sofort auf 403 order_required zurueck!
-        CustomerGamification::where('customer_id', $inactiveCustomer->id)->update(['is_active' => true]);
+        // Mit aktivierter Magie klappt Raum 1; bei Widerruf der Bestellung bleibt Raum 1-5 frei, aber Raum 6 wird MASTER_KEY_REQUIRED!
+        CustomerGamification::where('customer_id', $inactiveCustomer->id)->update([
+            'is_active' => true,
+            'magma_unlocked_level' => 6,
+        ]);
         $this->performRelativeRunAndClaim($inactiveCustomer, 1)->assertOk()->assertJsonPath('sparks_awarded', 5);
 
         OrderRevocation::create([
@@ -675,8 +683,12 @@ class LavaParkourAntiCheatTest extends TestCase
         ]);
         $this->actingAs($inactiveCustomer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 1])
+            ->assertOk()
+            ->assertJsonPath('level', 1);
+        $this->actingAs($inactiveCustomer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 6])
             ->assertStatus(403)
-            ->assertJsonPath('code', 'order_required');
+            ->assertJsonPath('code', 'MASTER_KEY_REQUIRED');
     }
 
     public function test_inline_login_enforces_csrf_lockout_2fa_password_change_cart_merge_and_showroom_payload(): void
@@ -863,28 +875,7 @@ class LavaParkourAntiCheatTest extends TestCase
             ->assertStatus(422)
             ->assertJsonPath('status', 'terms_required');
 
-        // 2. Ohne abgeschlossene Bestellung -> 403 order_required (DB bleibt is_active = false)
-        $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/activate-magic', ['accept_terms' => true])
-            ->assertStatus(403)
-            ->assertJsonPath('status', 'order_required');
-        $this->assertFalse((bool) CustomerGamification::where('customer_id', $customer->id)->value('is_active'));
-
-        // 3. Mit bezahlter Bestellung -> 200 magic_activated + 6 Herzen + can_enter_sanctums = true
-        OrderOrder::create([
-            'order_number' => 'ORD-INLINE-MAGIC-1',
-            'customer_id' => $customer->id,
-            'email' => $customer->email,
-            'status' => 'completed',
-            'payment_status' => 'paid',
-            'subtotal_price' => 3990,
-            'tax_amount' => 637,
-            'shipping_price' => 0,
-            'total_price' => 3990,
-            'billing_address' => ['first_name' => 'Klara', 'last_name' => 'Funken'],
-            'shipping_address' => ['first_name' => 'Klara', 'last_name' => 'Funken'],
-        ]);
-
+        // 2. Kostenlose Aktivierung OHNE abgeschlossene Bestellung -> 200 magic_activated + play_awaken_fx = true + Raum 1-5 frei!
         $actResp = $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/activate-magic', [
                 'accept_terms' => true,
@@ -893,7 +884,9 @@ class LavaParkourAntiCheatTest extends TestCase
 
         $actResp->assertOk()
             ->assertJsonPath('status', 'magic_activated')
+            ->assertJsonPath('play_awaken_fx', true)
             ->assertJsonPath('sanctum_access.can_enter_sanctums', true)
+            ->assertJsonPath('sanctum_access.has_completed_order', false)
             ->assertJsonPath('lava_parkour.can_enter_sanctums', true)
             ->assertJsonPath('lava_parkour.hearts', 6)
             ->assertJsonPath('lava_parkour.max_hearts', 6)
@@ -904,24 +897,38 @@ class LavaParkourAntiCheatTest extends TestCase
         $this->assertTrue((bool) $gam->ranking_opt_in);
         $this->assertSame(6, (int) $gam->magma_hearts);
         $this->assertSame(1, (int) $gam->magma_unlocked_level);
+
+        // Raum 1 sofort spielbar, Raum 6 erfordert weiterhin den Meisterschluessel
+        $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 1])
+            ->assertOk()
+            ->assertJsonPath('level', 1);
+        $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 6])
+            ->assertStatus(403)
+            ->assertJsonPath('code', 'MASTER_KEY_REQUIRED');
     }
 
-    public function test_six_hearts_escrow_f5_penalty_safe_leave_debounce_shield_and_demotion_without_first_clear_refarming(): void
+    public function test_six_hearts_escrow_f5_penalty_safe_leave_debounce_shield_and_permanent_floor_plateau(): void
     {
         $customer = $this->makeActiveCustomer(77, 0, 0, 1);
 
-        // Stufe 1 und Stufe 2 ehrlich abschliessen -> magma_unlocked_level = 3, Erstabschluss-Funken = 5 + 8 = 13
+        // Stufe 1, 2 und 3 ehrlich abschliessen -> permanentes Plateau = Raum 4 (5 + 8 + 10 = 23 Funken)
         $this->performRelativeRunAndClaim($customer, 1)->assertOk()->assertJsonPath('sparks_awarded', 5);
         $this->performRelativeRunAndClaim($customer, 2)->assertOk()->assertJsonPath('sparks_awarded', 8);
+        $this->performRelativeRunAndClaim($customer, 3)->assertOk()->assertJsonPath('sparks_awarded', 10);
 
-        $gamAfter2 = CustomerGamification::where('customer_id', $customer->id)->firstOrFail();
-        $this->assertSame(3, (int) $gamAfter2->magma_unlocked_level);
-        $this->assertSame(13, (int) $gamAfter2->funken_balance);
-        $this->assertSame(45, LobbyInstanceService::calculateHeroRankingMetrics($gamAfter2)['magma_prestige_points']);
+        $gamAfter3 = CustomerGamification::where('customer_id', $customer->id)->firstOrFail();
+        $this->assertSame(4, (int) $gamAfter3->magma_unlocked_level);
+        $this->assertSame(23, (int) $gamAfter3->funken_balance);
+        $this->assertSame(90, LobbyInstanceService::calculateHeroRankingMetrics($gamAfter3)['magma_prestige_points']);
 
-        // 1. Un-committed Lauf auf Stufe 3 starten und sofort auf dem Startbalkon verlassen -> KEIN Herzverlust (6/6)!
+        // Kein PHP-Session-Locking: sf_magma_life_nonce_* wird ausschliesslich im Cache verwaltet
+        $this->assertFalse(session()->has('sf_magma_life_nonce_' . $customer->id));
+
+        // 1. Un-committed Lauf auf Stufe 4 starten und sofort auf dem Startbalkon verlassen -> KEIN Herzverlust (6/6)!
         $sSafe = $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 3])
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 4])
             ->assertOk()
             ->assertJsonPath('hearts', 6);
         $this->actingAs($customer, 'customer')
@@ -932,7 +939,7 @@ class LavaParkourAntiCheatTest extends TestCase
 
         // 2. Lauf starten, Startbalkon verlassen (/commit), Versuch mitten im Raum ohne Balkon-Rueckkehr zu leaven -> 409!
         $sEscrow = $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 3])
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 4])
             ->assertOk();
         $escrowRunId = (string) $sEscrow->json('run_id');
 
@@ -948,11 +955,11 @@ class LavaParkourAntiCheatTest extends TestCase
 
         // Spieler drueckt F5 -> naechster /start zieht sofort 1 Escrow-Herz ab (6 -> 5)!
         $sAfterF5 = $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 3])
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 4])
             ->assertOk()
             ->assertJsonPath('escrow_penalty_applied', true)
             ->assertJsonPath('hearts', 5)
-            ->assertJsonPath('level', 3);
+            ->assertJsonPath('level', 4);
 
         $runId = (string) $sAfterF5->json('run_id');
         $nonce1 = (string) $sAfterF5->json('life_nonce');
@@ -961,7 +968,7 @@ class LavaParkourAntiCheatTest extends TestCase
         $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/hit', [
                 'run_id' => $runId,
-                'level' => 3,
+                'level' => 4,
                 'used_shield' => true,
             ])
             ->assertOk()
@@ -973,7 +980,7 @@ class LavaParkourAntiCheatTest extends TestCase
         $forgedShieldHit = $this->actingAs($customer, 'customer')
             ->postJson('/funkenwerk-welt/lava-parkour/hit', [
                 'run_id' => $runId,
-                'level' => 3,
+                'level' => 4,
                 'used_shield' => true,
             ]);
         $forgedShieldHit->assertOk()
@@ -991,87 +998,185 @@ class LavaParkourAntiCheatTest extends TestCase
                 'run_id' => $runId,
                 'life_nonce' => $nonce1,
                 'stage' => 1,
-                'rel_x' => 19.7,
-                'rel_y' => 1.13,
-                'rel_z' => 8.6,
+                'rel_x' => 20.3,
+                'rel_y' => 1.27,
+                'rel_z' => -9.15,
             ])
             ->assertStatus(422);
 
         // 4. 1.0s Server-Debounce: Doppel-Paket innerhalb 200ms zieht NUR 1 Herz ab (4 -> 3)!
         $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 3])
+            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 4])
             ->assertOk()
             ->assertJsonPath('hearts', 3);
 
         $this->travel(200)->milliseconds();
         $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 3])
+            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 4])
             ->assertOk()
             ->assertJsonPath('debounced', true)
             ->assertJsonPath('hearts', 3);
 
-        // 5. Restliche 3 Herzen verlieren (3 -> 2 -> 1 -> 0 = Level-Rueckstufung von Stufe 3 auf Stufe 2 + frische 6/6 Herzen!)
+        // 5. Restliche 3 Herzen auf Raum 4 verlieren -> Raum 4 sperrt NIEMALS wieder (permanentes Plateau = 4)!
         $this->travel(1200)->milliseconds();
         $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 3])
+            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 4])
             ->assertOk()
             ->assertJsonPath('hearts', 2);
 
         $this->travel(1200)->milliseconds();
         $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 3])
+            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 4])
             ->assertOk()
             ->assertJsonPath('hearts', 1);
 
         $this->travel(1200)->milliseconds();
-        $demote1 = $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 3]);
-        $demote1->assertOk()
-            ->assertJsonPath('status', 'level_demoted')
-            ->assertJsonPath('demoted', true)
+        $plateauRespawn = $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $runId, 'level' => 4]);
+        $plateauRespawn->assertOk()
+            ->assertJsonPath('demoted', false)
             ->assertJsonPath('hearts', 6)
             ->assertJsonPath('max_hearts', 6)
-            ->assertJsonPath('unlocked_level', 2)
-            ->assertJsonPath('demoted_to_level', 2);
+            ->assertJsonPath('unlocked_level', 4)
+            ->assertJsonPath('highest_unlocked_level', 4)
+            ->assertJsonPath('target_level', 4);
 
-        $demotedRunId = (string) $demote1->json('run_id');
-        $this->assertNotSame($runId, $demotedRunId);
+        // Auch nach Lobby-Re-Open (/shop/showroom-data) bleibt Raum 4 dauerhaft freigeschaltet!
+        $this->actingAs($customer, 'customer')
+            ->getJson('/shop/showroom-data')
+            ->assertOk()
+            ->assertJsonPath('lava_parkour.unlocked_level', 4)
+            ->assertJsonPath('lava_parkour.unlocked_portals', [2, 3, 4]);
 
-        // Weiterer Abstieg auf Stufe 2 (6 Herzen verlieren -> unlocked_level faellt auf 1 -> magma_prestige_points zaehlt nur noch Raum 1 = 15 statt 45!)
-        for ($h = 5; $h >= 1; $h--) {
-            $this->travel(1200)->milliseconds();
-            $this->actingAs($customer, 'customer')
-                ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $demotedRunId, 'level' => 2])
-                ->assertOk()
-                ->assertJsonPath('hearts', $h);
-        }
+        // Falls ein Admin manuell Raum 5 ohne Abschluss von Raum 4 freischaltet, stuft 0/6 Herzen von 5 auf das Plateau 4 zurueck
+        CustomerGamification::where('customer_id', $customer->id)->update(['magma_unlocked_level' => 5, 'magma_hearts' => 1]);
+        $sAdmin5 = $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/lava-parkour/start', ['level' => 5])
+            ->assertOk();
         $this->travel(1200)->milliseconds();
         $this->actingAs($customer, 'customer')
-            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $demotedRunId, 'level' => 2])
+            ->postJson('/funkenwerk-welt/lava-parkour/hit', ['run_id' => $sAdmin5->json('run_id'), 'level' => 5])
             ->assertOk()
             ->assertJsonPath('status', 'level_demoted')
-            ->assertJsonPath('unlocked_level', 1)
-            ->assertJsonPath('demoted_to_level', 1);
+            ->assertJsonPath('demoted', true)
+            ->assertJsonPath('unlocked_level', 4)
+            ->assertJsonPath('demoted_to_level', 4);
 
-        $gamDemotedTo1 = CustomerGamification::where('customer_id', $customer->id)->firstOrFail();
-        $this->assertSame(1, (int) $gamDemotedTo1->magma_unlocked_level);
-        $this->assertSame([1, 2], $gamDemotedTo1->titles_progress['lava_cleared_levels']);
-        $this->assertSame(15, LobbyInstanceService::calculateHeroRankingMetrics($gamDemotedTo1)['magma_prestige_points']);
+        // Auto-Heal fuer Alt-Datensaetze (z. B. lava_cleared_levels = [1,2,3,4], aber magma_unlocked_level = 2 -> heilt sofort auf 5!)
+        CustomerGamification::where('customer_id', $customer->id)->update([
+            'magma_unlocked_level' => 2,
+            'titles_progress' => ['lava_cleared_levels' => [1, 2, 3, 4]],
+        ]);
+        $healedState = app(LavaParkourService::class)->resolveProgressState($customer);
+        $this->assertSame(5, $healedState['highest_unlocked_level']);
+        $this->assertSame(5, (int) CustomerGamification::where('customer_id', $customer->id)->value('magma_unlocked_level'));
 
-        // 6. Anti-Farming-Beweis am naechsten Kalendertag: Erneuter Abschluss von Stufe 1 & 2 zahlt NIEMALS nochmal FIRST_CLEAR_REWARDS (5/8) aus, sondern nur Daily-Repeat (2/2)!
+        // 6. Anti-Farming-Beweis am naechsten Kalendertag: Erneuter Abschluss von Stufe 1 & 2 zahlt nur Daily-Repeat (2/2) aus!
         Carbon::setTestNow(Carbon::create(2026, 11, 18, 12, 0, 0, 'Europe/Berlin'));
-        $reClear1 = $this->performRelativeRunAndClaim($customer, 1);
-        $reClear1->assertOk()
+        $this->performRelativeRunAndClaim($customer, 1)
+            ->assertOk()
             ->assertJsonPath('is_first_clear', false)
-            ->assertJsonPath('sparks_awarded', 2)
-            ->assertJsonPath('unlocked_level', 2);
+            ->assertJsonPath('sparks_awarded', 2);
+        $this->performRelativeRunAndClaim($customer, 2)
+            ->assertOk()
+            ->assertJsonPath('is_first_clear', false)
+            ->assertJsonPath('sparks_awarded', 2);
+    }
 
-        $reClear2 = $this->performRelativeRunAndClaim($customer, 2);
-        $reClear2->assertOk()
-            ->assertJsonPath('is_first_clear', false)
-            ->assertJsonPath('sparks_awarded', 2)
-            ->assertJsonPath('unlocked_level', 3)
-            ->assertJsonPath('magma_prestige_points', 45);
+    public function test_merchant_buy_potion_inventory_use_item_and_equip_slot_invariants(): void
+    {
+        $customer = $this->makeActiveCustomer(88, 50, 300, 3);
+
+        // 1. Heiltrank kaufen (1x = 8 Funken): zieht NUR von funken_balance ab, funken_total_earned bleibt exakt 300!
+        $buy1 = $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/merchant/buy-potion', ['quantity' => 1]);
+        $buy1->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('item_key', 'healing_potion')
+            ->assertJsonPath('purchased_qty', 1)
+            ->assertJsonPath('potion_count', 1)
+            ->assertJsonPath('funken_balance', 42)
+            ->assertJsonPath('funken_total_earned', 300)
+            ->assertJsonPath('bag_slots.0.qty', 1)
+            ->assertJsonPath('quick_slots.slot_1', 'healing_potion')
+            ->assertJsonPath('quick_slots.slot_2', null);
+
+        // Weiterer Kauf von 5 Heiltraenken (5x = 40 Funken -> Rest 2 Funken, Stack 0 = 5, Stack 1 = 1)
+        $buy5 = $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/merchant/buy-potion', ['quantity' => 5]);
+        $buy5->assertOk()
+            ->assertJsonPath('potion_count', 6)
+            ->assertJsonPath('funken_balance', 2)
+            ->assertJsonPath('funken_total_earned', 300)
+            ->assertJsonPath('bag_slots.0.qty', 5)
+            ->assertJsonPath('bag_slots.1.qty', 1);
+
+        // Zu wenig Funken (2 < 8) -> 422 INSUFFICIENT_SPARKS
+        $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/merchant/buy-potion', ['quantity' => 1])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'INSUFFICIENT_SPARKS');
+
+        // Rucksack-Kapazitaet max. 30 Tränke -> 422 BAG_FULL
+        CustomerGamification::where('customer_id', $customer->id)->update(['funken_balance' => 500]);
+        for ($i = 0; $i < 4; $i++) {
+            $this->actingAs($customer, 'customer')
+                ->postJson('/funkenwerk-welt/merchant/buy-potion', ['quantity' => 5])
+                ->assertOk();
+        }
+        $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/merchant/buy-potion', ['quantity' => 4])
+            ->assertOk()
+            ->assertJsonPath('potion_count', 30);
+
+        $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/merchant/buy-potion', ['quantity' => 1])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'BAG_FULL');
+
+        // funken_total_earned ist nach allen Käufen unverändert 300!
+        $this->assertSame(300, (int) CustomerGamification::where('customer_id', $customer->id)->value('funken_total_earned'));
+        $this->assertTrue(
+            CustomerGamificationLog::where('customer_id', $customer->id)
+                ->where('event_type', 'merchant_healing_potion_buy')
+                ->where('category', 'shop')
+                ->exists()
+        );
+
+        // 2. Bei vollen 6/6 Herzen blockiert /inventory/use-item mit 422 HEARTS_FULL
+        $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/inventory/use-item', ['item_key' => 'healing_potion', 'slot' => 1])
+            ->assertStatus(422)
+            ->assertJsonPath('code', 'HEARTS_FULL')
+            ->assertJsonPath('message', 'Deine Herzen sind bereits voll.');
+
+        // Bei 3/6 Herzen heilt 1 Heiltrank exakt +2 Herzen auf 5/6 (und zieht 1 Trank ab: 30 -> 29)
+        CustomerGamification::where('customer_id', $customer->id)->update(['magma_hearts' => 3]);
+        $useResp = $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/inventory/use-item', ['item_key' => 'healing_potion', 'slot' => 1]);
+        $useResp->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('healed_hearts', 2)
+            ->assertJsonPath('hearts_before', 3)
+            ->assertJsonPath('hearts', 5)
+            ->assertJsonPath('potion_count', 29)
+            ->assertJsonPath('message', '+2 Herzen regeneriert!');
+
+        // 3. /inventory/equip-slot: Quick-Slot wechseln & Rucksack-Slots tauschen (potion_count bleibt strikt 29!)
+        $equipResp = $this->actingAs($customer, 'customer')
+            ->postJson('/funkenwerk-welt/inventory/equip-slot', [
+                'quick_slot' => 2,
+                'item_key' => 'healing_potion',
+                'from_bag_slot' => 5,
+                'to_bag_slot' => 0,
+            ]);
+        $equipResp->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('potion_count', 29)
+            ->assertJsonPath('quick_slots.slot_1', null)
+            ->assertJsonPath('quick_slots.slot_2', 'healing_potion')
+            ->assertJsonPath('bag_slots.0.qty', 4)
+            ->assertJsonPath('bag_slots.5.qty', 5);
     }
 
     public function test_showroom_data_exposes_s_curve_anchors_for_all_10_levels_and_admin_guard_is_consistent(): void

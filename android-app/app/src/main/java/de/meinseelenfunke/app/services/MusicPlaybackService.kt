@@ -334,7 +334,7 @@ class MusicPlaybackService : Service() {
 
         return builder
             .setStyle(mediaStyle)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
             .setLargeIcon(coverBmp)
             .setContentTitle(title)
             .setContentText(artist)

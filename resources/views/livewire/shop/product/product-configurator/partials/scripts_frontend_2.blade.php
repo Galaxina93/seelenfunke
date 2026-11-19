@@ -723,19 +723,23 @@
             if(!this.isReady) return;
             this._latestRenderArgs = [textsFront, logosFront, textsBack, logosBack, fontMap];
 
-            const drawToCtx = (ctx, canvas, texts, logos, textureObj) => {
+            const drawToCtx = (ctx, canvas, texts, logos, textureObj, isBackSide = false) => {
                 if(!ctx) return;
                 const cw = canvas.width;
                 ctx.clearRect(0, 0, cw, cw);
                 const isMetalSurface = ['metal', 'silver', 'gold'].includes(this.config.material_type);
+                const mirrorBack = Boolean(isBackSide && this.config.has_back_side && this.config.overlay_type !== 'cylinder');
 
                 const toPx = (p) => (p / 100) * cw;
 
                 const applyClipping = (c) => {
                     c.beginPath();
-                    let x = (this.config.area_left || 0) / 100 * cw;
+                    const rawLeftPct = Number(this.config.area_left || 0);
+                    const rawWidthPct = Number(this.config.area_width || 100);
+                    const effLeftPct = mirrorBack ? Math.max(0, Math.min(100, 100 - rawLeftPct - rawWidthPct)) : rawLeftPct;
+                    let x = effLeftPct / 100 * cw;
                     let y = (this.config.area_top || 0) / 100 * cw;
-                    let w = (this.config.area_width || 100) / 100 * cw;
+                    let w = rawWidthPct / 100 * cw;
                     let h = (this.config.area_height || 100) / 100 * cw;
                     let shape = this.config.area_shape || 'rect';
 
@@ -745,6 +749,9 @@
                         c.ellipse(x + w/2, y + h/2, w/2, h/2, 0, 0, Math.PI * 2);
                     } else if(shape === 'custom') {
                         let rawPts = Array.isArray(this.config.custom_points) ? this.config.custom_points.filter(p => p && isFinite(p.x) && isFinite(p.y)) : [];
+                        if (mirrorBack && rawPts.length > 0) {
+                            rawPts = rawPts.slice().reverse().map(p => ({ x: 100 - Number(p.x), y: Number(p.y) }));
+                        }
                         if(rawPts.length > 0) {
                             let pts = rawPts.map(p => ({ x: Number(p.x), y: Number(p.y) }));
                             if (pts.length >= 3) {
@@ -986,10 +993,10 @@
                 if(textureObj) textureObj.needsUpdate = true;
             };
 
-            drawToCtx(this.textureCtxFront, this.textureCanvasFront, textsFront, logosFront, this.textureFront);
+            drawToCtx(this.textureCtxFront, this.textureCanvasFront, textsFront, logosFront, this.textureFront, false);
 
             if (this.config.has_back_side) {
-                drawToCtx(this.textureCtxBack, this.textureCanvasBack, textsBack, logosBack, this.textureBack);
+                drawToCtx(this.textureCtxBack, this.textureCanvasBack, textsBack, logosBack, this.textureBack, true);
             }
         }
 

@@ -157,4 +157,62 @@ class ManifestAndNetworkSecurityConfigTest {
             )
         )
     }
+
+    @Test
+    fun seelenfunkeDomainPinsLetsEncryptRootX1AndRootYrCertificatesAndVerifiesChain() {
+        val doc = parseXml(resolveProjectFile("src/main/res/xml/network_security_config.xml"))
+        val domainConfigs = doc.getElementsByTagName("domain-config")
+        var foundSfConfig: Element? = null
+        for (i in 0 until domainConfigs.length) {
+            val dc = domainConfigs.item(i) as Element
+            val domains = dc.getElementsByTagName("domain")
+            for (j in 0 until domains.length) {
+                val d = domains.item(j) as Element
+                if (d.textContent.trim() == "mein-seelenfunke.de") {
+                    assertEquals("true", d.getAttribute("includeSubdomains"))
+                    foundSfConfig = dc
+                }
+            }
+        }
+        assertNotNull("Expected domain-config for mein-seelenfunke.de", foundSfConfig)
+        assertEquals("false", foundSfConfig!!.getAttribute("cleartextTrafficPermitted"))
+
+        val certSrcs = mutableSetOf<String>()
+        val certNodes = foundSfConfig.getElementsByTagName("certificates")
+        for (i in 0 until certNodes.length) {
+            certSrcs.add((certNodes.item(i) as Element).getAttribute("src"))
+        }
+        assertTrue(certSrcs.contains("system"))
+        assertTrue(certSrcs.contains("@raw/isrg_root_x1"))
+        assertTrue(certSrcs.contains("@raw/isrg_root_yr"))
+
+        val cf = java.security.cert.CertificateFactory.getInstance("X.509")
+        val x1Cert = resolveProjectFile("src/main/res/raw/isrg_root_x1.pem").inputStream().use {
+            cf.generateCertificate(it) as java.security.cert.X509Certificate
+        }
+        val yrCert = resolveProjectFile("src/main/res/raw/isrg_root_yr.pem").inputStream().use {
+            cf.generateCertificate(it) as java.security.cert.X509Certificate
+        }
+        assertTrue(x1Cert.subjectX500Principal.name.contains("ISRG Root X1"))
+        assertTrue(yrCert.subjectX500Principal.name.contains("Root YR"))
+        // Cryptographically verify Root YR is signed by ISRG Root X1
+        yrCert.verify(x1Cert.publicKey)
+    }
+
+    @Test
+    fun sslCertPathFailureIsRetryableAndFormatsCleanGermanMessageWithoutJavaClassLeak() {
+        val certEx = java.security.cert.CertPathValidatorException("Trust anchor for certification path not found.")
+        val sslEx = javax.net.ssl.SSLHandshakeException(
+            "java.security.cert.CertPathValidatorException: Trust anchor for certification path not found."
+        ).apply { initCause(certEx) }
+
+        assertTrue(FunkiraLiveViewModel.isSslOrCertificateFailure(sslEx))
+        assertTrue(FunkiraLiveViewModel.isRetryableCredentialIoFailure(sslEx))
+
+        val userMsg = FunkiraLiveViewModel.formatCredentialFailureForUser(sslEx)
+        assertEquals(FunkiraLiveViewModel.FRIENDLY_SSL_INTERRUPTED_MESSAGE, userMsg)
+        assertFalse(userMsg.contains("java.security"))
+        assertFalse(userMsg.contains("CertPathValidator"))
+        assertFalse(userMsg.contains(" – "))
+    }
 }

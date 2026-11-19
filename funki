@@ -253,7 +253,7 @@ case "$1" in
         ;;
     migrate)
         if [ "$2" = "fresh" ]; then
-            echo "🗄️ Schalte lokalen Wartungsmodus ein & setze Datenbank komplett zurück (migrate:fresh --seed)..."
+            echo "🗄️ Setze Datenbank komplett zurück (migrate:fresh --seed)..."
             $PREFIX_DEFAULT php artisan down --retry=5 &>/dev/null || true
             trap '$PREFIX_DEFAULT php artisan up &>/dev/null || true' EXIT
             $PREFIX_DEFAULT php artisan migrate:fresh --seed

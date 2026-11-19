@@ -103,6 +103,10 @@ class ProductShow extends Component
 
     public function startBeginnerConfig()
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
         ProductTrackingService::trackModeChosen($this->product->id, 'beginner');
         $this->showTemplateSelection = false;
         $this->showTemplatesList = false;
@@ -115,6 +119,10 @@ class ProductShow extends Component
 
     public function openTemplatesList()
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
         ProductTrackingService::trackModeChosen($this->product->id, 'template');
         $this->showTemplateSelection = false;
         $this->showTemplatesList = true;
@@ -123,6 +131,10 @@ class ProductShow extends Component
 
     public function startCustomConfig()
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
         ProductTrackingService::trackModeChosen($this->product->id, 'custom');
         $this->showTemplateSelection = false;
         $this->showTemplatesList = false;
@@ -147,6 +159,10 @@ class ProductShow extends Component
 
     public function selectTemplate($templateId)
     {
+        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
         $template = ProductTemplate::where('product_id', $this->product->id)
             ->where('is_active', true)
             ->find($templateId);
@@ -217,19 +233,19 @@ class ProductShow extends Component
         }
     }
 
-    public function toggleWishlist(\App\Services\WishlistService $wishlistService): void
+    public function toggleWishlist(\App\Services\WishlistService $wishlistService, ?bool $shouldBeWishlisted = null): void
     {
-        $wishlistService->toggle((string) $this->product->id);
-        $this->dispatch('wishlist-updated');
+        $wishlistService->setWishlisted((string) $this->product->id, $shouldBeWishlisted);
+        $this->dispatch(
+            'wishlist-updated',
+            count: $wishlistService->getCount(),
+            productIds: $wishlistService->getProductIds()
+        );
     }
 
     public function render()
     {
-        if (shop_setting('maintenance_mode', false) && !\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
-            return view('global.errors.503_fragment')->layout('components.layouts.frontend_layout');
-        }
-
-        $seoTitle = $this->product->seo_title ?: ($this->product->name . ' – Personalisiert mit Lasergravur');
+        $seoTitle = $this->product->seo_title ?: ($this->product->name . ' · Personalisiert mit Lasergravur');
         $rawDesc = $this->product->seo_description ?: ($this->product->short_description ?: $this->product->description);
         $seoDescription = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $rawDesc))), 160);
         $mainImageUrl = $this->product->resolveMainImageUrl(null, false)

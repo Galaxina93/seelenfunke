@@ -75,13 +75,13 @@ class ProductFrontendFilterAreaTest extends TestCase
 
         $component = Livewire::test(ProductFrontendFilterArea::class);
 
-        // Gemeinsames Schaufenster: alle 3 Produktlinien sofort sichtbar
+        // Gemeinsames Schaufenster: alle 3 Produktlinien sofort sichtbar (ohne Atelier-Kartenbadge)
         $component->assertSeeInOrder([
             'Holzblock Manufaktur',
             'Echtsilber Armband 925',
             'Seelenfunke Geschenkgutschein',
         ]);
-        $component->assertSee('925er Silber · Atelier');
+        $component->assertDontSee('925er Silber · Atelier');
 
         // Alte 3-Welten-Tabs und Personalisiert/Standard-Pills sind nicht mehr vorhanden
         $component->assertDontSee('Manufaktur-Kollektion');

@@ -85,42 +85,36 @@
                 {{-- 1b. SPRUCH- & WIDMUNGS-BIBLIOTHEK („KREATIV-STARTHILFE“) --}}
                 @if(!empty($quotes))
                     <div x-show="activeTab === 'quotes'"
-                         x-data="{ activeQuoteCat: @js($selectedQuoteCategory ?: array_key_first($quotes)) }"
+                         x-data="{ showAllQuotes: false, activeQuoteCat: @js($selectedQuoteCategory ?: array_key_first($quotes)) }"
                          x-transition:enter="transition-opacity ease-out duration-150"
                          x-transition:enter-start="opacity-0"
                          x-transition:enter-end="opacity-100"
                          class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
-                                <x-heroicon-o-chat-bubble-bottom-center-text class="w-4 h-4 text-[#C5A059]" />
-                                <span>Sprüche & Widmungen</span>
-                            </h3>
-                            <button type="button" @click="activeTab = null" class="text-xs font-bold text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2.5 py-1 rounded-xl border border-transparent hover:border-gray-200 dark:hover:border-gray-800 transition-colors cursor-pointer">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex flex-wrap items-center gap-2 min-w-0">
+                                <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
+                                    <x-heroicon-o-chat-bubble-bottom-center-text class="w-4 h-4 text-[#C5A059] shrink-0" />
+                                    <span>Sprüche &amp; Widmungen</span>
+                                </h3>
+                                @if(!empty($quoteOccasionLabel))
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-[#C5A059]/40 bg-[#C5A059]/10 text-[#C5A059]">
+                                        {{ $quoteOccasionLabel }}
+                                    </span>
+                                @endif
+                            </div>
+                            <button type="button" @click="activeTab = null" class="text-xs font-bold text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2.5 py-1 rounded-xl border border-transparent hover:border-gray-200 dark:hover:border-gray-800 transition-colors cursor-pointer shrink-0">
                                 Schließen ✕
                             </button>
                         </div>
 
                         <div class="border rounded-[1.5rem] p-4 sm:p-5 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-slate-50 border-slate-200' }}">
-                            <div class="flex gap-2 p-1 overflow-x-auto custom-scrollbar border-b pb-3.5 mb-4 {{ $isDark ? 'border-gray-800' : 'border-slate-200' }}">
-                                @foreach($quotes as $qCategory => $qItems)
-                                    <button type="button"
-                                            @click="activeQuoteCat = @js($qCategory)"
-                                            :class="activeQuoteCat === @js($qCategory)
-                                                ? '{{ $isDark ? 'bg-[#C5A059] text-gray-900 border-[#C5A059] shadow-[0_0_15px_rgba(197,160,89,0.3)]' : 'bg-[#C5A059] text-white border-[#C5A059] shadow-md' }}'
-                                                : '{{ $isDark ? 'bg-gray-800 text-gray-400 border-gray-700 hover:text-gray-200 hover:border-gray-600' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700' }}'"
-                                            class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all shadow-sm border cursor-pointer">
-                                        {{ $qCategory }} ({{ count($qItems) }})
-                                    </button>
-                                @endforeach
-                            </div>
-
-                            @foreach($quotes as $qCategory => $qItems)
-                                <div x-show="activeQuoteCat === @js($qCategory)"
-                                     class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto custom-scrollbar pr-1">
-                                    @forelse($qItems as $quoteItem)
+                            {{-- KOMPAKT-ANSICHT: 6 EMPFOHLENE SAISON- & THEMEN-SPRÜCHE --}}
+                            <div x-show="!showAllQuotes" class="space-y-3.5">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                    @foreach($recommendedQuotes as $quoteItem)
                                         <button type="button"
                                                 @click="applyQuoteToStage(@js($quoteItem['text'])); activeTab = null"
-                                                class="text-left p-3.5 rounded-2xl border transition-all group cursor-pointer flex flex-col justify-between gap-1.5 hover:border-[#C5A059] hover:shadow-[0_0_15px_rgba(197,160,89,0.2)] {{ $isDark ? 'bg-gray-950/70 border-gray-800 text-gray-200' : 'bg-white border-slate-200 text-slate-800 shadow-xs' }}">
+                                                class="text-left p-3.5 rounded-2xl border transition-all group cursor-pointer flex flex-col justify-between gap-1.5 hover:border-[#C5A059] {{ $isDark ? 'bg-gray-950/70 border-gray-800 text-gray-200 shadow-xs' : 'bg-white border-slate-200 text-slate-800 shadow-xs' }}">
                                             @if(!empty($quoteItem['title']))
                                                 <div class="flex items-center justify-between gap-2">
                                                     <span class="text-[10px] font-black uppercase tracking-widest text-[#C5A059]">
@@ -131,17 +125,74 @@
                                                     </span>
                                                 </div>
                                             @endif
-                                            <p class="text-xs sm:text-sm font-serif leading-snug">
-                                                „{{ $quoteItem['text'] }}“
-                                            </p>
+                                            <p class="text-xs sm:text-sm font-serif leading-snug whitespace-pre-line">„{{ $quoteItem['text'] }}“</p>
                                         </button>
-                                    @empty
-                                        <div class="col-span-full text-center text-xs py-8 {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
-                                            Keine Sprüche in dieser Kategorie vorhanden.
-                                        </div>
-                                    @endforelse
+                                    @endforeach
                                 </div>
-                            @endforeach
+
+                                @if($totalQuotesCount > count($recommendedQuotes))
+                                    <div class="pt-1 text-center">
+                                        <button type="button"
+                                                @click="showAllQuotes = true"
+                                                class="text-[11px] font-semibold text-gray-400 hover:text-[#C5A059] transition-colors underline underline-offset-4 cursor-pointer">
+                                            Alle Sprüche anzeigen ({{ $totalQuotesCount }})
+                                        </button>
+                                    </div>
+                                @endif
+                            </div>
+
+                            {{-- AUFGEKLAPPTE VOLL-ANSICHT: KATEGORIE-TABS & GESAMTBESTAND --}}
+                            <div x-show="showAllQuotes" x-cloak class="space-y-4">
+                                <div class="flex gap-2 p-1 overflow-x-auto custom-scrollbar border-b pb-3.5 {{ $isDark ? 'border-gray-800' : 'border-slate-200' }}">
+                                    @foreach($quotes as $qCategory => $qItems)
+                                        <button type="button"
+                                                @click="activeQuoteCat = @js($qCategory)"
+                                                :class="activeQuoteCat === @js($qCategory)
+                                                    ? '{{ $isDark ? 'bg-[#C5A059] text-gray-900 border-[#C5A059] shadow-xs' : 'bg-[#C5A059] text-white border-[#C5A059] shadow-xs' }}'
+                                                    : '{{ $isDark ? 'bg-gray-800 text-gray-400 border-gray-700 hover:text-gray-200 hover:border-gray-600' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700' }}'"
+                                                class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all shadow-xs border cursor-pointer">
+                                            {{ $qCategory }} ({{ count($qItems) }})
+                                        </button>
+                                    @endforeach
+                                </div>
+
+                                @foreach($quotes as $qCategory => $qItems)
+                                    <div x-show="activeQuoteCat === @js($qCategory)"
+                                         class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                                        @forelse($qItems as $quoteItem)
+                                            <button type="button"
+                                                    @click="applyQuoteToStage(@js($quoteItem['text'])); activeTab = null"
+                                                    class="text-left p-3.5 rounded-2xl border transition-all group cursor-pointer flex flex-col justify-between gap-1.5 hover:border-[#C5A059] {{ $isDark ? 'bg-gray-950/70 border-gray-800 text-gray-200 shadow-xs' : 'bg-white border-slate-200 text-slate-800 shadow-xs' }}">
+                                                @if(!empty($quoteItem['title']))
+                                                    <div class="flex items-center justify-between gap-2">
+                                                        <span class="text-[10px] font-black uppercase tracking-widest text-[#C5A059]">
+                                                            {{ $quoteItem['title'] }}
+                                                        </span>
+                                                        <span class="text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity text-[#C5A059]">
+                                                            + Übernehmen
+                                                        </span>
+                                                    </div>
+                                                @endif
+                                                <p class="text-xs sm:text-sm font-serif leading-snug whitespace-pre-line">„{{ $quoteItem['text'] }}“</p>
+                                            </button>
+                                        @empty
+                                            <div class="col-span-full text-center text-xs py-8 {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
+                                                Keine Sprüche in dieser Kategorie vorhanden.
+                                            </div>
+                                        @endforelse
+                                    </div>
+                                @endforeach
+
+                                @if(!empty($recommendedQuotes))
+                                    <div class="pt-1 text-center">
+                                        <button type="button"
+                                                @click="showAllQuotes = false"
+                                                class="text-[11px] font-semibold text-gray-400 hover:text-[#C5A059] transition-colors underline underline-offset-4 cursor-pointer">
+                                            Nur passende Auswahl anzeigen ({{ count($recommendedQuotes) }})
+                                        </button>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                     </div>
                 @endif
@@ -186,7 +237,7 @@
                                 <strong>Manufaktur-Qualitätsprüfung:</strong> Position, Größe, Drehung und Zuschnitt kannst du direkt im Vorschaubild anpassen. Wir prüfen jede hochgeladene Datei vor der Gravur manuell auf optimale Laserschärfe.
                             </p>
                             <p class="text-[11px] pt-1 border-t {{ $isDark ? 'border-gray-800 text-gray-400' : 'border-slate-200 text-slate-600' }}">
-                                <strong>⚖️ Urheber- &amp; Markenrecht:</strong> Mit dem Upload bestätigst du, dass du alle erforderlichen Rechte an den Motiven besitzt (keine geschützten Markenlogos oder Figuren wie z. B. Pokémon/Disney ohne Lizenz) und uns gemäß <a href="/agb#urheberrecht-freistellung" target="_blank" class="underline font-semibold text-[#C5A059] hover:opacity-80">§ 3 Abs. 7–9 unserer AGB</a> von Ansprüchen Dritter freistellst.
+                                <strong>⚖️ Urheber- &amp; Markenrecht:</strong> Mit dem Upload bestätigst du, dass du alle erforderlichen Rechte an den Motiven besitzt (keine geschützten Markenlogos oder Figuren wie z. B. Pokémon/Disney ohne Lizenz) und uns gemäß <a href="/agb#urheberrecht-freistellung" target="_blank" class="underline font-semibold text-[#C5A059] hover:opacity-80">§ 3 Abs. 7-9 unserer AGB</a> von Ansprüchen Dritter freistellst.
                             </p>
                         </div>
 

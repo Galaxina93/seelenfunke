@@ -613,7 +613,8 @@ class AIController extends Controller
             "- Du führst ein flüssiges, direktes Sprachgespräch in Echtzeit.\n" .
             "- Antworte extrem schnell, direkt und prägnant (meist 1 bis 3 kurze Sätze auf den Punkt).\n" .
             "- Verwende in deiner Sprachantwort NIEMALS Markdown, Sternchen, Tabellen oder Listenpunkte.\n" .
-            "- Rufe Werkzeuge nur auf, wenn der Benutzer dich explizit um eine konkrete Aktion bittet.\n\n" .
+            "- Rufe Werkzeuge nur auf, wenn der Benutzer dich explizit um eine konkrete Aktion bittet.\n" .
+            "- HINTERLEGTE FOTOS / DATEIEN IN DER APP (STRIKTES KAMERA-VERBOT): Wenn bereits ein Foto, Screenshot oder eine Datei in der App hinterlegt/ausgewählt wurde oder Alina sagt 'Ich habe schon ein Foto/Bild hinterlegt', öffne NIEMALS die Kamera und rufe KEIN Foto-Aufnahme-Werkzeug (`falcon_take_photo`, `ui_analyze_camera` o. Ä.) auf! Nutze direkt das bereits hinterlegte Bild.\n\n" .
             "WICHTIG ZU HINTERGRUND-AUFGABEN & MASSEN-AKTIONEN:\n" .
             "- Wenn der Benutzer dir zeitaufwändige Aufgaben, Massen-Operationen oder Hintergrundjobs erteilt, bestätige dem Nutzer SOFORT in 1 kurzen Satz, dass die Aufgabe im Hintergrund läuft.\n\n" .
             "WICHTIG ZUR NAVIGATION: Wenn du das Tool `open_nav_item` einsetzt, wähle IMMER nur eine exakte Route aus dieser Liste: \n" . $navMap . "\n\n" .

@@ -305,7 +305,7 @@ trait AiMapControlFuncs
             ],
             [
                 'name' => 'ui_analyze_camera',
-                'description' => 'Weist das Frontend an, ein sofortiges Foto/Bild von der aktuell aktiven Kamera (Webcam) aufzunehmen und es zur visuellen Analyse an dich (den Agenten) zu schicken. Nutze dieses Werkzeug ZWINGEND und IMMER, wenn der Nutzer dich fragt: "Was siehst du?", "Was halte ich in der Hand?" oder dich bittet, das Kamerabild zu analysieren.',
+                'description' => 'Weist das Frontend an, ein sofortiges Live-Foto von der aktuell aktiven Kamera (Webcam) aufzunehmen. WICHTIGES VERBOT: Rufe dieses Werkzeug NIEMALS auf, wenn der Nutzer bereits ein Foto, einen Screenshot oder eine Datei in der App hinterlegt/hochgeladen hat oder sagt, dass bereits ein Bild hinterlegt ist! Nutze es nur, wenn kein Bild hinterlegt ist und der Nutzer aktiv ein neues Live-Kamerabild wünscht ("Was halte ich in der Hand?", "Mach ein Foto").',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass()

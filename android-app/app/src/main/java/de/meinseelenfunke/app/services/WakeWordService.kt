@@ -23,6 +23,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import de.meinseelenfunke.app.MainActivity
 import de.meinseelenfunke.app.R
@@ -654,20 +655,17 @@ class WakeWordService : Service() {
             manager.createNotificationChannel(channel)
         }
 
-        val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(context, triggerChannelId)
-        } else {
-            Notification.Builder(context)
-        }.apply {
-            setContentTitle("Falcone gerufen")
-            setContentText("Live-Gespräch startet")
-            setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            setPriority(Notification.PRIORITY_MAX)
-            setCategory(Notification.CATEGORY_CALL)
-            setVisibility(Notification.VISIBILITY_PRIVATE)
-            setFullScreenIntent(pendingIntent, true)
-            setAutoCancel(true)
-        }.build()
+        val notification = NotificationCompat.Builder(context, triggerChannelId)
+            .setContentTitle("Falcone gerufen")
+            .setContentText("Live-Gespräch startet")
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setFullScreenIntent(pendingIntent, true)
+            .setAutoCancel(true)
+            .build()
 
         manager.notify(1003, notification)
 
@@ -705,17 +703,14 @@ class WakeWordService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-        } else {
-            Notification.Builder(this)
-        }.apply {
-            setContentTitle("Falcone Assistent")
-            setContentText("Hört auf 'Hey Falcone'")
-            setSmallIcon(android.R.drawable.ic_btn_speak_now)
-            setContentIntent(pendingIntent)
-            setOngoing(true)
-        }.build()
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Falcone Assistent")
+            .setContentText("Hört auf 'Hey Falcone'")
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
+            .setContentIntent(pendingIntent)
+            .setOngoing(true)
+            .build()
     }
 
     private fun createNotificationChannel() {

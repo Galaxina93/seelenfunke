@@ -222,4 +222,28 @@ class MasterAnalyticsSecurityTest extends TestCase
         $this->assertNotNull($secLogThreat);
         $this->assertEquals('SQLi Versuch abgefangen', $secLogThreat['title']);
     }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function test_exploit_scanner_path_automatically_blocks_ip_for_24_hours(): void
+    {
+        $scannerIp = '198.51.100.77';
+        $this->assertFalse(SystemBlockedIp::isBlocked($scannerIp));
+
+        // 1. Scanner ruft typischen Exploit-Pfad (/.env oder /wp-admin) auf -> 403 + 24h Auto-Ban
+        $this->withServerVariables(['REMOTE_ADDR' => $scannerIp])
+            ->get('/.env')
+            ->assertStatus(403);
+
+        $this->assertTrue(SystemBlockedIp::isBlocked($scannerIp));
+        $this->assertDatabaseHas('system_logs', [
+            'type' => 'security',
+            'action_id' => 'security:exploit_path_ban',
+            'status' => 'error',
+        ]);
+
+        // 2. Folge-Aufruf derselben gesperrten Scanner-IP auf den regulären Shop wird direkt am Eingang mit 403 abgewiesen
+        $this->withServerVariables(['REMOTE_ADDR' => $scannerIp])
+            ->get('/shop')
+            ->assertStatus(403);
+    }
 }

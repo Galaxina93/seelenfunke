@@ -14,6 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        $middleware->prepend(\App\Http\Middleware\ExploitShieldMiddleware::class);
+
         $middleware->web(append: [
             \App\Http\Middleware\EnforceShopMaintenanceMode::class,
             \App\Http\Middleware\UserLastActivity::class,

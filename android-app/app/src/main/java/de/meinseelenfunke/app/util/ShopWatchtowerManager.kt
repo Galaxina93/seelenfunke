@@ -14,6 +14,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import de.meinseelenfunke.app.MainActivity
+import de.meinseelenfunke.app.R
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.services.ShopWatchtowerJobService
 import okhttp3.OkHttpClient
@@ -320,7 +321,8 @@ object ShopWatchtowerManager {
         val pendingIntent = PendingIntent.getActivity(context, NOTIFICATION_ID, openIntent, piFlags)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_notify_error)
+            .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+            .setColor(0xFFC5A059.toInt())
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))

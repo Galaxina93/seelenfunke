@@ -25,7 +25,8 @@
             texts_back: $wire.entangle('texts_back'),
             logos_back: $wire.entangle('logos_back'),
             activeSide: $wire.entangle('activeSide'),
-            backgroundTheme: $wire.entangle('backgroundTheme')
+            backgroundTheme: $wire.entangle('backgroundTheme'),
+            configConfirmed: $wire.entangle('config_confirmed')
         },
         fonts: @js($fonts),
         context: '{{$context}}',
@@ -310,6 +311,83 @@
         textarea[data-id]:focus::placeholder {
             opacity: 0 !important;
             color: transparent !important;
+        }
+
+        /* Hauchduenne, edle Seelenfunke-Goldrand-Blickfuehrung (1.35px auf der Rahmenkante, konsistent mit sf-spark-flow) */
+        @keyframes sfMagicThinAuraSpin {
+            from { transform: translate(-50%, -50%) rotate(0deg); }
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        @keyframes sfMagicThinBoxPulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(197, 160, 89, 0); }
+            38% { transform: scale(1.012); box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.24); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(197, 160, 89, 0); }
+        }
+        .sf-magic-thin-aura {
+            position: relative;
+        }
+        .sf-magic-thin-aura-ring {
+            position: absolute;
+            inset: 0;
+            padding: 1.35px;
+            border-radius: inherit;
+            pointer-events: none;
+            z-index: 20;
+            overflow: hidden;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            mask-composite: exclude;
+            transition: opacity 0.28s ease, transform 0.28s ease;
+        }
+        .sf-magic-thin-aura-ring::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: max(240%, 1100px);
+            height: max(240%, 1100px);
+            transform: translate(-50%, -50%) rotate(0deg);
+            background: conic-gradient(
+                from 0deg,
+                transparent 0deg,
+                transparent 24deg,
+                rgba(197, 160, 89, 0.18) 52deg,
+                #C5A059 84deg,
+                #FDE68A 106deg,
+                #FFFBEB 116deg,
+                #C5A059 132deg,
+                rgba(197, 160, 89, 0.14) 160deg,
+                transparent 182deg,
+                transparent 204deg,
+                rgba(197, 160, 89, 0.18) 232deg,
+                #C5A059 264deg,
+                #FDE68A 286deg,
+                #FFFBEB 296deg,
+                #C5A059 312deg,
+                rgba(197, 160, 89, 0.14) 340deg,
+                transparent 360deg
+            );
+            animation: sfMagicThinAuraSpin 4.6s linear infinite;
+            will-change: transform;
+        }
+        .sf-magic-thin-aura-cta .sf-magic-thin-aura-ring {
+            padding: 1.45px;
+        }
+        .sf-magic-thin-aura-cta .sf-magic-thin-aura-ring::before {
+            animation-duration: 3.8s;
+        }
+        .sf-magic-thin-aura-pulse {
+            animation: sfMagicThinBoxPulse 0.62s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .sf-magic-thin-aura-ring::before {
+                animation: none;
+                background: rgba(197, 160, 89, 0.65);
+            }
+            .sf-magic-thin-aura-pulse {
+                animation: none;
+            }
         }
     </style>
 
@@ -662,6 +740,12 @@
                 </div>
             @endif
         </div>
+
+        @error('maintenance')
+            <div class="px-4 sm:px-6 pt-3 shrink-0">
+                <x-alerts.shop-maintenance-notice :message="$message" />
+            </div>
+        @enderror
 
         @include('livewire.shop.product.product-configurator.partials.footer', ['isDark' => $isDark])
     </div>

@@ -164,6 +164,9 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
                 lastErr = e
                 val isAuthOrPerm = e is retrofit2.HttpException && (e.code() == 401 || e.code() == 403)
                 if (isAuthOrPerm) break
+                if (e is java.io.IOException) {
+                    serviceLocator.evictConnectionPool()
+                }
             }
         }
         val finalEx = lastErr ?: Exception("Live-Credentials konnten nicht geladen werden.")

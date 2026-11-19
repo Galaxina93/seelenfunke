@@ -423,13 +423,14 @@ class OrderOverviewTest extends TestCase
             ->assertSeeHtml('aria-label="Bestelldetails schließen"')
             ->assertSee('Zahlung: Bezahlt')
             ->assertSee('In Bearbeitung')
-            // Ebene 2: 4er Segmented-Toolbar + 0ms Alpine Toggles + Indikatoren + Rechnung im Kosten-Modal
+            // Ebene 2: 3er Segmented-Toolbar (Kosten | Kunde | Adresse) + Medien-Dropdown im Cockpit + Indikatoren + Rechnung im Kosten-Modal
             ->assertSeeHtml('aria-label="Bestelldetails Schnellzugriff"')
-            ->assertSeeHtml("openHeaderModalClient('files')")
+            ->assertDontSeeHtml("openHeaderModalClient('files')")
             ->assertSeeHtml("openHeaderModalClient('costs')")
             ->assertSeeHtml("openHeaderModalClient('customer')")
             ->assertSeeHtml("openHeaderModalClient('shipping')")
-            ->assertSee('Dateien')
+            ->assertSeeHtml('data-order-media-dropdown')
+            ->assertSee('Medien')
             ->assertSee('Kosten')
             ->assertSee('Kunde')
             ->assertSee('Adresse')

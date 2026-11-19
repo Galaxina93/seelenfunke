@@ -559,10 +559,9 @@
 
     {{-- Footer --}}
     @include('frontend.footer.footer')
-
-    @include('components.gamification.persistent-bgm-dock')
 @endif
 
+@include('components.layouts.partials.sf-spark-flow')
 @livewireScripts
 </body>
 </html>

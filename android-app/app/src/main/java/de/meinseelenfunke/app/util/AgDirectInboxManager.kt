@@ -142,6 +142,30 @@ object AgDirectInboxManager {
     private val _voiceDirectExecutionFlow = MutableStateFlow(true)
     val voiceDirectExecutionFlow: StateFlow<Boolean> = _voiceDirectExecutionFlow.asStateFlow()
 
+    private val _stagedAttachmentFlow = MutableStateFlow<PreparedAgAttachment?>(null)
+    val stagedAttachmentFlow: StateFlow<PreparedAgAttachment?> = _stagedAttachmentFlow.asStateFlow()
+
+    fun setStagedAttachment(attachment: PreparedAgAttachment?) {
+        _stagedAttachmentFlow.value = attachment
+    }
+
+    fun clearStagedAttachment() {
+        _stagedAttachmentFlow.value = null
+    }
+
+    fun getActiveStagedAttachment(): PreparedAgAttachment? {
+        _stagedAttachmentFlow.value?.let { return it }
+        val photo = FalconCameraController.lastCapturedPhoto.value
+        if (photo != null && !photo.attachedToInbox) {
+            return photo.toPreparedAgAttachment()
+        }
+        return null
+    }
+
+    fun hasActiveStagedAttachment(): Boolean {
+        return getActiveStagedAttachment() != null
+    }
+
     fun isVoiceDirectExecutionEnabled(context: Context): Boolean {
         return try {
             val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -975,5 +999,6 @@ object AgDirectInboxManager {
         _openCountFlow.value = 0
         _isSyncingFlow.value = false
         _voiceDirectExecutionFlow.value = true
+        _stagedAttachmentFlow.value = null
     }
 }

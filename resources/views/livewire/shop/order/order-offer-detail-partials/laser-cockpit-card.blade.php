@@ -7,9 +7,14 @@
 @if($cockpitData)
     @php
         $fmtDim = static function (float $v): string {
-            return abs($v - round($v)) < 0.05
-                ? number_format($v, 0, ',', '.')
-                : number_format($v, 1, ',', '.');
+            if (abs($v - round($v)) < 0.005) {
+                return number_format($v, 0, ',', '.');
+            }
+            if (abs(($v * 10.0) - round($v * 10.0)) < 0.05) {
+                return number_format($v, 1, ',', '.');
+            }
+
+            return number_format($v, 2, ',', '.');
         };
         $wfStep = (int) ($cockpitData['workflow_step'] ?? 1);
         $isCircleContour = (($cockpitData['contour_shape'] ?? 'rect') === 'circle');
@@ -123,6 +128,8 @@
             _activeSliderKey: null,
             startClientX: 0,
             startClientY: 0,
+            lastClientX: 0,
+            lastClientY: 0,
             startXMm: 100,
             startYMm: 100,
             startAngleDeg: 0,
@@ -131,6 +138,14 @@
             defaultWMm: 40,
             defaultHMm: 40,
             startResizeDistPx: 40,
+            lastResizeDistPx: 40,
+            _rawXMm: 100,
+            _rawYMm: 100,
+            _rawAngleDeg: 0,
+            _rawWMm: 40,
+            _rawHMm: 40,
+            shiftHeld: false,
+            _keyPersistTimer: null,
             xMm: 100,
             yMm: 100,
             angleDeg: 0,
@@ -141,6 +156,8 @@
             cockpitPanY: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].panY || 0) : 0,
             _zoomFocusX: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].focusX : null,
             _zoomFocusY: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].focusY : null,
+            bedBgDim: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'] && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].bgDim !== undefined) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].bgDim || 0) : 0,
+            highContrastOverlay: Boolean(window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'] && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].highContrast),
             startPanX: 0,
             startPanY: 0,
             isDraggingMinimap: false,
@@ -212,6 +229,11 @@
                 this.angleDeg = Number(d.angleDeg) || 0;
                 this.wMm = Number(d.wMm) || this.defaultWMm;
                 this.hMm = Number(d.hMm) || this.defaultHMm;
+                this._rawXMm = this.xMm;
+                this._rawYMm = this.yMm;
+                this._rawAngleDeg = this.angleDeg;
+                this._rawWMm = this.wMm;
+                this._rawHMm = this.hMm;
                 this.hasLaserOverrides = Boolean(d.hasLaserOverrides);
                 if (d.laserParams && typeof d.laserParams === 'object') {
                     this.applyParamObjectLocally(d.laserParams);
@@ -324,8 +346,29 @@
                     panX: this.cockpitPanX,
                     panY: this.cockpitPanY,
                     focusX: this._zoomFocusX,
-                    focusY: this._zoomFocusY
+                    focusY: this._zoomFocusY,
+                    bgDim: this.bedBgDim,
+                    highContrast: this.highContrastOverlay
                 };
+            },
+            setBedBgDim(val) {
+                this.bedBgDim = Math.max(0, Math.min(65, Math.round(Number(val) || 0)));
+                this.saveCockpitZoomScope();
+            },
+            toggleHighContrastOverlay() {
+                this.highContrastOverlay = !this.highContrastOverlay;
+                this.saveCockpitZoomScope();
+            },
+            getCameraBgFilterStyle() {
+                const dim = Math.max(0, Math.min(65, Number(this.bedBgDim) || 0));
+                if (dim <= 0) return '';
+                const br = (1 - (dim / 100)).toFixed(3);
+                const ct = (1 + (dim / 220)).toFixed(3);
+                return `filter: brightness(${br}) contrast(${ct});`;
+            },
+            getOverlayContrastStyle() {
+                if (!this.highContrastOverlay) return '';
+                return 'filter: brightness(0.18) sepia(1) hue-rotate(165deg) saturate(5) drop-shadow(0 0 1px #fff); opacity: 0.95;';
             },
             setCockpitZoom(val) {
                 const z = Math.max(1.0, Math.min(4.0, Number(val) || 1.0));
@@ -540,9 +583,13 @@
             fmtMm(v) {
                 const parsed = typeof v === 'string' ? parseFloat(v.replace(',', '.')) : Number(v);
                 const n = Number.isFinite(parsed) ? parsed : 0;
-                return Math.abs(n - Math.round(n)) < 0.05
-                    ? Math.round(n).toString()
-                    : n.toFixed(1).replace('.', ',');
+                if (Math.abs(n - Math.round(n)) < 0.005) {
+                    return Math.round(n).toString();
+                }
+                if (Math.abs((n * 10) - Math.round(n * 10)) < 0.05) {
+                    return n.toFixed(1).replace('.', ',');
+                }
+                return n.toFixed(2).replace('.', ',');
             },
             syncCoordsFromServer(detail) {
                 if (this.dragging) return;
@@ -558,11 +605,11 @@
                     return;
                 }
                 this._lockedCoords = null;
-                if (p.x !== undefined) this.xMm = Number(p.x);
-                if (p.y !== undefined) this.yMm = Number(p.y);
-                if (p.angle !== undefined) this.angleDeg = Number(p.angle);
-                if (p.w !== undefined) this.wMm = Number(p.w);
-                if (p.h !== undefined) this.hMm = Number(p.h);
+                if (p.x !== undefined) { this.xMm = Number(p.x); this._rawXMm = this.xMm; }
+                if (p.y !== undefined) { this.yMm = Number(p.y); this._rawYMm = this.yMm; }
+                if (p.angle !== undefined) { this.angleDeg = Number(p.angle); this._rawAngleDeg = this.angleDeg; }
+                if (p.w !== undefined) { this.wMm = Number(p.w); this._rawWMm = this.wMm; }
+                if (p.h !== undefined) { this.hMm = Number(p.h); this._rawHMm = this.hMm; }
                 if (this.cockpitZoom > 1.01) {
                     this._zoomFocusX = this.frameCenterX;
                     this._zoomFocusY = this.frameCenterY;
@@ -582,6 +629,10 @@
                 return seq;
             },
             persistCoords() {
+                if (this._keyPersistTimer) {
+                    clearTimeout(this._keyPersistTimer);
+                    this._keyPersistTimer = null;
+                }
                 const seq = this.lockCurrentCoords();
                 $wire.updateLaserCoordinates(
                     this.itemId,
@@ -593,21 +644,66 @@
                     seq
                 );
             },
-            nudge(dx, dy, da) {
-                this.xMm = Math.round(Math.max(5, Math.min(195, (Number(this.xMm) || 100) + dx)) * 10) / 10;
-                this.yMm = Math.round(Math.max(5, Math.min(195, (Number(this.yMm) || 100) + dy)) * 10) / 10;
-                this.angleDeg = Math.round(Math.max(-45, Math.min(45, (Number(this.angleDeg) || 0) + da)) * 10) / 10;
+            debouncedPersistCoords(delayMs = 250) {
+                if (this._keyPersistTimer) {
+                    clearTimeout(this._keyPersistTimer);
+                }
+                this._keyPersistTimer = setTimeout(() => {
+                    this._keyPersistTimer = null;
+                    this.persistCoords();
+                }, delayMs);
+            },
+            nudge(dx, dy, da, fineMode = false) {
+                const scale = fineMode ? 0.04 : 1.0;
+                this._rawXMm = Math.max(5, Math.min(195, (Number(this.xMm) || 100) + dx * scale));
+                this._rawYMm = Math.max(5, Math.min(195, (Number(this.yMm) || 100) + dy * scale));
+                this._rawAngleDeg = Math.max(-45, Math.min(45, (Number(this.angleDeg) || 0) + da * scale));
+                this.xMm = Math.round(this._rawXMm * 100) / 100;
+                this.yMm = Math.round(this._rawYMm * 100) / 100;
+                this.angleDeg = Math.round(this._rawAngleDeg * 100) / 100;
                 this.persistCoords();
+            },
+            handleViewportKeydown(e) {
+                const tag = (e.target && e.target.tagName) ? String(e.target.tagName).toUpperCase() : '';
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+                    return;
+                }
+                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+                    return;
+                }
+                e.preventDefault();
+                const fineMode = !!e.shiftKey;
+                this.shiftHeld = fineMode;
+                const step = fineMode ? 0.02 : 0.20;
+                let dx = 0;
+                let dy = 0;
+                if (e.key === 'ArrowLeft') dx = -step;
+                else if (e.key === 'ArrowRight') dx = step;
+                else if (e.key === 'ArrowUp') dy = -step;
+                else if (e.key === 'ArrowDown') dy = step;
+
+                this._rawXMm = Math.max(5, Math.min(195, (Number.isFinite(Number(this._rawXMm)) ? Number(this._rawXMm) : (Number(this.xMm) || 100)) + dx));
+                this._rawYMm = Math.max(5, Math.min(195, (Number.isFinite(Number(this._rawYMm)) ? Number(this._rawYMm) : (Number(this.yMm) || 100)) + dy));
+                this.xMm = Math.round(this._rawXMm * 100) / 100;
+                this.yMm = Math.round(this._rawYMm * 100) / 100;
+                this.lockCurrentCoords();
+                this.debouncedPersistCoords(250);
             },
             startDrag(e, mode = 'move') {
                 if (e.button !== undefined && e.button !== 0) return;
+                if (this.$refs.bedViewport && typeof this.$refs.bedViewport.focus === 'function') {
+                    this.$refs.bedViewport.focus({ preventScroll: true });
+                }
                 this.dragging = true;
                 this.dragMode = mode;
                 this._hasMovedDuringDrag = false;
+                this.shiftHeld = !!e.shiftKey;
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 this.startClientX = clientX;
                 this.startClientY = clientY;
+                this.lastClientX = clientX;
+                this.lastClientY = clientY;
                 this.startPanX = Number(this.cockpitPanX) || 0;
                 this.startPanY = Number(this.cockpitPanY) || 0;
                 this.startXMm = Number(this.xMm) || 100;
@@ -615,6 +711,11 @@
                 this.startAngleDeg = Number(this.angleDeg) || 0;
                 this.startWMm = Math.max(2.5, Number(this.wMm) || this.defaultWMm);
                 this.startHMm = Math.max(2.5, Number(this.hMm) || this.defaultHMm);
+                this._rawXMm = this.startXMm;
+                this._rawYMm = this.startYMm;
+                this._rawAngleDeg = this.startAngleDeg;
+                this._rawWMm = this.startWMm;
+                this._rawHMm = this.startHMm;
                 this._dragStageRect = null;
                 if (this.$refs.bedStage) {
                     const rect = this.$refs.bedStage.getBoundingClientRect();
@@ -629,6 +730,7 @@
                             const centerX = rect.left + (this.startXMm / 200) * rect.width;
                             const centerY = rect.top + (this.startYMm / 200) * rect.height;
                             this.startResizeDistPx = Math.max(4, Math.hypot(clientX - centerX, clientY - centerY));
+                            this.lastResizeDistPx = this.startResizeDistPx;
                         }
                     }
                 }
@@ -641,6 +743,8 @@
                 if (!this.dragging) return;
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const fineMode = !!e.shiftKey;
+                this.shiftHeld = fineMode;
 
                 if (this.dragMode === 'pan') {
                     const z = Math.max(1.01, Number(this.cockpitZoom || 1.01));
@@ -655,6 +759,8 @@
                     this.cockpitPanY = Number(Math.max(-maxPan, Math.min(maxPan, this.startPanY + dPanY)).toFixed(2));
                     this._zoomFocusX = Number((50 - this.cockpitPanX / z).toFixed(2));
                     this._zoomFocusY = Number((50 - this.cockpitPanY / z).toFixed(2));
+                    this.lastClientX = clientX;
+                    this.lastClientY = clientY;
                     this.saveCockpitZoomScope();
                     return;
                 }
@@ -668,27 +774,37 @@
                 }
                 this._hasMovedDuringDrag = true;
 
+                const prevX = this.lastClientX;
+                const prevY = this.lastClientY;
+                const frameDx = clientX - prevX;
+                const frameDy = clientY - prevY;
+                this.lastClientX = clientX;
+                this.lastClientY = clientY;
+                const gear = fineMode ? 0.15 : 1.0;
+
                 if (this.dragMode === 'rotate') {
-                    const centerX = rect.left + ((Number(this.xMm) || 100) / 200) * rect.width;
-                    const centerY = rect.top + ((Number(this.yMm) || 100) / 200) * rect.height;
-                    const a0 = Math.atan2(this.startClientY - centerY, this.startClientX - centerX) * (180 / Math.PI);
+                    const centerX = rect.left + (this._rawXMm / 200) * rect.width;
+                    const centerY = rect.top + (this._rawYMm / 200) * rect.height;
+                    const a0 = Math.atan2(prevY - centerY, prevX - centerX) * (180 / Math.PI);
                     const a1 = Math.atan2(clientY - centerY, clientX - centerX) * (180 / Math.PI);
                     let deltaAngle = a1 - a0;
                     while (deltaAngle > 180) deltaAngle -= 360;
                     while (deltaAngle < -180) deltaAngle += 360;
-                    const nextAngle = Math.max(-45, Math.min(45, this.startAngleDeg + deltaAngle));
-                    this.angleDeg = Math.round(nextAngle * 10) / 10;
+                    this._rawAngleDeg = Math.max(-45, Math.min(45, this._rawAngleDeg + (deltaAngle * gear)));
+                    this.angleDeg = Math.round(this._rawAngleDeg * 100) / 100;
                     this.lockCurrentCoords();
                     return;
                 }
 
                 if (this.dragMode === 'resize') {
-                    const centerX = rect.left + ((Number(this.xMm) || 100) / 200) * rect.width;
-                    const centerY = rect.top + ((Number(this.yMm) || 100) / 200) * rect.height;
+                    const centerX = rect.left + (this._rawXMm / 200) * rect.width;
+                    const centerY = rect.top + (this._rawYMm / 200) * rect.height;
                     const currDistPx = Math.max(4, Math.hypot(clientX - centerX, clientY - centerY));
-                    const ratio = currDistPx / Math.max(4, this.startResizeDistPx);
-                    let nextW = this.startWMm * ratio;
-                    let nextH = this.startHMm * ratio;
+                    const rawRatio = currDistPx / Math.max(4, this.lastResizeDistPx);
+                    const dampedRatio = 1 + ((rawRatio - 1) * gear);
+                    this.lastResizeDistPx = currDistPx;
+                    let nextW = this._rawWMm * dampedRatio;
+                    let nextH = this._rawHMm * dampedRatio;
                     const major = Math.max(nextW, nextH);
                     if (major < 10) {
                         const f = 10 / Math.max(0.01, major);
@@ -699,18 +815,20 @@
                         nextW *= f;
                         nextH *= f;
                     }
-                    this.wMm = Math.round(Math.max(2.5, Math.min(195, nextW)) * 10) / 10;
-                    this.hMm = Math.round(Math.max(2.5, Math.min(195, nextH)) * 10) / 10;
+                    this._rawWMm = Math.max(2.5, Math.min(195, nextW));
+                    this._rawHMm = Math.max(2.5, Math.min(195, nextH));
+                    this.wMm = Math.round(this._rawWMm * 100) / 100;
+                    this.hMm = Math.round(this._rawHMm * 100) / 100;
                     this.lockCurrentCoords();
                     return;
                 }
 
-                const dxMm = ((clientX - this.startClientX) / rect.width) * 200;
-                const dyMm = ((clientY - this.startClientY) / rect.height) * 200;
-                const nextX = Math.max(5, Math.min(195, this.startXMm + dxMm));
-                const nextY = Math.max(5, Math.min(195, this.startYMm + dyMm));
-                this.xMm = Math.round(nextX * 10) / 10;
-                this.yMm = Math.round(nextY * 10) / 10;
+                const stepDxMm = (frameDx / rect.width) * 200 * gear;
+                const stepDyMm = (frameDy / rect.height) * 200 * gear;
+                this._rawXMm = Math.max(5, Math.min(195, this._rawXMm + stepDxMm));
+                this._rawYMm = Math.max(5, Math.min(195, this._rawYMm + stepDyMm));
+                this.xMm = Math.round(this._rawXMm * 100) / 100;
+                this.yMm = Math.round(this._rawYMm * 100) / 100;
                 this.lockCurrentCoords();
             },
             stopDrag() {
@@ -731,6 +849,9 @@
          }"
          @laser-cockpit-sync.window="syncCoordsFromServer($event.detail)"
          @laser-params-sync.window="syncLaserParamsFromServer($event.detail)"
+         @keydown.window="if ($event.key === 'Shift') shiftHeld = true"
+         @keyup.window="if ($event.key === 'Shift') shiftHeld = false"
+         @blur.window="shiftHeld = false"
          wire:key="laser-cockpit-{{ $previewItem->id }}-{{ $cockpitData['side'] }}"
          class="bg-white dark:bg-gray-900/90 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 shrink-0 relative">
 
@@ -885,26 +1006,6 @@
                             </span>
                         </span>
                     </button>
-                    <button type="button"
-                            @click.stop
-                            @mousedown.stop
-                            @touchstart.stop
-                            wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
-                            wire:loading.attr="disabled"
-                            wire:target="downloadLaserXcsFile"
-                            title="Manuelles xTool Studio Backup-Projekt (.xcs) herunterladen"
-                            class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait">
-                        <span wire:loading.remove wire:target="downloadLaserXcsFile">.xcs Backup</span>
-                        <span wire:loading wire:target="downloadLaserXcsFile">
-                            <span class="inline-flex items-center gap-1.5">
-                                <svg class="w-3 h-3 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
-                                    <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
-                                </svg>
-                                <span>.xcs Backup</span>
-                            </span>
-                        </span>
-                    </button>
                     <span class="text-[9px] font-mono font-bold text-gray-500 dark:text-gray-400">
                         {{ $cockpitData['camera_updated_at'] }}
                     </span>
@@ -913,54 +1014,89 @@
         </div>
 
         <div class="p-4 sm:p-6 space-y-3 sm:space-y-4">
-            {{-- Schlanke Zoom-Steuerleiste (100 % bis 400 %) analog Produktkonfigurator --}}
+            {{-- Schlanke Zoom-Steuerleiste (100 % bis 400 %) + 0 ms Anti-Blend-Sichtbarkeitshilfe --}}
             <div data-cockpit-zoom-bar
                  @mousedown.stop
                  @touchstart.stop
-                 class="flex items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-xl border w-full max-w-[460px] mx-auto bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
-                <button type="button"
-                        data-cockpit-zoom-out
-                        @click.stop="stepCockpitZoom(-0.25)"
-                        :disabled="cockpitZoom <= 1.01"
-                        :class="cockpitZoom > 1.01 ? 'hover:bg-[var(--theme-color-15)] active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
-                        class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
-                        title="Herauszoomen">
-                    <x-heroicon-m-magnifying-glass-minus class="w-4 h-4 text-[var(--theme-color)]" />
-                </button>
-                <input type="range"
-                       data-cockpit-zoom-slider
-                       min="1"
-                       max="4"
-                       step="0.05"
-                       :value="cockpitZoom"
-                       @mousedown.stop
-                       @touchstart.stop
-                       @input.stop="setCockpitZoom($event.target.value)"
-                       :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(cockpitZoom) || 1) - 1) / 3) * 100)).toFixed(2)}%;`"
-                       class="sf-laser-range flex-1 min-w-0"
-                       title="Kamerabett zoomen (100 % bis 400 %)">
-                <button type="button"
-                        data-cockpit-zoom-in
-                        @click.stop="stepCockpitZoom(0.25)"
-                        :disabled="cockpitZoom >= 3.99"
-                        :class="cockpitZoom < 3.99 ? 'hover:bg-[var(--theme-color-15)] active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
-                        class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
-                        title="Heranzoomen">
-                    <x-heroicon-m-magnifying-glass-plus class="w-4 h-4 text-[var(--theme-color)]" />
-                </button>
-                <button type="button"
-                        data-cockpit-zoom-reset
-                        @click.stop="resetCockpitZoom()"
-                        :class="cockpitZoom > 1.01 ? 'text-[var(--theme-color)] hover:underline cursor-pointer' : 'text-gray-400 dark:text-gray-500 cursor-default'"
-                        class="min-w-[38px] text-right font-mono text-[10px] font-black tracking-tight transition-colors select-none shrink-0"
-                        title="Zoom auf 100 % zurücksetzen">
-                    <span x-text="Math.round(cockpitZoom * 100) + '%'">100%</span>
-                </button>
+                 class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-xl border w-full max-w-[460px] mx-auto bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
+                <div class="flex items-center gap-1.5 flex-1 min-w-[160px]">
+                    <button type="button"
+                            data-cockpit-zoom-out
+                            @click.stop="stepCockpitZoom(-0.25)"
+                            :disabled="cockpitZoom <= 1.01"
+                            :class="cockpitZoom > 1.01 ? 'hover:bg-[var(--theme-color-15)] active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                            class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
+                            title="Herauszoomen">
+                        <x-heroicon-m-magnifying-glass-minus class="w-4 h-4 text-[var(--theme-color)]" />
+                    </button>
+                    <input type="range"
+                           data-cockpit-zoom-slider
+                           min="1"
+                           max="4"
+                           step="0.05"
+                           :value="cockpitZoom"
+                           @mousedown.stop
+                           @touchstart.stop
+                           @input.stop="setCockpitZoom($event.target.value)"
+                           :style="`--val-pct: ${Math.max(0, Math.min(100, (((Number(cockpitZoom) || 1) - 1) / 3) * 100)).toFixed(2)}%;`"
+                           class="sf-laser-range flex-1 min-w-0"
+                           title="Kamerabett zoomen (100 % bis 400 %)">
+                    <button type="button"
+                            data-cockpit-zoom-in
+                            @click.stop="stepCockpitZoom(0.25)"
+                            :disabled="cockpitZoom >= 3.99"
+                            :class="cockpitZoom < 3.99 ? 'hover:bg-[var(--theme-color-15)] active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                            class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
+                            title="Heranzoomen">
+                        <x-heroicon-m-magnifying-glass-plus class="w-4 h-4 text-[var(--theme-color)]" />
+                    </button>
+                    <button type="button"
+                            data-cockpit-zoom-reset
+                            @click.stop="resetCockpitZoom()"
+                            :class="cockpitZoom > 1.01 ? 'text-[var(--theme-color)] hover:underline cursor-pointer' : 'text-gray-400 dark:text-gray-500 cursor-default'"
+                            class="min-w-[36px] text-right font-mono text-[10px] font-black tracking-tight transition-colors select-none shrink-0"
+                            title="Zoom auf 100 % zurücksetzen">
+                        <span x-text="Math.round(cockpitZoom * 100) + '%'">100%</span>
+                    </button>
+                </div>
+
+                <div class="hidden sm:block h-4 w-px bg-gray-200 dark:bg-gray-800 shrink-0"></div>
+
+                {{-- 0 ms Sichtbarkeits-Hilfe gegen Metall-Blendung: Abdunkeln (0-65 %) & Motiv-Kontrast --}}
+                <div class="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto shrink-0">
+                    <label data-cockpit-bg-dimmer
+                           title="Kamerabild abdunkeln gegen Metall-Spiegelungen (0 % bis 65 %)"
+                           class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[9px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+                        <span>Abdunkeln</span>
+                        <input type="range"
+                               min="0"
+                               max="65"
+                               step="5"
+                               :value="bedBgDim"
+                               @mousedown.stop
+                               @touchstart.stop
+                               @input.stop="setBedBgDim($event.target.value)"
+                               class="w-12 h-1.5 accent-[var(--theme-color)] cursor-pointer">
+                    </label>
+
+                    <button type="button"
+                            data-cockpit-overlay-contrast
+                            @click.stop="toggleHighContrastOverlay()"
+                            :class="highContrastOverlay
+                                ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]'
+                                : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]'"
+                            title="Hochkontrast-Blueprint für helle Gravurschrift auf glänzendem Metall"
+                            class="px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
+                        Motiv-Kontrast
+                    </button>
+                </div>
             </div>
 
-            {{-- 200x200 mm Live-Kamera-Arbeitsfläche (Zoom 100 %-400 %, Pan, Minimap, Smooth Drag & Drop + Rotation) --}}
+            {{-- 200x200 mm Live-Kamera-Arbeitsfläche (Zoom 100 %-400 %, Pan, Minimap, Shift 0,01 mm Fein-Getriebe) --}}
             <div x-ref="bedViewport"
+                 tabindex="0"
                  data-cockpit-bed-viewport
+                 @keydown="handleViewportKeydown($event)"
                  @wheel="handleCockpitWheel($event)"
                  @mousedown="startDrag($event, cockpitZoom > 1.01 ? 'pan' : 'move')"
                  @mousemove.window="moveDrag($event)"
@@ -969,7 +1105,7 @@
                  @touchmove.window.passive="moveDrag($event)"
                  @touchend.window="stopDrag()"
                  :class="[dragging || isDraggingMinimap ? 'cursor-grabbing ring-2 ring-cyan-400/60' : 'cursor-grab', cockpitZoom > 1.01 ? 'touch-none' : '']"
-                 class="relative w-full max-w-[460px] mx-auto aspect-square rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-700 bg-gray-950 select-none shadow-inner transition-shadow">
+                 class="relative w-full max-w-[460px] mx-auto aspect-square rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-700 bg-gray-950 select-none shadow-inner transition-shadow focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-50)]">
 
                 {{-- Gezoomter & gepannter 200x200 mm Kamera-Stage-Layer --}}
                 <div x-ref="bedStage"
@@ -980,6 +1116,7 @@
                     <img src="{{ $cockpitData['camera_url'] }}"
                          wire:key="laser-cam-img-{{ $previewItem->id }}-{{ $cockpitData['refresh_token'] ?? 0 }}"
                          alt="xTool F2 Ultra UV Kamera 200x200 mm"
+                         :style="getCameraBgFilterStyle()"
                          class="w-full h-full object-cover pointer-events-none"
                          draggable="false">
 
@@ -987,7 +1124,7 @@
                     <div class="absolute inset-0 pointer-events-none opacity-20"
                          style="background-image: linear-gradient(to right, rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.22) 1px, transparent 1px); background-size: 10% 10%;"></div>
 
-                    {{-- Bündige 1:1 Gravurflächen-Kontur (#00bcd4) + WYSIWYG-Motiv + Drehgriff + 4 Resize-Handles --}}
+                    {{-- Doppel-Kontrast-Rahmen (haarfeine dunkle Kontur + #00d8ff Cyan) + WYSIWYG-Motiv + Drehgriff + 4 Resize-Handles --}}
                     <div data-cockpit-blue-frame
                          @mousedown.stop.prevent="startDrag($event, 'move')"
                          @touchstart.stop.passive="startDrag($event, 'move')"
@@ -999,30 +1136,36 @@
                              preserveAspectRatio="none"
                              class="w-full h-full overflow-visible pointer-events-none">
                             <path d="{{ $cockpitData['ghost_d_path'] }}"
-                                  fill="rgba(0, 188, 212, 0.06)"
-                                  stroke="#00bcd4"
-                                  stroke-width="1.8"
-                                  stroke-dasharray="5,3.5"
+                                  fill="none"
+                                  stroke="rgba(15, 23, 42, 0.70)"
+                                  stroke-width="1.45"
+                                  vector-effect="non-scaling-stroke" />
+                            <path d="{{ $cockpitData['ghost_d_path'] }}"
+                                  fill="none"
+                                  stroke="#00d8ff"
+                                  stroke-width="0.85"
+                                  stroke-dasharray="3.5,2.5"
                                   vector-effect="non-scaling-stroke" />
                         </svg>
                         <img src="{{ $cockpitData['preview_data_url'] }}"
                              alt="Gravur-Overlay"
+                             :style="getOverlayContrastStyle()"
                              class="absolute inset-0 w-full h-full object-fill pointer-events-none {{ $isDarkSurfaceOverlay ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]' : 'drop-shadow-[0_0_1.5px_rgba(255,255,255,0.55)]' }}"
                              draggable="false">
 
-                        {{-- Dreh-Griff (oben mittig an der Kontur, per scale(1 / cockpitZoom) kompakt gehalten) --}}
+                        {{-- Dreh-Griff (leicht über die Kerbe abgesetzt, per scale(1 / cockpitZoom) kompakt gehalten) --}}
                         <button type="button"
                                 data-rotate-handle
                                 @mousedown.stop.prevent="startDrag($event, 'rotate')"
                                 @touchstart.stop.passive="startDrag($event, 'rotate')"
                                 title="Gedrückt halten zum Drehen"
-                                style="left: 50%; top: 0%; transform: translate(-50%, -60%) scale(1);"
-                                :style="`left: 50%; top: 0%; transform: translate(-50%, -60%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-5 h-5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-gray-950 border border-gray-950 shadow-md flex items-center justify-center text-[10px] font-black cursor-grab active:cursor-grabbing">
+                                style="left: 50%; top: 0%; transform: translate(-50%, -85%) scale(1);"
+                                :style="`left: 50%; top: 0%; transform: translate(-50%, -85%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-gray-950 border-[0.75px] border-gray-950 shadow-sm flex items-center justify-center text-[8px] leading-none font-black cursor-grab active:cursor-grabbing after:content-[''] after:absolute after:-inset-2">
                             &#8635;
                         </button>
 
-                        {{-- 4 Proportionale Resize-Handles (NW, NE, SE, SW) direkt auf der blauen Kontur --}}
+                        {{-- 4 Proportionale Resize-Handles (NW, NE, SE, SW) dezent auf der blauen Kontur --}}
                         <button type="button"
                                 data-resize-handle="nw"
                                 @mousedown.stop.prevent="startDrag($event, 'resize')"
@@ -1030,7 +1173,7 @@
                                 title="Größe ändern"
                                 style="left: {{ $hPosMin }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(1);"
                                 :style="`left: {{ $hPosMin }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nwse-resize"></button>
+                                class="pointer-events-auto touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nwse-resize after:content-[''] after:absolute after:-inset-2"></button>
                         <button type="button"
                                 data-resize-handle="ne"
                                 @mousedown.stop.prevent="startDrag($event, 'resize')"
@@ -1038,7 +1181,7 @@
                                 title="Größe ändern"
                                 style="left: {{ $hPosMax }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(1);"
                                 :style="`left: {{ $hPosMax }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nesw-resize"></button>
+                                class="pointer-events-auto touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nesw-resize after:content-[''] after:absolute after:-inset-2"></button>
                         <button type="button"
                                 data-resize-handle="se"
                                 @mousedown.stop.prevent="startDrag($event, 'resize')"
@@ -1046,7 +1189,7 @@
                                 title="Größe ändern"
                                 style="left: {{ $hPosMax }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(1);"
                                 :style="`left: {{ $hPosMax }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nwse-resize"></button>
+                                class="pointer-events-auto touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nwse-resize after:content-[''] after:absolute after:-inset-2"></button>
                         <button type="button"
                                 data-resize-handle="sw"
                                 @mousedown.stop.prevent="startDrag($event, 'resize')"
@@ -1054,12 +1197,12 @@
                                 title="Größe ändern"
                                 style="left: {{ $hPosMin }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(1);"
                                 :style="`left: {{ $hPosMin }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 border border-gray-950 shadow-md cursor-nesw-resize"></button>
+                                class="pointer-events-auto touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nesw-resize after:content-[''] after:absolute after:-inset-2"></button>
 
                         {{-- Mittelpunkt-Fadenkreuz --}}
                         <div style="left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1);"
                              :style="`left: 50%; top: 50%; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                             class="pointer-events-none absolute w-2.5 h-2.5 rounded-full bg-cyan-400 border border-gray-950 shadow-sm"></div>
+                             class="pointer-events-none absolute w-1.5 h-1.5 rounded-full bg-cyan-400 border-[0.75px] border-gray-950 shadow-sm"></div>
                     </div>
                 </div>
 
@@ -1092,16 +1235,27 @@
                     </div>
                 </div>
 
-                <div x-cloak
-                     x-show="showLaserDetails"
-                     style="display: none;"
-                     :class="cockpitZoom > 1.01 ? 'pr-24 sm:pr-28' : ''"
+                {{-- HUD oben links: Shift-Feinmodus Badge (immer bei Shift) + 0,01 mm Koordinaten (bei Details) --}}
+                <div :class="cockpitZoom > 1.01 ? 'pr-24 sm:pr-28' : ''"
                      class="absolute top-2.5 left-2.5 right-2.5 z-20 pointer-events-none flex flex-wrap items-center justify-between gap-1.5">
                     <div class="flex flex-wrap items-center gap-1.5">
-                        <span class="px-2.5 py-1 rounded-lg bg-gray-950/85 border border-gray-700 text-white font-mono text-[10px] font-black">
-                            X: <span x-text="(Number(xMm) || 0).toFixed(1)"></span> mm · Y: <span x-text="(Number(yMm) || 0).toFixed(1)"></span> mm · <span x-text="(Number(angleDeg) || 0).toFixed(1)"></span>°
+                        <span x-cloak
+                              x-show="shiftHeld"
+                              style="display: none;"
+                              data-cockpit-shift-badge
+                              class="px-2.5 py-1 rounded-lg bg-[var(--theme-color)] text-gray-950 font-mono text-[10px] font-black uppercase tracking-wider shadow-md">
+                            SHIFT · FEIN-MODUS (0,01 MM)
                         </span>
-                        <span class="px-2 py-1 rounded-lg bg-cyan-950/85 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold"
+                        <span x-cloak
+                              x-show="showLaserDetails"
+                              style="display: none;"
+                              class="px-2.5 py-1 rounded-lg bg-gray-950/85 border border-gray-700 text-white font-mono text-[10px] font-black">
+                            X: <span x-text="(Number(xMm) || 0).toFixed(2)"></span> mm · Y: <span x-text="(Number(yMm) || 0).toFixed(2)"></span> mm · <span x-text="(Number(angleDeg) || 0).toFixed(2)"></span>°
+                        </span>
+                        <span x-cloak
+                              x-show="showLaserDetails"
+                              style="display: none;"
+                              class="px-2 py-1 rounded-lg bg-cyan-950/85 border border-cyan-500/40 text-cyan-300 font-mono text-[10px] font-bold"
                               x-text="fmtMm(wMm) + ' × ' + fmtMm(hMm) + ' mm'">
                             {{ $fmtDim((float) $cockpitData['width_mm']) }} × {{ $fmtDim((float) $cockpitData['height_mm']) }} mm
                         </span>
@@ -1149,7 +1303,7 @@
                 </div>
             </div>
 
-            {{-- Manuelle Koordinaten & Feinjustierung (Standardmäßig ausgeblendet -> 0 ms via "Details anzeigen") --}}
+            {{-- Manuelle Koordinaten & Feinjustierung (0,01 mm Präzision) --}}
             <div x-cloak
                  x-show="showLaserDetails"
                  style="display: none;"
@@ -1157,7 +1311,7 @@
                 <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
                     <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">X (mm)</span>
                     <input type="number"
-                           step="0.1"
+                           step="0.01"
                            min="5"
                            max="195"
                            x-model.number="xMm"
@@ -1167,7 +1321,7 @@
                 <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
                     <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">Y (mm)</span>
                     <input type="number"
-                           step="0.1"
+                           step="0.01"
                            min="5"
                            max="195"
                            x-model.number="yMm"
@@ -1177,7 +1331,7 @@
                 <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
                     <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">Winkel</span>
                     <input type="number"
-                           step="0.1"
+                           step="0.01"
                            min="-45"
                            max="45"
                            x-model.number="angleDeg"
@@ -1185,12 +1339,12 @@
                            class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
                 </div>
                 <div class="flex items-center justify-center gap-1">
-                    <button type="button" @click="nudge(-0.5, 0, 0)" title="0,5 mm nach links" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&larr;</button>
-                    <button type="button" @click="nudge(0, -0.5, 0)" title="0,5 mm nach oben" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&uarr;</button>
-                    <button type="button" @click="nudge(0, 0.5, 0)" title="0,5 mm nach unten" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&darr;</button>
-                    <button type="button" @click="nudge(0.5, 0, 0)" title="0,5 mm nach rechts" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&rarr;</button>
-                    <button type="button" @click="nudge(0, 0, -0.5)" title="-0,5° drehen" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&#8634;</button>
-                    <button type="button" @click="nudge(0, 0, 0.5)" title="+0,5° drehen" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&#8635;</button>
+                    <button type="button" @click="nudge(-0.5, 0, 0, $event.shiftKey)" title="Nach links (Shift = 0,02 mm)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&larr;</button>
+                    <button type="button" @click="nudge(0, -0.5, 0, $event.shiftKey)" title="Nach oben (Shift = 0,02 mm)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&uarr;</button>
+                    <button type="button" @click="nudge(0, 0.5, 0, $event.shiftKey)" title="Nach unten (Shift = 0,02 mm)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&darr;</button>
+                    <button type="button" @click="nudge(0.5, 0, 0, $event.shiftKey)" title="Nach rechts (Shift = 0,02 mm)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&rarr;</button>
+                    <button type="button" @click="nudge(0, 0, -0.5, $event.shiftKey)" title="Gegen Uhrzeigersinn drehen (Shift = 0,02°)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&#8634;</button>
+                    <button type="button" @click="nudge(0, 0, 0.5, $event.shiftKey)" title="Im Uhrzeigersinn drehen (Shift = 0,02°)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&#8635;</button>
                 </div>
             </div>
 
@@ -1222,26 +1376,6 @@
                     </div>
 
                     <div class="flex items-center gap-1.5 ml-auto shrink-0" @click.stop>
-                        <button type="button"
-                                @click.stop
-                                @mousedown.stop
-                                @touchstart.stop
-                                wire:click.prevent="downloadLaserXcsFile('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
-                                wire:loading.attr="disabled"
-                                wire:target="downloadLaserXcsFile"
-                                title="xTool Studio Projekt (.xcs) mit aktuellen Parametern herunterladen"
-                                class="sf-laser-action-btn inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait">
-                            <span wire:loading.remove wire:target="downloadLaserXcsFile">.xcs Backup</span>
-                            <span wire:loading wire:target="downloadLaserXcsFile">
-                                <span class="inline-flex items-center gap-1.5">
-                                    <svg class="w-3 h-3 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
-                                        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
-                                    </svg>
-                                    <span>.xcs Backup</span>
-                                </span>
-                            </span>
-                        </button>
                         <button type="button"
                                 @click="toggleLaserParams()"
                                 :class="showLaserParams ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]'"
@@ -1630,6 +1764,53 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            {{-- Aufklappbares Medien-Dropdown direkt unter Laserparameter anpassen --}}
+            @include('livewire.shop.order.order-overview-partials.media-dropdown-card', [
+                'targetItem' => $previewItem,
+                'exportSide' => $cockpitData['side'],
+                'inCockpit' => true,
+                'showItemSwitcher' => false,
+            ])
+
+            {{-- Blendfreie Kameraaufnahme: kompakter 3-Wege-Umschalter direkt beim Kamera-Button --}}
+            @php
+                $activeCamLight = $cockpitData['camera_light_mode'] ?? ($this->laserCameraLightMode ?? 'anti_glare');
+            @endphp
+            <div data-cockpit-light-mode
+                 class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                <span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-gray-400">
+                    <svg class="w-3.5 h-3.5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span>Kamera-Licht</span>
+                </span>
+
+                <div class="grid grid-cols-3 sm:inline-flex items-center gap-1 p-0.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 w-full sm:w-auto">
+                    <button type="button"
+                            wire:click="setLaserCameraLightMode('anti_glare', '{{ $previewItem->id }}')"
+                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $activeCamLight === 'anti_glare'
+                                ? 'bg-[var(--theme-color)] text-gray-950 shadow-2xs'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                        Blendfrei (LED aus)
+                    </button>
+                    <button type="button"
+                            wire:click="setLaserCameraLightMode('dim', '{{ $previewItem->id }}')"
+                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $activeCamLight === 'dim'
+                                ? 'bg-[var(--theme-color)] text-gray-950 shadow-2xs'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                        Gedimmt
+                    </button>
+                    <button type="button"
+                            wire:click="setLaserCameraLightMode('normal', '{{ $previewItem->id }}')"
+                            class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $activeCamLight === 'normal'
+                                ? 'bg-[var(--theme-color)] text-gray-950 shadow-2xs'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                        Licht an
+                    </button>
                 </div>
             </div>
 

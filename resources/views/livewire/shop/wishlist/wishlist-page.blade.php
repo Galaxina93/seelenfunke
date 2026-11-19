@@ -224,11 +224,13 @@
 
                             {{-- Herz-Button unten links --}}
                             <button type="button"
-                                    x-data="{ wishlisted: @js($isWishlisted) }"
-                                    @click.prevent="wishlisted = !wishlisted; if (window.sfTriggerWishlistHeartEffect) window.sfTriggerWishlistHeartEffect($event, wishlisted); $wire.toggleWishlist('{{ $product->id }}')"
+                                    x-data="window.sfWishlistButtonData('{{ $product->id }}', @js((bool) $isWishlisted))"
+                                    @sf-wishlist-sync.window="syncFromStore($event.detail)"
+                                    @wishlist-optimistic-delta.window="syncOptimistic($event.detail)"
+                                    @click.prevent="toggle($event)"
                                     :class="wishlisted ? 'bg-red-500 text-white scale-105 shadow-[0_0_15px_rgba(239,68,68,0.45)]' : 'bg-white/90 text-gray-500 hover:text-red-500 hover:bg-white'"
                                     class="absolute bottom-3 left-3 z-30 w-9 h-9 rounded-full backdrop-blur-md shadow-md flex items-center justify-center transition-all duration-200 cursor-pointer"
-                                    title="{{ $isWishlisted ? 'Von Wunschliste entfernen' : 'Auf die Wunschliste' }}"
+                                    :title="wishlisted ? 'Von Wunschliste entfernen' : 'Auf die Wunschliste'"
                                     aria-label="Wunschliste">
                                 <svg class="w-4 h-4 transition-transform duration-200" :class="wishlisted ? 'fill-current scale-110' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
@@ -265,7 +267,7 @@
                                                    muted loop playsinline preload="metadata"></video>
                                         @else
                                             <img src="{{ $resolvedHoverMediaUrl }}"
-                                                 alt="{{ $product->name }} – Ansicht 2"
+                                                 alt="{{ $product->name }} · Ansicht 2"
                                                  loading="lazy"
                                                  decoding="async"
                                                  @if($isAiHoverImage) data-is-ai-generated="true" @endif

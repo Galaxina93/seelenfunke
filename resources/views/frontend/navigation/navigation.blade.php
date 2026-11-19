@@ -56,9 +56,11 @@
                         </a>
 
                         {{-- Button Angebot --}}
-                        <a href="{{ route('calculator') }}" class="px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-gray-900 rounded transition-all duration-300 font-semibold shadow-md hover:shadow-primary/30 whitespace-nowrap">
-                            Angebot kalkulieren
-                        </a>
+                        @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
+                            <a href="{{ route('calculator') }}" class="px-4 py-2 border border-primary text-primary hover:bg-primary hover:text-gray-900 rounded transition-all duration-300 font-semibold shadow-md hover:shadow-primary/30 whitespace-nowrap">
+                                Angebot kalkulieren
+                            </a>
+                        @endif
 
                         {{-- NEU: Login Dropdown (Ersetzt das alte Icon) --}}
                         <livewire:auth.auth-login-dropdown />
@@ -145,11 +147,13 @@
                     </span>
                 </a>
 
-                <div class="pt-2">
-                    <a href="{{ route('calculator') }}" class="block px-4 py-3 text-center bg-primary text-gray-900 font-bold rounded-xl shadow-sm hover:bg-primary-light transition-all">
-                        Angebot kalkulieren
-                    </a>
-                </div>
+                @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
+                    <div class="pt-2">
+                        <a href="{{ route('calculator') }}" class="block px-4 py-3 text-center bg-primary text-gray-900 font-bold rounded-xl shadow-sm hover:bg-primary-light transition-all">
+                            Angebot kalkulieren
+                        </a>
+                    </div>
+                @endif
 
                 <div class="mt-4 border-t border-white/10 pt-3 pb-1">
                     <livewire:auth.auth-login-dropdown :isMobile="true" />

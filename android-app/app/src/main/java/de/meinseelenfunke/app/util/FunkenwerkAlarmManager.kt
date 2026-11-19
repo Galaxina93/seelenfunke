@@ -1333,7 +1333,8 @@ object FunkenwerkAlarmManager {
             )
 
             val notification = NotificationCompat.Builder(appCtx, STATUS_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+                .setColor(0xFFC5A059.toInt())
                 .setContentTitle(title)
                 .setContentText(badges)
                 .setWhen(nextTriggerMs)
@@ -1428,7 +1429,8 @@ object FunkenwerkAlarmManager {
 
             val endMs = _timerEndMillisMap[primary.id]
             val builder = NotificationCompat.Builder(appCtx, STATUS_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+                .setColor(0xFFC5A059.toInt())
                 .setContentTitle(title)
                 .setContentText(subtitle)
                 .setProgress(primary.durationSeconds, (primary.durationSeconds - remSec).coerceAtLeast(0), false)
@@ -1504,7 +1506,8 @@ object FunkenwerkAlarmManager {
             )
 
             val notification = NotificationCompat.Builder(appCtx, SmartAlarmReceiver.CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                .setSmallIcon(R.drawable.ic_stat_funkenwerk)
+                .setColor(0xFFC5A059.toInt())
                 .setContentTitle("⏳ ${preset.label} ist abgelaufen!")
                 .setContentText("Tippe auf Ton Stopp oder wische den Hinweis weg, um den Alarm zu beenden.")
                 .setPriority(NotificationCompat.PRIORITY_MAX)

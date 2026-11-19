@@ -18,12 +18,20 @@ class SeoController extends Controller
      */
     public function sitemap(): Response
     {
+        $quoteCalculatorEnabled = \App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled();
+
         $staticUrls = [
             ['loc' => route('home'), 'changefreq' => 'daily', 'priority' => '1.0'],
             ['loc' => route('shop'), 'changefreq' => 'daily', 'priority' => '0.95'],
             ['loc' => route('manufacture'), 'changefreq' => 'monthly', 'priority' => '0.85'],
             ['loc' => route('marketing/marketing/blog'), 'changefreq' => 'weekly', 'priority' => '0.85'],
-            ['loc' => route('calculator'), 'changefreq' => 'weekly', 'priority' => '0.80'],
+        ];
+
+        if ($quoteCalculatorEnabled) {
+            $staticUrls[] = ['loc' => route('calculator'), 'changefreq' => 'weekly', 'priority' => '0.80'];
+        }
+
+        $staticUrls = array_merge($staticUrls, [
             ['loc' => route('contact'), 'changefreq' => 'monthly', 'priority' => '0.75'],
             ['loc' => route('versand'), 'changefreq' => 'monthly', 'priority' => '0.65'],
             ['loc' => route('newsletter.page'), 'changefreq' => 'monthly', 'priority' => '0.60'],
@@ -33,7 +41,7 @@ class SeoController extends Controller
             ['loc' => route('datenschutz'), 'changefreq' => 'yearly', 'priority' => '0.30'],
             ['loc' => route('agb'), 'changefreq' => 'yearly', 'priority' => '0.30'],
             ['loc' => route('widerruf'), 'changefreq' => 'yearly', 'priority' => '0.30'],
-        ];
+        ]);
 
         $occasionSlugs = ['weihnachten', 'ostern', 'hochzeit', 'geburtstag', 'valentinstag', 'muttertag', 'vatertag', 'halloween'];
         foreach ($occasionSlugs as $occ) {
@@ -105,7 +113,7 @@ class SeoController extends Controller
                     $videoEntries[$vUrl] = [
                         'content_loc' => $vUrl,
                         'thumbnail_loc' => $mainImgUrl ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'),
-                        'title' => ($media['alt'] ?? ($product->name . ' – Produktvideo & Lasergravur')),
+                        'title' => ($media['alt'] ?? ($product->name . ' | Produktvideo & Lasergravur')),
                         'description' => Str::limit(strip_tags((string) ($product->short_description ?: $product->description)), 200),
                     ];
                 } else {
@@ -210,9 +218,9 @@ class SeoController extends Controller
             : collect();
 
         $lines = [];
-        $lines[] = "# {$companyName} – Manufaktur für personalisierte Geschenke & Lasergravur";
+        $lines[] = "# {$companyName} | Manufaktur für personalisierte Geschenke & Lasergravur";
         $lines[] = '';
-        $lines[] = "> {$companyName} ist eine deutsche Manufaktur mit Sitz in {$zip} {$city} (Niedersachsen, Deutschland), gegründet und geführt von {$founderName}. Wir veredeln hochwertiges K9-Kristallglas (Trophäen, Glasfotos, Pokale), Naturschiefer, eloxiertes Edelmetall und Massivholz mittels hochpräziser Lasergravur zu persönlichen Unikaten – einzeln ab 1 Stück oder als B2B-Serienfertigung. Kunden gestalten ihr Produkt live im interaktiven 2D- & 3D-Online-Konfigurator direkt im Browser.";
+        $lines[] = "> {$companyName} ist eine deutsche Manufaktur mit Sitz in {$zip} {$city} (Niedersachsen, Deutschland), gegründet und geführt von {$founderName}. Wir veredeln hochwertiges K9-Kristallglas (Trophäen, Glasfotos, Pokale), Naturschiefer, eloxiertes Edelmetall und Massivholz mittels hochpräziser Lasergravur zu persönlichen Unikaten, einzeln ab 1 Stück oder als B2B-Serienfertigung. Kunden gestalten ihr Produkt live im interaktiven 2D- & 3D-Online-Konfigurator direkt im Browser.";
         $lines[] = '';
         $lines[] = '## Kernfakten für KI-Assistenten & Suchmaschinen';
         $lines[] = "- **Marke / Unternehmen:** {$companyName}";
@@ -230,7 +238,9 @@ class SeoController extends Controller
         $lines[] = '- [Startseite](' . route('home') . '): Überblick über Manufaktur, Materialien, Kundenstimmen und häufige Fragen.';
         $lines[] = '- [Online-Shop & Kollektion](' . route('shop') . '): Alle personalisierbaren Geschenke, Trophäen, Glasfotos und Unikate.';
         $lines[] = "- [Die Manufaktur & Gründerin {$founderName}](" . route('manufacture') . '): Hintergrund zur Lasertechnologie, Materialkunde (K9-Kristallglas, Schiefer, Metall) und geprüften Sicherheitsstandards.';
-        $lines[] = '- [Sofort-Kalkulator für B2B & Großbestellungen](' . route('calculator') . '): Unverbindliche Preis- und Projektkalkulation für Firmen, Vereine und Events.';
+        if (\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()) {
+            $lines[] = '- [Sofort-Kalkulator für B2B & Großbestellungen](' . route('calculator') . '): Unverbindliche Preis- und Projektkalkulation für Firmen, Vereine und Events.';
+        }
         $lines[] = '- [Versand & Lieferzeiten](' . route('versand') . '): Details zu DHL-Versand, bruchsicherer Verpackung und Express-Option.';
         $lines[] = '- [Kontakt & Individuelle Anfrage](' . route('contact') . '): Direkter Draht zur Manufaktur.';
         $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
@@ -249,11 +259,11 @@ class SeoController extends Controller
                     ? ' (Statt ' . number_format($product->compare_at_price / 100, 2, ',', '.') . ' €)'
                     : '';
                 $pers = $product->isPersonalizable() ? 'Personalisierbar im 2D/3D-Konfigurator' : 'Fertigprodukt';
-                $avail = $product->isAvailable() ? 'Rohling auf Lager – bereit zur Veredelung (Lieferzeit: 3–5 Werktage)' : 'Derzeit ausverkauft';
+                $avail = $product->isAvailable() ? 'Rohling auf Lager, bereit zur Veredelung (Lieferzeit: 3 bis 5 Werktage)' : 'Derzeit ausverkauft';
                 $shortDesc = trim(preg_replace('/\s+/', ' ', strip_tags((string) ($product->short_description ?: $product->seo_description ?: $product->description))));
                 $shortDesc = Str::limit($shortDesc, 180);
 
-                $lines[] = "- [{$product->name}]({$url}) – **{$price}**{$compare} | {$pers} | {$avail}" . ($shortDesc ? " — {$shortDesc}" : '');
+                $lines[] = "- [{$product->name}]({$url}): **{$price}**{$compare} | {$pers} | {$avail}" . ($shortDesc ? ": {$shortDesc}" : '');
             }
         }
 
@@ -300,7 +310,7 @@ class SeoController extends Controller
             : collect();
 
         $lines = [];
-        $lines[] = "# {$companyName} – Vollständige Produkt- & Manufaktur-Dokumentation (LLMs-Full)";
+        $lines[] = "# {$companyName} | Vollständige Produkt- & Manufaktur-Dokumentation (LLMs-Full)";
         $lines[] = '';
         $lines[] = "## 1. Über {$companyName}";
         $lines[] = "- **Unternehmen:** {$companyName}";
@@ -332,8 +342,8 @@ class SeoController extends Controller
             if ($product->compare_at_price && $product->compare_at_price > $grossCents) {
                 $lines[] = '- **Regulärer Vergleichspreis:** ' . number_format($product->compare_at_price / 100, 2, ',', '.') . ' €';
             }
-            $lines[] = '- **Verfügbarkeit:** ' . ($product->isAvailable() ? 'Rohling auf Lager – bereit zur Veredelung (Lieferzeit: 3–5 Werktage)' : 'Derzeit nicht auf Lager');
-            $lines[] = '- **Personalisierbar:** ' . ($product->isPersonalizable() ? 'Ja – interaktiver 2D-Editor & 3D-Vorschau (eigene Texte, Schriftarten, Vektormotive & eigenes Foto/Logo gravierbar)' : 'Standardprodukt ohne Gravur-Konfigurator');
+            $lines[] = '- **Verfügbarkeit:** ' . ($product->isAvailable() ? 'Rohling auf Lager, bereit zur Veredelung (Lieferzeit: 3 bis 5 Werktage)' : 'Derzeit nicht auf Lager');
+            $lines[] = '- **Personalisierbar:** ' . ($product->isPersonalizable() ? 'Ja, interaktiver 2D-Editor & 3D-Vorschau (eigene Texte, Schriftarten, Vektormotive & eigenes Foto/Logo gravierbar)' : 'Standardprodukt ohne Gravur-Konfigurator');
 
             if ($product->categories->isNotEmpty()) {
                 $lines[] = '- **Kategorien:** ' . $product->categories->pluck('name')->implode(', ');
@@ -414,7 +424,7 @@ class SeoController extends Controller
         $lines[] = '## 4. Häufig gestellte Fragen (FAQ)';
         $lines[] = '- **Wie lange dauert die Anfertigung und der Versand?** Jedes Stück wird individuell nach Bestellung gefertigt. Die reguläre Fertigungs- und Lieferzeit beträgt in der Regel 3 bis 5 Werktage innerhalb Deutschlands. Für eilige Geschenke gibt es im Checkout eine Express-Option.';
         $lines[] = '- **Welche Materialien werden graviert?** Wir veredeln optisch reines K9-Kristallglas, echten Naturschiefer, eloxiertes Aluminium, Edelstahl sowie ausgewählte Hölzer.';
-        $lines[] = '- **Was kostet die Personalisierung?** Die individuelle Lasergravur (Texte, Motive, eigenes Logo und Vorder-/Rückseitengravur bei Glas) ist im angezeigten Produktpreis bereits vollständig enthalten – keine versteckten Zusatzkosten.';
+        $lines[] = '- **Was kostet die Personalisierung?** Die individuelle Lasergravur (Texte, Motive, eigenes Logo und Vorder-/Rückseitengravur bei Glas) ist im angezeigten Produktpreis bereits vollständig enthalten (keine versteckten Zusatzkosten).';
         $lines[] = '- **Gibt es eine Mindestbestellmenge?** Nein, wir fertigen sowohl Einzelstücke (ab 1 Stück) für Privatkunden als auch Großserien mit attraktiven Staffelpreisen für Unternehmen, Vereine und Hochzeiten.';
         $lines[] = "- **Wie hoch sind die Versandkosten?** Innerhalb Deutschlands berechnen wir {$shippingCost} € für den DHL-Paketversand mit Sendungsverfolgung. Ab {$freeThreshold} € Warenkorbwert liefern wir innerhalb Deutschlands versandkostenfrei.";
         $lines[] = '- **Was passiert, wenn mein Glasprodukt beim Transport beschädigt wird?** Jede Kristallglas-Trophäe wird bruchsicher gepolstert im stabilen Versandkarton versendet. Sollte dennoch ein Transportschaden auftreten, fertigen wir nach kurzer Fotodokumentation umgehend kostenfreien Ersatz.';
@@ -446,7 +456,7 @@ class SeoController extends Controller
         $xml[] = '<?xml version="1.0" encoding="UTF-8"?>';
         $xml[] = '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">';
         $xml[] = '  <channel>';
-        $xml[] = '    <title>' . e(str_replace(' – ', ', ', $companyName . ' | Produktfeed (Personalisierte Geschenke & Lasergravur)')) . '</title>';
+        $xml[] = '    <title>' . e(str_replace(" \u{2013} ", ", ", $companyName . ' | Produktfeed (Personalisierte Geschenke & Lasergravur)')) . '</title>';
         $xml[] = '    <link>' . e(url('/')) . '</link>';
         $xml[] = '    <description>' . e('Handveredelte Unikate mit hochpräziser Lasergravur und Live-3D-Konfigurator aus der Manufaktur ' . $companyName . ' in ' . $city . '.') . '</description>';
 
@@ -492,7 +502,7 @@ class SeoController extends Controller
             $catString = $product->categories->isNotEmpty()
                 ? $product->categories->pluck('name')->implode(' > ')
                 : 'Personalisierte Geschenke > Lasergravur';
-            $feedTitle = str_replace(' – ', ', ', $product->name . ' | Personalisiert mit Lasergravur');
+            $feedTitle = str_replace(" \u{2013} ", ", ", $product->name . ' | Personalisiert mit Lasergravur');
 
             $xml[] = '    <item>';
             $xml[] = '      <g:id>' . e($id) . '</g:id>';

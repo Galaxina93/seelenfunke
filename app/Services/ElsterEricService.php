@@ -179,10 +179,12 @@ class ElsterEricService
             throw new \Exception("NATIVES ERiC GEHT NICHT: Der C++ Binary-Wapper '$cppBinary' existiert nicht. Bitte 'make all' im Ordner ausführen!");
         }
 
-        // Automatische Erkennung der Datenart aus dem Payload (UStVA_2023, etc.)
+        // Automatische Erkennung der Datenart aus dem Payload (UStVA_2023, UStVA_2026, etc.)
         $datenart = 'UStVA_2023';
-        if (str_contains($xmlPayload, 'v2024') || str_contains($xmlPayload, 'version="2024"')) {
-            $datenart = 'UStVA_2024';
+        if (preg_match('/ustva\/v(20\d{2})/i', $xmlPayload, $m)) {
+            $datenart = 'UStVA_' . $m[1];
+        } elseif (preg_match('/version="(20\d{2})"/i', $xmlPayload, $m)) {
+            $datenart = 'UStVA_' . $m[1];
         }
 
         // Kommandozeilenaufruf vorbereiten (./ericdemo -v ... -x ... -c ... -p ... -l ...)
@@ -298,39 +300,131 @@ class ElsterEricService
         );
     }
 
-    private function buildXmlPayload($data, $submissionType = 'Erstübermittlung')
+    /**
+     * Konvertiert eine regionale deutsche Finanzamts-Steuernummer in das 13-stellige Bundeseinheitliche ELSTER-Format.
+     * Beispiel Niedersachsen (FA Gifhorn 2319): '19/143/11624' -> '2319014311624'.
+     */
+    public static function toElsterSteuernummer(string $rawTaxId, ?string $finanzamtNr = null): string
     {
-        $revenueNetFloor = (int) floor(max(0.0, (float) ($data['revenue_net'] ?? 0)));
+        $raw = trim($rawTaxId);
+        if ($raw === '') {
+            return '';
+        }
+
+        $digitsOnly = preg_replace('/\D+/', '', $raw) ?? '';
+        if (strlen($digitsOnly) === 13) {
+            return $digitsOnly;
+        }
+
+        $bufaDigits = preg_replace('/\D+/', '', (string) $finanzamtNr) ?? '';
+
+        // NRW Sonderformat: FFF/BBBB/UUUU (11 Ziffern mit 4-stelligem Bezirk) -> 5FFF0BBBBUUUU
+        if (preg_match('/^\s*(\d{3})\D+(\d{4})\D+(\d{4})\s*$/', $raw, $nrwMatch)) {
+            return '5' . $nrwMatch[1] . '0' . $nrwMatch[2] . $nrwMatch[3];
+        }
+
+        // Hessen Sonderformat: 0FF/BBB/UUUUU (11 Ziffern mit führender 0) -> 26FF0BBBUUUUU
+        if (strlen($digitsOnly) === 11 && str_starts_with($digitsOnly, '0')) {
+            $ff = substr($digitsOnly, 1, 2);
+            $bbb = substr($digitsOnly, 3, 3);
+            $uuuuu = substr($digitsOnly, 6, 5);
+            $land2 = (strlen($bufaDigits) === 4 && str_ends_with($bufaDigits, $ff)) ? substr($bufaDigits, 0, 2) : '26';
+            return $land2 . $ff . '0' . $bbb . $uuuuu;
+        }
+
+        // Standard 10-stelliges Format FF/BBB/UUUUU (u.a. Niedersachsen 23, BE 11, SL 10, SH 21, HH 22, HB 24, RP 27, BW 28)
+        if (strlen($digitsOnly) === 10) {
+            $ff = substr($digitsOnly, 0, 2);
+            $bbb = substr($digitsOnly, 2, 3);
+            $uuuuu = substr($digitsOnly, 5, 5);
+
+            if (strlen($bufaDigits) === 4 && str_ends_with($bufaDigits, $ff)) {
+                $land2 = substr($bufaDigits, 0, 2);
+            } elseif (strlen($bufaDigits) === 2) {
+                $land2 = $bufaDigits;
+            } else {
+                // Standard Niedersachsen (FA Gifhorn 2319)
+                $land2 = '23';
+            }
+
+            return $land2 . $ff . '0' . $bbb . $uuuuu;
+        }
+
+        // 11-stelliges Format FFF/BBB/UUUUU (Bayern 9, BB/ST/SN 3, MV/TH 4) -> LFFF0BBBUUUUU
+        if (strlen($digitsOnly) === 11) {
+            $fff = substr($digitsOnly, 0, 3);
+            $bbb = substr($digitsOnly, 3, 3);
+            $uuuuu = substr($digitsOnly, 6, 5);
+            $land1 = (strlen($bufaDigits) === 4 && str_ends_with($bufaDigits, $fff)) ? substr($bufaDigits, 0, 1) : '9';
+            return $land1 . $fff . '0' . $bbb . $uuuuu;
+        }
+
+        return $digitsOnly !== '' ? $digitsOnly : $raw;
+    }
+
+    public function buildXmlPayload($data, $submissionType = 'Erstübermittlung', ?bool $overrideTestMode = null): string
+    {
+        $effectiveTestMode = $overrideTestMode !== null ? $overrideTestMode : (bool) $this->isTestMode;
+
+        $kz81Base = isset($data['kz81_base'])
+            ? (int) $data['kz81_base']
+            : (int) floor(max(0.0, (float) ($data['revenue_net_19'] ?? $data['revenue_net'] ?? 0)));
+        $kz86Base = isset($data['kz86_base'])
+            ? (int) $data['kz86_base']
+            : (int) floor(max(0.0, (float) ($data['revenue_net_7'] ?? 0)));
+
         $vatPaid = (float) ($data['vat_paid'] ?? 0);
         $zahllast = (float) ($data['zahllast'] ?? 0);
 
         $kennzahl10 = $submissionType === 'Berichtigte Anmeldung' ? '<Kz10>1</Kz10>' : '<Kz10>0</Kz10>';
-        $kz81 = $revenueNetFloor > 0 ? '<Kz81>' . $revenueNetFloor . '</Kz81>' : ''; 
-        $kz66 = '<Kz66>' . number_format($vatPaid, 2, '.', '') . '</Kz66>'; 
+        $kz81 = $kz81Base > 0 ? '<Kz81>' . $kz81Base . '</Kz81>' : '';
+        $kz86 = $kz86Base > 0 ? '<Kz86>' . $kz86Base . '</Kz86>' : '';
+        $kz66 = '<Kz66>' . number_format($vatPaid, 2, '.', '') . '</Kz66>';
         $kz83 = '<Kz83>' . number_format($zahllast, 2, '.', '') . '</Kz83>';
-        
-        $steuernummer = shop_setting('owner_tax_id', '1234567890');
-        $finanzamtId = shop_setting('owner_finanzamt_nr', shop_setting('owner_finanzamt_id', '9111')); // Standard: owner_finanzamt_nr oder Fallback 9111
-        $jahr = $data['year'] ?? '2023';
 
-        // Wenn wir im Testmodus sind, muessen wir ZWINGEND die offiziellen Test-Kennungen nutzen!
-        if ($this->isTestMode) {
-            $steuernummer = '9111081508152'; // Offizielle ELSTER Sandbox-Steuernummer
-            $finanzamtId = '9111'; // Test Finanzamt München
-            $jahr = '2023'; // Zwingende Anpassung an das fest einkodierte v2023 XML-Schema
+        $rawZeitraum = (string) ($data['elster_zeitraum'] ?? $data['month_number'] ?? '01');
+        $zeitraumInt = (int) $rawZeitraum;
+        if (in_array($zeitraumInt, [41, 42, 43, 44], true)) {
+            $formattedZeitraum = (string) $zeitraumInt;
+        } else {
+            $formattedZeitraum = str_pad((string) max(1, min(12, $zeitraumInt)), 2, '0', STR_PAD_LEFT);
         }
 
-        // SECURITY LAYER: Testmerker 700000004 garantiert 100% straffreies Test-Sandboxing.
-        $testmerker = $this->isTestMode ? "<Testmerker>700000004</Testmerker>" : "";
+        $configuredBufa = shop_setting('owner_finanzamt_nr', shop_setting('owner_finanzamt_id'));
+        $rawTaxId = (string) shop_setting('owner_tax_id', '19/143/11624');
+        $steuernummer = self::toElsterSteuernummer($rawTaxId, $configuredBufa ? (string) $configuredBufa : null);
+        $finanzamtId = !empty($configuredBufa)
+            ? (string) $configuredBufa
+            : (strlen($steuernummer) === 13 ? substr($steuernummer, 0, 4) : '2319');
+
+        $jahr = (string) ($data['year'] ?? date('Y'));
+        $schemaYear = (string) max(2023, min(2100, (int) $jahr));
+
+        // Wenn wir im Testmodus sind, nutzen wir die offiziellen ELSTER-Sandbox-Kennungen
+        if ($effectiveTestMode) {
+            $steuernummer = '9111081508152';
+            $finanzamtId = '9111';
+            $jahr = '2023';
+            $schemaYear = '2023';
+        }
+
+        $testmerker = $effectiveTestMode ? '<Testmerker>700000004</Testmerker>' : '';
 
         // XML-Injection Prevention
-        $safeSteuernummer = htmlspecialchars((string)$steuernummer, ENT_XML1, 'UTF-8');
-        $safeFinanzamtId = htmlspecialchars((string)$finanzamtId, ENT_XML1, 'UTF-8');
-        $safeJahr = htmlspecialchars((string)$jahr, ENT_XML1, 'UTF-8');
-        $safeMonth = htmlspecialchars((string)($data['month_number'] ?? ''), ENT_XML1, 'UTF-8');
+        $safeSteuernummer = htmlspecialchars((string) $steuernummer, ENT_XML1, 'UTF-8');
+        $safeFinanzamtId = htmlspecialchars((string) $finanzamtId, ENT_XML1, 'UTF-8');
+        $safeJahr = htmlspecialchars((string) $jahr, ENT_XML1, 'UTF-8');
+        $safeSchemaYear = htmlspecialchars((string) $schemaYear, ENT_XML1, 'UTF-8');
+        $safeZeitraum = htmlspecialchars($formattedZeitraum, ENT_XML1, 'UTF-8');
 
-        // HINWEIS: Offiziell ab ERiC > 30.1 ist UTF-8 Zwang statt ISO-8859-15.
-        // Die Nutzdaten selbst liegen zwingend im 'Anmeldungssteuern' (finkonsens.de) Schema.
+        $optionalLines = implode("\n                            ", array_values(array_filter([
+            $kennzahl10,
+            $kz81,
+            $kz86,
+            $kz66,
+            $kz83,
+        ])));
+
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <Elster xmlns=\"http://www.elster.de/elsterxml/schema/v11\">
     <TransferHeader version=\"11\">
@@ -357,16 +451,13 @@ class ElsterEricService
                 </Hersteller>
             </NutzdatenHeader>
             <Nutzdaten>
-                <Anmeldungssteuern xmlns=\"http://finkonsens.de/elster/elsteranmeldung/ustva/v2023\" version=\"2023\">
+                <Anmeldungssteuern xmlns=\"http://finkonsens.de/elster/elsteranmeldung/ustva/v{$safeSchemaYear}\" version=\"{$safeSchemaYear}\">
                     <Steuerfall>
                         <Umsatzsteuervoranmeldung>
                             <Jahr>{$safeJahr}</Jahr>
-                            <Zeitraum>{$safeMonth}</Zeitraum>
+                            <Zeitraum>{$safeZeitraum}</Zeitraum>
                             <Steuernummer>{$safeSteuernummer}</Steuernummer>
-                            {$kennzahl10}
-                            {$kz81}
-                            {$kz66}
-                            {$kz83}
+                            {$optionalLines}
                         </Umsatzsteuervoranmeldung>
                     </Steuerfall>
                 </Anmeldungssteuern>

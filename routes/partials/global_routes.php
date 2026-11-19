@@ -80,6 +80,12 @@ Route::get('/feed/products.json', [SeoController::class, 'productsJsonFeed'])->n
 // --- 1. Shop ---
 Route::get('/warenkorb', Cart::class)->name('cart');
 Route::get('/wunschliste', \App\Livewire\Shop\Wishlist\WishlistPage::class)->name('wishlist');
+Route::get('/wunschliste/state', [\App\Http\Controllers\Frontend\WishlistController::class, 'state'])
+    ->middleware('throttle:120,1')
+    ->name('wishlist.state');
+Route::post('/wunschliste/toggle', [\App\Http\Controllers\Frontend\WishlistController::class, 'toggle'])
+    ->middleware('throttle:120,1')
+    ->name('wishlist.toggle');
 
 // Wichtig: {product:slug} sagt Laravel, es soll in der Spalte 'slug' suchen, nicht 'id'
 Route::get('/produkt/{product:slug}', ProductShow::class)->name('product.show');
@@ -256,6 +262,17 @@ Route::post('/funkenwerk-welt/lava-parkour/checkpoint', [\App\Http\Controllers\A
 Route::post('/funkenwerk-welt/lava-parkour/claim', [\App\Http\Controllers\Api\LavaParkourController::class, 'claim'])
     ->middleware('throttle:30,1,lava_claim')
     ->name('gamification.lava-parkour.claim');
+
+// NPC-Haendler & Inventar / Rucksack (Heiltrank-Kauf, Quick-Slots & Heilung)
+Route::post('/funkenwerk-welt/merchant/buy-potion', [\App\Http\Controllers\Api\LavaParkourController::class, 'buyPotion'])
+    ->middleware('throttle:30,1,merchant_buy')
+    ->name('gamification.merchant.buy-potion');
+Route::post('/funkenwerk-welt/inventory/use-item', [\App\Http\Controllers\Api\LavaParkourController::class, 'useItem'])
+    ->middleware('throttle:30,1,inventory_use')
+    ->name('gamification.inventory.use-item');
+Route::post('/funkenwerk-welt/inventory/equip-slot', [\App\Http\Controllers\Api\LavaParkourController::class, 'equipSlot'])
+    ->middleware('throttle:60,1,inventory_equip')
+    ->name('gamification.inventory.equip-slot');
 
 // --- 4. Rechtliches & Weiteres ---
 Route::get('/impressum', function () {
