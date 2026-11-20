@@ -907,9 +907,9 @@ Route::middleware('auth:sanctum')->group(function () {
         $rawEvents = $request->input('events');
         if (!is_array($rawEvents)) {
             $rawEvents = [$request->only([
-                'platform', 'component', 'severity', 'title', 'message', 'error_class',
-                'file', 'line', 'stack', 'fingerprint', 'occurrences', 'auto_healed',
-                'auto_heal_action', 'app_version', 'device', 'occurred_at', 'context',
+                'platform', 'component', 'severity', 'title', 'message', 'error_class', 'exception_class',
+                'file', 'line', 'stack', 'stacktrace', 'fingerprint', 'occurrences', 'auto_healed',
+                'auto_heal_action', 'heal_summary', 'app_version', 'device', 'occurred_at', 'context',
             ])];
         }
 

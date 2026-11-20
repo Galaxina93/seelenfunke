@@ -17,15 +17,21 @@ data class ChatMessage(
 data class ChatRequest(
     val prompt: String? = null,
     val history: List<ChatMessage> = emptyList(),
-    val agent_id: String? = null
+    val agent_id: String? = null,
+    val chat_session_id: String? = null,
+    val client_message_id: String? = null,
+    val skip_tts: Boolean? = null
 )
 
 data class ChatResponse(
-    val status: String,
-    val agent_name: String?,
-    val response: String?,
-    val tts_enabled: Boolean,
-    val audio: String? // Base64 WAV data
+    val status: String? = null,
+    val chat_session_id: String? = null,
+    val agent_name: String? = null,
+    val response: String? = null,
+    val message: String? = null,
+    val tts_enabled: Boolean = false,
+    val deduplicated: Boolean? = false,
+    val audio: String? = null // Base64 WAV data
 )
 
 data class PendingAgBlockadeDto(
@@ -116,9 +122,9 @@ data class ChatHistoryItem(
 )
 
 data class ChatHistoryResponse(
-    val status: String,
-    val session_id: String?,
-    val messages: List<ChatHistoryItem>
+    val status: String? = null,
+    val session_id: String? = null,
+    val messages: List<ChatHistoryItem>? = emptyList()
 )
 
 data class CommandFlow(

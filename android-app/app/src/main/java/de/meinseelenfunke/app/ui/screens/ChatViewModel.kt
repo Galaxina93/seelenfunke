@@ -30,14 +30,101 @@ class ChatViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _canRetryLastMessage = MutableStateFlow(false)
+    val canRetryLastMessage: StateFlow<Boolean> = _canRetryLastMessage.asStateFlow()
+
     private val _agents = MutableStateFlow<List<de.meinseelenfunke.app.data.api.AiAgent>>(emptyList())
     val agents: StateFlow<List<de.meinseelenfunke.app.data.api.AiAgent>> = _agents.asStateFlow()
 
     private val _selectedAgent = MutableStateFlow<de.meinseelenfunke.app.data.api.AiAgent?>(null)
     val selectedAgent: StateFlow<de.meinseelenfunke.app.data.api.AiAgent?> = _selectedAgent.asStateFlow()
 
+    private var activeChatSessionId: String? = null
+    private var pendingRetryPayload: PendingRetryPayload? = null
     private var mediaPlayer: MediaPlayer? = null
     private var currentTempAudioFile: File? = null
+
+    private data class PendingRetryPayload(
+        val formattedPrompt: String,
+        val apiHistory: List<ChatMessage>,
+        val agentId: String?,
+        val clientMessageId: String
+    )
+
+    companion object {
+        private const val LEGACY_ERROR_BUBBLE = "[Fehler beim Laden der Antwort]"
+
+        fun cleanAssistantText(raw: String): String {
+            return raw
+                .replace(Regex("<speak>", RegexOption.IGNORE_CASE), "")
+                .replace(Regex("</speak>", RegexOption.IGNORE_CASE), "")
+                .trim()
+        }
+
+        fun sanitizeHistoryForApi(
+            messages: List<ChatMessage>,
+            overrideLastUserPrompt: String? = null
+        ): List<ChatMessage> {
+            val filtered = messages.filterNot { msg ->
+                msg.role.equals("assistant", ignoreCase = true) &&
+                    msg.content.trim() == LEGACY_ERROR_BUBBLE
+            }
+            if (filtered.isEmpty()) {
+                return if (!overrideLastUserPrompt.isNullOrBlank()) {
+                    listOf(ChatMessage(role = "user", content = overrideLastUserPrompt))
+                } else {
+                    emptyList()
+                }
+            }
+            return filtered.mapIndexed { index, msg ->
+                if (index == filtered.lastIndex && overrideLastUserPrompt != null && msg.role == "user") {
+                    ChatMessage(role = "user", content = overrideLastUserPrompt)
+                } else {
+                    ChatMessage(role = msg.role, content = cleanAssistantText(msg.content))
+                }
+            }
+        }
+
+        fun formatUserFacingError(err: Throwable): String {
+            if (err is retrofit2.HttpException) {
+                return when (err.code()) {
+                    401 -> "Sitzung abgelaufen. Bitte kurz neu anmelden."
+                    403 -> "Keine Berechtigung für diesen KI-Agenten."
+                    413 -> "Anhang zu groß für die Übertragung."
+                    422 -> "Eingabe konnte vom Server nicht verarbeitet werden."
+                    429 -> "KI-Server kurz ausgelastet. Bitte erneut senden."
+                    in 500..599 -> "Server vorübergehend ausgelastet (HTTP ${err.code()}). Bitte erneut senden."
+                    else -> "Verbindungsfehler (HTTP ${err.code()}). Bitte erneut senden."
+                }
+            }
+            var cur: Throwable? = err
+            var depth = 0
+            while (cur != null && depth < 5) {
+                when (cur) {
+                    is java.net.UnknownHostException,
+                    is java.net.ConnectException,
+                    is java.net.NoRouteToHostException ->
+                        return "Keine Verbindung zum Server. Bitte WLAN oder Mobilfunk prüfen."
+                    is java.net.SocketTimeoutException ->
+                        return "Antwort dauerte zu lange (Zeitüberschreitung). Bitte erneut senden."
+                    is javax.net.ssl.SSLHandshakeException,
+                    is javax.net.ssl.SSLPeerUnverifiedException ->
+                        return "Sichere TLS-Verbindung fehlgeschlagen. Bitte Netzwerk prüfen."
+                    is javax.net.ssl.SSLException,
+                    is java.io.EOFException,
+                    is java.net.SocketException ->
+                        return "Verbindung beim Netzwechsel unterbrochen. Bitte erneut senden."
+                }
+                cur = cur.cause
+                depth++
+            }
+            val msg = err.localizedMessage?.trim().orEmpty()
+            if (msg.isNotEmpty() && !msg.startsWith("java.") && !msg.startsWith("okhttp3.") && msg.length <= 140) {
+                return msg
+            }
+            return "Antwort konnte gerade nicht geladen werden. Bitte erneut senden."
+        }
+    }
 
     init {
         loadAgents()
@@ -46,16 +133,20 @@ class ChatViewModel : ViewModel() {
 
     fun loadChatHistory() {
         viewModelScope.launch {
-            aiRepository.getChatHistory(limit = 40)
-                .onSuccess { list ->
-                    if (list.isNotEmpty()) {
-                        val cleanedList = list.map { msg ->
-                            val cleanContent = msg.content
-                                .replace(Regex("<speak>", RegexOption.IGNORE_CASE), "")
-                                .replace(Regex("</speak>", RegexOption.IGNORE_CASE), "")
-                                .trim()
-                            ChatMessage(role = msg.role, content = cleanContent)
+            aiRepository.getChatHistoryBundle(sessionId = activeChatSessionId, limit = 40)
+                .onSuccess { bundle ->
+                    if (!bundle.sessionId.isNullOrBlank()) {
+                        activeChatSessionId = bundle.sessionId
+                    }
+                    val cleanedList = bundle.messages
+                        .filterNot { msg ->
+                            msg.role.equals("assistant", ignoreCase = true) &&
+                                msg.content.trim() == LEGACY_ERROR_BUBBLE
                         }
+                        .map { msg ->
+                            ChatMessage(role = msg.role, content = cleanAssistantText(msg.content))
+                        }
+                    if (cleanedList.isNotEmpty()) {
                         _messages.value = cleanedList
                     }
                 }
@@ -70,11 +161,15 @@ class ChatViewModel : ViewModel() {
             aiRepository.getAgents()
                 .onSuccess { list ->
                     _agents.value = list
-                    val defaultAgent = list.find { it.name.equals("Funkira", ignoreCase = true) } ?: list.firstOrNull()
-                    defaultAgent?.let { selectAgent(it, updateGreeting = false) }
+                    if (_selectedAgent.value == null) {
+                        val defaultAgent = list.find { it.name.equals("Funkira", ignoreCase = true) } ?: list.firstOrNull()
+                        defaultAgent?.let { selectAgent(it, updateGreeting = false) }
+                    }
                 }
                 .onFailure { err ->
-                    _error.value = "Fehler beim Laden der Agenten: ${err.localizedMessage}"
+                    if (_messages.value.size <= 1) {
+                        _error.value = formatUserFacingError(err)
+                    }
                 }
         }
     }
@@ -136,33 +231,59 @@ class ChatViewModel : ViewModel() {
 
         val userMessage = ChatMessage("user", displayContent)
         val currentHistory = _messages.value
-        _messages.value = currentHistory + userMessage
+        val updatedMessages = currentHistory + userMessage
+        _messages.value = updatedMessages
         _error.value = null
+        _canRetryLastMessage.value = false
         _selectedFile.value = null // Clear selected file
 
+        if (_agents.value.isEmpty()) {
+            loadAgents()
+        }
+
+        val apiHistory = sanitizeHistoryForApi(
+            messages = updatedMessages,
+            overrideLastUserPrompt = formattedContent
+        )
+        val clientMessageId = java.util.UUID.randomUUID().toString()
+        val payload = PendingRetryPayload(
+            formattedPrompt = formattedContent,
+            apiHistory = apiHistory,
+            agentId = _selectedAgent.value?.id,
+            clientMessageId = clientMessageId
+        )
+        executeChatRequest(payload)
+    }
+
+    fun retryLastMessage() {
+        val payload = pendingRetryPayload ?: return
+        if (_isLoading.value) return
+        _error.value = null
+        _canRetryLastMessage.value = false
+        executeChatRequest(payload.copy(agentId = _selectedAgent.value?.id ?: payload.agentId))
+    }
+
+    private fun executeChatRequest(payload: PendingRetryPayload) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Build cleaned request history for the Laravel API structure
-                val apiHistory = _messages.value.mapIndexed { index, msg ->
-                    if (index == _messages.value.lastIndex) {
-                        ChatMessage(role = msg.role, content = formattedContent)
-                    } else {
-                        ChatMessage(role = msg.role, content = msg.content)
-                    }
-                }
-
                 aiRepository.sendChatMessage(
-                    prompt = formattedContent,
-                    history = apiHistory,
-                    agentId = _selectedAgent.value?.id
+                    prompt = payload.formattedPrompt,
+                    history = payload.apiHistory,
+                    agentId = payload.agentId,
+                    chatSessionId = activeChatSessionId,
+                    clientMessageId = payload.clientMessageId
                 )
                     .onSuccess { chatResponse ->
-                        val rawResponse = chatResponse.response ?: "Keine Antwort erhalten."
-                        val cleanResponse = rawResponse
-                            .replace(Regex("<speak>", RegexOption.IGNORE_CASE), "")
-                            .replace(Regex("</speak>", RegexOption.IGNORE_CASE), "")
-                            .trim()
+                        pendingRetryPayload = null
+                        _canRetryLastMessage.value = false
+                        _error.value = null
+                        if (!chatResponse.chat_session_id.isNullOrBlank()) {
+                            activeChatSessionId = chatResponse.chat_session_id
+                        }
+                        val rawResponse = chatResponse.response?.takeIf { it.isNotBlank() }
+                            ?: "Keine Antwort erhalten."
+                        val cleanResponse = cleanAssistantText(rawResponse)
                         _messages.value = _messages.value + ChatMessage("assistant", cleanResponse)
 
                         // If base64 TTS audio exists, play it!
@@ -171,8 +292,9 @@ class ChatViewModel : ViewModel() {
                         }
                     }
                     .onFailure { err ->
-                        _error.value = "Verbindungsfehler: ${err.localizedMessage}"
-                        _messages.value = _messages.value + ChatMessage("assistant", "[Fehler beim Laden der Antwort]")
+                        pendingRetryPayload = payload
+                        _canRetryLastMessage.value = true
+                        _error.value = formatUserFacingError(err)
                     }
             } finally {
                 _isLoading.value = false

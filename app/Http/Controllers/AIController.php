@@ -234,22 +234,70 @@ class AIController extends Controller
     public function chat(Request $request)
     {
         $request->validate([
-            'prompt' => 'sometimes|string',
-            'history' => 'sometimes|array'
+            'prompt' => 'sometimes|nullable|string',
+            'history' => 'sometimes|array',
+            'client_message_id' => 'sometimes|nullable|string|max:100',
+            'chat_session_id' => 'sometimes|nullable|string|max:100',
+            'skip_tts' => 'sometimes|boolean',
         ]);
+
+        $chatStartedAt = microtime(true);
+        $rawClientMsgId = preg_replace('/[^a-zA-Z0-9_\-]/', '', trim((string) $request->input('client_message_id', '')));
+        $currentUserIdForIdem = (string) (\App\Services\AI\AiAuthHelper::getUserId() ?? 'anon');
+        $idemResultKey = $rawClientMsgId !== ''
+            ? 'ai_chat_idem_res_' . sha1($currentUserIdForIdem . '|' . $rawClientMsgId)
+            : null;
+        $idemInflightKey = $rawClientMsgId !== ''
+            ? 'ai_chat_idem_lock_' . sha1($currentUserIdForIdem . '|' . $rawClientMsgId)
+            : null;
+
+        if ($idemResultKey !== null) {
+            try {
+                $cachedPayload = \Illuminate\Support\Facades\Cache::get($idemResultKey);
+                if (is_array($cachedPayload)) {
+                    $cachedPayload['deduplicated'] = true;
+                    return response()->json($cachedPayload);
+                }
+
+                // Falls derselbe Request nach einem mobilen Funkloch noch aktiv auf dem Server arbeitet,
+                // warte kurz auf das Ergebnis statt eine doppelte Generierung anzustoßen.
+                if ($idemInflightKey !== null && \Illuminate\Support\Facades\Cache::has($idemInflightKey)) {
+                    $waitUntil = microtime(true) + 25.0;
+                    while (microtime(true) < $waitUntil) {
+                        usleep(250000);
+                        $readyPayload = \Illuminate\Support\Facades\Cache::get($idemResultKey);
+                        if (is_array($readyPayload)) {
+                            $readyPayload['deduplicated'] = true;
+                            return response()->json($readyPayload);
+                        }
+                        if (!\Illuminate\Support\Facades\Cache::has($idemInflightKey)) {
+                            break;
+                        }
+                    }
+                }
+
+                if ($idemInflightKey !== null) {
+                    \Illuminate\Support\Facades\Cache::put($idemInflightKey, true, 90);
+                }
+            } catch (\Throwable) {
+            }
+        }
 
         $history = $request->input('history', []);
         if (count($history) > 20) {
             $history = array_slice($history, -20);
         }
 
-        // Clean history from frontend specific keys (name, color, icon, etc.) to prevent API schema validation errors
+        // Clean history from frontend specific keys (name, color, icon, etc.) and legacy client error placeholders
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
         $allowedRoles = $isAdmin ? ['user', 'assistant', 'system', 'tool'] : ['user', 'assistant', 'tool'];
         $cleanHistory = [];
         foreach ($history as $msg) {
             $content = $msg['content'] ?? '';
             $rawRole = strtolower(trim((string) ($msg['role'] ?? 'user')));
+            if ($rawRole === 'assistant' && is_string($content) && trim($content) === '[Fehler beim Laden der Antwort]') {
+                continue;
+            }
             $cleanMsg = [
                 'role' => in_array($rawRole, $allowedRoles, true) ? $rawRole : 'user',
             ];
@@ -382,105 +430,138 @@ class AIController extends Controller
             $agent->setDynamicSystemPrompt($dynamicSystemPrompt);
         }
 
-        $result = $agent->ask($history);
+        try {
+            $result = $agent->ask($history);
+        } catch (\Throwable $askEx) {
+            if ($idemInflightKey !== null) {
+                try {
+                    \Illuminate\Support\Facades\Cache::forget($idemInflightKey);
+                } catch (\Throwable) {
+                }
+            }
+            \Illuminate\Support\Facades\Log::error('AIController::chat inference failed: ' . \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($askEx->getMessage()));
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Die KI-Verarbeitung ist vorübergehend gestört. Bitte versuche es in einem kurzen Moment erneut.',
+            ], 503);
+        }
 
         // Speichere finalen Dialog-Verlauf in der Datenbank
         $sessionId = $request->input('chat_session_id');
         $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
 
-        if ($sessionId && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            $ownedSession = $currentUserId && \App\Models\Ai\AiChatSession::where('id', $sessionId)
-                ->where('user_id', $currentUserId)
-                ->exists();
-            if (!$ownedSession) {
-                $sessionId = null;
-            }
-        }
-        
-        if (!$sessionId) {
-            $sessionId = session()->getId();
-            if ($currentUserId) {
-                $lastSession = \App\Models\Ai\AiChatSession::where('user_id', $currentUserId)
-                                 ->orderBy('updated_at', 'desc')
-                                 ->first();
-                if ($lastSession) {
-                    $sessionId = $lastSession->id;
-                } else {
-                    $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => $currentUserId, 'title' => 'Push-to-Talk Chat']);
-                    $sessionId = $newSession->id;
+        try {
+            if ($sessionId && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+                $ownedSession = $currentUserId && \App\Models\Ai\AiChatSession::where('id', $sessionId)
+                    ->where('user_id', $currentUserId)
+                    ->exists();
+                if (!$ownedSession) {
+                    $sessionId = null;
                 }
             }
+
+            if (!$sessionId) {
+                $sessionId = $request->hasSession() ? $request->session()->getId() : null;
+                if ($currentUserId) {
+                    $lastSession = \App\Models\Ai\AiChatSession::where('user_id', $currentUserId)
+                        ->orderBy('updated_at', 'desc')
+                        ->first();
+                    if ($lastSession) {
+                        $sessionId = $lastSession->id;
+                    } else {
+                        $newSession = \App\Models\Ai\AiChatSession::create(['user_id' => $currentUserId, 'title' => 'Push-to-Talk Chat']);
+                        $sessionId = $newSession->id;
+                    }
+                }
+            }
+        } catch (\Throwable $sessEx) {
+            \Illuminate\Support\Facades\Log::warning('AIController::chat session lookup warning: ' . $sessEx->getMessage());
         }
 
         // Was hat der User gesagt? (Finde die neuste User-Nachricht)
         $userMsg = collect($history)->reverse()->firstWhere('role', 'user');
-        
-        $chatSession = \App\Models\Ai\AiChatSession::find($sessionId);
-        $user = $chatSession ? $chatSession->user : (auth()->user() ?? null);
-        
-        $userCtx = [
-            'name' => $user ? ($user->first_name ?? 'User') : 'User',
-            'color' => 'gray-400',
-            'icon' => 'user',
-            'profile_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
-        ];
+        $dbContent = '';
 
-        if ($userMsg) {
-            $dbContent = $userMsg['content'];
-            if (is_array($dbContent)) {
-                $textParts = [];
-                foreach ($dbContent as $part) {
-                    if (isset($part['type']) && $part['type'] === 'text') {
-                        $textParts[] = $part['text'];
-                    } else if (isset($part['type']) && $part['type'] === 'image_url') {
-                        $textParts[] = "[Bild]";
+        try {
+            $chatSession = $sessionId ? \App\Models\Ai\AiChatSession::find($sessionId) : null;
+            $user = $chatSession ? $chatSession->user : (auth()->user() ?? null);
+
+            $userCtx = [
+                'name' => $user ? ($user->first_name ?? 'User') : 'User',
+                'color' => 'gray-400',
+                'icon' => 'user',
+                'profile_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
+            ];
+            if ($rawClientMsgId !== '') {
+                $userCtx['client_message_id'] = $rawClientMsgId;
+            }
+
+            if ($userMsg) {
+                $dbContent = $userMsg['content'];
+                if (is_array($dbContent)) {
+                    $textParts = [];
+                    foreach ($dbContent as $part) {
+                        if (isset($part['type']) && $part['type'] === 'text') {
+                            $textParts[] = $part['text'];
+                        } else if (isset($part['type']) && $part['type'] === 'image_url') {
+                            $textParts[] = "[Bild]";
+                        }
                     }
+                    $dbContent = implode("\n", $textParts);
                 }
-                $dbContent = implode("\n", $textParts);
+                if ($sessionId) {
+                    AiChatMemory::create([
+                        'session_id' => $sessionId,
+                        'role' => 'user',
+                        'content' => (string) $dbContent,
+                        'context_data' => $userCtx,
+                    ]);
+                }
             }
-            AiChatMemory::create([
-                'session_id' => $sessionId,
-                'role' => 'user',
-                'content' => $dbContent,
-                'context_data' => $userCtx,
-            ]);
+
+            $assistantCtx = [
+                'name' => $aiAgent ? $aiAgent->name : 'Funkira',
+                'color' => $aiAgent ? $aiAgent->color : 'emerald-500',
+                'icon' => 'robot',
+                'profile_picture' => $aiAgent ? $aiAgent->profile_picture : null,
+            ];
+            if ($rawClientMsgId !== '') {
+                $assistantCtx['client_message_id'] = $rawClientMsgId;
+            }
+
+            // Was hat die KI final geantwortet?
+            if (!empty($result['response'])) {
+                if (self::isCannedModelRefusal((string) $result['response'])) {
+                    $isEmpOnly = \App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin();
+                    $klartext = self::buildConcreteRefusalReplacement((string) ($dbContent ?? ''), $isEmpOnly);
+                    $result['response'] = $klartext;
+                    $result['response_raw'] = $klartext;
+                } elseif ($sessionId) {
+                    AiChatMemory::create([
+                        'session_id' => $sessionId,
+                        'role' => 'assistant',
+                        'content' => $result['response'],
+                        'context_data' => $assistantCtx,
+                    ]);
+                }
+            }
+        } catch (\Throwable $memEx) {
+            \Illuminate\Support\Facades\Log::warning('AIController::chat memory persistence warning: ' . $memEx->getMessage());
         }
 
-        $assistantCtx = [
-            'name' => $aiAgent ? $aiAgent->name : 'Funkira',
-            'color' => $aiAgent ? $aiAgent->color : 'emerald-500',
-            'icon' => 'robot',
-            'profile_picture' => $aiAgent ? $aiAgent->profile_picture : null,
-        ];
-
-        // Was hat die KI final geantwortet?
-        if (!empty($result['response'])) {
-            if (self::isCannedModelRefusal((string) $result['response'])) {
-                $isEmpOnly = \App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin();
-                $klartext = self::buildConcreteRefusalReplacement((string) ($dbContent ?? ''), $isEmpOnly);
-                $result['response'] = $klartext;
-                $result['response_raw'] = $klartext;
-            } else {
-                AiChatMemory::create([
-                    'session_id' => $sessionId,
-                    'role' => 'assistant',
-                    'content' => $result['response'],
-                    'context_data' => $assistantCtx,
-                ]);
-            }
-        }
-
-        // Generiere Audio (Base64) falls möglich
+        // Generiere Audio (Base64) falls möglich und innerhalb des mobilen Antwortzeit-Budgets
         $base64Audio = null;
-        
+
         $ttsProvider = $aiAgent ? $aiAgent->tts_provider : 'none';
         $ttsEnabled = $aiAgent ? (bool) $aiAgent->tts_enabled : false;
+        $skipTtsRequested = $request->boolean('skip_tts', false);
 
-        if ($ttsProvider === 'none') {
+        if ($ttsProvider === 'none' || $skipTtsRequested) {
             $ttsEnabled = false;
         }
 
-        if ($ttsEnabled && !empty($result['response_raw'] ?? $result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
+        $elapsedBeforeTtsSec = microtime(true) - $chatStartedAt;
+        if ($ttsEnabled && $elapsedBeforeTtsSec < 22.0 && !empty($result['response_raw'] ?? $result['response']) && $aiAgent && $ttsProvider === 'gemini_native') {
             try {
                 $cleanText = (string) ($result['response_raw'] ?? $result['response']);
 
@@ -493,7 +574,7 @@ class AIController extends Controller
                 }
 
                 $voiceName = $aiAgent->tts_voice ?: 'Puck';
-                $synthesizedWav = \App\Services\AI\GeminiTtsService::synthesizeWav($cleanText, $voiceName);
+                $synthesizedWav = \App\Services\AI\GeminiTtsService::synthesizeWav($cleanText, $voiceName, 8);
                 if (is_string($synthesizedWav) && $synthesizedWav !== '') {
                     $base64Audio = $synthesizedWav;
                 }
@@ -502,11 +583,9 @@ class AIController extends Controller
             }
         }
 
-        // Metriken speichern (Fix für Analytics Dashboard fehlende Chat Activity)
-            // Tracking is now automatically handled centrally in AiAgentFactory
-
-        return response()->json([
+        $responsePayload = [
             'status' => 'success',
+            'chat_session_id' => $sessionId,
             'agent_name' => $aiAgent ? $aiAgent->name : 'Funkira',
             'tts_enabled' => $ttsEnabled,
             'response' => $result['response'],
@@ -514,8 +593,20 @@ class AIController extends Controller
             'context_data' => $result['context_data'] ?? [],
             'events_data' => $result['events'] ?? [],
             'usage' => $result['usage'] ?? [],
-            'audio' => $base64Audio
-        ]);
+            'audio' => $base64Audio,
+        ];
+
+        if ($idemResultKey !== null) {
+            try {
+                \Illuminate\Support\Facades\Cache::put($idemResultKey, $responsePayload, 600);
+                if ($idemInflightKey !== null) {
+                    \Illuminate\Support\Facades\Cache::forget($idemInflightKey);
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return response()->json($responsePayload);
     }
 
     public function saveCameraSnapshot(Request $request)

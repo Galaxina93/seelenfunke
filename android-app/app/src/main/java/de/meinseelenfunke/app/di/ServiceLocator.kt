@@ -618,9 +618,10 @@ object ServiceLocator {
             }
 
             val okHttpClient = OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
+                .connectTimeout(12, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(45, TimeUnit.SECONDS)
+                .pingInterval(25, TimeUnit.SECONDS)
                 .addInterceptor(loggingInterceptor)
                 .addInterceptor { chain ->
                     val original = chain.request()
@@ -634,8 +635,19 @@ object ServiceLocator {
                     requestBuilder.header("Accept", "application/json")
                     val builtRequest = requestBuilder.build()
 
+                    val encodedPath = builtRequest.url.encodedPath
+                    val isLongAiInference = encodedPath.endsWith("/ai/chat") || encodedPath.endsWith("/ai/execute")
+                    val activeChain = if (isLongAiInference) {
+                        chain
+                            .withConnectTimeout(12, TimeUnit.SECONDS)
+                            .withWriteTimeout(35, TimeUnit.SECONDS)
+                            .withReadTimeout(90, TimeUnit.SECONDS)
+                    } else {
+                        chain
+                    }
+
                     val response = try {
-                        chain.proceed(builtRequest)
+                        activeChain.proceed(builtRequest)
                     } catch (e: java.io.IOException) {
                         val host = builtRequest.url.host
                         if (BuildConfig.DEBUG && host == "192.168.188.119" && (e is java.net.ConnectException || e is java.net.SocketTimeoutException || e is java.net.NoRouteToHostException)) {
@@ -644,7 +656,7 @@ object ServiceLocator {
                                 .host("stage.mein-seelenfunke.de")
                                 .port(443)
                                 .build()
-                            val recovered = chain.proceed(builtRequest.newBuilder().url(stageUrl).build())
+                            val recovered = activeChain.proceed(builtRequest.newBuilder().url(stageUrl).build())
                             de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
                                 context = context,
                                 component = "network.lan_fallback",

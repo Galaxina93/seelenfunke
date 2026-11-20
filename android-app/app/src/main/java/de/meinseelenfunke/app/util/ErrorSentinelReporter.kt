@@ -29,6 +29,9 @@ data class SentinelQueuedEvent(
     val component: String = "android_app",
     val title: String = "",
     val message: String = "",
+    val error_class: String? = null,
+    val file: String? = null,
+    val line: Int? = null,
     val stacktrace: String? = null,
     val fingerprint: String = "",
     val app_version: String = "${de.meinseelenfunke.app.BuildConfig.VERSION_NAME} (${de.meinseelenfunke.app.BuildConfig.VERSION_CODE})",
@@ -188,7 +191,8 @@ object ErrorSentinelReporter {
         tag: String,
         message: String,
         throwable: Throwable? = null,
-        extraContext: Map<String, String> = emptyMap()
+        extraContext: Map<String, String> = emptyMap(),
+        allowOfflineAutoHeal: Boolean = true
     ) {
         if (isBenignCancellation(throwable, message)) return
         val cleanTag = tag.trim().ifEmpty { "android_app" }
@@ -205,15 +209,16 @@ object ErrorSentinelReporter {
             "$cleanTag: ${message.lineSequence().firstOrNull()?.take(90) ?: "Fehler"}"
         }
         val transientOffline = isTransientNetworkOffline(throwable)
+        val effectiveAutoHealed = transientOffline && allowOfflineAutoHeal
         val added = enqueueSynchronously(
             appCtx = appCtx,
             component = cleanTag,
             title = shortTitle,
             message = message,
             throwable = throwable,
-            autoHealed = transientOffline,
-            healSummary = if (transientOffline) "Offline-Modus / lokaler Cache übernahm bei kurzzeitigem Funkloch." else null,
-            severity = if (transientOffline) "warning" else "error",
+            autoHealed = effectiveAutoHealed,
+            healSummary = if (effectiveAutoHealed) "Offline-Modus / lokaler Cache übernahm bei kurzzeitigem Funkloch." else null,
+            severity = if (effectiveAutoHealed) "warning" else "error",
             extraContext = extraContext
         )
         if (added) {
@@ -334,12 +339,19 @@ object ErrorSentinelReporter {
             }
         }
 
+        val appFrame = throwable?.stackTrace?.firstOrNull {
+            it.className.startsWith("de.meinseelenfunke.app")
+        } ?: throwable?.stackTrace?.firstOrNull()
+
         val event = SentinelQueuedEvent(
             platform = "android",
             severity = if (autoHealed) "warning" else severity,
             component = safeComp,
             title = safeTitle,
             message = scrubSecrets(message).ifBlank { safeTitle },
+            error_class = throwable?.javaClass?.name?.take(180),
+            file = appFrame?.fileName?.take(120),
+            line = appFrame?.lineNumber?.takeIf { it > 0 },
             stacktrace = formatStackTrace(throwable),
             fingerprint = fp,
             app_version = APP_VERSION_LABEL,

@@ -129,7 +129,7 @@ class AiPromptService
                                  
             // 3. RAG Knowledge Base (Nur kundenrelevante Support-Kategorien laden, gecacht für Millisekunden-Performance)
             if (class_exists(AiKnowledgeBase::class)) {
-                $cachedSupportSnippet = Cache::remember('ai_kb_published_support', 3600, function () {
+                $loadSupportSnippet = function () {
                     $allowedCategories = [
                         'Unternehmen & Kontakt',
                         'Konto & Datenschutz',
@@ -160,7 +160,13 @@ class AiPromptService
                     $snippet .= "\n";
 
                     return $snippet;
-                });
+                };
+
+                try {
+                    $cachedSupportSnippet = Cache::remember('ai_kb_published_support', 3600, $loadSupportSnippet);
+                } catch (\Throwable) {
+                    $cachedSupportSnippet = $loadSupportSnippet();
+                }
 
                 if (!empty($cachedSupportSnippet)) {
                     $systemPromptText .= $cachedSupportSnippet;

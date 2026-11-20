@@ -10,20 +10,27 @@ class GeminiTtsService
     /**
      * Synthesize speech using Gemini native audio API and return base64 encoded WAV string.
      */
-    public static function synthesizeWav(string $text, string $voice = 'Aoede'): ?string
+    public static function synthesizeWav(string $text, string $voice = 'Aoede', int $timeoutSeconds = 25): ?string
     {
         $voice = preg_replace('/[^a-zA-Z0-9_\-]/', '', trim($voice)) ?: 'Aoede';
         $text = mb_substr(trim($text), 0, 2000);
+        $timeoutSeconds = max(4, min(35, $timeoutSeconds));
         $cacheKey = 'gemini_tts_sample_' . md5($voice . '_' . $text);
 
-        $cached = Cache::get($cacheKey);
-        if (is_string($cached) && $cached !== '') {
-            return $cached;
+        try {
+            $cached = Cache::get($cacheKey);
+            if (is_string($cached) && $cached !== '') {
+                return $cached;
+            }
+        } catch (\Throwable) {
         }
 
         if (app()->environment('testing')) {
             $testWav = base64_encode('RIFF_TEST_WAV_DATA_' . $voice);
-            Cache::put($cacheKey, $testWav, 86400);
+            try {
+                Cache::put($cacheKey, $testWav, 86400);
+            } catch (\Throwable) {
+            }
             return $testWav;
         }
 
@@ -33,8 +40,11 @@ class GeminiTtsService
         }
 
         $billingCooldownKey = 'gemini_tts_billing_depleted_cooldown';
-        if (!VertexAiService::isEnabled() && Cache::has($billingCooldownKey)) {
-            return null;
+        try {
+            if (!VertexAiService::isEnabled() && Cache::has($billingCooldownKey)) {
+                return null;
+            }
+        } catch (\Throwable) {
         }
 
         $models = [
@@ -71,9 +81,12 @@ class GeminiTtsService
 
         foreach ($models as $model) {
             $cooldownKey = 'gemini_tts_quota_cooldown_' . $model;
-            if (Cache::has($cooldownKey)) {
-                $errorsSummary[] = "{$model}: quota_cooldown";
-                continue;
+            try {
+                if (Cache::has($cooldownKey)) {
+                    $errorsSummary[] = "{$model}: quota_cooldown";
+                    continue;
+                }
+            } catch (\Throwable) {
             }
 
             $endpoint = VertexAiService::resolveGenerateContentEndpoint($model);
@@ -90,8 +103,8 @@ class GeminiTtsService
                 curl_setopt($ch, CURLOPT_HTTPHEADER, $curlHeaders);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 6);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 25);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, min(6, $timeoutSeconds));
+                curl_setopt($ch, CURLOPT_TIMEOUT, $timeoutSeconds);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
@@ -117,7 +130,10 @@ class GeminiTtsService
                     // Manche Modelle (z.B. gemini-3.8-flash-tts) liefern bereits einen vollständigen RIFF/WAV-Container
                     if (str_starts_with($pcmData, 'RIFF')) {
                         $wavBase64 = base64_encode($pcmData);
-                        Cache::put($cacheKey, $wavBase64, 604800);
+                        try {
+                            Cache::put($cacheKey, $wavBase64, 604800);
+                        } catch (\Throwable) {
+                        }
                         return $wavBase64;
                     }
 
@@ -137,7 +153,10 @@ class GeminiTtsService
                     );
 
                     $wavBase64 = base64_encode($wavHeader . $pcmData);
-                    Cache::put($cacheKey, $wavBase64, 604800);
+                    try {
+                        Cache::put($cacheKey, $wavBase64, 604800);
+                    } catch (\Throwable) {
+                    }
                     return $wavBase64;
                 }
 
@@ -149,7 +168,10 @@ class GeminiTtsService
 
                 if ($apiErrCode === 429 || $apiErrStatus === 'RESOURCE_EXHAUSTED') {
                     // 5 Minuten Cooldown für dieses spezifische TTS-Modell aktivieren, damit Fallback-Modelle sofort übernehmen
-                    Cache::put($cooldownKey, true, 300);
+                    try {
+                        Cache::put($cooldownKey, true, 300);
+                    } catch (\Throwable) {
+                    }
                     $errorsSummary[] = "{$model}: HTTP 429 quota_exhausted";
                     continue;
                 }
@@ -160,7 +182,10 @@ class GeminiTtsService
                     || stripos($apiErrMsg, 'billing') !== false
                 ) {
                     // Projektweites Prepaid-Guthaben leer -> 30 Min Cooldown & sofortiger Offline-TTS-Fallback ohne Warnungs-Flut
-                    Cache::put($billingCooldownKey, true, 1800);
+                    try {
+                        Cache::put($billingCooldownKey, true, 1800);
+                    } catch (\Throwable) {
+                    }
                     $errorsSummary[] = "{$model}: HTTP 402 billing_credits_depleted";
                     break;
                 }

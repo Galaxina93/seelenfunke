@@ -119,6 +119,7 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val canRetryLastMessage by viewModel.canRetryLastMessage.collectAsState()
     val agents by viewModel.agents.collectAsState()
     val selectedAgent by viewModel.selectedAgent.collectAsState()
 
@@ -305,14 +306,48 @@ fun ChatScreen(
                     }
                 }
 
-                error?.let {
+                error?.let { errText ->
                     item {
-                        Text(
-                            text = it,
-                            color = Rose500,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(AppTheme.colors.cardBackground)
+                                .border(1.dp, Rose500.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = errText,
+                                color = Rose500,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = if (canRetryLastMessage && !isLoading) 10.dp else 0.dp)
+                            )
+                            if (canRetryLastMessage && !isLoading) {
+                                Button(
+                                    onClick = { viewModel.retryLastMessage() },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Gold,
+                                        contentColor = SpaceBlack
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(
+                                        text = "Erneut senden",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SpaceBlack
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

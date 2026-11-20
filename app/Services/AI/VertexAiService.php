@@ -61,6 +61,16 @@ class VertexAiService
             return $relative;
         }
 
+        $fallbacks = [
+            storage_path('app/vertex-service-account.json'),
+            storage_path('app/private/vertex-service-account.json'),
+        ];
+        foreach ($fallbacks as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
         return $configured;
     }
 
@@ -278,8 +288,14 @@ class VertexAiService
         $resolved = self::resolveModel($model);
         $useVertex = $isVertex ?? self::isEnabled();
 
-        if ($useVertex && !str_starts_with($resolved, 'google/')) {
-            return 'google/' . $resolved;
+        if ($useVertex) {
+            return str_starts_with($resolved, 'google/') ? $resolved : ('google/' . $resolved);
+        }
+
+        // Auf dem direkten AI-Studio-OpenAI-Wrapper (generativelanguage.googleapis.com)
+        // blockiert gemini-3.5-flash häufig im Queue-Timeout, während gemini-3-flash-preview in < 1 s antwortet.
+        if (in_array($resolved, ['gemini-3.5-flash', 'gemini-3.5-flash-lite'], true)) {
+            return 'gemini-3-flash-preview';
         }
 
         return $resolved;

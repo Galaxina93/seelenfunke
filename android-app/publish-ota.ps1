@@ -10,7 +10,8 @@ $ErrorActionPreference = "Stop"
 
 $wslProjectRoot = "\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke"
 $wslAndroidRoot = "$wslProjectRoot\android-app"
-$winBuildMirror = "C:\Users\konta\AndroidStudioProjects\seelenfunke-android"
+$wslHomeRoot = Split-Path -Parent (Split-Path -Parent $wslProjectRoot)
+$winBuildMirror = Join-Path $env:USERPROFILE "AndroidStudioProjects\seelenfunke-android"
 $pinnedCertSha256 = "e4c85cdd79648fa19430c91b47e1db036544d60d2fa6136a0c5106300c849064"
 
 $hasWindowsJava = [bool]($env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\java.exe"))
@@ -38,6 +39,7 @@ $versionCode = [int]$verCodeMatch.Groups[1].Value
 $versionName = $verNameMatch.Groups[1].Value
 
 Write-Host "[1/4] Synchronisiere Funkenwerk Android Quellcode (v$versionName, Build $versionCode)..." -ForegroundColor Cyan
+New-Item -ItemType Directory -Path "$winBuildMirror\app\src" -Force | Out-Null
 robocopy "$wslAndroidRoot\app\src" "$winBuildMirror\app\src" /MIR /NFL /NDL /NJH /NJS | Out-Null
 Copy-Item "$wslAndroidRoot\app\build.gradle.kts" "$winBuildMirror\app\build.gradle.kts" -Force
 Copy-Item "$wslAndroidRoot\app\proguard-rules.pro" "$winBuildMirror\app\proguard-rules.pro" -Force
@@ -47,7 +49,7 @@ $apkPath = "$winBuildMirror\app\build\outputs\apk\release\app-release.apk"
 
 if (-not $SkipBuild) {
     Write-Host "[2/4] Baue R8-minifiziertes & 4096-Bit-RSA-signiertes Release-APK..." -ForegroundColor Cyan
-    if ($hasWindowsJava) {
+    if ($hasWindowsJava -and (Test-Path "$winBuildMirror\gradlew.bat")) {
         Push-Location $winBuildMirror
         try {
             .\gradlew.bat assembleRelease --no-daemon
@@ -58,10 +60,15 @@ if (-not $SkipBuild) {
             Pop-Location
         }
     } else {
-        Write-Host "      Nutze WSL OpenJDK 21 + Android SDK für Release-Build..." -ForegroundColor DarkCyan
-        $ksPropsPath = Join-Path $env:USERPROFILE ".android\signing\keystore.properties"
-        if (-not (Test-Path $ksPropsPath)) {
-            throw "Release-Keystore nicht gefunden: $ksPropsPath"
+        Write-Host "      Nutze WSL OpenJDK 21 + Android SDK fuer Release-Build..." -ForegroundColor DarkCyan
+        $ksCandidates = @(
+            (Join-Path $env:USERPROFILE ".android\signing\keystore.properties"),
+            "$wslHomeRoot\.android\signing\keystore.properties",
+            "$wslAndroidRoot\keystore.properties"
+        )
+        $ksPropsPath = $ksCandidates | Where-Object { Test-Path $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
+        if (-not $ksPropsPath) {
+            throw "Release-Keystore nicht gefunden (geprueft: $($ksCandidates -join ', ')). Bitte funkenwerk-release.jks + keystore.properties unter ~/.android/signing/ ablegen."
         }
         $ksMap = @{}
         foreach ($line in (Get-Content $ksPropsPath)) {
@@ -175,25 +182,39 @@ Write-Host "      Lokal veröffentlicht: $manifestJson" -ForegroundColor Green
 
 if (-not $SkipStage) {
     $mcpCandidates = @(
+        (Join-Path $env:LOCALAPPDATA "FunkenwerkOS\McpBuild\FunkenwerkMcp.exe"),
+        (Join-Path $env:USERPROFILE "Desktop\Funkenwerk Collection\Funkenwerk MCP\FunkenwerkMcp.exe"),
         "C:\Users\konta\AppData\Local\FunkenwerkOS\McpBuild\FunkenwerkMcp.exe",
         "C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk MCP\FunkenwerkMcp.exe"
     )
-    $mcpExe = $mcpCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $mcpExe) {
-        throw "FunkenwerkMcp.exe wurde nicht gefunden (benötigt für Ed25519-Key-Only Stage-APK-Publish)."
-    }
+    $mcpExe = $mcpCandidates | Where-Object { Test-Path $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
 
     Write-Host "[5/5] Veröffentliche signiertes Release per Ed25519-Key-Only auf Stage (stage.mein-seelenfunke.de)..." -ForegroundColor Cyan
-    $stageArgs = @(
-        "--stage-publish-apk",
-        "--apk", $apkPath,
-        "--version-code", "$versionCode",
-        "--version-name", $versionName,
-        "--notes", $ReleaseNotes
-    )
-    & $mcpExe @stageArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Stage-APK-Publish fehlgeschlagen (Exit-Code $LASTEXITCODE)."
+    if ($mcpExe) {
+        $stageArgs = @(
+            "--stage-publish-apk",
+            "--apk", $apkPath,
+            "--version-code", "$versionCode",
+            "--version-name", $versionName,
+            "--notes", $ReleaseNotes
+        )
+        & $mcpExe @stageArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Stage-APK-Publish fehlgeschlagen (Exit-Code $LASTEXITCODE)."
+        }
+    } else {
+        $wslStageApk = "/mnt/" + $apkPath.Substring(0, 1).ToLowerInvariant() + ($apkPath.Substring(2) -replace '\\', '/')
+        $stageSshCmd = "ssh -i /home/ubuntuxina/.ssh/id_ed25519 -o BatchMode=yes -o ConnectTimeout=15 kontakt@mein-seelenfunke.de@a-lc6tkm@ssh.altgemeinde.project.host"
+        wsl -d Ubuntu bash -c "cat '$wslStageApk' | $stageSshCmd 'cat > /tmp/_ota_stage_upload.apk'"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Stage-SSH-Transfer der signierten APK fehlgeschlagen."
+        }
+        $stagePhpScript = $phpScript -replace '/var/www/html', '/home/p-g27wim/html/seelenfunke-stage'
+        $stageManifestOut = $stagePhpScript | wsl -d Ubuntu bash -c "$stageSshCmd 'php -- $payloadB64'"
+        if ($LASTEXITCODE -ne 0) {
+            throw "Stage-Tresor-Aktivierung fehlgeschlagen: $stageManifestOut"
+        }
+        Write-Host "      Stage veröffentlicht (Ed25519 SSH): $stageManifestOut" -ForegroundColor Green
     }
 }
 

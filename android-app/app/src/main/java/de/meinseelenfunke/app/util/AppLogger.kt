@@ -26,7 +26,14 @@ object AppLogger {
         }
     }
 
-    fun error(context: Context?, tag: String, message: String, throwable: Throwable? = null) {
+    fun error(
+        context: Context?,
+        tag: String,
+        message: String,
+        throwable: Throwable? = null,
+        extraContext: Map<String, String> = emptyMap(),
+        allowOfflineAutoHeal: Boolean = true
+    ) {
         if (ErrorSentinelReporter.isBenignCancellation(throwable, message)) {
             return
         }
@@ -37,7 +44,14 @@ object AppLogger {
                 Log.e(tag, message)
             }
         }
-        ErrorSentinelReporter.captureError(context, tag, message, throwable)
+        ErrorSentinelReporter.captureError(
+            context = context,
+            tag = tag,
+            message = message,
+            throwable = throwable,
+            extraContext = extraContext,
+            allowOfflineAutoHeal = allowOfflineAutoHeal
+        )
     }
 
     fun debug(context: Context?, tag: String, message: String) {

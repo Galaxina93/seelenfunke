@@ -15,6 +15,10 @@ class AiAgentFactory
      */
     public static function make(AiAgent $agent)
     {
+        if (app()->bound(\App\Services\AI\Contracts\AiProviderInterface::class)) {
+            return app(\App\Services\AI\Contracts\AiProviderInterface::class, ['agent' => $agent]);
+        }
+
         // Default: Google Gemini API
         return new GeminiAgent($agent);
     }

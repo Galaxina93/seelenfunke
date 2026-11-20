@@ -1031,7 +1031,7 @@ class SystemErrorLogger
                 $cleanMessage = 'Unbekannter Laufzeitfehler';
             }
 
-            $errorClass = self::sanitizeSensitiveText(trim((string) ($data['error_class'] ?? '')));
+            $errorClass = self::sanitizeSensitiveText(trim((string) ($data['error_class'] ?? $data['exception_class'] ?? '')));
             $file = self::sanitizeSensitiveText(trim((string) ($data['file'] ?? '')));
             $line = isset($data['line']) && is_numeric($data['line']) ? (int) $data['line'] : null;
             $rawTitle = self::sanitizeSensitiveText(trim((string) ($data['title'] ?? '')));
@@ -1068,8 +1068,9 @@ class SystemErrorLogger
                 ? self::sanitizeArrayRecursive($data['context'])
                 : [];
 
-            $stackRaw = is_string($data['stack'] ?? null)
-                ? Str::limit(self::sanitizeSensitiveText($data['stack']), 4500)
+            $rawStackInput = $data['stack'] ?? $data['stacktrace'] ?? null;
+            $stackRaw = is_string($rawStackInput) && trim($rawStackInput) !== ''
+                ? Str::limit(self::sanitizeSensitiveText($rawStackInput), 4500)
                 : null;
 
             if ($existing) {

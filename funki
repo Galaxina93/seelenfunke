@@ -439,13 +439,27 @@ case "$1" in
         if [ "$IS_LOCAL" = true ]; then
             echo "🛍️ Aktualisiere reines Shop-Asset-Manifest (Musik, Buchhaltung & Privatdaten bleiben 100 % lokal)..."
             $PREFIX_DEFAULT php artisan system:shop-asset-manifest --write
+            LOCAL_VERTEX_SA="storage/app/vertex-service-account.json"
+            STAGE_SSH_KEY="/home/ubuntuxina/.ssh/id_ed25519"
+            STAGE_SSH_TARGET="kontakt@mein-seelenfunke.de@a-lc6tkm@ssh.altgemeinde.project.host"
+            STAGE_REMOTE_ROOT="/home/p-g27wim/html/seelenfunke-stage"
+            if [ -f "$LOCAL_VERTEX_SA" ] && [ -f "$STAGE_SSH_KEY" ]; then
+                echo "🔐 Synchronisiere Vertex-AI-Service-Account verschlüsselt nach Stage (chmod 600)..."
+                ssh -i "$STAGE_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=12 "$STAGE_SSH_TARGET" \
+                    "mkdir -p '$STAGE_REMOTE_ROOT/storage/app' && cat > '$STAGE_REMOTE_ROOT/storage/app/vertex-service-account.json' && chmod 600 '$STAGE_REMOTE_ROOT/storage/app/vertex-service-account.json'" < "$LOCAL_VERTEX_SA"
+            fi
             MCP_EXE="$(resolve_mcp_exe)"
             if [ -f "$MCP_EXE" ]; then
                 echo "🚢 Starte verschlüsselten Stage-Autopilot über Funkenwerk MCP..."
                 "$MCP_EXE" --stage-deploy "$@"
                 exit $?
+            elif [ -f "$STAGE_SSH_KEY" ]; then
+                echo "🚢 Starte Stage-Deploy direkt per Ed25519-SSH auf '$STAGE_REMOTE_ROOT'..."
+                ssh -i "$STAGE_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=15 "$STAGE_SSH_TARGET" \
+                    "bash '$STAGE_REMOTE_ROOT/funki' stage-deploy"
+                exit $?
             else
-                echo "❌ FunkenwerkMcp.exe nicht unter '$MCP_EXE' gefunden."
+                echo "❌ Weder FunkenwerkMcp.exe ('$MCP_EXE') noch Ed25519-SSH-Key ('$STAGE_SSH_KEY') gefunden."
                 exit 1
             fi
         fi

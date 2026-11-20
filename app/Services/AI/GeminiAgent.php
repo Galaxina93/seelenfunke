@@ -513,12 +513,13 @@ class GeminiAgent implements AiProviderInterface
                     'action_text' => 'LLM Inference (Tiefe: '.$depth.')...',
                     'pulse_color' => 'indigo'
                 ], 60);
-            } catch (\Exception $e) {}
+            } catch (\Throwable $e) {}
 
             $startTime = microtime(true);
-            // Bei oft überlasteten Next-Gen/Pro-Modellen sofort nach 1 Fehlversuch auf stabiles 3.5-flash wechseln statt 3x zu warten
-            $maxRetries = in_array($modelName, ['gemini-3.8-flash', 'gemini-3.1-pro-preview'], true) ? 0 : 2;
+            // Maximal 1 schneller Retry vor dem Modell-Fallback, damit mobile Clients niemals in lange Timeout-Kaskaden laufen
+            $maxRetries = in_array($modelName, ['gemini-3.8-flash', 'gemini-3.1-pro-preview'], true) ? 0 : 1;
             $retryCount = 0;
+            $fallbackUsed = false;
             $responseString = null;
             $httpCode = 0;
             $curlError = null;
@@ -527,32 +528,25 @@ class GeminiAgent implements AiProviderInterface
             while ($retryCount <= $maxRetries) {
                 $url = rtrim($this->baseUrl, '/') . '/chat/completions';
 
-               /* \Illuminate\Support\Facades\Log::info("DEBUG: GeminiAgent initiating cURL.", [
-                    'url' => $url,
-                    'model' => $payload['model'],
-                    'payload_size' => strlen(json_encode($payload)),
-                    'timeout_settings' => 120 + ($retryCount * 30),
-                    'tools_count' => isset($payload['tools']) ? count($payload['tools']) : 0,
-                    'stream' => $payload['stream'] ?? false
-                ]);*/
-
                 $ch = curl_init($url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_REFERER, request()->headers->get('referer') ?? config('app.url'));
 
-                // WICHTIG: Kein Laravel Guzzle (Http::) nutzen, um cURL Timeout 28 bei großen Payloads (Code/Bilder)
-                // durch ungewollte Expect: 100-continue MTU Drops in Docker Containern zu verhindern.
+                // WICHTIG: Kein Laravel Guzzle (Http::) nutzen und Expect: explizit leeren, um cURL Timeout 28
+                // bei großen Payloads (Tools/Code/Bilder) durch 100-continue / MTU-Drops zu verhindern.
                 curl_setopt($ch, CURLOPT_HTTPHEADER, [
                     'Content-Type: application/json',
                     'Authorization: Bearer ' . $this->apiKey,
-                    'Accept: text/event-stream'
+                    'Accept: text/event-stream',
+                    'Expect:'
                 ]);
                 $this->syncDebugPayloadDump($payload);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE));
-                // Wir gewähren der LLM volle 120 Sekunden, um die Werkzeuge (Tools) zu lesen und zu entscheiden
-                curl_setopt($ch, CURLOPT_TIMEOUT, 120 + ($retryCount * 30));
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 15);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 45 + ($retryCount * 10));
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+                curl_setopt($ch, CURLOPT_LOW_SPEED_LIMIT, 1);
+                curl_setopt($ch, CURLOPT_LOW_SPEED_TIME, 22);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
                 $verifySsl = (bool) env('GEMINI_VERIFY_SSL', !app()->environment('local', 'testing'));
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, $verifySsl);
@@ -561,16 +555,17 @@ class GeminiAgent implements AiProviderInterface
                 $rawResponseString = '';
                 $streamedTextAccumulator = '';
                 $toolCallAccumulators = [];
+                $streamUsage = null;
                 $sseBuffer = '';
                 $abortKey = 'abort_ai_agent_' . $this->agent->id;
 
-                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) use ($streamCallback, &$rawResponseString, &$streamedTextAccumulator, &$toolCallAccumulators, &$sseBuffer, $abortKey, &$isAborted, &$usageData) {
+                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) use ($streamCallback, &$rawResponseString, &$streamedTextAccumulator, &$toolCallAccumulators, &$sseBuffer, $abortKey, &$isAborted, &$streamUsage) {
                     try {
                         if (\Illuminate\Support\Facades\Cache::pull($abortKey)) {
                             $isAborted = true;
                             return 0; // Aborts cURL with CURLE_WRITE_ERROR
                         }
-                    } catch (\Exception $e) {}
+                    } catch (\Throwable $e) {}
                     $rawResponseString .= $data;
                     $sseBuffer .= $data;
 
@@ -586,16 +581,13 @@ class GeminiAgent implements AiProviderInterface
 
                             $chunk = json_decode($jsonStr, true);
                             
-                            // Extract usage if present in the final chunk
-                            if (isset($chunk['usage'])) {
-                                if (!isset($usageData['prompt_tokens'])) {
-                                    $usageData['prompt_tokens'] = 0;
-                                    $usageData['completion_tokens'] = 0;
-                                    $usageData['total_tokens'] = 0;
-                                }
-                                $usageData['prompt_tokens'] += $chunk['usage']['prompt_tokens'] ?? 0;
-                                $usageData['completion_tokens'] += $chunk['usage']['completion_tokens'] ?? 0;
-                                $usageData['total_tokens'] += $chunk['usage']['total_tokens'] ?? 0;
+                            // Merke das aktuelle kumulative Usage-Objekt dieses einzelnen Streams (verhindert Mehrfachzählung)
+                            if (isset($chunk['usage']) && is_array($chunk['usage'])) {
+                                $streamUsage = [
+                                    'prompt_tokens' => (int) ($chunk['usage']['prompt_tokens'] ?? 0),
+                                    'completion_tokens' => (int) ($chunk['usage']['completion_tokens'] ?? 0),
+                                    'total_tokens' => (int) ($chunk['usage']['total_tokens'] ?? 0),
+                                ];
                             }
 
                             if (isset($chunk['choices'][0]['delta'])) {
@@ -706,31 +698,46 @@ class GeminiAgent implements AiProviderInterface
 
                 // Erfolgreicher Aufruf oder harter lokaler 4xx Client Fehler (Ausnahme 429 Rate Limit) -> Abbrechen, da Retry nutzlos.
                 if (!$curlError && $httpCode < 500 && $httpCode !== 429) {
+                    if (is_array($streamUsage)) {
+                        $usageData['prompt_tokens'] = ($usageData['prompt_tokens'] ?? 0) + $streamUsage['prompt_tokens'];
+                        $usageData['completion_tokens'] = ($usageData['completion_tokens'] ?? 0) + $streamUsage['completion_tokens'];
+                        $usageData['total_tokens'] = ($usageData['total_tokens'] ?? 0) + $streamUsage['total_tokens'];
+                    }
                     break;
                 }
 
-                $retryCount++;
+                // Wenn bereits ein Low-Speed-/Read-Timeout (> 18 s) auftrat, direkt auf schnelles Fallback-Modell wechseln statt nochmal zu schlafen
+                $attemptElapsedSec = microtime(true) - $startTime;
+                if (!$fallbackUsed && ($curlError || in_array($httpCode, [0, 429, 502, 503, 504], true)) && $attemptElapsedSec >= 18.0) {
+                    $retryCount = $maxRetries + 1;
+                } else {
+                    $retryCount++;
+                }
+
                 if ($retryCount <= $maxRetries) {
-                    $sleepSeconds = pow(2, $retryCount); // Exponentieller Backoff: 2s, 4s Pause
-                    // Log::warning("Gemini API Error - initiating Retry {$retryCount}/{$maxRetries}", ['curl_error' => $curlError, 'http_code' => $httpCode]);
+                    $sleepSeconds = 1;
+                    Log::warning("Gemini API transient error, initiating fast retry {$retryCount}/{$maxRetries}", [
+                        'model' => $payload['model'] ?? 'unknown',
+                        'http_code' => $httpCode,
+                        'curl_error' => \App\Services\System\SystemErrorLogger::sanitizeSensitiveText((string) $curlError),
+                    ]);
                     try {
                         \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
                             'active_node' => 'arrow-path',
-                            'action_text' => "Verbindungsauslastung. Automatischer Neuversuch {$retryCount} in {$sleepSeconds}s...",
+                            'action_text' => "Verbindungsauslastung. Automatischer Neuversuch {$retryCount}...",
                             'pulse_color' => 'yellow'
                         ], 60);
-                    } catch (\Exception $e) {}
+                    } catch (\Throwable $e) {}
 
-                    // Blockiert absichtlich den Prozess, da die Retry-Warteschlange seriell erfolgen muss
                     sleep($sleepSeconds);
-                } else if ($retryCount == $maxRetries + 1 && (in_array($httpCode, [0, 429, 503]) || $curlError)) {
+                } else if (!$fallbackUsed && $retryCount == $maxRetries + 1 && (in_array($httpCode, [0, 429, 502, 503, 504], true) || $curlError)) {
+                    $fallbackUsed = true;
                     $plainCurrentModel = VertexAiService::resolveModel((string) ($payload['model'] ?? ''));
                     if (str_contains($plainCurrentModel, 'pro') || $plainCurrentModel === 'gemini-3.8-flash') {
-                        // SILENT FALLBACK AUF STABILES 3.5 FLASH WENN PRO ODER 3.8 FLASH ÜBERLASTET (503/429) IST
                         Log::warning("Gemini {$payload['model']} overloaded or timed out ({$httpCode}). Executing silent fallback to Gemini 3.5 Flash.", ['payload_size' => strlen(json_encode($payload))]);
                         $payload['model'] = VertexAiService::formatOpenAiModel('gemini-3.5-flash', $this->isVertex);
                         $retryCount = 0;
-                        $maxRetries = 1;
+                        $maxRetries = 0;
 
                         try {
                             \Illuminate\Support\Facades\Cache::put('ai_live_state_' . $this->agent->id, [
@@ -738,13 +745,13 @@ class GeminiAgent implements AiProviderInterface
                                 'action_text' => "Modell ausgelastet. Wechsel auf stabiles Gemini 3.5 Flash...",
                                 'pulse_color' => 'orange'
                             ], 60);
-                        } catch (\Exception $e) {}
+                        } catch (\Throwable $e) {}
                     } else if (in_array($plainCurrentModel, ['gemini-3.5-flash', 'gemini-3-flash-preview'], true)) {
-                        // High load on 3.5 Flash: fallback to stable ultra-lightweight 3.5 Flash Lite (0.7s)
-                        Log::warning("Gemini 3.5 Flash API overloaded ({$httpCode}). Executing fallback to Gemini 3.5 Flash Lite.", ['payload_size' => strlen(json_encode($payload))]);
-                        $payload['model'] = VertexAiService::formatOpenAiModel('gemini-3.5-flash-lite', $this->isVertex);
+                        $fastFallbackModel = $this->isVertex ? 'gemini-3.5-flash-lite' : 'gemini-3-flash-preview';
+                        Log::warning("Gemini Flash API overloaded or stalled ({$httpCode}). Executing fast fallback to {$fastFallbackModel}.", ['payload_size' => strlen(json_encode($payload))]);
+                        $payload['model'] = VertexAiService::formatOpenAiModel($fastFallbackModel, $this->isVertex);
                         $retryCount = 0;
-                        $maxRetries = 1;
+                        $maxRetries = 0;
                     }
                 }
             }
