@@ -543,6 +543,127 @@ case "$1" in
         )
         exit $?
         ;;
+    publish-ota|ota|--publish-ota)
+        require_local "publish-ota"
+        shift
+        (
+            set -e
+            RELEASE_NOTES="${1:-App-Update}"
+            PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+            ANDROID_DIR="$PROJECT_ROOT/android-app"
+            PINNED_CERT="e4c85cdd79648fa19430c91b47e1db036544d60d2fa6136a0c5106300c849064"
+
+            VER_CODE="$(grep -Eo 'versionCode\s*=\s*[0-9]+' "$ANDROID_DIR/app/build.gradle.kts" | head -n1 | grep -Eo '[0-9]+')"
+            VER_NAME="$(grep -Eo 'versionName\s*=\s*"[^"]+"' "$ANDROID_DIR/app/build.gradle.kts" | head -n1 | cut -d'"' -f2)"
+            if [ -z "$VER_CODE" ] || [ -z "$VER_NAME" ]; then
+                echo "❌ versionCode/versionName konnte nicht aus build.gradle.kts gelesen werden."
+                exit 1
+            fi
+
+            KS_PROPS=""
+            for cand in "$HOME/.android/signing/keystore.properties" "/mnt/c/Users/konta/.android/signing/keystore.properties" "$ANDROID_DIR/keystore.properties"; do
+                if [ -f "$cand" ]; then
+                    KS_PROPS="$cand"
+                    break
+                fi
+            done
+            if [ -z "$KS_PROPS" ]; then
+                echo "❌ Release-Keystore (keystore.properties) nicht gefunden."
+                exit 1
+            fi
+
+            RAW_STORE="$(grep -E '^storeFile=' "$KS_PROPS" | head -n1 | cut -d'=' -f2- | tr -d '\r' | sed 's|\\|/|g')"
+            if [[ "$RAW_STORE" =~ ^([A-Za-z]):/(.*)$ ]]; then
+                DRIVE_LOWER="$(echo "${BASH_REMATCH[1]}" | tr 'A-Z' 'a-z')"
+                SIGNING_STORE_FILE="/mnt/${DRIVE_LOWER}/${BASH_REMATCH[2]}"
+            else
+                SIGNING_STORE_FILE="$RAW_STORE"
+            fi
+            SIGNING_STORE_PASSWORD="$(grep -E '^storePassword=' "$KS_PROPS" | head -n1 | cut -d'=' -f2- | tr -d '\r')"
+            SIGNING_KEY_ALIAS="$(grep -E '^keyAlias=' "$KS_PROPS" | head -n1 | cut -d'=' -f2- | tr -d '\r')"
+            SIGNING_KEY_PASSWORD="$(grep -E '^keyPassword=' "$KS_PROPS" | head -n1 | cut -d'=' -f2- | tr -d '\r')"
+
+            echo "📱 [1/5] Synchronisiere Windows-Mirror & baue Funkenwerk v${VER_NAME} (Build ${VER_CODE})..."
+            WIN_MIRROR="/mnt/c/Users/konta/AndroidStudioProjects/seelenfunke-android"
+            if [ -d "/mnt/c/Users/konta" ]; then
+                mkdir -p "$WIN_MIRROR/app/src"
+                rsync -a --delete "$ANDROID_DIR/app/src/" "$WIN_MIRROR/app/src/"
+                cp -f "$ANDROID_DIR/app/build.gradle.kts" "$WIN_MIRROR/app/build.gradle.kts"
+                cp -f "$ANDROID_DIR/app/proguard-rules.pro" "$WIN_MIRROR/app/proguard-rules.pro"
+            fi
+
+            (
+                cd "$ANDROID_DIR"
+                SIGNING_STORE_FILE="$SIGNING_STORE_FILE" \
+                SIGNING_STORE_PASSWORD="$SIGNING_STORE_PASSWORD" \
+                SIGNING_KEY_ALIAS="$SIGNING_KEY_ALIAS" \
+                SIGNING_KEY_PASSWORD="$SIGNING_KEY_PASSWORD" \
+                ./gradlew assembleRelease --no-daemon
+            )
+
+            APK_FILE="$ANDROID_DIR/app/build/outputs/apk/release/app-release.apk"
+            if [ ! -f "$APK_FILE" ]; then
+                echo "❌ Signiertes APK nicht gefunden: $APK_FILE"
+                exit 1
+            fi
+
+            echo "🔐 [2/5] Prüfe X.509-Zertifikat & SHA-256-Fingerprint..."
+            ACTUAL_CERT="$(keytool -printcert -jarfile "$APK_FILE" | grep -Eo 'SHA256:\s*[0-9A-Fa-f:]{95}' | head -n1 | awk '{print $2}' | tr -d ':' | tr 'A-Z' 'a-z')"
+            if [ "$ACTUAL_CERT" != "$PINNED_CERT" ]; then
+                echo "❌ Zertifikats-Abweichung ($ACTUAL_CERT != $PINNED_CERT)!"
+                exit 1
+            fi
+            APK_SHA256="$(sha256sum "$APK_FILE" | awk '{print $1}')"
+            echo "   ✓ Zertifikat verifiziert! SHA-256: $APK_SHA256"
+
+            if [ -d "$WIN_MIRROR" ]; then
+                mkdir -p "$WIN_MIRROR/app/build/outputs/apk/release"
+                cp -f "$APK_FILE" "$WIN_MIRROR/app/build/outputs/apk/release/app-release.apk"
+            fi
+
+            echo "🗄️ [3/5] Speichere Release im lokalen Laravel-OTA-Tresor..."
+            docker exec mein_php_server mkdir -p /var/www/html/storage/app/private/releases/android
+            docker exec mein_php_server chown -R www-data:www-data /var/www/html/storage/app/private/releases
+            docker exec -u www-data -i mein_php_server sh -c 'cat > /tmp/_ota_stage_upload.apk' < "$APK_FILE"
+
+            PAYLOAD_B64="$(php -r 'echo base64_encode(json_encode(["version_code"=>(int)$argv[1],"version_name"=>$argv[2],"sha256"=>$argv[3],"release_notes"=>$argv[4]], JSON_UNESCAPED_UNICODE));' "$VER_CODE" "$VER_NAME" "$APK_SHA256" "$RELEASE_NOTES")"
+            LOCAL_MANIFEST="$(docker exec -u www-data mein_php_server php -r '
+                require "/var/www/html/vendor/autoload.php";
+                $app = require_once "/var/www/html/bootstrap/app.php";
+                $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+                $in = json_decode(base64_decode($argv[1]), true, 512, JSON_THROW_ON_ERROR);
+                $m = app(App\Services\System\AndroidReleaseService::class)->storeVerifiedRelease("/tmp/_ota_stage_upload.apk", (int)$in["version_code"], (string)$in["version_name"], (string)$in["sha256"], (string)$in["release_notes"], true);
+                @unlink("/tmp/_ota_stage_upload.apk");
+                echo json_encode($m, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            ' "$PAYLOAD_B64")"
+            echo "   ✓ Lokal veröffentlicht: $LOCAL_MANIFEST"
+
+            echo "🚀 [4/5] Veröffentliche signiertes OTA-Release auf Stage (stage.mein-seelenfunke.de)..."
+            MCP_EXE="$(resolve_mcp_exe)"
+            if [ -f "$MCP_EXE" ] && [ -f "$WIN_MIRROR/app/build/outputs/apk/release/app-release.apk" ]; then
+                "$MCP_EXE" --stage-publish-apk \
+                    --apk "C:\\Users\\konta\\AndroidStudioProjects\\seelenfunke-android\\app\\build\\outputs\\apk\\release\\app-release.apk" \
+                    --version-code "$VER_CODE" \
+                    --version-name "$VER_NAME" \
+                    --notes "$RELEASE_NOTES"
+            else
+                STAGE_SSH="ssh -i /home/ubuntuxina/.ssh/id_ed25519 -o BatchMode=yes -o ConnectTimeout=15 kontakt@mein-seelenfunke.de@a-lc6tkm@ssh.altgemeinde.project.host"
+                $STAGE_SSH "cat > /tmp/_ota_stage_upload.apk" < "$APK_FILE"
+                STAGE_MANIFEST="$($STAGE_SSH "php -r '
+                    require \"/home/p-g27wim/html/seelenfunke-stage/vendor/autoload.php\";
+                    \$app = require_once \"/home/p-g27wim/html/seelenfunke-stage/bootstrap/app.php\";
+                    \$app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap();
+                    \$in = json_decode(base64_decode(\$argv[1]), true, 512, JSON_THROW_ON_ERROR);
+                    \$m = app(App\\Services\\System\\AndroidReleaseService::class)->storeVerifiedRelease(\"/tmp/_ota_stage_upload.apk\", (int)\$in[\"version_code\"], (string)\$in[\"version_name\"], (string)\$in[\"sha256\"], (string)\$in[\"release_notes\"], true);
+                    @unlink(\"/tmp/_ota_stage_upload.apk\");
+                    echo json_encode(\$m, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                ' '$PAYLOAD_B64'")"
+                echo "   ✓ Stage veröffentlicht (Ed25519 SSH): $STAGE_MANIFEST"
+            fi
+            echo "🎉 [5/5] Funkenwerk v${VER_NAME} (Build ${VER_CODE}) erfolgreich per OTA bereitgestellt!"
+        )
+        exit $?
+        ;;
     funkenreich-deploy|deploy-funkenreich|--funkenreich-deploy)
         require_local "funkenreich-deploy"
         (
