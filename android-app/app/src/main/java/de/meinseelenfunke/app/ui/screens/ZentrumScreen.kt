@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -447,6 +448,9 @@ fun DashboardContent(
         }
     }
 
+    var quickScannerNonce by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    var openQuickEntryInTrichterMode by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -463,7 +467,10 @@ fun DashboardContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Box(
                         modifier = Modifier
                             .size(34.dp)
@@ -481,24 +488,51 @@ fun DashboardContent(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Beleg erfassen & Schnelleintrag",
+                            text = "Beleg & Massenscanner",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = AppTheme.colors.textPrimary
                         )
-                        Text(
-                            text = "KI-Beleg-Scanner (Kamera / Datei) oder manuell",
-                            fontSize = 11.sp,
-                            color = AppTheme.colors.textMuted
-                        )
                     }
                 }
-                Icon(
-                    imageVector = if (isQuickEntryExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isQuickEntryExpanded) "Zuklappen" else "Aufklappen",
-                    tint = Gold,
-                    modifier = Modifier.size(20.dp)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0x24C5A059))
+                            .border(1.dp, Gold, RoundedCornerShape(8.dp))
+                            .clickable {
+                                openQuickEntryInTrichterMode = true
+                                isQuickEntryExpanded = true
+                                quickScannerNonce++
+                            }
+                            .padding(horizontal = 9.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DocumentScanner,
+                            contentDescription = "Massenscanner starten",
+                            tint = Gold,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Scanner",
+                            color = Gold,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Icon(
+                        imageVector = if (isQuickEntryExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (isQuickEntryExpanded) "Zuklappen" else "Aufklappen",
+                        tint = Gold,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             AnimatedVisibility(visible = isQuickEntryExpanded) {
@@ -508,6 +542,8 @@ fun DashboardContent(
                     isAiScanning = isAiScanning,
                     showCard = false,
                     showTitle = false,
+                    initialTrichterMode = openQuickEntryInTrichterMode,
+                    autoLaunchScannerNonce = quickScannerNonce,
                     trichterFeedback = trichterFeedback,
                     onClearTrichterFeedback = { viewModel.clearTrichterFeedback() },
                     onDismiss = {

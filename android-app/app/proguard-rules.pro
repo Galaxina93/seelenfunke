@@ -43,7 +43,10 @@
 -keep class de.meinseelenfunke.app.util.SentinelQueuedEvent { *; }
 -keep class de.meinseelenfunke.app.util.OtaReleaseManifest { *; }
 -keep class de.meinseelenfunke.app.util.AgDirectOutboxEntry { *; }
+-keep class de.meinseelenfunke.app.util.QueuedTrichterScanMeta { *; }
 -keep class de.meinseelenfunke.app.ui.screens.SelectedFile { *; }
+-keep class de.meinseelenfunke.app.ui.screens.TrichterUploadItem { *; }
+-keep class de.meinseelenfunke.app.ui.screens.TrichterFeedback { *; }
 
 # Keep Android Manifest Components (Widgets, Services, Receivers, Activities)
 -keep public class * extends android.appwidget.AppWidgetProvider
@@ -63,6 +66,7 @@
 -keep class com.google.genai.** { *; }
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
+-keep class com.google.mlkit.vision.documentscanner.** { *; }
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**

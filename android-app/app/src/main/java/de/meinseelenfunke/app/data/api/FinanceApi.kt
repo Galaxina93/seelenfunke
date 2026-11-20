@@ -128,7 +128,17 @@ interface FinanceApi {
     ): ReceiptAiScanResponse
 
     @Multipart
-    @POST("funki/minipc-trichter/enqueue")
+    @POST("funki/kdrive-trichter/enqueue")
+    suspend fun enqueueKdriveTrichter(
+        @Part file: MultipartBody.Part,
+        @Part("custom_title") customTitle: RequestBody?,
+        @Part("source") source: RequestBody,
+        @Part("batch_index") batchIndex: RequestBody? = null,
+        @Part("batch_total") batchTotal: RequestBody? = null
+    ): SimpleSuccessResponse
+
+    @Multipart
+    @POST("funki/kdrive-trichter/enqueue")
     suspend fun enqueueMiniPcTrichter(
         @Part file: MultipartBody.Part,
         @Part("custom_title") customTitle: RequestBody?,

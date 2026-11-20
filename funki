@@ -24,17 +24,22 @@ require_local() {
 # Helper-Funktion: Wählt automatisch das aktuellste lokale FunkenwerkMcp.exe Binary
 resolve_mcp_exe() {
     local cli_exe="/mnt/c/Users/konta/AppData/Local/Funkenwerk/SentinelCli/FunkenwerkMcp.exe"
+    local mod_exe="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Module/Funkenwerk MCP/FunkenwerkMcp.exe"
     local col_exe="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
-    if [ -f "$cli_exe" ] && [ -f "$col_exe" ]; then
-        if [ "$cli_exe" -nt "$col_exe" ]; then
+    local best_col="$mod_exe"
+    if [ ! -f "$best_col" ] && [ -f "$col_exe" ]; then
+        best_col="$col_exe"
+    fi
+    if [ -f "$cli_exe" ] && [ -f "$best_col" ]; then
+        if [ "$cli_exe" -nt "$best_col" ]; then
             echo "$cli_exe"
         else
-            echo "$col_exe"
+            echo "$best_col"
         fi
     elif [ -f "$cli_exe" ]; then
         echo "$cli_exe"
     else
-        echo "$col_exe"
+        echo "$best_col"
     fi
 }
 
@@ -586,10 +591,11 @@ case "$1" in
             echo "📱 [1/5] Synchronisiere Windows-Mirror & baue Funkenwerk v${VER_NAME} (Build ${VER_CODE})..."
             WIN_MIRROR="/mnt/c/Users/konta/AndroidStudioProjects/seelenfunke-android"
             if [ -d "/mnt/c/Users/konta" ]; then
-                mkdir -p "$WIN_MIRROR/app/src"
+                mkdir -p "$WIN_MIRROR/app/src" "$WIN_MIRROR/gradle"
                 rsync -a --delete "$ANDROID_DIR/app/src/" "$WIN_MIRROR/app/src/"
                 cp -f "$ANDROID_DIR/app/build.gradle.kts" "$WIN_MIRROR/app/build.gradle.kts"
                 cp -f "$ANDROID_DIR/app/proguard-rules.pro" "$WIN_MIRROR/app/proguard-rules.pro"
+                cp -f "$ANDROID_DIR/gradle/libs.versions.toml" "$WIN_MIRROR/gradle/libs.versions.toml"
             fi
 
             (

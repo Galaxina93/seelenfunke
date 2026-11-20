@@ -685,3 +685,112 @@ Route::post('/funki/minipc-trichter/enqueue', function (Request $request) {
         ], 500);
     }
 });
+
+// 12. Verschlüsselte kDrive Eingang-Trichter Schleuse (Android Massenscanner -> Windows Funkenwerk -> kDrive\Meine Daten\00_Eingang_Trichter)
+Route::prefix('funki/kdrive-trichter')->group(function () {
+    $ensureAdminOwner = static function (Request $request): void {
+        $user = $request->user();
+        if (!$user instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Nur Administratoren haben Zugriff auf den kDrive Eingang-Trichter.');
+        }
+    };
+
+    Route::post('/enqueue', function (Request $request) use ($ensureAdminOwner) {
+        $ensureAdminOwner($request);
+        $request->validate([
+            'file' => 'required|file|max:25600',
+            'custom_title' => 'nullable|string|max:120',
+            'source' => 'nullable|string|max:40',
+            'batch_index' => 'nullable|integer|min:1|max:500',
+            'batch_total' => 'nullable|integer|min:1|max:500',
+        ]);
+
+        try {
+            $meta = \App\Services\System\KdriveTrichterRelayService::enqueueUploadedFile(
+                $request->file('file'),
+                $request->input('custom_title'),
+                (string) $request->input('source', 'android_scanner'),
+                $request->filled('batch_index') ? (int) $request->input('batch_index') : null,
+                $request->filled('batch_total') ? (int) $request->input('batch_total') : null
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Im kDrive Eingang-Trichter bereitgestellt.',
+                'relay_id' => $meta['id'],
+                'file_name' => $meta['file_name'],
+                'pending_count' => \App\Services\System\KdriveTrichterRelayService::countPending(),
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'kDrive-Trichter Übergabe fehlgeschlagen: ' . $e->getMessage(),
+            ], 500);
+        }
+    });
+
+    Route::get('/pending', function (Request $request) use ($ensureAdminOwner) {
+        $ensureAdminOwner($request);
+        $items = \App\Services\System\KdriveTrichterRelayService::listPending();
+
+        return response()->json([
+            'success' => true,
+            'count' => count($items),
+            'items' => $items,
+        ], 200, ['Cache-Control' => 'no-store, private']);
+    });
+
+    Route::get('/pull/{id}', function (Request $request, string $id) use ($ensureAdminOwner) {
+        $ensureAdminOwner($request);
+        $pulled = \App\Services\System\KdriveTrichterRelayService::pullDecrypted($id);
+        if (!$pulled) {
+            abort(404, 'Dokument nicht gefunden oder bereits abgeholt.');
+        }
+
+        $meta = $pulled['meta'];
+        return response($pulled['bytes'], 200, [
+            'Content-Type' => (string) ($meta['mime_type'] ?? 'application/pdf'),
+            'X-Trichter-Filename' => rawurlencode((string) ($meta['file_name'] ?? 'Scan.pdf')),
+            'X-Trichter-Title' => rawurlencode((string) ($meta['custom_title'] ?? '')),
+            'X-Trichter-Sha256' => (string) ($meta['sha256'] ?? ''),
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    });
+
+    Route::delete('/ack/{id}', function (Request $request, string $id) use ($ensureAdminOwner) {
+        $ensureAdminOwner($request);
+        $deleted = \App\Services\System\KdriveTrichterRelayService::ackAndDelete($id);
+
+        return response()->json([
+            'success' => true,
+            'deleted' => $deleted,
+            'remaining_count' => \App\Services\System\KdriveTrichterRelayService::countPending(),
+        ]);
+    });
+
+    Route::post('/classify', function (Request $request) use ($ensureAdminOwner) {
+        $ensureAdminOwner($request);
+        $request->validate([
+            'file' => 'required|file|max:15360',
+            'folders' => 'nullable|array|max:40',
+            'folders.*' => 'string|max:120',
+        ]);
+
+        $folders = is_array($request->input('folders')) ? $request->input('folders') : [];
+        $result = \App\Services\System\KdriveTrichterRelayService::classifyDocumentWithAi(
+            $request->file('file'),
+            $folders
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => $result,
+        ]);
+    });
+});

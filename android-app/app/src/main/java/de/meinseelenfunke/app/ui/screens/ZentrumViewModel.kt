@@ -96,6 +96,14 @@ class ZentrumViewModel : ViewModel() {
             }
             try {
                 val isAdmin = ServiceLocator.userTypeState.value == "admin" || ServiceLocator.getUserType() == "admin"
+                if (isAdmin) {
+                    launch {
+                        try {
+                            de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.refreshCount(ServiceLocator.context)
+                            financeRepository.flushOfflineTrichterQueue()
+                        } catch (_: Exception) {}
+                    }
+                }
 
                 coroutineScope {
                     val commandDeferred = async { aiRepository.getUltimateCommand() }
@@ -276,32 +284,44 @@ class ZentrumViewModel : ViewModel() {
             val errors = mutableListOf<String>()
             val cleanBaseTitle = customTitle?.trim()?.takeIf { it.isNotEmpty() }
 
+            var offlineCount = 0
             validItems.forEachIndexed { index, item ->
-                val itemTitle = when {
-                    cleanBaseTitle == null -> null
-                    validItems.size == 1 -> cleanBaseTitle
-                    else -> "$cleanBaseTitle (${index + 1}/${validItems.size})"
-                }
                 financeRepository.sendToMiniPcTrichter(
                     fileBytes = item.bytes,
                     fileName = item.fileName,
                     mimeType = item.mimeType,
-                    customTitle = itemTitle,
-                    source = source
+                    customTitle = cleanBaseTitle,
+                    source = source,
+                    batchIndex = index + 1,
+                    batchTotal = validItems.size
                 ).onSuccess { msg ->
                     successCount++
+                    if (msg.contains("Offline", ignoreCase = true)) {
+                        offlineCount++
+                    }
                     lastSuccessMsg = msg
                 }.onFailure { err ->
                     errors.add("${item.fileName}: ${err.localizedMessage ?: "Fehler"}")
                 }
             }
 
+            viewModelScope.launch {
+                if (offlineCount == 0) {
+                    financeRepository.flushOfflineTrichterQueue()
+                }
+            }
+
             _isUploading.value = false
             if (errors.isEmpty()) {
-                val summary = if (validItems.size == 1) {
-                    lastSuccessMsg ?: "Dokument erfolgreich im Eingang-Trichter abgelegt."
-                } else {
-                    "$successCount Dateien erfolgreich an den Eingang-Trichter gesendet."
+                val summary = when {
+                    offlineCount > 0 && validItems.size == 1 ->
+                        "Scan offline gesichert (automatischer Upload in 00_Eingang_Trichter sobald Netz steht)."
+                    offlineCount > 0 ->
+                        "$successCount Scans bereit ($offlineCount offline gepuffert für 00_Eingang_Trichter)."
+                    validItems.size == 1 ->
+                        lastSuccessMsg ?: "Scan im kDrive Eingang-Trichter abgelegt."
+                    else ->
+                        "$successCount PDFs an 00_Eingang_Trichter übergeben."
                 }
                 _trichterFeedback.value = TrichterFeedback(isSuccess = true, message = summary)
                 _actionResult.value = Result.success(summary)

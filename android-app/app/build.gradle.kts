@@ -48,8 +48,8 @@ android {
         applicationId = "de.meinseelenfunke.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 36
-        versionName = "1.8.12"
+        versionCode = 37
+        versionName = "1.8.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -145,6 +145,7 @@ dependencies {
 
     // Gemini
     implementation(libs.google.genai)
+    implementation(libs.play.services.mlkit.document.scanner)
 
     // Firebase
     implementation(platform(libs.firebase.bom))

@@ -416,12 +416,14 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
-    suspend fun sendToMiniPcTrichter(
+    suspend fun sendToKdriveTrichterDirect(
         fileBytes: ByteArray,
         fileName: String,
         mimeType: String,
         customTitle: String?,
-        source: String = "android"
+        source: String = "android_scanner",
+        batchIndex: Int? = null,
+        batchTotal: Int? = null
     ): Result<String> {
         return try {
             val textType = "text/plain".toMediaTypeOrNull()
@@ -429,24 +431,31 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
             val requestFile = fileBytes.toRequestBody(mediaType)
             val filePart = MultipartBody.Part.createFormData(
                 "file",
-                fileName.ifBlank { "scan_trichter.pdf" },
+                fileName.ifBlank { "Scan.pdf" },
                 requestFile
             )
             val titlePart = customTitle?.trim()?.takeIf { it.isNotEmpty() }?.toRequestBody(textType)
             val sourcePart = source.toRequestBody(textType)
+            val idxPart = batchIndex?.toString()?.toRequestBody(textType)
+            val totPart = batchTotal?.toString()?.toRequestBody(textType)
 
-            val response = serviceLocator.getFinanceApi().enqueueMiniPcTrichter(
+            val response = serviceLocator.getFinanceApi().enqueueKdriveTrichter(
                 file = filePart,
                 customTitle = titlePart,
-                source = sourcePart
+                source = sourcePart,
+                batchIndex = idxPart,
+                batchTotal = totPart
             )
             if (response.success) {
-                Result.success(response.message ?: "Erfolgreich im Eingang-Trichter abgelegt.")
+                Result.success(response.message ?: "Im kDrive Eingang-Trichter abgelegt.")
             } else {
-                Result.failure(Exception(response.message ?: "Trichter-Übergabe vom Server abgelehnt."))
+                Result.failure(Exception(response.message ?: "kDrive-Trichter Übergabe vom Server abgelehnt."))
             }
         } catch (e: Exception) {
-            AppLogger.error(serviceLocator.context, "FinanceRepo", "sendToMiniPcTrichter failed", e)
+            AppLogger.error(serviceLocator.context, "FinanceRepo", "sendToKdriveTrichterDirect failed", e)
+            if (de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.isTransientNetworkFailure(e)) {
+                return Result.failure(java.io.IOException("Server vorübergehend nicht erreichbar.", e))
+            }
             val friendlyMsg = when (e) {
                 is retrofit2.HttpException -> {
                     val code = e.code()
@@ -456,17 +465,69 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
                     } catch (_: Exception) { null }
                     when {
                         code == 401 || code == 403 -> "Sitzung abgelaufen (HTTP $code). Bitte in der App neu anmelden."
-                        code == 404 -> "Trichter-Endpunkt auf ${serviceLocator.getBaseUrl()} nicht gefunden (HTTP 404). Bitte Server-Adresse in den Einstellungen prüfen."
+                        code == 404 -> "kDrive-Trichter auf ${serviceLocator.getBaseUrl()} noch nicht aktiv (HTTP 404)."
                         code == 413 -> "Datei ist zu groß für den Upload (HTTP 413, max. 25 MB)."
                         !parsedMsg.isNullOrBlank() -> "$parsedMsg (HTTP $code)"
                         else -> "Trichter-Upload fehlgeschlagen (HTTP $code)."
                     }
                 }
-                is java.net.SocketTimeoutException -> "Zeitüberschreitung beim Senden in den Trichter. Bitte WLAN/Mobilfunk prüfen."
-                is java.net.ConnectException, is java.net.UnknownHostException -> "Server nicht erreichbar (${serviceLocator.getBaseUrl()}). Bitte Internetverbindung prüfen."
                 else -> e.localizedMessage ?: "Trichter-Upload fehlgeschlagen."
             }
             Result.failure(Exception(friendlyMsg))
         }
+    }
+
+    suspend fun flushOfflineTrichterQueue(): Int {
+        return try {
+            de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.flushPending(
+                serviceLocator.context,
+                this
+            )
+        } catch (_: Exception) {
+            0
+        }
+    }
+
+    suspend fun sendToMiniPcTrichter(
+        fileBytes: ByteArray,
+        fileName: String,
+        mimeType: String,
+        customTitle: String?,
+        source: String = "android_scanner",
+        batchIndex: Int? = null,
+        batchTotal: Int? = null,
+        allowOfflineQueue: Boolean = true
+    ): Result<String> {
+        val direct = sendToKdriveTrichterDirect(
+            fileBytes = fileBytes,
+            fileName = fileName,
+            mimeType = mimeType,
+            customTitle = customTitle,
+            source = source,
+            batchIndex = batchIndex,
+            batchTotal = batchTotal
+        )
+        if (direct.isSuccess) {
+            return direct
+        }
+
+        val err = direct.exceptionOrNull()
+        if (allowOfflineQueue && de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.isTransientNetworkFailure(err)) {
+            val queued = de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.enqueue(
+                context = serviceLocator.context,
+                bytes = fileBytes,
+                fileName = fileName,
+                mimeType = mimeType,
+                customTitle = customTitle,
+                source = source,
+                batchIndex = batchIndex,
+                batchTotal = batchTotal
+            )
+            if (queued) {
+                return Result.success("Offline gepuffert (automatischer Upload sobald Verbindung steht).")
+            }
+        }
+
+        return direct
     }
 }
