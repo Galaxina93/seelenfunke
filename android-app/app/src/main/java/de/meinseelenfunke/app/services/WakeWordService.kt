@@ -288,8 +288,10 @@ class WakeWordService : Service() {
                         break
                     }
 
+                    // Pause mic & SpeechRecognizer while music plays so Pixel never applies speaker-mic coupling attenuation or audio-focus ducking
                     if (NavigationBridge.isLiveCallActive ||
                         FunkenwerkAlarmManager.isAlarmRingingFlow.value ||
+                        de.meinseelenfunke.app.util.MusicPlayerManager.isPlaying.value ||
                         SecurityIntentHelper.isDeviceLocked(applicationContext)
                     ) {
                         if (audioRecord != null) {

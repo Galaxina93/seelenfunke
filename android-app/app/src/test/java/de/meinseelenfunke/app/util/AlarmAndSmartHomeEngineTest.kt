@@ -189,4 +189,33 @@ class AlarmAndSmartHomeEngineTest {
         assertFalse(gate.onFrame(voicedFrame))
         assertTrue(gate.onFrame(voicedFrame))
     }
+
+    @Test
+    fun defaultAlarmsNeverAutoEnableAndBriefingSplitsIntoFastAoedeChunks() {
+        // 1. User autonomy: no preset alarm (including 08:30) may ever auto-enable itself by default
+        val defaults = FunkenwerkAlarmManager.defaultAlarms()
+        assertTrue(defaults.isNotEmpty())
+        assertTrue(
+            "All default alarms must start disabled so 08:30 never activates without user consent",
+            defaults.all { !it.isEnabled }
+        )
+
+        // 2. All 3 Tapo P100 Smart-Home plugs (including 192.168.188.123 Lichterkette Spiegel) pass LAN validation
+        val defaultPlugIps = FunkenwerkAlarmManager.defaultSmartPlugs().map { it.ip }
+        assertTrue(defaultPlugIps.contains("192.168.188.109"))
+        assertTrue(defaultPlugIps.contains("192.168.188.110"))
+        assertTrue(defaultPlugIps.contains("192.168.188.123"))
+        assertTrue(defaultPlugIps.all { FunkenwerkAlarmManager.isValidPrivateLanIpv4(it) })
+
+        // 3. Morning briefing splits cleanly into a short fast Aoede opener + weather/tasks body
+        val sampleBriefing = "Alles klar, dann starten wir um 08:30 Uhr direkt in deine Morgenroutine! Heute ist Freitag, der 20. November. In Gifhorn wird es heute leicht bewölkt bei bis zu 8 Grad, zieh dir heute Abend eine warme Jacke an. Deine Tagesroutine richtet sich jetzt nach 08:30 Uhr aus."
+        val (opener, body) = FunkenwerkAlarmManager.splitBriefingIntoFastOpenerAndBody(sampleBriefing)
+        assertTrue(opener.startsWith("Alles klar"))
+        assertTrue(opener.length < 130)
+        assertTrue(body.startsWith("In Gifhorn "))
+
+        // 4. Spoken wake time stays aligned within 2 minutes of scheduled time for 0ms Aoede cache hit
+        assertEquals("08:30", FunkenwerkAlarmManager.resolveAlignedSpokenWakeTime("08:30", "08:31"))
+        assertEquals("08:38", FunkenwerkAlarmManager.resolveAlignedSpokenWakeTime("08:30", "08:38"))
+    }
 }

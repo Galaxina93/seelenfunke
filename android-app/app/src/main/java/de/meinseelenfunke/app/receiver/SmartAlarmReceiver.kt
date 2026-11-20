@@ -120,8 +120,18 @@ class SmartAlarmReceiver : BroadcastReceiver() {
             }
 
             ACTION_ALARM_TRIGGER -> {
-                FunkenwerkAlarmManager.ensureInitialized(context)
+                val appCtx = context.applicationContext
+                FunkenwerkAlarmManager.ensureInitialized(appCtx)
+                val isSnooze = intent.getBooleanExtra("is_snooze", false)
                 val targetAlarm = FunkenwerkAlarmManager.alarmsFlow.value.find { it.id == alarmId }
+
+                // Guard: Never ring a disabled or deleted alarm unless it is an explicit active snooze
+                if (!isSnooze && (targetAlarm == null || !targetAlarm.isEnabled)) {
+                    FunkenwerkAlarmManager.cancelAlarm(appCtx, alarmId)
+                    FunkenwerkAlarmManager.updateActiveAlarmStatusNotification(appCtx)
+                    return
+                }
+
                 val triggerPlugs = targetAlarm?.triggerPlugOnRing ?: intent.getBooleanExtra("trigger_plugs", true)
                 val rawPlugIps = targetAlarm?.smartPlugIps?.takeIf { it.isNotEmpty() }
                     ?: intent.getStringArrayExtra("plug_ips")?.toList()
@@ -146,43 +156,48 @@ class SmartAlarmReceiver : BroadcastReceiver() {
                     notificationManager.createNotificationChannel(channel)
                 }
 
+                val shouldSwitchPlugs = triggerPlugs && plugIps.isNotEmpty()
+
                 // 1. Trigger sequential alarm sound -> pause -> Funkira voice briefing -> resume alarm
                 FunkenwerkAlarmManager.triggerAlarmSequence(
-                    context = context,
+                    context = appCtx,
                     alarmId = alarmId,
                     alarmLabel = alarmLabel,
                     scheduledTime = scheduledTime,
                     aiBriefing = aiBriefing,
-                    plugsSwitched = triggerPlugs && plugIps.isNotEmpty(),
+                    plugsSwitched = false,
                     customTrackId = customTrackId
                 )
 
-                // 2. Record wake-up log
+                // 2. Record initial wake-up log
                 val actualWakeTime = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
                 FunkenwerkAlarmManager.recordWakeUpLog(
-                    context = context,
+                    context = appCtx,
                     scheduledTime = scheduledTime,
                     actualWakeTime = actualWakeTime,
-                    plugsTriggered = triggerPlugs && plugIps.isNotEmpty(),
+                    plugsTriggered = false,
                     aiBriefingSpoken = aiBriefing
                 )
 
-                // 3. Execute Smart-Home Wi-Fi Plugs & Routine Sync under goAsync() so Doze never kills coroutines mid-flight
-                val shouldSwitchPlugs = triggerPlugs && plugIps.isNotEmpty()
+                // 3. Execute Smart-Home Wi-Fi Plugs (in parallel over TRANSPORT_WIFI) & Routine Sync
                 if (shouldSwitchPlugs || syncRoutine) {
-                    val appCtx = context.applicationContext
                     runReceiverAsync {
+                        var plugsSwitchedOk = false
                         if (shouldSwitchPlugs) {
-                            FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, plugIps, turnOn = true)
+                            val (ok, _) = FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, plugIps, turnOn = true)
+                            plugsSwitchedOk = ok
+                            if (ok) {
+                                FunkenwerkAlarmManager.markActiveTriggerPlugsSwitched(appCtx, scheduledTime, actualWakeTime)
+                            }
                         }
-                        if (syncRoutine) {
+                        if (syncRoutine || plugsSwitchedOk) {
                             syncPackageSuspend(appCtx)
                         }
                     }
                 }
 
                 // 4. Reschedule next repeating alarm occurrence
-                FunkenwerkAlarmManager.scheduleAllActiveAlarms(context)
+                FunkenwerkAlarmManager.scheduleAllActiveAlarms(appCtx)
 
                 // 5. Show high-priority notification with Aufstehen & Schlummern actions
                 val openAppIntent = Intent(context, MainActivity::class.java).apply {
@@ -264,7 +279,7 @@ class SmartAlarmReceiver : BroadcastReceiver() {
         val pendingResult = try { goAsync() } catch (_: Exception) { null }
         scope.launch {
             try {
-                withTimeoutOrNull(8_500L) {
+                withTimeoutOrNull(9_600L) {
                     block()
                 }
             } catch (e: Exception) {

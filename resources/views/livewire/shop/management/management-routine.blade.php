@@ -81,12 +81,16 @@
                 <div>
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white">Wecker-Taktung</span>
-                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-mono" title="Geplanter Wecker in der Funkenwerk Android-App">
-                            ⏰ {{ $alarmSyncStats['active_alarm_time'] }} Uhr ({{ $alarmSyncStats['active_alarm_label'] }})
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-mono" title="Status des Weckers in der Funkenwerk Android-App">
+                            @if(!empty($alarmSyncStats['has_active_alarm']))
+                                ⏰ {{ $alarmSyncStats['active_alarm_time'] }} Uhr ({{ $alarmSyncStats['active_alarm_label'] }})
+                            @else
+                                ⏰ Wecker aus
+                            @endif
                         </span>
-                        @if(!empty($alarmSyncStats['selected_date_has_log']) || ($alarmSyncStats['selected_date_wake_time'] ?? '') !== ($alarmSyncStats['active_alarm_time'] ?? ''))
-                            <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-mono" title="Tatsächliche oder verschobene Aufstehzeit für den gewählten Tag">
-                                🌅 Aufstehen: {{ $alarmSyncStats['selected_date_wake_time'] }} Uhr{{ !empty($alarmSyncStats['selected_date_snooze_minutes']) ? ' (+' . $alarmSyncStats['selected_date_snooze_minutes'] . ' Min.)' : '' }}
+                        @if(!empty($alarmSyncStats['selected_date_has_log']))
+                            <span class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-800 font-mono" title="Start-/Aufstehzeit für den gewählten Tag ({{ \Carbon\Carbon::parse($selectedDate)->format('d.m.Y') }})">
+                                🌅 {{ !empty($alarmSyncStats['selected_date_is_manual']) ? 'Manuell' : 'Aufstehen' }}: {{ $alarmSyncStats['selected_date_wake_time'] }} Uhr{{ !empty($alarmSyncStats['selected_date_snooze_minutes']) ? ' (+' . $alarmSyncStats['selected_date_snooze_minutes'] . ' Min.)' : '' }}
                             </span>
                         @endif
                         <span class="px-2 py-0.5 rounded-md text-[11px] font-bold {{ $useAlarmShift && $alarmSyncStats['selected_date_shift_minutes'] !== 0 ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800' : 'bg-gray-100 dark:bg-gray-950 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800' }} border">
@@ -97,6 +101,42 @@
             </div>
 
             <div class="flex flex-wrap items-center justify-between sm:justify-end gap-2">
+                {{-- Manueller Routine-Start am gewählten Tag --}}
+                <div class="flex items-center gap-1 bg-gray-50 dark:bg-gray-950 px-2 py-1 rounded-xl border border-gray-200 dark:border-gray-800" title="Start der Routine für {{ \Carbon\Carbon::parse($selectedDate)->format('d.m.Y') }} manuell festlegen">
+                    <span class="text-[11px] font-bold text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                        Start ({{ \Carbon\Carbon::parse($selectedDate)->format('d.m.') }}):
+                    </span>
+                    <input
+                        type="time"
+                        wire:model="manualWakeTimeInput"
+                        wire:keydown.enter="saveManualRoutineStart"
+                        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-1.5 py-0.5 text-xs font-mono font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-[var(--theme-color)]"
+                    />
+                    <button
+                        type="button"
+                        wire:click="saveManualRoutineStart"
+                        class="px-2 py-1 rounded-lg bg-gray-900 text-white dark:bg-white dark:text-gray-900 text-[11px] font-bold hover:opacity-90 transition-opacity"
+                        title="Gewählte Startzeit übernehmen">
+                        Setzen
+                    </button>
+                    <button
+                        type="button"
+                        wire:click="saveManualRoutineStart('now')"
+                        class="px-2 py-1 rounded-lg bg-gray-200/80 dark:bg-gray-800 text-gray-800 dark:text-gray-200 text-[11px] font-bold hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+                        title="Aktuelle Uhrzeit als Routine-Start setzen">
+                        Jetzt
+                    </button>
+                    @if(!empty($alarmSyncStats['selected_date_has_log']))
+                        <button
+                            type="button"
+                            wire:click="clearManualRoutineStart"
+                            class="px-1.5 py-1 rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 text-xs font-bold transition-colors"
+                            title="Tages-Startzeit zurücksetzen">
+                            ✕
+                        </button>
+                    @endif
+                </div>
+
                 <div class="flex items-center gap-1.5 text-[11px] font-semibold">
                     <span class="px-2.5 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300" title="Durchschnittliche Aufstehzeit im gewählten Zeitraum">
                         Ø Aufstehen: <strong class="font-mono text-gray-900 dark:text-white">{{ $alarmSyncStats['avg_wake_time_period'] }}</strong>

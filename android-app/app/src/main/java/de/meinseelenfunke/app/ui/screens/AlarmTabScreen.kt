@@ -394,9 +394,7 @@ fun AlarmTabContent(
                                 activeAlarmToast?.cancel()
                                 alarmRingInBannerText = null
                             }
-                            if (updated.syncWithRoutine) {
-                                viewModel.syncAlarmPackageToPortal()
-                            }
+                            viewModel.syncAlarmPackageToPortal()
                         }
                     },
                     onEditAlarm = { alarm -> editingAlarm = alarm },
@@ -416,10 +414,14 @@ fun AlarmTabContent(
                         )
                     },
                     onSwitchPlug = { ip, turnOn ->
-                        FunkenwerkAlarmManager.triggerSmartPlugsAsync(context, listOf(ip), turnOn = turnOn) { _, msg ->
+                        FunkenwerkAlarmManager.triggerSmartPlugsAsync(context, listOf(ip), turnOn = turnOn) { ok, msg ->
+                            if (!ok && msg.contains("Tapo-Zugangsdaten", ignoreCase = true)) {
+                                showSmartHomeSettingsModal = true
+                            }
                             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                         }
-                    }
+                    },
+                    onOpenTapoSettings = { showSmartHomeSettingsModal = true }
                 )
 
                 1 -> TimerSubTabView(
@@ -512,9 +514,7 @@ fun AlarmTabContent(
                     activeAlarmToast = toast
                     toast.show()
                 }
-                if (savedAlarm.syncWithRoutine) {
-                    viewModel.syncAlarmPackageToPortal()
-                }
+                viewModel.syncAlarmPackageToPortal()
             },
             onDelete = { idToDelete ->
                 FunkenwerkAlarmManager.deleteAlarm(context, idToDelete)
@@ -554,8 +554,13 @@ fun AlarmTabContent(
         SmartHomeAndAiSettingsDialog(
             smartPlugs = smartPlugs,
             onDismiss = { showSmartHomeSettingsModal = false },
+            onSaveCredentials = { email, pass ->
+                FunkenwerkAlarmManager.saveTapoCredentials(context, email, pass)
+                viewModel.syncAlarmPackageToPortal()
+            },
             onAddPlug = { name, ip ->
                 FunkenwerkAlarmManager.addSmartPlug(context, name, ip)
+                viewModel.syncAlarmPackageToPortal()
             },
             onTestPlug = { ip, turnOn ->
                 FunkenwerkAlarmManager.triggerSmartPlugsAsync(context, listOf(ip), turnOn = turnOn) { _, msg ->
@@ -668,9 +673,15 @@ private fun WeckerSubTabView(
     onToggleAlarm: (SmartAlarmItem) -> Unit,
     onEditAlarm: (SmartAlarmItem) -> Unit,
     onAddAlarm: () -> Unit,
-    onSwitchPlug: (String, Boolean) -> Unit
+    onSwitchPlug: (String, Boolean) -> Unit,
+    onOpenTapoSettings: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val plugNamesByIp = remember(smartPlugs) { smartPlugs.associate { it.ip to it.name } }
+    val hasTapoCredentials = remember(alarms, smartPlugs) {
+        val (e, p) = FunkenwerkAlarmManager.getTapoCredentials(context)
+        e.isNotBlank() && p.isNotBlank()
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -805,12 +816,25 @@ private fun WeckerSubTabView(
                                     color = AppTheme.colors.textPrimary
                                 )
                             }
-                            Text(
-                                text = "${smartPlugs.size} Tapo P100",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Gold
-                            )
+                            if (!hasTapoCredentials) {
+                                Text(
+                                    text = "Tapo-Zugang verbinden",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Rose500,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { onOpenTapoSettings() }
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            } else {
+                                Text(
+                                    text = "${smartPlugs.size} Tapo P100",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Gold
+                                )
+                            }
                         }
 
                         smartPlugs.forEach { plug ->
@@ -1964,6 +1988,7 @@ private fun AddTimerPresetDialog(
 private fun SmartHomeAndAiSettingsDialog(
     smartPlugs: List<SmartPlugDevice>,
     onDismiss: () -> Unit,
+    onSaveCredentials: (String, String) -> Unit,
     onAddPlug: (String, String) -> Unit,
     onTestPlug: (String, Boolean) -> Unit,
     onTestAiBriefing: () -> Unit,
@@ -2055,13 +2080,13 @@ private fun SmartHomeAndAiSettingsDialog(
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = {
-                                FunkenwerkAlarmManager.saveTapoCredentials(context, tapoEmail, tapoPass)
+                                onSaveCredentials(tapoEmail, tapoPass)
                                 onTestPlug(plug.ip, true)
                             }) {
                                 Text("EIN", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Emerald500)
                             }
                             TextButton(onClick = {
-                                FunkenwerkAlarmManager.saveTapoCredentials(context, tapoEmail, tapoPass)
+                                onSaveCredentials(tapoEmail, tapoPass)
                                 onTestPlug(plug.ip, false)
                             }) {
                                 Text("AUS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Rose500)
@@ -2167,7 +2192,7 @@ private fun SmartHomeAndAiSettingsDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    FunkenwerkAlarmManager.saveTapoCredentials(context, tapoEmail, tapoPass)
+                    onSaveCredentials(tapoEmail, tapoPass)
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)

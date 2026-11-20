@@ -89,7 +89,8 @@ class ManifestAndNetworkSecurityConfigTest {
     @Test
     fun devApiCleartextDomainsExistStrictlyInsideDebugOverrides() {
         val doc = parseXml(resolveProjectFile("src/main/res/xml/network_security_config.xml"))
-        val devApiHosts = setOf("127.0.0.1", "localhost", "10.0.2.2", "192.168.188.119", "192.168.188.123")
+        val devApiHosts = setOf("127.0.0.1", "localhost", "10.0.2.2", "192.168.188.119")
+        val tapoSmartPlugHosts = setOf("192.168.188.109", "192.168.188.110", "192.168.188.123")
 
         val productionDomains = mutableSetOf<String>()
         val debugOverrideDomains = mutableSetOf<String>()
@@ -122,6 +123,13 @@ class ManifestAndNetworkSecurityConfigTest {
             assertTrue(
                 "Dev API host $devHost should be configured inside <debug-overrides>",
                 debugOverrideDomains.contains(devHost)
+            )
+        }
+
+        for (plugHost in tapoSmartPlugHosts) {
+            assertTrue(
+                "Tapo KLAP v2 Smart-Home plug $plugHost must be allowed in release LAN config",
+                productionDomains.contains(plugHost)
             )
         }
     }

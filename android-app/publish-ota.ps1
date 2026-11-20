@@ -13,10 +13,18 @@ $wslAndroidRoot = "$wslProjectRoot\android-app"
 $winBuildMirror = "C:\Users\konta\AndroidStudioProjects\seelenfunke-android"
 $pinnedCertSha256 = "e4c85cdd79648fa19430c91b47e1db036544d60d2fa6136a0c5106300c849064"
 
-if (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
-    $jbr = "C:\Program Files\JetBrains\PhpStorm 2025.3.2\jbr"
-    if (Test-Path "$jbr\bin\java.exe") {
-        $env:JAVA_HOME = $jbr
+$hasWindowsJava = [bool]($env:JAVA_HOME -and (Test-Path "$env:JAVA_HOME\bin\java.exe"))
+if (-not $hasWindowsJava) {
+    $jbrCandidates = @(
+        "C:\Program Files\JetBrains\PhpStorm 2025.3.2\jbr",
+        "C:\Program Files\Android\Android Studio\jbr"
+    )
+    foreach ($cand in $jbrCandidates) {
+        if (Test-Path "$cand\bin\java.exe") {
+            $env:JAVA_HOME = $cand
+            $hasWindowsJava = $true
+            break
+        }
     }
 }
 
@@ -39,14 +47,58 @@ $apkPath = "$winBuildMirror\app\build\outputs\apk\release\app-release.apk"
 
 if (-not $SkipBuild) {
     Write-Host "[2/4] Baue R8-minifiziertes & 4096-Bit-RSA-signiertes Release-APK..." -ForegroundColor Cyan
-    Push-Location $winBuildMirror
-    try {
-        .\gradlew.bat assembleRelease --no-daemon
-        if ($LASTEXITCODE -ne 0) {
-            throw "Gradle assembleRelease fehlgeschlagen (Exit-Code $LASTEXITCODE)."
+    if ($hasWindowsJava) {
+        Push-Location $winBuildMirror
+        try {
+            .\gradlew.bat assembleRelease --no-daemon
+            if ($LASTEXITCODE -ne 0) {
+                throw "Gradle assembleRelease fehlgeschlagen (Exit-Code $LASTEXITCODE)."
+            }
+        } finally {
+            Pop-Location
         }
-    } finally {
-        Pop-Location
+    } else {
+        Write-Host "      Nutze WSL OpenJDK 21 + Android SDK für Release-Build..." -ForegroundColor DarkCyan
+        $ksPropsPath = Join-Path $env:USERPROFILE ".android\signing\keystore.properties"
+        if (-not (Test-Path $ksPropsPath)) {
+            throw "Release-Keystore nicht gefunden: $ksPropsPath"
+        }
+        $ksMap = @{}
+        foreach ($line in (Get-Content $ksPropsPath)) {
+            if ($line -match '^\s*([^#=]+?)\s*=\s*(.+?)\s*$') {
+                $ksMap[$matches[1]] = $matches[2]
+            }
+        }
+        $rawStore = $ksMap["storeFile"] -replace '\\', '/'
+        if ($rawStore -match '^([A-Za-z]):/(.*)$') {
+            $wslStore = "/mnt/" + $matches[1].ToLowerInvariant() + "/" + $matches[2]
+        } else {
+            $wslStore = $rawStore
+        }
+        $prevWslEnv = $env:WSLENV
+        $env:SIGNING_STORE_FILE = $wslStore
+        $env:SIGNING_STORE_PASSWORD = $ksMap["storePassword"]
+        $env:SIGNING_KEY_ALIAS = $ksMap["keyAlias"]
+        $env:SIGNING_KEY_PASSWORD = $ksMap["keyPassword"]
+        $env:WSLENV = "SIGNING_STORE_FILE/u:SIGNING_STORE_PASSWORD/u:SIGNING_KEY_ALIAS/u:SIGNING_KEY_PASSWORD/u"
+        try {
+            wsl -d Ubuntu bash -c "cd /home/ubuntuxina/meine-projekte/seelenfunke/android-app && ./gradlew assembleRelease --no-daemon"
+            if ($LASTEXITCODE -ne 0) {
+                throw "WSL Gradle assembleRelease fehlgeschlagen (Exit-Code $LASTEXITCODE)."
+            }
+        } finally {
+            Remove-Item Env:\SIGNING_STORE_FILE -ErrorAction SilentlyContinue
+            Remove-Item Env:\SIGNING_STORE_PASSWORD -ErrorAction SilentlyContinue
+            Remove-Item Env:\SIGNING_KEY_ALIAS -ErrorAction SilentlyContinue
+            Remove-Item Env:\SIGNING_KEY_PASSWORD -ErrorAction SilentlyContinue
+            $env:WSLENV = $prevWslEnv
+        }
+        $wslApkSource = "$wslAndroidRoot\app\build\outputs\apk\release\app-release.apk"
+        $apkDir = Split-Path -Parent $apkPath
+        if (-not (Test-Path $apkDir)) {
+            New-Item -ItemType Directory -Path $apkDir -Force | Out-Null
+        }
+        Copy-Item $wslApkSource $apkPath -Force
     }
 }
 
@@ -55,7 +107,12 @@ if (-not (Test-Path $apkPath)) {
 }
 
 Write-Host "[3/4] Prüfe X.509-Release-Signatur & SHA-256-Fingerprint..." -ForegroundColor Cyan
-$certOut = & "$env:JAVA_HOME\bin\keytool.exe" -printcert -jarfile $apkPath | Out-String
+if ($hasWindowsJava) {
+    $certOut = & "$env:JAVA_HOME\bin\keytool.exe" -printcert -jarfile $apkPath | Out-String
+} else {
+    $wslVerifyApk = "/mnt/c" + ($apkPath.Substring(2) -replace '\\', '/')
+    $certOut = wsl -d Ubuntu -- keytool -printcert -jarfile $wslVerifyApk | Out-String
+}
 $certShaMatch = [regex]::Match($certOut, 'SHA256:\s*([0-9A-Fa-f:]{95})')
 if (-not $certShaMatch.Success) {
     throw "X.509-Zertifikat im APK konnte nicht verifiziert werden."

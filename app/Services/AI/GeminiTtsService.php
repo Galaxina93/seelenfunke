@@ -38,9 +38,8 @@ class GeminiTtsService
         }
 
         $models = [
+            'gemini-2.5-flash-tts',
             'gemini-3.1-flash-tts-preview',
-            'gemini-3.8-flash-tts',
-            'gemini-3.8-flash-lite-tts',
         ];
 
         $promptText = "Lies ausschließlich den folgenden Text Wort für Wort freundlich und natürlich vor, ohne eigene Sätze oder Ortsangaben zu ergänzen: " . $text;
@@ -91,8 +90,8 @@ class GeminiTtsService
                 curl_setopt($ch, CURLOPT_HTTPHEADER, $curlHeaders);
                 curl_setopt($ch, CURLOPT_POST, true);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+                curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 6);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 25);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
                 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
@@ -118,7 +117,7 @@ class GeminiTtsService
                     // Manche Modelle (z.B. gemini-3.8-flash-tts) liefern bereits einen vollständigen RIFF/WAV-Container
                     if (str_starts_with($pcmData, 'RIFF')) {
                         $wavBase64 = base64_encode($pcmData);
-                        Cache::put($cacheKey, $wavBase64, 86400);
+                        Cache::put($cacheKey, $wavBase64, 604800);
                         return $wavBase64;
                     }
 
@@ -138,7 +137,7 @@ class GeminiTtsService
                     );
 
                     $wavBase64 = base64_encode($wavHeader . $pcmData);
-                    Cache::put($cacheKey, $wavBase64, 86400);
+                    Cache::put($cacheKey, $wavBase64, 604800);
                     return $wavBase64;
                 }
 

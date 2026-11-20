@@ -17,8 +17,8 @@ Route::prefix('funki/routine')->group(function () {
         return [
             'last_synced_at' => null,
             'device_name' => 'Funkenwerk Android',
-            'active_alarm_time' => '08:30',
-            'active_alarm_label' => 'Jeden Tag',
+            'active_alarm_time' => 'aus',
+            'active_alarm_label' => 'Aus',
             'alarms' => [
                 [
                     'id' => 'alarm_0645',
@@ -40,7 +40,7 @@ Route::prefix('funki/routine')->group(function () {
                     'label' => 'Seelenfunke Fokus-Start',
                     'schedule_text' => 'Jeden Tag',
                     'days_of_week' => [1, 2, 3, 4, 5, 6, 7],
-                    'is_enabled' => true,
+                    'is_enabled' => false,
                     'smart_plug_ips' => ['192.168.188.109', '192.168.188.110'],
                     'trigger_plug_on_ring' => true,
                     'ai_briefing_enabled' => true,
@@ -584,11 +584,17 @@ Route::prefix('funki/routine')->group(function () {
         $existingLogs = is_array($pkg['wake_up_logs'] ?? null) ? $pkg['wake_up_logs'] : [];
         if (is_array($logsInput)) {
             foreach ($logsInput as $key => $entry) {
-                if (is_array($entry) && !empty($entry['date'])) {
-                    $existingLogs[$entry['date']] = $entry;
-                } elseif (is_string($key) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $key) && is_array($entry)) {
-                    $existingLogs[$key] = array_merge(['date' => $key], $entry);
+                $dKey = (is_array($entry) && !empty($entry['date']))
+                    ? (string) $entry['date']
+                    : ((is_string($key) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $key)) ? $key : null);
+                if ($dKey === null || !is_array($entry)) {
+                    continue;
                 }
+                // Preserve manual Web-Portal routine start overrides unless incoming entry explicitly overrides
+                if (!empty($existingLogs[$dKey]['manual_override']) && empty($entry['manual_override'])) {
+                    continue;
+                }
+                $existingLogs[$dKey] = array_merge(['date' => $dKey], $entry);
             }
         }
 
@@ -612,18 +618,25 @@ Route::prefix('funki/routine')->group(function () {
         }
         $pkg['wake_up_logs'] = $existingLogs;
 
-        // Recompute active alarm time from enabled routine-synced alarms
+        // Recompute active alarm time from enabled routine-synced alarms (never force 08:30 when all alarms are disabled!)
         $enabledAlarms = collect($pkg['alarms'] ?? [])
             ->filter(fn($a) => !empty($a['is_enabled']) && ($a['sync_with_routine'] ?? true))
             ->sortBy(fn($a) => sprintf('%02d:%02d', (int) ($a['hour'] ?? 0), (int) ($a['minute'] ?? 0)))
             ->values();
 
-        if ($request->filled('active_alarm_time')) {
-            $pkg['active_alarm_time'] = substr((string) $request->input('active_alarm_time'), 0, 5);
-        } elseif ($enabledAlarms->isNotEmpty()) {
+        $rawActiveInput = trim((string) $request->input('active_alarm_time', ''));
+        if ($enabledAlarms->isNotEmpty()) {
             $first = $enabledAlarms->first();
             $pkg['active_alarm_time'] = sprintf('%02d:%02d', (int) ($first['hour'] ?? 8), (int) ($first['minute'] ?? 30));
             $pkg['active_alarm_label'] = (string) ($first['schedule_text'] ?? $first['label'] ?? 'Jeden Tag');
+        } elseif ($rawActiveInput === '' || strtolower($rawActiveInput) === 'aus' || strtolower($rawActiveInput) === 'off') {
+            $pkg['active_alarm_time'] = 'aus';
+            $pkg['active_alarm_label'] = 'Aus';
+        } elseif (preg_match('/^\d{2}:\d{2}$/', substr($rawActiveInput, 0, 5))) {
+            $pkg['active_alarm_time'] = substr($rawActiveInput, 0, 5);
+        } else {
+            $pkg['active_alarm_time'] = 'aus';
+            $pkg['active_alarm_label'] = 'Aus';
         }
 
         if ($request->filled('device_name')) {

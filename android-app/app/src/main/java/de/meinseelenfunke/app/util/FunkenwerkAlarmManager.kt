@@ -46,6 +46,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -73,6 +75,9 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import javax.crypto.Cipher
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
@@ -158,6 +163,7 @@ object FunkenwerkAlarmManager {
     private const val KEY_TIMER_PAUSED_REM = "timer_paused_rem_json"
     private const val KEY_LAST_WEATHER_SENTENCE = "gifhorn_weather_sentence_v2"
     private const val KEY_LAST_WEATHER_DATE = "gifhorn_weather_date"
+    private const val KEY_ALARMS_LOCAL_MODIFIED_MS = "alarms_local_modified_ms_v1"
 
     const val STATUS_CHANNEL_ID = "funkenwerk_alarm_status_channel"
     const val STATUS_CHANNEL_NAME = "Aktive Wecker & Laufende Timer"
@@ -229,6 +235,18 @@ object FunkenwerkAlarmManager {
     @Volatile
     private var lastTriggerPlugsSwitched: Boolean = false
 
+    fun markActiveTriggerPlugsSwitched(context: Context, scheduledTime: String, actualWakeTime: String) {
+        lastTriggerPlugsSwitched = true
+        recordWakeUpLog(
+            context = context,
+            scheduledTime = scheduledTime,
+            actualWakeTime = actualWakeTime,
+            snoozeMinutes = 0,
+            plugsTriggered = true,
+            aiBriefingSpoken = false
+        )
+    }
+
     fun registerActiveAlarmNotification(notificationId: Int, alarmId: String, alarmLabel: String, scheduledTime: String) {
         synchronized(activeAlarmNotificationIds) {
             activeAlarmNotificationIds.add(notificationId)
@@ -243,6 +261,7 @@ object FunkenwerkAlarmManager {
     private var activeTts: TextToSpeech? = null
     private var alarmSequenceJob: Job? = null
     private var alarmWakeLock: PowerManager.WakeLock? = null
+    private var alarmWakeLockExpiresAtMs: Long = 0L
     private var alarmWifiLock: WifiManager.WifiLock? = null
     private var alarmAudioFocusRequest: AudioFocusRequest? = null
     @Volatile
@@ -391,7 +410,14 @@ object FunkenwerkAlarmManager {
         }
 
         // 1. Load or seed default Alarms and migrate legacy plug IPs
+        //    CRITICAL: If KEY_ALARMS exists in prefs but AndroidKeyStore decryption temporarily returns null
+        //    (e.g. early BOOT_COMPLETED before unlock), NEVER overwrite saved user alarms with defaultAlarms()!
+        val hasPersistedAlarmsKey = prefs.contains(KEY_ALARMS)
         val alarmsJson = ServiceLocator.getDecryptedPref(prefs, KEY_ALARMS, null)
+        if (hasPersistedAlarmsKey && alarmsJson.isNullOrBlank()) {
+            Log.w(TAG, "KEY_ALARMS present but decryption not yet available; deferring alarm initialization")
+            return
+        }
         val rawAlarms: List<SmartAlarmItem> = if (!alarmsJson.isNullOrBlank()) {
             try {
                 val type = object : TypeToken<List<SmartAlarmItem>>() {}.type
@@ -404,7 +430,9 @@ object FunkenwerkAlarmManager {
         }
         val loadedAlarms = normalizeAlarms(rawAlarms).sortedWith(compareBy({ it.hour }, { it.minute }))
         _alarmsFlow.value = loadedAlarms
-        ServiceLocator.putEncryptedPref(prefs, KEY_ALARMS, gson.toJson(loadedAlarms))
+        if (!hasPersistedAlarmsKey) {
+            ServiceLocator.putEncryptedPref(prefs, KEY_ALARMS, gson.toJson(loadedAlarms))
+        }
 
         // 2. Load or seed default Timers (self-heals any R8-corrupted or missing IDs/labels)
         val timersJson = ServiceLocator.getDecryptedPref(prefs, KEY_TIMERS, null)
@@ -451,6 +479,7 @@ object FunkenwerkAlarmManager {
 
         scheduleAllActiveAlarms(appCtx, _alarmsFlow.value)
         prewarmAlarmBriefingsAsync(appCtx)
+        ensureTapoCredentialsSyncedAsync(appCtx)
     }
 
     private fun syncTimerMapsWithPresets(presets: List<TimerPresetItem>) {
@@ -594,7 +623,7 @@ object FunkenwerkAlarmManager {
             label = "Seelenfunke Fokus-Start",
             scheduleText = "Jeden Tag",
             daysOfWeek = listOf(1, 2, 3, 4, 5, 6, 7),
-            isEnabled = true,
+            isEnabled = false,
             smartPlugIps = listOf("192.168.188.109", "192.168.188.110"),
             triggerPlugOnRing = true,
             aiBriefingEnabled = true,
@@ -658,16 +687,19 @@ object FunkenwerkAlarmManager {
     }
 
     fun saveAlarms(context: Context, alarms: List<SmartAlarmItem>) {
+        val appCtx = context.applicationContext
         val sorted = normalizeAlarms(alarms).sortedWith(compareBy({ it.hour }, { it.minute }))
         _alarmsFlow.value = sorted
-        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = appCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         ServiceLocator.putEncryptedPref(prefs, KEY_ALARMS, gson.toJson(sorted))
-        scheduleAllActiveAlarms(context, sorted)
-        prewarmAlarmBriefingsAsync(context.applicationContext)
+        prefs.edit().putLong(KEY_ALARMS_LOCAL_MODIFIED_MS, System.currentTimeMillis()).apply()
+        scheduleAllActiveAlarms(appCtx, sorted)
+        prewarmAlarmBriefingsAsync(appCtx)
+        pushAlarmPackageToAllEndpointsAsync(appCtx)
         sorted.forEach { alarm ->
             val trackId = alarm.alarmSoundTrackId
             if (!trackId.isNullOrBlank() && trackId != "standard" && trackId != "random_music") {
-                MusicPlayerManager.cacheTrackForAlarmAsync(context.applicationContext, trackId)
+                MusicPlayerManager.cacheTrackForAlarmAsync(appCtx, trackId)
             }
         }
     }
@@ -1017,21 +1049,36 @@ object FunkenwerkAlarmManager {
 
         if (!alarms.isNullOrEmpty()) {
             val localById = _alarmsFlow.value.associateBy { it.id }
+            val hasLocalUserEdits = prefs.getLong(KEY_ALARMS_LOCAL_MODIFIED_MS, 0L) > 0L
             val mergedAlarms = normalizeAlarms(alarms).map { remote ->
                 val local = localById[remote.id]
-                if (remote.alarmSoundTrackId.isNullOrBlank() && local != null && !local.alarmSoundTrackId.isNullOrBlank()) {
-                    remote.copy(
+                var candidate = remote
+                // Never allow a stale server alarm package to silently re-enable an alarm that the user turned off on this phone!
+                if (hasLocalUserEdits && local != null) {
+                    candidate = candidate.copy(
+                        isEnabled = local.isEnabled,
+                        hour = local.hour,
+                        minute = local.minute,
+                        daysOfWeek = local.daysOfWeek,
+                        scheduleText = local.scheduleText,
+                        smartPlugIps = local.smartPlugIps,
+                        triggerPlugOnRing = local.triggerPlugOnRing,
+                        aiBriefingEnabled = local.aiBriefingEnabled,
+                        syncWithRoutine = local.syncWithRoutine
+                    )
+                }
+                if (candidate.alarmSoundTrackId.isNullOrBlank() && local != null && !local.alarmSoundTrackId.isNullOrBlank()) {
+                    candidate = candidate.copy(
                         alarmSoundTrackId = local.alarmSoundTrackId,
                         alarmSoundTitle = local.alarmSoundTitle
                     )
-                } else {
-                    remote
                 }
+                candidate
             }
             val sorted = mergedAlarms.sortedWith(compareBy({ it.hour }, { it.minute }))
             _alarmsFlow.value = sorted
             ServiceLocator.putEncryptedPref(prefs, KEY_ALARMS, gson.toJson(sorted))
-            scheduleAllActiveAlarms(context, sorted)
+            scheduleAllActiveAlarms(context.applicationContext, sorted)
         }
         if (!timers.isNullOrEmpty()) {
             val normalizedTimers = normalizeTimers(timers)
@@ -1064,7 +1111,7 @@ object FunkenwerkAlarmManager {
             "timers_json" to gson.toJson(_timersFlow.value),
             "smart_plugs_json" to gson.toJson(_smartPlugsFlow.value),
             "wake_up_logs_json" to gson.toJson(_wakeLogsFlow.value),
-            "active_alarm_time" to (nextAlarm?.timeFormatted ?: "08:30"),
+            "active_alarm_time" to (nextAlarm?.timeFormatted ?: "aus"),
             "device_name" to "${Build.MANUFACTURER} ${Build.MODEL}".trim()
         )
         val tapoEmail = ServiceLocator.getTapoEmail().trim()
@@ -1526,14 +1573,16 @@ object FunkenwerkAlarmManager {
     }
 
     fun scheduleSingleAlarm(context: Context, alarm: SmartAlarmItem) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val appCtx = context.applicationContext
+        val alarmManager = appCtx.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val triggerAtMillis = computeNextTriggerMillis(alarm.hour, alarm.minute, alarm.daysOfWeek)
 
-        val intent = Intent(context, SmartAlarmReceiver::class.java).apply {
+        val intent = Intent(appCtx, SmartAlarmReceiver::class.java).apply {
             action = SmartAlarmReceiver.ACTION_ALARM_TRIGGER
             putExtra("alarm_id", alarm.id)
             putExtra("alarm_label", alarm.label)
             putExtra("alarm_time", alarm.timeFormatted)
+            putExtra("is_snooze", false)
             putExtra("trigger_plugs", alarm.triggerPlugOnRing)
             putExtra("plug_ips", alarm.smartPlugIps.toTypedArray())
             putExtra("ai_briefing", alarm.aiBriefingEnabled)
@@ -1542,20 +1591,20 @@ object FunkenwerkAlarmManager {
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
-            context,
+            appCtx,
             alarm.id.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val showIntent = SecurityIntentHelper.signIntent(context, Intent(context, MainActivity::class.java).apply {
+        val showIntent = SecurityIntentHelper.signIntent(appCtx, Intent(appCtx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("open_tab", 2)
             putExtra("open_subtab", 6)
             putExtra("alarm_inner_tab", 0)
         })
         val showPendingIntent = PendingIntent.getActivity(
-            context,
+            appCtx,
             alarm.id.hashCode() + 1000,
             showIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -1592,6 +1641,7 @@ object FunkenwerkAlarmManager {
             putExtra("alarm_id", alarmId)
             putExtra("alarm_label", "$baseLabel (Schlummern)")
             putExtra("alarm_time", scheduledTime)
+            putExtra("is_snooze", true)
             putExtra("trigger_plugs", existingAlarm?.triggerPlugOnRing ?: true)
             putExtra("plug_ips", (existingAlarm?.smartPlugIps ?: emptyList()).toTypedArray())
             putExtra("ai_briefing", existingAlarm?.aiBriefingEnabled ?: true)
@@ -1654,18 +1704,19 @@ object FunkenwerkAlarmManager {
     }
 
     fun cancelAlarm(context: Context, alarmId: String) {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-        val intent = Intent(context, SmartAlarmReceiver::class.java).apply {
+        val appCtx = context.applicationContext
+        val alarmManager = appCtx.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val intent = Intent(appCtx, SmartAlarmReceiver::class.java).apply {
             action = SmartAlarmReceiver.ACTION_ALARM_TRIGGER
         }
         val pendingIntent = PendingIntent.getBroadcast(
-            context,
+            appCtx,
             alarmId.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         alarmManager.cancel(pendingIntent)
-        cancelSnoozeAlarm(context, alarmId)
+        cancelSnoozeAlarm(appCtx, alarmId)
     }
 
     fun cancelAllAlarmsOnLogout(context: Context) {
@@ -1789,22 +1840,25 @@ object FunkenwerkAlarmManager {
     private fun acquireAlarmWakeLock(context: Context, timeoutMs: Long = 180_000L) {
         try {
             val appCtx = context.applicationContext
+            val nowMs = System.currentTimeMillis()
+            val desiredExpiry = nowMs + timeoutMs
             val pm = appCtx.getSystemService(Context.POWER_SERVICE) as? PowerManager
             if (pm != null) {
-                if (alarmWakeLock?.isHeld == true) {
-                    alarmWakeLock?.release()
+                // Never replace an already-held longer WakeLock with a shorter timeout
+                if (alarmWakeLock?.isHeld != true || desiredExpiry > alarmWakeLockExpiresAtMs) {
+                    if (alarmWakeLock?.isHeld == true) {
+                        alarmWakeLock?.release()
+                    }
+                    val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Funkenwerk:SmartAlarmWakeLock")
+                    wl.setReferenceCounted(false)
+                    wl.acquire(timeoutMs)
+                    alarmWakeLock = wl
+                    alarmWakeLockExpiresAtMs = desiredExpiry
                 }
-                val wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Funkenwerk:SmartAlarmWakeLock")
-                wl.setReferenceCounted(false)
-                wl.acquire(timeoutMs)
-                alarmWakeLock = wl
             }
 
             val wm = appCtx.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            if (wm != null) {
-                if (alarmWifiLock?.isHeld == true) {
-                    alarmWifiLock?.release()
-                }
+            if (wm != null && alarmWifiLock?.isHeld != true) {
                 @Suppress("DEPRECATION")
                 val wfl = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Funkenwerk:SmartAlarmWifiLock")
                 wfl.setReferenceCounted(false)
@@ -1817,6 +1871,7 @@ object FunkenwerkAlarmManager {
     }
 
     private fun releaseAlarmWakeLock() {
+        alarmWakeLockExpiresAtMs = 0L
         try {
             if (alarmWakeLock?.isHeld == true) {
                 alarmWakeLock?.release()
@@ -2199,18 +2254,43 @@ object FunkenwerkAlarmManager {
                 // Prevent background WakeWordService from colliding with microphone or false-triggering during alarm dialog
                 NavigationBridge.isLiveCallActive = true
 
-                // Pre-fetch opening question WAV & live Gifhorn weather in parallel while alarm tone rings for 3.2s
+                // Pre-warm Vertex OAuth2 token, dialog WAVs, and Gifhorn weather in parallel while alarm tone rings for 3.2s
                 val askWavDeferred = async(Dispatchers.IO) {
                     fetchOrSynthesizeFunkiraWav(appCtx, INITIAL_ALARM_QUESTION, "alarm_ask_shift")
                 }
                 val weatherDeferred = async(Dispatchers.IO) {
                     fetchGifhornWeatherAndWalkSentence(appCtx)
                 }
+                val followUpPrewarmDeferred = async(Dispatchers.IO) {
+                    VertexClientTokenCache.getOrFetchValidBundle(appCtx)
+                    fetchOrSynthesizeFunkiraWav(appCtx, FOLLOWUP_DURATION_QUESTION, "alarm_ask_duration")
+                }
+                val disablePrewarmDeferred = async(Dispatchers.IO) {
+                    fetchOrSynthesizeFunkiraWav(appCtx, DISABLE_TODAY_CONFIRMATION, "alarm_disable_today")
+                }
+                // Pre-warm instant opener for "Nein" right away so Funkira responds in Aoede with 0ms delay
+                val contOpenerPrewarmJob = scope.launch(Dispatchers.IO) {
+                    try {
+                        val previewCont = buildMorningBriefingText(
+                            context = appCtx,
+                            alarmLabel = alarmLabel,
+                            plugsSwitched = lastTriggerPlugsSwitched,
+                            overrideTimeStr = effTime,
+                            isContinuationAfterNo = true,
+                            preloadedWeatherSentence = null
+                        )
+                        val (opener, _) = splitBriefingIntoFastOpenerAndBody(previewCont)
+                        fetchOrSynthesizeFunkiraWav(appCtx, opener, "${alarmId}_opener")
+                    } catch (_: Exception) { }
+                }
 
                 delay(3200L)
-                val askWavFile = withTimeoutOrNull(8000L) { askWavDeferred.await() }
+                val askWavFile = withTimeoutOrNull(18_000L) { askWavDeferred.await() }
 
-                if (isAlarmDismissed) return@launch
+                if (isAlarmDismissed) {
+                    contOpenerPrewarmJob.cancel()
+                    return@launch
+                }
 
                 // 2. Pause wake-up sound & vibration completely before Funkira speaks (0% overlap!)
                 withContext(Dispatchers.Main) {
@@ -2234,17 +2314,19 @@ object FunkenwerkAlarmManager {
 
                 when (val decision1 = parseAlarmVoiceCommand(transcript1, defaultNumberAsMinutes = false)) {
                     is AlarmVoiceIntent.DisableToday -> {
-                        executeDisableAlarmTodayFlow(appCtx, alarmId, effTime, plugsSwitched)
+                        val prewarmedDisable = withTimeoutOrNull(18_000L) { disablePrewarmDeferred.await() }
+                        executeDisableAlarmTodayFlow(appCtx, alarmId, effTime, lastTriggerPlugsSwitched, prewarmedDisable)
                         return@launch
                     }
                     is AlarmVoiceIntent.ShiftMinutes -> {
-                        executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, decision1.minutes, plugsSwitched)
+                        executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, decision1.minutes, lastTriggerPlugsSwitched)
                         return@launch
                     }
                     is AlarmVoiceIntent.YesAskDuration -> {
                         _alarmDialogStateFlow.value = "Funkira: „Wie viele Minuten später oder gar nicht klingeln?“"
-                        val followWav = withTimeoutOrNull(8000L) {
-                            fetchOrSynthesizeFunkiraWav(appCtx, FOLLOWUP_DURATION_QUESTION, "alarm_ask_duration")
+                        val followWav = withTimeoutOrNull(20_000L) {
+                            followUpPrewarmDeferred.await()
+                                ?: fetchOrSynthesizeFunkiraWav(appCtx, FOLLOWUP_DURATION_QUESTION, "alarm_ask_duration")
                         }
                         if (isAlarmDismissed) return@launch
                         playBriefingAndAwaitCompletion(appCtx, followWav, FOLLOWUP_DURATION_QUESTION)
@@ -2256,49 +2338,47 @@ object FunkenwerkAlarmManager {
 
                         when (val decision2 = parseAlarmVoiceCommand(transcript2, defaultNumberAsMinutes = true)) {
                             is AlarmVoiceIntent.DisableToday -> {
-                                executeDisableAlarmTodayFlow(appCtx, alarmId, effTime, plugsSwitched)
+                                val prewarmedDisable = withTimeoutOrNull(18_000L) { disablePrewarmDeferred.await() }
+                                executeDisableAlarmTodayFlow(appCtx, alarmId, effTime, lastTriggerPlugsSwitched, prewarmedDisable)
                                 return@launch
                             }
                             is AlarmVoiceIntent.ShiftMinutes -> {
-                                executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, decision2.minutes, plugsSwitched)
+                                executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, decision2.minutes, lastTriggerPlugsSwitched)
                                 return@launch
                             }
                             is AlarmVoiceIntent.No -> {
-                                val weatherStr = withTimeoutOrNull(4000L) { weatherDeferred.await() }
-                                executeContinueRoutineBriefingFlow(appCtx, alarmId, alarmLabel, effTime, plugsSwitched, weatherStr)
+                                val weatherStr = withTimeoutOrNull(5000L) { weatherDeferred.await() }
+                                executeContinueRoutineBriefingFlow(appCtx, alarmId, alarmLabel, effTime, lastTriggerPlugsSwitched, weatherStr)
                                 return@launch
                             }
                             else -> {
                                 // User said "Ja" to shifting but gave no clear duration on second prompt -> default to 10 minutes
-                                executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, 10, plugsSwitched)
+                                executeShiftAlarmMinutesFlow(appCtx, alarmId, alarmLabel, effTime, 10, lastTriggerPlugsSwitched)
                                 return@launch
                             }
                         }
                     }
                     is AlarmVoiceIntent.No -> {
-                        val weatherStr = withTimeoutOrNull(4000L) { weatherDeferred.await() }
-                        executeContinueRoutineBriefingFlow(appCtx, alarmId, alarmLabel, effTime, plugsSwitched, weatherStr)
+                        val weatherStr = withTimeoutOrNull(5000L) { weatherDeferred.await() }
+                        executeContinueRoutineBriefingFlow(appCtx, alarmId, alarmLabel, effTime, lastTriggerPlugsSwitched, weatherStr)
                         return@launch
                     }
                     is AlarmVoiceIntent.Unknown -> {
-                        // Silence / no spoken answer: speak the full morning briefing (with date, Gifhorn weather & walk outfit)
+                        // Silence / no spoken answer: speak the full morning briefing in Aoede voice via 2-stage streaming
                         // and then resume the wake-up ringtone so the user doesn't oversleep accidentally.
-                        val weatherStr = withTimeoutOrNull(4000L) { weatherDeferred.await() }
+                        val weatherStr = withTimeoutOrNull(5000L) { weatherDeferred.await() }
                         val nowWakeStr = SimpleDateFormat("HH:mm", Locale.GERMANY).format(Date())
                         val briefingText = buildMorningBriefingText(
                             context = appCtx,
                             alarmLabel = alarmLabel,
-                            plugsSwitched = plugsSwitched,
+                            plugsSwitched = lastTriggerPlugsSwitched,
                             overrideTimeStr = nowWakeStr,
                             isContinuationAfterNo = false,
                             preloadedWeatherSentence = weatherStr
                         )
                         _alarmDialogStateFlow.value = "🌅 Morgen-Briefing & Wetter Gifhorn..."
-                        val wavFile = withTimeoutOrNull(12000L) {
-                            fetchOrSynthesizeFunkiraWav(appCtx, briefingText, alarmId)
-                        }
                         if (isAlarmDismissed) return@launch
-                        playBriefingAndAwaitCompletion(appCtx, wavFile, briefingText)
+                        playChunkedMorningBriefing(appCtx, briefingText, alarmId)
                         if (isAlarmDismissed) return@launch
 
                         _alarmDialogStateFlow.value = "Wecker klingelt (Aufstehen oder Verschieben wählen)"
@@ -2341,7 +2421,7 @@ object FunkenwerkAlarmManager {
 
         val confirmText = "Alles klar, ich verschiebe den Wecker um $cleanMin Minuten auf $newTargetTimeStr Uhr. Bis gleich!"
         _alarmDialogStateFlow.value = "⏰ Verschoben um +$cleanMin Min. auf $newTargetTimeStr Uhr"
-        val confirmWav = withTimeoutOrNull(8000L) {
+        val confirmWav = withTimeoutOrNull(22_000L) {
             fetchOrSynthesizeFunkiraWav(appCtx, confirmText, "alarm_shift_$cleanMin")
         }
         if (!isAlarmDismissed) {
@@ -2354,7 +2434,8 @@ object FunkenwerkAlarmManager {
         context: Context,
         alarmId: String,
         scheduledTime: String,
-        plugsSwitched: Boolean
+        plugsSwitched: Boolean,
+        prewarmedWav: File? = null
     ) {
         val appCtx = context.applicationContext
         cancelSnoozeAlarm(appCtx, alarmId)
@@ -2374,7 +2455,7 @@ object FunkenwerkAlarmManager {
         pushAlarmPackageToAllEndpointsAsync(appCtx)
 
         _alarmDialogStateFlow.value = "🔕 Wecker für heute beendet"
-        val confirmWav = withTimeoutOrNull(8000L) {
+        val confirmWav = prewarmedWav ?: withTimeoutOrNull(22_000L) {
             fetchOrSynthesizeFunkiraWav(appCtx, DISABLE_TODAY_CONFIRMATION, "alarm_disable_today")
         }
         if (!isAlarmDismissed) {
@@ -2404,22 +2485,35 @@ object FunkenwerkAlarmManager {
         )
         pushAlarmPackageToAllEndpointsAsync(appCtx)
 
+        // Keep spoken time aligned to scheduledTime when within 2 minutes so the pre-warmed Aoede opener WAV hits cache in 0ms!
+        val spokenTimeStr = resolveAlignedSpokenWakeTime(scheduledTime, nowWakeTimeStr)
         val briefingText = buildMorningBriefingText(
             context = appCtx,
             alarmLabel = alarmLabel,
             plugsSwitched = plugsSwitched,
-            overrideTimeStr = nowWakeTimeStr,
+            overrideTimeStr = spokenTimeStr,
             isContinuationAfterNo = true,
             preloadedWeatherSentence = preloadedWeatherSentence
         )
         _alarmDialogStateFlow.value = "🌅 Morgen-Routine, Wetter Gifhorn & Spaziergang-Tipp..."
-        val wavFile = withTimeoutOrNull(12000L) {
-            fetchOrSynthesizeFunkiraWav(appCtx, briefingText, "${alarmId}_cont")
-        }
         if (!isAlarmDismissed) {
-            playBriefingAndAwaitCompletion(appCtx, wavFile, briefingText)
+            playChunkedMorningBriefing(appCtx, briefingText, "${alarmId}_cont")
         }
         stopAlarmSound(appCtx)
+    }
+
+    internal fun resolveAlignedSpokenWakeTime(scheduledTime: String, actualWakeTime: String): String {
+        val sched = scheduledTime.take(5)
+        val actual = actualWakeTime.take(5)
+        return try {
+            val sp = sched.split(":")
+            val ap = actual.split(":")
+            val sMins = sp[0].toInt() * 60 + sp[1].toInt()
+            val aMins = ap[0].toInt() * 60 + ap[1].toInt()
+            if (kotlin.math.abs(aMins - sMins) <= 2) sched else actual
+        } catch (_: Exception) {
+            actual
+        }
     }
 
     /**
@@ -3223,6 +3317,74 @@ object FunkenwerkAlarmManager {
     }
 
     /**
+     * Splits a multi-sentence morning briefing into a short, instant 1-2 sentence opener (~2s synthesis)
+     * and the remaining weather/tasks body so Funkira's Aoede voice starts immediately and streams Part 2 seamlessly,
+     * never timing out or dropping back to Android's robotic standard TTS voice!
+     */
+    internal fun splitBriefingIntoFastOpenerAndBody(fullText: String): Pair<String, String> {
+        val trimmed = fullText.trim()
+        val weatherMarkerIdx = trimmed.indexOf("In Gifhorn ")
+        if (weatherMarkerIdx > 15) {
+            val opener = trimmed.substring(0, weatherMarkerIdx).trim()
+            val body = trimmed.substring(weatherMarkerIdx).trim()
+            if (opener.isNotBlank() && body.isNotBlank()) {
+                return Pair(opener, body)
+            }
+        }
+        val firstDot = trimmed.indexOf(". ")
+        if (firstDot in 15 until (trimmed.length - 20)) {
+            return Pair(
+                trimmed.substring(0, firstDot + 1).trim(),
+                trimmed.substring(firstDot + 2).trim()
+            )
+        }
+        return Pair(trimmed, "")
+    }
+
+    private suspend fun playChunkedMorningBriefing(context: Context, fullText: String, tagPrefix: String) {
+        val appCtx = context.applicationContext
+        val briefingsDir = File(appCtx.filesDir, "funkira_briefings")
+        val fullHash = sha256(fullText.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }.take(20)
+        val fullCached = File(briefingsDir, "funkira_briefing_$fullHash.wav")
+        if (fullCached.exists() && fullCached.length() > 1000L) {
+            playBriefingAndAwaitCompletion(appCtx, fullCached, fullText)
+            return
+        }
+
+        val (opener, body) = splitBriefingIntoFastOpenerAndBody(fullText)
+        if (body.isBlank()) {
+            val singleWav = withTimeoutOrNull(26_000L) {
+                fetchOrSynthesizeFunkiraWav(appCtx, opener, "${tagPrefix}_single")
+            }
+            if (!isAlarmDismissed) {
+                playBriefingAndAwaitCompletion(appCtx, singleWav, opener)
+            }
+            return
+        }
+
+        coroutineScope {
+            val openerDef = async(Dispatchers.IO) {
+                fetchOrSynthesizeFunkiraWav(appCtx, opener, "${tagPrefix}_part1")
+            }
+            val bodyDef = async(Dispatchers.IO) {
+                fetchOrSynthesizeFunkiraWav(appCtx, body, "${tagPrefix}_part2")
+            }
+            val openerWav = withTimeoutOrNull(22_000L) { openerDef.await() }
+            if (!isAlarmDismissed) {
+                playBriefingAndAwaitCompletion(appCtx, openerWav, opener)
+            }
+            if (!isAlarmDismissed) {
+                val bodyWav = withTimeoutOrNull(28_000L) { bodyDef.await() }
+                if (!isAlarmDismissed) {
+                    playBriefingAndAwaitCompletion(appCtx, bodyWav, body)
+                }
+            } else {
+                bodyDef.cancel()
+            }
+        }
+    }
+
+    /**
      * Pre-synthesizes Funkira's (Aoede) Morning Dialog & Briefing WAV files in the background
      * so that when the alarm rings, Funkira's voice is immediately ready on disk with 0ms network latency.
      */
@@ -3238,12 +3400,12 @@ object FunkenwerkAlarmManager {
                 // 1. Pre-fetch Gifhorn weather so it's warm in cache
                 val weatherSentence = fetchGifhornWeatherAndWalkSentence(appCtx)
 
-                // 2. Pre-warm interactive alarm dialog questions
+                // 2. Pre-warm interactive alarm dialog questions + common shift confirmations
                 fetchOrSynthesizeFunkiraWav(appCtx, INITIAL_ALARM_QUESTION, "alarm_ask_shift")
                 fetchOrSynthesizeFunkiraWav(appCtx, FOLLOWUP_DURATION_QUESTION, "alarm_ask_duration")
                 fetchOrSynthesizeFunkiraWav(appCtx, DISABLE_TODAY_CONFIRMATION, "alarm_disable_today")
 
-                // 3. Pre-warm full morning briefings for enabled alarms
+                // 3. Pre-warm morning briefing openers & bodies for enabled alarms
                 val enabledBriefingAlarms = _alarmsFlow.value.filter { it.isEnabled && it.aiBriefingEnabled }
                 for (alarm in enabledBriefingAlarms) {
                     val plugsSwitched = alarm.triggerPlugOnRing && alarm.smartPlugIps.isNotEmpty()
@@ -3255,17 +3417,11 @@ object FunkenwerkAlarmManager {
                         isContinuationAfterNo = true,
                         preloadedWeatherSentence = weatherSentence
                     )
-                    fetchOrSynthesizeFunkiraWav(appCtx, textCont, "${alarm.id}_cont")
-
-                    val textFull = buildMorningBriefingText(
-                        context = appCtx,
-                        alarmLabel = alarm.label,
-                        plugsSwitched = plugsSwitched,
-                        overrideTimeStr = alarm.timeFormatted,
-                        isContinuationAfterNo = false,
-                        preloadedWeatherSentence = weatherSentence
-                    )
-                    fetchOrSynthesizeFunkiraWav(appCtx, textFull, alarm.id)
+                    val (contOpener, contBody) = splitBriefingIntoFastOpenerAndBody(textCont)
+                    fetchOrSynthesizeFunkiraWav(appCtx, contOpener, "${alarm.id}_cont_p1")
+                    if (contBody.isNotBlank()) {
+                        fetchOrSynthesizeFunkiraWav(appCtx, contBody, "${alarm.id}_cont_p2")
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "prewarmAlarmBriefingsAsync failed: ${e.message}")
@@ -3298,9 +3454,8 @@ object FunkenwerkAlarmManager {
                     isContinuationAfterNo = false,
                     preloadedWeatherSentence = weatherSentence
                 )
-                val wavFile = fetchOrSynthesizeFunkiraWav(appCtx, text, "preview")
                 if (!isAlarmDismissed) {
-                    playBriefingAndAwaitCompletion(appCtx, wavFile, text)
+                    playChunkedMorningBriefing(appCtx, text, "preview")
                 }
             } finally {
                 if (activeAlarmPlayer == null && activeRingtone == null) {
@@ -3426,9 +3581,20 @@ object FunkenwerkAlarmManager {
         val hash = sha256(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }.take(20)
         val cacheFile = File(briefingsDir, "funkira_briefing_$hash.wav")
 
-        if (cacheFile.exists() && cacheFile.length() > 1000L && (System.currentTimeMillis() - cacheFile.lastModified()) < 43_200_000L) {
+        // SHA-256 content-addressed WAV never goes stale for identical text; keep cached up to 30 days across nights!
+        if (cacheFile.exists() && cacheFile.length() > 1000L && (System.currentTimeMillis() - cacheFile.lastModified()) < 30L * 86_400_000L) {
             return@withContext cacheFile
         }
+
+        // Trim oldest cached WAVs if folder exceeds 50 files
+        try {
+            val allWavs = briefingsDir.listFiles { _, name -> name.startsWith("funkira_briefing_") && name.endsWith(".wav") }
+            if (allWavs != null && allWavs.size > 50) {
+                allWavs.sortedBy { it.lastModified() }.take(allWavs.size - 40).forEach {
+                    try { it.delete() } catch (_: Exception) {}
+                }
+            }
+        } catch (_: Exception) {}
 
         // 1. Direct Vertex AI TTS API with Funkira's voice ("Aoede") via short-lived OAuth2 token
         try {
@@ -3461,8 +3627,8 @@ object FunkenwerkAlarmManager {
                 val conn = (URL(endpointUrl).openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = false
                     requestMethod = "POST"
-                    connectTimeout = if (isLan) 2200 else 5000
-                    readTimeout = 14000
+                    connectTimeout = if (isLan) 2500 else 6000
+                    readTimeout = 26000
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Accept", "application/json")
@@ -3505,7 +3671,7 @@ object FunkenwerkAlarmManager {
         text: String
     ): ByteArray? {
         var currentBundle: CachedVertexBundle? = initialBundle
-        val models = listOf("gemini-2.5-flash-tts", "gemini-3.1-flash-tts-preview", "gemini-3.8-flash-tts")
+        val models = listOf("gemini-2.5-flash-tts", "gemini-3.1-flash-tts-preview")
         val promptText = "Lies ausschließlich den folgenden Text Wort für Wort freundlich und natürlich vor, ohne eigene Sätze oder Ortsangaben zu ergänzen: $text"
 
         val reqJson = JSONObject().apply {
@@ -3534,8 +3700,8 @@ object FunkenwerkAlarmManager {
                 val conn = (url.openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = false
                     requestMethod = "POST"
-                    connectTimeout = 5000
-                    readTimeout = 14000
+                    connectTimeout = 6000
+                    readTimeout = 25000
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json")
                     setRequestProperty("Authorization", "Bearer ${activeBundle.accessToken}")
@@ -3614,6 +3780,56 @@ object FunkenwerkAlarmManager {
     // =========================================================================
     private val lastKnownPlugStateByIp = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
+    fun ensureTapoCredentialsSyncedAsync(context: Context) {
+        val appCtx = context.applicationContext
+        scope.launch(Dispatchers.IO) {
+            ensureTapoCredentialsLoaded(appCtx)
+        }
+    }
+
+    private suspend fun ensureTapoCredentialsLoaded(appCtx: Context): Pair<String, String> = withContext(Dispatchers.IO) {
+        val initial = getTapoCredentials(appCtx)
+        if (initial.first.isNotBlank() && initial.second.isNotBlank()) {
+            return@withContext initial
+        }
+        try {
+            ServiceLocator.ensureInitialized(appCtx)
+            if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
+                val resp = withTimeoutOrNull(3500L) {
+                    ServiceLocator.getOrganizerApi().getAlarmSyncPackage()
+                }
+                val pkg = resp?.data
+                if (resp?.success == true && pkg != null) {
+                    val te = pkg.tapoEmail?.trim().orEmpty()
+                    val tp = pkg.tapoPassword.orEmpty()
+                    if (te.isNotBlank() && tp.isNotBlank()) {
+                        saveTapoCredentials(appCtx, te, tp)
+                        return@withContext Pair(te, tp)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+        }
+        getTapoCredentials(appCtx)
+    }
+
+    private fun resolveActiveWifiNetwork(context: Context?): Network? {
+        if (context == null) return null
+        return try {
+            val cm = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return null
+            val active = cm.activeNetwork
+            if (active != null && cm.getNetworkCapabilities(active)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true) {
+                return active
+            }
+            @Suppress("DEPRECATION")
+            cm.allNetworks.firstOrNull { net ->
+                cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     suspend fun triggerSmartPlugsSuspend(
         context: Context,
         ips: List<String>,
@@ -3624,23 +3840,42 @@ object FunkenwerkAlarmManager {
         }
         val appCtx = context.applicationContext
         ensureInitialized(appCtx)
-        val (email, pass) = getTapoCredentials(appCtx)
+        val (email, pass) = ensureTapoCredentialsLoaded(appCtx)
         val normalizedIps = ips.map { ip ->
             val clean = ip.trim()
             if (clean == "192.168.188.106") "192.168.188.110" else clean
-        }.distinct()
+        }.filter { it.isNotBlank() }.distinct()
         val plugNamesByIp = _smartPlugsFlow.value.associate { it.ip to it.name }
 
         acquireAlarmWakeLock(appCtx, 30_000L)
-        val results = mutableListOf<String>()
-        var anySuccess = false
-        for (ip in normalizedIps) {
-            val (ok, msg) = setPlugStateKlapV2(ip, email, pass, turnOn)
-            if (ok) anySuccess = true
-            val label = plugNamesByIp[ip] ?: ip
-            results.add("$label: $msg")
+        val wm = appCtx.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val dedicatedWifiLock = try {
+            @Suppress("DEPRECATION")
+            wm?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "Funkenwerk:TapoPlugSwitchWifi")?.apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        } catch (_: Exception) { null }
+
+        return try {
+            val wifiNet = resolveActiveWifiNetwork(appCtx)
+            // Switch all checked plugs in parallel so 2-3 plugs finish in ~0.4s instead of sequentially timing out
+            val pairs = coroutineScope {
+                normalizedIps.map { ip ->
+                    async(Dispatchers.IO) {
+                        val (ok, msg) = setPlugStateKlapV2(ip, email, pass, turnOn, wifiNet)
+                        val label = plugNamesByIp[ip] ?: ip
+                        Pair(ok, "$label: $msg")
+                    }
+                }.awaitAll()
+            }
+            val anySuccess = pairs.any { it.first }
+            Pair(anySuccess, pairs.joinToString(" · ") { it.second })
+        } finally {
+            try {
+                if (dedicatedWifiLock?.isHeld == true) dedicatedWifiLock.release()
+            } catch (_: Exception) {}
         }
-        return Pair(anySuccess, results.joinToString(" · "))
     }
 
     suspend fun toggleSmartPlugsSuspend(
@@ -3652,30 +3887,37 @@ object FunkenwerkAlarmManager {
         }
         val appCtx = context.applicationContext
         ensureInitialized(appCtx)
-        val (email, pass) = getTapoCredentials(appCtx)
+        val (email, pass) = ensureTapoCredentialsLoaded(appCtx)
         val normalizedIps = ips.map { ip ->
             val clean = ip.trim()
             if (clean == "192.168.188.106") "192.168.188.110" else clean
-        }.distinct()
+        }.filter { it.isNotBlank() }.distinct()
         val plugNamesByIp = _smartPlugsFlow.value.associate { it.ip to it.name }
 
         acquireAlarmWakeLock(appCtx, 30_000L)
-        val results = mutableListOf<String>()
-        var anySuccess = false
-        for (ip in normalizedIps) {
-            val currentOn = readPlugStateKlapV2(ip, email, pass)
-                ?: lastKnownPlugStateByIp[ip]
-                ?: false
-            val targetOn = !currentOn
-            val (ok, msg) = setPlugStateKlapV2(ip, email, pass, targetOn)
-            if (ok) anySuccess = true
-            val label = plugNamesByIp[ip] ?: ip
-            results.add("$label: $msg")
+        val wifiNet = resolveActiveWifiNetwork(appCtx)
+        val pairs = coroutineScope {
+            normalizedIps.map { ip ->
+                async(Dispatchers.IO) {
+                    val currentOn = readPlugStateKlapV2(ip, email, pass, wifiNet)
+                        ?: lastKnownPlugStateByIp[ip]
+                        ?: false
+                    val targetOn = !currentOn
+                    val (ok, msg) = setPlugStateKlapV2(ip, email, pass, targetOn, wifiNet)
+                    val label = plugNamesByIp[ip] ?: ip
+                    Pair(ok, "$label: $msg")
+                }
+            }.awaitAll()
         }
-        return Pair(anySuccess, results.joinToString(" · "))
+        return Pair(pairs.any { it.first }, pairs.joinToString(" · ") { it.second })
     }
 
-    suspend fun readPlugStateKlapV2(ip: String, email: String, password: String): Boolean? =
+    suspend fun readPlugStateKlapV2(
+        ip: String,
+        email: String,
+        password: String,
+        wifiNetwork: Network? = null
+    ): Boolean? =
         withContext(Dispatchers.IO) {
             val cleanIp = ip.trim()
             if (!isValidPrivateLanIpv4(cleanIp)) return@withContext null
@@ -3684,7 +3926,7 @@ object FunkenwerkAlarmManager {
             try {
                 val localSeed = ByteArray(16)
                 SecureRandom().nextBytes(localSeed)
-                val (hs1Bytes, sessionCookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake1", localSeed, "application/octet-stream", null)
+                val (hs1Bytes, sessionCookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake1", localSeed, "application/octet-stream", null, wifiNetwork)
                 if (hs1Bytes == null || hs1Bytes.size < 48) return@withContext null
 
                 val remoteSeed = hs1Bytes.copyOfRange(0, 16)
@@ -3697,7 +3939,7 @@ object FunkenwerkAlarmManager {
                 if (!MessageDigest.isEqual(expectedServerHash, serverHash)) return@withContext null
 
                 val clientHash = sha256(combine(remoteSeed, localSeed, authHash))
-                val (hs2Bytes, hs2Cookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake2", clientHash, "application/octet-stream", sessionCookie)
+                val (hs2Bytes, hs2Cookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake2", clientHash, "application/octet-stream", sessionCookie, wifiNetwork)
                 if (hs2Bytes == null) return@withContext null
                 val activeCookie = hs2Cookie ?: sessionCookie
 
@@ -3717,7 +3959,7 @@ object FunkenwerkAlarmManager {
                 val sig = sha256(combine(sigKey, seqBytes, cipherBytes))
                 val reqBody = combine(sig, cipherBytes)
 
-                val (resp, _) = postRawBytesWithCookie("http://$cleanIp/app/request?seq=$seq", reqBody, "application/octet-stream", activeCookie)
+                val (resp, _) = postRawBytesWithCookie("http://$cleanIp/app/request?seq=$seq", reqBody, "application/octet-stream", activeCookie, wifiNetwork)
                 if (resp == null || resp.size <= 32) return@withContext null
 
                 val decCipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
@@ -3753,7 +3995,13 @@ object FunkenwerkAlarmManager {
         }
     }
 
-    suspend fun setPlugStateKlapV2(ip: String, email: String, password: String, turnOn: Boolean): Pair<Boolean, String> =
+    suspend fun setPlugStateKlapV2(
+        ip: String,
+        email: String,
+        password: String,
+        turnOn: Boolean,
+        wifiNetwork: Network? = null
+    ): Pair<Boolean, String> =
         withContext(Dispatchers.IO) {
             val cleanIp = ip.trim()
             if (!isValidPrivateLanIpv4(cleanIp)) {
@@ -3766,75 +4014,121 @@ object FunkenwerkAlarmManager {
                 return@withContext Pair(false, "Bitte Tapo-Zugangsdaten unter Smart-Home & KI hinterlegen.")
             }
 
-            try {
-                val localSeed = ByteArray(16)
-                SecureRandom().nextBytes(localSeed)
+            val userSha1 = sha1(effEmail.toByteArray(Charsets.UTF_8))
+            val passSha1 = sha1(effPass.toByteArray(Charsets.UTF_8))
+            val authHash = sha256(combine(userSha1, passSha1))
 
-                // 1. Handshake 1 (explicitly capture TP_SESSIONID cookie per plug IP so multi-plug calls never collide)
-                val (hs1Bytes, sessionCookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake1", localSeed, "application/octet-stream", null)
-                if (hs1Bytes == null) {
-                    return@withContext Pair(false, "Handshake1 fehlgeschlagen")
+            var lastErrMsg = "Befehl fehlgeschlagen"
+            // Up to 3 attempts with short backoff so sleeping Wi-Fi plugs after overnight Doze wake up reliably
+            for (attempt in 0..2) {
+                if (attempt > 0) {
+                    delay(450L)
                 }
-                if (hs1Bytes.size < 48) {
-                    return@withContext Pair(false, "Ungültige KLAP v2 Antwort")
+                try {
+                    val localSeed = ByteArray(16)
+                    SecureRandom().nextBytes(localSeed)
+
+                    // 1. Handshake 1 (explicitly bound to TRANSPORT_WIFI + per-plug TP_SESSIONID cookie)
+                    val (hs1Bytes, sessionCookie) = postRawBytesWithCookie(
+                        "http://$cleanIp/app/handshake1",
+                        localSeed,
+                        "application/octet-stream",
+                        null,
+                        wifiNetwork
+                    )
+                    if (hs1Bytes == null) {
+                        lastErrMsg = "Handshake1 fehlgeschlagen"
+                        continue
+                    }
+                    if (hs1Bytes.size < 48) {
+                        lastErrMsg = "Ungültige KLAP v2 Antwort"
+                        continue
+                    }
+
+                    val remoteSeed = hs1Bytes.copyOfRange(0, 16)
+                    val serverHash = hs1Bytes.copyOfRange(16, 48)
+
+                    val expectedServerHash = sha256(combine(localSeed, remoteSeed, authHash))
+                    if (!MessageDigest.isEqual(expectedServerHash, serverHash)) {
+                        // Credentials mismatch is deterministic -> return immediately without retrying
+                        return@withContext Pair(false, "Tapo Zugangsdaten stimmen nicht überein")
+                    }
+
+                    // 2. Handshake 2
+                    val clientHash = sha256(combine(remoteSeed, localSeed, authHash))
+                    val (hs2Bytes, hs2Cookie) = postRawBytesWithCookie(
+                        "http://$cleanIp/app/handshake2",
+                        clientHash,
+                        "application/octet-stream",
+                        sessionCookie,
+                        wifiNetwork
+                    )
+                    if (hs2Bytes == null) {
+                        lastErrMsg = "Handshake2 fehlgeschlagen"
+                        continue
+                    }
+                    val activeCookie = hs2Cookie ?: sessionCookie
+
+                    // 3. Derive AES-128-CBC Key, IV, Seq, SigKey
+                    val key = sha256(combine("lsk".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash)).copyOfRange(0, 16)
+                    val ivFull = sha256(combine("iv".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash))
+                    val ivPrefix = ivFull.copyOfRange(0, 12)
+                    val seq = ByteBuffer.wrap(ivFull.copyOfRange(ivFull.size - 4, ivFull.size)).int + 1
+                    val sigKey = sha256(combine("ldk".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash)).copyOfRange(0, 28)
+
+                    val seqBytes = ByteBuffer.allocate(4).putInt(seq).array()
+                    val iv = combine(ivPrefix, seqBytes)
+
+                    val payloadJson = """{"method":"set_device_info","params":{"device_on":$turnOn},"requestTimeMils":${System.currentTimeMillis()}}"""
+                    val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+                    cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
+                    val cipherBytes = cipher.doFinal(payloadJson.toByteArray(Charsets.UTF_8))
+
+                    val sig = sha256(combine(sigKey, seqBytes, cipherBytes))
+                    val reqBody = combine(sig, cipherBytes)
+
+                    val (resp, _) = postRawBytesWithCookie(
+                        "http://$cleanIp/app/request?seq=$seq",
+                        reqBody,
+                        "application/octet-stream",
+                        activeCookie,
+                        wifiNetwork
+                    )
+                    if (resp != null) {
+                        lastKnownPlugStateByIp[cleanIp] = turnOn
+                        return@withContext Pair(true, if (turnOn) "EIN geschaltet" else "AUS geschaltet")
+                    } else {
+                        lastErrMsg = "Befehl fehlgeschlagen"
+                    }
+                } catch (e: Exception) {
+                    lastErrMsg = "Fehler: ${e.localizedMessage ?: e.javaClass.simpleName}"
                 }
-
-                val remoteSeed = hs1Bytes.copyOfRange(0, 16)
-                val serverHash = hs1Bytes.copyOfRange(16, 48)
-
-                val userSha1 = sha1(effEmail.toByteArray(Charsets.UTF_8))
-                val passSha1 = sha1(effPass.toByteArray(Charsets.UTF_8))
-                val authHash = sha256(combine(userSha1, passSha1))
-
-                val expectedServerHash = sha256(combine(localSeed, remoteSeed, authHash))
-                if (!MessageDigest.isEqual(expectedServerHash, serverHash)) {
-                    return@withContext Pair(false, "Tapo Zugangsdaten stimmen nicht überein")
-                }
-
-                // 2. Handshake 2
-                val clientHash = sha256(combine(remoteSeed, localSeed, authHash))
-                val (hs2Bytes, hs2Cookie) = postRawBytesWithCookie("http://$cleanIp/app/handshake2", clientHash, "application/octet-stream", sessionCookie)
-                if (hs2Bytes == null) {
-                    return@withContext Pair(false, "Handshake2 fehlgeschlagen")
-                }
-                val activeCookie = hs2Cookie ?: sessionCookie
-
-                // 3. Derive AES-128-CBC Key, IV, Seq, SigKey
-                val key = sha256(combine("lsk".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash)).copyOfRange(0, 16)
-                val ivFull = sha256(combine("iv".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash))
-                val ivPrefix = ivFull.copyOfRange(0, 12)
-                val seq = ByteBuffer.wrap(ivFull.copyOfRange(ivFull.size - 4, ivFull.size)).int + 1
-                val sigKey = sha256(combine("ldk".toByteArray(Charsets.UTF_8), localSeed, remoteSeed, authHash)).copyOfRange(0, 28)
-
-                val seqBytes = ByteBuffer.allocate(4).putInt(seq).array()
-                val iv = combine(ivPrefix, seqBytes)
-
-                val payloadJson = """{"method":"set_device_info","params":{"device_on":$turnOn},"requestTimeMils":${System.currentTimeMillis()}}"""
-                val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
-                cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
-                val cipherBytes = cipher.doFinal(payloadJson.toByteArray(Charsets.UTF_8))
-
-                val sig = sha256(combine(sigKey, seqBytes, cipherBytes))
-                val reqBody = combine(sig, cipherBytes)
-
-                val (resp, _) = postRawBytesWithCookie("http://$cleanIp/app/request?seq=$seq", reqBody, "application/octet-stream", activeCookie)
-                if (resp != null) {
-                    lastKnownPlugStateByIp[cleanIp] = turnOn
-                    Pair(true, if (turnOn) "EIN geschaltet" else "AUS geschaltet")
-                } else {
-                    Pair(false, "Befehl fehlgeschlagen")
-                }
-            } catch (e: Exception) {
-                Pair(false, "Fehler: ${e.localizedMessage ?: e.javaClass.simpleName}")
             }
+            Pair(false, lastErrMsg)
         }
 
-    private fun postRawBytesWithCookie(urlStr: String, body: ByteArray, contentType: String, cookie: String?): Pair<ByteArray?, String?> {
-        val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+    private fun postRawBytesWithCookie(
+        urlStr: String,
+        body: ByteArray,
+        contentType: String,
+        cookie: String?,
+        wifiNetwork: Network? = null
+    ): Pair<ByteArray?, String?> {
+        val url = URL(urlStr)
+        val rawConn = if (wifiNetwork != null) {
+            try {
+                wifiNetwork.openConnection(url)
+            } catch (_: Exception) {
+                url.openConnection()
+            }
+        } else {
+            url.openConnection()
+        }
+        val conn = (rawConn as HttpURLConnection).apply {
             instanceFollowRedirects = false
             requestMethod = "POST"
-            connectTimeout = 2800
-            readTimeout = 2800
+            connectTimeout = 2400
+            readTimeout = 2400
             doOutput = true
             useCaches = false
             setRequestProperty("Content-Type", contentType)

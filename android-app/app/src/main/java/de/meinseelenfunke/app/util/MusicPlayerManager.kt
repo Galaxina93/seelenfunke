@@ -8,6 +8,8 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.media.audiofx.LoudnessEnhancer
+import android.telecom.TelecomManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -102,6 +104,7 @@ object MusicPlayerManager {
 
     private var appContext: Context? = null
     private var mediaPlayer: MediaPlayer? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
     private var playJob: Job? = null
     private var progressJob: Job? = null
     private var preCacheJob: Job? = null
@@ -157,6 +160,9 @@ object MusicPlayerManager {
     private var isDuckedForVoice: Boolean = false
 
     @Volatile
+    private var isDuckedTransientExternal: Boolean = false
+
+    @Volatile
     private var userVolumeScalar: Float = 1.0f
 
     fun computeEffectiveVolume(
@@ -168,6 +174,7 @@ object MusicPlayerManager {
         return when {
             alarmDucked -> 0.12f.coerceAtMost(clampedBase)
             voiceDucked -> if (clampedBase <= 0.001f) 0f else (clampedBase * 0.22f).coerceIn(0.05f, 0.26f)
+            isDuckedTransientExternal -> 0.45f.coerceAtMost(clampedBase)
             else -> clampedBase
         }
     }
@@ -176,6 +183,50 @@ object MusicPlayerManager {
         val targetVol = computeEffectiveVolume()
         try {
             mediaPlayer?.setVolume(targetVol, targetVol)
+        } catch (_: Exception) { }
+    }
+
+    private fun ensureNormalMediaOutputMode(context: Context) {
+        if (!NavigationBridge.isLiveCallActive && isDuckedForVoice) {
+            isDuckedForVoice = false
+        }
+        if (!FunkenwerkAlarmManager.isAlarmRingingFlow.value && isDuckedForAlarm) {
+            isDuckedForAlarm = false
+        }
+        isDuckedTransientExternal = false
+        userVolumeScalar = 1.0f
+        try {
+            val appCtx = context.applicationContext
+            val am = appCtx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+            val inPhoneCall = try {
+                if (ContextCompat.checkSelfPermission(appCtx, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                    appCtx.getSystemService(TelecomManager::class.java)?.isInCall == true
+                } else {
+                    am.mode == AudioManager.MODE_IN_CALL
+                }
+            } catch (_: Exception) {
+                am.mode == AudioManager.MODE_IN_CALL
+            }
+            if (!NavigationBridge.isLiveCallActive && !inPhoneCall && am.mode == AudioManager.MODE_IN_COMMUNICATION) {
+                am.mode = AudioManager.MODE_NORMAL
+            }
+        } catch (_: Exception) { }
+    }
+
+    private fun attachGentleLoudnessEnhancer(mp: MediaPlayer) {
+        try {
+            loudnessEnhancer?.release()
+        } catch (_: Exception) { }
+        loudnessEnhancer = null
+        try {
+            val sessionId = mp.audioSessionId
+            if (sessionId > 0) {
+                // +220 mB (+2.2 dB) brings -14 LUFS imported AAC/M4A songs up to standard streaming app loudness without clipping
+                loudnessEnhancer = LoudnessEnhancer(sessionId).apply {
+                    setTargetGain(220)
+                    enabled = true
+                }
+            }
         } catch (_: Exception) { }
     }
 
@@ -192,7 +243,8 @@ object MusicPlayerManager {
 
     fun setUserVolumePercent(context: Context, percent: Int): Int {
         val clamped = percent.coerceIn(0, 100)
-        userVolumeScalar = clamped / 100f
+        // Keep MediaPlayer at 1.0f full scale and adjust system STREAM_MUSIC only (never double-attenuate!)
+        userVolumeScalar = 1.0f
         applyEffectiveVolumeNow()
         try {
             val am = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -1103,12 +1155,12 @@ object MusicPlayerManager {
                     .setOnAudioFocusChangeListener { focusChange ->
                         when (focusChange) {
                             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                                try { mediaPlayer?.setVolume(0.12f, 0.12f) } catch (_: Exception) { }
+                                isDuckedTransientExternal = true
+                                applyEffectiveVolumeNow()
                             }
                             AudioManager.AUDIOFOCUS_GAIN -> {
-                                if (!isDuckedForAlarm) {
-                                    try { mediaPlayer?.setVolume(1.0f, 1.0f) } catch (_: Exception) { }
-                                }
+                                isDuckedTransientExternal = false
+                                applyEffectiveVolumeNow()
                             }
                         }
                     }
@@ -1567,9 +1619,11 @@ object MusicPlayerManager {
                     true
                 }
 
+                ensureNormalMediaOutputMode(appCtx)
                 requestAudioFocus(appCtx)
                 val initialVol = computeEffectiveVolume()
                 mp.setVolume(initialVol, initialVol)
+                attachGentleLoudnessEnhancer(mp)
                 mp.start()
 
                 val realDurSec = (mp.duration / 1000).coerceAtLeast(track.durationSeconds).coerceAtLeast(1)
@@ -1690,7 +1744,9 @@ object MusicPlayerManager {
                     MusicPlaybackService.startOrUpdate(appCtx)
                 } else {
                     acquireWakeLock(appCtx)
+                    ensureNormalMediaOutputMode(appCtx)
                     requestAudioFocus(appCtx)
+                    applyEffectiveVolumeNow()
                     mp.start()
                     _isPlaying.value = true
                     isTransitioningTrack = false
