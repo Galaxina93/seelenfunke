@@ -118,8 +118,9 @@ fun SettingsScreen(
     val kdriveConfig by viewModel.kdriveConfig.collectAsState()
     val kdriveSaving by viewModel.kdriveSaving.collectAsState()
     val kdriveStatusFeedback by viewModel.kdriveStatusFeedback.collectAsState()
-    var inputKdriveId by remember(kdriveConfig.drive_id) { mutableStateOf(kdriveConfig.drive_id) }
-    var inputKdriveEmail by remember(kdriveConfig.email) { mutableStateOf(kdriveConfig.email) }
+    var inputKdriveId by remember(kdriveConfig.drive_id) {
+        mutableStateOf(kdriveConfig.drive_id.ifBlank { "2216011" })
+    }
     var inputKdrivePass by remember { mutableStateOf("") }
     var kdrivePassVisible by remember { mutableStateOf(false) }
     var showKdriveInfoDialog by remember { mutableStateOf(false) }
@@ -320,12 +321,12 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Verarbeitet Scans aus dem Massenscanner sofort direkt per Infomaniak WebDAV, vergibt saubere Dateinamen und sortiert sie automatisch in deine 8 Ordner unter 'Meine Daten' ein (auch bei ausgeschaltetem PC).",
+                        text = "Verarbeitet Scans aus dem Massenscanner über die offizielle Infomaniak kDrive API v3, vergibt saubere Dateinamen und sortiert sie direkt in deine 8 Ordner unter 'Meine Daten' ein (funktioniert in allen Tarifen und auch bei ausgeschaltetem PC).",
                         fontSize = 13.sp,
                         color = AppTheme.colors.textPrimary
                     )
                     Text(
-                        text = "1. kDrive-ID: Öffne kDrive im Browser; die Zahl hinter '/drive/' in der Adresszeile (oder der komplette Link) genügt.\n2. Anwendungs-Passwort: Im Infomaniak-Konto unter Sicherheit -> Anwendungs-Passwörter einmalig erstellen.",
+                        text = "Einmalig einrichten: Tippe auf 'API-Token erstellen', setze bei Berechtigungen den Haken bei 'drive' (Gültigkeit: Unbegrenzt) und füge den Token hier ein.",
                         fontSize = 12.sp,
                         color = Gold
                     )
@@ -833,24 +834,7 @@ fun SettingsScreen(
                         value = inputKdriveId,
                         onValueChange = { inputKdriveId = it },
                         label = { Text("kDrive-ID oder Link") },
-                        placeholder = { Text("z.B. 123456") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Gold,
-                            unfocusedBorderColor = AppTheme.colors.inputBorder,
-                            focusedTextColor = AppTheme.colors.textPrimary,
-                            unfocusedTextColor = AppTheme.colors.textPrimary,
-                            focusedContainerColor = AppTheme.colors.inputBackground,
-                            unfocusedContainerColor = AppTheme.colors.inputBackground
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = inputKdriveEmail,
-                        onValueChange = { inputKdriveEmail = it },
-                        label = { Text("Infomaniak E-Mail") },
-                        placeholder = { Text("kontakt@mein-seelenfunke.de") },
+                        placeholder = { Text("2216011") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -866,11 +850,11 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = inputKdrivePass,
                         onValueChange = { inputKdrivePass = it },
-                        label = { Text("Anwendungs-Passwort") },
+                        label = { Text("Infomaniak API-Token") },
                         placeholder = {
                             Text(
                                 if (kdriveConfig.has_password) "Gespeichert (leer lassen zum Behalten)"
-                                else "Infomaniak App-Passwort"
+                                else "API-Token (Berechtigung: drive)"
                             )
                         },
                         singleLine = true,
@@ -894,6 +878,30 @@ fun SettingsScreen(
                             unfocusedContainerColor = AppTheme.colors.inputBackground
                         )
                     )
+
+                    OutlinedButton(
+                        onClick = {
+                            try {
+                                val intent = android.content.Intent(
+                                    android.content.Intent.ACTION_VIEW,
+                                    android.net.Uri.parse("https://manager.infomaniak.com/v3/ng/profile/user/token/list")
+                                )
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                Toast.makeText(context, "Browser konnte nicht geöffnet werden.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f))
+                    ) {
+                        Text(
+                            text = "API-Token bei Infomaniak erstellen",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.5.sp,
+                            color = Gold
+                        )
+                    }
 
                     if (kdriveStatusFeedback != null) {
                         val fb = kdriveStatusFeedback!!
@@ -933,7 +941,7 @@ fun SettingsScreen(
                         }
                         Button(
                             onClick = {
-                                viewModel.saveKdriveConfig(inputKdriveId, inputKdriveEmail, inputKdrivePass) { ok, msg ->
+                                viewModel.saveKdriveConfig(inputKdriveId, kdriveConfig.email, inputKdrivePass) { ok, msg ->
                                     if (ok) {
                                         inputKdrivePass = ""
                                         kdrivePassVisible = false
@@ -941,7 +949,7 @@ fun SettingsScreen(
                                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            enabled = !kdriveSaving && inputKdriveId.isNotBlank() && inputKdriveEmail.isNotBlank() &&
+                            enabled = !kdriveSaving && inputKdriveId.isNotBlank() &&
                                 (inputKdrivePass.isNotBlank() || kdriveConfig.has_password),
                             colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
                         ) {

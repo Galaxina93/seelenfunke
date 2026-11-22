@@ -83,7 +83,7 @@ data class KdriveWebDavConfigResponse(
 
 data class KdriveWebDavSaveRequest(
     val drive_id: String,
-    val email: String,
+    val email: String? = null,
     val app_password: String? = null,
     val direct_sort: Boolean = true
 )

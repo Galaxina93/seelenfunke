@@ -741,8 +741,9 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
         $ensureAdminOwner($request);
         $request->validate([
             'drive_id' => 'required|string|max:240',
-            'email' => 'required|email|max:160',
-            'app_password' => 'nullable|string|max:200',
+            'email' => 'nullable|string|max:160',
+            'app_password' => 'nullable|string|max:512',
+            'api_token' => 'nullable|string|max:512',
             'direct_sort' => 'nullable|boolean',
             'root_folder' => 'nullable|string|max:120',
         ]);
@@ -752,10 +753,14 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
                 ? filter_var($request->input('direct_sort'), FILTER_VALIDATE_BOOLEAN)
                 : true;
 
+            $secret = $request->filled('api_token')
+                ? (string) $request->input('api_token')
+                : $request->input('app_password');
+
             $status = \App\Services\System\KdriveTrichterRelayService::saveAndVerifyWebDavConfig(
                 (string) $request->input('drive_id'),
-                (string) $request->input('email'),
-                $request->input('app_password'),
+                $request->input('email'),
+                $secret,
                 $directSort,
                 (string) $request->input('root_folder', 'Meine Daten')
             );

@@ -769,14 +769,24 @@ PROMPT;
 
         $rootFolder = self::sanitizeRootFolder((string) ($decoded['root_folder'] ?? 'Meine Daten'));
         $directSort = array_key_exists('direct_sort', $decoded) ? (bool) $decoded['direct_sort'] : true;
+        $mode = in_array(($decoded['mode'] ?? ''), ['api_v3', 'webdav'], true) ? (string) $decoded['mode'] : 'webdav';
+        $meineDatenDirId = isset($decoded['meine_daten_dir_id']) ? (int) $decoded['meine_daten_dir_id'] : 0;
+        $meineDatenPrefix = isset($decoded['meine_daten_prefix']) ? trim((string) $decoded['meine_daten_prefix'], '/') : '';
+
+        $isConfigured = $mode === 'api_v3'
+            ? ($driveId !== '' && $password !== '' && $meineDatenDirId > 0)
+            : ($driveId !== '' && $email !== '' && $password !== '');
 
         return [
-            'configured' => ($driveId !== '' && $email !== '' && $password !== ''),
+            'configured' => $isConfigured,
+            'mode' => $mode,
             'drive_id' => $driveId,
             'email' => $email,
             'app_password' => $password,
             'has_password' => ($password !== ''),
             'root_folder' => $rootFolder,
+            'meine_daten_dir_id' => $meineDatenDirId,
+            'meine_daten_prefix' => $meineDatenPrefix,
             'direct_sort' => $directSort,
             'last_verified_at' => $decoded['last_verified_at'] ?? null,
             'last_error' => $decoded['last_error'] ?? null,
@@ -793,7 +803,8 @@ PROMPT;
         $cfg = self::getWebDavConfig();
         return [
             'configured' => $cfg['configured'],
-            'drive_id' => $cfg['drive_id'],
+            'mode' => $cfg['mode'],
+            'drive_id' => $cfg['drive_id'] !== '' ? $cfg['drive_id'] : '2216011',
             'email' => $cfg['email'],
             'has_password' => $cfg['has_password'],
             'root_folder' => $cfg['root_folder'],
@@ -823,41 +834,81 @@ PROMPT;
 
     public static function saveAndVerifyWebDavConfig(
         string $rawDriveInput,
-        string $rawEmail,
+        ?string $rawEmail = null,
         ?string $rawAppPassword = null,
         bool $directSort = true,
         string $rawRootFolder = 'Meine Daten'
     ): array {
         $driveId = self::extractKdriveId($rawDriveInput);
         if ($driveId === null) {
-            throw new \InvalidArgumentException('Bitte eine gültige numerische kDrive-ID (z.B. 123456) oder deinen kDrive-Link eintragen.');
+            throw new \InvalidArgumentException('Bitte eine gültige numerische kDrive-ID (z.B. 2216011) oder deinen kDrive-Link eintragen.');
         }
 
-        $email = trim($rawEmail);
-        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new \InvalidArgumentException('Bitte deine gültige Infomaniak Login-E-Mail-Adresse eintragen.');
-        }
-
+        $email = trim((string) $rawEmail);
         $existing = self::getWebDavConfig();
-        $cleanPass = $rawAppPassword !== null ? trim($rawAppPassword) : '';
-        if ($cleanPass === '') {
-            $cleanPass = (string) ($existing['app_password'] ?? '');
+
+        $cleanSecret = $rawAppPassword !== null ? trim($rawAppPassword) : '';
+        if (stripos($cleanSecret, 'bearer ') === 0) {
+            $cleanSecret = trim(substr($cleanSecret, 7));
         }
-        if ($cleanPass === '') {
-            throw new \InvalidArgumentException('Bitte ein Infomaniak Anwendungs-Passwort hinterlegen.');
+        if ($cleanSecret === '') {
+            $cleanSecret = (string) ($existing['app_password'] ?? '');
+        }
+        if ($cleanSecret === '') {
+            throw new \InvalidArgumentException('Bitte deinen Infomaniak API-Token hinterlegen.');
         }
 
         $rootFolder = self::sanitizeRootFolder($rawRootFolder);
-
         self::resetWebDavCaches();
-        self::verifyWebDavConnection($driveId, $email, $cleanPass, $rootFolder);
+
+        $mode = 'api_v3';
+        $meineDatenDirId = 0;
+        $meineDatenPrefix = '';
+
+        // 1. Primär: Offizielle Infomaniak kDrive REST API v3 prüfen (funktioniert in ALLEN Tarifen inkl. my kSuite!)
+        $apiCheck = self::tryVerifyAndResolveInfomaniakApiV3($driveId, $cleanSecret, $rootFolder);
+        if ($apiCheck['ok']) {
+            $mode = 'api_v3';
+            $meineDatenDirId = (int) $apiCheck['dir_id'];
+            $meineDatenPrefix = (string) $apiCheck['prefix'];
+        } elseif ($apiCheck['status'] === 403) {
+            throw new \InvalidArgumentException(
+                "Dem Infomaniak API-Token fehlt die Berechtigung 'drive' (oder Zugriff auf kDrive {$driveId}). Bitte beim Erstellen des API-Tokens den Haken bei 'drive' setzen."
+            );
+        } elseif ($apiCheck['status'] === 404 && !empty($apiCheck['valid_token'])) {
+            throw new \InvalidArgumentException(
+                "kDrive-ID {$driveId} wurde unter diesem Infomaniak-Konto nicht gefunden (HTTP 404)."
+            );
+        } else {
+            // 2. Fallback: Klassisches WebDAV (nur in Pro/Business-Tarifen von Infomaniak freigeschaltet)
+            if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                try {
+                    self::verifyWebDavConnection($driveId, $email, $cleanSecret, $rootFolder);
+                    $mode = 'webdav';
+                } catch (\InvalidArgumentException $webDavEx) {
+                    if (str_contains($webDavEx->getMessage(), 'HTTP 403')) {
+                        throw new \InvalidArgumentException(
+                            'Infomaniak sperrt WebDAV in deinem Tarif pauschal (HTTP 403). Bitte erstelle stattdessen unter manager.infomaniak.com -> Mein Profil -> Entwickler -> API-Tokens einen API-Token (Haken bei drive) und trage ihn ins Token-Feld ein.'
+                        );
+                    }
+                    throw $webDavEx;
+                }
+            } else {
+                throw new \InvalidArgumentException(
+                    'Ungültiger Infomaniak API-Token (HTTP ' . ($apiCheck['status'] ?: 401) . '). Bitte unter manager.infomaniak.com -> Entwickler -> API-Tokens einen Token mit Berechtigung drive erstellen.'
+                );
+            }
+        }
 
         $verifiedAt = now('Europe/Berlin')->toIso8601String();
         $stored = [
+            'mode' => $mode,
             'drive_id' => $driveId,
-            'email_encrypted' => Crypt::encryptString($email),
-            'app_password_encrypted' => Crypt::encryptString($cleanPass),
+            'email_encrypted' => $email !== '' ? Crypt::encryptString($email) : null,
+            'app_password_encrypted' => Crypt::encryptString($cleanSecret),
             'root_folder' => $rootFolder,
+            'meine_daten_dir_id' => $meineDatenDirId,
+            'meine_daten_prefix' => $meineDatenPrefix,
             'direct_sort' => $directSort,
             'last_verified_at' => $verifiedAt,
             'last_error' => null,
@@ -874,6 +925,143 @@ PROMPT;
             'flushed_count' => $flushResult['flushed'],
             'flushed_paths' => $flushResult['paths'],
         ]);
+    }
+
+    /**
+     * Prüft einen Infomaniak OAuth2/API-Token gegen die offizielle kDrive API v3 und ermittelt
+     * automatisch die exakte `directory_id` für `Meine Daten` (bzw. den persönlichen `Private`-Bereich).
+     *
+     * @return array{ok: bool, status: int, valid_token?: bool, dir_id?: int, prefix?: string}
+     */
+    private static function tryVerifyAndResolveInfomaniakApiV3(
+        string $driveId,
+        string $apiToken,
+        string $rootFolder = 'Meine Daten'
+    ): array {
+        $url = "https://api.infomaniak.com/3/drive/{$driveId}/files/1/files?limit=100";
+        try {
+            $res = Http::withToken($apiToken)
+                ->acceptJson()
+                ->withOptions([
+                    'allow_redirects' => false,
+                    'timeout' => 15,
+                    'connect_timeout' => 8,
+                ])
+                ->get($url);
+        } catch (\Throwable) {
+            return ['ok' => false, 'status' => 0];
+        }
+
+        $status = $res->status();
+        if ($status === 401) {
+            return ['ok' => false, 'status' => 401];
+        }
+        if ($status === 403) {
+            return ['ok' => false, 'status' => 403, 'valid_token' => true];
+        }
+        if ($status === 404) {
+            return ['ok' => false, 'status' => 404, 'valid_token' => true];
+        }
+        if (!$res->successful() || $res->json('result') !== 'success') {
+            return ['ok' => false, 'status' => $status];
+        }
+
+        $rootItems = (array) ($res->json('data') ?? []);
+        $cleanRoot = self::sanitizeRootFolder($rootFolder);
+
+        // 1. Direkter Treffer auf oberster Ebene (z. B. "Meine Daten")
+        foreach ($rootItems as $item) {
+            if (!is_array($item) || ($item['type'] ?? '') !== 'dir') {
+                continue;
+            }
+            if (strcasecmp(trim((string) ($item['name'] ?? '')), $cleanRoot) === 0 && !empty($item['id'])) {
+                return [
+                    'ok' => true,
+                    'status' => 200,
+                    'dir_id' => (int) $item['id'],
+                    'prefix' => '',
+                ];
+            }
+        }
+
+        // 2. Persönlicher Bereich ("Private" / visibility = is_private_space), den der Windows-Client lokal als "Meine Daten" synchronisiert
+        $privateDirId = 0;
+        foreach ($rootItems as $item) {
+            if (!is_array($item) || ($item['type'] ?? '') !== 'dir' || empty($item['id'])) {
+                continue;
+            }
+            $vis = strtolower((string) ($item['visibility'] ?? ''));
+            $nm = mb_strtolower(trim((string) ($item['name'] ?? '')));
+            if ($vis === 'is_private_space' || in_array($nm, ['private', 'meine daten', 'my files', 'mes fichiers'], true)) {
+                $privateDirId = (int) $item['id'];
+                break;
+            }
+        }
+
+        if ($privateDirId > 0) {
+            try {
+                $subRes = Http::withToken($apiToken)
+                    ->acceptJson()
+                    ->withOptions(['allow_redirects' => false, 'timeout' => 12, 'connect_timeout' => 6])
+                    ->get("https://api.infomaniak.com/3/drive/{$driveId}/files/{$privateDirId}/files?limit=100");
+
+                if ($subRes->successful() && $subRes->json('result') === 'success') {
+                    $children = (array) ($subRes->json('data') ?? []);
+                    foreach ($children as $ch) {
+                        if (!is_array($ch) || ($ch['type'] ?? '') !== 'dir' || empty($ch['id'])) {
+                            continue;
+                        }
+                        if (strcasecmp(trim((string) ($ch['name'] ?? '')), $cleanRoot) === 0) {
+                            return [
+                                'ok' => true,
+                                'status' => 200,
+                                'dir_id' => (int) $ch['id'],
+                                'prefix' => '',
+                            ];
+                        }
+                    }
+
+                    foreach ($children as $ch) {
+                        if (!is_array($ch) || ($ch['type'] ?? '') !== 'dir') {
+                            continue;
+                        }
+                        $cn = (string) ($ch['name'] ?? '');
+                        if (str_starts_with($cn, '00_Eingang_Trichter')
+                            || str_starts_with($cn, '01_Mein-Seelenfunke')
+                            || str_starts_with($cn, '02_Finanzen')) {
+                            return [
+                                'ok' => true,
+                                'status' => 200,
+                                'dir_id' => $privateDirId,
+                                'prefix' => '',
+                            ];
+                        }
+                    }
+                }
+            } catch (\Throwable) {
+            }
+
+            return [
+                'ok' => true,
+                'status' => 200,
+                'dir_id' => $privateDirId,
+                'prefix' => '',
+            ];
+        }
+
+        // 3. Fallback: Erster beschreibbarer Hauptordner (z. B. Common documents) + Unterordner Meine Daten
+        foreach ($rootItems as $item) {
+            if (is_array($item) && ($item['type'] ?? '') === 'dir' && !empty($item['id'])) {
+                return [
+                    'ok' => true,
+                    'status' => 200,
+                    'dir_id' => (int) $item['id'],
+                    'prefix' => $cleanRoot,
+                ];
+            }
+        }
+
+        return ['ok' => false, 'status' => 422];
     }
 
     public static function verifyWebDavConnection(
@@ -1183,13 +1371,21 @@ PROMPT;
             $shortDisplayDir = '00_Eingang_Trichter';
         }
 
-        $finalFileName = self::uploadBytesToWebDavCollisionFree(
-            $activeCfg,
-            $targetRelativeDir,
-            $candidateFileName,
-            $rawBytes,
-            $mimeType
-        );
+        $finalFileName = ($activeCfg['mode'] ?? 'webdav') === 'api_v3'
+            ? self::uploadBytesViaInfomaniakApiV3(
+                $activeCfg,
+                $shortDisplayDir,
+                $candidateFileName,
+                $rawBytes,
+                $sha256
+            )
+            : self::uploadBytesToWebDavCollisionFree(
+                $activeCfg,
+                $targetRelativeDir,
+                $candidateFileName,
+                $rawBytes,
+                $mimeType
+            );
 
         $shortRemotePath = "{$shortDisplayDir}/{$finalFileName}";
         self::recordUploadedSha256($sha256, $shortRemotePath);
@@ -1204,6 +1400,71 @@ PROMPT;
             'target_folder' => $shortDisplayDir,
             'message' => "Direkt in kDrive einsortiert: {$shortDisplayDir}/{$finalFileName}",
         ];
+    }
+
+    private static function uploadBytesViaInfomaniakApiV3(
+        array $cfg,
+        string $shortDisplayDir,
+        string $candidateFileName,
+        string $rawBytes,
+        string $sha256
+    ): string {
+        $driveId = self::extractKdriveId((string) ($cfg['drive_id'] ?? ''));
+        if ($driveId === null) {
+            throw new \InvalidArgumentException('Ungültige kDrive-ID.');
+        }
+
+        $apiToken = trim((string) ($cfg['app_password'] ?? ''));
+        $dirId = (int) ($cfg['meine_daten_dir_id'] ?? 0);
+        if ($apiToken === '' || $dirId <= 0) {
+            throw new \RuntimeException('Infomaniak kDrive API-Zugang unvollständig.');
+        }
+
+        $ext = self::sanitizeSafeArchiveExtension((string) pathinfo($candidateFileName, PATHINFO_EXTENSION));
+        $baseStem = self::sanitizeFilenameSegment((string) pathinfo($candidateFileName, PATHINFO_FILENAME));
+        if ($baseStem === '') {
+            $baseStem = 'Scan_' . date('Y-m-d_His');
+        }
+        $safeFileName = "{$baseStem}.{$ext}";
+
+        $prefix = trim((string) ($cfg['meine_daten_prefix'] ?? ''), '/');
+        $relSubPath = trim(str_replace('\\', '/', $shortDisplayDir), '/');
+        foreach (explode('/', $relSubPath) as $seg) {
+            if ($seg === '' || $seg === '.' || $seg === '..' || str_contains($seg, "\0")) {
+                throw new \InvalidArgumentException('Ungültiger kDrive-Unterordner.');
+            }
+        }
+        $fullDirPath = '/' . ltrim($prefix !== '' ? "{$prefix}/{$relSubPath}" : $relSubPath, '/');
+
+        $query = http_build_query([
+            'directory_id' => $dirId,
+            'directory_path' => $fullDirPath,
+            'file_name' => $safeFileName,
+            'total_size' => strlen($rawBytes),
+            'total_chunk_hash' => 'sha256:' . $sha256,
+            'conflict' => 'rename',
+            'with' => 'path',
+        ], '', '&', PHP_QUERY_RFC3986);
+
+        $uploadUrl = "https://api.infomaniak.com/3/drive/{$driveId}/upload?{$query}";
+
+        $res = Http::withToken($apiToken)
+            ->acceptJson()
+            ->withOptions([
+                'allow_redirects' => false,
+                'timeout' => 55,
+                'connect_timeout' => 10,
+            ])
+            ->withBody($rawBytes, 'application/octet-stream')
+            ->post($uploadUrl);
+
+        if (!$res->successful() || $res->json('result') !== 'success') {
+            $errDesc = (string) ($res->json('error.description') ?? $res->json('error.code') ?? ('HTTP ' . $res->status()));
+            throw new \RuntimeException("kDrive API-Upload fehlgeschlagen: {$errDesc}");
+        }
+
+        $returnedName = trim((string) ($res->json('data.name') ?? ''));
+        return $returnedName !== '' ? $returnedName : $safeFileName;
     }
 
     private static function uploadBytesToWebDavCollisionFree(

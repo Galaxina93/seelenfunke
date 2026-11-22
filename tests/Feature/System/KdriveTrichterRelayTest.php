@@ -155,11 +155,15 @@ class KdriveTrichterRelayTest extends TestCase
         $this->assertSame(1, KdriveTrichterRelayService::countPending());
         $this->assertNotEmpty($queuedRes->json('relay_id'));
 
-        // 2. Mock Infomaniak kDrive WebDAV server (PROPFIND, MKCOL, PUT)
+        // 2. Mock Infomaniak kDrive WebDAV server (API v3 returns 401 for WebDAV password, WebDAV handles PROPFIND/MKCOL/PUT)
         $uploadedFilesOnWebDav = [];
         Http::fake(function (HttpClientRequest $req) use (&$uploadedFilesOnWebDav) {
             $method = strtoupper($req->method());
             $url = $req->url();
+
+            if (str_starts_with($url, 'https://api.infomaniak.com/')) {
+                return Http::response(['result' => 'error', 'error' => ['code' => 'not_authorized']], 401);
+            }
 
             if (!str_starts_with($url, 'https://654321.connect.kdrive.infomaniak.com/')) {
                 return Http::response('Forbidden host', 403);
@@ -229,5 +233,99 @@ class KdriveTrichterRelayTest extends TestCase
 
         $this->assertStringStartsWith('06_Gesundheit/Krankenkasse/', (string) $directRes->json('remote_path'));
         $this->assertSame(0, KdriveTrichterRelayService::countPending());
+    }
+
+    public function test_infomaniak_api_v3_token_works_on_my_ksuite_without_webdav(): void
+    {
+        KdriveTrichterRelayService::resetWebDavCaches();
+
+        $admin = Admin::factory()->create();
+        Sanctum::actingAs($admin, ['*']);
+
+        // Waiting scan from 14:32
+        $waitingPdf = "%PDF-1.4\n1 0 obj\n<< /Title (Waiting Scan 1432) >>\nendobj\n%%EOF";
+        $waitingFile = UploadedFile::fake()->createWithContent('Scan_2026-11-22_143200.pdf', $waitingPdf);
+        $this->postJson('/api/funki/kdrive-trichter/enqueue', [
+            'file' => $waitingFile,
+            'custom_title' => 'PrintEquipment Rohlinge',
+            'source' => 'android_scanner',
+        ])->assertOk();
+        $this->assertSame(1, KdriveTrichterRelayService::countPending());
+
+        $apiUploads = [];
+        Http::fake(function (HttpClientRequest $req) use (&$apiUploads) {
+            $url = $req->url();
+            $auth = $req->header('Authorization')[0] ?? '';
+
+            if ($auth !== 'Bearer ik-api-token-drive-999') {
+                if (str_contains($url, '.connect.kdrive.infomaniak.com')) {
+                    return Http::response('', 403); // Simulates Infomaniak my kSuite WebDAV 403 block
+                }
+                return Http::response(['result' => 'error'], 401);
+            }
+
+            if ($url === 'https://api.infomaniak.com/3/drive/2216011/files/1/files?limit=100') {
+                return Http::response([
+                    'result' => 'success',
+                    'data' => [
+                        ['id' => 10, 'name' => 'Common documents', 'type' => 'dir', 'visibility' => 'is_team_space'],
+                        ['id' => 77, 'name' => 'Private', 'type' => 'dir', 'visibility' => 'is_private_space'],
+                    ],
+                ], 200);
+            }
+
+            if ($url === 'https://api.infomaniak.com/3/drive/2216011/files/77/files?limit=100') {
+                return Http::response([
+                    'result' => 'success',
+                    'data' => [
+                        ['id' => 101, 'name' => '00_Eingang_Trichter', 'type' => 'dir'],
+                        ['id' => 102, 'name' => '01_Mein-Seelenfunke', 'type' => 'dir'],
+                    ],
+                ], 200);
+            }
+
+            if (str_starts_with($url, 'https://api.infomaniak.com/3/drive/2216011/upload?')) {
+                $apiUploads[$url] = $req->body();
+                parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+                return Http::response([
+                    'result' => 'success',
+                    'data' => [
+                        'id' => 5001,
+                        'name' => $q['file_name'] ?? 'Scan.pdf',
+                        'type' => 'file',
+                    ],
+                ], 200);
+            }
+
+            return Http::response('Unexpected URL: ' . $url, 404);
+        });
+
+        // 1. Entering a WebDAV password on my kSuite returns the clear API-Token guidance instead of generic 403
+        $blockedWebDavRes = $this->postJson('/api/funki/kdrive-trichter/config', [
+            'drive_id' => '2216011',
+            'email' => 'alina.stone@t-online.de',
+            'app_password' => 'wrong-or-webdav-app-pass',
+        ])->assertStatus(422);
+        $this->assertStringContainsString('API-Token', (string) $blockedWebDavRes->json('message'));
+
+        // 2. Saving an Infomaniak API-Token (even without email!) connects via API v3 AND flushes the waiting scan!
+        $this->postJson('/api/funki/kdrive-trichter/config', [
+            'drive_id' => '2216011',
+            'app_password' => 'ik-api-token-drive-999',
+        ])->assertOk()
+          ->assertJsonPath('success', true)
+          ->assertJsonPath('data.configured', true)
+          ->assertJsonPath('data.mode', 'api_v3')
+          ->assertJsonPath('data.flushed_count', 1)
+          ->assertJsonPath('data.pending_relay_count', 0);
+
+        $this->assertCount(1, $apiUploads);
+        $uploadUrl = array_key_first($apiUploads);
+        parse_str((string) parse_url($uploadUrl, PHP_URL_QUERY), $queryParams);
+        $this->assertSame('77', $queryParams['directory_id']);
+        $this->assertSame('/01_Mein-Seelenfunke/Eingangsrechnungen_Belege', $queryParams['directory_path']);
+        $this->assertStringContainsString('PrintEquipment_Rohlinge.pdf', $queryParams['file_name']);
+        $this->assertSame('sha256:' . hash('sha256', $waitingPdf), $queryParams['total_chunk_hash']);
+        $this->assertSame($waitingPdf, $apiUploads[$uploadUrl]);
     }
 }

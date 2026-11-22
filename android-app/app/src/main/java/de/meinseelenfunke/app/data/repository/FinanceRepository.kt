@@ -553,7 +553,7 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val req = de.meinseelenfunke.app.data.api.KdriveWebDavSaveRequest(
                 drive_id = driveId.trim(),
-                email = email.trim(),
+                email = email.trim().ifEmpty { null },
                 app_password = appPassword?.trim()?.ifEmpty { null },
                 direct_sort = directSort
             )
