@@ -69,6 +69,7 @@ class CustomerLobbyController extends Controller
         'weapon_seq',
         'weaponActionSeq',
         'emote',
+        'avatar_gender',
         'ability_slot',
         'abilitySlot',
     ];

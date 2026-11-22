@@ -1,97 +1,82 @@
-# Agenten-Zentrale (Workspace)
+# Agenten-Zentrale (`AiWorkspace`)
 
-Die Agenten-Zentrale stellt das primäre administrative Cockpit zur Interaktion, Steuerung und Überwachung der künstlichen Intelligenzen (KI-Agenten) im Seelenfunke-System bereit. Sie kombiniert einen interaktiven Chat-Arbeitsplatz mit einem Datei-Manager, der Überwachung von Gesundheitsdaten und der Verwaltung von KI-Aufgaben in einer Hintergrund-Queue.
+> **Stand:** 20.11.2026 | **Route:** `/admin/ai/workspace` (`admin.ai.workspace`) | **Abteilung:** `Agenten` (`#6366f1`)
 
-## Zielsetzung
-Das Modul dient als operativer Mittelpunkt für KI-gestützte Workflows. Es ermöglicht dem Administrator, direkt mit spezialisierten Agenten zu chatten, asynchrone Aufgaben (Tasks) zu erstellen und an Agenten zuzuweisen, hochgeladene Dateien zu verwalten, API-Latenzen (LLM & TTS) zu prüfen und Hosting-Tarife für die KI-Infrastruktur zu konfigurieren.
-
----
-
-## Beteiligte Komponenten & Klassen
-
-### Datenbank-Modelle
-- [AiAgent](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Ai/AiAgent.php): Repräsentiert die einzelnen Agenten-Identitäten inklusive System-Prompts, Farbschemata und TTS-Einstellungen.
-- [AiChatSession](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Ai/AiChatSession.php): Speichert die einzelnen Chat-Konversationen des Benutzers.
-- [AiChatMemory](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Ai/AiChatMemory.php): Enthält den genauen Nachrichtenverlauf (Rollen: `user`, `assistant`, `tool`) inklusive Metadaten und Tool-Outputs.
-- [AiWorkspaceTask](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Ai/AiWorkspaceTask.php): Verwaltet asynchrone Arbeitsaufträge mit zugehörigem Ausführungsplan und Status (`pending`, `processing`, `awaiting_approval`, `completed`, `failed`).
-- [AiUserWorkspaceSetting](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Ai/AiUserWorkspaceSetting.php): Speichert benutzerspezifische UI-Präferenzen wie z. B. die Höhe des Chat-Bereichs oder die automatische Freigabe von Ausführungsplänen.
-- [SystemAiHostingPlan](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemAiHostingPlan.php): Definiert Tarifpläne für KI-Ressourcen inklusive Token-Limits und monatlicher Bepreisung.
-- [AiHealthMedication](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Ai/AiHealthMedication.php): Verwaltet Medikamentendaten zur Kontextualisierung medizinisch relevanter Agenten-Anfragen.
-- [ManagementContact](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Management/ManagementContact.php): Filtert Kontakte nach Ärzten und Praxen zur Bereitstellung von medizinischen Ansprechpartnern im Workspace.
-
-### Livewire-Controller
-- [AiWorkspace](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiWorkspace.php): Der zentrale Livewire-Controller für das Frontend-Layout der Agenten-Zentrale. Bindet die nachfolgenden Traits ein:
-  - [ManagesAiChat](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/Traits/ManagesAiChat.php): Steuert Chat-Sitzungen, Nachrichtenübertragung, Echtzeit-Statusänderungen und Agenten-Zuweisungen.
-  - [ManagesAiWorkspaceFiles](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/Traits/ManagesAiWorkspaceFiles.php): Realisiert einen vollwertigen Datei-Manager (Ordner erstellen, Dateien hochladen, verschieben, umbenennen, zippen und Vorschau).
-  - [ManagesHealthData](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/Traits/ManagesHealthData.php): Steuert das Hinzufügen, Editieren und Löschen von Medikamentendaten und die Verknüpfung mit medizinischen Kontakten.
-
-### Jobs & Services
-- [ProcessAiWorkspaceTask](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Jobs/ProcessAiWorkspaceTask.php): Der Queue-Job zur asynchronen Ausführung von KI-Tasks über den Worker.
-- [AiAgentFactory](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/AiAgentFactory.php): Erzeugt die API-Service-Instanz eines Agenten für die Kommunikation mit Google Gemini.
+Die Agenten-Zentrale ist das zentrale Admin-Cockpit für asynchrone Hintergrundaufgaben, interaktiven KI-Chat, Dateitrichter (`storage/app/agenten/workspace`), Gesundheitsdaten, aktive KI-Workflows (SOPs), Server-Cronjobs, Wissensdatenbank und Tarif-Einstellungen.
 
 ---
 
-## Technischer Datenfluss & Task-Pipeline
+## 1. Architektur & Beteiligte Komponenten
 
-Die Interaktionen in der Agenten-Zentrale teilen sich in den interaktiven Echtzeit-Chat und die asynchrone Aufgabenabwicklung auf. Der Lebenszyklus einer Hintergrundaufgabe (Workspace Task) verläuft wie folgt:
+### Livewire-Komponenten & Traits
+- **Hauptkomponente:** [AiWorkspace.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiWorkspace.php) (`boot()` & `mount()` strikt via `AiAuthHelper::isAdmin()` geschützt)
+- **Chat & Hintergrund-Tasks:** [ManagesAiChat.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/Traits/ManagesAiChat.php)
+- **Dateimanager & Dateitrichter:** [ManagesAiWorkspaceFiles.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/Traits/ManagesAiWorkspaceFiles.php) & [DateitrichterService.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Services/AI/Workspace/DateitrichterService.php)
+- **Gesundheits- & Medikationsdaten:** [ManagesHealthData.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/Traits/ManagesHealthData.php)
+- **Cronjob-Steuerung:** [TabCronjobs.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/PartialsAiWorkspace/TabCronjobs.php)
+- **Eingebettete Wissensdatenbank:** [AiKnowledgeBase.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Livewire/Shop/Ai/AiKnowledgeBase.php)
 
+### Views (`resources/views/livewire/shop/ai/`)
+- **Haupt-Container:** [ai-workspace.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/ai-workspace.blade.php) (inkl. HTTP-Clipboard-Fallback für `http://127.0.0.1`)
+- **Globale Tab- & Schnellzugriffsleiste:** [navigation-tabs.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/navigation-tabs.blade.php)
+- **6 Fach-Tabs & 2 Vollansichten:**
+  1. `workspace` ([tab-workspace.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/tab-workspace.blade.php) + [task-details.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/blocks/task-details.blade.php))
+  2. `chat` ([tab-chat.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/tab-chat.blade.php))
+  3. `files` ([tab-files.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/tab-files.blade.php))
+  4. `health` ([tab-health.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/tab-health.blade.php))
+  5. `workflows` ([tab-workflows.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/tab-workflows.blade.php))
+  6. `cronjobs` ([tab-cronjobs.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/tab-cronjobs.blade.php))
+  7. Vollansicht `knowledge-base` ([view-knowledge-base.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/view-knowledge-base.blade.php)) & Vollansicht `settings` ([view-settings.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/view-settings.blade.php))
+
+---
+
+## 2. Funktionsumfang der 6 Tabs & Schnellzugriffe
+
+### Globale Navigation & Schnellzugriffe
+Über [navigation-tabs.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/navigation-tabs.blade.php) sind von jedem Tab aus direkt erreichbar:
+- **Wissen**: Öffnet die interne Wissensdatenbank (`AiKnowledgeBase`) mit Admin-Only-Kategorieschutz und HTML-Sanitizer.
+- **Agenten**: Öffnet das Modal [modal-internal-agents.blade.php](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/resources/views/livewire/shop/ai/partials-ai-workspace/modal-internal-agents.blade.php) zur Auswahl aktiver Workspace-Agenten sowie für parallele LLM-/TTS-Latenz-Pings (`syncAll` / `pingTest` gegen `VertexAiService` inkl. SSRF-Schutz in `sanitizeExternalTtsUrl`).
+- **Einstellungen**: Steuert die automatische Freigabe von Ausführungsplänen (`autoApprovePlan`) sowie `SystemAiHostingPlan`-Tarife (`#[Locked] public ?int $editingPlanId`).
+
+### Tab 1: Workspace (Asynchrone Hintergrundaufgaben & EKG-Monitor)
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as Administrator
-    participant AW as AiWorkspace (Livewire)
-    participant DB as Datenbank
-    participant Job as ProcessAiWorkspaceTask (Queue)
-    participant Gemini as Gemini API
+    actor Admin as Alina (Admin)
+    participant WS as AiWorkspace (Livewire)
+    participant DB as AiWorkspaceTask
+    participant Q as ProcessAiWorkspaceTask (Queue)
+    participant AI as Vertex AI / Funkira
 
-    User->>AW: Neue Aufgabe erstellen (Prompt + Dateien)
-    AW->>DB: Speichere AiWorkspaceTask (Status: pending)
-    AW->>User: Zeige Task in der UI an
-    User->>AW: Klicke "Agent zuweisen" (Trigger dispatch)
-    AW->>DB: Update Task (Status: assigned, Agent ID)
-    AW->>Job: Dispatch ProcessAiWorkspaceTask
-    activate Job
-    Job->>DB: Update Task (Status: processing)
-    
-    Note over Job, Gemini: Phase 1: Planungsmodus (Drafting)
-    Job->>Gemini: Sende Prompt & fordere JSON-Schritte an
-    Gemini-->>Job: Rückgabe JSON-Array mit Teilschritten
-    Job->>DB: Speichere Ausführungsplan in ui_metadata
-    
-    alt auto_approve_execution_plan == false
-        Job->>DB: Update Task (Status: awaiting_approval)
-        Note over Job: Job beendet sich (wartet auf Freigabe)
-        User->>AW: Plan manuell freigeben
-        AW->>Job: Erneut dispatchen
+    Admin->>WS: Aufgabe direkt über Schnellleiste oder aus Chat anlegen
+    WS->>DB: Erzeuge AiWorkspaceTask (pending oder assigned)
+    Admin->>WS: Optional Agent per Select-Dropdown zuweisen (assignAgent)
+    WS->>Q: Dispatch ProcessAiWorkspaceTask
+    Q->>AI: Phase 1 Planungsentwurf (JSON-Schritte)
+    alt autoApprovePlan == false
+        Q->>DB: Status awaiting_approval
+        Admin->>WS: Klick auf Erlauben / Immer erlauben
+        WS->>Q: Re-Dispatch ProcessAiWorkspaceTask
     end
-
-    Note over Job, Gemini: Phase 2: Ausführungsschleife (Execution Loop)
-    loop Für jeden Schritt im Plan
-        Job->>DB: Markiere Schritt als "processing"
-        Note over Job: Livewire-Events senden (Speech & Tool-Call Logs)
-        Job->>Gemini: Schritt-Prompt senden & Tools nutzen
-        Gemini-->>Job: Werkzeugaufrufe & Rückmeldung
-        Job->>DB: Speichere Schritt-Ergebnis & Status "completed"
-    end
-
-    Note over Job, Gemini: Phase 3: Finalisierung (Finalization)
-    Job->>Gemini: Zusammenfassung anfordern
-    Gemini-->>Job: Kurze Bestätigung
-    Job->>DB: Update Task (Status: completed, response_content)
-    deactivate Job
-    AW-->>User: UI aktualisiert sich über Laravel Reverb (WebSockets)
+    Q->>AI: Phase 2 Schrittweise Tool-Ausführung + Work-Log
+    Q->>DB: Status completed + Markdown-Zusammenfassung
 ```
+- **Schnell-Anlage (`createWorkspaceTask`)**: Neue Hintergrundaufgaben lassen sich direkt oberhalb der Task-Tabelle eingeben und optional sofort einem aktiven Agenten (`Funkira`) zuweisen.
+- **Desktop- & Mobile-Zuweisung**: Wartende Aufgaben (`pending`) besitzen sowohl mobil als auch in der Desktop-Tabelle ein direkt bedienbares `<select>`-Dropdown (`assignAgent`).
+- **EKG-Herzschlag-Canvas**: Nutzt `ctx.setTransform(dpr, 0, 0, dpr, 0, 0)` ohne Skalierungs-Drift, pausiert bei ausgeblendetem Tab (`offsetParent === null`) und zeigt bei stehendem Queue-Worker sofort eine rote Warnlinie samt Diagnose-Popover.
 
-### 1. API-Verbindungsprüfung (Ping-Test)
-Um sicherzustellen, dass die Gemini API und die Text-to-Speech (TTS) Schnittstellen der Agenten voll funktionsfähig sind, bietet der Controller eine integrierte Ping-Funktion. Diese ermittelt die Latenzen in Millisekunden:
-- **LLM-Ping**: Führt eine GET-Anfrage an `/models` mit dem in `config('services.gemini.key')` hinterlegten API-Key aus.
-- **TTS-Ping**: Prüft, ob TTS für den Agenten aktiviert ist und sendet eine Testanfrage an die konfigurierte TTS-API-URL.
+### Tab 2: Chat (`Funkira` mit dynamischen Skill-Pools)
+- Standardmäßig wird ausschließlich `Funkira` als interner Workspace-Agent geladen (`Falcone` und `Funki` sind sauber separiert).
+- Unterstützt Multi-Session-Historie (`AiChatSession`), `@`-Projektdatei-Referenzen (mit strikter Pfad-Allowlist in `isAllowedProjectAttachmentPath`), sichere Bilduploads (`resolveSafeChatUploadSpec`), Zwischenablage-Einfügen und Markdown-Rendering.
 
-### 2. Workspace File-Manager
-Der File-Manager arbeitet direkt auf der Festplatte über die Laravel-Storage-Facade (Disk: `public`, Pfad: `agenten/workspace`). 
-- **Uploads**: Werden in temporären oder festen Unterordnern gespeichert.
-- **Zippen**: Nutzt die PHP-Klasse `ZipArchive` zur Rekursion und Paketierung ganzer Ordnerstrukturen, um sie als ein Artefakt für die Agenten bereitzustellen.
-- **Vorschau**: Ermöglicht dem Benutzer das direkte Lesen von Textdateien im Workspace.
+### Tab 3: Dateien (`storage/app/agenten/workspace`)
+- Arbeitet physisch auf der privaten `workspace`-Disk (`storage/app/agenten/workspace`), ausgeliefert ausschließlich über die Admin-geschützte Route `/admin/ai/workspace/file` (mit Traversal-Schutz gegen `..`).
+- Unterstützt Auto-Einsortierung via `DateitrichterService`, Kachel-/Tabellenansicht, Lightbox-Vorschau (Markdown & RAW im Light-/Dark-Mode), Umbenennen, Verschieben, Archivieren und ZIP-Download.
 
-### 3. KI-Tarife & Abrechnung
-Im Workspace können Tarifmodelle ([SystemAiHostingPlan](file:///wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/System/SystemAiHostingPlan.php)) angelegt und bearbeitet werden. Diese dienen zur Begrenzung von API-Ressourcen (z. B. Token-Limits pro Benutzer) im System und ermöglichen die Aktivierung oder Deaktivierung vordefinierter Features.
+### Tab 4: Gesundheit (`ManagesHealthData`)
+- Verwaltet aktive Medikamente (`AiHealthMedication` mit UUIDs) und verknüpft Ärzte/Praxen aus `ManagementContact`.
+- Editier- und Lösch-Aktionen übergeben quotierte UUID-Strings (`editMedication('...')`) und sichern die Ziel-ID serverseitig über `#[Locked] public ?string $editingMedicationId`.
+
+### Tab 5 & 6: Aktive Workflows (SOPs) & Server-Cronjobs
+- **Workflows**: Dokumentiert kompakt die 4 realen produktiven KI-Abläufe (`Dynamischer Skill-Pool`, `Mail- & Beleg-Trichter`, `Air-Gapped Kundenchat`, `Standort- & Reiseplanung` mit `Globi`).
+- **Cronjobs**: Verwaltet `SystemCronjob`-Intervalle (strikte Regex- & CronExpression-Validierung), Pausieren/Aktivieren und synchrones Test-Ausführen (`runNow` mit Blocklist gegen Daemon-/Destruktiv-Befehle) inkl. sauberem Timer-Cleanup (`clearInterval` in `destroy()`).

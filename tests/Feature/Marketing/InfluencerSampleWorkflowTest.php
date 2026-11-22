@@ -196,5 +196,71 @@ class InfluencerSampleWorkflowTest extends TestCase
         $this->assertSame('ready_to_order', $influencer->sample_status);
         $this->assertTrue($influencer->sampleVoucher->is_active);
         $this->assertSame(0, $influencer->sampleVoucher->used_count);
+
+        // 8. Admin can edit and save the Influencer in /admin/marketing-influencers even after a Sample Order was placed with the same email
+        $admin = \App\Models\Admin\Admin::first() ?: \App\Models\Admin\Admin::create([
+            'first_name' => 'Alina',
+            'last_name' => 'Steinhauer',
+            'email' => 'admin-test@mein-seelenfunke.de',
+            'password' => bcrypt('SecretPass123!'),
+        ]);
+        $this->actingAs($admin, 'admin');
+
+        Livewire::test(\App\Livewire\Shop\Marketing\MarketingInfluencer::class)
+            ->call('editInfluencer', $influencer->id)
+            ->set('commissionValue', 18)
+            ->call('saveInfluencer')
+            ->assertHasNoErrors();
+
+        $this->assertSame(18, (int) $influencer->fresh()->commission_value);
+    }
+
+    public function test_invitation_handle_live_typing_and_global_logs_subpage_resolution(): void
+    {
+        $service = app(InfluencerService::class);
+        $inv = $service->createInvitationSlot([
+            'invitation_label' => 'Test Creator',
+            'primary_channel' => 'instagram',
+            'commission_type' => 'percent',
+            'commission_value' => 15,
+            'follower_discount_percent' => 10,
+            'cookie_days' => 30,
+        ]);
+
+        // Multi-tick debounce typing on handle updates slug & voucher code until manually edited
+        $comp = Livewire::test(\App\Livewire\Frontend\Marketing\InfluencerInvitationAccept::class, ['token' => (string) $inv->invitation_token_encrypted])
+            ->set('verificationCode', (string) $inv->invitation_code_encrypted)
+            ->call('verifyCode')
+            ->assertSet('step', 2)
+            ->set('handle', '@la')
+            ->assertSet('slug', 'la')
+            ->assertSet('customVoucherCode', 'LA10')
+            ->set('handle', '@lara.living')
+            ->assertSet('slug', 'lara-living')
+            ->assertSet('customVoucherCode', 'LARALIVING10');
+
+        // Once slug is manually edited, further handle edits keep manual slug
+        $comp->set('slug', 'lara-official')
+            ->set('handle', '@lara.living.de')
+            ->assertSet('slug', 'lara-official')
+            ->assertSet('customVoucherCode', 'LARALIVINGDE10');
+
+        // Verify SystemLog subpage & environment resolution for /admin/global-logs
+        $log = \App\Models\System\SystemLog::create([
+            'type' => 'marketing',
+            'action_id' => 'influencer:save_sample_feedback_failed',
+            'title' => '[STAGE] Creator-Cockpit Fehler',
+            'message' => 'Test-Fehler im Creator-Cockpit',
+            'status' => 'error',
+            'payload' => [
+                'subpage_path' => '/employee/influencer/dashboard',
+                'influencer_handle' => '@lara.living',
+            ],
+        ]);
+
+        $meta = $log->resolveAreaAndSubpageMeta();
+        $this->assertSame('STAGE', $meta['env_label']);
+        $this->assertSame('/employee/influencer/dashboard', $meta['subpage_path']);
+        $this->assertSame('Creator Cockpit · Influencer Portal', $meta['subpage_label']);
     }
 }

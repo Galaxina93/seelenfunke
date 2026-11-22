@@ -48,6 +48,8 @@ class AccountingQuickEntry extends Component
 
     public bool $autoSaveAfterScan = false;
     public string $aiScanSuccessMessage = '';
+    public string $duplicateWarning = '';
+    public bool $allowDuplicateOverride = false;
     public bool $isAiScanning = false;
 
     // UI Feedback für Auto-Erkennung
@@ -142,6 +144,8 @@ class AccountingQuickEntry extends Component
     {
         $this->isAutoFilled = false;
         $this->aiScanSuccessMessage = '';
+        $this->duplicateWarning = '';
+        $this->allowDuplicateOverride = false;
         $this->isAiScanning = true;
 
         try {
@@ -152,9 +156,9 @@ class AccountingQuickEntry extends Component
             // 1. Check: Ist es eine XML Datei?
             if (str_contains($mime, 'xml') || str_ends_with($origName, '.xml')) {
                 if ($this->parseInvoiceXml($content)) {
+                    $this->enrichAndVerifyCurrentForm($file, 'E-Rechnung (XML)');
                     $this->isAiScanning = false;
-                    $this->aiScanSuccessMessage = "E-Rechnung (XML) erkannt: {$this->specialTitle} ({$this->specialAmount} €)";
-                    if ($this->autoSaveAfterScan) {
+                    if ($this->autoSaveAfterScan && $this->duplicateWarning === '') {
                         $this->createSpecial();
                     }
                     return true;
@@ -165,18 +169,22 @@ class AccountingQuickEntry extends Component
             if (str_contains($mime, 'pdf')) {
                 $xmlContent = $this->extractXmlFromPdf($content);
                 if ($xmlContent && $this->parseInvoiceXml($xmlContent)) {
+                    $this->enrichAndVerifyCurrentForm($file, 'E-Rechnung (ZUGFeRD PDF)');
                     $this->isAiScanning = false;
-                    $this->aiScanSuccessMessage = "E-Rechnung (ZUGFeRD PDF) erkannt: {$this->specialTitle} ({$this->specialAmount} €)";
-                    if ($this->autoSaveAfterScan) {
+                    if ($this->autoSaveAfterScan && $this->duplicateWarning === '') {
                         $this->createSpecial();
                     }
                     return true;
                 }
             }
 
-            // 3. KI Multimodal Vision Scan (Fotos, Belege, Quittungen, normale PDFs)
+            // 3. Vereinheitlichte Buchi-Beleg-Pipeline (nutzt vorhandenen ReceiptAiScannerService + Lieferanten- & Dubletten-Check)
             $categories = $this->categories->toArray();
-            $aiResult = ReceiptAiScannerService::analyze($file, $categories);
+            $aiResult = \App\Services\AI\BuchiReceiptPipelineService::analyzeAndVerify(
+                $file,
+                $categories,
+                $this->getAdminId()
+            );
 
             if ($aiResult && !empty($aiResult['amount_abs'])) {
                 $this->applyAiResult($aiResult);
@@ -189,6 +197,45 @@ class AccountingQuickEntry extends Component
 
         $this->isAiScanning = false;
         return false;
+    }
+
+    protected function enrichAndVerifyCurrentForm($file, string $sourceLabel): void
+    {
+        $enriched = \App\Services\AI\BuchiReceiptPipelineService::enrichScanResult([
+            'merchant' => $this->specialTitle,
+            'title' => $this->specialTitle,
+            'amount' => $this->specialAmount,
+            'date' => $this->specialDate ?: date('Y-m-d'),
+            'location' => $this->specialLocation,
+            'category' => $this->specialCategory ?: 'Wareneinkauf',
+            'is_business' => true,
+            'tax_rate' => $this->specialTaxRate,
+            'invoice_number' => $this->specialInvoiceNumber,
+        ], $file);
+
+        $dup = \App\Services\AI\BuchiReceiptPipelineService::checkDuplicate(
+            adminId: $this->getAdminId(),
+            title: (string) $enriched['title'],
+            merchant: (string) ($enriched['merchant'] ?? $enriched['location'] ?? ''),
+            date: (string) $enriched['date'],
+            amountCents: (int) $enriched['amount_cents'],
+            invoiceNumber: (string) ($enriched['invoice_number'] ?? ''),
+            file: $file
+        );
+
+        $this->specialTitle = $enriched['title'];
+        $this->specialAmount = $enriched['amount_formatted'];
+        $this->specialCategory = $enriched['category'];
+        $this->specialDate = $enriched['date'];
+        $this->specialLocation = $enriched['location'];
+        $this->specialIsBusiness = $enriched['is_business'];
+        $this->specialTaxRate = $enriched['tax_rate'];
+        if (!empty($enriched['invoice_number'])) {
+            $this->specialInvoiceNumber = $enriched['invoice_number'];
+        }
+        $this->isAutoFilled = true;
+        $this->duplicateWarning = $dup['is_duplicate'] ? (string) ($dup['reason'] ?? 'Möglicher Doppelbeleg erkannt.') : '';
+        $this->aiScanSuccessMessage = "{$sourceLabel} erkannt: {$this->specialTitle} ({$this->specialAmount} €)";
     }
 
     public function applyAiResult(array $res)
@@ -204,9 +251,11 @@ class AccountingQuickEntry extends Component
             $this->specialInvoiceNumber = $res['invoice_number'];
         }
         $this->isAutoFilled = true;
+        $dup = $res['duplicate_check'] ?? ['is_duplicate' => false];
+        $this->duplicateWarning = !empty($dup['is_duplicate']) ? (string) ($dup['reason'] ?? 'Möglicher Doppelbeleg erkannt.') : '';
         $this->aiScanSuccessMessage = "Beleg erkannt: {$res['title']} ({$res['amount_formatted']} €)";
 
-        if ($this->autoSaveAfterScan) {
+        if ($this->autoSaveAfterScan && $this->duplicateWarning === '') {
             $this->createSpecial();
         }
     }
@@ -387,7 +436,31 @@ class AccountingQuickEntry extends Component
             'xml' => ['text/xml', 'application/xml', 'text/plain'],
         ];
 
-        foreach ($filesToStore as $file) {
+        // Aufgabe 1: Betragslogik (Cent-genau normiert)
+        $rawAmount = str_replace(',', '.', (string) $this->specialAmount);
+        $finalAmountCents = (int) round(((float) $rawAmount) * 100);
+        $finalAmount = round($finalAmountCents / 100, 2);
+        $safeTaxRate = max(0.0, min(100.0, (float) $this->specialTaxRate));
+
+        // 3-Stufen-Dubletten-Schutz vor dem Speichern
+        $primaryFile = $filesToStore[0] ?? null;
+        $dupCheck = \App\Services\AI\BuchiReceiptPipelineService::checkDuplicate(
+            adminId: $this->getAdminId(),
+            title: (string) $this->specialTitle,
+            merchant: (string) ($this->specialLocation ?: $this->specialTitle),
+            date: (string) $this->specialDate,
+            amountCents: $finalAmountCents,
+            invoiceNumber: $this->specialIsBusiness ? (string) $this->specialInvoiceNumber : '',
+            file: $primaryFile
+        );
+
+        if (!empty($dupCheck['is_duplicate']) && !$this->allowDuplicateOverride) {
+            $this->duplicateWarning = (string) ($dupCheck['reason'] ?? 'Doppelbeleg erkannt.');
+            $this->addError('specialTitle', $this->duplicateWarning);
+            return;
+        }
+
+        foreach ($filesToStore as $idx => $file) {
             if ($file instanceof \Illuminate\Http\UploadedFile) {
                 $ext = strtolower((string) $file->getClientOriginalExtension());
                 $realPath = $file->getRealPath();
@@ -397,23 +470,23 @@ class AccountingQuickEntry extends Component
                     $this->addError('specialFiles', 'Ungültiger Dateityp.');
                     return;
                 }
-                $path = $file->storeAs('buchhaltung/receipts', \Illuminate\Support\Str::uuid() . '.' . $ext, 'local');
-                $filePaths[] = $path;
+                $cleanStoredPath = \App\Services\AI\BuchiReceiptPipelineService::storeReceiptFile(
+                    file: $file,
+                    date: (string) $this->specialDate,
+                    merchant: (string) ($this->specialLocation ?: $this->specialTitle),
+                    title: (string) $this->specialTitle,
+                    invoiceNumber: $this->specialIsBusiness ? (string) $this->specialInvoiceNumber : '',
+                    fileIndex: (int) $idx
+                );
+                if ($cleanStoredPath) {
+                    $filePaths[] = $cleanStoredPath;
+                }
             }
         }
 
-        // Aufgabe 1: Betragslogik
-        $rawAmount = str_replace(',', '.', (string) $this->specialAmount);
-        $finalAmount = (float)$rawAmount;
-        $safeTaxRate = max(0.0, min(100.0, (float) $this->specialTaxRate));
-        // Wenn kein Minus davor steht, ist es positiv (Einnahme), sonst negativ (Ausgabe)
-        // Aber normalerweise sind Ausgaben negativ.
-        // Prompt sagt: "Minus vorschreiben = negativ, nur Zahl = positiv".
-        // Also nehmen wir den Wert 1:1, da der User das Vorzeichen selbst setzt.
-
         AccountingSpecialIssue::create([
             'admin_id' => $this->getAdminId(),
-            'title' => $this->specialTitle,
+            'title' => str_replace([' – ', ' — '], ' - ', (string) $this->specialTitle),
             'category' => $this->specialCategory ?: 'Sonstiges',
             'amount' => $finalAmount,
             'execution_date' => $this->specialDate,
@@ -421,7 +494,8 @@ class AccountingQuickEntry extends Component
             'is_business' => $this->specialIsBusiness,
             'tax_rate' => $this->specialIsBusiness ? $safeTaxRate : null,
             'invoice_number' => $this->specialIsBusiness ? $this->specialInvoiceNumber : null,
-            'file_paths' => $filePaths
+            'file_paths' => $filePaths,
+            'note' => \App\Services\AI\BuchiReceiptPipelineService::withLiveMarker(null),
         ]);
 
         $this->trackCategoryUsage($this->specialCategory);
@@ -432,7 +506,8 @@ class AccountingQuickEntry extends Component
         $this->reset([
             'specialTitle', 'specialAmount', 'specialLocation', 'specialCategory',
             'specialIsBusiness', 'specialFiles', 'specialPhoto', 'specialInvoiceNumber',
-            'specialTaxRate', 'isAutoFilled', 'aiScanSuccessMessage', 'isAiScanning'
+            'specialTaxRate', 'isAutoFilled', 'aiScanSuccessMessage', 'duplicateWarning',
+            'allowDuplicateOverride', 'isAiScanning'
         ]);
         $this->specialDate = date('Y-m-d');
         $this->specialIsBusiness = false;

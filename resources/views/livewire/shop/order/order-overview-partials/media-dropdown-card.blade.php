@@ -46,7 +46,8 @@
             }
          }"
          @keydown.escape.window="if (lightboxUrl) closeMediaLightbox()"
-         class="space-y-2">
+         :class="mediaOpen ? 'border-[var(--theme-color-40)]' : 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]'"
+         class="bg-gray-50 dark:bg-gray-950 rounded-xl border transition-colors overflow-hidden">
 
         {{-- Einklappbare Kachel-Kopfzeile: Medien --}}
         <div @click="toggleMediaDropdown()"
@@ -54,7 +55,7 @@
              tabindex="0"
              @keydown.enter.prevent="toggleMediaDropdown()"
              @keydown.space.prevent="toggleMediaDropdown()"
-             class="bg-gray-50 dark:bg-gray-950 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] flex items-center justify-between gap-2 transition-colors cursor-pointer select-none">
+             class="px-3.5 py-2.5 flex items-center justify-between gap-2 cursor-pointer select-none">
             <div class="flex items-center gap-2 min-w-0">
                 <svg class="w-4 h-4 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
@@ -83,11 +84,11 @@
             </div>
         </div>
 
-        {{-- Aufgeklappter Medien-Bereich --}}
+        {{-- Aufgeklappter Medien-Bereich (in derselben Kachel nach unten) --}}
         <div x-cloak
              x-show="mediaOpen"
              style="display: none;"
-             class="bg-gray-50 dark:bg-gray-950 p-3 sm:p-3.5 rounded-xl border border-gray-200 dark:border-gray-800 space-y-3">
+             class="p-3 sm:p-3.5 border-t border-gray-200 dark:border-gray-800 space-y-3">
 
             {{-- Artikel-Schnellwahl im Fallback-Modus bei Mehrpositions-Bestellungen --}}
             @if($showItemSwitcher && isset($selectedOrder) && $selectedOrder && $selectedOrder->items->count() > 1)

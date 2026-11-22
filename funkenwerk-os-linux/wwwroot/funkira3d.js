@@ -1267,6 +1267,134 @@ function freezeStaticTree(rootObj) {
     });
 }
 
+// Static Mesh Batcher: merges opaque static leaf meshes sharing identical Material + UV layout
+// into single draw calls per visibility group (reduces ~1,600 draw calls down to < 60 on Intel UHD Mini-PC!)
+function batchStaticSubtree(rootObj, protectedSet = null, northCullGroup = null, northSplitZ = 2.12) {
+    if (!rootObj) return 0;
+    rootObj.updateMatrixWorld(true);
+    const invRoot = rootObj.matrixWorld.clone().invert();
+    const invNorth = northCullGroup ? northCullGroup.matrixWorld.clone().invert() : null;
+    const buckets = new Map();
+    const worldBox = northCullGroup ? new THREE.Box3() : null;
+
+    const walk = (node) => {
+        if (node !== rootObj && protectedSet && protectedSet.has(node)) return;
+        if (node.isMesh && node.children.length === 0 && node.visible && node.geometry && node.material && !Array.isArray(node.material)) {
+            const mat = node.material;
+            const geo = node.geometry;
+            if (!mat.transparent && geo.attributes && geo.attributes.position && node.matrixWorld.determinant() > 0) {
+                let zone = 'main';
+                if (northCullGroup && worldBox) {
+                    if (!geo.boundingBox) geo.computeBoundingBox();
+                    worldBox.copy(geo.boundingBox).applyMatrix4(node.matrixWorld);
+                    if (worldBox.max.z < northSplitZ) {
+                        zone = 'north';
+                    }
+                }
+                const hasNorm = !!geo.attributes.normal;
+                const hasUv = !!geo.attributes.uv;
+                const hasUv1 = !!geo.attributes.uv1;
+                const key = `${zone}|${mat.uuid}|${hasNorm ? 1 : 0}|${hasUv ? 1 : 0}|${hasUv1 ? 1 : 0}|${node.renderOrder || 0}`;
+                let arr = buckets.get(key);
+                if (!arr) {
+                    arr = [];
+                    buckets.set(key, arr);
+                }
+                arr.push(node);
+            }
+        }
+        for (let i = 0; i < node.children.length; i++) {
+            walk(node.children[i]);
+        }
+    };
+    walk(rootObj);
+
+    let savedCalls = 0;
+    const relMat = new THREE.Matrix4();
+
+    for (const [key, meshes] of buckets.entries()) {
+        const isNorth = key.startsWith('north|');
+        if (meshes.length < 2) {
+            if (isNorth && northCullGroup && invNorth && meshes.length === 1) {
+                const single = meshes[0];
+                relMat.multiplyMatrices(invNorth, single.matrixWorld);
+                if (single.parent) single.parent.remove(single);
+                single.matrixAutoUpdate = false;
+                single.matrix.copy(relMat);
+                single.matrix.decompose(single.position, single.quaternion, single.scale);
+                northCullGroup.add(single);
+            }
+            continue;
+        }
+
+        const sample = meshes[0];
+        const hasNorm = !!sample.geometry.attributes.normal;
+        const hasUv = !!sample.geometry.attributes.uv;
+        const hasUv1 = !!sample.geometry.attributes.uv1;
+        const targetParent = (isNorth && northCullGroup) ? northCullGroup : rootObj;
+        const targetInv = (isNorth && invNorth) ? invNorth : invRoot;
+
+        const bakedGeos = [];
+        let totalVerts = 0;
+        for (let i = 0; i < meshes.length; i++) {
+            const m = meshes[i];
+            const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
+            relMat.multiplyMatrices(targetInv, m.matrixWorld);
+            g.applyMatrix4(relMat);
+            totalVerts += g.attributes.position.count;
+            bakedGeos.push(g);
+        }
+
+        const posArr = new Float32Array(totalVerts * 3);
+        const normArr = hasNorm ? new Float32Array(totalVerts * 3) : null;
+        const uvArr = hasUv ? new Float32Array(totalVerts * 2) : null;
+        const uv1Arr = hasUv1 ? new Float32Array(totalVerts * 2) : null;
+
+        let vOff = 0;
+        for (let i = 0; i < bakedGeos.length; i++) {
+            const g = bakedGeos[i];
+            const cnt = g.attributes.position.count;
+            posArr.set(g.attributes.position.array.subarray(0, cnt * 3), vOff * 3);
+            if (normArr) normArr.set(g.attributes.normal.array.subarray(0, cnt * 3), vOff * 3);
+            if (uvArr) uvArr.set(g.attributes.uv.array.subarray(0, cnt * 2), vOff * 2);
+            if (uv1Arr) uv1Arr.set(g.attributes.uv1.array.subarray(0, cnt * 2), vOff * 2);
+            vOff += cnt;
+            g.dispose();
+        }
+
+        const mergedGeo = new THREE.BufferGeometry();
+        mergedGeo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+        if (normArr) mergedGeo.setAttribute('normal', new THREE.BufferAttribute(normArr, 3));
+        if (uvArr) mergedGeo.setAttribute('uv', new THREE.BufferAttribute(uvArr, 2));
+        if (uv1Arr) mergedGeo.setAttribute('uv1', new THREE.BufferAttribute(uv1Arr, 2));
+        mergedGeo.computeBoundingSphere();
+
+        const batchedMesh = new THREE.Mesh(mergedGeo, sample.material);
+        batchedMesh.renderOrder = sample.renderOrder || 0;
+        batchedMesh.matrixAutoUpdate = false;
+        targetParent.add(batchedMesh);
+
+        for (let i = 0; i < meshes.length; i++) {
+            const m = meshes[i];
+            if (m.parent) m.parent.remove(m);
+        }
+        savedCalls += (meshes.length - 1);
+    }
+
+    const pruneEmpty = (node) => {
+        for (let i = node.children.length - 1; i >= 0; i--) {
+            pruneEmpty(node.children[i]);
+        }
+        if (node !== rootObj && node !== northCullGroup && !node.isMesh && node.children.length === 0 && !(protectedSet && protectedSet.has(node))) {
+            if (node.parent) node.parent.remove(node);
+        }
+    };
+    pruneEmpty(rootObj);
+    freezeStaticTree(rootObj);
+    if (northCullGroup) freezeStaticTree(northCullGroup);
+    return savedCalls;
+}
+
 class FunkiraAtelierEngine {
     constructor() {
         this.canvas = null;
@@ -1275,12 +1403,21 @@ class FunkiraAtelierEngine {
         this.camera = null;
         this.running = false;
         this.lastMs = 0;
+        this.isLowPowerGpu = false;
+        this.ogNorthStaticGroup = null;
+        this.cellarDomeStaticGroup = null;
 
-        // Dynamic Native HD Render Scale Governor (Targets 60 FPS on Intel UHD 605 up to 1.00 native!)
-        this.renderScale = 0.92;
+        // Hysteresis Render Scale Governor (Zero ping-pong framebuffer reallocation!)
+        this.renderScale = 0.88;
         this.fps = 60;
         this._fpsFrames = 0;
         this._fpsWindowStartMs = 0;
+        this._lowFpsStreaks = 0;
+        this._highFpsStreaks = 0;
+        this._scaleLockedDown = false;
+        this._lastPixelW = 0;
+        this._lastPixelH = 0;
+        this._lastAppliedScale = 0;
 
         // State synced from app.js
         this.mode = 'front_active'; // 'front_active' | 'atelier_autonomous'
@@ -1450,7 +1587,21 @@ class FunkiraAtelierEngine {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.NoToneMapping;
         this.renderer.shadowMap.enabled = false;
-        MAX_GPU_ANISOTROPY = Math.min(8, Math.max(1, this.renderer.capabilities.getMaxAnisotropy() || 1));
+
+        try {
+            const gl = this.renderer.getContext();
+            const dbg = gl ? gl.getExtension('WEBGL_debug_renderer_info') : null;
+            const gpuName = (gl && dbg) ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '') : '';
+            this.isLowPowerGpu = /Intel.*(UHD|HD Graphics)|Mesa|llvmpipe|JasperLake|GeminiLake|AlderLake-N/i.test(gpuName)
+                || ((navigator.hardwareConcurrency || 8) <= 4);
+        } catch {
+            this.isLowPowerGpu = ((navigator.hardwareConcurrency || 8) <= 4);
+        }
+
+        this.renderScale = this.isLowPowerGpu ? 0.80 : 0.92;
+        MAX_GPU_ANISOTROPY = this.isLowPowerGpu
+            ? 2
+            : Math.min(8, Math.max(1, this.renderer.capabilities.getMaxAnisotropy() || 1));
 
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x121017);
@@ -1467,10 +1618,11 @@ class FunkiraAtelierEngine {
         this._buildFunkiraRig();
         this._buildMovableSeelenfunkeItems();
         this._applyWorldStateVisuals();
+        this._optimizeStaticWorldFor60Fps();
         this._renderVisorFace(performance.now(), 0.016, true);
-        this.resize();
+        this.resize(true);
 
-        window.addEventListener('resize', () => this.resize());
+        window.addEventListener('resize', () => this.resize(true));
         return true;
     }
 
@@ -1747,7 +1899,7 @@ class FunkiraAtelierEngine {
             emissive: new THREE.Color(0xfffcf6),
             emissiveMap: fbBoiserie,
             emissiveIntensity: 0.34,
-            side: THREE.DoubleSide
+            side: THREE.FrontSide
         });
 
         this.mats.atelierNeroStonePbr = new THREE.MeshStandardMaterial({
@@ -1805,6 +1957,45 @@ class FunkiraAtelierEngine {
             depthWrite: false
         });
 
+        // Intel UHD / Mesa Mini-PC Fast Fillrate Path: replace full-screen 14-sample PMREM+Bump PBR shaders
+        // on large matte architectural walls/floors/ceilings with zero-light Baked-AO shaders (10x faster fragment fillrate!)
+        if (this.isLowPowerGpu) {
+            this.mats.atelierFloorEgPbr.dispose();
+            this.mats.atelierFloorOgPbr.dispose();
+            this.mats.atelierBoiseriePbr.dispose();
+            this.mats.atelierCeilingPbr.dispose();
+            this.mats.atelierBathStonePbr.dispose();
+
+            this.mats.atelierFloorEgPbr = new THREE.MeshBasicMaterial({
+                map: fbParquet,
+                aoMap: egAoTex,
+                aoMapIntensity: 0.72,
+                color: 0xf8f3eb
+            });
+            this.mats.atelierFloorOgPbr = new THREE.MeshBasicMaterial({
+                map: fbParquet,
+                aoMap: ogAoTex,
+                aoMapIntensity: 0.76,
+                color: 0xf8f3eb
+            });
+            this.mats.atelierBoiseriePbr = new THREE.MeshBasicMaterial({
+                map: fbBoiserie,
+                color: 0xfaf6ee,
+                side: THREE.FrontSide
+            });
+            this.mats.atelierCeilingPbr = new THREE.MeshBasicMaterial({
+                color: 0xeae2d4
+            });
+            this.mats.atelierBathStonePbr = new THREE.MeshBasicMaterial({
+                map: bathTex,
+                color: 0xf7f6f2,
+                polygonOffset: true,
+                polygonOffsetFactor: -1,
+                polygonOffsetUnits: -2
+            });
+            this.mats.atelierNeroStonePbr.bumpMap = null;
+        }
+
         // 3. Asynchronous HD Photorealistic Asset Streaming (< 80ms local loopback HTTP)
         const texLoader = new THREE.TextureLoader();
 
@@ -1828,8 +2019,8 @@ class FunkiraAtelierEngine {
             configureHdTexture(oakTex, MAX_GPU_ANISOTROPY);
             for (const fMat of [this.mats.atelierFloorEgPbr, this.mats.atelierFloorOgPbr]) {
                 fMat.map = oakTex;
-                fMat.bumpMap = oakTex;
-                fMat.emissiveMap = oakTex;
+                if ('bumpMap' in fMat && !this.isLowPowerGpu) fMat.bumpMap = oakTex;
+                if ('emissiveMap' in fMat) fMat.emissiveMap = oakTex;
                 fMat.needsUpdate = true;
             }
             fbParquet.dispose();
@@ -1841,8 +2032,12 @@ class FunkiraAtelierEngine {
             wallTex.wrapT = THREE.ClampToEdgeWrapping;
             configureHdTexture(wallTex, MAX_GPU_ANISOTROPY);
             this.mats.atelierBoiseriePbr.map = wallTex;
-            this.mats.atelierBoiseriePbr.bumpMap = wallTex;
-            this.mats.atelierBoiseriePbr.emissiveMap = wallTex;
+            if ('bumpMap' in this.mats.atelierBoiseriePbr && !this.isLowPowerGpu) {
+                this.mats.atelierBoiseriePbr.bumpMap = wallTex;
+            }
+            if ('emissiveMap' in this.mats.atelierBoiseriePbr) {
+                this.mats.atelierBoiseriePbr.emissiveMap = wallTex;
+            }
             this.mats.atelierBoiseriePbr.needsUpdate = true;
             fbBoiserie.dispose();
         });
@@ -1853,14 +2048,73 @@ class FunkiraAtelierEngine {
             stoneTex.wrapT = THREE.RepeatWrapping;
             configureHdTexture(stoneTex, MAX_GPU_ANISOTROPY);
             this.mats.atelierNeroStonePbr.map = stoneTex;
-            this.mats.atelierNeroStonePbr.bumpMap = stoneTex;
+            if (!this.isLowPowerGpu) this.mats.atelierNeroStonePbr.bumpMap = stoneTex;
             this.mats.atelierNeroStonePbr.emissiveMap = stoneTex;
             this.mats.atelierNeroStonePbr.needsUpdate = true;
             fbNero.dispose();
         });
     }
 
-    resize() {
+    _optimizeStaticWorldFor60Fps() {
+        if (!this.scene) return;
+        this.scene.updateMatrixWorld(true);
+
+        const protectedSet = new Set();
+        const protect = (obj) => { if (obj) protectedSet.add(obj); };
+
+        protect(this.rig?.root);
+        protect(this.rig?.vitrineGem);
+        protect(this.vaseGroup);
+        protect(this.egItemsGroup);
+        protect(this.ogItemsGroup);
+        protect(this.ogRoofClosedGroup);
+        protect(this.egWeatherGroup);
+        protect(this.ogWeatherGroup);
+        protect(this.ogSouthWeatherGroup);
+        protect(this.upstairsFxGroup);
+        protect(this.lawnMowerGroup);
+        protect(this.cellarLiftPlatform);
+        protect(this.cellarGroup);
+        protect(this.cellarDomeShellGroup);
+        protect(this.cellarHoloGroup);
+        protect(this.cellarDomeMesh);
+        protect(this.cellarBridgeGroup);
+
+        for (const g of Object.values(this.levelGroups || {})) protect(g);
+        for (const g of Object.values(this.occasionGroups || {})) protect(g);
+        for (const g of Object.values(this.gardenSeasonGroups || {})) protect(g);
+        for (const g of Object.values(this.gardenOccasionGroups || {})) protect(g);
+        for (const m of (this.sunbeamMeshes || [])) protect(m);
+        for (const m of (this.cellarPickMeshes || [])) protect(m);
+
+        // Split Obergeschoss into North Rooms (z < 2.12, culled when inside Atelier!) + South Atelier
+        if (this.ogGroup && !this.ogNorthStaticGroup) {
+            this.ogNorthStaticGroup = new THREE.Group();
+            this.ogNorthStaticGroup.matrixAutoUpdate = false;
+            this.ogGroup.add(this.ogNorthStaticGroup);
+            protect(this.ogNorthStaticGroup);
+        }
+
+        batchStaticSubtree(this.egGroup, protectedSet);
+        batchStaticSubtree(this.stairsGroup, protectedSet);
+        batchStaticSubtree(this.ogGroup, protectedSet, this.ogNorthStaticGroup, 2.12);
+        batchStaticSubtree(this.ogRoofClosedGroup, protectedSet);
+
+        for (const g of Object.values(this.levelGroups || {})) batchStaticSubtree(g, protectedSet);
+        for (const g of Object.values(this.occasionGroups || {})) batchStaticSubtree(g, protectedSet);
+
+        batchStaticSubtree(this.gardenGroup, protectedSet);
+        for (const g of Object.values(this.gardenSeasonGroups || {})) batchStaticSubtree(g, protectedSet);
+        for (const g of Object.values(this.gardenOccasionGroups || {})) batchStaticSubtree(g, protectedSet);
+
+        batchStaticSubtree(this.cellarShaftGroup, protectedSet);
+        batchStaticSubtree(this.cellarBridgeGroup, protectedSet);
+        batchStaticSubtree(this.cellarDomeStaticGroup, protectedSet);
+
+        this.scene.updateMatrixWorld(true);
+    }
+
+    resize(force = false) {
         if (!this.renderer || !this.canvas || !this.camera) return;
         const rect = this.canvas.parentElement
             ? this.canvas.parentElement.getBoundingClientRect()
@@ -1869,7 +2123,19 @@ class FunkiraAtelierEngine {
         const cssH = Math.max(240, Math.floor(rect.height || window.innerHeight));
 
         const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-        const baseScale = cssW > 1920 ? Math.min(1.0, this.renderScale) : Math.min(dpr, this.renderScale * 1.09);
+        const maxGpuW = this.isLowPowerGpu ? 1472 : 2048;
+        const resolutionCapScale = maxGpuW / cssW;
+        const baseScale = this.isLowPowerGpu
+            ? Math.min(1.0, this.renderScale, resolutionCapScale * (this.renderScale / 0.80))
+            : (cssW > 1920 ? Math.min(1.0, this.renderScale, resolutionCapScale) : Math.min(dpr, this.renderScale * 1.09));
+
+        if (!force && cssW === this._lastPixelW && cssH === this._lastPixelH && Math.abs(baseScale - this._lastAppliedScale) < 0.005) {
+            return;
+        }
+        this._lastPixelW = cssW;
+        this._lastPixelH = cssH;
+        this._lastAppliedScale = baseScale;
+
         this.renderer.setPixelRatio(baseScale);
         this.renderer.setSize(cssW, cssH, false);
         this.camera.aspect = cssW / cssH;
@@ -1879,11 +2145,13 @@ class FunkiraAtelierEngine {
     start() {
         if (!this.renderer || this.running) return;
         this.running = true;
-        this.resize();
+        this.resize(false);
         const now = performance.now();
         this.lastMs = now;
         this._fpsFrames = 0;
         this._fpsWindowStartMs = now;
+        this._lowFpsStreaks = 0;
+        this._highFpsStreaks = 0;
     }
 
     stop() {
@@ -5837,6 +6105,7 @@ class FunkiraAtelierEngine {
         holoEmitterRing.position.set(0, UG_Y + 0.73, DOME_Z);
         domeStatic.add(holoBase, holoCol, holoRim, holoLens, holoEmitterRing);
 
+        this.cellarDomeStaticGroup = domeStatic;
         freezeStaticTree(domeStatic);
         domeHall.add(domeStatic);
 
@@ -7222,9 +7491,12 @@ class FunkiraAtelierEngine {
         const gy = this.lookCur.y * 12.0;
         const animTick = ((this.faceCur.tear || 0) > 0.25 || this.emotion === 'sleepy') ? Math.floor(nowMs / 66) : 0;
 
-        if (!force && (nowMs - this._lastVisorDrawMs) < 31) return;
+        const visorActiveAnim = this.isSpeaking || this.blinkVal > 0.002 || animTick !== 0;
+        const minVisorIntervalMs = visorActiveAnim ? 33 : 62;
+        if (!force && (nowMs - this._lastVisorDrawMs) < minVisorIntervalMs) return;
 
-        const sig = `${Math.round(gx * 2)}|${Math.round(gy * 2)}|${Math.round(lidTop * 80)}|${Math.round(lidBot * 60)}|${Math.round(openAmt * 70)}|${Math.round(curve * 40)}|${Math.round((this.faceCur.browTilt || 0) * 40)}|${animTick}|${this.emotion}`;
+        const gazeQuant = visorActiveAnim ? 2.0 : 1.0;
+        const sig = `${Math.round(gx * gazeQuant)}|${Math.round(gy * gazeQuant)}|${Math.round(lidTop * 80)}|${Math.round(lidBot * 60)}|${Math.round(openAmt * 70)}|${Math.round(curve * 40)}|${Math.round((this.faceCur.browTilt || 0) * 40)}|${animTick}|${this.emotion}`;
         if (!force && sig === this._lastDrawnSig) return;
         this._lastDrawnSig = sig;
         this._lastVisorDrawMs = nowMs;
@@ -7806,16 +8078,30 @@ class FunkiraAtelierEngine {
 
         this._fpsFrames++;
         const winElapsed = nowMs - this._fpsWindowStartMs;
-        if (winElapsed >= 1200) {
+        if (winElapsed >= 2000) {
             this.fps = Math.round((this._fpsFrames * 1000) / winElapsed);
             this._fpsFrames = 0;
             this._fpsWindowStartMs = nowMs;
-            if (this.fps < 52 && this.renderScale > 0.56) {
-                this.renderScale = Math.max(0.56, +(this.renderScale - 0.06).toFixed(2));
-                this.resize();
-            } else if (this.fps >= 58 && this.renderScale < 1.00) {
-                this.renderScale = Math.min(1.00, +(this.renderScale + 0.04).toFixed(2));
-                this.resize();
+            if (this.fps < 48 && this.renderScale > 0.62) {
+                this._lowFpsStreaks++;
+                this._highFpsStreaks = 0;
+                if (this._lowFpsStreaks >= 2) {
+                    this._lowFpsStreaks = 0;
+                    this._scaleLockedDown = true;
+                    this.renderScale = Math.max(0.62, +(this.renderScale - 0.08).toFixed(2));
+                    this.resize(false);
+                }
+            } else if (!this._scaleLockedDown && !this.isLowPowerGpu && this.fps >= 59 && this.renderScale < 1.00) {
+                this._highFpsStreaks++;
+                this._lowFpsStreaks = 0;
+                if (this._highFpsStreaks >= 3) {
+                    this._highFpsStreaks = 0;
+                    this.renderScale = Math.min(1.00, +(this.renderScale + 0.04).toFixed(2));
+                    this.resize(false);
+                }
+            } else {
+                this._lowFpsStreaks = 0;
+                this._highFpsStreaks = 0;
             }
         }
 
@@ -8477,7 +8763,8 @@ class FunkiraAtelierEngine {
         this.cameraLook.z = lerp(this.cameraLook.z, lookZ, camBlend);
         this.camera.lookAt(this.cameraLook);
 
-        // Strict Floor, Roof & Secret Cellar Visibility Culling (0% Cellar GPU Load Upstairs; 0% Upstairs Load in Cellar!)
+        // Strict Floor, Roof, Atelier-Interior & Secret Cellar Visibility Culling
+        // (0% Cellar Load Upstairs; 0% Downstairs/Garden/North-OG Load when Camera is inside Seelenfunken Atelier!)
         if (this.cellarGroup && this.cellarGroup.visible !== showCellar) {
             this.cellarGroup.visible = showCellar;
         }
@@ -8485,26 +8772,40 @@ class FunkiraAtelierEngine {
             this.cellarDomeShellGroup.visible = deepInCellar;
         }
         const showUpstairsHouse = !deepInCellar;
-        if (this.egGroup && this.egGroup.visible !== showUpstairsHouse) this.egGroup.visible = showUpstairsHouse;
-        if (this.egItemsGroup && this.egItemsGroup.visible !== showUpstairsHouse) this.egItemsGroup.visible = showUpstairsHouse;
-        if (this.egWeatherGroup && this.egWeatherGroup.visible !== showUpstairsHouse) this.egWeatherGroup.visible = showUpstairsHouse;
-        if (this.stairsGroup && this.stairsGroup.visible !== showUpstairsHouse) this.stairsGroup.visible = showUpstairsHouse;
-        if (this.gardenGroup && this.gardenGroup.visible !== showUpstairsHouse) this.gardenGroup.visible = showUpstairsHouse;
+        const cameraInsideClosedAtelier = showUpstairsHouse
+            && !useDollhouseView
+            && !showCellar
+            && (this.camera.position.z < 6.45)
+            && (this.camera.position.y < OG_Y + 2.25);
+        const showLowerAndGarden = showUpstairsHouse && !cameraInsideClosedAtelier;
+
+        if (this.egGroup && this.egGroup.visible !== showLowerAndGarden) this.egGroup.visible = showLowerAndGarden;
+        if (this.egItemsGroup && this.egItemsGroup.visible !== showLowerAndGarden) this.egItemsGroup.visible = showLowerAndGarden;
+        if (this.egWeatherGroup && this.egWeatherGroup.visible !== showLowerAndGarden) this.egWeatherGroup.visible = showLowerAndGarden;
+        if (this.stairsGroup && this.stairsGroup.visible !== showLowerAndGarden) this.stairsGroup.visible = showLowerAndGarden;
+        if (this.gardenGroup && this.gardenGroup.visible !== showLowerAndGarden) this.gardenGroup.visible = showLowerAndGarden;
+        if (this.lawnMowerGroup && this.lawnMowerGroup.visible !== showLowerAndGarden) this.lawnMowerGroup.visible = showLowerAndGarden;
+        if (this.cellarLiftPlatform && this.cellarLiftPlatform.visible !== (showLowerAndGarden || showCellar)) {
+            this.cellarLiftPlatform.visible = (showLowerAndGarden || showCellar);
+        }
         if (this.upstairsFxGroup && this.upstairsFxGroup.visible !== showUpstairsHouse) this.upstairsFxGroup.visible = showUpstairsHouse;
-        if (this.lawnMowerGroup && this.lawnMowerGroup.visible !== showUpstairsHouse) this.lawnMowerGroup.visible = showUpstairsHouse;
 
         const showOg = showUpstairsHouse && !(useDollhouseView && this.pos.y < 1.95);
+        const showOgNorth = showOg && !cameraInsideClosedAtelier;
         const showClosedAtelierGable = showOg && !useDollhouseView && (this.camera.position.z < 6.75);
         if (this.ogGroup && this.ogGroup.visible !== showOg) {
             this.ogGroup.visible = showOg;
         }
+        if (this.ogNorthStaticGroup && this.ogNorthStaticGroup.visible !== showOgNorth) {
+            this.ogNorthStaticGroup.visible = showOgNorth;
+        }
         if (this.ogRoofClosedGroup && this.ogRoofClosedGroup.visible !== showClosedAtelierGable) {
             this.ogRoofClosedGroup.visible = showClosedAtelierGable;
         }
-        if (this.ogWeatherGroup) {
-            this.ogWeatherGroup.visible = showOg;
+        if (this.ogWeatherGroup && this.ogWeatherGroup.visible !== showOgNorth) {
+            this.ogWeatherGroup.visible = showOgNorth;
         }
-        if (this.ogSouthWeatherGroup) {
+        if (this.ogSouthWeatherGroup && this.ogSouthWeatherGroup.visible !== showClosedAtelierGable) {
             this.ogSouthWeatherGroup.visible = showClosedAtelierGable;
         }
 
@@ -8560,6 +8861,7 @@ class FunkiraAtelierEngine {
         }
         for (let i = 0; i < this.weatherParticles.length; i++) {
             const wp = this.weatherParticles[i];
+            if (wp.mesh.parent && !wp.mesh.parent.visible) continue;
             wp.y -= wp.speedY * dt;
             if (wp.y < wp.minY) {
                 wp.uBase = (Math.random() - 0.5) * (wp.halfW * 1.9);
@@ -8575,21 +8877,23 @@ class FunkiraAtelierEngine {
             );
         }
 
-        // Outdoor 3D Garden Weather Particles (Snow / Blossoms / Sun Motes / Autumn Leaves)
-        const seaNow = this.worldState.season || 'autumn';
-        const owSpeedMul = seaNow === 'summer' ? 0.35 : 1.0;
-        for (let i = 0; i < this.outdoorWeatherParticles.length; i++) {
-            const ow = this.outdoorWeatherParticles[i];
-            ow.y -= ow.speedY * owSpeedMul * dt;
-            if (ow.y < 0.06) {
-                ow.baseX = (Math.random() - 0.5) * 9.6;
-                ow.baseZ = 7.15 + Math.random() * 5.8;
-                ow.y = 3.45;
+        // Outdoor 3D Garden Weather Particles (Snow / Blossoms / Sun Motes / Autumn Leaves - skipped when Garden is culled!)
+        if (showLowerAndGarden) {
+            const seaNow = this.worldState.season || 'autumn';
+            const owSpeedMul = seaNow === 'summer' ? 0.35 : 1.0;
+            for (let i = 0; i < this.outdoorWeatherParticles.length; i++) {
+                const ow = this.outdoorWeatherParticles[i];
+                ow.y -= ow.speedY * owSpeedMul * dt;
+                if (ow.y < 0.06) {
+                    ow.baseX = (Math.random() - 0.5) * 9.6;
+                    ow.baseZ = 7.15 + Math.random() * 5.8;
+                    ow.y = 3.45;
+                }
+                const driftX = Math.sin(tSec * 1.3 + ow.phase) * 0.22;
+                const driftZ = Math.cos(tSec * 1.1 + ow.phase) * 0.14;
+                ow.mesh.position.set(ow.baseX + driftX, ow.y, ow.baseZ + driftZ);
+                ow.mesh.rotation.y += dt * 1.4;
             }
-            const driftX = Math.sin(tSec * 1.3 + ow.phase) * 0.22;
-            const driftZ = Math.cos(tSec * 1.1 + ow.phase) * 0.14;
-            ow.mesh.position.set(ow.baseX + driftX, ow.y, ow.baseZ + driftZ);
-            ow.mesh.rotation.y += dt * 1.4;
         }
 
         // Gießkanne Water Droplets Stream

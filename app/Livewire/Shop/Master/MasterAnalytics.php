@@ -494,6 +494,8 @@ class MasterAnalytics extends Component
                     'status' => 'error',
                     'payload' => array_merge([
                         'service' => (string) $serviceName,
+                        'subpage_path' => '/admin/dashboard',
+                        'file' => 'app/Livewire/Shop/Master/MasterAnalytics.php',
                         'occurrences_count' => 1,
                         'first_seen_at' => now()->toIso8601String(),
                         'last_seen_at' => now()->toIso8601String(),
@@ -981,9 +983,12 @@ class MasterAnalytics extends Component
 
                 if ($hoursAgo < 48) {
                     $health['backup'] = ['status' => 'connected', 'value' => "Sicher ({$hoursAgo} {$text})", 'error' => null, 'path' => $pathInfo];
+                } elseif (app()->environment('local')) {
+                    $health['backup'] = ['status' => 'connected', 'value' => "Lokal ({$hoursAgo} {$text})", 'error' => null, 'path' => $pathInfo];
+                    $this->resolveSystemFailure('backup');
                 } else {
                     $health['backup'] = ['status' => 'warning', 'value' => "Alt ({$hoursAgo} {$text})", 'error' => 'Letztes Backup ist älter als 48 Stunden!', 'path' => $pathInfo];
-                    $this->logSystemFailure('backup', 'Das Datenbank-Backup ist überfällig. Gefahr bei Datenverlust!');
+                    $this->logSystemFailure('backup', 'Das Datenbank-Backup ist überfällig. Gefahr bei Datenverlust!', ['hours_ago' => $hoursAgo, 'backup_path' => $pathInfo]);
                 }
             } else {
                 $health['backup'] = ['status' => 'warning', 'value' => 'Kein Backup', 'error' => 'Es wurde noch keine ZIP-Datei gefunden!', 'path' => 'Unbekannt'];
@@ -1642,6 +1647,7 @@ class MasterAnalytics extends Component
         $this->healthChecks = json_decode(json_encode($rawChecks), true) ?: [];
         $this->syncGeminiBridgeAlertIntoHealthChecks();
         $this->syncExperienceReviewsIntoHealthChecks();
+        $this->syncAiAutopilotIntoHealthChecks();
 
         $rawStats = $service->getStats($this->dateStart, $this->dateEnd, $this->filterType, $allLogins, $this->systemHealth, $this->healthChecks);
         $this->stats = json_decode(json_encode($rawStats), true);
@@ -1828,6 +1834,63 @@ class MasterAnalytics extends Component
                 'title' => 'Erlebnis-Feedback',
                 'message' => $message,
                 'count' => $openCount,
+                'data' => [],
+            ];
+        } catch (\Throwable $ignore) {
+        }
+    }
+
+    /**
+     * Zeigt vorbereitete 1-Klick-KI-Vorlagen (Buchi-Belegscans & Bestelli-Antwortentwürfe im Postfach)
+     * zentral im Operativen Status (/admin/dashboard) an.
+     */
+    protected function syncAiAutopilotIntoHealthChecks(): void
+    {
+        if (
+            !class_exists(\App\Models\Management\Mail\MailMessage::class)
+            || !\Illuminate\Support\Facades\Schema::hasTable('mail_messages')
+        ) {
+            return;
+        }
+
+        try {
+            $processedMails = \App\Models\Management\Mail\MailMessage::where('folder', 'Processed')
+                ->where('is_archived', false)
+                ->latest('received_at')
+                ->limit(100)
+                ->get(['id', 'tags']);
+
+            $receiptDrafts = 0;
+            $replyDrafts = 0;
+
+            foreach ($processedMails as $pm) {
+                $tags = is_array($pm->tags) ? $pm->tags : [];
+                if (!empty($tags['resolved'])) {
+                    continue;
+                }
+                if (!empty($tags['ai_receipt_draft'])) {
+                    $receiptDrafts++;
+                }
+                if (!empty($tags['ai_reply_draft'])) {
+                    $replyDrafts++;
+                }
+            }
+
+            $openTotal = $receiptDrafts + $replyDrafts;
+            $parts = [];
+            if ($receiptDrafts > 0) {
+                $parts[] = $receiptDrafts . ' Beleg-Scan' . ($receiptDrafts > 1 ? 's' : '');
+            }
+            if ($replyDrafts > 0) {
+                $parts[] = $replyDrafts . ' Antwort-Entw' . ($replyDrafts > 1 ? 'ürfe' : 'urf');
+            }
+
+            $this->healthChecks['ai_autopilot_drafts'] = [
+                'status' => $openTotal > 0 ? 'todo' : 'success',
+                'icon' => 'sparkles',
+                'title' => 'KI-Vorlagen (Buchi & Bestelli)',
+                'message' => $openTotal > 0 ? implode(', ', $parts) . ' bereit' : 'Keine offenen KI-Vorlagen',
+                'count' => $openTotal,
                 'data' => [],
             ];
         } catch (\Throwable $ignore) {
@@ -2793,6 +2856,7 @@ class MasterAnalytics extends Component
     {
         $this->syncGeminiBridgeAlertIntoHealthChecks();
         $this->syncExperienceReviewsIntoHealthChecks();
+        $this->syncAiAutopilotIntoHealthChecks();
 
         return view('livewire.shop.master.master-analytics', [
             'activeLogins' => $this->activeLogins,

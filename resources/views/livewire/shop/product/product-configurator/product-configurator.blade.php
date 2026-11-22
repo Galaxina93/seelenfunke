@@ -35,6 +35,15 @@
             $isEffectiveCustomFields = !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'custom_fields';
             $isEffectiveStudio = !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'studio';
             $isBeginnerStudioMode = $isEffectiveCustomFields && $this->product->usesStudioConfigurator();
+            $hasBackBeginnerOption = false;
+            if ($isBeginnerStudioMode && !empty($configSettings['has_back_side'])) {
+                foreach ($this->customFieldsDefinition as $cfSideCheck) {
+                    if (in_array(($cfSideCheck['target_side'] ?? 'front'), ['back', 'choice'], true)) {
+                        $hasBackBeginnerOption = true;
+                        break;
+                    }
+                }
+            }
             $glbDiskPath = (($isEffectiveStudio || $isBeginnerStudioMode) && $product->three_d_active && $product->three_d_model_path)
                 ? storage_path('app/public/' . ltrim($product->three_d_model_path, '/'))
                 : null;
@@ -46,6 +55,7 @@
             isPersonalizable: {{ ($this->product->isPersonalizable() || $isEffectiveStudio || $isBeginnerStudioMode) ? 'true' : 'false' }},
             personalizationMode: '{{ $effectiveMode }}',
             isBeginnerMode: {{ $isBeginnerStudioMode ? 'true' : 'false' }},
+            hasBackBeginnerOption: {{ $hasBackBeginnerOption ? 'true' : 'false' }},
             beginnerCoords: @js($this->getBeginnerPositionCoordinates($configSettings ?? [])),
             modelPath: '{{ $resolvedModelUrl }}',
             bgPath: '{{ $this->resolvedBackgroundPath }}',

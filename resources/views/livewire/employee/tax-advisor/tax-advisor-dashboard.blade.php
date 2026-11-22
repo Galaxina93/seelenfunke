@@ -2,8 +2,13 @@
     $formattedTaxRate = rtrim(rtrim(number_format((float) ($defaultTaxRate ?? shop_setting('default_tax_rate', 19.0)), 2, ',', '.'), '0'), ',');
     $monthNamesShort = [1 => 'Jan', 2 => 'Feb', 3 => 'Mär', 4 => 'Apr', 5 => 'Mai', 6 => 'Jun', 7 => 'Jul', 8 => 'Aug', 9 => 'Sep', 10 => 'Okt', 11 => 'Nov', 12 => 'Dez'];
     $monthNamesFull = [1 => 'Januar', 2 => 'Februar', 3 => 'März', 4 => 'April', 5 => 'Mai', 6 => 'Juni', 7 => 'Juli', 8 => 'August', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Dezember'];
+    $quarterLabels = [1 => 'Q1 (Jan-Mär)', 2 => 'Q2 (Apr-Jun)', 3 => 'Q3 (Jul-Sep)', 4 => 'Q4 (Okt-Dez)'];
     $totalExpensesCount = $fixedItemsDetailed->count() + $variableItemsDetailed->count();
     $totalInvoicesCount = $filteredInvoices->count() + $filteredPayouts->count();
+    $totalAssetsCount = count($assetSchedule['assets'] ?? []) + count($assetSchedule['gwg_items'] ?? []);
+    $periodShortBadge = $periodMode === 'year'
+        ? "Jahr {$selectedYear}"
+        : ($periodMode === 'quarter' ? "Q{$selectedQuarter}/{$selectedYear}" : ($monthNamesShort[$selectedMonth] . '/' . $selectedYear));
 @endphp
 <div x-data="{ mainTab: 'expenses', showExplanation: false }"
      x-on:switch-tab.window="mainTab = $event.detail.tab"
@@ -25,11 +30,10 @@
     @endif
 
     {{-- 1. Schlanker Header: Begrüßung + 4 Kern-KPIs --}}
-    <div class="relative overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl px-5 py-4 sm:px-6 sm:py-5 mb-5 shadow-sm">
-        <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent pointer-events-none"></div>
-        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+    <div class="bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl px-5 py-4 sm:px-6 sm:py-5 mb-5 shadow-xs">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div class="flex items-center gap-4">
-                <div class="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-amber-50 dark:bg-gray-950 border border-primary/30 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-primary/30 flex items-center justify-center shrink-0">
                     <span class="text-primary font-serif font-bold text-lg sm:text-xl uppercase">
                         {{ substr($employee?->first_name ?? 'S', 0, 1) }}
                     </span>
@@ -43,21 +47,21 @@
                         Hallo, {{ $employee?->first_name }} {{ $employee?->last_name }}
                     </h1>
                     <p class="text-gray-500 dark:text-gray-400 text-xs mt-0.5">
-                        Mandant: <strong class="text-gray-900 dark:text-white">{{ $companyMeta['name'] }}</strong>
+                        <strong class="text-gray-900 dark:text-white">{{ $companyMeta['name'] }}</strong>
                         &bull; St.-Nr.: <span class="font-mono">{{ $companyMeta['tax_id'] ?: '—' }}</span>
                         &bull; <span class="text-primary font-semibold">{{ $activeMonthData['is_small_business_year'] ? '§ 19 UStG' : 'Regelbesteuert (' . $formattedTaxRate . ' %)' }}</span>
                     </p>
                     <div class="flex flex-wrap items-center gap-2 mt-2">
                         {{-- Fristen-Radar Badge --}}
-                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold {{ $deadlineStatus['is_past'] ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' : ($deadlineStatus['days_remaining'] <= 5 ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700') }}">
+                        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold {{ $deadlineStatus['is_past'] ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20' : ($deadlineStatus['days_remaining'] <= 5 ? 'bg-primary/15 text-primary border border-primary/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700') }}">
                             <x-heroicon-o-calendar class="w-3.5 h-3.5 text-primary" />
-                            <span>UStVA-Frist: {{ $deadlineStatus['date_formatted'] }}</span>
+                            <span>{{ $periodMode === 'year' ? 'Jahresfrist' : 'UStVA-Frist' }}: {{ $deadlineStatus['date_formatted'] }}</span>
                             @if($deadlineStatus['is_past'])
                                 <span class="text-rose-600 font-extrabold">(Fällig)</span>
                             @elseif($deadlineStatus['is_today'])
-                                <span class="text-amber-600 font-extrabold">(Heute)</span>
+                                <span class="text-primary font-extrabold">(Heute)</span>
                             @else
-                                <span class="text-gray-400 font-normal">({{ $deadlineStatus['days_remaining'] }} Tage verbleibend)</span>
+                                <span class="text-gray-400 font-normal">({{ $deadlineStatus['days_remaining'] }} Tage)</span>
                             @endif
                         </div>
 
@@ -65,14 +69,14 @@
                         @if($activeMonthData['missing_receipts_count'] === 0)
                             <div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                                 <x-heroicon-s-check-circle class="w-3.5 h-3.5 text-emerald-500" />
-                                <span>Belege 100 % vollständig</span>
+                                <span>Belege 100 %</span>
                             </div>
                         @else
                             <button type="button" wire:click="setReceiptStatusFilter('missing_receipt')"
-                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25 hover:bg-rose-500/20 transition-colors cursor-pointer"
                                     title="Tabelle nach fehlenden Belegen filtern">
-                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-amber-600" />
-                                <span>{{ $activeMonthData['missing_receipts_count'] }} Belege fehlen (Filtern)</span>
+                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-rose-600" />
+                                <span>{{ $activeMonthData['missing_receipts_count'] }} Belege offen</span>
                             </button>
                         @endif
                     </div>
@@ -81,144 +85,176 @@
 
             {{-- 4 ruhige KPI-Boxen --}}
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
-                <div class="bg-gray-50/80 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800/80 rounded-xl px-3.5 py-2 min-w-[125px]">
+                <div class="bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 rounded-xl px-3.5 py-2 min-w-[125px]">
                     <span class="text-gray-500 text-[9px] font-black uppercase tracking-widest block">Shop-Umsatz</span>
                     <span class="text-gray-900 dark:text-white text-sm font-serif font-bold block">{{ number_format($activeMonthData['revenue_gross'], 2, ',', '.') }} €</span>
                     <span class="text-gray-400 text-[10px] block">Netto: {{ number_format($activeMonthData['revenue_net'], 2, ',', '.') }} €</span>
                 </div>
 
-                <div class="bg-gray-50/80 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800/80 rounded-xl px-3.5 py-2 min-w-[125px]">
-                    <span class="text-gray-500 text-[9px] font-black uppercase tracking-widest block">Gewerbe-Kosten</span>
+                <div class="bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 rounded-xl px-3.5 py-2 min-w-[125px]"
+                     title="Gesamte gewerbliche Ausgaben inkl. etwaiger Anlagezugänge (EÜR lfd. + AfA: {{ number_format($activeMonthData['euer_expenses_net'] ?? $activeMonthData['expenses_net'], 2, ',', '.') }} € Netto)">
+                    <span class="text-gray-500 text-[9px] font-black uppercase tracking-widest block">Gewerbe-Ausgaben</span>
                     <span class="text-gray-900 dark:text-white text-sm font-serif font-bold block">{{ number_format($activeMonthData['expenses_gross'], 2, ',', '.') }} €</span>
                     <span class="text-gray-400 text-[10px] block">Netto: {{ number_format($activeMonthData['expenses_net'], 2, ',', '.') }} €</span>
                 </div>
 
-                <div class="bg-gray-50/80 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800/80 rounded-xl px-3.5 py-2 min-w-[125px]">
+                <div class="bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 rounded-xl px-3.5 py-2 min-w-[125px]">
                     <span class="text-gray-500 text-[9px] font-black uppercase tracking-widest block">Vorsteuer (Kz 66)</span>
                     <span class="text-gray-900 dark:text-white text-sm font-serif font-bold block">{{ number_format($activeMonthData['vat_paid'], 2, ',', '.') }} €</span>
                     <span class="text-gray-400 text-[10px] block">USt: {{ number_format($activeMonthData['vat_collected'], 2, ',', '.') }} €</span>
                 </div>
 
-                <div class="bg-amber-500/10 dark:bg-amber-500/15 border border-primary/30 rounded-xl px-3.5 py-2 min-w-[130px]">
-                    <span class="text-amber-900 dark:text-amber-300 text-[9px] font-black uppercase tracking-widest block">Zahllast (Kz 83)</span>
+                <div class="bg-primary/10 border border-primary/30 rounded-xl px-3.5 py-2 min-w-[130px]">
+                    <span class="text-gray-700 dark:text-gray-200 text-[9px] font-black uppercase tracking-widest block">
+                        {{ $activeMonthData['zahllast'] < 0 ? 'Erstattung (Kz 83)' : 'Zahllast (Kz 83)' }}
+                    </span>
                     <span class="text-primary font-serif text-sm font-bold block">{{ number_format($activeMonthData['zahllast'], 2, ',', '.') }} €</span>
-                    <span class="text-gray-500 dark:text-gray-400 text-[10px] block">{{ $monthNamesShort[$selectedMonth] }}/{{ $selectedYear }}</span>
+                    <span class="text-gray-500 dark:text-gray-400 text-[10px] block">{{ $periodShortBadge }}</span>
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- 2. Schlanke Gold-Leiste: Zeitraum wählen + Direkt-Downloads in einer Zeile --}}
-    <div class="mb-5 p-4 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-primary/30 rounded-2xl sm:rounded-3xl shadow-sm">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+    {{-- 2. Schlanke Steuerungs- & Export-Leiste --}}
+    <div class="mb-5 p-4 bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl shadow-xs">
+        <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-3.5">
 
-            {{-- Links: Zeitraum-Auswahl (Monat & Jahr) --}}
-            <div class="flex flex-wrap items-center gap-2.5">
-                <span class="text-xs font-serif font-bold text-gray-900 dark:text-white mr-1">Abrechnungszeitraum:</span>
-
-                <select wire:change="selectMonth($event.target.value)"
-                        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-primary cursor-pointer shadow-xs">
-                    @foreach($monthNamesFull as $mNum => $mLabel)
-                        <option value="{{ $mNum }}" @selected((int) $selectedMonth === $mNum)>{{ $mLabel }}</option>
-                    @endforeach
-                </select>
-
-                <select wire:model.live="selectedYear"
-                        class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-primary cursor-pointer shadow-xs">
-                    @for($y = (int) date('Y') + 1; $y >= 2023; $y--)
-                        <option value="{{ $y }}">{{ $y }}</option>
-                    @endfor
-                </select>
-
-                <div class="inline-flex items-center bg-white dark:bg-gray-900 p-0.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-xs">
+            {{-- Links: Zeitraum-Auswahl (Monat / Quartal / Jahr) --}}
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
                     <button type="button" wire:click="setPeriodMode('month')"
                             class="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $periodMode === 'month' ? 'bg-gray-900 text-white dark:bg-primary dark:text-gray-950' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
                         Monat
                     </button>
+                    <button type="button" wire:click="setPeriodMode('quarter')"
+                            class="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $periodMode === 'quarter' ? 'bg-gray-900 text-white dark:bg-primary dark:text-gray-950' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                        Quartal
+                    </button>
                     <button type="button" wire:click="setPeriodMode('year')"
                             class="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $periodMode === 'year' ? 'bg-gray-900 text-white dark:bg-primary dark:text-gray-950' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
-                        Ganzes Jahr
+                        Jahr
                     </button>
                 </div>
+
+                @if($periodMode === 'month')
+                    <select wire:change="selectMonth($event.target.value)"
+                            aria-label="Monat wählen"
+                            class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-primary cursor-pointer">
+                        @foreach($monthNamesFull as $mNum => $mLabel)
+                            <option value="{{ $mNum }}" @selected((int) $selectedMonth === $mNum)>{{ $mLabel }}</option>
+                        @endforeach
+                    </select>
+                @elseif($periodMode === 'quarter')
+                    <select wire:change="selectQuarter($event.target.value)"
+                            aria-label="Quartal wählen"
+                            class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-primary cursor-pointer">
+                        @foreach($quarterLabels as $qNum => $qLabel)
+                            <option value="{{ $qNum }}" @selected((int) $selectedQuarter === $qNum)>{{ $qLabel }}</option>
+                        @endforeach
+                    </select>
+                @endif
+
+                <select wire:model.live="selectedYear"
+                        aria-label="Jahr wählen"
+                        class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-primary cursor-pointer">
+                    @for($y = (int) date('Y') + 1; $y >= 2023; $y--)
+                        <option value="{{ $y }}">{{ $y }}</option>
+                    @endfor
+                </select>
             </div>
 
-            {{-- Rechts: Alle wichtigen Downloads kompakt nebeneinander --}}
+            {{-- Rechts: Alle Exporte für den gewählten Zeitraum --}}
             <div class="flex flex-wrap items-center gap-2">
                 <button type="button" wire:click="downloadDatevPackageZip"
-                        title="Komplettpaket: DATEV CSV + UStVA PDF + alle Belege als ZIP"
+                        title="Komplettpaket für {{ $periodShortBadge }}: DATEV EXTF CSV + Anlagenspiegel CSV + UStVA PDF + alle gewerblichen Belege"
                         class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-black text-[10px] uppercase tracking-widest transition-colors cursor-pointer shadow-xs">
                     <x-heroicon-s-archive-box-arrow-down class="w-4 h-4" />
                     Komplettpaket (ZIP)
                 </button>
 
                 <button type="button" wire:click="downloadDatevCsv"
-                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer shadow-xs">
+                        title="DATEV EXTF Buchungsstapel inkl. SKR03-Konten & BU-Schlüssel ({{ $periodShortBadge }})"
+                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer">
                     DATEV CSV
                 </button>
 
+                <button type="button" wire:click="downloadAssetScheduleCsv"
+                        title="Anlagenspiegel, lineare AfA, GWG & § 7g IAB-Übersicht ({{ $selectedYear }})"
+                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer">
+                    Anlagen CSV
+                </button>
+
                 <button type="button" wire:click="downloadUstvaPdf"
-                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer shadow-xs">
+                        title="UStVA- & EÜR-Prüfprotokoll als PDF ({{ $periodShortBadge }})"
+                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer">
                     UStVA PDF
                 </button>
 
                 <button type="button" wire:click="downloadFinancialReportZip"
-                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer shadow-xs">
+                        title="Gewerblicher Finanz- & Betriebsbericht als ZIP ({{ $periodShortBadge }})"
+                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer">
                     Finanzbericht ZIP
                 </button>
 
                 <button type="button" wire:click="downloadMonthlyInvoicesZip"
-                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer shadow-xs">
+                        title="Alle Ausgangsrechnungen (PDF + XML) & Creator-Gutschriften ({{ $periodShortBadge }})"
+                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer">
                     Rechnungen ZIP
                 </button>
 
                 <button type="button" wire:click="downloadMonthlyHrPackageZip"
-                        title="Alle Arbeitsverträge, Personalfragebögen, Stundenzettel & Lohnabrechnungen als ZIP"
-                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer shadow-xs">
-                    Personal &amp; Lohn ZIP
+                        title="Arbeitsverträge, Personalbögen, Stundenzettel & Lohnabrechnungen ({{ $periodShortBadge }})"
+                        class="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-primary text-gray-800 dark:text-gray-200 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer">
+                    Personal ZIP
                 </button>
             </div>
         </div>
     </div>
 
-    {{-- 3. EINE aufgeräumte Haupt-Kachel mit 3 klaren Tabs --}}
-    <div class="bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 rounded-3xl p-5 sm:p-6 shadow-sm">
+    {{-- 3. Aufgeräumte Haupt-Kachel mit klaren Reitern --}}
+    <div class="bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 rounded-3xl p-5 sm:p-6 shadow-xs">
 
-        {{-- Kachel-Header: Titel + Tab-Umschalter + Gewerbe/Privat-Filter --}}
+        {{-- Kachel-Header: Reiter + kontextsensitive Filter --}}
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-4 mb-4 border-b border-gray-100 dark:border-gray-800">
             <div class="w-full lg:w-auto overflow-x-auto max-w-full no-scrollbar pb-1 lg:pb-0">
                 <div class="inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 whitespace-nowrap">
                     <button type="button" @click="mainTab = 'expenses'"
-                            :class="mainTab === 'expenses' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
+                            :class="mainTab === 'expenses' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
                             class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
                         Ausgaben &amp; Belege ({{ $totalExpensesCount }})
                     </button>
-                    <button type="button" @click="mainTab = 'invoices'"
-                            :class="mainTab === 'invoices' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
+                    <button type="button" @click="mainTab = 'assets'"
+                            :class="mainTab === 'assets' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
                             class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
-                        Rechnungen &amp; Gutschriften ({{ $totalInvoicesCount }})
+                        Anlagen &amp; AfA ({{ $totalAssetsCount }})
+                    </button>
+                    <button type="button" @click="mainTab = 'invoices'"
+                            :class="mainTab === 'invoices' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
+                            class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
+                        Rechnungen ({{ $totalInvoicesCount }})
                     </button>
                     <button type="button" @click="mainTab = 'ustva'"
-                            :class="mainTab === 'ustva' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
+                            :class="mainTab === 'ustva' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
                             class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
-                        UStVA &amp; Jahreswerte
+                        UStVA &amp; EÜR
                     </button>
                     <button type="button" @click="mainTab = 'hr'"
-                            :class="mainTab === 'hr' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
+                            :class="mainTab === 'hr' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
                             class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
                         Personal ({{ isset($employeeContracts) ? $employeeContracts->count() : 0 }})
                     </button>
                     <button type="button" @click="mainTab = 'tasks'"
-                            :class="mainTab === 'tasks' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900'"
+                            :class="mainTab === 'tasks' ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'"
                             class="px-3.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 flex items-center gap-1.5">
                         <span>Aufgaben ({{ $openTaxTasksCount }})</span>
                         @if($openTaxTasksCount > 0)
-                            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                            <span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
                         @endif
                     </button>
                 </div>
             </div>
 
-            {{-- Rechts: Kompakte Filter passend zum Tab --}}
+            {{-- Rechts: Kompakte Filter passend zum Reiter --}}
             <div class="flex flex-wrap items-center gap-2">
                 <div x-show="mainTab === 'expenses'" class="flex flex-wrap items-center gap-2">
                     <div class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
@@ -247,12 +283,20 @@
                         </button>
                         <button type="button" wire:click="setReceiptStatusFilter('missing_receipt')"
                                 class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $receiptStatusFilter === 'missing_receipt' ? 'bg-rose-600 text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
-                            Fehlt ⚠️ ({{ $activeMonthData['missing_receipts_count'] }})
+                            Offen ({{ $activeMonthData['missing_receipts_count'] }})
                         </button>
                     </div>
                 </div>
 
-                <div x-show="mainTab === 'ustva'" class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
+                <div x-show="mainTab === 'assets'" x-cloak>
+                    <button type="button" wire:click="downloadAssetScheduleCsv"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/25 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer">
+                        <x-heroicon-o-arrow-down-tray class="w-3.5 h-3.5" />
+                        <span>Anlagenspiegel CSV</span>
+                    </button>
+                </div>
+
+                <div x-show="mainTab === 'ustva'" x-cloak class="inline-flex items-center bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800">
                     <button type="button" wire:click="setScopeFilter('all')"
                             class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $scopeFilter === 'all' ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
                         Alle
@@ -269,6 +313,7 @@
 
                 <div x-show="mainTab === 'invoices'" x-cloak>
                     <select wire:model.live="invoiceTypeFilter"
+                            aria-label="Belegart filtern"
                             class="bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-primary cursor-pointer">
                         <option value="">Alle Belegarten</option>
                         <option value="invoice">Ausgangsrechnungen</option>
@@ -294,7 +339,7 @@
             </div>
         </div>
 
-        {{-- TAB 1: AUSGABEN & BELEGE (Fixkosten + Sonderausgaben schlank in einer Ansicht) --}}
+        {{-- TAB 1: AUSGABEN & BELEGE --}}
         <div x-show="mainTab === 'expenses'">
             @if($fixedItemsDetailed->isEmpty() && $variableItemsDetailed->isEmpty())
                 <div class="p-6 rounded-2xl bg-gray-50 dark:bg-gray-950/50 border border-dashed border-gray-200 dark:border-gray-800 text-center">
@@ -308,8 +353,8 @@
                         <thead>
                             <tr class="border-b border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-widest text-gray-400">
                                 <th class="py-2.5 pr-4">Bezeichnung</th>
-                                <th class="py-2.5 px-3">Kategorie / Art</th>
-                                <th class="py-2.5 px-3 text-center">Zuordnung</th>
+                                <th class="py-2.5 px-3">Kategorie</th>
+                                <th class="py-2.5 px-3 text-center">Zuordnung / SKR03</th>
                                 <th class="py-2.5 px-3 text-right">Betrag (Brutto)</th>
                                 <th class="py-2.5 pl-4 text-right">Beleg / Vertrag</th>
                             </tr>
@@ -322,24 +367,29 @@
                                         <span class="font-bold text-gray-900 dark:text-white block">{{ $fItem['name'] }}</span>
                                         <span class="text-[11px] text-gray-400">
                                             Fixvertrag (alle {{ $fItem['interval_months'] }} Mon.)
-                                            @if(!$fItem['is_due_in_month']) &bull; In {{ $monthNamesShort[$selectedMonth] }} ruhend @endif
+                                            @if(!$fItem['is_due_in_month']) &bull; Im Zeitraum ruhend @endif
                                         </span>
                                     </td>
                                     <td class="py-3 px-3 whitespace-nowrap text-gray-500 dark:text-gray-400">
                                         {{ $fItem['group_name'] }}
                                     </td>
                                     <td class="py-3 px-3 text-center whitespace-nowrap">
-                                        @if($fItem['is_income'])
-                                            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Einnahme</span>
-                                        @elseif($fItem['is_business'])
-                                            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400">Gewerblich</span>
-                                        @else
-                                            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-500">Privat</span>
-                                        @endif
+                                        <div class="inline-flex items-center gap-1.5">
+                                            @if($fItem['is_income'])
+                                                <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Einnahme</span>
+                                            @elseif($fItem['is_business'])
+                                                <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400">Gewerblich</span>
+                                                @if(!empty($fItem['skr03_account']))
+                                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">Kto. {{ $fItem['skr03_account'] }}</span>
+                                                @endif
+                                            @else
+                                                <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-500">Privat</span>
+                                            @endif
+                                        </div>
                                     </td>
                                     <td class="py-3 px-3 text-right font-mono whitespace-nowrap">
                                         <span class="font-bold text-gray-900 dark:text-white block">{{ number_format($fItem['gross'], 2, ',', '.') }} €</span>
-                                        <span class="text-[10px] text-gray-400">{{ number_format($fItem['tax_rate'], 0) }} % MwSt.</span>
+                                        <span class="text-[10px] text-gray-400">{{ number_format($fItem['tax_rate'], 0) }} % USt.</span>
                                     </td>
                                     <td class="py-3 pl-4 text-right whitespace-nowrap">
                                         @if(!empty($fItem['contract_file_path']))
@@ -348,10 +398,10 @@
                                                 <x-heroicon-o-arrow-down-tray class="w-3.5 h-3.5" /> Vertrag
                                             </button>
                                         @elseif($fItem['is_business'])
-                                            <button type="button" wire:click="prefillNewTaskForMissingReceipt('{{ $fItem['name'] }}', '{{ number_format($fItem['gross'], 2, ',', '.') }}', 'Fixvertrag')"
-                                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 cursor-pointer"
+                                            <button type="button" wire:click="prefillNewTaskForMissingReceipt(@js($fItem['name']), @js(number_format($fItem['gross'], 2, ',', '.')), 'Fixvertrag')"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-[10px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300 cursor-pointer"
                                                     title="Rückfrage an Mandantin Alina zur Belegnachreichung erstellen">
-                                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-rose-600 shrink-0" />
                                                 <span>Beleg anfragen</span>
                                             </button>
                                         @else
@@ -365,10 +415,15 @@
                             @foreach($variableItemsDetailed as $vItem)
                                 <tr class="hover:bg-gray-50/70 dark:hover:bg-gray-950/40 transition-colors">
                                     <td class="py-3 pr-4">
-                                        <div class="flex items-center gap-2">
+                                        <div class="flex flex-wrap items-center gap-1.5">
                                             <span class="font-bold text-gray-900 dark:text-white block">{{ $vItem['title'] }}</span>
+                                            @if($vItem['is_capital_asset'] ?? false)
+                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-primary/15 text-primary border border-primary/25" title="Anlagegut > 800 € Netto (lineare AfA über Nutzungsdauer)">
+                                                    AfA-Anlagegut
+                                                </span>
+                                            @endif
                                             @if($vItem['is_uncategorized'] ?? false)
-                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25">
+                                                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25">
                                                     Zuordnung offen
                                                 </span>
                                             @endif
@@ -383,17 +438,22 @@
                                         {{ $vItem['category'] }}
                                     </td>
                                     <td class="py-3 px-3 text-center whitespace-nowrap">
-                                        @if($vItem['is_business'])
-                                            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400">Gewerblich</span>
-                                        @else
-                                            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-500">Privat</span>
-                                        @endif
+                                        <div class="inline-flex items-center gap-1.5">
+                                            @if($vItem['is_business'])
+                                                <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-blue-500/10 text-blue-700 dark:text-blue-400">Gewerblich</span>
+                                                @if(!empty($vItem['skr03_account']))
+                                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">Kto. {{ $vItem['skr03_account'] }}</span>
+                                                @endif
+                                            @else
+                                                <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-500">Privat</span>
+                                            @endif
+                                        </div>
                                     </td>
                                     <td class="py-3 px-3 text-right font-mono whitespace-nowrap">
                                         <span class="font-bold {{ $vItem['signed_gross'] >= 0 ? 'text-emerald-600' : 'text-gray-900 dark:text-white' }} block">
                                             {{ number_format($vItem['signed_gross'], 2, ',', '.') }} €
                                         </span>
-                                        <span class="text-[10px] text-gray-400">{{ number_format($vItem['tax_rate'], 0) }} % MwSt.</span>
+                                        <span class="text-[10px] text-gray-400">{{ number_format($vItem['tax_rate'], 0) }} % USt.</span>
                                     </td>
                                     <td class="py-3 pl-4 text-right whitespace-nowrap">
                                         @if(!empty($vItem['file_paths']))
@@ -407,10 +467,10 @@
                                                 @endforeach
                                             </div>
                                         @elseif($vItem['is_business'])
-                                            <button type="button" wire:click="prefillNewTaskForMissingReceipt('{{ $vItem['title'] }}', '{{ number_format($vItem['abs_gross'], 2, ',', '.') }}', '{{ $vItem['date'] }}')"
-                                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 cursor-pointer"
+                                            <button type="button" wire:click="prefillNewTaskForMissingReceipt(@js($vItem['title']), @js(number_format($vItem['abs_gross'], 2, ',', '.')), @js($vItem['date']))"
+                                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-[10px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300 cursor-pointer"
                                                     title="Rückfrage an Mandantin Alina zur Belegnachreichung erstellen">
-                                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                                <x-heroicon-s-exclamation-triangle class="w-3.5 h-3.5 text-rose-600 shrink-0" />
                                                 <span>Beleg anfragen</span>
                                             </button>
                                         @else
@@ -423,6 +483,116 @@
                     </table>
                 </div>
             @endif
+        </div>
+
+        {{-- TAB 1B: ANLAGEN & AfA (Anlage AVEÜR, GWG & § 7g IAB-Übersicht) --}}
+        <div x-show="mainTab === 'assets'" x-cloak class="space-y-5">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 block">Jahres-AfA ({{ $selectedYear }})</span>
+                    <span class="font-mono font-bold text-sm text-gray-900 dark:text-white mt-0.5 block">{{ number_format($assetSchedule['annual_afa'] ?? 0, 2, ',', '.') }} €</span>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 block">Monats-AfA (aktuell)</span>
+                    <span class="font-mono font-bold text-sm text-gray-900 dark:text-white mt-0.5 block">{{ number_format($assetSchedule['monthly_afa'] ?? 0, 2, ',', '.') }} €</span>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 block">Restbuchwert</span>
+                    <span class="font-mono font-bold text-sm text-primary mt-0.5 block">{{ number_format($assetSchedule['total_book_value'] ?? 0, 2, ',', '.') }} €</span>
+                </div>
+                <div class="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800">
+                    <span class="text-[9px] font-black uppercase tracking-widest text-gray-500 block">GWG Sofort ({{ $selectedYear }})</span>
+                    <span class="font-mono font-bold text-sm text-gray-900 dark:text-white mt-0.5 block">{{ number_format($assetSchedule['gwg_total_net'] ?? 0, 2, ',', '.') }} €</span>
+                </div>
+            </div>
+
+            {{-- Anlagegüter > 800 € Netto (SKR03 0440) --}}
+            <div>
+                <h3 class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2.5">
+                    Anlagevermögen (&gt; 800 € Netto &bull; SKR03 Kto. 0440 &bull; Lineare AfA)
+                </h3>
+                @if(empty($assetSchedule['assets']))
+                    <div class="p-5 rounded-2xl bg-gray-50 dark:bg-gray-950/50 border border-dashed border-gray-200 dark:border-gray-800 text-center text-xs text-gray-400">
+                        Keine aktivierungspflichtigen Anlagegüter bis zu diesem Stichtag vorhanden.
+                    </div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-xs">
+                            <thead>
+                                <tr class="border-b border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                                    <th class="py-2 pr-4">Wirtschaftsgut</th>
+                                    <th class="py-2 px-3">Kaufdatum</th>
+                                    <th class="py-2 px-3">AfA-Dauer</th>
+                                    <th class="py-2 px-3 text-right">Netto-AK</th>
+                                    <th class="py-2 px-3 text-right">Vorsteuer</th>
+                                    <th class="py-2 px-3 text-right">AfA {{ $selectedYear }}</th>
+                                    <th class="py-2 pl-3 text-right">Restbuchwert</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 dark:divide-gray-800/70">
+                                @foreach($assetSchedule['assets'] as $asset)
+                                    <tr>
+                                        <td class="py-2.5 pr-4 font-bold text-gray-900 dark:text-white">{{ $asset['title'] }}</td>
+                                        <td class="py-2.5 px-3 font-mono text-gray-500 whitespace-nowrap">{{ $asset['purchase_date'] }}</td>
+                                        <td class="py-2.5 px-3 whitespace-nowrap text-gray-500">{{ $asset['afa_years'] }} J. (bis {{ $asset['end_date'] }})</td>
+                                        <td class="py-2.5 px-3 text-right font-mono font-bold text-gray-900 dark:text-white whitespace-nowrap">{{ number_format($asset['net_cost'], 2, ',', '.') }} €</td>
+                                        <td class="py-2.5 px-3 text-right font-mono text-emerald-600 whitespace-nowrap">{{ number_format($asset['vat_amount'], 2, ',', '.') }} €</td>
+                                        <td class="py-2.5 px-3 text-right font-mono font-bold text-gray-900 dark:text-white whitespace-nowrap">{{ number_format($asset['year_afa'], 2, ',', '.') }} €</td>
+                                        <td class="py-2.5 pl-3 text-right font-mono font-bold text-primary whitespace-nowrap">{{ number_format($asset['book_value'], 2, ',', '.') }} €</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+
+            {{-- GWG 150-800 € Netto (SKR03 0480) & Geplante § 7g IAB-Investitionen --}}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-2.5">
+                        GWG-Verzeichnis § 6 Abs. 2 EStG (SKR03 Kto. 0480)
+                    </span>
+                    @forelse($assetSchedule['gwg_items'] ?? [] as $gwg)
+                        <div class="flex items-center justify-between py-2 border-b border-gray-200/70 dark:border-gray-800 last:border-0 text-xs">
+                            <div>
+                                <span class="font-bold text-gray-900 dark:text-white block">{{ $gwg['title'] }}</span>
+                                <span class="text-[10px] font-mono text-gray-400">{{ $gwg['purchase_date'] }}</span>
+                            </div>
+                            <div class="text-right font-mono">
+                                <span class="font-bold text-gray-900 dark:text-white block">{{ number_format($gwg['net_cost'], 2, ',', '.') }} € Netto</span>
+                                <span class="text-[10px] text-emerald-600">VSt: {{ number_format($gwg['vat_amount'], 2, ',', '.') }} €</span>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-xs text-gray-400">Keine GWG-Zugänge im gewählten Kalenderjahr.</p>
+                    @endforelse
+                </div>
+
+                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-2.5">
+                        Geplante Reinvestitionen (§ 7g EStG IAB-Vorschau)
+                    </span>
+                    @forelse($investmentPlans ?? [] as $plan)
+                        @php
+                            $netTarget = (float) $plan->target_amount_net;
+                            $iabMax = round($netTarget * 0.50, 2);
+                        @endphp
+                        <div class="flex items-center justify-between py-2 border-b border-gray-200/70 dark:border-gray-800 last:border-0 text-xs">
+                            <div>
+                                <span class="font-bold text-gray-900 dark:text-white block">{{ $plan->title }}</span>
+                                <span class="text-[10px] text-gray-400">Ziel: {{ $plan->target_date ? $plan->target_date->format('m/Y') : 'Flexibel' }} &bull; AfA {{ $plan->afa_years }} J.</span>
+                            </div>
+                            <div class="text-right font-mono">
+                                <span class="font-bold text-gray-900 dark:text-white block">{{ number_format($netTarget, 2, ',', '.') }} € Netto</span>
+                                <span class="text-[10px] text-primary font-bold">Max. IAB (50 %): {{ number_format($iabMax, 2, ',', '.') }} €</span>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-xs text-gray-400">Aktuell keine aktiven Investitionspläne hinterlegt.</p>
+                    @endforelse
+                </div>
+            </div>
         </div>
 
         {{-- TAB 2: RECHNUNGEN & GUTSCHRIFTEN --}}
@@ -463,7 +633,7 @@
                                         @if($inv->type === 'cancellation')
                                             <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-red-500/10 text-red-600">Storno</span>
                                         @elseif($inv->type === 'credit_note')
-                                            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500/10 text-amber-700">Gutschrift</span>
+                                            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-primary/15 text-primary">Gutschrift</span>
                                         @else
                                             <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Rechnung</span>
                                         @endif
@@ -507,7 +677,7 @@
                                 <tr class="hover:bg-gray-50/70 dark:hover:bg-gray-950/40 transition-colors">
                                     <td class="py-3 pr-4 font-mono font-bold text-gray-900 dark:text-white whitespace-nowrap">
                                         {{ $payout->credit_note_number }}
-                                        <span class="block text-[10px] font-sans font-semibold {{ $payout->status === 'paid' ? 'text-emerald-600' : 'text-amber-600' }}">
+                                        <span class="block text-[10px] font-sans font-semibold {{ $payout->status === 'paid' ? 'text-emerald-600' : 'text-primary' }}">
                                             {{ $payout->status === 'paid' ? 'Bezahlt' . ($payout->paid_at ? ' (' . $payout->paid_at->format('d.m.Y') . ')' : '') : 'Angefordert (Offen)' }}
                                         </span>
                                     </td>
@@ -515,7 +685,7 @@
                                         {{ $payout->created_at?->format('d.m.Y') ?? '—' }}
                                     </td>
                                     <td class="py-3 px-3 whitespace-nowrap">
-                                        <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-primary/15 text-primary-dark">Creator-Gutschrift</span>
+                                        <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-primary/15 text-primary">Creator-Gutschrift</span>
                                         <span class="block text-[10px] text-gray-400 mt-0.5">{{ $pTaxLabel }} &bull; {{ $pMethodLabel }}</span>
                                     </td>
                                     <td class="py-3 px-3">
@@ -544,39 +714,71 @@
             @endif
         </div>
 
-        {{-- TAB 3: UStVA-KENNZAHLEN & KOMPAKTE JAHRESÜBERSICHT --}}
+        {{-- TAB 3: UStVA-KENNZAHLEN, EÜR & JAHRESÜBERSICHT --}}
         <div x-show="mainTab === 'ustva'" x-cloak>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {{-- Links: Die 5 UStVA-Zeilen --}}
-                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 space-y-2.5">
-                    <span class="text-[10px] font-black uppercase tracking-widest text-primary block">
-                        ELSTER UStVA ({{ $monthNamesFull[$selectedMonth] }} {{ $selectedYear }})
-                    </span>
+                {{-- Links: ELSTER UStVA + EÜR-Abstimmung --}}
+                <div class="space-y-4">
+                    <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 space-y-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-primary block">
+                            ELSTER UStVA ({{ $activeMonthData['month_name'] }} {{ $selectedYear }})
+                        </span>
 
-                    <div class="flex justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800">
-                        <span class="text-gray-600 dark:text-gray-400">Steuerpfl. Umsätze {{ $formattedTaxRate }} % (Kz 81 Netto)</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white">{{ number_format($activeMonthData['revenue_net'], 2, ',', '.') }} €</span>
+                        <div class="flex justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800">
+                            <span class="text-gray-600 dark:text-gray-400">Steuerpfl. Umsätze 19 % (Kz 81: {{ number_format($activeMonthData['kz81_base'] ?? 0, 0, ',', '.') }} € Netto)</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white">{{ number_format($activeMonthData['vat_collected_19'] ?? $activeMonthData['vat_collected'], 2, ',', '.') }} €</span>
+                        </div>
+                        <div class="flex justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800">
+                            <span class="text-gray-600 dark:text-gray-400">Steuerpfl. Umsätze 7 % (Kz 86: {{ number_format($activeMonthData['kz86_base'] ?? 0, 0, ',', '.') }} € Netto)</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white">{{ number_format($activeMonthData['vat_collected_7'] ?? 0, 2, ',', '.') }} €</span>
+                        </div>
+                        <div class="flex justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800">
+                            <span class="text-gray-600 dark:text-gray-400">IG Erwerb / § 13b UStG (Kz 89 / Kz 46)</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white">{{ number_format($activeMonthData['ig_erwerb_tax'] + $activeMonthData['paragraph_13b_tax'], 2, ',', '.') }} €</span>
+                        </div>
+                        <div class="flex justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800">
+                            <span class="text-gray-600 dark:text-gray-400">Abziehbare Vorsteuer (Kz 66)</span>
+                            <span class="font-mono font-bold text-emerald-600">- {{ number_format($activeMonthData['vat_paid'], 2, ',', '.') }} €</span>
+                        </div>
+                        <div class="flex justify-between text-xs pt-1.5 font-bold">
+                            <span class="text-gray-900 dark:text-white">{{ $activeMonthData['zahllast'] < 0 ? 'Erstattungsanspruch (Kz 83)' : 'Verbleibende Zahllast (Kz 83)' }}</span>
+                            <span class="font-mono text-primary">{{ number_format($activeMonthData['zahllast'], 2, ',', '.') }} €</span>
+                        </div>
                     </div>
-                    <div class="flex justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800">
-                        <span class="text-gray-600 dark:text-gray-400">Umsatzsteuer (zu Kz 81)</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white">{{ number_format($activeMonthData['vat_collected'], 2, ',', '.') }} €</span>
-                    </div>
-                    <div class="flex justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800">
-                        <span class="text-gray-600 dark:text-gray-400">IG Erwerb / § 13b UStG (Kz 89 / Kz 46)</span>
-                        <span class="font-mono font-bold text-gray-900 dark:text-white">{{ number_format($activeMonthData['ig_erwerb_tax'] + $activeMonthData['paragraph_13b_tax'], 2, ',', '.') }} €</span>
-                    </div>
-                    <div class="flex justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800">
-                        <span class="text-gray-600 dark:text-gray-400">Abziehbare Vorsteuer (Kz 66)</span>
-                        <span class="font-mono font-bold text-emerald-600">- {{ number_format($activeMonthData['vat_paid'], 2, ',', '.') }} €</span>
-                    </div>
-                    <div class="flex justify-between text-xs pt-1.5 font-bold">
-                        <span class="text-gray-900 dark:text-white">Verbleibende Zahllast (Kz 83)</span>
-                        <span class="font-mono text-primary">{{ number_format($activeMonthData['zahllast'], 2, ',', '.') }} €</span>
+
+                    <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 space-y-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 block">
+                            EÜR-Abgrenzung ({{ $activeMonthData['month_name'] }})
+                        </span>
+                        <div class="flex justify-between text-xs py-1 border-b border-gray-200/70 dark:border-gray-800">
+                            <span class="text-gray-600 dark:text-gray-400">Betriebseinnahmen (Netto)</span>
+                            <span class="font-mono font-bold text-emerald-600">+ {{ number_format($activeMonthData['revenue_net'], 2, ',', '.') }} €</span>
+                        </div>
+                        <div class="flex justify-between text-xs py-1 border-b border-gray-200/70 dark:border-gray-800">
+                            <span class="text-gray-600 dark:text-gray-400">Laufende Betriebsausgaben (Netto)</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white">- {{ number_format($activeMonthData['operating_expenses_net'] ?? $activeMonthData['expenses_net'], 2, ',', '.') }} €</span>
+                        </div>
+                        <div class="flex justify-between text-xs py-1 border-b border-gray-200/70 dark:border-gray-800">
+                            <span class="text-gray-600 dark:text-gray-400">Planmäßige Abschreibung (AfA)</span>
+                            <span class="font-mono font-bold text-gray-900 dark:text-white">- {{ number_format($activeMonthData['depreciation_net'] ?? 0, 2, ',', '.') }} €</span>
+                        </div>
+                        @if(($activeMonthData['capital_additions_net'] ?? 0) > 0)
+                            <div class="flex justify-between text-xs py-1 border-b border-gray-200/70 dark:border-gray-800">
+                                <span class="text-gray-500">Aktivierte Anlagezugänge (SKR03 0440)</span>
+                                <span class="font-mono text-gray-500">{{ number_format($activeMonthData['capital_additions_net'], 2, ',', '.') }} €</span>
+                            </div>
+                        @endif
+                        <div class="flex justify-between text-xs pt-1 font-bold">
+                            <span class="text-gray-900 dark:text-white">Vorl. EÜR-Ergebnis</span>
+                            <span class="font-mono {{ ($activeMonthData['euer_profit'] ?? $activeMonthData['profit']) >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">
+                                {{ number_format($activeMonthData['euer_profit'] ?? $activeMonthData['profit'], 2, ',', '.') }} €
+                            </span>
+                        </div>
                     </div>
                 </div>
 
-                {{-- Rechts: Kompakte Jahresübersicht (Gewerbe & Privat) --}}
-                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 space-y-2">
+                {{-- Rechts: Kompakte Jahresübersicht --}}
+                <div class="p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 space-y-2 h-fit">
                     <div class="flex items-center justify-between">
                         <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">Jahressummen {{ $selectedYear }} ({{ $isNet ? 'Netto' : 'Brutto' }})</span>
                         <button type="button" wire:click="$toggle('isNet')" class="text-[10px] font-bold text-primary hover:underline cursor-pointer">
@@ -585,10 +787,7 @@
                     </div>
 
                     @foreach($yearlyMatrix['product_categories'] ?? [] as $catKey => $catData)
-                        @php
-                            $isBusinessCat = in_array($catKey, ['shop_income', 'fixed_business', 'special_business'], true);
-                        @endphp
-                        <div class="flex items-center justify-between text-xs py-1 border-b border-gray-200/70 dark:border-gray-800">
+                        <div class="flex items-center justify-between text-xs py-1.5 border-b border-gray-200/70 dark:border-gray-800 last:border-0">
                             <span class="text-gray-700 dark:text-gray-300 font-medium">{{ $catData['label'] }}</span>
                             <span class="font-mono font-bold {{ $catData['year_sum'] >= 0 ? 'text-emerald-600' : 'text-gray-900 dark:text-white' }}">
                                 {{ number_format($catData['year_sum'], 2, ',', '.') }} €
@@ -599,14 +798,14 @@
             </div>
         </div>
 
-        {{-- TAB 4: PERSONAL-STAMMBLÄTTER, STUNDENZETTEL & LOHNABRECHNUNGEN --}}
+        {{-- TAB 4: PERSONAL --}}
         <div x-show="mainTab === 'hr'" x-cloak>
-            <div class="mb-4 p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-primary/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="mb-4 p-3 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div class="flex items-center gap-2">
-                    <span class="text-gray-600 dark:text-gray-300">Gesamte Bruttolöhne ({{ $monthNamesShort[$selectedMonth] }}/{{ $selectedYear }}):</span>
+                    <span class="text-gray-600 dark:text-gray-300">Bruttolöhne ({{ $monthNamesShort[$selectedMonth] }}/{{ $selectedYear }}):</span>
                     <strong class="font-mono text-primary text-sm font-bold">{{ number_format($monthlyGrossSalariesCents / 100, 2, ',', '.') }} €</strong>
                 </div>
-                <span class="text-[11px] text-gray-500 font-semibold">{{ $employeeContracts->count() }} Personalakten registriert</span>
+                <span class="text-[11px] text-gray-500 font-semibold">{{ $employeeContracts->count() }} Personalakten</span>
             </div>
             <div class="divide-y divide-gray-100 dark:divide-gray-800">
                 @forelse($employeeContracts ?? [] as $empContract)
@@ -625,10 +824,10 @@
                                 </span>
                                 @if($empContract->is_archived)
                                     <span class="px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-800 text-[10px] font-bold text-gray-500">
-                                        Archiviert / Ausgeschieden
+                                        Archiviert
                                     </span>
                                 @elseif(!$empContract->is_active)
-                                    <span class="px-2 py-0.5 rounded bg-amber-500/15 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                                    <span class="px-2 py-0.5 rounded bg-primary/15 text-[10px] font-bold text-primary">
                                         Pausiert
                                     </span>
                                 @else
@@ -654,8 +853,8 @@
                                 @endif
                                 @if($mPayslip)
                                     <span>&bull;</span>
-                                    <span class="font-bold {{ $mPayslip->status === 'paid' ? 'text-emerald-600' : 'text-amber-600' }}">
-                                        {{ $mPayslip->status === 'paid' ? 'Überwiesen (' . ($mPayslip->paid_at?->format('d.m.Y') ?? 'Bezahlt') . ')' : 'Abrechnung erstellt (Offen)' }}
+                                    <span class="font-bold {{ $mPayslip->status === 'paid' ? 'text-emerald-600' : 'text-primary' }}">
+                                        {{ $mPayslip->status === 'paid' ? 'Überwiesen (' . ($mPayslip->paid_at?->format('d.m.Y') ?? 'Bezahlt') . ')' : 'Abrechnung offen' }}
                                     </span>
                                 @endif
                             </div>
@@ -690,20 +889,14 @@
             </div>
         </div>
 
-        {{-- TAB 5: KANZLEI-AUFGABEN & RÜCKFRAGEN (Direkter Kanal mit Mandantin Alina) --}}
+        {{-- TAB 5: KANZLEI-AUFGABEN & RÜCKFRAGEN --}}
         <div x-show="mainTab === 'tasks'" x-cloak>
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-5 border-b border-gray-100 dark:border-gray-800">
-                <div>
-                    <h3 class="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-white">
-                        Kanzlei-Rückfragen &amp; Aufgaben
-                    </h3>
-                    <span class="text-[11px] text-gray-400">
-                        Asynchroner Beleg- und Aufgabenabgleich mit Mandantin Alina Steinhauer
-                    </span>
-                </div>
+                <h3 class="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-white">
+                    Kanzlei-Rückfragen &amp; Aufgaben
+                </h3>
                 <button type="button" wire:click="toggleNewTaskForm"
-                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-black font-black uppercase tracking-wider text-[11px] shadow-sm hover:shadow-md transition-all cursor-pointer shrink-0">
-                    <x-heroicon-o-arrow-down-tray class="w-3.5 h-3.5 rotate-45" />
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-white font-black uppercase tracking-wider text-[11px] shadow-xs hover:bg-primary-dark transition-colors cursor-pointer shrink-0">
                     <span>{{ $showNewTaskForm ? 'Schließen' : 'Neue Rückfrage stellen' }}</span>
                 </button>
             </div>
@@ -713,9 +906,9 @@
                 <div class="mb-6 p-4 sm:p-5 rounded-2xl bg-gray-50/90 dark:bg-gray-950/70 border border-gray-200 dark:border-gray-800 space-y-4 animate-fade-in">
                     <div class="flex items-center justify-between pb-2.5 border-b border-gray-200/70 dark:border-gray-800">
                         <span class="text-xs font-black uppercase tracking-wider text-gray-900 dark:text-white">
-                            Neue Rückfrage oder To-Do an Mandantin
+                            Neue Rückfrage erfassen
                         </span>
-                        <button type="button" wire:click="toggleNewTaskForm" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        <button type="button" wire:click="toggleNewTaskForm" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer">
                             ✕
                         </button>
                     </div>
@@ -723,7 +916,7 @@
                     <form wire:submit="createTaxTask" class="space-y-3.5">
                         <div>
                             <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Betreff / Anliegen</label>
-                            <input type="text" wire:model="newTaskTitle" placeholder="z. B. Belegnachweis für Ausgabe vom 22.10.2026 benötigt"
+                            <input type="text" wire:model="newTaskTitle" placeholder="z. B. Belegnachweis benötigt"
                                    class="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white outline-none focus:border-primary">
                             @error('newTaskTitle') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
                         </div>
@@ -746,23 +939,23 @@
 
                         <div>
                             <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Details / Nachricht</label>
-                            <textarea wire:model="newTaskNote" rows="2" placeholder="Genaue Frage oder Erläuterung an die Mandantin..."
+                            <textarea wire:model="newTaskNote" rows="2" placeholder="Nachricht an Mandantin Alina Steinhauer..."
                                       class="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white outline-none focus:border-primary"></textarea>
                         </div>
 
                         <div>
-                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Dokument oder Formular anhängen</label>
+                            <label class="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">Dokument anhängen</label>
                             <input type="file" wire:model="newTaskUploads" multiple
                                    class="text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-gray-200 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-300 cursor-pointer">
                         </div>
 
                         <div class="flex items-center justify-end gap-2 pt-2">
                             <button type="button" wire:click="toggleNewTaskForm"
-                                    class="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-xs font-bold uppercase tracking-wider hover:bg-gray-100 dark:hover:bg-gray-800">
+                                    class="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-xs font-bold uppercase tracking-wider hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
                                 Abbrechen
                             </button>
                             <button type="submit" wire:loading.attr="disabled"
-                                    class="px-4 py-2 rounded-xl bg-primary text-black text-xs font-black uppercase tracking-wider shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50">
+                                    class="px-4 py-2 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-xs hover:bg-primary-dark transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer">
                                 <span wire:loading.remove wire:target="createTaxTask">Rückfrage übermitteln</span>
                                 <span wire:loading wire:target="createTaxTask">Speichere...</span>
                             </button>
@@ -775,8 +968,7 @@
             @if($taxTasks->isEmpty())
                 <div class="p-8 rounded-2xl bg-gray-50 dark:bg-gray-950/50 border border-dashed border-gray-200 dark:border-gray-800 text-center">
                     <x-heroicon-s-check-circle class="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-                    <p class="text-xs font-bold text-gray-700 dark:text-gray-300">Keine Rückfragen vorhanden</p>
-                    <p class="text-[11px] text-gray-400 mt-0.5">Alle steuerlichen Aufgaben sind aktuell vollständig abgearbeitet.</p>
+                    <p class="text-xs font-bold text-gray-700 dark:text-gray-300">Keine offenen Rückfragen</p>
                 </div>
             @else
                 <div class="space-y-3">
@@ -785,7 +977,7 @@
                             <div class="flex items-start justify-between gap-3">
                                 <div class="flex items-start gap-3">
                                     <button type="button" wire:click="toggleTaskComplete('{{ $task->id }}')"
-                                            class="mt-0.5 w-5 h-5 rounded-lg border {{ $task->is_completed ? 'bg-primary border-primary text-black' : 'border-gray-300 dark:border-gray-600 hover:border-primary' }} flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                                            class="mt-0.5 w-5 h-5 rounded-lg border {{ $task->is_completed ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-gray-600 hover:border-primary' }} flex items-center justify-center shrink-0 transition-colors cursor-pointer"
                                             title="{{ $task->is_completed ? 'Als offen markieren' : 'Als erledigt markieren' }}">
                                         @if($task->is_completed)
                                             <span class="text-xs font-black">✓</span>
@@ -859,25 +1051,25 @@
                                 <div class="mt-3.5 p-3.5 rounded-xl bg-gray-50/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-700 space-y-2.5 animate-fade-in">
                                     <div class="flex items-center justify-between">
                                         <span class="text-[10px] font-black uppercase tracking-wider text-gray-900 dark:text-white">
-                                            Antwort / Belegnachweis erfassen
+                                            Antwort erfassen
                                         </span>
-                                        <button type="button" wire:click="closeTaskResponse" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                        <button type="button" wire:click="closeTaskResponse" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer">
                                             ✕
                                         </button>
                                     </div>
                                     <textarea wire:model="taskResponseText" rows="2" placeholder="Nachricht an Mandantin Alina..."
                                               class="w-full px-3 py-2 rounded-xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 text-xs text-gray-900 dark:text-white outline-none focus:border-primary"></textarea>
                                     <div>
-                                        <label class="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">Weitere Datei anhängen</label>
+                                        <label class="block text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">Datei anhängen</label>
                                         <input type="file" wire:model="taskResponseUploads" multiple
                                                class="text-xs text-gray-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-gray-200 dark:file:bg-gray-800 file:text-gray-700 dark:file:text-gray-300 hover:file:bg-gray-300 cursor-pointer">
                                     </div>
                                     <div class="flex justify-end gap-2 pt-1">
-                                        <button type="button" wire:click="closeTaskResponse" class="px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
+                                        <button type="button" wire:click="closeTaskResponse" class="px-3 py-1.5 text-xs font-bold text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 cursor-pointer">
                                             Abbrechen
                                         </button>
                                         <button type="button" wire:click="submitTaskResponse('{{ $task->id }}')" wire:loading.attr="disabled"
-                                                class="px-3.5 py-1.5 rounded-xl bg-primary text-black text-xs font-black uppercase tracking-wider shadow-sm disabled:opacity-50">
+                                                class="px-3.5 py-1.5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-xs disabled:opacity-50 cursor-pointer">
                                             <span wire:loading.remove wire:target="submitTaskResponse">Antwort speichern</span>
                                             <span wire:loading wire:target="submitTaskResponse">Speichere...</span>
                                         </button>
@@ -890,7 +1082,7 @@
             @endif
         </div>
 
-        {{-- Unten mittig: Dezenter Button "Erklärung anzeigen" (wie im Influencer-Dashboard) --}}
+        {{-- Unten mittig: Dezenter Button "Erklärung anzeigen" --}}
         <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800/80 flex justify-center">
             <button type="button" @click="showExplanation = !showExplanation"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors cursor-pointer">
@@ -902,7 +1094,7 @@
             </button>
         </div>
 
-        {{-- Ausklappbare Zusatzinfos (Mandanten-Anschrift, Tresor-Archive & SKR03-Hinweise) --}}
+        {{-- Ausklappbare Zusatzinfos (Mandanten-Anschrift, SKR03-Kontenplan & Tresor-Archive) --}}
         <div x-show="showExplanation" x-cloak x-transition class="mt-4 p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/60 border border-gray-200 dark:border-gray-800 text-xs text-gray-600 dark:text-gray-400 space-y-3 leading-relaxed">
             <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-gray-200/70 dark:border-gray-800">
                 <div>
@@ -914,8 +1106,9 @@
             </div>
 
             <ul class="list-disc pl-4 space-y-1">
-                <li><strong>Gewerblich vs. Privat:</strong> Nur als <em>Gewerblich</em> gekennzeichnete Positionen fließen in die Vorsteuer (Kz 66) und den DATEV-Buchungsstapel ein.</li>
-                <li><strong>SKR03-Vorkontierung:</strong> Shop-Erlöse `1200` an `8400`, gewerbliche Ausgaben `4900` an `1200`.</li>
+                <li><strong>Strikt getrennte Exporte:</strong> Alle DATEV-, UStVA- und Finanzbericht-ZIPs enthalten ausschließlich <em>gewerbliche</em> Vorgänge und Belege (keine privaten Haushaltsbuchungen).</li>
+                <li><strong>SKR03-Vorkontierung &amp; BU-Schlüssel:</strong> Erlöse auf <code>8400</code> (19 %), <code>8300</code> (7 %) bzw. <code>8195</code> (§ 19 UStG); Ausgaben auf <code>0440</code> (Maschinen &gt; 800 € Netto), <code>0480</code> (GWG ≤ 800 € Netto), <code>3400</code> (Wareneingang), <code>4360</code> (Versicherungen), <code>4390</code> (Gebühren), <code>4600</code> (Werbung/Creator), <code>4710</code> (Verpackung), <code>4964</code> (EDV/Hosting), <code>4980</code> (Betriebsbedarf) und <code>4900</code> inkl. BU-Schlüssel <code>9</code> (19 %) bzw. <code>8</code> (7 %).</li>
+                <li><strong>Anlagenspiegel (AVEÜR):</strong> Jedes Komplettpaket (ZIP) enthält zusätzlich eine <code>Anlagenspiegel_und_AfA_{{ $selectedYear }}.csv</code> mit linearer Abschreibung, GWG und geplanten § 7g EStG Positionen.</li>
             </ul>
 
             @if(count($archivedExports) > 0)

@@ -24,69 +24,111 @@ class FinancialService
         return $isNet ? ($total - $tax) : $total;
     }
 
-    public function getMonthlyStats($adminId, $month, $year, $isNet = false)
+    public function filterNonDuplicateBankTransactions($bankTxs, $specialIssues)
     {
-        // 1. Fixkosten (Bleibt wie gehabt)
+        if ($bankTxs->isEmpty()) {
+            return collect();
+        }
+
+        return $bankTxs->filter(function ($tx) use ($specialIssues) {
+            if (!empty($tx->accounting_cost_item_id) || !empty($tx->accounting_special_issue_id)) {
+                return false;
+            }
+            $txAmount = round((float) $tx->amount, 2);
+            $txDate = $tx->transaction_date ? Carbon::parse($tx->transaction_date) : null;
+
+            foreach ($specialIssues as $special) {
+                if (round((float) $special->amount, 2) === $txAmount) {
+                    if (!$txDate || !$special->execution_date) {
+                        return false;
+                    }
+                    if (abs($txDate->diffInDays(Carbon::parse($special->execution_date))) <= 7) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        })->values();
+    }
+
+    public function getMonthlyStats($adminId, $month, $year, $isNet = false, string $scope = 'all')
+    {
+        $scope = in_array($scope, ['all', 'business', 'private'], true) ? $scope : 'all';
+
+        // 1. Fixkosten sauber getrennt nach Gewerbe & Privat
         $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
-        $fixedIncome = 0;
-        $fixedExpenses = 0;
+        $fixedIncomeBiz = 0.0;
+        $fixedIncomePriv = 0.0;
+        $fixedExpensesBiz = 0.0;
+        $fixedExpensesPriv = 0.0;
 
         foreach ($groups as $group) {
             $isIncome = ($group->type === 'income');
             foreach ($group->items as $item) {
                 if ($this->isDueInMonth($item, $month, $year)) {
-                    $amount = $item->amount;
-                    if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
+                    $amount = (float) $item->amount;
+                    if ($isNet && $item->is_business && isset($item->tax_rate) && $item->tax_rate > 0) {
                         $amount = $amount / (1 + ($item->tax_rate / 100));
                     }
                     if ($isIncome) {
-                        $fixedIncome += abs($amount);
+                        if ($item->is_business) {
+                            $fixedIncomeBiz += abs($amount);
+                        } else {
+                            $fixedIncomePriv += abs($amount);
+                        }
                     } else {
-                        $fixedExpenses += -abs($amount);
+                        if ($item->is_business) {
+                            $fixedExpensesBiz += -abs($amount);
+                        } else {
+                            $fixedExpensesPriv += -abs($amount);
+                        }
                     }
                 }
             }
         }
 
-        // 2. Sonderausgaben (Variable Kosten) - KORRIGIERTE LOGIK: Netto-Betrachtung
+        // 2. Sonderausgaben getrennt nach Gewerbe & Privat
         $specialIssues = AccountingSpecialIssue::where('admin_id', $adminId)
             ->whereYear('execution_date', $year)
             ->whereMonth('execution_date', $month)
             ->get();
 
-        // Wir summieren ALLES zusammen. Positive Werte (Rückzahlungen) reduzieren automatisch die negativen Werte.
-        $netSpecialSum = 0;
+        $netSpecialBiz = 0.0;
+        $netSpecialPriv = 0.0;
         foreach ($specialIssues as $special) {
-            $amount = $special->amount;
-            if ($isNet && isset($special->tax_rate) && $special->tax_rate > 0) {
+            $amount = (float) $special->amount;
+            if ($isNet && $special->is_business && isset($special->tax_rate) && $special->tax_rate > 0) {
                 $amount = $amount / (1 + ($special->tax_rate / 100));
             }
-            $netSpecialSum += $amount;
+            if ($special->is_business) {
+                $netSpecialBiz += $amount;
+            } else {
+                $netSpecialPriv += $amount;
+            }
         }
-        
-        $bankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
-            ? \App\Models\Accounting\AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+
+        $rawBankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
+            ? \App\Models\Accounting\AccountingBankTransaction::with('account')
+                ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('accounting_category_id')
+                ->whereNull('accounting_cost_item_id')
                 ->whereYear('transaction_date', $year)
                 ->whereMonth('transaction_date', $month)
                 ->get()
             : collect();
-            
+
+        $bankTxs = $this->filterNonDuplicateBankTransactions($rawBankTxs, $specialIssues);
         foreach ($bankTxs as $tx) {
-            $netSpecialSum += $tx->amount;
+            $isTxBiz = (bool) ($tx->is_business ?? ($tx->account ? $tx->account->is_business : false));
+            if ($isTxBiz) {
+                $netSpecialBiz += (float) $tx->amount;
+            } else {
+                $netSpecialPriv += (float) $tx->amount;
+            }
         }
 
-        $specialExpenses = 0;
-        $specialIncome = 0;
-
-        // Wir weisen das Netto-Ergebnis der korrekten Seite zu
-        if ($netSpecialSum < 0) {
-            $specialExpenses = $netSpecialSum; // z.B. -4.00
-        } else {
-            $specialIncome = $netSpecialSum;   // z.B. +5.00 (falls man Plus gemacht hat)
-        }
-
-        // 3. Shop Umsätze (Basis: Rechnungen statt Bestellungen)
+        // 3. Shop Umsätze (Basis: Rechnungen)
         $shopInvoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
             ->whereMonth('invoice_date', $month)
             ->whereIn('status', ['paid', 'cancelled'])
@@ -95,27 +137,49 @@ class FinancialService
             ->get(['type', 'total', 'tax_amount']);
 
         $shopRevenue = $shopInvoices->sum(fn($inv) => self::signedInvoiceCents($inv, (bool) $isNet));
+        $shopIncome = $shopRevenue / 100;
 
-        $shopIncome = $shopRevenue / 100; // Umrechnung Cent -> Euro
+        $buildBucket = function (float $fixIn, float $fixEx, float $netSpec, float $shopIn): array {
+            $specEx = $netSpec < 0 ? $netSpec : 0.0;
+            $specIn = $netSpec >= 0 ? $netSpec : 0.0;
+            $budget = round($fixIn + $specIn + $shopIn, 2);
+            $spent = round($fixEx + $specEx, 2);
 
-        // 4. Totals berechnen
-        // $specialExpenses ist bereits negativ, daher addieren wir es einfach (+ minus = minus).
-        $totalBudget = $fixedIncome + $specialIncome + $shopIncome;
-        $totalSpent = $fixedExpenses + $specialExpenses;
+            return [
+                'fixed_income' => round($fixIn, 2),
+                'fixed_expenses' => round($fixEx, 2),
+                'special_income' => round($specIn, 2),
+                'special_expenses' => round($specEx, 2),
+                'shop_income' => round($shopIn, 2),
+                'total_budget' => $budget,
+                'total_spent' => $spent,
+                'available' => round($budget + $spent, 2),
+            ];
+        };
 
-        // Verfügbar: Einnahmen (pos) + Ausgaben (neg)
-        $available = $totalBudget + $totalSpent;
+        $bizBucket = $buildBucket($fixedIncomeBiz, $fixedExpensesBiz, $netSpecialBiz, $shopIncome);
+        $privBucket = $buildBucket($fixedIncomePriv, $fixedExpensesPriv, $netSpecialPriv, 0.0);
+        $allBucket = $buildBucket(
+            $fixedIncomeBiz + $fixedIncomePriv,
+            $fixedExpensesBiz + $fixedExpensesPriv,
+            $netSpecialBiz + $netSpecialPriv,
+            $shopIncome
+        );
 
-        return [
-            'fixed_income' => $fixedIncome,
-            'fixed_expenses' => $fixedExpenses,
-            'special_income' => $specialIncome,     // Wird meistens 0 sein, es sei denn Netto-Plus
-            'special_expenses' => $specialExpenses, // Dies ist nun der korrekt verrechnete Wert (z.B. -4,13)
-            'shop_income' => $shopIncome,
-            'total_budget' => $totalBudget,
-            'total_spent' => $totalSpent,
-            'available' => $available
+        $selectedBucket = match ($scope) {
+            'business' => $bizBucket,
+            'private' => $privBucket,
+            default => $allBucket,
+        };
+
+        $selectedBucket['scope'] = $scope;
+        $selectedBucket['breakdown'] = [
+            'business' => $bizBucket,
+            'private' => $privBucket,
+            'all' => $allBucket,
         ];
+
+        return $selectedBucket;
     }
 
     public function resolveMandantAdminId($adminId = null): ?string
@@ -162,30 +226,53 @@ class FinancialService
         return ($diff % $interval) === 0;
     }
 
-    public function getYearlyMatrix($adminId, $year, $isNet = false)
+    public function getYearlyMatrix($adminId, $year, $isNet = false, string $scope = 'all')
     {
-        $structure = [
-            'income' => ['label' => 'Einnahmen (Fix)', 'color' => 'text-emerald-600', 'bg' => 'bg-emerald-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
-            'shop_income' => ['label' => 'Shop Umsätze', 'color' => 'text-teal-600', 'bg' => 'bg-teal-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
-            'fixed_private' => ['label' => 'Fixkosten (Privat)', 'color' => 'text-rose-500', 'bg' => 'bg-rose-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
-            'fixed_business' => ['label' => 'Fixkosten (Gewerbe)', 'color' => 'text-blue-500', 'bg' => 'bg-blue-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
-            'special_private' => ['label' => 'Variabel (Privat)', 'color' => 'text-orange-500', 'bg' => 'bg-orange-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
-            'special_business' => ['label' => 'Variabel (Gewerbe)', 'color' => 'text-indigo-500', 'bg' => 'bg-indigo-400', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
+        $scope = in_array($scope, ['all', 'business', 'private'], true) ? $scope : 'all';
+
+        $allCategories = [
+            'income' => ['label' => 'Einnahmen (Fix)', 'color' => 'text-emerald-600 dark:text-emerald-400', 'bg' => 'bg-emerald-500', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
+            'shop_income' => ['label' => 'Shop Umsätze', 'color' => 'text-teal-600 dark:text-teal-400', 'bg' => 'bg-teal-500', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
+            'fixed_private' => ['label' => 'Fixkosten (Privat)', 'color' => 'text-rose-600 dark:text-rose-400', 'bg' => 'bg-rose-500', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
+            'fixed_business' => ['label' => 'Fixkosten (Gewerbe)', 'color' => 'text-blue-600 dark:text-blue-400', 'bg' => 'bg-blue-500', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
+            'special_private' => ['label' => 'Variabel (Privat)', 'color' => 'text-orange-600 dark:text-orange-400', 'bg' => 'bg-orange-500', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
+            'special_business' => ['label' => 'Variabel (Gewerbe)', 'color' => 'text-indigo-600 dark:text-indigo-400', 'bg' => 'bg-indigo-500', 'months' => array_fill(1, 12, 0), 'year_sum' => 0, 'items' => []],
         ];
+
+        $allowedKeys = match ($scope) {
+            'business' => ['shop_income', 'fixed_business', 'special_business'],
+            'private' => ['income', 'fixed_private', 'special_private'],
+            default => array_keys($allCategories),
+        };
+
+        $structure = array_intersect_key($allCategories, array_flip($allowedKeys));
 
         // 1. Fixkosten
         $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
         foreach ($groups as $group) {
             $isIncome = ($group->type === 'income');
             foreach ($group->items as $item) {
-                $catKey = $isIncome ? 'income' : ($item->is_business ? 'fixed_business' : 'fixed_private');
+                if ($scope === 'business' && !$item->is_business) {
+                    continue;
+                }
+                if ($scope === 'private' && $item->is_business) {
+                    continue;
+                }
+
+                $catKey = $isIncome
+                    ? ($scope === 'business' ? 'shop_income' : 'income')
+                    : ($item->is_business ? 'fixed_business' : 'fixed_private');
+
+                if (!isset($structure[$catKey])) {
+                    continue;
+                }
 
                 $itemRow = ['name' => $item->name . ' (' . $group->name . ')', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
 
                 for ($m = 1; $m <= 12; $m++) {
                     if ($this->isDueInMonth($item, $m, $year)) {
-                        $amount = $item->amount;
-                        if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
+                        $amount = (float) $item->amount;
+                        if ($isNet && $item->is_business && isset($item->tax_rate) && $item->tax_rate > 0) {
                             $amount = $amount / (1 + ($item->tax_rate / 100));
                         }
                         $amount = $isIncome ? abs($amount) : -abs($amount);
@@ -202,30 +289,25 @@ class FinancialService
 
         // 2. Sonderausgaben (Variable Kosten)
         $specials = AccountingSpecialIssue::where('admin_id', $adminId)->whereYear('execution_date', $year)->get();
-        $bankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
+        $rawBankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
             ? \App\Models\Accounting\AccountingBankTransaction::with(['account', 'financeCategory'])
                 ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('accounting_category_id')
+                ->whereNull('accounting_cost_item_id')
                 ->whereYear('transaction_date', $year)
                 ->get()
             : collect();
+        $bankTxs = $this->filterNonDuplicateBankTransactions($rawBankTxs, $specials);
 
         foreach ($specials as $special) {
-            $m = $special->execution_date->month;
-
-            // KORREKTUR: Positive Beträge (Rückerstattungen) bleiben in ihrer Kategorie,
-            // damit sie die Kosten dort reduzieren und nicht als allgemeine Einnahme gelten.
-            if ($special->is_business) {
-                $catKey = 'special_business';
-            } else {
-                // Wenn es privat ist, landet es bei special_private (auch wenn positiv, z.B. Rückzahlung)
-                // Ausnahme: Wenn man es explizit als Einnahme will, müsste man die Logik hier ändern,
-                // aber für "Sonderausgaben soll sich reduzieren" ist dies korrekt.
-                $catKey = 'special_private';
+            $catKey = $special->is_business ? 'special_business' : 'special_private';
+            if (!isset($structure[$catKey])) {
+                continue;
             }
 
-            $amount = $special->amount;
-            if ($isNet && isset($special->tax_rate) && $special->tax_rate > 0) {
+            $m = $special->execution_date->month;
+            $amount = (float) $special->amount;
+            if ($isNet && $special->is_business && isset($special->tax_rate) && $special->tax_rate > 0) {
                 $amount = $amount / (1 + ($special->tax_rate / 100));
             }
 
@@ -241,11 +323,14 @@ class FinancialService
         }
 
         foreach ($bankTxs as $tx) {
-            $m = \Carbon\Carbon::parse($tx->transaction_date)->month;
-            $isBusiness = $tx->is_business ?? ($tx->account ? $tx->account->is_business : false);
+            $isBusiness = (bool) ($tx->is_business ?? ($tx->account ? $tx->account->is_business : false));
             $catKey = $isBusiness ? 'special_business' : 'special_private';
+            if (!isset($structure[$catKey])) {
+                continue;
+            }
 
-            $amount = $tx->amount;
+            $m = \Carbon\Carbon::parse($tx->transaction_date)->month;
+            $amount = (float) $tx->amount;
 
             $structure[$catKey]['months'][$m] += $amount;
             $structure[$catKey]['year_sum'] += $amount;
@@ -259,24 +344,26 @@ class FinancialService
         }
 
         // 3. Shop (Basis: Rechnungen)
-        $shopInvoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
-            ->whereIn('status', ['paid', 'cancelled'])
-            ->whereNotNull('paid_at')
-            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
-            ->get(['invoice_date', 'type', 'total', 'tax_amount']);
+        if (isset($structure['shop_income'])) {
+            $shopInvoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
+                ->whereIn('status', ['paid', 'cancelled'])
+                ->whereNotNull('paid_at')
+                ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+                ->get(['invoice_date', 'type', 'total', 'tax_amount']);
 
-        $shopRow = ['name' => 'Online Shop', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
-        foreach($shopInvoices as $inv) {
-            $m = (int) $inv->invoice_date->month;
-            $amount = self::signedInvoiceCents($inv, (bool) $isNet) / 100;
+            $shopRow = ['name' => 'Online Shop', 'months' => array_fill(1, 12, 0), 'year_sum' => 0];
+            foreach ($shopInvoices as $inv) {
+                $m = (int) $inv->invoice_date->month;
+                $amount = self::signedInvoiceCents($inv, (bool) $isNet) / 100;
 
-            $structure['shop_income']['months'][$m] += $amount;
-            $structure['shop_income']['year_sum'] += $amount;
+                $structure['shop_income']['months'][$m] += $amount;
+                $structure['shop_income']['year_sum'] += $amount;
 
-            $shopRow['months'][$m] += $amount;
-            $shopRow['year_sum'] += $amount;
+                $shopRow['months'][$m] += $amount;
+                $shopRow['year_sum'] += $amount;
+            }
+            $structure['shop_income']['items'][] = $shopRow;
         }
-        $structure['shop_income']['items'][] = $shopRow;
 
         // Totals
         $totals = ['months' => array_fill(1, 12, 0), 'year_sum' => 0];
@@ -290,28 +377,49 @@ class FinancialService
         return ['product_categories' => $structure, 'totals' => $totals];
     }
 
-    public function getPieChartData($adminId, $from, $to)
+    public function getPieChartData($adminId, $from, $to, string $scope = 'all')
     {
-        $specialsData = AccountingSpecialIssue::where('admin_id', $adminId)
+        $scope = in_array($scope, ['all', 'business', 'private'], true) ? $scope : 'all';
+
+        $specialsQuery = AccountingSpecialIssue::where('admin_id', $adminId)
             ->whereBetween('execution_date', [$from, $to])
-            ->where('amount', '<', 0) // Pie Chart zeigt nur echte Ausgabenverteilung
+            ->where('amount', '<', 0);
+
+        if ($scope === 'business') {
+            $specialsQuery->where('is_business', true);
+        } elseif ($scope === 'private') {
+            $specialsQuery->where('is_business', false);
+        }
+
+        $specialsRaw = (clone $specialsQuery)->get();
+        $specialsData = $specialsQuery
             ->select('category', DB::raw('SUM(ABS(amount)) as total'))
             ->groupBy('category')
             ->get();
 
-        $bankTxData = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
-            ? \App\Models\Accounting\AccountingBankTransaction::with('financeCategory')
+        $rawBankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
+            ? \App\Models\Accounting\AccountingBankTransaction::with(['account', 'financeCategory'])
                 ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('accounting_category_id')
+                ->whereNull('accounting_cost_item_id')
                 ->whereBetween('transaction_date', [$from, $to])
                 ->where('amount', '<', 0)
                 ->get()
-                ->groupBy(fn($tx) => $tx->financeCategory ? $tx->financeCategory->name : 'Sonstiges')
-                ->map(fn($group, $key) => (object)['category' => $key, 'total' => $group->sum(fn($tx) => abs($tx->amount))])
-                ->values()
             : collect();
 
-        // Merge two collections and group
+        $bankTxData = $this->filterNonDuplicateBankTransactions($rawBankTxs, $specialsRaw)
+            ->filter(function ($tx) use ($scope) {
+                if ($scope === 'all') {
+                    return true;
+                }
+                $isBiz = (bool) ($tx->is_business ?? ($tx->account ? $tx->account->is_business : false));
+
+                return $scope === 'business' ? $isBiz : !$isBiz;
+            })
+            ->groupBy(fn($tx) => $tx->financeCategory ? $tx->financeCategory->name : 'Sonstiges')
+            ->map(fn($group, $key) => (object)['category' => $key, 'total' => $group->sum(fn($tx) => abs($tx->amount))])
+            ->values();
+
         $merged = $specialsData->concat($bankTxData)
             ->groupBy('category')
             ->map(fn($group, $key) => (object)['category' => $key, 'total' => $group->sum('total')])
@@ -324,8 +432,9 @@ class FinancialService
         ];
     }
 
-    public function getBarChartData($adminId, $from, $to, $isNet = false)
+    public function getBarChartData($adminId, $from, $to, $isNet = false, string $scope = 'all')
     {
+        $scope = in_array($scope, ['all', 'business', 'private'], true) ? $scope : 'all';
         $days = [];
         $start = Carbon::parse($from)->startOfDay();
         $end = Carbon::parse($to)->endOfDay();
@@ -342,32 +451,41 @@ class FinancialService
         $isMonthly = $diff > 32;
 
         $current = $start->copy();
-        while($current <= $end) {
+        while ($current <= $end) {
             $key = $isMonthly ? $current->format('Y-m') : $current->format('Y-m-d');
             $label = $isMonthly ? $current->format('M Y') : $current->format('d.m.');
 
-            if(!isset($days[$key])) $days[$key] = ['label' => $label, 'income' => 0, 'expense' => 0];
+            if (!isset($days[$key])) {
+                $days[$key] = ['label' => $label, 'income' => 0, 'expense' => 0];
+            }
 
             $isMonthly ? $current->addMonth() : $current->addDay();
         }
 
         // Fixkosten
         $groups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
-        foreach($groups as $group) {
-            foreach($group->items as $item) {
+        foreach ($groups as $group) {
+            foreach ($group->items as $item) {
+                if ($scope === 'business' && !$item->is_business) {
+                    continue;
+                }
+                if ($scope === 'private' && $item->is_business) {
+                    continue;
+                }
+
                 $dayOfMonth = $item->first_payment_date->day;
 
-                foreach($days as $dateKey => &$val) {
+                foreach ($days as $dateKey => &$val) {
                     $dateObj = $isMonthly
                         ? Carbon::createFromFormat('Y-m', $dateKey)->startOfMonth()
                         : Carbon::createFromFormat('Y-m-d', $dateKey);
 
                     if ($this->isDueInMonth($item, $dateObj->month, $dateObj->year)) {
-                        $amount = $item->amount;
-                        if ($isNet && isset($item->tax_rate) && $item->tax_rate > 0) {
+                        $amount = (float) $item->amount;
+                        if ($isNet && $item->is_business && isset($item->tax_rate) && $item->tax_rate > 0) {
                             $amount = $amount / (1 + ($item->tax_rate / 100));
                         }
-                        
+
                         $isIncome = ($group->type === 'income');
                         if (!$isMonthly) {
                             $effectiveDay = min((int) $dayOfMonth, (int) $dateObj->daysInMonth);
@@ -383,49 +501,68 @@ class FinancialService
         }
 
         // Variable (Specials)
-        $specials = AccountingSpecialIssue::where('admin_id', $adminId)->whereBetween('execution_date', [$start, $end])->get();
-        foreach($specials as $special) {
+        $specialsQuery = AccountingSpecialIssue::where('admin_id', $adminId)->whereBetween('execution_date', [$start, $end]);
+        if ($scope === 'business') {
+            $specialsQuery->where('is_business', true);
+        } elseif ($scope === 'private') {
+            $specialsQuery->where('is_business', false);
+        }
+        $specials = $specialsQuery->get();
+
+        foreach ($specials as $special) {
             $key = $isMonthly ? $special->execution_date->format('Y-m') : $special->execution_date->format('Y-m-d');
-            if(isset($days[$key])) {
-                $amount = $special->amount;
-                if ($isNet && isset($special->tax_rate) && $special->tax_rate > 0) {
+            if (isset($days[$key])) {
+                $amount = (float) $special->amount;
+                if ($isNet && $special->is_business && isset($special->tax_rate) && $special->tax_rate > 0) {
                     $amount = $amount / (1 + ($special->tax_rate / 100));
                 }
                 $this->addToChartData($days[$key], $amount);
             }
         }
-        
-        $bankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
-            ? \App\Models\Accounting\AccountingBankTransaction::whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+
+        $rawBankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
+            ? \App\Models\Accounting\AccountingBankTransaction::with('account')
+                ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
                 ->whereNotNull('accounting_category_id')
+                ->whereNull('accounting_cost_item_id')
                 ->whereBetween('transaction_date', [$start, $end])
                 ->get()
             : collect();
 
-        foreach($bankTxs as $tx) {
+        $bankTxs = $this->filterNonDuplicateBankTransactions($rawBankTxs, $specials);
+        foreach ($bankTxs as $tx) {
+            $isTxBiz = (bool) ($tx->is_business ?? ($tx->account ? $tx->account->is_business : false));
+            if ($scope === 'business' && !$isTxBiz) {
+                continue;
+            }
+            if ($scope === 'private' && $isTxBiz) {
+                continue;
+            }
+
             $date = \Carbon\Carbon::parse($tx->transaction_date);
             $key = $isMonthly ? $date->format('Y-m') : $date->format('Y-m-d');
-            if(isset($days[$key])) {
-                $this->addToChartData($days[$key], $tx->amount);
+            if (isset($days[$key])) {
+                $this->addToChartData($days[$key], (float) $tx->amount);
             }
         }
 
-        // Shop Invoices (anstatt Orders)
-        $invoices = \App\Models\Accounting\AccountingInvoice::whereBetween('invoice_date', [$start, $end])
-            ->whereIn('status', ['paid', 'cancelled'])
-            ->whereNotNull('paid_at')
-            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
-            ->get();
+        // Shop Invoices (nur bei Gewerbe oder Gesamt)
+        if ($scope !== 'private') {
+            $invoices = \App\Models\Accounting\AccountingInvoice::whereBetween('invoice_date', [$start, $end])
+                ->whereIn('status', ['paid', 'cancelled'])
+                ->whereNotNull('paid_at')
+                ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+                ->get();
 
-        foreach($invoices as $invoice) {
-            $key = $isMonthly ? $invoice->invoice_date->format('Y-m') : $invoice->invoice_date->format('Y-m-d');
-            if(isset($days[$key])) {
-                $amountEuro = self::signedInvoiceCents($invoice, (bool) $isNet) / 100;
-                // Positive Beträge (Einnahmen) zu income, negative (Stornos) zu expense
-                if ($amountEuro >= 0) {
-                    $days[$key]['income'] += $amountEuro;
-                } else {
-                    $days[$key]['expense'] += abs($amountEuro);
+            foreach ($invoices as $invoice) {
+                $key = $isMonthly ? $invoice->invoice_date->format('Y-m') : $invoice->invoice_date->format('Y-m-d');
+                if (isset($days[$key])) {
+                    $amountEuro = self::signedInvoiceCents($invoice, (bool) $isNet) / 100;
+                    if ($amountEuro >= 0) {
+                        $days[$key]['income'] += $amountEuro;
+                    } else {
+                        $days[$key]['expense'] += abs($amountEuro);
+                    }
                 }
             }
         }
@@ -449,83 +586,142 @@ class FinancialService
         }
     }
 
-    public function generateTaxExport($adminId, $month, $year)
-    {
+    public function generateTaxExport(
+        $adminId,
+        $month,
+        $year,
+        string $scope = 'business',
+        ?array $monthsOverride = null,
+        ?string $periodSlug = null
+    ) {
         $month = max(1, min(12, (int) $month));
         $year = max(2000, min(2100, (int) $year));
+        $scope = in_array($scope, ['all', 'business', 'private'], true) ? $scope : 'business';
+        $resolvedAdminId = $this->resolveMandantAdminId($adminId) ?: $adminId;
 
-        $specials = AccountingSpecialIssue::where('admin_id', $adminId)
+        $monthsInPeriod = !empty($monthsOverride)
+            ? array_values(array_unique(array_map(fn ($m) => max(1, min(12, (int) $m)), $monthsOverride)))
+            : [$month];
+        sort($monthsInPeriod);
+
+        $allSpecialsInPeriod = AccountingSpecialIssue::where('admin_id', $resolvedAdminId)
             ->whereYear('execution_date', $year)
-            ->whereMonth('execution_date', $month)
+            ->whereIn(DB::raw('MONTH(execution_date)'), $monthsInPeriod)
             ->orderBy('execution_date')
             ->get();
-            
-        $bankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
+
+        $specials = $allSpecialsInPeriod->filter(function ($s) use ($scope) {
+            if ($scope === 'business') {
+                return (bool) $s->is_business;
+            }
+            if ($scope === 'private') {
+                return !(bool) $s->is_business;
+            }
+            return true;
+        })->values();
+
+        $rawBankTxs = class_exists(\App\Models\Accounting\AccountingBankTransaction::class)
             ? \App\Models\Accounting\AccountingBankTransaction::with(['account', 'financeCategory'])
-                ->whereHas('account', fn($q) => $q->where('admin_id', $adminId))
+                ->whereHas('account', fn ($q) => $q->where('admin_id', $resolvedAdminId))
                 ->whereNotNull('accounting_category_id')
                 ->whereYear('transaction_date', $year)
-                ->whereMonth('transaction_date', $month)
+                ->whereIn(DB::raw('MONTH(transaction_date)'), $monthsInPeriod)
                 ->orderBy('transaction_date')
                 ->get()
             : collect();
 
-        $fixedGroups = AccountingGroup::with('items')->where('admin_id', $adminId)->get();
+        $bankTxs = $this->filterNonDuplicateBankTransactions($rawBankTxs, $allSpecialsInPeriod)
+            ->filter(function ($tx) use ($scope) {
+                $txIsBusiness = (bool) ($tx->is_business ?? $tx->account?->is_business_account ?? false);
+                if ($scope === 'business') {
+                    return $txIsBusiness;
+                }
+                if ($scope === 'private') {
+                    return !$txIsBusiness;
+                }
+                return true;
+            })
+            ->values();
+
+        $fixedGroups = AccountingGroup::with('items')->where('admin_id', $resolvedAdminId)->get();
         $fixedCosts = collect();
         foreach ($fixedGroups as $group) {
             $isIncomeGroup = ($group->type === 'income');
             foreach ($group->items as $item) {
-                if ($this->isDueInMonth($item, $month, $year)) {
-                    $signedAmount = $isIncomeGroup ? abs($item->amount) : -abs($item->amount);
-                    $fixedCosts->push((object)[
-                        'name' => $item->name,
-                        'category' => $group->name,
-                        'amount' => $signedAmount,
-                        'tax_rate' => $item->tax_rate ?? 0,
-                        'is_business' => $item->is_business
-                    ]);
+                $itemIsBusiness = (bool) $item->is_business;
+                if ($scope === 'business' && ($isIncomeGroup || !$itemIsBusiness)) {
+                    continue;
+                }
+                if ($scope === 'private' && $itemIsBusiness) {
+                    continue;
+                }
+                foreach ($monthsInPeriod as $mInP) {
+                    if ($this->isDueInMonth($item, $mInP, $year)) {
+                        $signedAmount = $isIncomeGroup ? abs((float) $item->amount) : -abs((float) $item->amount);
+                        $fixedCosts->push((object) [
+                            'name' => $item->name,
+                            'category' => $group->name,
+                            'amount' => $signedAmount,
+                            'tax_rate' => $item->tax_rate ?? 0,
+                            'is_business' => $itemIsBusiness,
+                            'due_month' => $mInP,
+                        ]);
+                    }
                 }
             }
         }
 
-        $invoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
-            ->whereMonth('invoice_date', $month)
-            ->whereIn('status', ['paid', 'cancelled'])
-            ->whereNotNull('paid_at')
-            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
-            ->get();
+        $invoices = $scope === 'private'
+            ? collect()
+            : \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
+                ->whereIn(DB::raw('MONTH(invoice_date)'), $monthsInPeriod)
+                ->whereIn('status', ['paid', 'cancelled'])
+                ->whereNotNull('paid_at')
+                ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+                ->get();
 
         $shopStats = [
-            'gross' => $invoices->sum(fn($i) => self::signedInvoiceCents($i, false)) / 100,
-            'net'   => $invoices->sum(fn($i) => self::signedInvoiceCents($i, true)) / 100,
-            'tax'   => $invoices->sum(fn($i) => self::signedInvoiceCents($i, false) - self::signedInvoiceCents($i, true)) / 100,
-            'count' => $invoices->filter(fn($i) => self::signedInvoiceCents($i, false) > 0)->count(),
-            'returns' => $invoices->filter(fn($i) => self::signedInvoiceCents($i, false) < 0)->count(),
+            'gross' => $invoices->sum(fn ($i) => self::signedInvoiceCents($i, false)) / 100,
+            'net' => $invoices->sum(fn ($i) => self::signedInvoiceCents($i, true)) / 100,
+            'tax' => $invoices->sum(fn ($i) => self::signedInvoiceCents($i, false) - self::signedInvoiceCents($i, true)) / 100,
+            'count' => $invoices->filter(fn ($i) => self::signedInvoiceCents($i, false) > 0)->count(),
+            'returns' => $invoices->filter(fn ($i) => self::signedInvoiceCents($i, false) < 0)->count(),
         ];
         $shopStats['aov'] = $shopStats['count'] > 0 ? ($shopStats['gross'] / $shopStats['count']) : 0;
 
+        $anchorMonth = end($monthsInPeriod) ?: $month;
         $liquidityPreview = [];
         $avgInvoices = \App\Models\Accounting\AccountingInvoice::whereBetween('invoice_date', [
-            Carbon::create($year, $month, 1)->subMonths(2)->startOfMonth(), 
-            Carbon::create($year, $month, 1)->endOfMonth()
+            Carbon::create($year, $anchorMonth, 1)->subMonths(2)->startOfMonth(),
+            Carbon::create($year, $anchorMonth, 1)->endOfMonth(),
         ])->whereIn('status', ['paid', 'cancelled'])
-          ->whereNotNull('paid_at')
-          ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
-          ->get(['type', 'total', 'tax_amount']);
-        $avgShopNet = $avgInvoices->sum(fn($i) => self::signedInvoiceCents($i, true)) / 100 / 3;
+            ->whereNotNull('paid_at')
+            ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+            ->get(['type', 'total', 'tax_amount']);
+        $avgShopNet = $scope === 'private' ? 0.0 : ($avgInvoices->sum(fn ($i) => self::signedInvoiceCents($i, true)) / 100 / 3);
 
         for ($i = 1; $i <= 3; $i++) {
-            $previewMonth = Carbon::create($year, $month, 1)->addMonths($i);
+            $previewMonth = Carbon::create($year, $anchorMonth, 1)->addMonths($i);
             $m = $previewMonth->month;
-            
-            $previewFixed = 0;
+
+            $previewFixed = 0.0;
             foreach ($fixedGroups as $group) {
                 if ($group->type === 'income') {
                     continue;
                 }
                 foreach ($group->items as $item) {
+                    $itemIsBiz = (bool) $item->is_business;
+                    if ($scope === 'business' && !$itemIsBiz) {
+                        continue;
+                    }
+                    if ($scope === 'private' && $itemIsBiz) {
+                        continue;
+                    }
                     if ($this->isDueInMonth($item, $m, $previewMonth->year)) {
-                        $previewFixed += (abs($item->amount) / (1 + (($item->tax_rate ?? 0) / 100)));
+                        $validRate = self::isEligibleGermanInputVatRate($item->tax_rate ?? 0)
+                            ? (float) round((float) $item->tax_rate)
+                            : 0.0;
+                        $previewFixed += (abs((float) $item->amount) / (1 + ($validRate / 100)));
                     }
                 }
             }
@@ -538,11 +734,42 @@ class FinancialService
             ];
         }
 
+        $aggregateStats = function (bool $isNetFlag) use ($resolvedAdminId, $monthsInPeriod, $year, $scope): array {
+            $acc = [
+                'shop_revenue' => 0.0,
+                'fixed_income' => 0.0,
+                'fixed_expenses' => 0.0,
+                'special_expenses' => 0.0,
+                'total_budget' => 0.0,
+                'total_spent' => 0.0,
+                'available' => 0.0,
+            ];
+            foreach ($monthsInPeriod as $mInP) {
+                $st = $this->getMonthlyStats($resolvedAdminId, $mInP, $year, $isNetFlag, $scope);
+                foreach ($acc as $k => $_) {
+                    $acc[$k] += (float) ($st[$k] ?? 0);
+                }
+            }
+            return $acc;
+        };
+
+        $statsBrutto = $aggregateStats(false);
+        $statsNetto = $aggregateStats(true);
+        $assetSchedule = $this->getFixedAssetsAndDepreciation($resolvedAdminId, $year, $anchorMonth);
+
+        $periodTitle = count($monthsInPeriod) === 12
+            ? "Gesamtjahr {$year}"
+            : (count($monthsInPeriod) === 3
+                ? 'Q' . (int) ceil($monthsInPeriod[0] / 3) . " {$year}"
+                : Carbon::createFromDate($year, $month, 1)->locale('de')->monthName . " {$year}");
+
+        $filePeriodSuffix = $periodSlug !== null && $periodSlug !== '' ? $periodSlug : (string) $month;
+
         $dir = storage_path('app/buchhaltung/exports');
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
-        $zipFileName = "Finanzbericht_{$year}_{$month}.zip";
+        $zipFileName = "Finanzbericht_{$year}_{$filePeriodSuffix}.zip";
         $zipPath = $dir . '/' . $zipFileName;
 
         $zip = new ZipArchive;
@@ -558,22 +785,29 @@ class FinancialService
             };
 
             $csvHandle = fopen('php://temp', 'r+');
-            fprintf($csvHandle, chr(0xEF).chr(0xBB).chr(0xBF));
-            fputcsv($csvHandle, ['Datum', 'Typ', 'Bezeichnung', 'Kategorie', 'Brutto', 'Steuersatz', 'Netto', 'Steuer'], ';');
+            fprintf($csvHandle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fputcsv($csvHandle, ['Datum', 'Typ', 'Bezeichnung', 'Kategorie', 'SKR03', 'Brutto', 'Steuersatz', 'Netto', 'Steuer'], ';');
 
             foreach ($specials as $s) {
                 $sRate = self::isEligibleGermanInputVatRate($s->tax_rate ?? 0) ? (int) round((float) $s->tax_rate) : 0;
                 $net = $sRate > 0 ? ($s->amount / (1 + ($sRate / 100))) : $s->amount;
                 $tax = $s->amount - $net;
+                $skr = $s->is_business ? ($this->resolveSkr03ExpenseAccountAndBuKey($s)['account'] ?? '4900') : 'Privat';
                 fputcsv($csvHandle, [
-                    $s->execution_date->format('d.m.Y'), 'Variabel', $sanitizeCsvCell($s->title), $sanitizeCsvCell($s->category),
-                    number_format($s->amount, 2, ',', '.'), $sRate.'%', 
-                    number_format($net, 2, ',', '.'), number_format($tax, 2, ',', '.')
+                    $s->execution_date->format('d.m.Y'),
+                    'Variabel',
+                    $sanitizeCsvCell($s->title),
+                    $sanitizeCsvCell($s->category),
+                    $skr,
+                    number_format($s->amount, 2, ',', '.'),
+                    $sRate . '%',
+                    number_format($net, 2, ',', '.'),
+                    number_format($tax, 2, ',', '.'),
                 ], ';');
 
-                if($s->file_paths) {
+                if ($s->file_paths) {
                     $storageRoot = realpath(storage_path('app'));
-                    foreach($s->file_paths as $index => $filePath) {
+                    foreach ($s->file_paths as $index => $filePath) {
                         if (!is_string($filePath) || str_contains($filePath, '..') || str_contains($filePath, "\0")) {
                             continue;
                         }
@@ -581,7 +815,7 @@ class FinancialService
                             ? Storage::disk('local')->path($filePath)
                             : (Storage::disk('public')->exists($filePath) ? Storage::disk('public')->path($filePath) : null);
 
-                        if($sourcePath && is_file($sourcePath) && !is_link($sourcePath)) {
+                        if ($sourcePath && is_file($sourcePath) && !is_link($sourcePath)) {
                             $realSource = realpath($sourcePath);
                             if ($realSource === false || ($storageRoot !== false && !str_starts_with($realSource, $storageRoot . DIRECTORY_SEPARATOR))) {
                                 continue;
@@ -594,20 +828,26 @@ class FinancialService
                     }
                 }
             }
-            
+
             foreach ($bankTxs as $tx) {
                 $catName = $tx->financeCategory ? $tx->financeCategory->name : 'Sonstiges';
                 $rawTxLabel = $tx->counterpart_name ?? $tx->purpose ?? 'Unbekannte Abbuchung';
-                $title = '🏦 ' . $sanitizeCsvCell($rawTxLabel);
+                $title = 'Bank: ' . $sanitizeCsvCell($rawTxLabel);
                 fputcsv($csvHandle, [
-                    \Carbon\Carbon::parse($tx->transaction_date)->format('d.m.Y'), 'Variabel (Bank)', $sanitizeCsvCell($title), $sanitizeCsvCell($catName),
-                    number_format($tx->amount, 2, ',', '.'), '0%', 
-                    number_format($tx->amount, 2, ',', '.'), '0,00'
+                    \Carbon\Carbon::parse($tx->transaction_date)->format('d.m.Y'),
+                    'Variabel (Bank)',
+                    $sanitizeCsvCell($title),
+                    $sanitizeCsvCell($catName),
+                    '4900',
+                    number_format($tx->amount, 2, ',', '.'),
+                    '0%',
+                    number_format($tx->amount, 2, ',', '.'),
+                    '0,00',
                 ], ';');
 
-                if($tx->file_paths) {
+                if ($tx->file_paths) {
                     $storageRoot = realpath(storage_path('app'));
-                    foreach($tx->file_paths as $index => $filePath) {
+                    foreach ($tx->file_paths as $index => $filePath) {
                         if (!is_string($filePath) || str_contains($filePath, '..') || str_contains($filePath, "\0")) {
                             continue;
                         }
@@ -615,7 +855,7 @@ class FinancialService
                             ? Storage::disk('local')->path($filePath)
                             : (Storage::disk('public')->exists($filePath) ? Storage::disk('public')->path($filePath) : null);
 
-                        if($sourcePath && is_file($sourcePath) && !is_link($sourcePath)) {
+                        if ($sourcePath && is_file($sourcePath) && !is_link($sourcePath)) {
                             $realSource = realpath($sourcePath);
                             if ($realSource === false || ($storageRoot !== false && !str_starts_with($realSource, $storageRoot . DIRECTORY_SEPARATOR))) {
                                 continue;
@@ -634,28 +874,47 @@ class FinancialService
                 $fRate = self::isEligibleGermanInputVatRate($f->tax_rate ?? 0) ? (int) round((float) $f->tax_rate) : 0;
                 $net = $fRate > 0 ? ($f->amount / (1 + ($fRate / 100))) : $f->amount;
                 $tax = $f->amount - $net;
+                $dueM = (int) ($f->due_month ?? $month);
+                $skr = $f->is_business ? ($this->resolveSkr03ExpenseAccountAndBuKey($f)['account'] ?? '4900') : 'Privat';
                 fputcsv($csvHandle, [
-                    Carbon::create($year, $month, 1)->format('d.m.Y'), 'Fixkosten', $sanitizeCsvCell($f->name), $sanitizeCsvCell($f->category),
-                    number_format($f->amount, 2, ',', '.'), $fRate.'%', 
-                    number_format($net, 2, ',', '.'), number_format($tax, 2, ',', '.')
+                    Carbon::create($year, $dueM, 1)->format('d.m.Y'),
+                    'Fixkosten',
+                    $sanitizeCsvCell($f->name),
+                    $sanitizeCsvCell($f->category),
+                    $skr,
+                    number_format($f->amount, 2, ',', '.'),
+                    $fRate . '%',
+                    number_format($net, 2, ',', '.'),
+                    number_format($tax, 2, ',', '.'),
                 ], ';');
             }
 
             rewind($csvHandle);
             $csvContent = stream_get_contents($csvHandle);
             fclose($csvHandle);
-            $zip->addFromString("Transaktionen_{$year}_{$month}.csv", $csvContent);
+            $zip->addFromString("Transaktionen_{$year}_{$filePeriodSuffix}.csv", $csvContent);
+
+            if ($scope !== 'private') {
+                $zip->addFromString(
+                    "Anlagenspiegel_und_AfA_{$year}.csv",
+                    $this->buildAssetScheduleCsv($resolvedAdminId, $year, $anchorMonth)
+                );
+            }
 
             $pdf = Pdf::loadView('global.pdf.financial_report', [
-                'month' => $month, 'year' => $year,
+                'month' => $month,
+                'year' => $year,
+                'periodTitle' => $periodTitle,
+                'scope' => $scope,
                 'shopStats' => $shopStats,
                 'fixedCosts' => $fixedCosts,
                 'specials' => $specials,
+                'assetSchedule' => $assetSchedule,
                 'liquidityPreview' => $liquidityPreview,
-                'statsBrutto' => $this->getMonthlyStats($adminId, $month, $year, false),
-                'statsNetto' => $this->getMonthlyStats($adminId, $month, $year, true)
+                'statsBrutto' => $statsBrutto,
+                'statsNetto' => $statsNetto,
             ])->setOption(['isRemoteEnabled' => false]);
-            $zip->addFromString("Liquiditaets_und_Finanzbericht_{$year}_{$month}.pdf", $pdf->output());
+            $zip->addFromString("Liquiditaets_und_Finanzbericht_{$year}_{$filePeriodSuffix}.pdf", $pdf->output());
 
             $zip->close();
         }
@@ -1061,22 +1320,30 @@ class FinancialService
 
         $totalExpensesGross = abs($businessSpecials->sum('amount')) + abs($businessFixed->sum('amount'));
 
-        // 3. VORSTEUER DYNAMISCH BERECHNEN (Kz 66: ausschließlich echte deutsche Vorsteuersätze 7 % & 19 %)
+        // 3. VORSTEUER & EÜR-ABGRENZUNG DYNAMISCH BERECHNEN (Kz 66: ausschließlich echte deutsche Vorsteuersätze 7 % & 19 %)
         $vorsteuerSpecial = 0.0;
         $vorsteuerFix = 0.0;
         $expensesNet = 0.0;
+        $capitalAdditionsGross = 0.0;
+        $capitalAdditionsNet = 0.0;
 
         foreach ($businessSpecials as $s) {
             $rawRate = $s->tax_rate ?? 0;
             $amt = abs((float) $s->amount);
 
-            if (self::isEligibleGermanInputVatRate($rawRate)) {
+            if (!$isYearSmallBusiness && self::isEligibleGermanInputVatRate($rawRate)) {
                 $rate = (int) round((float) $rawRate);
                 $net = $amt / (1 + ($rate / 100));
                 $vorsteuerSpecial += ($amt - $net);
                 $expensesNet += $net;
             } else {
+                $net = $amt;
                 $expensesNet += $amt;
+            }
+
+            if ($this->isCapitalAssetIssue($s, round($net, 2))) {
+                $capitalAdditionsGross += $amt;
+                $capitalAdditionsNet += $net;
             }
         }
 
@@ -1084,7 +1351,7 @@ class FinancialService
             $rawRate = $f->tax_rate ?? 0;
             $amt = abs((float) $f->amount);
 
-            if (self::isEligibleGermanInputVatRate($rawRate)) {
+            if (!$isYearSmallBusiness && self::isEligibleGermanInputVatRate($rawRate)) {
                 $rate = (int) round((float) $rawRate);
                 $net = $amt / (1 + ($rate / 100));
                 $vorsteuerFix += ($amt - $net);
@@ -1101,7 +1368,14 @@ class FinancialService
             $vorsteuerFix = 0.0;
             $vatPaid = 0.0;
             $expensesNet = $totalExpensesGross;
+            $capitalAdditionsNet = $capitalAdditionsGross;
         }
+
+        $operatingExpensesNet = max(0.0, $expensesNet - $capitalAdditionsNet);
+        $assetMonthSummary = $this->getFixedAssetsAndDepreciation($resolvedAdminId, $year, $month);
+        $depreciationNet = (float) ($assetMonthSummary['monthly_afa'] ?? 0.0);
+        $euerExpensesNet = round($operatingExpensesNet + $depreciationNet, 2);
+        $euerProfit = round($revenueNet - $euerExpensesNet, 2);
 
         $zahllast = $totalTax - $vatPaid;
         $profit = $revenueNet - $expensesNet;
@@ -1209,6 +1483,12 @@ class FinancialService
             'total_tax' => $totalTax,
             'expenses_gross' => $totalExpensesGross,
             'expenses_net' => $expensesNet,
+            'operating_expenses_net' => round($operatingExpensesNet, 2),
+            'capital_additions_gross' => round($capitalAdditionsGross, 2),
+            'capital_additions_net' => round($capitalAdditionsNet, 2),
+            'depreciation_net' => round($depreciationNet, 2),
+            'euer_expenses_net' => $euerExpensesNet,
+            'euer_profit' => $euerProfit,
             'vorsteuer_special' => $vorsteuerSpecial,
             'vorsteuer_fix' => $vorsteuerFix,
             'vat_paid' => $vatPaid,
@@ -1236,7 +1516,8 @@ class FinancialService
     }
 
     /**
-     * Berechnet UStVA-Daten flexibel für einen Einzelmonat ('month', 1..12) oder ein Quartal ('quarter', Q1..Q4 => ELSTER 41..44).
+     * Berechnet UStVA- & EÜR-Daten flexibel für Einzelmonat ('month', 1..12), Quartal ('quarter', Q1..Q4 => ELSTER 41..44)
+     * oder Gesamtjahr ('year' => GESAMT).
      */
     public function getUstvaPeriodData(
         int $year,
@@ -1248,24 +1529,38 @@ class FinancialService
         $year = max(2000, min(2100, $year));
         $resolvedAdminId = $this->resolveMandantAdminId($adminId);
 
-        if ($mode !== 'quarter') {
+        if (!in_array($mode, ['quarter', 'year'], true)) {
             return $this->getUstvaMonthData($resolvedAdminId, max(1, min(12, $monthOrQuarter)), $year, $submissionType);
         }
 
-        $quarter = max(1, min(4, $monthOrQuarter));
-        $months = range(($quarter - 1) * 3 + 1, $quarter * 3);
-        $elsterZeitraum = (string) (40 + $quarter);
+        if ($mode === 'year') {
+            $quarter = 0;
+            $months = range(1, 12);
+            $elsterZeitraum = 'JAHR';
+            $exportSlug = 'GESAMT';
+            $monthNumberLabel = 'GESAMT';
+        } else {
+            $quarter = max(1, min(4, $monthOrQuarter));
+            $months = range(($quarter - 1) * 3 + 1, $quarter * 3);
+            $elsterZeitraum = (string) (40 + $quarter);
+            $exportSlug = "Q{$quarter}";
+            $monthNumberLabel = $elsterZeitraum;
+        }
 
         $monthPayloads = array_map(
             fn (int $m) => $this->getUstvaMonthData($resolvedAdminId, $m, $year, $submissionType),
             $months
         );
 
-        $qStart = Carbon::createFromDate($year, $months[0], 1)->startOfMonth();
-        $qEnd = Carbon::createFromDate($year, $months[2], 1)->endOfMonth();
-        $isFuture = $qStart->isFuture();
-        $isPast = $qEnd->isPast();
-        $deadline = Carbon::createFromDate($year, $months[2], 10)->addMonth();
+        $firstMonthInt = $months[0];
+        $lastMonthInt = end($months);
+        $pStart = Carbon::createFromDate($year, $firstMonthInt, 1)->startOfMonth();
+        $pEnd = Carbon::createFromDate($year, $lastMonthInt, 1)->endOfMonth();
+        $isFuture = $pStart->isFuture();
+        $isPast = $pEnd->isPast();
+        $deadline = $mode === 'year'
+            ? Carbon::createFromDate($year + 1, 7, 31)
+            : Carbon::createFromDate($year, $lastMonthInt, 10)->addMonth();
 
         $sum = fn (string $key): float => (float) collect($monthPayloads)->sum($key);
 
@@ -1322,20 +1617,30 @@ class FinancialService
             $status = $isPast ? ($allChecklistPassed ? 'ready' : 'missing_data') : 'in_progress';
         }
 
-        $firstShort = mb_substr($monthPayloads[0]['month_name'], 0, 3);
-        $lastShort = mb_substr($monthPayloads[2]['month_name'], 0, 3);
+        if ($mode === 'year') {
+            $periodDisplayName = "Gesamtjahr {$year}";
+        } else {
+            $firstShort = mb_substr($monthPayloads[0]['month_name'], 0, 3);
+            $lastShort = mb_substr($monthPayloads[2]['month_name'], 0, 3);
+            $periodDisplayName = "Q{$quarter} ({$firstShort}-{$lastShort})";
+        }
+
+        $operatingNetSum = round($sum('operating_expenses_net'), 2);
+        $depreciationNetSum = round($sum('depreciation_net'), 2);
+        $euerExpensesSum = round($operatingNetSum + $depreciationNetSum, 2);
+        $revenueNetSum = $sum('revenue_net');
 
         return [
-            'period_mode' => 'quarter',
+            'period_mode' => $mode,
             'elster_zeitraum' => $elsterZeitraum,
-            'export_period_slug' => "Q{$quarter}",
+            'export_period_slug' => $exportSlug,
             'months_in_period' => $months,
             'quarter' => $quarter,
-            'month_name' => "Q{$quarter} ({$firstShort}-{$lastShort})",
-            'month_number' => $elsterZeitraum,
+            'month_name' => $periodDisplayName,
+            'month_number' => $monthNumberLabel,
             'year' => $year,
             'revenue_gross' => $sum('revenue_gross'),
-            'revenue_net' => $sum('revenue_net'),
+            'revenue_net' => $revenueNetSum,
             'revenue_net_19' => $revenueNet19,
             'vat_collected_19' => $sum('vat_collected_19'),
             'revenue_net_7' => $revenueNet7,
@@ -1352,6 +1657,12 @@ class FinancialService
             'total_tax' => $sum('total_tax'),
             'expenses_gross' => $sum('expenses_gross'),
             'expenses_net' => $sum('expenses_net'),
+            'operating_expenses_net' => $operatingNetSum,
+            'capital_additions_gross' => round($sum('capital_additions_gross'), 2),
+            'capital_additions_net' => round($sum('capital_additions_net'), 2),
+            'depreciation_net' => $depreciationNetSum,
+            'euer_expenses_net' => $euerExpensesSum,
+            'euer_profit' => round($revenueNetSum - $euerExpensesSum, 2),
             'vorsteuer_special' => $sum('vorsteuer_special'),
             'vorsteuer_fix' => $sum('vorsteuer_fix'),
             'vat_paid' => $sum('vat_paid'),
@@ -1641,52 +1952,319 @@ class FinancialService
     }
 
     /**
-     * Erstellt den DATEV EXTF Buchungsstapel CSV-String aus den UStVA-Monatsdaten.
+     * Ermittelt das passende SKR03-Erlöskonto für Ausgangsumsätze & Gutschriften.
+     */
+    public function resolveSkr03RevenueAccount(
+        int $rate,
+        bool $isSmallBusiness = false,
+        bool $isReverseCharge = false,
+        bool $isIgErwerb = false
+    ): string {
+        if ($isSmallBusiness) {
+            return '8195';
+        }
+        if ($isReverseCharge) {
+            return '8337';
+        }
+        if ($isIgErwerb) {
+            return '8125';
+        }
+        if ($rate === 7) {
+            return '8300';
+        }
+        if ($rate === 0) {
+            return '8120';
+        }
+        return '8400';
+    }
+
+    /**
+     * Ordnet einer gewerblichen Ausgabe deterministisch das passende SKR03-Sachkonto
+     * sowie den korrekten DATEV BU-Steuerschlüssel zu (Automatik-Konten bleiben ohne BU-Schlüssel).
+     */
+    public function resolveSkr03ExpenseAccountAndBuKey(object $item, bool $isSmallBusiness = false): array
+    {
+        $gross = abs((float) ($item->amount ?? 0));
+        $rawRate = $item->tax_rate ?? 0;
+        $rate = (!$isSmallBusiness && self::isEligibleGermanInputVatRate($rawRate))
+            ? (int) round((float) $rawRate)
+            : 0;
+        $net = $rate > 0 ? round($gross / (1 + ($rate / 100.0)), 2) : round($gross, 2);
+
+        $title = mb_strtolower((string) ($item->title ?? $item->name ?? ''));
+        $cat = mb_strtolower((string) ($item->category ?? $item->group_name ?? ($item->group->name ?? '')));
+        $haystack = $cat . ' ' . $title;
+
+        $buKey = $rate === 19 ? '9' : ($rate === 7 ? '8' : '');
+
+        // 1. Anlagevermögen > 800 € Netto (lineare AfA -> SKR03 0440 Maschinen / Betriebsausstattung)
+        if ($item instanceof AccountingSpecialIssue && $this->isCapitalAssetIssue($item, $net)) {
+            return ['account' => '0440', 'bu_key' => $buKey, 'label' => 'Maschinen & Anlagen'];
+        }
+        if (!($item instanceof AccountingSpecialIssue) && isset($item->execution_date) && $net > 800.00 && !str_contains($haystack, 'rohmaterial') && !str_contains($haystack, 'wareneinkauf')) {
+            return ['account' => '0440', 'bu_key' => $buKey, 'label' => 'Maschinen & Anlagen'];
+        }
+
+        // 2. Geringwertige Wirtschaftsgüter (GWG 150–800 € Netto -> SKR03 0480)
+        if (
+            isset($item->execution_date)
+            && $net >= 150.00
+            && $net <= 800.00
+            && in_array($cat, ['arbeitsmaterial', 'technik', 'maschinen'], true)
+            && !\Illuminate\Support\Str::contains($title, ['visitenkarten', 'aufkleber', 'umschläge', 'karton'])
+        ) {
+            return ['account' => '0480', 'bu_key' => $buKey, 'label' => 'GWG (≤ 800 €)'];
+        }
+
+        // 3. Rohmaterial & Wareneingang (SKR03 3400 / 3300 = DATEV Automatik-Konten -> kein BU-Schlüssel!)
+        if (\Illuminate\Support\Str::contains($haystack, ['rohmaterial', 'wareneinkauf', 'rohling'])) {
+            if ($rate === 19) {
+                return ['account' => '3400', 'bu_key' => '', 'label' => 'Wareneingang 19 %'];
+            }
+            if ($rate === 7) {
+                return ['account' => '3300', 'bu_key' => '', 'label' => 'Wareneingang 7 %'];
+            }
+            return ['account' => '3200', 'bu_key' => '', 'label' => 'Wareneingang 0 %'];
+        }
+
+        // 4. Verpackungsmaterial (SKR03 4710)
+        if (\Illuminate\Support\Str::contains($haystack, ['verpackung', 'versandkarton', 'schmuckbox', 'westpack', 'karton'])) {
+            return ['account' => '4710', 'bu_key' => $buKey, 'label' => 'Verpackungsmaterial'];
+        }
+
+        // 5. Betriebliche Versicherungen (SKR03 4360, i.d.R. 0 % Vorsteuer wg. Versicherungssteuer)
+        if (\Illuminate\Support\Str::contains($haystack, ['versicherung', 'haftpflicht', 'hiscox'])) {
+            return ['account' => '4360', 'bu_key' => '', 'label' => 'Versicherungen'];
+        }
+
+        // 6. Behördengebühren, Markenamt, Gewerbeanmeldung, LUCID, IHK (SKR03 4390)
+        if (\Illuminate\Support\Str::contains($haystack, ['dpma', 'marke', 'gewerbeanmeldung', 'gebühr', 'lucid', 'ihk'])) {
+            return ['account' => '4390', 'bu_key' => $buKey, 'label' => 'Abgaben & Gebühren'];
+        }
+
+        // 7. Marketing, Werbung & Creator-/Influencer-Provisionen (SKR03 4600)
+        if (\Illuminate\Support\Str::contains($haystack, ['werbung', 'marketing', 'affiliate', 'influencer', 'visitenkarten'])) {
+            return ['account' => '4600', 'bu_key' => $buKey, 'label' => 'Werbekosten'];
+        }
+
+        // 8. Software, Cloud, Server, Domains & KI-Lizenzen (SKR03 4964)
+        if (\Illuminate\Support\Str::contains($haystack, ['software', 'hosting', 'server', 'domain', 'mittwald', 'google', 'cloud', 'it &', 'lizenz'])) {
+            return ['account' => '4964', 'bu_key' => $buKey, 'label' => 'EDV & Hosting'];
+        }
+
+        // 9. Porto & Versanddienstleister (SKR03 4910)
+        if (\Illuminate\Support\Str::contains($haystack, ['porto', 'briefmarke', 'dhl', 'ausgangsfracht'])) {
+            return ['account' => '4910', 'bu_key' => $buKey, 'label' => 'Porto & Versand'];
+        }
+
+        // 10. Werkstatt- & Betriebsbedarf (SKR03 4980)
+        if (\Illuminate\Support\Str::contains($haystack, ['arbeitsmaterial', 'werkstatt', 'büro', 'reinigung', 'isopropanol', 'etikett'])) {
+            return ['account' => '4980', 'bu_key' => $buKey, 'label' => 'Betriebsbedarf'];
+        }
+
+        return ['account' => '4900', 'bu_key' => $buKey, 'label' => 'Sonst. betr. Aufwand'];
+    }
+
+    /**
+     * Erstellt den DATEV EXTF Buchungsstapel CSV-String inklusive SKR03-Vorkontierung und BU-Schlüssel.
      */
     public function buildDatevCsv(array $data): string
     {
+        $isSmallBiz = !empty($data['is_small_business_year']);
+
+        $sanitizeField = static function (?string $val): string {
+            $clean = str_replace(["\r", "\n", ';'], ' ', (string) $val);
+            $clean = str_replace('"', '""', trim($clean));
+            if ($clean !== '' && in_array($clean[0], ['=', '+', '-', '@', "\t"], true)) {
+                $clean = "'" . $clean;
+            }
+            return $clean;
+        };
+
         $csv = '"EXTF";700;21;"Buchungsstapel";9;"";"";"";"";"";"1";"";"";"";"";"";"";"";"";"";"";"";"";"";""' . "\n";
-        $csv .= '"Umsatz (ohne Soll/Haben-Kz)";"Soll/Haben-Kennzeichen";"Konto";"Gegenkonto (ohne BU-Schlüssel)";"Belegdatum";"Belegfeld 1";"Buchungstext"' . "\n";
+        $csv .= '"Umsatz (ohne Soll/Haben-Kz)";"Soll/Haben-Kennzeichen";"Konto";"Gegenkonto (ohne BU-Schlüssel)";"BU-Schlüssel";"Belegdatum";"Belegfeld 1";"Buchungstext"' . "\n";
 
         foreach ($data['raw_orders'] ?? [] as $order) {
-            $amount = number_format($order->total_price / 100, 2, ',', '');
             $date = $order->created_at->format('dm');
-            $safeOrderNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $order->order_number));
-            $csv .= '"' . $amount . '";"S";"1200";"8400";"' . $date . '";"' . $safeOrderNo . '";"Bestellung ' . $safeOrderNo . '"' . "\n";
+            $safeOrderNo = $sanitizeField((string) $order->order_number);
+            $isRevCharge = !empty($order->is_reverse_charge);
+            $isIg = !empty($order->is_ig_erwerb);
+
+            $split = $this->splitGrossAndTaxIntoRates(
+                $order->total_price / 100,
+                $order->tax_amount / 100,
+                $order->items ?? [],
+                $isSmallBiz
+            );
+
+            $gross7 = round($split['net_7'] + $split['vat_7'], 2);
+            $gross19 = round($split['net_19'] + $split['vat_19'], 2);
+
+            if (!$isSmallBiz && !$isRevCharge && !$isIg && $gross7 > 0.004 && $gross19 > 0.004) {
+                $csv .= '"' . number_format($gross19, 2, ',', '') . '";"S";"1200";"8400";"";"' . $date . '";"' . $safeOrderNo . '";"Bestellung ' . $safeOrderNo . ' (19%)"' . "\n";
+                $csv .= '"' . number_format($gross7, 2, ',', '') . '";"S";"1200";"8300";"";"' . $date . '";"' . $safeOrderNo . '";"Bestellung ' . $safeOrderNo . ' (7%)"' . "\n";
+            } else {
+                $dominantRate = $gross7 > 0.004 && $gross19 <= 0.004 ? 7 : (($order->tax_amount ?? 0) == 0 && !$isSmallBiz ? 0 : 19);
+                $revAccount = $this->resolveSkr03RevenueAccount($dominantRate, $isSmallBiz, $isRevCharge, $isIg);
+                $amount = number_format($order->total_price / 100, 2, ',', '');
+                $csv .= '"' . $amount . '";"S";"1200";"' . $revAccount . '";"";"' . $date . '";"' . $safeOrderNo . '";"Bestellung ' . $safeOrderNo . '"' . "\n";
+            }
         }
 
         foreach ($data['raw_manual_invoices'] ?? [] as $manualInv) {
             $amount = number_format(abs($manualInv->total / 100), 2, ',', '');
             $date = ($manualInv->invoice_date ?? $manualInv->created_at ?? now())->format('dm');
-            $safeInvNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $manualInv->invoice_number));
-            $csv .= '"' . $amount . '";"S";"1200";"8400";"' . $date . '";"' . $safeInvNo . '";"Rechnung ' . $safeInvNo . '"' . "\n";
+            $safeInvNo = $sanitizeField((string) $manualInv->invoice_number);
+            $split = $this->splitGrossAndTaxIntoRates(abs($manualInv->total / 100), abs($manualInv->tax_amount / 100), $manualInv->custom_items ?? [], $isSmallBiz);
+            $dominantRate = ($split['net_7'] + $split['vat_7']) > 0.004 && ($split['net_19'] + $split['vat_19']) <= 0.004 ? 7 : (($manualInv->tax_amount ?? 0) == 0 ? 0 : 19);
+            $revAccount = $this->resolveSkr03RevenueAccount($dominantRate, $isSmallBiz);
+            $csv .= '"' . $amount . '";"S";"1200";"' . $revAccount . '";"";"' . $date . '";"' . $safeInvNo . '";"Rechnung ' . $safeInvNo . '"' . "\n";
         }
 
         foreach ($data['raw_credits'] ?? [] as $credit) {
             $amount = number_format(abs($credit->total / 100), 2, ',', '');
             $date = ($credit->invoice_date ?? $credit->created_at ?? now())->format('dm');
-            $safeCreditNo = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $credit->invoice_number));
-            $csv .= '"' . $amount . '";"H";"1200";"8400";"' . $date . '";"' . $safeCreditNo . '";"Gutschrift / Storno ' . $safeCreditNo . '"' . "\n";
+            $safeCreditNo = $sanitizeField((string) $credit->invoice_number);
+            $cnItems = !empty($credit->custom_items) ? $credit->custom_items : ($credit->order?->items ?? []);
+            $split = $this->splitGrossAndTaxIntoRates(abs($credit->total / 100), abs($credit->tax_amount / 100), $cnItems, $isSmallBiz);
+            $dominantRate = ($split['net_7'] + $split['vat_7']) > 0.004 && ($split['net_19'] + $split['vat_19']) <= 0.004 ? 7 : (($credit->tax_amount ?? 0) == 0 ? 0 : 19);
+            $revAccount = $this->resolveSkr03RevenueAccount(
+                $dominantRate,
+                $isSmallBiz,
+                (bool) ($credit->order?->is_reverse_charge ?? false),
+                (bool) ($credit->order?->is_ig_erwerb ?? false)
+            );
+            $csv .= '"' . $amount . '";"H";"1200";"' . $revAccount . '";"";"' . $date . '";"' . $safeCreditNo . '";"Gutschrift / Storno ' . $safeCreditNo . '"' . "\n";
         }
 
         foreach ($data['raw_specials'] ?? [] as $special) {
-            $amount = number_format(abs($special->amount), 2, ',', '');
+            $amount = number_format(abs((float) $special->amount), 2, ',', '');
             $date = Carbon::parse($special->execution_date)->format('dm');
-            $safeTitle = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $special->title));
-            $safeBeleg = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) ($special->invoice_number ?? 'Beleg')));
-            $csv .= '"' . $amount . '";"H";"4900";"1200";"' . $date . '";"' . $safeBeleg . '";"' . $safeTitle . '"' . "\n";
+            $safeTitle = $sanitizeField((string) $special->title);
+            $safeBeleg = $sanitizeField((string) ($special->invoice_number ?? 'Beleg'));
+            $skr = $this->resolveSkr03ExpenseAccountAndBuKey($special, $isSmallBiz);
+            $shFlag = ((float) ($special->amount ?? -1)) > 0 ? 'S' : 'H';
+            $csv .= '"' . $amount . '";"' . $shFlag . '";"' . $skr['account'] . '";"1200";"' . $skr['bu_key'] . '";"' . $date . '";"' . $safeBeleg . '";"' . $safeTitle . '"' . "\n";
         }
 
         foreach ($data['raw_fixed'] ?? [] as $fixed) {
-            $amount = number_format(abs($fixed->amount), 2, ',', '');
-            $dueMonth = (int) ($fixed->_due_month ?? ($data['months_in_period'][0] ?? $data['month_number'] ?? 1));
+            $amount = number_format(abs((float) $fixed->amount), 2, ',', '');
+            $dueMonth = (int) ($fixed->_due_month ?? ($data['months_in_period'][0] ?? (is_numeric($data['month_number'] ?? null) ? $data['month_number'] : 1)));
             $dueMonth = max(1, min(12, $dueMonth));
             $date = '28' . str_pad((string) $dueMonth, 2, '0', STR_PAD_LEFT);
-            $safeName = preg_replace('/^[=+\-@]/', "'$0", str_replace(['"', ';', "\r", "\n"], '', (string) $fixed->name));
-            $csv .= '"' . $amount . '";"H";"4900";"1200";"' . $date . '";"Fixkosten";"' . $safeName . '"' . "\n";
+            $safeName = $sanitizeField((string) $fixed->name);
+            $skr = $this->resolveSkr03ExpenseAccountAndBuKey($fixed, $isSmallBiz);
+            $csv .= '"' . $amount . '";"H";"' . $skr['account'] . '";"1200";"' . $skr['bu_key'] . '";"' . $date . '";"Fixkosten";"' . $safeName . '"' . "\n";
         }
 
         return $csv;
+    }
+
+    /**
+     * Erstellt den Anlagenspiegel & GWG-/IAB-Übersicht als CSV für den Steuerberater (Anlage AVEÜR).
+     */
+    public function buildAssetScheduleCsv($adminId, int $year, ?int $upToMonth = null): string
+    {
+        $resolvedAdminId = $this->resolveMandantAdminId($adminId) ?: $adminId;
+        $schedule = $this->getFixedAssetsAndDepreciation($resolvedAdminId, $year, $upToMonth);
+
+        $sanitizeCsvCell = static function ($value): string {
+            $str = (string) $value;
+            $trimmed = ltrim($str, " \t\n\r\0\x0B");
+            if ($trimmed !== '' && in_array($trimmed[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+                return "'" . $str;
+            }
+            return $str;
+        };
+
+        $handle = fopen('php://temp', 'r+');
+        fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($handle, [
+            'Abschnitt',
+            'SKR03-Konto',
+            'Bezeichnung',
+            'Anschaffungsdatum',
+            'AfA-Ende',
+            'Brutto (EUR)',
+            'Netto-AK (EUR)',
+            'Vorsteuer (EUR)',
+            'Nutzungsdauer (Jahre)',
+            'Monats-AfA (EUR)',
+            "Jahres-AfA {$year} (EUR)",
+            'Kumulierte AfA (EUR)',
+            'Restbuchwert (EUR)',
+        ], ';');
+
+        foreach ($schedule['assets'] ?? [] as $asset) {
+            fputcsv($handle, [
+                'Anlagevermögen (> 800 € Netto, linear)',
+                '0440',
+                $sanitizeCsvCell($asset['title']),
+                $asset['purchase_date'],
+                $asset['end_date'],
+                number_format($asset['gross_cost'], 2, ',', '.'),
+                number_format($asset['net_cost'], 2, ',', '.'),
+                number_format($asset['vat_amount'], 2, ',', '.'),
+                $asset['afa_years'],
+                number_format($asset['monthly_afa'], 2, ',', '.'),
+                number_format($asset['year_afa'], 2, ',', '.'),
+                number_format($asset['accumulated_afa'], 2, ',', '.'),
+                number_format($asset['book_value'], 2, ',', '.'),
+            ], ';');
+        }
+
+        foreach ($schedule['gwg_items'] ?? [] as $gwg) {
+            fputcsv($handle, [
+                'GWG Sofortabschreibung (§ 6 Abs. 2 EStG)',
+                '0480',
+                $sanitizeCsvCell($gwg['title']),
+                $gwg['purchase_date'],
+                'Sofort',
+                number_format($gwg['gross_cost'], 2, ',', '.'),
+                number_format($gwg['net_cost'], 2, ',', '.'),
+                number_format($gwg['vat_amount'], 2, ',', '.'),
+                '1',
+                number_format($gwg['net_cost'], 2, ',', '.'),
+                number_format($gwg['net_cost'], 2, ',', '.'),
+                number_format($gwg['net_cost'], 2, ',', '.'),
+                '0,00',
+            ], ';');
+        }
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('accounting_investment_plans') && $resolvedAdminId) {
+            $plans = \App\Models\Accounting\AccountingInvestmentPlan::where('admin_id', $resolvedAdminId)
+                ->where('is_active', true)
+                ->whereNull('completed_special_issue_id')
+                ->orderBy('priority')
+                ->get();
+
+            foreach ($plans as $plan) {
+                $grossEur = round((float) $plan->target_amount_gross, 2);
+                $netEur = (float) $plan->target_amount_net;
+                $iabPreview = round($netEur * 0.50, 2);
+                fputcsv($handle, [
+                    'Geplante Reinvestition / § 7g EStG IAB-Vorschau (max. 50 % = ' . number_format($iabPreview, 2, ',', '.') . ' €)',
+                    'IAB-Plan',
+                    $sanitizeCsvCell($plan->title),
+                    $plan->target_date ? $plan->target_date->format('d.m.Y') : 'Geplant',
+                    '—',
+                    number_format($grossEur, 2, ',', '.'),
+                    number_format($netEur, 2, ',', '.'),
+                    number_format((float) $plan->target_vat_refund, 2, ',', '.'),
+                    $plan->afa_years,
+                    number_format((float) $plan->monthly_rate, 2, ',', '.'),
+                    '0,00',
+                    number_format((float) $plan->saved_initial, 2, ',', '.'),
+                    '0,00',
+                ], ';');
+            }
+        }
+
+        rewind($handle);
+        $content = stream_get_contents($handle);
+        fclose($handle);
+
+        return (string) $content;
     }
 
     /**
@@ -1704,7 +2282,7 @@ class FinancialService
 
     /**
      * Erstellt das vollständige DATEV- & Steuer-Export-ZIP (TaxExport_YYYY_MM.zip)
-     * inklusive EXTF Buchungsstapel CSV, UStVA PDF und allen gewerblichen Belegen.
+     * inklusive EXTF Buchungsstapel CSV, Anlagenspiegel CSV, UStVA PDF und allen gewerblichen Belegen.
      */
     public function generateDatevExportZip(array $data): array
     {
@@ -1726,6 +2304,12 @@ class FinancialService
         $csvPath = $tempDir . "/EXTF_Buchungsstapel_{$monthStr}_{$yearStr}.csv";
         $csvContent = $this->buildDatevCsv($data);
         \Illuminate\Support\Facades\File::put($csvPath, mb_convert_encoding($csvContent, 'Windows-1252', 'UTF-8'));
+
+        // 1b. ANLAGENSPIEGEL & AfA CSV (Anlage AVEÜR)
+        $lastMonthInPeriod = !empty($monthsInPeriod) ? max($monthsInPeriod) : 12;
+        $assetCsvPath = $tempDir . "/Anlagenspiegel_und_AfA_{$yearStr}.csv";
+        $assetCsvContent = $this->buildAssetScheduleCsv($this->resolveMandantAdminId(), (int) $yearStr, (int) $lastMonthInPeriod);
+        \Illuminate\Support\Facades\File::put($assetCsvPath, $assetCsvContent);
 
         // 2. UStVA PDF REPORT
         $pdfPath = $tempDir . "/UStVA_Auswertung_{$monthStr}_{$yearStr}.pdf";
@@ -1787,6 +2371,9 @@ class FinancialService
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === TRUE) {
             if (\Illuminate\Support\Facades\File::exists($csvPath)) {
                 $zip->addFile($csvPath, basename($csvPath));
+            }
+            if (\Illuminate\Support\Facades\File::exists($assetCsvPath)) {
+                $zip->addFile($assetCsvPath, basename($assetCsvPath));
             }
             if (\Illuminate\Support\Facades\File::exists($pdfPath)) {
                 $zip->addFile($pdfPath, basename($pdfPath));
@@ -1916,6 +2503,749 @@ class FinancialService
             'zip_path' => $zipPath,
             'temp_dir' => $tempDir,
             'copy_count' => $copyCount,
+        ];
+    }
+
+    /**
+     * Exakte Einkommensteuer- & Gewerbesteuer-Berechnung nach § 32a EStG & § 35 EStG (Einzelunternehmen).
+     * Gründungszuschuss (§ 3 Nr. 2a EStG) ist steuerfrei und unterliegt NICHT dem Progressionsvorbehalt.
+     */
+    public function calculateGermanIncomeTax(
+        float $zvE,
+        int $year = 2026,
+        float $gewerbeGewinn = 0.0,
+        float $hebesatz = 380.0
+    ): array {
+        $zvERounded = max(0.0, floor($zvE));
+
+        // § 32a EStG Grundtarif (2026 vs. 2025/Vorjahre)
+        $gfb = $year >= 2026 ? 12348.0 : 12096.0;
+        $z2End = $year >= 2026 ? 17799.0 : 17443.0;
+        $z3End = $year >= 2026 ? 69878.0 : 68480.0;
+        $z4End = 277825.0;
+
+        if ($zvERounded <= $gfb) {
+            $estTarif = 0.0;
+        } elseif ($zvERounded <= $z2End) {
+            $y = ($zvERounded - $gfb) / 10000.0;
+            $estTarif = floor((914.51 * $y + 1400.0) * $y);
+        } elseif ($zvERounded <= $z3End) {
+            $z = ($zvERounded - $z2End) / 10000.0;
+            $estTarif = floor((173.10 * $z + 2397.0) * $z + 1034.87);
+        } elseif ($zvERounded <= $z4End) {
+            $estTarif = floor(0.42 * $zvERounded - 11135.63);
+        } else {
+            $estTarif = floor(0.45 * $zvERounded - 19470.38);
+        }
+
+        // Gewerbesteuer (§ 11 GewStG: 24.500 € Freibetrag für Einzelunternehmen, 3,5 % Messzahl)
+        $abgerundeterGewinn = max(0.0, floor($gewerbeGewinn / 100.0) * 100.0);
+        $gewerbeErtrag = max(0.0, $abgerundeterGewinn - 24500.0);
+        $messbetrag = round($gewerbeErtrag * 0.035, 2);
+        $gewerbesteuer = round($messbetrag * ($hebesatz / 100.0), 2);
+
+        // § 35 EStG Steuerermäßigung: bis zum 4,0-fachen Messbetrag, max. tatsächlich gezahlte GewSt & tarifliche ESt
+        $estAnrechnung = min($estTarif, $gewerbesteuer, round($messbetrag * 4.0, 2));
+        $estNetto = max(0.0, round($estTarif - $estAnrechnung, 2));
+
+        // Solidaritätszuschlag (Freigrenze 2026: 19.950 € ESt)
+        $soliFreigrenze = $year >= 2026 ? 19950.0 : 18130.0;
+        $soli = 0.0;
+        if ($estNetto > $soliFreigrenze) {
+            $soli = round(min($estNetto * 0.055, ($estNetto - $soliFreigrenze) * 0.119), 2);
+        }
+
+        $totalTax = round($estNetto + $gewerbesteuer + $soli, 2);
+        $effectiveRate = $zvERounded > 0 ? round(($totalTax / $zvERounded) * 100.0, 2) : 0.0;
+
+        return [
+            'zvE' => $zvERounded,
+            'grundfreibetrag' => $gfb,
+            'est_tarif' => $estTarif,
+            'gewerbe_freibetrag' => 24500.0,
+            'gewerbe_ertrag' => $gewerbeErtrag,
+            'gewerbe_messbetrag' => $messbetrag,
+            'gewerbesteuer' => $gewerbesteuer,
+            'est_anrechnung_35' => $estAnrechnung,
+            'est_netto' => $estNetto,
+            'soli' => $soli,
+            'total_tax' => $totalTax,
+            'effective_rate' => $effectiveRate,
+        ];
+    }
+
+    /**
+     * Prüft, ob eine gebuchte Sonderausgabe ein abnutzbares Anlagegut (> 800 € netto, § 7 EStG) ist.
+     */
+    public function isCapitalAssetIssue(AccountingSpecialIssue $issue, float $netCost): bool
+    {
+        if (!$issue->is_business || (float) $issue->amount >= 0 || $netCost <= 800.00) {
+            return false;
+        }
+
+        $cat = mb_strtolower((string) $issue->category);
+        $title = mb_strtolower((string) $issue->title);
+
+        if (in_array($cat, ['rohmaterial', 'wareneinkauf', 'verpackungen', 'werbung & marketing', 'beratung & gründung'], true)) {
+            return false;
+        }
+
+        if (\Illuminate\Support\Str::contains($title, ['schulung', 'seminar', 'kurs', 'beratung', 'credits', 'google one'])) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Ermittelt automatisch Anlagevermögen (> 800 € netto -> lineare AfA) und GWG (250,01 € - 800,00 € netto)
+     * aus den real gebuchten gewerblichen Sonderausgaben.
+     */
+    public function getFixedAssetsAndDepreciation($adminId, int $year, ?int $upToMonth = null): array
+    {
+        $resolvedAdminId = $this->resolveMandantAdminId($adminId);
+        if (!$resolvedAdminId) {
+            return [
+                'assets' => [],
+                'gwg_items' => [],
+                'annual_afa' => 0.0,
+                'monthly_afa' => 0.0,
+                'total_book_value' => 0.0,
+                'gwg_total_net' => 0.0,
+            ];
+        }
+
+        $targetMonth = $upToMonth ? max(1, min(12, $upToMonth)) : 12;
+        $cutoffDate = Carbon::createFromDate($year, $targetMonth, 1)->endOfMonth();
+        $isSmallBusinessYear = app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($year);
+
+        $issues = AccountingSpecialIssue::where('admin_id', $resolvedAdminId)
+            ->where('is_business', true)
+            ->where('amount', '<', 0)
+            ->whereDate('execution_date', '<=', $cutoffDate->toDateString())
+            ->orderBy('execution_date', 'desc')
+            ->get();
+
+        $assets = [];
+        $gwgItems = [];
+        $annualAfaSum = 0.0;
+        $monthlyAfaCurrent = 0.0;
+        $totalBookValue = 0.0;
+        $gwgTotalNet = 0.0;
+
+        foreach ($issues as $issue) {
+            $gross = abs((float) $issue->amount);
+            $rate = (!$isSmallBusinessYear && self::isEligibleGermanInputVatRate($issue->tax_rate))
+                ? (int) round((float) $issue->tax_rate)
+                : 0;
+            $net = $rate > 0 ? round($gross / (1 + ($rate / 100.0)), 2) : round($gross, 2);
+            $vat = round($gross - $net, 2);
+
+            if ($this->isCapitalAssetIssue($issue, $net)) {
+                $afaYears = 5; // Standard-Nutzungsdauer Laser/Werkstattmaschinen lt. AfA-Tabelle (60 Monate)
+                $totalMonths = $afaYears * 12;
+                $monthlyAfa = $net / $totalMonths;
+
+                $purchaseMonthStart = Carbon::parse($issue->execution_date)->startOfMonth();
+                $endMonth = $purchaseMonthStart->copy()->addMonths($totalMonths - 1)->endOfMonth();
+
+                // AfA für das gewählte Kalenderjahr $year (pro rata temporis)
+                $yearAfaMonths = 0;
+                for ($m = 1; $m <= 12; $m++) {
+                    $mStart = Carbon::createFromDate($year, $m, 1)->startOfMonth();
+                    if ($mStart->gte($purchaseMonthStart) && $mStart->lte($endMonth)) {
+                        $yearAfaMonths++;
+                    }
+                }
+                $yearAfa = round($yearAfaMonths * $monthlyAfa, 2);
+
+                // Ist das Anlagegut im gewählten Monat $targetMonth/$year aktiv in Abschreibung?
+                $selectedMonthStart = Carbon::createFromDate($year, $targetMonth, 1)->startOfMonth();
+                $isActiveInMonth = $selectedMonthStart->gte($purchaseMonthStart) && $selectedMonthStart->lte($endMonth);
+                $currentMonthAfa = $isActiveInMonth ? round($monthlyAfa, 2) : 0.0;
+
+                // Kumulierte AfA bis einschl. $selectedMonthStart
+                $elapsedMonths = 0;
+                if ($selectedMonthStart->gte($purchaseMonthStart)) {
+                    $elapsedMonths = min($totalMonths, (int) $purchaseMonthStart->diffInMonths($selectedMonthStart) + 1);
+                }
+                $accumulatedAfa = min($net, round($elapsedMonths * $monthlyAfa, 2));
+                $bookValue = max(0.0, round($net - $accumulatedAfa, 2));
+
+                $annualAfaSum += $yearAfa;
+                $monthlyAfaCurrent += $currentMonthAfa;
+                $totalBookValue += $bookValue;
+
+                $assets[] = [
+                    'id' => $issue->id,
+                    'title' => $issue->title,
+                    'purchase_date' => $issue->execution_date->format('d.m.Y'),
+                    'end_date' => $endMonth->format('m/Y'),
+                    'gross_cost' => $gross,
+                    'net_cost' => $net,
+                    'vat_amount' => $vat,
+                    'afa_years' => $afaYears,
+                    'monthly_afa' => round($monthlyAfa, 2),
+                    'year_afa' => $yearAfa,
+                    'accumulated_afa' => $accumulatedAfa,
+                    'book_value' => $bookValue,
+                    'progress_percent' => $net > 0 ? min(100, (int) round(($accumulatedAfa / $net) * 100)) : 100,
+                ];
+            } elseif ((int) $issue->execution_date->year === $year && $net >= 150.00 && $net <= 800.00) {
+                $cat = mb_strtolower((string) $issue->category);
+                $titleLower = mb_strtolower((string) $issue->title);
+                if (
+                    in_array($cat, ['arbeitsmaterial', 'technik', 'maschinen'], true) &&
+                    !\Illuminate\Support\Str::contains($titleLower, ['visitenkarten', 'aufkleber', 'umschläge', 'karton'])
+                ) {
+                    $gwgTotalNet += $net;
+                    $gwgItems[] = [
+                        'id' => $issue->id,
+                        'title' => $issue->title,
+                        'purchase_date' => $issue->execution_date->format('d.m.Y'),
+                        'gross_cost' => $gross,
+                        'net_cost' => $net,
+                        'vat_amount' => $vat,
+                    ];
+                }
+            }
+        }
+
+        return [
+            'assets' => $assets,
+            'gwg_items' => $gwgItems,
+            'annual_afa' => round($annualAfaSum, 2),
+            'monthly_afa' => round($monthlyAfaCurrent, 2),
+            'total_book_value' => round($totalBookValue, 2),
+            'gwg_total_net' => round($gwgTotalNet, 2),
+        ];
+    }
+
+    public function getPayoutPlannerConfig(): array
+    {
+        $defaults = [
+            'safety_buffer' => 1500.00,
+            'private_living_allowance' => 600.00,
+            'reserve_afa_replacement' => true,
+            'smooth_annual_fix_costs' => true,
+            'sim_enabled' => false,
+            'sim_monthly_gross_revenue' => 3800.00,
+            'sim_cogs_percent' => 25.0,
+        ];
+
+        $stored = shop_setting('accounting_payout_config');
+        if (is_string($stored)) {
+            $decoded = json_decode($stored, true);
+            $stored = is_array($decoded) ? $decoded : [];
+        }
+
+        if (!is_array($stored)) {
+            return $defaults;
+        }
+
+        return [
+            'safety_buffer' => max(0.0, round((float) ($stored['safety_buffer'] ?? $defaults['safety_buffer']), 2)),
+            'private_living_allowance' => max(0.0, round((float) ($stored['private_living_allowance'] ?? $defaults['private_living_allowance']), 2)),
+            'reserve_afa_replacement' => (bool) ($stored['reserve_afa_replacement'] ?? $defaults['reserve_afa_replacement']),
+            'smooth_annual_fix_costs' => (bool) ($stored['smooth_annual_fix_costs'] ?? $defaults['smooth_annual_fix_costs']),
+            'sim_enabled' => (bool) ($stored['sim_enabled'] ?? $defaults['sim_enabled']),
+            'sim_monthly_gross_revenue' => max(0.0, round((float) ($stored['sim_monthly_gross_revenue'] ?? $defaults['sim_monthly_gross_revenue']), 2)),
+            'sim_cogs_percent' => max(0.0, min(95.0, round((float) ($stored['sim_cogs_percent'] ?? $defaults['sim_cogs_percent']), 1))),
+        ];
+    }
+
+    public function savePayoutPlannerConfig(array $input): array
+    {
+        $merged = array_merge($this->getPayoutPlannerConfig(), $input);
+        $clean = [
+            'safety_buffer' => max(0.0, min(100000.0, round((float) $merged['safety_buffer'], 2))),
+            'private_living_allowance' => max(0.0, min(20000.0, round((float) $merged['private_living_allowance'], 2))),
+            'reserve_afa_replacement' => (bool) $merged['reserve_afa_replacement'],
+            'smooth_annual_fix_costs' => (bool) $merged['smooth_annual_fix_costs'],
+            'sim_enabled' => (bool) $merged['sim_enabled'],
+            'sim_monthly_gross_revenue' => max(0.0, min(500000.0, round((float) $merged['sim_monthly_gross_revenue'], 2))),
+            'sim_cogs_percent' => max(0.0, min(95.0, round((float) $merged['sim_cogs_percent'], 1))),
+        ];
+
+        \App\Models\System\SystemSetting::updateOrCreate(
+            ['key' => 'accounting_payout_config'],
+            ['value' => json_encode($clean)]
+        );
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+
+        return $clean;
+    }
+
+    /**
+     * CFO-Engine: Berechnet das dynamisch auszahlbare Monats-Gehalt (sichere Privatentnahme),
+     * alle 5 Rücklagen-Töpfe, den privaten Haushalts-Spiegel (inkl. Wegfall Gründungszuschuss ab 05/2027)
+     * sowie Fortschritt, Zieldatum & § 7g IAB-Hebel aller Reinvestitions-Ziele.
+     */
+    public function getDynamicSalaryAndReinvestmentData(
+        $adminId,
+        int $month,
+        int $year,
+        ?array $overrideConfig = null
+    ): array {
+        $resolvedAdminId = $this->resolveMandantAdminId($adminId);
+        $month = max(1, min(12, $month));
+        $year = max(2020, min(2100, $year));
+        $config = $overrideConfig ? array_merge($this->getPayoutPlannerConfig(), $overrideConfig) : $this->getPayoutPlannerConfig();
+
+        $isSmallBusinessYear = app(\App\Services\Tax\TaxSettingService::class)->isSmallBusinessForYear($year);
+        $defaultVatRate = $isSmallBusinessYear ? 0.0 : (float) shop_setting('default_tax_rate', 19.0);
+        $vatFactor = $defaultVatRate > 0 ? (1.0 + ($defaultVatRate / 100.0)) : 1.0;
+
+        // 1. Anlagevermögen & reale AfA für das gewählte Jahr/Monat
+        $depreciation = $this->getFixedAssetsAndDepreciation($resolvedAdminId, $year, $month);
+
+        // 2. Fixkosten analysieren (Gewerbe vs. Privat, geglättet vs. fällig)
+        $groups = $resolvedAdminId
+            ? AccountingGroup::with('items')->where('admin_id', $resolvedAdminId)->get()
+            : collect();
+
+        $bizFixDueNet = 0.0;
+        $bizFixDueVat = 0.0;
+        $bizFixSmoothedNet = 0.0;
+        $bizFixSmoothedVat = 0.0;
+        $bizFixAnnualNet = 0.0;
+
+        $privIncomeDue = 0.0;
+        $privIncomePostGz = 0.0;
+        $privFixDue = 0.0;
+        $privFixSmoothed = 0.0;
+        $rentalIncomeAnnual = 0.0;
+
+        foreach ($groups as $group) {
+            $isIncome = ($group->type === 'income');
+            foreach ($group->items as $item) {
+                $interval = max(1, (int) $item->interval_months);
+                $absAmount = abs((float) $item->amount);
+                $isDue = $this->isDueInMonth($item, $month, $year);
+
+                if ($item->is_business) {
+                    if (!$isIncome) {
+                        $rate = (!$isSmallBusinessYear && self::isEligibleGermanInputVatRate($item->tax_rate))
+                            ? (int) round((float) $item->tax_rate)
+                            : 0;
+                        $itemNet = $rate > 0 ? ($absAmount / (1.0 + ($rate / 100.0))) : $absAmount;
+                        $itemVat = $absAmount - $itemNet;
+
+                        if ($isDue) {
+                            $bizFixDueNet += $itemNet;
+                            $bizFixDueVat += $itemVat;
+                        }
+
+                        // Ist der Vertrag im gewählten Monat grundsätzlich aktiv?
+                        $selectedStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+                        $itemStart = Carbon::parse($item->first_payment_date)->startOfMonth();
+                        $itemEnd = $item->last_payment_date ? Carbon::parse($item->last_payment_date)->endOfMonth() : null;
+                        if ($selectedStart->gte($itemStart) && (!$itemEnd || $selectedStart->lte($itemEnd))) {
+                            $bizFixSmoothedNet += ($itemNet / $interval);
+                            $bizFixSmoothedVat += ($itemVat / $interval);
+                        }
+
+                        for ($m = 1; $m <= 12; $m++) {
+                            if ($this->isDueInMonth($item, $m, $year)) {
+                                $bizFixAnnualNet += $itemNet;
+                            }
+                        }
+                    }
+                } else {
+                    if ($isIncome) {
+                        if ($isDue) {
+                            $privIncomeDue += $absAmount;
+                        }
+                        // Post-Gründungszuschuss Einkommen (z. B. Mai 2027)
+                        if ($this->isDueInMonth($item, 6, max(2027, $year))) {
+                            $privIncomePostGz += $absAmount / $interval;
+                        }
+                        $nameLower = mb_strtolower($item->name);
+                        if (\Illuminate\Support\Str::contains($nameLower, ['miete'])) {
+                            for ($m = 1; $m <= 12; $m++) {
+                                if ($this->isDueInMonth($item, $m, $year)) {
+                                    $rentalIncomeAnnual += $absAmount;
+                                }
+                            }
+                        }
+                    } else {
+                        if ($isDue) {
+                            $privFixDue += $absAmount;
+                        }
+                        $selectedStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+                        $itemStart = Carbon::parse($item->first_payment_date)->startOfMonth();
+                        $itemEnd = $item->last_payment_date ? Carbon::parse($item->last_payment_date)->endOfMonth() : null;
+                        if ($selectedStart->gte($itemStart) && (!$itemEnd || $selectedStart->lte($itemEnd))) {
+                            $privFixSmoothed += ($absAmount / $interval);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Echte Umsätze & laufende Sonderausgaben im Monat (oder Simulationsmodus)
+        $simEnabled = (bool) $config['sim_enabled'];
+        if ($simEnabled) {
+            $grossRevenue = (float) $config['sim_monthly_gross_revenue'];
+            $netRevenue = $vatFactor > 1.0 ? round($grossRevenue / $vatFactor, 2) : round($grossRevenue, 2);
+            $salesVat = round($grossRevenue - $netRevenue, 2);
+
+            $variableOperatingNet = round($netRevenue * ((float) $config['sim_cogs_percent'] / 100.0), 2);
+            $variableInputVat = $vatFactor > 1.0 ? round($variableOperatingNet * ($defaultVatRate / 100.0), 2) : 0.0;
+            $capitalAssetVatThisMonth = 0.0;
+
+            $projectedAnnualNetRevenue = $netRevenue * 12.0;
+            $projectedAnnualVariableNet = $variableOperatingNet * 12.0;
+        } else {
+            $monthInvoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
+                ->whereMonth('invoice_date', $month)
+                ->whereIn('status', ['paid', 'cancelled'])
+                ->whereNotNull('paid_at')
+                ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+                ->get(['type', 'total', 'tax_amount']);
+
+            $grossRevenue = round($monthInvoices->sum(fn($i) => self::signedInvoiceCents($i, false)) / 100.0, 2);
+            $netRevenue = round($monthInvoices->sum(fn($i) => self::signedInvoiceCents($i, true)) / 100.0, 2);
+            $salesVat = max(0.0, round($grossRevenue - $netRevenue, 2));
+
+            $monthSpecials = $resolvedAdminId
+                ? AccountingSpecialIssue::where('admin_id', $resolvedAdminId)
+                    ->where('is_business', true)
+                    ->whereYear('execution_date', $year)
+                    ->whereMonth('execution_date', $month)
+                    ->get()
+                : collect();
+
+            $variableOperatingNet = 0.0;
+            $variableInputVat = 0.0;
+            $capitalAssetVatThisMonth = 0.0;
+
+            foreach ($monthSpecials as $sp) {
+                $amt = (float) $sp->amount;
+                $absGross = abs($amt);
+                $rate = (!$isSmallBusinessYear && self::isEligibleGermanInputVatRate($sp->tax_rate))
+                    ? (int) round((float) $sp->tax_rate)
+                    : 0;
+                $absNet = $rate > 0 ? ($absGross / (1.0 + ($rate / 100.0))) : $absGross;
+                $absVat = $absGross - $absNet;
+
+                if ($amt < 0 && $this->isCapitalAssetIssue($sp, $absNet)) {
+                    // Großanlage (> 800 € netto): Kein operativer Sofortaufwand (läuft über AfA), aber Vorsteuer ist abziehbar!
+                    $capitalAssetVatThisMonth += $absVat;
+                } else {
+                    $sign = $amt < 0 ? 1.0 : -1.0; // Ausgaben erhöhen Kosten, Rückerstattungen mindern Kosten
+                    $variableOperatingNet += ($sign * $absNet);
+                    $variableInputVat += ($sign * $absVat);
+                }
+            }
+            $variableOperatingNet = max(0.0, round($variableOperatingNet, 2));
+            $variableInputVat = max(0.0, round($variableInputVat, 2));
+
+            // Jahres-Ist/Hochrechnung für reale Einkommensteuer-Rücklage
+            $yearInvoices = \App\Models\Accounting\AccountingInvoice::whereYear('invoice_date', $year)
+                ->whereIn('status', ['paid', 'cancelled'])
+                ->whereNotNull('paid_at')
+                ->whereIn('type', ['invoice', 'cancellation', 'credit_note'])
+                ->get(['type', 'total', 'tax_amount']);
+            $projectedAnnualNetRevenue = round($yearInvoices->sum(fn($i) => self::signedInvoiceCents($i, true)) / 100.0, 2);
+
+            $yearSpecials = $resolvedAdminId
+                ? AccountingSpecialIssue::where('admin_id', $resolvedAdminId)
+                    ->where('is_business', true)
+                    ->whereYear('execution_date', $year)
+                    ->get()
+                : collect();
+            $projectedAnnualVariableNet = 0.0;
+            foreach ($yearSpecials as $ysp) {
+                $amt = (float) $ysp->amount;
+                $absGross = abs($amt);
+                $rate = (!$isSmallBusinessYear && self::isEligibleGermanInputVatRate($ysp->tax_rate))
+                    ? (int) round((float) $ysp->tax_rate)
+                    : 0;
+                $absNet = $rate > 0 ? ($absGross / (1.0 + ($rate / 100.0))) : $absGross;
+                if ($amt < 0 && $this->isCapitalAssetIssue($ysp, $absNet)) {
+                    continue;
+                }
+                $projectedAnnualVariableNet += ($amt < 0 ? $absNet : -$absNet);
+            }
+            $projectedAnnualVariableNet = max(0.0, round($projectedAnnualVariableNet, 2));
+        }
+
+        $effectiveFixNet = $config['smooth_annual_fix_costs'] ? round($bizFixSmoothedNet, 2) : round($bizFixDueNet, 2);
+        $effectiveFixVat = $config['smooth_annual_fix_costs'] ? round($bizFixSmoothedVat, 2) : round($bizFixDueVat, 2);
+
+        // Topf 1: Umsatzsteuer-Tresor
+        $totalInputVatMonth = round($effectiveFixVat + $variableInputVat + $capitalAssetVatThisMonth, 2);
+        $vatPot = max(0.0, round($salesVat - $totalInputVatMonth, 2));
+        $vatRefundCredit = max(0.0, round($totalInputVatMonth - $salesVat, 2));
+
+        // Topf 2: Laufende Betriebskosten (Netto)
+        $operatingPot = round($effectiveFixNet + $variableOperatingNet, 2);
+
+        // Operativer Überschuss vor Ertragsteuern, Puffer & Reinvestitionen
+        $operatingSurplus = round($netRevenue - $operatingPot, 2);
+
+        // 4. Reinvestitions-Pläne laden (für § 7g IAB & Topf 5)
+        $plansCollection = ($resolvedAdminId && \Illuminate\Support\Facades\Schema::hasTable('accounting_investment_plans'))
+            ? \App\Models\Accounting\AccountingInvestmentPlan::where('admin_id', $resolvedAdminId)
+                ->orderBy('is_active', 'desc')
+                ->orderBy('priority')
+                ->orderBy('created_at')
+                ->get()
+            : collect();
+
+        $totalIabDeduction = 0.0;
+        foreach ($plansCollection as $p) {
+            if ($p->is_active && !$p->completed_special_issue_id && $p->use_iab && (int) $p->afa_years > 0) {
+                $totalIabDeduction += round($p->target_amount_net * 0.50, 2);
+            }
+        }
+
+        // Topf 3: Einkommensteuer-Rücklage (§ 32a EStG + § 35 EStG, ohne Gründungszuschuss!)
+        $annualEuerProfitWithoutIab = round($projectedAnnualNetRevenue - $bizFixAnnualNet - $projectedAnnualVariableNet - $depreciation['annual_afa'], 2);
+        $annualEuerProfit = round($annualEuerProfitWithoutIab - $totalIabDeduction, 2);
+
+        // Konservative Vermietungs-Einkünfte (Miete abzgl. geschätzter Darlehenszinsen/Gebäude-AfA ~ 50 %)
+        $netRentalTaxable = round($rentalIncomeAnnual * 0.45, 2);
+        $zvEWithoutIab = max(0.0, $annualEuerProfitWithoutIab + $netRentalTaxable);
+        $zvEWithIab = max(0.0, $annualEuerProfit + $netRentalTaxable);
+
+        $taxWithoutIab = $this->calculateGermanIncomeTax($zvEWithoutIab, $year, max(0.0, $annualEuerProfitWithoutIab));
+        $taxResult = $this->calculateGermanIncomeTax($zvEWithIab, $year, max(0.0, $annualEuerProfit));
+        $iabTotalTaxSaving = max(0.0, round($taxWithoutIab['total_tax'] - $taxResult['total_tax'], 2));
+
+        // Nur den auf den Gewerbebetrieb entfallenden Steueranteil als Firmen-Rücklage blocken:
+        $taxOnlyRental = $this->calculateGermanIncomeTax(max(0.0, $netRentalTaxable), $year, 0.0);
+        $businessAnnualIncomeTax = max(0.0, round($taxResult['total_tax'] - $taxOnlyRental['total_tax'], 2));
+        $incomeTaxPot = $operatingSurplus > 0 ? round($businessAnnualIncomeTax / 12.0, 2) : 0.0;
+
+        // Topf 4: Eiserner Kontopuffer (Prüfung gegen FYRST-Geschäftskonto falls angelegt)
+        $businessAccounts = ($resolvedAdminId && class_exists(\App\Models\Accounting\AccountingBankAccount::class))
+            ? \App\Models\Accounting\AccountingBankAccount::where('admin_id', $resolvedAdminId)
+                ->where('is_business', true)
+                ->where('is_active_for_analysis', true)
+                ->get()
+            : collect();
+        $hasBusinessBank = $businessAccounts->isNotEmpty();
+        $businessBankBalance = $hasBusinessBank ? round((float) $businessAccounts->sum('balance'), 2) : null;
+        $safetyBufferTarget = (float) $config['safety_buffer'];
+
+        $surplusAfterTax = round($operatingSurplus - $incomeTaxPot, 2);
+        $bufferPot = 0.0;
+        if ($hasBusinessBank && $businessBankBalance < $safetyBufferTarget && $surplusAfterTax > 0) {
+            $bufferPot = round(min($surplusAfterTax, $safetyBufferTarget - $businessBankBalance), 2);
+        }
+
+        $surplusBeforeReinvest = round($surplusAfterTax - $bufferPot, 2);
+
+        // Topf 5: Kalkulatorische Reinvestitions- & AfA-Erhaltungs-Rücklage
+        $afaReplacementRate = $config['reserve_afa_replacement'] ? $depreciation['monthly_afa'] : 0.0;
+        $selectedMonthStart = Carbon::createFromDate($year, $month, 1)->startOfMonth();
+
+        $plansOutput = [];
+        $activePlansMonthlySum = 0.0;
+
+        foreach ($plansCollection as $plan) {
+            $targetGross = abs((float) $plan->target_amount_gross);
+            $planRate = (!$isSmallBusinessYear && self::isEligibleGermanInputVatRate($plan->tax_rate))
+                ? (int) $plan->tax_rate
+                : 0;
+            $targetNet = $planRate > 0 ? round($targetGross / (1.0 + ($planRate / 100.0)), 2) : round($targetGross, 2);
+            $vatOnPurchase = round($targetGross - $targetNet, 2);
+            $savedInitial = max(0.0, (float) $plan->saved_initial);
+
+            $planStart = Carbon::parse($plan->start_date)->startOfMonth();
+            $isStarted = $selectedMonthStart->gte($planStart);
+            $isCompleted = !empty($plan->completed_special_issue_id);
+
+            // Effektive Monatsrate des Plans (für Prognose & aktuellen Monat)
+            if ($plan->allocation_mode === 'profit_percent') {
+                $pct = max(0.0, (float) $plan->profit_percent);
+                $monthlyContrib = max(0.0, round(max(0.0, $surplusBeforeReinvest - $afaReplacementRate) * ($pct / 100.0), 2));
+            } else {
+                $monthlyContrib = max(0.0, round((float) $plan->monthly_rate, 2));
+            }
+
+            // Bisher angespart bis zum gewählten Monat
+            if ($isCompleted) {
+                $accumulated = $targetNet;
+            } elseif ($selectedMonthStart->lt($planStart)) {
+                $accumulated = min($targetNet, $savedInitial);
+            } else {
+                $elapsedMonths = (int) $planStart->diffInMonths($selectedMonthStart) + 1;
+                $accumulated = min($targetNet, round($savedInitial + ($elapsedMonths * $monthlyContrib), 2));
+            }
+
+            $remainingNet = max(0.0, round($targetNet - $accumulated, 2));
+            $progressPct = $targetNet > 0 ? min(100, (int) round(($accumulated / $targetNet) * 100)) : 100;
+
+            // Beitrag im aktuell gewählten Monat (nur wenn aktiv, gestartet und noch nicht 100 % voll)
+            $thisMonthContribution = 0.0;
+            if ($plan->is_active && !$isCompleted && $isStarted && $remainingNet > 0) {
+                $prevAccumulated = max($savedInitial, $accumulated - $monthlyContrib);
+                $thisMonthContribution = min($monthlyContrib, max(0.0, round($targetNet - $prevAccumulated, 2)));
+                $activePlansMonthlySum += $thisMonthContribution;
+            } elseif ($plan->is_active && !$isCompleted && !$isStarted) {
+                // Für Zukunfts-Pläne (z. B. Start 01/2027 bei Betrachtung im Simulator) optional im Simulator vormerken:
+                if ($simEnabled) {
+                    $thisMonthContribution = min($monthlyContrib, $targetNet);
+                    $activePlansMonthlySum += $thisMonthContribution;
+                }
+            }
+
+            // Wann ist das Ziel erreicht?
+            $monthsRemaining = null;
+            $estimatedReachLabel = 'Pausiert';
+            $estimatedReachDate = null;
+            if ($isCompleted) {
+                $monthsRemaining = 0;
+                $estimatedReachLabel = 'Angeschafft';
+            } elseif ($remainingNet <= 0.0) {
+                $monthsRemaining = 0;
+                $estimatedReachLabel = 'Ziel erreicht';
+            } elseif ($monthlyContrib > 0.0) {
+                $baseStartForFuture = $selectedMonthStart->lt($planStart) ? $planStart->copy() : $selectedMonthStart->copy()->addMonth();
+                $monthsNeededFromBase = (int) ceil($remainingNet / $monthlyContrib);
+                $reachCarbon = $baseStartForFuture->copy()->addMonths(max(0, $monthsNeededFromBase - 1));
+                $monthsRemaining = (int) max(1, $selectedMonthStart->diffInMonths($reachCarbon));
+                $estimatedReachLabel = $reachCarbon->locale('de')->isoFormat('MMM YYYY');
+                $estimatedReachDate = $reachCarbon->format('Y-m-d');
+            } else {
+                $estimatedReachLabel = $plan->allocation_mode === 'profit_percent' ? 'Wartet auf Gewinn' : '0 € Rate';
+            }
+
+            // Wunsch-Zieldatum Check
+            $requiredRateForTarget = null;
+            $onTrack = true;
+            if ($plan->target_date && !$isCompleted && $remainingNet > 0) {
+                $targetCarbon = Carbon::parse($plan->target_date)->endOfMonth();
+                $monthsUntilTarget = max(1, (int) $selectedMonthStart->diffInMonths($targetCarbon->copy()->startOfMonth(), false));
+                if ($monthsUntilTarget > 0) {
+                    $requiredRateForTarget = round($remainingNet / $monthsUntilTarget, 2);
+                    if ($estimatedReachDate && Carbon::parse($estimatedReachDate)->gt($targetCarbon)) {
+                        $onTrack = false;
+                    }
+                } else {
+                    $requiredRateForTarget = $remainingNet;
+                    $onTrack = false;
+                }
+            }
+
+            $iab50 = ((int) $plan->afa_years > 0) ? round($targetNet * 0.50, 2) : 0.0;
+            $futureMonthlyAfa = ((int) $plan->afa_years > 0) ? round($targetNet / ($plan->afa_years * 12), 2) : $targetNet;
+
+            $plansOutput[] = [
+                'id' => $plan->id,
+                'title' => $plan->title,
+                'target_gross' => $targetGross,
+                'target_net' => $targetNet,
+                'tax_rate' => $planRate,
+                'vat_refund_on_purchase' => $vatOnPurchase,
+                'saved_initial' => $savedInitial,
+                'allocation_mode' => $plan->allocation_mode,
+                'monthly_rate' => (float) $plan->monthly_rate,
+                'profit_percent' => (float) $plan->profit_percent,
+                'effective_monthly_rate' => $monthlyContrib,
+                'this_month_contribution' => round($thisMonthContribution, 2),
+                'accumulated_saved' => $accumulated,
+                'remaining_net' => $remainingNet,
+                'progress_percent' => $progressPct,
+                'start_date' => $plan->start_date->format('Y-m-d'),
+                'start_label' => $plan->start_date->format('m/Y'),
+                'target_date' => $plan->target_date?->format('Y-m-d'),
+                'target_label' => $plan->target_date?->format('m/Y'),
+                'months_remaining' => $monthsRemaining,
+                'estimated_reach_label' => $estimatedReachLabel,
+                'required_rate_for_target' => $requiredRateForTarget,
+                'on_track' => $onTrack,
+                'afa_years' => (int) $plan->afa_years,
+                'future_monthly_afa' => $futureMonthlyAfa,
+                'use_iab' => (bool) $plan->use_iab,
+                'iab_50_amount' => $iab50,
+                'is_active' => (bool) $plan->is_active,
+                'is_completed' => $isCompleted,
+                'priority' => (int) $plan->priority,
+                'note' => $plan->note,
+            ];
+        }
+
+        $plannedReinvestmentTotal = round($afaReplacementRate + $activePlansMonthlySum, 2);
+        // Effektive Reservierung aus dem Monatsüberschuss (gedeckelt auf vorhandenen Überschuss im Ist, plus Ausweis der Ziel-Sparrate)
+        $reinvestmentPot = $surplusBeforeReinvest > 0
+            ? round(min($surplusBeforeReinvest, $plannedReinvestmentTotal), 2)
+            : 0.0;
+
+        // 5. DEIN SICHER AUSZAHLBARES MONATS-GEHALT (Freie Privatentnahme)
+        $safeMonthlySalary = max(0.0, round($surplusBeforeReinvest - $plannedReinvestmentTotal, 2));
+        $unallocatedDeficit = $surplusBeforeReinvest < $plannedReinvestmentTotal
+            ? round($plannedReinvestmentTotal - max(0.0, $surplusBeforeReinvest), 2)
+            : 0.0;
+
+        // 6. Privater Haushalts-Spiegel & Post-Gründungszuschuss-Radar (ab Mai 2027)
+        $livingAllowance = (float) $config['private_living_allowance'];
+        $privOutTotalNow = round($privFixSmoothed + $livingAllowance, 2);
+        $privBalanceNow = round($privIncomeDue - $privOutTotalNow, 2);
+        $neededFromShopNow = max(0.0, round(-$privBalanceNow, 2));
+
+        // Ab Mai 2027 (nach Auslaufen der 2.106,30 € Gründungszuschuss Phase 1 am 30.04.2027)
+        $postGzGap = max(0.0, round($privOutTotalNow - $privIncomePostGz, 2));
+
+        // Rückwärts-Auflösung: Welcher Brutto-Monatsumsatz im Shop deckt (Post-GZ-Gehalt + Fixkosten + Reinvestitionen + ESt + USt)?
+        $cogsRatio = ((float) $config['sim_cogs_percent']) / 100.0;
+        $marginRatio = max(0.15, 1.0 - $cogsRatio);
+        // Ziel-Netto-Überschuss vor Steuern (inkl. ca. 18 % Grenz-ESt-Puffer oberhalb Grundfreibetrag)
+        $targetNetBeforeTax = ($postGzGap + $plannedReinvestmentTotal) * 1.18 + $bizFixSmoothedNet;
+        $requiredNetSalesPostGz = round($targetNetBeforeTax / $marginRatio, 2);
+        $requiredGrossSalesPostGz = round($requiredNetSalesPostGz * $vatFactor, 2);
+
+        return [
+            'config' => $config,
+            'is_simulation' => $simEnabled,
+            'period_label' => Carbon::createFromDate($year, $month, 1)->locale('de')->isoFormat('MMMM YYYY'),
+            'gross_revenue' => $grossRevenue,
+            'net_revenue' => $netRevenue,
+            'pots' => [
+                'vat_pot' => $vatPot,
+                'vat_refund_credit' => $vatRefundCredit,
+                'operating_pot' => $operatingPot,
+                'fix_costs_net' => $effectiveFixNet,
+                'variable_costs_net' => $variableOperatingNet,
+                'income_tax_pot' => $incomeTaxPot,
+                'buffer_pot' => $bufferPot,
+                'reinvestment_pot' => $reinvestmentPot,
+                'planned_reinvestment_total' => $plannedReinvestmentTotal,
+                'afa_replacement_rate' => round($afaReplacementRate, 2),
+                'active_plans_rate' => round($activePlansMonthlySum, 2),
+            ],
+            'safe_monthly_salary' => $safeMonthlySalary,
+            'operating_surplus' => $operatingSurplus,
+            'unallocated_deficit' => $unallocatedDeficit,
+            'bank' => [
+                'has_business_bank' => $hasBusinessBank,
+                'balance' => $businessBankBalance,
+                'safety_buffer' => $safetyBufferTarget,
+            ],
+            'tax_projection' => [
+                'annual_euer_profit' => $annualEuerProfit,
+                'iab_deduction_total' => $totalIabDeduction,
+                'iab_tax_saving' => $iabTotalTaxSaving,
+                'effective_tax_rate' => $taxResult['effective_rate'],
+                'annual_business_tax' => $businessAnnualIncomeTax,
+            ],
+            'private_mirror' => [
+                'private_income_now' => round($privIncomeDue, 2),
+                'private_fix_smoothed' => round($privFixSmoothed, 2),
+                'private_fix_due' => round($privFixDue, 2),
+                'living_allowance' => round($livingAllowance, 2),
+                'private_balance_now' => $privBalanceNow,
+                'needed_from_shop_now' => $neededFromShopNow,
+                'post_gz_income' => round($privIncomePostGz, 2),
+                'post_gz_needed_salary' => $postGzGap,
+                'post_gz_required_gross_revenue' => $requiredGrossSalesPostGz,
+                'is_gz_active_now' => ($year === 2026 && $month >= 11) || ($year === 2027 && $month <= 4),
+            ],
+            'investment_plans' => $plansOutput,
+            'depreciation' => $depreciation,
         ];
     }
 }

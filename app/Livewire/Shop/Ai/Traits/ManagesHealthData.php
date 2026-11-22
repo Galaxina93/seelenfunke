@@ -10,6 +10,8 @@ trait ManagesHealthData
 {
     // Medication Form state
     public $showMedicationModal = false;
+    #[\Livewire\Attributes\Locked]
+    public ?string $editingMedicationId = null;
     public $medicationForm = [
         'id' => null,
         'name' => '',
@@ -59,9 +61,11 @@ trait ManagesHealthData
             $adminId = \App\Services\AI\AiAuthHelper::getAdminId();
             $med = AiHealthMedication::where('user_id', $adminId)->find($id);
             if ($med) {
+                $this->editingMedicationId = (string) $med->id;
                 $this->medicationForm = $med->toArray();
             }
         } else {
+            $this->editingMedicationId = null;
             $this->medicationForm = [
                 'id' => null,
                 'name' => '',
@@ -101,8 +105,9 @@ trait ManagesHealthData
             'user_id' => $adminId,
         ];
 
-        if (!empty($this->medicationForm['id'])) {
-            $med = AiHealthMedication::where('user_id', $adminId)->find($this->medicationForm['id']);
+        $targetId = $this->editingMedicationId;
+        if (!empty($targetId)) {
+            $med = AiHealthMedication::where('user_id', $adminId)->find($targetId);
             if ($med) {
                 $med->update($payload);
             }
@@ -110,6 +115,7 @@ trait ManagesHealthData
             AiHealthMedication::create($payload);
         }
 
+        $this->editingMedicationId = null;
         $this->showMedicationModal = false;
         unset($this->activeMedications); // clear cache
     }

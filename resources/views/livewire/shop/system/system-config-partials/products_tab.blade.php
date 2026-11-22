@@ -18,7 +18,6 @@
                     <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 text-[9px] font-black uppercase tracking-widest">Stück</span>
                 </div>
                 @error('settings.inventory_low_stock_threshold') <span class="text-[11px] font-bold text-red-500 mt-1 block">{{ $message }}</span> @enderror
-                <p class="text-[10px] text-gray-500 mt-2 font-medium ml-1">Ab dieser Menge erscheint eine Warnung im Dashboard.</p>
             </div>
 
             <div>
@@ -33,8 +32,7 @@
                         <svg class="absolute w-3.5 h-3.5 left-0.5 top-0.5 text-gray-900 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                     </div>
                     <div class="min-w-0">
-                        <span class="block font-bold text-gray-900 dark:text-white text-sm group-hover:text-[var(--theme-color)] transition-colors">Versand überspringen</span>
-                        <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider mt-0.5 block">Nur Downloads = Kostenlos</span>
+                        <span class="block font-bold text-gray-900 dark:text-white text-sm group-hover:text-[var(--theme-color)] transition-colors">Versand überspringen (Digitale Produkte)</span>
                     </div>
                 </label>
             </div>
@@ -52,7 +50,6 @@
                     </div>
                     <div class="min-w-0">
                         <span class="block font-bold text-gray-900 dark:text-white text-sm group-hover:text-[var(--theme-color)] transition-colors">Bruttopreise (inkl. MwSt.)</span>
-                        <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider mt-0.5 block">Produktpreise werden im Admin als Endkunden-Brutto gepflegt</span>
                     </div>
                 </label>
             </div>

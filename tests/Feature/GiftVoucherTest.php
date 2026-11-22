@@ -603,7 +603,7 @@ class GiftVoucherTest extends TestCase
             ->assertSet('deliveryMethod', 'email')
             ->assertSet('shippingCost', 0.0)
             ->set('deliveryMethod', 'post')
-            ->assertSet('shippingCost', 3.5)
+            ->assertSet('shippingCost', 4.5)
             ->set('amount', 50)
             ->set('recipientName', 'Max Mustermann')
             ->call('addToCart')
@@ -614,7 +614,7 @@ class GiftVoucherTest extends TestCase
         $this->assertCount(1, $cart->items);
         $item = $cart->items->first();
         $this->assertEquals('post', $item->configuration['delivery_method']);
-        $this->assertEquals(350, $item->configuration['shipping_surcharge']);
+        $this->assertEquals(450, $item->configuration['shipping_surcharge']);
     }
 
     #[Test]
@@ -635,13 +635,13 @@ class GiftVoucherTest extends TestCase
             'amount_cents' => 5000, // 50.00 €
             'recipient_name' => 'Jane Doe',
             'delivery_method' => 'post',
-            'shipping_surcharge' => 350,
+            'shipping_surcharge' => 450,
         ]);
 
         $totals = $cartService->getTotals();
         $this->assertEquals(5000, $totals['subtotal_gross']);
-        $this->assertEquals(350, $totals['shipping']);
-        $this->assertEquals(5350, $totals['total']);
+        $this->assertEquals(450, $totals['shipping']);
+        $this->assertEquals(5450, $totals['total']);
     }
 
     #[Test]
@@ -693,13 +693,13 @@ class GiftVoucherTest extends TestCase
         ]);
 
         $cartService = app(\App\Services\CartService::class);
-        // Add physical voucher (3.50 € surcharge when alone)
+        // Add physical voucher (4.50 € surcharge when alone)
         $cartService->addItem($productVoucher, 1, [
             'is_gift_voucher' => true,
             'amount_cents' => 2000, // 20.00 €
             'recipient_name' => 'Jane Doe',
             'delivery_method' => 'post',
-            'shipping_surcharge' => 350,
+            'shipping_surcharge' => 450,
         ]);
 
         // Add standard physical product

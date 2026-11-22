@@ -468,9 +468,12 @@ class LaserDesignParityTest extends TestCase
         $centerYMm = 100.0;
         $xf = $cockpit->generateXfPackageBytes($crystalItem, 'front', $centerXMm, $centerYMm, 0.0);
 
-        // Blauer Rahmen / Framing-Border umschließt bündig die 133,927 mm Gravurfläche (100 - 66,9635 = 33,037 mm bis 166,964 mm)
-        $this->assertStringContainsString('G0X33.03', $xf['border_gcode']);
-        $this->assertStringContainsString('G1X166.96', $xf['border_gcode']);
+        // Blauer 1:1 Kreis-Konturrahmen umschließt bündig die Ø 133,927 mm Gravurfläche (Rechts 166,964 mm bis Links 33,037 mm)
+        $this->assertStringContainsString('G0X166.96', $xf['border_gcode']);
+        $this->assertStringContainsString('G1X33.03', $xf['border_gcode']);
+        $rectBorder = $cockpit->generateXfPackageBytes($crystalItem, 'front', $centerXMm, $centerYMm, 0.0, null, null, 'rect')['border_gcode'];
+        $this->assertStringContainsString('G0X33.03', $rectBorder);
+        $this->assertStringContainsString('G1X166.96', $rectBorder);
 
         // Laser-Gravurpulse (G1 ... S>0) müssen exakt im inneren Arbeitskreis (Radius <= 67,3 mm statt 80,75 mm) bleiben!
         $maxEngraveRadiusMm = 0.0;

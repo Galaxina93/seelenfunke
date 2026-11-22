@@ -394,7 +394,8 @@ class AccountingLiquidity extends Component
                 
                 if (Str::contains($nameForCheck, ['alg', 'gz', 'gründerzuschuss', 'zuschuss', 'arbeitslos', 'förderung', 'amt', 'agentur'])) {
                     $start = Carbon::parse($item->first_payment_date);
-                    $end = $item->last_payment_date ? Carbon::parse($item->last_payment_date) : $start;
+                    $endRaw = $item->last_payment_date ?: $item->contract_end_date;
+                    $end = $endRaw ? Carbon::parse($endRaw) : $start;
 
                     foreach ($this->years as $y) {
                         for ($m = 1; $m <= 12; $m++) {
@@ -483,6 +484,9 @@ class AccountingLiquidity extends Component
         $startMonth = $start->copy()->startOfMonth();
 
         if ($check->lt($startMonth)) return false;
+        if ($item->last_payment_date && $check->gt(Carbon::parse($item->last_payment_date)->endOfMonth())) {
+            return false;
+        }
 
         $diffMonths = $check->diffInMonths($startMonth);
         return ($diffMonths % max(1, $item->interval_months)) === 0;
@@ -737,8 +741,12 @@ class AccountingLiquidity extends Component
             elseif ($year == $y4) $werbungFix = 2400.00;
             else $werbungFix = 0.00;
 
-            // AfA linear über 5 Jahre (Anschaffungskosten Maschinen/Technik = 5.665 €)
-            if ($year == $this->configStartYear) {
+            // AfA linear über 5 Jahre: im Live-Modus exakt aus gebuchten Anlagegütern (> 800 € netto), im Muster-Plan aus Businessplan
+            if (!$this->configLoadDemoData) {
+                $liveDepreciation = app(\App\Services\FinancialService::class)
+                    ->getFixedAssetsAndDepreciation(Auth::guard('admin')->id(), (int) $year);
+                $abschreibung = (float) ($liveDepreciation['annual_afa'] ?? 0.0);
+            } elseif ($year == $this->configStartYear) {
                 $abschreibung = round((5665 / 5) * (2 / 12), 2); // 188,83 € für Nov/Dez 2026
             } else {
                 $abschreibung = 1133.00; // 5.665 € / 5 Jahre = 1.133,00 € p.a.
@@ -876,53 +884,31 @@ class AccountingLiquidity extends Component
 
             $this->taxCalculations['vat'][$year]['total'] = $yearVatSum;
 
-            // Gewerbesteuer (GewSt) Kalkulation:
-            // Gewinn aus der Rentabilitätsvorschau
-            $gewinn = $this->rentabilitaet[$year]['gewinn'] ?? 0;
-
-            // Freibetrag 24.500 EUR
-            $gewerbeErtrag = max(0, $gewinn - 24500);
-            
-            // Steuermessbetrag (3,5%)
-            $messbetrag = $gewerbeErtrag * 0.035;
-
-            // Hebesatz Gifhorn (ca. 380%)
-            $gewerbesteuer = $messbetrag * 3.8;
-
-            $this->taxCalculations['trade_tax'][$year] = [
-                'gewinn' => $gewinn,
-                'freibetrag' => 24500,
-                'ertrag' => $gewerbeErtrag,
-                'steuer' => $gewerbesteuer
-            ];
-
-            // Einkommensteuer (ESt) Kalkulation:
-            // Vereinfachte Formel mit Progressionsvorbehalt
-            $subsidy = 0;
+            // Gewerbesteuer (GewSt) & Einkommensteuer (ESt) nach § 32a EStG + § 35 EStG Anrechnung:
+            // Gründungszuschuss (§ 3 Nr. 2a EStG) ist 100 % steuerfrei und unterliegt NICHT dem Progressionsvorbehalt.
+            $gewinn = (float) ($this->rentabilitaet[$year]['gewinn'] ?? 0);
+            $subsidy = 0.0;
             for ($m = 1; $m <= 12; $m++) {
                 $subsidy += (float) ($this->data[$year][$m]['in']['subsidy'] ?? 0);
             }
 
-            $zuVersteuerndesEinkommen = max(0, $gewinn - $gewerbesteuer);
-            $progressionsBasis = $zuVersteuerndesEinkommen + $subsidy;
+            $zuVersteuerndesEinkommen = max(0.0, $gewinn);
+            $taxCalc = app(\App\Services\FinancialService::class)
+                ->calculateGermanIncomeTax($zuVersteuerndesEinkommen, (int) $year, max(0.0, $gewinn), 380.0);
 
-            // Vereinfachter ESt-Tarif (Grundtabelle 2024+ Basis)
-            $estSatz = 0;
-            if ($progressionsBasis > 11604) {
-               if ($progressionsBasis <= 66760) {
-                   $estSatz = 0.14 + (($progressionsBasis - 11604) / 55156) * 0.28; // Ansteigend 14% bis 42%
-               } else {
-                   $estSatz = 0.42;
-               }
-            }
-
-            $einkommensteuer = $zuVersteuerndesEinkommen * $estSatz;
+            $this->taxCalculations['trade_tax'][$year] = [
+                'gewinn' => $gewinn,
+                'freibetrag' => 24500,
+                'ertrag' => $taxCalc['gewerbe_ertrag'],
+                'steuer' => $taxCalc['gewerbesteuer'],
+            ];
 
             $this->taxCalculations['income_tax'][$year] = [
-                'zvE' => $zuVersteuerndesEinkommen,
+                'zvE' => $taxCalc['zvE'],
                 'subsidy' => $subsidy,
-                'steuersatz' => $estSatz * 100, // in %
-                'steuer' => $einkommensteuer
+                'steuersatz' => $taxCalc['zvE'] > 0 ? round(($taxCalc['est_netto'] / $taxCalc['zvE']) * 100.0, 2) : 0.0,
+                'steuer' => $taxCalc['est_netto'] + $taxCalc['soli'],
+                'anrechnung_gewst_35' => $taxCalc['est_anrechnung_35'],
             ];
         }
     }

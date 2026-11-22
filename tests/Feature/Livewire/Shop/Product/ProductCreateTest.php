@@ -973,9 +973,13 @@ class ProductCreateTest extends TestCase
             ->call('save', app(\App\Services\CartService::class));
 
         $beginnerTexts = $beginnerComp->get('texts');
+        $beginnerLogos = $beginnerComp->get('logos');
         $this->assertSame("Für immer\nim Herzen", $beginnerTexts[0]['text'] ?? null);
-        // Bei 2 Zeilen wird die Textgröße harmonisch skaliert (0.74 * 0.90 = 0.67)
-        $this->assertEquals(0.67, $beginnerTexts[0]['size'] ?? null);
+        // Bei 2 Zeilen wird die Textgröße harmonisch skaliert (1.15 * 0.90 = 1.04) und kollisionsfrei unter das Symbol gesetzt
+        $this->assertEquals(1.04, $beginnerTexts[0]['size'] ?? null);
+        $logoBottomPct = ($beginnerLogos[0]['y'] ?? 0) + (($beginnerLogos[0]['size'] ?? 0) * 0.19 / 2.0);
+        $textTopPct = ($beginnerTexts[0]['y'] ?? 0) - ((2 * 4.60 * ($beginnerTexts[0]['size'] ?? 0)) / 2.0);
+        $this->assertGreaterThan($logoBottomPct, $textTopPct);
 
         $cart = app(\App\Services\CartService::class)->getCart();
         $cartItem = $cart->items()->where('product_id', $talisman->id)->latest()->first();

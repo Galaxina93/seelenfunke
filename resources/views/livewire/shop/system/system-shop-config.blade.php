@@ -5,7 +5,6 @@
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
             <div class="flex items-center gap-2.5">
                 <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Shop-Konfiguration</h1>
-                <span title="Zentrale Steuerung aller Shop-Parameter, Live-Freigabe, Wartungsmodus und rechtlichen Grundlagen." class="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[11px] font-black inline-flex items-center justify-center cursor-help hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors shrink-0">!</span>
             </div>
             <button
                 wire:click="save"
@@ -68,6 +67,7 @@
             <button @click="activeTab = 'owner'" :class="activeTab === 'owner' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Stammdaten</button>
             <button @click="activeTab = 'seasons'" :class="activeTab === 'seasons' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Jahreszeiten</button>
             <button @click="activeTab = 'system'" :class="activeTab === 'system' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">System</button>
+            <button @click="activeTab = 'cronjobs'" :class="activeTab === 'cronjobs' ? 'border-[var(--theme-color)] text-[var(--theme-color)] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Cronjobs</button>
             <button @click="activeTab = 'emergency'" :class="activeTab === 'emergency' ? 'border-red-500 text-red-500 drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'" class="whitespace-nowrap pb-4 px-2 border-b-2 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all">Notfallplan</button>
         </div>
 
@@ -97,6 +97,11 @@
 
             {{-- TAB: SYSTEM INFO --}}
             @include('livewire.shop.system.system-config-partials.system_tab')
+
+            {{-- TAB: CRONJOBS --}}
+            <div x-show="activeTab === 'cronjobs'" x-cloak class="min-h-[600px]">
+                @livewire('shop.ai.partials-ai-workspace.tab-cronjobs')
+            </div>
 
             {{-- TAB: NOTFALL & VORSORGE --}}
             @include('livewire.shop.system.system-config-partials.emergency_tab')

@@ -33,6 +33,11 @@ trait AiFinanceFuncs
                         'is_net' => [
                             'type' => 'boolean',
                             'description' => 'True für Netto-Werte (ohne Steuern), False für Brutto-Werte. Standard ist True (Netto).'
+                        ],
+                        'scope' => [
+                            'type' => 'string',
+                            'description' => 'Bereichsfilter: "business" (nur Gewerbe), "private" (nur Privat) oder "all" (Gesamt). Standard ist "business".',
+                            'enum' => ['business', 'private', 'all']
                         ]
                     ],
                     'required' => []
@@ -105,6 +110,11 @@ trait AiFinanceFuncs
                         'is_net' => [
                             'type' => 'boolean',
                             'description' => 'True für Netto-Werte, False für Brutto. Standard ist True (Netto).'
+                        ],
+                        'scope' => [
+                            'type' => 'string',
+                            'description' => 'Bereichsfilter: "business" (nur Gewerbe), "private" (nur Privat) oder "all" (Gesamt). Standard ist "business".',
+                            'enum' => ['business', 'private', 'all']
                         ]
                     ],
                     'required' => []
@@ -157,6 +167,33 @@ trait AiFinanceFuncs
                     'required' => ['email']
                 ],
                 'callable' => [self::class, 'executeGenerateAndSendReport']
+            ],
+            [
+                'name' => 'finance_scan_receipt_document',
+                'description' => 'Analysiert ein hochgeladenes Beleg-Dokument (Foto, PDF, XML/ZUGFeRD aus KI-Zentrale, Workspace oder E-Mail-Anhang) über die zentrale Buchi-Beleg-Pipeline (ReceiptAiScannerService), prüft automatisch auf Dubletten und Seelenfunke-Lieferantenregeln und legt bei confirmed_by_alina=true die Datei sauber benannt unter buchhaltung/receipts/YYYY/MM/ ab.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'file_path' => [
+                            'type' => 'string',
+                            'description' => 'Relativer Pfad innerhalb von storage/app/ oder storage/app/public/ (z.B. agenten/workspace/chat-medien/... oder buchhaltung/receipts/...).'
+                        ],
+                        'mail_attachment_id' => [
+                            'type' => 'integer',
+                            'description' => 'Alternativ: ID eines E-Mail-Anhangs (MailAttachment) aus dem Posteingang.'
+                        ],
+                        'confirmed_by_alina' => [
+                            'type' => 'boolean',
+                            'description' => 'False (Standard) = liefert zuerst die geprüfte Vorschau inkl. Dubletten-Check. True = speichert Belegdatei sauber benannt und bucht den Eintrag als Sonderausgabe.'
+                        ],
+                        'allow_duplicate_override' => [
+                            'type' => 'boolean',
+                            'description' => 'Nur auf True setzen, wenn Alina trotz Dubletten-Warnung ausdrücklich das Buchen bestätigt hat.'
+                        ]
+                    ],
+                    'required' => []
+                ],
+                'callable' => [self::class, 'executeScanReceiptDocument']
             ],
             [
                 'name' => 'finance_create_quick_entry_expense',
@@ -563,18 +600,33 @@ trait AiFinanceFuncs
         try {
             $month = isset($args['month']) ? max(1, min(12, (int)$args['month'])) : (int)date('n');
             $year = isset($args['year']) ? max(2000, min(2100, (int)$args['year'])) : (int)date('Y');
-            $isNet = $args['is_net'] ?? true; // Standard: Netto
-            
+            $isNet = $args['is_net'] ?? true;
+            $scope = in_array($args['scope'] ?? 'business', ['business', 'private', 'all'], true)
+                ? $args['scope']
+                : 'business';
+
+            $adminId = self::getAdminId();
             $service = new \App\Services\FinancialService();
-            $stats = $service->getMonthlyStats(self::getAdminId(), $month, $year, $isNet);
+            $stats = $service->getMonthlyStats($adminId, $month, $year, $isNet, $scope);
+            $payoutData = $service->getDynamicSalaryAndReinvestmentData($adminId, $month, $year);
+            $refundSummary = $service->getPotentialTaxRefundSummary($year, $month, 'month', $adminId);
 
             return [
                 'status' => 'success',
+                'scope' => $scope,
                 'financial_data' => $stats,
+                'entrepreneur_salary_and_afa' => [
+                    'safe_payout_salary' => $payoutData['waterfall']['safe_payout'] ?? 0,
+                    'tax_reserve_monthly' => $payoutData['waterfall']['tax_reserve'] ?? 0,
+                    'afa_monthly' => $payoutData['assets']['monthly_afa'] ?? 0,
+                    'reinvestment_saving_monthly' => $payoutData['waterfall']['reinvestment_saving'] ?? 0,
+                    'private_household_net_balance' => $payoutData['household']['current_net_balance'] ?? 0,
+                ],
+                'potential_vat_refund' => $refundSummary['total_all']['net_refund'] ?? 0,
                 'is_net' => $isNet,
                 'month' => $month,
                 'year' => $year,
-                'info' => 'Beachte: total_budget beinhaltet Shop-Umsatz und Fix-Einnahmen. total_spent sind Fixkosten und Sonderausgaben (negativ). available ist das aktuell noch frei verfügbare Budget dieses Monats.'
+                'info' => 'Standardmäßig strikt nach Scope getrennt (Gewerbe vs. Privat). Enthält zusätzlich den sicheren monatlichen Unternehmerlohn, AfA, Reinvestitions-Sparrate und Vorsteuer-Erstattungspotenzial.'
             ];
         } catch (\Throwable $e) {
             return ['status' => 'error', 'message' => $e->getMessage()];
@@ -1884,9 +1936,12 @@ trait AiFinanceFuncs
         try {
             $year = isset($args['year']) ? max(2000, min(2100, (int)$args['year'])) : (int)date('Y');
             $isNet = $args['is_net'] ?? true;
+            $scope = in_array($args['scope'] ?? 'business', ['business', 'private', 'all'], true)
+                ? $args['scope']
+                : 'business';
 
             $service = new \App\Services\FinancialService();
-            $rawMatrix = $service->getYearlyMatrix(self::getAdminId(), $year, $isNet);
+            $rawMatrix = $service->getYearlyMatrix(self::getAdminId(), $year, $isNet, $scope);
             
             // Clean up UI specific keys to save tokens
             $cleanMatrix = [];
@@ -2017,45 +2072,177 @@ trait AiFinanceFuncs
 
             $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
             $defaultTaxRate = $isSmallBusiness ? 0.0 : (float) shop_setting('default_tax_rate', 19.0);
+            $amountCents = (int) round($amount * 100);
+
+            if (!$isIncome && empty($args['allow_duplicate_override'])) {
+                $dup = \App\Services\AI\BuchiReceiptPipelineService::checkDuplicate(
+                    adminId: $adminId,
+                    title: (string) ($args['title'] ?? ''),
+                    merchant: (string) ($args['location'] ?? $args['title'] ?? ''),
+                    date: (string) ($args['execution_date'] ?? date('Y-m-d')),
+                    amountCents: $amountCents,
+                    invoiceNumber: !empty($args['is_business']) ? (string) ($args['invoice_number'] ?? '') : ''
+                );
+                if (!empty($dup['is_duplicate'])) {
+                    return [
+                        'status' => 'duplicate_warning',
+                        'existing_id' => $dup['existing_id'],
+                        'message' => 'Dubletten-Schutz: ' . $dup['reason'] . ' Bitte frage Alina kurz, ob dieser Eintrag trotzdem doppelt angelegt werden soll.'
+                    ];
+                }
+            }
 
             $entry = \App\Models\Accounting\AccountingSpecialIssue::create([
                 'admin_id' => $adminId,
-                'title' => $args['title'],
+                'title' => str_replace([' – ', ' — '], ' - ', (string) $args['title']),
                 'category' => $categoryName,
-                'amount' => $amount,
+                'amount' => round($amountCents / 100, 2),
                 'execution_date' => $args['execution_date'],
                 'is_business' => $args['is_business'],
                 'tax_rate' => $args['is_business'] ? ($args['tax_rate'] ?? $defaultTaxRate) : null,
                 'invoice_number' => $args['is_business'] ? ($args['invoice_number'] ?? null) : null,
-                'location' => 'KI-Schnellerfassung'
+                'location' => $args['location'] ?? 'KI-Schnellerfassung',
+                'note' => \App\Services\AI\BuchiReceiptPipelineService::withLiveMarker($args['note'] ?? null),
             ]);
 
-            // Track Category
-            $cat = \App\Models\Accounting\AccountingCategory::withTrashed()
-                ->where('admin_id', $adminId)
-                ->where('name', $categoryName)
-                ->first();
-
-            if ($cat) {
-                if ($cat->trashed()) $cat->restore();
-                $cat->increment('usage_count');
-            } else {
-                \App\Models\Accounting\AccountingCategory::create([
-                    'admin_id' => $adminId,
-                    'name' => $categoryName,
-                    'usage_count' => 1
-                ]);
-            }
+            \App\Services\AI\BuchiReceiptPipelineService::trackCategoryUsage($adminId, $categoryName, (bool) $args['is_business']);
 
             $typeStr = $amount < 0 ? 'Ausgabe' : 'Einnahme';
 
             return [
                 'status' => 'success',
                 'id' => $entry->id,
-                'message' => "Erfolgreich gebucht! {$typeStr} über {$amount}€ in der Kategorie '{$categoryName}' wurde erfasst."
+                'seeder_snippet' => \App\Services\AI\BuchiReceiptPipelineService::formatIssueForSeeder($entry),
+                'message' => "Erfolgreich gebucht! {$typeStr} über {$amount}€ in der Kategorie '{$categoryName}' wurde seed-sicher erfasst."
             ];
         } catch (\Throwable $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Eintragen: ' . $e->getMessage()];
+        }
+    }
+
+    public static function executeScanReceiptDocument(array $args)
+    {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
+        try {
+            $adminId = self::getAdminId();
+            $resolvedFullPath = null;
+
+            if (!empty($args['mail_attachment_id'])) {
+                $att = \App\Models\Management\Mail\MailAttachment::find((int) $args['mail_attachment_id']);
+                if (!$att || empty($att->path) || str_contains((string) $att->path, '..')) {
+                    return ['status' => 'error', 'message' => 'E-Mail-Anhang wurde nicht gefunden.'];
+                }
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($att->path)) {
+                    $resolvedFullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($att->path);
+                }
+            } elseif (!empty($args['file_path']) && is_string($args['file_path'])) {
+                $cleanRel = ltrim(str_replace('\\', '/', trim($args['file_path'])), '/');
+                if (str_contains($cleanRel, '..') || str_contains($cleanRel, "\0")) {
+                    return ['status' => 'error', 'message' => 'Ungültiger Dateipfad.'];
+                }
+                $candidates = [
+                    storage_path('app/' . $cleanRel),
+                    storage_path('app/public/' . $cleanRel),
+                ];
+                $storageRoot = realpath(storage_path('app'));
+                foreach ($candidates as $cand) {
+                    if (is_file($cand) && !is_link($cand)) {
+                        $real = realpath($cand);
+                        if ($real && $storageRoot && str_starts_with($real, $storageRoot . DIRECTORY_SEPARATOR)) {
+                            $resolvedFullPath = $real;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (!$resolvedFullPath || !is_file($resolvedFullPath)) {
+                return ['status' => 'error', 'message' => 'Belegdatei konnte im autorisierten Speicher nicht gefunden werden.'];
+            }
+
+            $categories = \App\Models\Accounting\AccountingCategory::where('admin_id', $adminId)
+                ->orderByDesc('usage_count')
+                ->pluck('name')
+                ->toArray();
+
+            $analysis = \App\Services\AI\BuchiReceiptPipelineService::analyzeAndVerify(
+                $resolvedFullPath,
+                $categories,
+                $adminId
+            );
+
+            if (!$analysis) {
+                return ['status' => 'error', 'message' => 'Der Beleg konnte nicht ausgelesen werden.'];
+            }
+
+            $dup = $analysis['duplicate_check'] ?? ['is_duplicate' => false];
+            $confirmed = !empty($args['confirmed_by_alina']);
+            $allowOverride = !empty($args['allow_duplicate_override']);
+
+            if (!$confirmed) {
+                return [
+                    'status' => 'preview',
+                    'analysis' => [
+                        'title' => $analysis['title'],
+                        'merchant' => $analysis['merchant'],
+                        'amount' => $analysis['amount_formatted'],
+                        'amount_cents' => $analysis['amount_cents'],
+                        'date' => $analysis['date'],
+                        'category' => $analysis['category'],
+                        'is_business' => $analysis['is_business'],
+                        'tax_rate' => $analysis['tax_rate'],
+                        'invoice_number' => $analysis['invoice_number'],
+                        'suggested_storage_path' => $analysis['suggested_storage_path'],
+                    ],
+                    'duplicate_check' => $dup,
+                    'message' => 'Beleg erfolgreich per Buchi-Pipeline geprüft. Zeige Alina kurz Händler, Betrag, Datum, Kategorie, Gewerblich/Privat und eventuelle Dubletten-Hinweise zur 1-Klick-Freigabe.',
+                ];
+            }
+
+            if (!empty($dup['is_duplicate']) && !$allowOverride) {
+                return [
+                    'status' => 'duplicate_warning',
+                    'duplicate_check' => $dup,
+                    'message' => 'Buchung gestoppt: ' . ($dup['reason'] ?? 'Doppelbeleg erkannt.'),
+                ];
+            }
+
+            $storedRelPath = \App\Services\AI\BuchiReceiptPipelineService::storeReceiptFile(
+                file: $resolvedFullPath,
+                date: (string) $analysis['date'],
+                merchant: (string) ($analysis['merchant'] ?: $analysis['location']),
+                title: (string) $analysis['title'],
+                invoiceNumber: $analysis['is_business'] ? (string) ($analysis['invoice_number'] ?? '') : ''
+            );
+
+            $entry = \App\Models\Accounting\AccountingSpecialIssue::create([
+                'admin_id' => $adminId,
+                'title' => $analysis['title'],
+                'location' => $analysis['location'] ?: $analysis['merchant'],
+                'category' => $analysis['category'],
+                'amount' => $analysis['amount'],
+                'execution_date' => $analysis['date'],
+                'is_business' => $analysis['is_business'],
+                'tax_rate' => $analysis['is_business'] ? $analysis['tax_rate'] : null,
+                'invoice_number' => $analysis['is_business'] ? ($analysis['invoice_number'] ?: null) : null,
+                'file_paths' => $storedRelPath ? [$storedRelPath] : [],
+                'note' => \App\Services\AI\BuchiReceiptPipelineService::withLiveMarker('Buchi Dokumenten-Scan'),
+            ]);
+
+            \App\Services\AI\BuchiReceiptPipelineService::trackCategoryUsage($adminId, (string) $analysis['category'], (bool) $analysis['is_business']);
+
+            return [
+                'status' => 'success',
+                'id' => $entry->id,
+                'stored_file_path' => $storedRelPath,
+                'seeder_snippet' => \App\Services\AI\BuchiReceiptPipelineService::formatIssueForSeeder($entry),
+                'message' => "Beleg '{$entry->title}' ({$analysis['amount_formatted']} €) sauber unter '{$storedRelPath}' abgelegt und seed-sicher als Sonderausgabe gebucht.",
+            ];
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'message' => 'Fehler beim Beleg-Scan: ' . $e->getMessage()];
         }
     }
 

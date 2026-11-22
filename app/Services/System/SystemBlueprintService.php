@@ -195,6 +195,7 @@ class SystemBlueprintService
             'compliant_models' => $models->count() - count($missingBlueprints),
             'missing_blueprints' => $missingBlueprints,
             'violations' => $violations,
+            'is_compliant' => empty($violations) && empty($missingBlueprints),
             'is_fully_compliant' => empty($violations) && empty($missingBlueprints),
             'gobd_models_count' => $gobdCount,
             'gdpr_exportable_count' => $gdprExportableCount,
@@ -210,6 +211,14 @@ class SystemBlueprintService
             'by_regulation' => $byRegulation,
             'by_channel' => $byChannel,
         ];
+    }
+
+    /**
+     * Alias für auditArchitecture() (für Kompatibilität mit SystemSecurityAuditCommand).
+     */
+    public function audit(): array
+    {
+        return $this->auditArchitecture();
     }
 
     /**

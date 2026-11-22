@@ -174,8 +174,7 @@ class AIController extends Controller
         }
         if (!$agent) {
             if ($isAdmin) {
-                $agent = \App\Models\Ai\AiAgent::where('name', 'Falcone')->where('is_active', true)->first()
-                    ?? \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
+                $agent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
                     ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
             } else {
                 $agent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
@@ -365,12 +364,18 @@ class AIController extends Controller
         }
         $history = $cleanHistory;
 
-        // Backwards compatibility or single-shot prompts
-        if (empty($history) && $request->has('prompt')) {
-            $history[] = [
-                'role' => 'user',
-                'content' => $request->input('prompt')
-            ];
+        // Append explicit prompt whenever provided and not already the trailing user message
+        $rawPrompt = trim((string) $request->input('prompt', ''));
+        if ($rawPrompt !== '') {
+            $lastMsg = !empty($history) ? end($history) : null;
+            $lastRole = is_array($lastMsg) ? ($lastMsg['role'] ?? '') : '';
+            $lastContent = is_array($lastMsg) && is_string($lastMsg['content'] ?? null) ? trim($lastMsg['content']) : '';
+            if ($lastRole !== 'user' || $lastContent !== $rawPrompt) {
+                $history[] = [
+                    'role' => 'user',
+                    'content' => $rawPrompt,
+                ];
+            }
         }
 
         $map = \App\Services\AI\AIFunctionsRegistry::getAdminNavigationMap();
@@ -430,23 +435,7 @@ class AIController extends Controller
             $agent->setDynamicSystemPrompt($dynamicSystemPrompt);
         }
 
-        try {
-            $result = $agent->ask($history);
-        } catch (\Throwable $askEx) {
-            if ($idemInflightKey !== null) {
-                try {
-                    \Illuminate\Support\Facades\Cache::forget($idemInflightKey);
-                } catch (\Throwable) {
-                }
-            }
-            \Illuminate\Support\Facades\Log::error('AIController::chat inference failed: ' . \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($askEx->getMessage()));
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Die KI-Verarbeitung ist vorübergehend gestört. Bitte versuche es in einem kurzen Moment erneut.',
-            ], 503);
-        }
-
-        // Speichere finalen Dialog-Verlauf in der Datenbank
+        // Ermittle Session-ID bereits VOR $agent->ask(), damit alle Werkzeug-Logs in derselben Session landen
         $sessionId = $request->input('chat_session_id');
         $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
 
@@ -474,8 +463,79 @@ class AIController extends Controller
                     }
                 }
             }
+
+            if ($sessionId) {
+                config(['ai.current_session_id' => $sessionId]);
+            }
         } catch (\Throwable $sessEx) {
             \Illuminate\Support\Facades\Log::warning('AIController::chat session lookup warning: ' . $sessEx->getMessage());
+        }
+
+        $inferredChannel = (string) ($request->input('channel') ?: (
+            str_contains(strtolower((string) $request->userAgent()), 'okhttp') ? 'android_app' : 'funkenwerk_desktop'
+        ));
+        $chatPresenceMeta = [
+            'channel' => $inferredChannel,
+            'active_route' => $request->input('active_route'),
+            'is_voice_mode' => $request->boolean('is_voice_mode', false),
+        ];
+        if ($request->has('camera_alina_verified')) {
+            $chatPresenceMeta['camera_alina_verified'] = $request->boolean('camera_alina_verified');
+        }
+        if ($request->has('voice_alina_verified')) {
+            $chatPresenceMeta['voice_alina_verified'] = $request->boolean('voice_alina_verified');
+        }
+        if (is_array($request->input('detected_persons'))) {
+            $chatPresenceMeta['detected_persons'] = $request->input('detected_persons');
+        }
+        $chatPresence = \App\Services\AI\FunkiraPresenceContext::build($chatPresenceMeta, $request);
+
+        if (!empty($chatPresence['visitor_sandbox_locked'])) {
+            return response()->json([
+                'status' => 'success',
+                'chat_session_id' => $sessionId,
+                'agent_name' => 'Funkira',
+                'tts_enabled' => false,
+                'response' => 'Hallo im Seelenfunke-Atelier! Da Alina gerade nicht persönlich im Kamerabild ist, ist mein geschützter Besuchermodus aktiv. Interne Firmendaten sind gesperrt, aber ich richte ihr gerne aus, dass jemand da war.',
+                'history' => $history,
+                'context_data' => ['visitor_sandbox_locked' => true],
+                'events_data' => [],
+            ]);
+        }
+
+        if (method_exists($agent, 'setDynamicSystemPrompt')) {
+            $agent->setDynamicSystemPrompt(
+                \App\Services\AI\FunkiraPresenceContext::toPromptHeader($chatPresence)
+                . "\n\n"
+                . \App\Services\AI\FunkiraTicketRouter::loadFlatDepartmentKnowledge($aiAgent?->ai_department_id)
+            );
+        }
+
+        $executedChatTools = [];
+        try {
+            $result = $agent->ask($history, function (array $evt) use (&$executedChatTools) {
+                if (($evt['type'] ?? '') === 'tool_call' && !empty($evt['tool'])) {
+                    $executedChatTools[] = (string) $evt['tool'];
+                }
+            });
+        } catch (\Throwable $askEx) {
+            if ($idemInflightKey !== null) {
+                try {
+                    \Illuminate\Support\Facades\Cache::forget($idemInflightKey);
+                } catch (\Throwable) {
+                }
+            }
+            \Illuminate\Support\Facades\Log::error('AIController::chat inference failed: ' . \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($askEx->getMessage()));
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Die KI-Verarbeitung ist vorübergehend gestört. Bitte versuche es in einem kurzen Moment erneut.',
+            ], 503);
+        }
+
+        if (!empty($result['response']) && ($aiAgent?->name ?? 'Funkira') !== 'Funki') {
+            $gate = \App\Services\AI\AiOutputQualityGate::inspectAndClean((string) $result['response'], $executedChatTools);
+            $result['response'] = $gate['text'];
+            $result['response_raw'] = $gate['text'];
         }
 
         // Was hat der User gesagt? (Finde die neuste User-Nachricht)
@@ -666,7 +726,6 @@ class AIController extends Controller
         if (!$aiAgent) {
             if ($isAdminUser) {
                 $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first()
-                    ?? \App\Models\Ai\AiAgent::where('name', 'Falcone')->where('is_active', true)->first()
                     ?? \App\Models\Ai\AiAgent::where('is_active', true)->first();
             } else {
                 $aiAgent = \App\Models\Ai\AiAgent::where('name', 'Funki')->where('is_active', true)->first()
@@ -674,7 +733,7 @@ class AIController extends Controller
             }
         }
         
-        $voiceName = $aiAgent ? $aiAgent->tts_voice : 'Puck';
+        $voiceName = $aiAgent ? ($aiAgent->tts_voice ?: 'Aoede') : 'Aoede';
         $agentName = $aiAgent ? $aiAgent->name : 'Funkira';
         
         $payload = [];
@@ -683,8 +742,19 @@ class AIController extends Controller
             $payload = \App\Services\AI\AiAgentService::getAgentPayload($aiAgent);
             $systemInstruction = $payload['system_prompt'] ?? '';
         } else {
-            $systemInstruction = 'Du bist Funkira, die KI-Assistentin des Seelenfunke Dashboards. Antworte immer kurz, präzise und freundlich.';
+            $systemInstruction = 'Du bist Funkira, die zentrale Stabschefin von Mein-Seelenfunke. Antworte immer kurz, präzise und freundlich.';
         }
+
+        $livePresence = \App\Services\AI\FunkiraPresenceContext::build([
+            'channel' => $request->input('channel', 'android_live_call'),
+            'active_route' => $request->input('active_route'),
+            'camera_alina_verified' => $request->input('camera_alina_verified', true),
+            'voice_alina_verified' => $request->input('voice_alina_verified', true),
+            'detected_persons' => $request->input('detected_persons', []),
+            'is_voice_mode' => true,
+        ], $request);
+        $systemInstruction = \App\Services\AI\FunkiraPresenceContext::toPromptHeader($livePresence) . "\n\n" . $systemInstruction;
+        $systemInstruction = str_replace([" \u{2013} ", " \u{2014} "], ' - ', $systemInstruction);
 
         $map = \App\Services\AI\AIFunctionsRegistry::getAdminNavigationMap();
 
@@ -702,9 +772,11 @@ class AIController extends Controller
             "System-Prompt:\n" . $systemInstruction . "\n\nDu bist " . $agentName . ".\n" .
             "WICHTIG FÜR DEN ECHTZEIT-SPRACHMODUS (wie in der mobilen Google Gemini App):\n" .
             "- Du führst ein flüssiges, direktes Sprachgespräch in Echtzeit.\n" .
-            "- Antworte extrem schnell, direkt und prägnant (meist 1 bis 3 kurze Sätze auf den Punkt).\n" .
+            "- Antworte extrem schnell, direkt und prägnant (meist 1 bis 3 kurze Sätze auf den Punkt, niemals doppelt ansetzen oder dieselbe Aussage wiederholen).\n" .
+            "- KEINE VORAB-SPRACHE VOR WERKZEUGAUFRUFEN: Wenn du ein Werkzeug aufrufst, sprich VOR dem Werkzeugaufruf KEINEN Satz und KEINE Begrüßung aus! Führe das Werkzeug sofort stumm aus und antworte erst NACH Erhalt des Werkzeug-Ergebnisses EINMALIG und klar.\n" .
             "- Verwende in deiner Sprachantwort NIEMALS Markdown, Sternchen, Tabellen oder Listenpunkte.\n" .
             "- Rufe Werkzeuge nur auf, wenn der Benutzer dich explizit um eine konkrete Aktion bittet.\n" .
+            "- DIREKTLEITUNG ZU ANTIGRAVITY (`ag_send_to_antigravity`, `ag_check_antigravity_status`): Genau wie Falcone kannst du technische Probleme, Code-Bugs oder konkrete Entwicklungsaufträge von Alina direkt über `ag_send_to_antigravity` in den passenden Antigravity-Kanal (`shop`, `android`, `minipc`, `buchhaltung`, `leitung`) übermitteln und den Bearbeitungsstand mit `ag_check_antigravity_status` abfragen.\n" .
             "- HINTERLEGTE FOTOS / DATEIEN IN DER APP (STRIKTES KAMERA-VERBOT): Wenn bereits ein Foto, Screenshot oder eine Datei in der App hinterlegt/ausgewählt wurde oder Alina sagt 'Ich habe schon ein Foto/Bild hinterlegt', öffne NIEMALS die Kamera und rufe KEIN Foto-Aufnahme-Werkzeug (`falcon_take_photo`, `ui_analyze_camera` o. Ä.) auf! Nutze direkt das bereits hinterlegte Bild.\n\n" .
             "WICHTIG ZU HINTERGRUND-AUFGABEN & MASSEN-AKTIONEN:\n" .
             "- Wenn der Benutzer dir zeitaufwändige Aufgaben, Massen-Operationen oder Hintergrundjobs erteilt, bestätige dem Nutzer SOFORT in 1 kurzen Satz, dass die Aufgabe im Hintergrund läuft.\n\n" .
@@ -792,49 +864,8 @@ class AIController extends Controller
                 : strcasecmp((string) ($aiAgent->name ?? ''), 'Funkira') === 0
         );
 
-        if ($aiAgent && array_key_exists('tools', $payload) && !$isFunkiraAgent) {
-            $schemaTools = $payload['tools'] ?: [];
-        } else {
-            $schemaTools = \App\Services\AI\AIFunctionsRegistry::getSchema();
-        }
-        
-        $removeAdditionalProperties = function ($obj) use (&$removeAdditionalProperties) {
-            if (!is_object($obj) && !is_array($obj)) return;
-            
-            foreach ($obj as $key => $value) {
-                if (is_object($value) || is_array($value)) {
-                    $removeAdditionalProperties($value);
-                }
-            }
-            if (is_object($obj)) {
-                if (property_exists($obj, 'additionalProperties')) {
-                    unset($obj->additionalProperties);
-                }
-                if (property_exists($obj, 'type') && is_string($obj->type)) {
-                    $obj->type = strtoupper($obj->type);
-                }
-            } elseif (is_array($obj)) {
-                if (array_key_exists('additionalProperties', $obj)) {
-                    unset($obj['additionalProperties']);
-                }
-                if (array_key_exists('type', $obj) && is_string($obj['type'])) {
-                    $obj['type'] = strtoupper($obj['type']);
-                }
-            }
-        };
-
-        $functionDeclarations = [];
-        foreach ($schemaTools as $tool) {
-            if (isset($tool['function'])) {
-                // Decode without 'true' to preserve empty objects as {}
-                $func = json_decode(json_encode($tool['function']));
-                $removeAdditionalProperties($func);
-                $functionDeclarations[] = $func;
-            }
-        }
-
-        // Für den Echtzeit-Sprachmodus (Gemini Live) optimieren wir die Tools auf die hochrelevanten Sprach- und Interaktions-Funktionen,
-        // um Token-Overhead und Inferenz-Latenzen auf TPU-Seite minimal zu halten (Reaktionszeit wie in der mobilen Gemini-App).
+        // Für den Echtzeit-Sprachmodus (Gemini Live) optimieren wir die Tools VOR dem JSON-Deep-Clone auf die hochrelevanten
+        // Sprach- und Interaktions-Funktionen und cachen die bereinigten Deklarationen (spart ~80% CPU/Serialisierung beim Verbindungsaufbau).
         $isFunkiAgent = $aiAgent && strcasecmp(trim((string) ($aiAgent->name ?? '')), 'Funki') === 0;
         $blockadeContext = ['items' => [], 'directive' => '', 'proactive_kick_prompt' => null];
         if ($isAdminUser && !$isFunkiAgent) {
@@ -854,6 +885,8 @@ class AIController extends Controller
             $voiceAllowedTools = array_merge($voiceAllowedTools, [
                 'ag_resolve_pending_blockade',
                 'ag_list_pending_blockades',
+                'ag_send_to_antigravity',
+                'ag_check_antigravity_status',
                 'system_search_web',
                 'system_read_web_url',
                 'system_get_server_status',
@@ -871,17 +904,62 @@ class AIController extends Controller
                 'product_check_inventory', 'brain_search',
             ]);
         }
-        $filteredDeclarations = [];
-        foreach ($functionDeclarations as $decl) {
-            if (in_array($decl->name, $voiceAllowedTools, true)) {
-                $filteredDeclarations[] = $decl;
+
+        $allowedMap = array_fill_keys($voiceAllowedTools, true);
+        $useAgentSpecificTools = ($aiAgent && array_key_exists('tools', $payload) && !$isFunkiraAgent);
+        $declCacheKey = 'gemini_live_decls_v2_' . ($useAgentSpecificTools ? ('agent_' . $aiAgent->id) : 'registry') . '_' . substr(sha1(implode(',', $voiceAllowedTools)), 0, 16);
+
+        $functionDeclarations = \Illuminate\Support\Facades\Cache::remember($declCacheKey, 600, function () use ($useAgentSpecificTools, $payload, $allowedMap) {
+            $schemaTools = $useAgentSpecificTools
+                ? ($payload['tools'] ?: [])
+                : \App\Services\AI\AIFunctionsRegistry::getSchema();
+
+            $removeAdditionalProperties = function ($obj) use (&$removeAdditionalProperties) {
+                if (!is_object($obj) && !is_array($obj)) return;
+                foreach ($obj as $key => $value) {
+                    if (is_object($value) || is_array($value)) {
+                        $removeAdditionalProperties($value);
+                    }
+                }
+                if (is_object($obj)) {
+                    if (property_exists($obj, 'additionalProperties')) {
+                        unset($obj->additionalProperties);
+                    }
+                    if (property_exists($obj, 'type') && is_string($obj->type)) {
+                        $obj->type = strtoupper($obj->type);
+                    }
+                } elseif (is_array($obj)) {
+                    if (array_key_exists('additionalProperties', $obj)) {
+                        unset($obj['additionalProperties']);
+                    }
+                    if (array_key_exists('type', $obj) && is_string($obj['type'])) {
+                        $obj['type'] = strtoupper($obj['type']);
+                    }
+                }
+            };
+
+            $matched = [];
+            $fallbackFirst20 = [];
+            foreach ($schemaTools as $tool) {
+                if (!isset($tool['function'])) {
+                    continue;
+                }
+                $fnName = (string) ($tool['function']['name'] ?? '');
+                $isAllowed = isset($allowedMap[$fnName]);
+                if (!$isAllowed && count($fallbackFirst20) >= 20) {
+                    continue;
+                }
+                $func = json_decode(json_encode($tool['function']));
+                $removeAdditionalProperties($func);
+                if ($isAllowed) {
+                    $matched[] = $func;
+                } elseif (count($fallbackFirst20) < 20) {
+                    $fallbackFirst20[] = $func;
+                }
             }
-        }
-        if (!empty($filteredDeclarations)) {
-            $functionDeclarations = $filteredDeclarations;
-        } else {
-            $functionDeclarations = array_slice($functionDeclarations, 0, 20);
-        }
+
+            return !empty($matched) ? $matched : $fallbackFirst20;
+        });
 
         $token = \Illuminate\Support\Str::random(40);
         
@@ -1550,9 +1628,9 @@ class AIController extends Controller
         if ($deSlugged !== $normalized) {
             $candidates[] = $deSlugged;
         }
+        // Legacy-Anfragen für Falcone/Falcon werden nahtlos auf Funkira gemappt
         if (in_array($normalized, ['falcon', 'falcone'], true)) {
-            $candidates[] = 'falcone';
-            $candidates[] = 'falcon';
+            $candidates = ['funkira'];
         }
 
         foreach (array_values(array_unique($candidates)) as $cand) {
@@ -1568,7 +1646,7 @@ class AIController extends Controller
     }
 
     /**
-     * Prüft, ob ein KI-Agent eine exklusive Executive-Admin-Instanz (Falcone / Funkira) ist.
+     * Prüft, ob ein KI-Agent die exklusive Admin-Stabschefin Funkira ist.
      */
     private function isAdminOnlyAgent(\App\Models\Ai\AiAgent $agent): bool
     {
@@ -1576,11 +1654,266 @@ class AIController extends Controller
             return \App\Services\AI\FunkiraSkillPoolService::isExecutiveRoot($agent);
         }
 
-        if (method_exists(\App\Services\AI\FunkiraSkillPoolService::class, 'isFunkira')) {
-            return \App\Services\AI\FunkiraSkillPoolService::isFunkira($agent);
+        return strtolower(trim((string) ($agent->name ?? ''))) === 'funkira';
+    }
+
+    public function listUniverseTickets(Request $request)
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return response()->json(['status' => 'error', 'message' => 'Zugriff verweigert.'], 403);
         }
 
-        return in_array(strtolower(trim((string) ($agent->name ?? ''))), ['falcone', 'falcon', 'funkira'], true);
+        if (!\Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')) {
+            return response()->json([
+                'status' => 'success',
+                'tickets' => [],
+                'counts' => ['waiting_for_alina' => 0, 'in_progress' => 0, 'completed' => 0],
+            ]);
+        }
+
+        $status = (string) $request->query('status', 'open');
+        $query = \App\Models\Ai\AiUniverseTicket::with(['department:id,name,color', 'agent:id,name,color', 'messages']);
+
+        if ($status === 'waiting') {
+            $query->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA);
+        } elseif ($status === 'completed') {
+            $query->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED);
+        } elseif ($status === 'open') {
+            $query->whereNotIn('status', [
+                \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED,
+                \App\Models\Ai\AiUniverseTicket::STATUS_ARCHIVED,
+            ]);
+        }
+
+        $tickets = $query->orderByDesc('last_activity_at')->limit(50)->get();
+
+        return response()->json([
+            'status' => 'success',
+            'environment_tier' => \App\Services\AI\FunkiraPresenceContext::resolveEnvironmentTier(null, $request),
+            'notebook_online' => \App\Services\AI\FunkiraPresenceContext::isAntigravityNotebookOnline(),
+            'counts' => [
+                'waiting_for_alina' => \App\Models\Ai\AiUniverseTicket::where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA)->count(),
+                'in_progress' => \App\Models\Ai\AiUniverseTicket::whereIn('status', [
+                    \App\Models\Ai\AiUniverseTicket::STATUS_NEW,
+                    \App\Models\Ai\AiUniverseTicket::STATUS_IN_PROGRESS,
+                    \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_TRESOR,
+                    \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_NOTEBOOK,
+                ])->count(),
+                'completed' => \App\Models\Ai\AiUniverseTicket::where('status', \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED)->count(),
+            ],
+            'tickets' => $tickets,
+        ]);
+    }
+
+    public function dispatchUniverseMessage(Request $request)
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return response()->json(['status' => 'error', 'message' => 'Zugriff verweigert.'], 403);
+        }
+
+        $data = $request->validate([
+            'prompt' => 'required|string|max:4000',
+            'channel' => 'nullable|string|max:40',
+            'ticket_id' => 'nullable|string|max:64',
+            'active_route' => 'nullable|string|max:180',
+            'camera_alina_verified' => 'nullable|boolean',
+            'voice_alina_verified' => 'nullable|boolean',
+            'detected_persons' => 'nullable|array|max:8',
+            'is_voice_mode' => 'nullable|boolean',
+        ]);
+
+        $rawPresence = [
+            'channel' => $data['channel'] ?? 'android_app',
+            'active_route' => $data['active_route'] ?? null,
+            'is_voice_mode' => !empty($data['is_voice_mode']),
+        ];
+        if (array_key_exists('camera_alina_verified', $data)) {
+            $rawPresence['camera_alina_verified'] = (bool) $data['camera_alina_verified'];
+        }
+        if (array_key_exists('voice_alina_verified', $data)) {
+            $rawPresence['voice_alina_verified'] = (bool) $data['voice_alina_verified'];
+        }
+        if (isset($data['detected_persons'])) {
+            $rawPresence['detected_persons'] = $data['detected_persons'];
+        }
+
+        $result = \App\Services\AI\FunkiraTicketRouter::dispatchMessage(
+            $data['prompt'],
+            $rawPresence,
+            $data['ticket_id'] ?? null
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'mode' => $result['mode'] ?? 'ticket',
+            'reply' => $result['reply'] ?? '',
+            'ticket' => $result['ticket'] ?? null,
+            'presence' => $result['presence'] ?? null,
+        ]);
+    }
+
+    public function performUniverseTicketAction(Request $request, string $id)
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return response()->json(['status' => 'error', 'message' => 'Nur Administratoren dürfen Ticket-Freigaben auslösen.'], 403);
+        }
+
+        $data = $request->validate([
+            'action' => 'required|string|max:40',
+            'channel' => 'nullable|string|max:40',
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $ticket = \App\Models\Ai\AiUniverseTicket::where('id', $id)
+            ->orWhere('ticket_number', strtoupper($id))
+            ->firstOrFail();
+
+        $res = \App\Services\AI\FunkiraTicketRouter::performTicketAction($ticket, $data['action'], [
+            'channel' => $data['channel'] ?? 'android_app',
+            'note' => $data['note'] ?? '',
+        ]);
+
+        return response()->json($res);
+    }
+
+    public function pollTresorQueue()
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return response()->json(['status' => 'error', 'message' => 'Nur für Admin Tresor-Worker.'], 403);
+        }
+
+        \App\Services\AI\FunkiraPresenceContext::markTresorWorkerOnline();
+
+        if (!\Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')) {
+            return response()->json(['status' => 'success', 'orders' => []]);
+        }
+
+        $orders = \App\Models\Ai\AiUniverseTicket::query()
+            ->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_TRESOR)
+            ->where('ticket_type', 'procurement')
+            ->orderBy('created_at')
+            ->limit(10)
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'orders' => $orders,
+        ]);
+    }
+
+    public function completeTresorOrder(Request $request, string $id)
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return response()->json(['status' => 'error', 'message' => 'Nur für Admin Tresor-Worker.'], 403);
+        }
+
+        $data = $request->validate([
+            'success' => 'required|boolean',
+            'final_gross_cents' => 'nullable|integer|min:0',
+            'summary' => 'required|string|max:1000',
+        ]);
+
+        $ticket = \App\Models\Ai\AiUniverseTicket::where('id', $id)
+            ->orWhere('ticket_number', strtoupper($id))
+            ->firstOrFail();
+
+        $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+        $maxAllowed = (int) ($payload['max_allowed_checkout_cents'] ?? 0);
+
+        if ($data['success'] && isset($data['final_gross_cents']) && $maxAllowed > 0 && $data['final_gross_cents'] > $maxAllowed) {
+            $ticket->update([
+                'status' => \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
+                'last_activity_at' => now(),
+            ]);
+            \App\Models\Ai\AiUniverseTicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'sender_role' => 'agent',
+                'sender_name' => 'Einkaufi',
+                'channel' => 'funkenwerk_desktop',
+                'content' => 'Sicherheitsabbruch im Tresor-Checkout: Live-Warenkorbpreis überschritt die 5 % Toleranzgrenze.',
+            ]);
+            return response()->json(['status' => 'aborted_price_guard', 'ticket' => $ticket->fresh(['messages'])], 422);
+        }
+
+        $newStatus = $data['success']
+            ? \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED
+            : \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA;
+
+        \App\Models\Ai\AiUniverseTicketMessage::create([
+            'ticket_id' => $ticket->id,
+            'sender_role' => 'agent',
+            'sender_name' => 'Einkaufi',
+            'channel' => 'funkenwerk_desktop',
+            'content' => \App\Services\AI\AiOutputQualityGate::sanitizeText($data['summary']),
+            'executed_tools' => ['tresor_isolated_browser_checkout'],
+        ]);
+
+        $ticket->update([
+            'status' => $newStatus,
+            'completed_at' => $data['success'] ? now() : null,
+            'messages_count' => $ticket->messages()->count(),
+            'last_activity_at' => now(),
+        ]);
+
+        if ($data['success'] && !empty($payload['item_id']) && \Illuminate\Support\Facades\Schema::hasTable('ai_learned_preferences')) {
+            $itemName = (string) ($payload['item_name'] ?? $ticket->title);
+            $slugKey = 'procurement:' . strtolower(preg_replace('/[^a-z0-9äöüß]+/iu', '_', $itemName) ?? 'item');
+            \App\Models\Ai\AiLearnedPreference::updateOrCreate(
+                ['scope_key' => $slugKey],
+                [
+                    'ai_department_id' => $ticket->ai_department_id,
+                    'subject_label' => $itemName,
+                    'rule_summary' => "Bevorzugter Stamm-Artikel bei {$payload['supplier_name']} ({$payload['packs']} Gebinde via {$payload['reorder_url']}).",
+                    'structured_value' => [
+                        'packaging_item_id' => $payload['item_id'],
+                        'preferred_packs' => (int) ($payload['packs'] ?? 1),
+                        'reorder_url' => $payload['reorder_url'] ?? '',
+                    ],
+                    'source_ticket_id' => $ticket->id,
+                    'is_active' => true,
+                ]
+            );
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'ticket' => $ticket->fresh(['messages']),
+        ]);
+    }
+
+    public function antigravityHeartbeat()
+    {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return response()->json(['status' => 'error', 'message' => 'Nur für Admin Antigravity-Bridge.'], 403);
+        }
+
+        \App\Services\AI\FunkiraPresenceContext::markAntigravityNotebookOnline();
+
+        $queued = [];
+        if (\Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')) {
+            // Reaktiviere geparkte Wartet-auf-Notebook Tickets automatisch auf In Arbeit
+            \App\Models\Ai\AiUniverseTicket::where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_NOTEBOOK)
+                ->where('assigned_to_antigravity', true)
+                ->update([
+                    'status' => \App\Models\Ai\AiUniverseTicket::STATUS_IN_PROGRESS,
+                    'last_activity_at' => now(),
+                ]);
+
+            $queued = \App\Models\Ai\AiUniverseTicket::with('messages')
+                ->where('assigned_to_antigravity', true)
+                ->whereIn('status', [
+                    \App\Models\Ai\AiUniverseTicket::STATUS_NEW,
+                    \App\Models\Ai\AiUniverseTicket::STATUS_IN_PROGRESS,
+                ])
+                ->orderBy('created_at')
+                ->get();
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'notebook_online' => true,
+            'tickets' => $queued,
+        ]);
     }
 
     /**
@@ -1589,8 +1922,31 @@ class AIController extends Controller
      */
     private function buildSubdomainReadinessDirective(): string
     {
-        return "SUBDOMAIN- & SERVER-STATUS-DIREKTIVE (SOFORTIGE AUSKUNFT OHNE RÜCKFRAGEN):\n"
+        $directive = "SUBDOMAIN- & SERVER-STATUS-DIREKTIVE (SOFORTIGE AUSKUNFT OHNE RÜCKFRAGEN):\n"
             . "- Sobald Alina nach einer Domain oder Subdomain (`mein-seelenfunke.de`, `www.mein-seelenfunke.de`, `stage.mein-seelenfunke.de`, `ws.mein-seelenfunke.de`, `api-live-bridge.mein-seelenfunke.de`) fragt, stelle NIEMALS Gegenfragen und bitte NIEMALS um Präzisierung!\n"
             . "- Rufe SOFORT `system_get_server_status` auf und nenne direkt in einem Guss alle Fakten aus `subdomains` bzw. `live_domains`: DNS/Ingress-Status (`dns_configured`), HTTP-/Wartungs-/SSL-Status sowie Antwortzeiten und den 4-Säulen-Status.";
+
+        try {
+            $inv = \App\Services\AI\AIFunctionsRegistry::loadSanitizedSmartHomeInventory();
+            $shNames = array_map(static fn($s) => $s['label'] . ' (' . $s['closure_percent'] . '%)', $inv['shutters'] ?? []);
+            $plNames = array_map(static fn($p) => $p['name'], $inv['plugs'] ?? []);
+            $grLines = array_map(static function ($g) {
+                $members = array_merge($g['shutter_targets'] ?? [], $g['plug_targets'] ?? []);
+                return $g['name'] . ' [' . implode(', ', $members) . ']';
+            }, $inv['groups'] ?? []);
+
+            $shLine = !empty($shNames) ? implode(', ', $shNames) : 'Connexoon Window Somfy bereit';
+            $plLine = !empty($plNames) ? implode(', ', $plNames) : 'Keine Steckdosen hinterlegt';
+            $grLine = !empty($grLines) ? implode(' | ', $grLines) : 'Noch keine Gruppen hinterlegt';
+
+            $directive .= "\n\nFUNKENWERK SMARTHOME & GRUPPEN (CONNEXOON WINDOW SOMFY + TAPO):\n"
+                . "- Rollläden/Fenster: {$shLine}\n"
+                . "- Steckdosen: {$plLine}\n"
+                . "- Gruppen: {$grLine}\n"
+                . "- Du kennst alle Einzelgeräte, Gruppen und kombinierte Befehle (z. B. 'Wohnzimmer und Terrassentür schließen' oder 'Gruppe Wohnbereich auf 50%'). Nutze auf Android im Live-Modus bevorzugt `falcon_smarthome_control` bzw. im Chat `smarthome_control` / `smarthome_get_devices_and_groups`.";
+        } catch (\Throwable) {
+        }
+
+        return $directive;
     }
 }

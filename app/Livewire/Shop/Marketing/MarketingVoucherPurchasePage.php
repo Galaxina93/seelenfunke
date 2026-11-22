@@ -62,7 +62,7 @@ class MarketingVoucherPurchasePage extends Component
 
     public function getPostShippingCostProperty()
     {
-        return (float) (shop_setting('shipping_cost_voucher', 350) / 100);
+        return (float) (shop_setting('shipping_cost_voucher', 450) / 100);
     }
 
     public function getShippingCostProperty()
@@ -327,7 +327,7 @@ class MarketingVoucherPurchasePage extends Component
         }
 
         // 2. Prepare Config
-        $postSurcharge = $this->deliveryMethod === 'post' ? (int) shop_setting('shipping_cost_voucher', 350) : 0;
+        $postSurcharge = $this->deliveryMethod === 'post' ? (int) shop_setting('shipping_cost_voucher', 450) : 0;
         $normalizedCardColor = $this->cardColor === 'black' ? 'black' : 'gold';
         $config = [
             'is_gift_voucher'            => true,

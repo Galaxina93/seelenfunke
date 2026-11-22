@@ -11,14 +11,20 @@
     <ApplicationTitle>Funkenwerk Player</ApplicationTitle>
     <Product>Funkenwerk Player</Product>
     <Company>Mein-Seelenfunke</Company>
-    <Version>1.0.0</Version>
+    <Version>1.5.0</Version>
+    <AssemblyVersion>1.5.0.15</AssemblyVersion>
+    <FileVersion>1.5.0.15</FileVersion>
+    <InformationalVersion>1.5.0+b15</InformationalVersion>
     <ApplicationIcon>funkenwerk_player.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
+    <Compile Include="..\funkenwerk\FunkenwerkSharedSession.cs" Link="Shared\FunkenwerkSharedSession.cs" />
     <Resource Include="funkenwerk_player.ico" />
     <Resource Include="funkenwerk_player.png" />
     <None Include="funkenwerk_player.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="playlists_cache.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

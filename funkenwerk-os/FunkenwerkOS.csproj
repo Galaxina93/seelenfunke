@@ -10,10 +10,17 @@
     <ApplicationIcon>funkenwerk_os.ico</ApplicationIcon>
     <AssemblyName>FunkenwerkOS</AssemblyName>
     <RootNamespace>FunkenwerkOS</RootNamespace>
+    <Product>Funkenwerk OS</Product>
+    <Company>Mein-Seelenfunke</Company>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.9</AssemblyVersion>
+    <FileVersion>1.2.0.9</FileVersion>
+    <InformationalVersion>1.2.0+b9</InformationalVersion>
     <NoWarn>NU1701;CA1416</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
     <Resource Include="funkenwerk_os.ico" />
     <Resource Include="funkenwerk_os.png" />
     <Content Include="mein-seelenfunke-logo.png">

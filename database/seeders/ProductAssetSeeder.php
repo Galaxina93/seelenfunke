@@ -84,19 +84,21 @@ class ProductAssetSeeder extends Seeder
         file_put_contents($goldHerzDir . '/goldenes_seelen_herz_3d.glb', $goldHerzGlb);
         $this->ensureGoldenesHerzGalleryAndTemplates($publicProductsPath, $goldHerzDir, false);
 
-        // 3b. Das Echtgold Seelen-Herz (Atelier: 585er Echtgold-Herz 13x14 mm + 333er Echtgold-Panzerkette 0,8 mm)
-        $echtgoldHerzDir = $publicProductsPath . '/echtgold-seelen-herz';
-        File::ensureDirectoryExists($echtgoldHerzDir);
-        $this->ensureHeaderBackground($publicProductsPath, $echtgoldHerzDir);
+        // 3b. Das Echtgold Seelen-Herz (Atelier: nur generieren, wenn Produkt in DB aktiv ist)
+        if (\App\Models\Product\Product::withTrashed()->where('slug', 'echtgold-seelen-herz')->exists()) {
+            $echtgoldHerzDir = $publicProductsPath . '/echtgold-seelen-herz';
+            File::ensureDirectoryExists($echtgoldHerzDir);
+            $this->ensureHeaderBackground($publicProductsPath, $echtgoldHerzDir);
 
-        $echtgoldOverlayPath = $echtgoldHerzDir . '/overlay.png';
-        $this->renderGoldenesHerzOverlay($echtgoldOverlayPath);
-        $this->ensureSeasonalOverlays($echtgoldHerzDir, true);
+            $echtgoldOverlayPath = $echtgoldHerzDir . '/overlay.png';
+            $this->renderGoldenesHerzOverlay($echtgoldOverlayPath);
+            $this->ensureSeasonalOverlays($echtgoldHerzDir, true);
 
-        $echtgoldPngBytes = file_get_contents($echtgoldOverlayPath);
-        $echtgoldGlb = $this->buildSingleTexturedGlb($goldHerzMesh, $echtgoldPngBytes, 'EchtgoldSeelenHerz');
-        file_put_contents($echtgoldHerzDir . '/echtgold_seelen_herz_3d.glb', $echtgoldGlb);
-        $this->ensureEchtgoldHerzGalleryAndTemplates($publicProductsPath, $echtgoldHerzDir, false);
+            $echtgoldPngBytes = file_get_contents($echtgoldOverlayPath);
+            $echtgoldGlb = $this->buildSingleTexturedGlb($goldHerzMesh, $echtgoldPngBytes, 'EchtgoldSeelenHerz');
+            file_put_contents($echtgoldHerzDir . '/echtgold_seelen_herz_3d.glb', $echtgoldGlb);
+            $this->ensureEchtgoldHerzGalleryAndTemplates($publicProductsPath, $echtgoldHerzDir, false);
+        }
 
         // 3c. Das Echtsilber Seelenarmband (FBM P001.53062HERZ.5.18.5: 925er Sterlingsilber, Figaro diamantiert 2,1 mm, 18,5 cm)
         $silberArmbandDir = $publicProductsPath . '/id-armband-silber-herz';
@@ -336,9 +338,13 @@ SVG,
             return;
         }
 
-        $backupDir = $anhaengerDir . '/backup';
+        $backupDir = storage_path('app/produkte/products-secure/internal-backups/seelen-anhaenger');
         File::ensureDirectoryExists($backupDir);
         $rawSourcePath = $backupDir . '/overlay_unwarped_raw.png';
+        $legacyPublicBackup = $anhaengerDir . '/backup/overlay_unwarped_raw.png';
+        if (!is_file($rawSourcePath) && is_file($legacyPublicBackup)) {
+            @copy($legacyPublicBackup, $rawSourcePath);
+        }
 
         if (!is_file($rawSourcePath)) {
             $probe = @imagecreatefrompng($overlayPath);
@@ -583,7 +589,7 @@ SVG,
             }
         }
 
-        imagepng($dst, $overlayPath, 6);
+        imagepng($dst, $overlayPath, 9);
         imagedestroy($src);
         imagedestroy($dst);
     }
@@ -2592,10 +2598,7 @@ SVG,
             return;
         }
 
-        $this->convertPfoteSceneToGold($pfoteDir . '/seelen-pfote-main.jpg', 'closeup');
-        $this->convertPfoteSceneToGold($pfoteDir . '/seelen-pfote-back.jpg', 'closeup');
-        $this->convertPfoteSceneToGold($pfoteDir . '/seelen-pfote-lifestyle.jpg', 'lifestyle');
-
+        // Hinweis: Standard-/Saisonbilder stammen aus verifizierten Manufaktur-Dateien und werden hier nicht nachgefaerbt.
         $tplDir = dirname($publicProductsPath) . '/product-templates';
         foreach (['weihnachten', 'ostern', 'hochzeit', 'geburtstag', 'valentinstag', 'halloween', 'muttertag', 'vatertag'] as $hSlug) {
             $tplPath = $tplDir . '/seelen-pfote-hundemarke-' . $hSlug . '.jpg';
@@ -2962,7 +2965,8 @@ SVG,
             }
         }
 
-        imagejpeg($im, $filePath, 92);
+        imageinterlace($im, true);
+        imagejpeg($im, $filePath, 85);
         imagedestroy($im);
     }
 
@@ -3396,8 +3400,7 @@ SVG,
     }
 
     /**
-     * Erzeugt die Studio-/Lifestyle-/Rückseiten-Galeriebilder sowie alle 8 saisonalen Vorlagenbilder
-     * für Das Goldene Seelen-Herz auf Basis des realen 14k Gold-Herz-Overlays.
+     * Erzeugt die 8 saisonalen Vorlagenbilder für Das Goldene Seelen-Herz auf Basis des realen 14k Gold-Herz-Overlays.
      */
     private function ensureGoldenesHerzGalleryAndTemplates(string $publicProductsPath, string $goldHerzDir, bool $force = false): void
     {
@@ -3488,39 +3491,12 @@ SVG,
             $drawCenter($im, 14.0, 512, 945, $whiteCol, $fontSerifBold, 'Das Goldene Seelen-Herz • Inkl. 44–50 cm Gold-Ankerkette');
             $drawCenter($im, 11.0, 512, 972, $mutedCol, $fontSans, $subCaption);
 
-            imagejpeg($im, $outFile, 92);
+            imageinterlace($im, true);
+            imagejpeg($im, $outFile, 85);
             imagedestroy($im);
         };
 
-        // 1. Studio-Galeriebilder (Vorderseite, Rückseite, Lifestyle)
-        $renderScene(
-            $goldHerzDir . '/goldenes-seelen-herz-main.jpg',
-            [22, 18, 15],
-            [10, 8, 7],
-            ['♥', 'Für immer', 'im Herzen'],
-            'MEIN-SEELENFUNKE MANUFAKTUR • KOMPLETT-SET INKL. HALSKETTE',
-            'Edelstahl-Herz (25 × 22 × 4 mm) + Gold-Ankerkette (44 + 6 cm) • Ion-Plating (IP)'
-        );
-
-        $renderScene(
-            $goldHerzDir . '/goldenes-seelen-herz-back.jpg',
-            [25, 21, 18],
-            [12, 10, 8],
-            ['24.08.2026', '52°28\'N • 10°32\'E', 'Dein Seelenmensch'],
-            'BEIDSEITIGE LASER-VEREDELUNG • RÜCKSEITEN-ANSICHT',
-            'Rückseite kostenlos gravierbar mit Wunschdatum, Koordinaten oder Widmung'
-        );
-
-        $renderScene(
-            $goldHerzDir . '/goldenes-seelen-herz-lifestyle.jpg',
-            [34, 26, 19],
-            [15, 11, 8],
-            ['Mama ♥', 'Du bist unser', 'Goldstück'],
-            'INKLUSIVE 44–50 CM GOLD-ANKERKETTE • SOFORT TRAGFERTIG',
-            'Wasserfeste 14k Ion-Plating-Veredelung auf rostfreiem Edelstahl'
-        );
-
-        // 2. Alle 8 saisonalen Feiertags-Vorlagenbilder in storage/app/public/produkte/product-templates/
+        // Alle 8 saisonalen Feiertags-Vorlagenbilder in storage/app/public/produkte/product-templates/
         $tplDir = storage_path('app/public/produkte/product-templates');
         File::ensureDirectoryExists($tplDir);
 
@@ -3635,7 +3611,8 @@ SVG,
             $drawCenter($im, 14.0, 512, 945, $whiteCol, $fontSerifBold, 'Das Echtgold Seelen-Herz • 585er Gold & 333er Gold-Panzerkette');
             $drawCenter($im, 11.0, 512, 972, $mutedCol, $fontSans, $subCaption);
 
-            imagejpeg($im, $outFile, 92);
+            imageinterlace($im, true);
+            imagejpeg($im, $outFile, 85);
             imagedestroy($im);
         };
 
@@ -4260,7 +4237,8 @@ SVG,
             $drawCenter($im, 14.0, 512, 945, $whiteCol, $fontSerifBold, $titleFooter);
             $drawCenter($im, 11.0, 512, 972, $mutedCol, $fontSans, $subCaption);
 
-            imagejpeg($im, $outFile, 92);
+            imageinterlace($im, true);
+            imagejpeg($im, $outFile, 85);
             imagedestroy($im);
         };
 
@@ -4333,8 +4311,7 @@ SVG,
             [
                 'slug' => 'seelen-kristall',
                 'outFileName' => 'seelen-kristall-dimensions.jpg',
-                'title' => 'Der Seelen Kristall: Maße & Details',
-                'subtitle' => 'Optisches K9-Kristallglas mit geschliffener Facettenkante & Tiefen-Lasergravur',
+                'title' => 'Der Seelen Kristall',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 287, 'x2' => 737, 'y' => 745, 'dashedYFrom1' => 440, 'dashedYFrom2' => 440, 'labelPos' => 'below', 'label' => 'Breite: 180 mm (18,0 cm)'],
@@ -4346,17 +4323,16 @@ SVG,
                     ['x' => 512, 'y' => 315, 'tx' => 210, 'ty' => 220, 'label' => 'Gravurfläche: Ø 150 mm'],
                 ],
                 'specs' => [
-                    ['label' => 'Abmessungen', 'value' => '180 × 200 × 40 mm', 'sub' => 'Sonnenschliff-Kristall & Sockel'],
-                    ['label' => 'Sockeltiefe', 'value' => '40 mm (Massiv)', 'sub' => 'Inkl. massivem Kristallsockel'],
-                    ['label' => 'Gewicht', 'value' => 'ca. 920 g', 'sub' => 'Schwere Manufaktur-Qualität'],
-                    ['label' => 'Material', 'value' => 'K9 Kristallglas', 'sub' => 'Hochreiner Facettenschliff'],
+                    ['label' => 'Abmessungen', 'value' => '180 × 200 × 40 mm'],
+                    ['label' => 'Sockeltiefe', 'value' => '40 mm'],
+                    ['label' => 'Gewicht', 'value' => 'ca. 920 g'],
+                    ['label' => 'Material', 'value' => 'K9 Kristallglas'],
                 ],
             ],
             [
                 'slug' => 'seelen-anhaenger',
                 'outFileName' => 'seelen-anhaenger-dimensions.jpg',
-                'title' => 'Der Seelenanhänger: Maße & Details',
-                'subtitle' => 'Herz-Schlüsselanhänger aus eloxiertem Aluminium mit Hochglanz-Metallrahmen',
+                'title' => 'Der Seelenanhänger',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 378, 'x2' => 646, 'y' => 745, 'dashedYFrom1' => 556, 'dashedYFrom2' => 556, 'labelPos' => 'below', 'label' => 'Herz-Breite: 45 mm (4,5 cm)'],
@@ -4369,17 +4345,16 @@ SVG,
                     ['x' => 512, 'y' => 602, 'tx' => 225, 'ty' => 360, 'label' => 'Gravurfeld: 38 × 35 mm'],
                 ],
                 'specs' => [
-                    ['label' => 'Abmessungen', 'value' => '45 × 40 mm', 'sub' => 'inkl. Drehwirbel & Spaltring'],
-                    ['label' => 'Materialstärke', 'value' => '2,3 mm', 'sub' => 'Formstabil & handschmeichelnd'],
-                    ['label' => 'Gewicht', 'value' => 'ca. 19 g', 'sub' => 'Angenehm am Schlüsselbund'],
-                    ['label' => 'Gravur', 'value' => 'Beidseitig', 'sub' => 'Vorder- & Rückseite inklusive'],
+                    ['label' => 'Abmessungen', 'value' => '45 × 40 mm'],
+                    ['label' => 'Materialstärke', 'value' => '2,3 mm'],
+                    ['label' => 'Gewicht', 'value' => 'ca. 19 g'],
+                    ['label' => 'Gravur', 'value' => 'Beidseitig'],
                 ],
             ],
             [
                 'slug' => 'weizenglas-personalisiert',
                 'outFileName' => 'weizenglas-dimensions.jpg',
-                'title' => 'Der Feierabend-Funke – Maße & Details',
-                'subtitle' => 'Bayerisches 0,5L Kristall-Weizenglas mit umlaufender 360°-Lasergravur',
+                'title' => 'Der Feierabend-Funke',
                 'overlayTop' => 215,
                 'horizArrows' => [
                     ['x1' => 410, 'x2' => 614, 'y' => 205, 'dashedYFrom1' => 235, 'dashedYFrom2' => 235, 'labelPos' => 'above', 'label' => 'Kelch-Ø oben: 74 mm (7,4 cm)'],
@@ -4391,17 +4366,16 @@ SVG,
                     ['x' => 512, 'y' => 485, 'tx' => 220, 'ty' => 485, 'label' => '360° Gravurzone: 148 mm'],
                 ],
                 'specs' => [
-                    ['label' => 'Abmessungen', 'value' => '218 × Ø 74 mm', 'sub' => 'Klassische Weizen-Kontur'],
-                    ['label' => 'Füllvolumen', 'value' => '0,5 Liter', 'sub' => 'Randvoll 580 ml'],
-                    ['label' => 'Gewicht', 'value' => 'ca. 450 g', 'sub' => 'Starker Manufaktur-Eisboden'],
-                    ['label' => 'Veredelung', 'value' => 'Spülmaschinenfest', 'sub' => 'Dauerhafte 360°-Lasergravur'],
+                    ['label' => 'Abmessungen', 'value' => '218 × Ø 74 mm'],
+                    ['label' => 'Füllvolumen', 'value' => '0,5 Liter'],
+                    ['label' => 'Gewicht', 'value' => 'ca. 450 g'],
+                    ['label' => 'Veredelung', 'value' => '360°-Lasergravur'],
                 ],
             ],
             [
                 'slug' => 'seelen-talisman',
                 'outFileName' => 'seelen-talisman-dimensions.jpg',
-                'title' => 'Der Seelen-Talisman – Maße & Details',
-                'subtitle' => 'Massiver, spiegelpolierter Edelstahl-Schlüsselanhänger in edlem Gold-Finish',
+                'title' => 'Der Seelen-Talisman',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 411, 'x2' => 613, 'y' => 202, 'dashedYFrom1' => 314, 'dashedYFrom2' => 314, 'labelPos' => 'above', 'label' => 'Schlüsselring: Ø 30 mm'],
@@ -4413,17 +4387,16 @@ SVG,
                 ],
                 'callouts' => [],
                 'specs' => [
-                    ['label' => 'Plaketten-Maß', 'value' => '50 × 28 mm', 'sub' => '5,0 × 2,8 cm (1,97 × 1,10 in)'],
-                    ['label' => 'Materialstärke', 'value' => '2,2 mm (Massiv)', 'sub' => 'Rostfreier Edelstahl'],
-                    ['label' => 'Gewicht', 'value' => 'ca. 24 g', 'sub' => 'Spürbar wertige Haptik'],
-                    ['label' => 'Veredelung', 'value' => 'Beidseitig', 'sub' => 'Dunkle Faserlaser-Anlassgravur'],
+                    ['label' => 'Plaketten-Maß', 'value' => '50 × 28 mm'],
+                    ['label' => 'Materialstärke', 'value' => '2,2 mm'],
+                    ['label' => 'Gewicht', 'value' => 'ca. 24 g'],
+                    ['label' => 'Veredelung', 'value' => 'Beidseitig'],
                 ],
             ],
             [
                 'slug' => 'seelen-pfote-hundemarke',
                 'outFileName' => 'seelen-pfote-dimensions.jpg',
-                'title' => 'Die Seelen-Pfote: Maße & Details',
-                'subtitle' => 'Hochglanzpolierte Edelstahl-Hundemarke in edlem Gold-Finish mit ausgestanztem Pfotenabdruck',
+                'title' => 'Die Seelen-Pfote',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 288, 'x2' => 736, 'y' => 265, 'dashedYFrom1' => 385, 'dashedYFrom2' => 385, 'labelPos' => 'above', 'label' => 'Breite: 40 mm (1,57 in)'],
@@ -4432,21 +4405,20 @@ SVG,
                     ['y1' => 352, 'y2' => 578, 'x' => 165, 'dashedXFrom1' => 359, 'dashedXFrom2' => 359, 'label' => 'Höhe: 22 mm (0,87 in)'],
                 ],
                 'callouts' => [
-                    ['x' => 425, 'y' => 465, 'tx' => 330, 'ty' => 690, 'label' => 'Beidseitige Laser-Gravurzone'],
+                    ['x' => 425, 'y' => 465, 'tx' => 330, 'ty' => 690, 'label' => 'Beidseitige Gravurzone'],
                     ['x' => 676, 'y' => 520, 'tx' => 720, 'ty' => 690, 'label' => 'Echter Pfoten-Durchbruch'],
                 ],
                 'specs' => [
-                    ['label' => 'Knochen-Maß', 'value' => '40 × 22 mm', 'sub' => '1,57 × 0,87 in (inkl. Öse)'],
-                    ['label' => 'Material & Finish', 'value' => '1,8 mm Gold', 'sub' => 'Edelstahl (Gold-Finish)'],
-                    ['label' => 'Gewicht', 'value' => 'ca. 12 g (0,43 oz)', 'sub' => 'Rostfrei, wasser- & kratzfest'],
-                    ['label' => 'Gravur', 'value' => 'Beidseitig', 'sub' => 'Name vorn + Notfall-Nr. hinten'],
+                    ['label' => 'Knochen-Maß', 'value' => '40 × 22 mm'],
+                    ['label' => 'Materialstärke', 'value' => '1,8 mm'],
+                    ['label' => 'Gewicht', 'value' => 'ca. 12 g'],
+                    ['label' => 'Gravur', 'value' => 'Beidseitig'],
                 ],
             ],
             [
                 'slug' => 'goldenes-seelen-herz',
                 'outFileName' => 'goldenes-seelen-herz-dimensions.jpg',
-                'title' => 'Das Goldene Seelen-Herz – Maße & Details',
-                'subtitle' => 'Massiver vergoldeter Edelstahl-Herzanhänger (Ion-Plating) inkl. 44–50 cm Gold-Ankerkette',
+                'title' => 'Das Goldene Seelen-Herz',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 481, 'x2' => 543, 'y' => 202, 'dashedYFrom1' => 225, 'dashedYFrom2' => 225, 'labelPos' => 'above', 'label' => 'Collierschlaufe: Öse 3 × 6 mm'],
@@ -4454,43 +4426,41 @@ SVG,
                 ],
                 'vertArrows' => [
                     ['y1' => 382, 'y2' => 713, 'x' => 210, 'dashedXFrom1' => 445, 'dashedXFrom2' => 512, 'label' => 'Herz-Höhe: 25 mm (2,5 cm)'],
-                    ['y1' => 217, 'y2' => 713, 'x' => 814, 'dashedXFrom1' => 543, 'dashedXFrom2' => 512, 'label' => 'Materialstärke: 4,0 mm (Massiv)'],
+                    ['y1' => 217, 'y2' => 713, 'x' => 814, 'dashedXFrom1' => 543, 'dashedXFrom2' => 512, 'label' => 'Materialstärke: 4,0 mm'],
                 ],
                 'callouts' => [],
                 'specs' => [
-                    ['label' => 'Herz-Maß', 'value' => '25 × 22 × 4 mm', 'sub' => 'Massives 4,0 mm Vollmaterial'],
-                    ['label' => 'Halskette (Inkl.)', 'value' => '44 + 6 cm (1,5 mm)', 'sub' => 'Gold-Ankerkette (Karabiner)'],
-                    ['label' => 'Oberfläche', 'value' => '14k Vergoldet (IP)', 'sub' => 'Wasserfest & anlaufgeschützt'],
-                    ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Beidseitige Faserlaser-Gravur'],
+                    ['label' => 'Herz-Maß', 'value' => '25 × 22 × 4 mm'],
+                    ['label' => 'Halskette', 'value' => '44 bis 50 cm'],
+                    ['label' => 'Oberfläche', 'value' => '14k Vergoldet (IP)'],
+                    ['label' => 'Gravur', 'value' => 'Beidseitig'],
                 ],
             ],
             [
                 'slug' => 'echtgold-seelen-herz',
                 'outFileName' => 'echtgold-seelen-herz-dimensions.jpg',
-                'title' => 'Das Echtgold Seelen-Herz – Maße & Details',
-                'subtitle' => 'Massiver 585er Echtgold-Herzanhänger (14 Karat) inkl. 333er Echtgold-Panzerkette (0,8 mm)',
+                'title' => 'Das Echtgold Seelen-Herz',
                 'overlayTop' => 185,
                 'horizArrows' => [
-                    ['x1' => 481, 'x2' => 543, 'y' => 202, 'dashedYFrom1' => 225, 'dashedYFrom2' => 225, 'labelPos' => 'above', 'label' => 'Schlaufe: 585 Echtgold (gestempelt)'],
+                    ['x1' => 481, 'x2' => 543, 'y' => 202, 'dashedYFrom1' => 225, 'dashedYFrom2' => 225, 'labelPos' => 'above', 'label' => 'Schlaufe: 585 Echtgold'],
                     ['x1' => 330, 'x2' => 694, 'y' => 742, 'dashedYFrom1' => 490, 'dashedYFrom2' => 490, 'labelPos' => 'below', 'label' => 'Herz-Breite: 13 mm (1,3 cm)'],
                 ],
                 'vertArrows' => [
-                    ['y1' => 382, 'y2' => 713, 'x' => 210, 'dashedXFrom1' => 445, 'dashedXFrom2' => 512, 'label' => 'Herz-Höhe: 14 mm (ohne Schlaufe)'],
-                    ['y1' => 217, 'y2' => 713, 'x' => 814, 'dashedXFrom1' => 543, 'dashedXFrom2' => 512, 'label' => 'Kette: 0,8 mm (333er Echtgold)'],
+                    ['y1' => 382, 'y2' => 713, 'x' => 210, 'dashedXFrom1' => 445, 'dashedXFrom2' => 512, 'label' => 'Herz-Höhe: 14 mm'],
+                    ['y1' => 217, 'y2' => 713, 'x' => 814, 'dashedXFrom1' => 543, 'dashedXFrom2' => 512, 'label' => 'Kette: 0,8 mm (333 Gold)'],
                 ],
                 'callouts' => [],
                 'specs' => [
-                    ['label' => 'Herz-Anhänger', 'value' => '585er Echtgold', 'sub' => '13 × 14 mm • 0,80 g (14 Karat)'],
-                    ['label' => 'Halskette (Im Set)', 'value' => '333er Echtgold', 'sub' => '0,8 mm Panzerkette (Karabiner)'],
-                    ['label' => 'Echtheitsstempel', 'value' => '585 & 333 Punze', 'sub' => 'Geprüftes Edelmetall'],
-                    ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Präzisions-UV-Lasergravur'],
+                    ['label' => 'Herz-Anhänger', 'value' => '585er Echtgold'],
+                    ['label' => 'Halskette', 'value' => '333er Echtgold'],
+                    ['label' => 'Abmessungen', 'value' => '13 × 14 mm'],
+                    ['label' => 'Gewicht', 'value' => 'ca. 0,80 g'],
                 ],
             ],
             [
                 'slug' => 'id-armband-silber-herz',
                 'outFileName' => 'id-armband-silber-herz-dimensions.jpg',
-                'title' => 'Das Echtsilber Seelenarmband: Maße & Details',
-                'subtitle' => 'Massives 925er Sterlingsilber (FBM Made in Germany) mit Figaro-Kette (2,1 mm) & Herz-Durchbruch',
+                'title' => 'Das Echtsilber Seelenarmband',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 327, 'x2' => 697, 'y' => 360, 'dashedYFrom1' => 423, 'dashedYFrom2' => 423, 'labelPos' => 'above', 'label' => 'Gravurplatte: 24,0 mm (2,4 cm)'],
@@ -4504,17 +4474,16 @@ SVG,
                     ['x' => 560, 'y' => 465, 'tx' => 710, 'ty' => 715, 'label' => 'Beidseitige Gravurfläche'],
                 ],
                 'specs' => [
-                    ['label' => 'Edelmetall', 'value' => '925 Sterlingsilber', 'sub' => 'ca. 2,50 g (gestempelt 925)'],
-                    ['label' => 'Armband-Länge', 'value' => '18,5 cm (185 mm)', 'sub' => 'Figaro diamantiert 2,1 mm'],
-                    ['label' => 'Gravurplatte', 'value' => '24 × 5,5 × 1,2 mm', 'sub' => 'Mit Herz-Durchbruch links'],
-                    ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Rohling: FBM (Made in DE)'],
+                    ['label' => 'Edelmetall', 'value' => '925 Sterlingsilber'],
+                    ['label' => 'Armband-Länge', 'value' => '18,5 cm'],
+                    ['label' => 'Gravurplatte', 'value' => '24 × 5,5 × 1,2 mm'],
+                    ['label' => 'Gewicht', 'value' => 'ca. 2,50 g'],
                 ],
             ],
             [
                 'slug' => 'id-armband-gold-herz',
                 'outFileName' => 'id-armband-gold-herz-dimensions.jpg',
-                'title' => 'Das Goldene Seelenarmband: Maße & Details',
-                'subtitle' => '925er Sterlingsilber Gelb vergoldet (FBM Made in Germany) mit Figaro-Kette (2,1 mm) & Herz',
+                'title' => 'Das Goldene Seelenarmband',
                 'overlayTop' => 185,
                 'horizArrows' => [
                     ['x1' => 327, 'x2' => 697, 'y' => 360, 'dashedYFrom1' => 423, 'dashedYFrom2' => 423, 'labelPos' => 'above', 'label' => 'Gravurplatte: 24,0 mm (2,4 cm)'],
@@ -4528,24 +4497,37 @@ SVG,
                     ['x' => 560, 'y' => 465, 'tx' => 710, 'ty' => 715, 'label' => 'Beidseitige Gravurfläche'],
                 ],
                 'specs' => [
-                    ['label' => 'Edelmetall', 'value' => '925 Gelb vergoldet', 'sub' => 'ca. 2,50 g (gestempelt 925)'],
-                    ['label' => 'Armband-Länge', 'value' => '18,5 cm (185 mm)', 'sub' => 'Figaro diamantiert 2,1 mm'],
-                    ['label' => 'Gravurplatte', 'value' => '24 × 5,5 × 1,2 mm', 'sub' => 'Mit Herz-Durchbruch links'],
-                    ['label' => 'Herkunft & Gravur', 'value' => 'Handveredelt in DE', 'sub' => 'Rohling: FBM (Made in DE)'],
+                    ['label' => 'Edelmetall', 'value' => '925 Gelb vergoldet'],
+                    ['label' => 'Armband-Länge', 'value' => '18,5 cm'],
+                    ['label' => 'Gravurplatte', 'value' => '24 × 5,5 × 1,2 mm'],
+                    ['label' => 'Gewicht', 'value' => 'ca. 2,50 g'],
                 ],
             ],
         ];
 
         foreach ($sheets as $cfg) {
+            if ($cfg['slug'] === 'echtgold-seelen-herz' && !\App\Models\Product\Product::withTrashed()->where('slug', 'echtgold-seelen-herz')->exists()) {
+                continue;
+            }
             $outPath = $publicProductsPath . '/' . $cfg['slug'] . '/' . $cfg['outFileName'];
-            if (!file_exists($outPath) || $force || in_array($cfg['slug'], ['seelen-kristall', 'seelen-anhaenger', 'seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'echtgold-seelen-herz', 'id-armband-silber-herz', 'id-armband-gold-herz'], true)) {
+            if (!file_exists($outPath) || $force || in_array($cfg['slug'], [
+                'seelen-kristall',
+                'seelen-anhaenger',
+                'weizenglas-personalisiert',
+                'seelen-talisman',
+                'seelen-pfote-hundemarke',
+                'goldenes-seelen-herz',
+                'echtgold-seelen-herz',
+                'id-armband-silber-herz',
+                'id-armband-gold-herz',
+            ], true)) {
                 $this->renderDimensionSheetWithGd($publicProductsPath, $cfg);
             }
         }
     }
 
     /**
-     * Rendert ein 1024x1024 Technisches Maßblatt-Produktbild ({slug}-dimensions.jpg) nativ mit PHP-GD.
+     * Rendert ein klares 1024x1024 Produkt-Maßbild ({slug}-dimensions.jpg) auf rein schwarzem Hintergrund.
      */
     private function renderDimensionSheetWithGd(string $publicProductsPath, array $cfg): void
     {
@@ -4562,20 +4544,8 @@ SVG,
         $im = imagecreatetruecolor(1024, 1024);
         imagealphablending($im, true);
 
-        $bgDark = imagecolorallocate($im, 18, 15, 12);
-        imagefill($im, 0, 0, $bgDark);
-
-        // Technisches Raster (40x40)
-        $gridCol = imagecolorallocatealpha($im, 197, 160, 89, 114);
-        for ($i = 40; $i < 1024; $i += 40) {
-            imageline($im, $i, 0, $i, 1024, $gridCol);
-            imageline($im, 0, $i, 1024, $i, $gridCol);
-        }
-
-        // Äußerer Goldrahmen
-        $borderGold = imagecolorallocatealpha($im, 197, 160, 89, 65);
-        imagesetthickness($im, 2);
-        imagerectangle($im, 28, 28, 996, 996, $borderGold);
+        $bgBlack = imagecolorallocate($im, 0, 0, 0);
+        imagefill($im, 0, 0, $bgBlack);
 
         // Produkt-Overlay (560x560) mittig einfügen
         $overlayImg = @imagecreatefrompng($overlayPath);
@@ -4592,13 +4562,19 @@ SVG,
         $fontSerifBold = '/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf';
         $hasTtf = file_exists($fontSansBold);
 
-        $colGold = imagecolorallocate($im, 197, 160, 89);
-        $colBrightGold = imagecolorallocate($im, 229, 193, 88);
-        $colTextGold = imagecolorallocate($im, 248, 231, 176);
-        $colWhite = imagecolorallocate($im, 255, 255, 255);
-        $colMuted = imagecolorallocate($im, 184, 172, 156);
-        $colCardBg = imagecolorallocate($im, 30, 26, 22);
-        $colBadgeBg = imagecolorallocate($im, 23, 20, 17);
+        $colGold = imagecolorallocate($im, 212, 175, 85);
+        $colTextGold = imagecolorallocate($im, 235, 200, 108);
+        $colWhite = imagecolorallocate($im, 245, 245, 247);
+        $colMuted = imagecolorallocate($im, 155, 155, 162);
+        $colHairline = imagecolorallocate($im, 34, 34, 38);
+
+        $measureWidth = static function (float $pxSize, string $font, string $text) use ($hasTtf): int {
+            if ($hasTtf && file_exists($font)) {
+                $bbox = imagettfbbox($pxSize * 0.75, 0, $font, $text);
+                return (int) max(40, abs($bbox[2] - $bbox[0]));
+            }
+            return (int) max(40, strlen($text) * imagefontwidth(4));
+        };
 
         $drawCenteredText = static function ($im, float $pxSize, int $cx, int $y, int $color, string $font, string $text) use ($hasTtf): void {
             if ($hasTtf && file_exists($font)) {
@@ -4613,13 +4589,11 @@ SVG,
             }
         };
 
-        // Header
-        $drawCenteredText($im, 14, 512, 78, $colGold, $fontSansBold, 'MEIN-SEELENFUNKE MANUFAKTUR • TECHNISCHES MAßBLATT');
-        $drawCenteredText($im, 30, 512, 118, $colWhite, $fontSerifBold, $cfg['title']);
-        $drawCenteredText($im, 15, 512, 148, $colMuted, $fontSans, $cfg['subtitle']);
+        // Schlichter weißer Produkttitel ohne goldene Dachzeile und ohne Subtext
+        $drawCenteredText($im, 30, 512, 102, $colWhite, $fontSerifBold, (string) $cfg['title']);
 
-        // Horizontale Maßpfeile
-        $colHelperGold = imagecolorallocatealpha($im, 197, 160, 89, 55);
+        // Maßpfeile und Hilfslinien in Gold
+        $colHelperGold = imagecolorallocatealpha($im, 212, 175, 85, 65);
         $colTrans = imagecolorallocatealpha($im, 0, 0, 0, 127);
         imagesetstyle($im, [$colHelperGold, $colHelperGold, $colHelperGold, $colHelperGold, $colHelperGold, $colTrans, $colTrans, $colTrans, $colTrans]);
 
@@ -4629,7 +4603,7 @@ SVG,
             $y = (int) $ha['y'];
             $midX = (int) round(($x1 + $x2) / 2);
             $label = (string) $ha['label'];
-            $badgeW = (int) max(150, strlen($label) * 9 + 28);
+            $badgeW = $measureWidth(15, $fontSansBold, $label) + 24;
 
             if (isset($ha['dashedYFrom1'])) {
                 imageline($im, $x1, (int) $ha['dashedYFrom1'], $x1, $y, IMG_COLOR_STYLED);
@@ -4638,17 +4612,16 @@ SVG,
                 imageline($im, $x2, (int) $ha['dashedYFrom2'], $x2, $y, IMG_COLOR_STYLED);
             }
 
-            imageline($im, $x1, $y - 8, $x1, $y + 8, $colBrightGold);
-            imageline($im, $x2, $y - 8, $x2, $y + 8, $colBrightGold);
-            imageline($im, $x1 + 4, $y, $x2 - 4, $y, $colBrightGold);
-            imagefilledpolygon($im, [$x1, $y, $x1 + 11, $y - 5, $x1 + 11, $y + 5], $colBrightGold);
-            imagefilledpolygon($im, [$x2, $y, $x2 - 11, $y - 5, $x2 - 11, $y + 5], $colBrightGold);
+            imageline($im, $x1, $y - 8, $x1, $y + 8, $colGold);
+            imageline($im, $x2, $y - 8, $x2, $y + 8, $colGold);
+            imageline($im, $x1 + 4, $y, $x2 - 4, $y, $colGold);
+            imagefilledpolygon($im, [$x1, $y, $x1 + 11, $y - 5, $x1 + 11, $y + 5], $colGold);
+            imagefilledpolygon($im, [$x2, $y, $x2 - 11, $y - 5, $x2 - 11, $y + 5], $colGold);
 
-            $rectY = ($ha['labelPos'] ?? 'below') === 'above' ? $y - 38 : $y + 8;
-            $textY = ($ha['labelPos'] ?? 'below') === 'above' ? $y - 17 : $y + 29;
-            imagefilledrectangle($im, (int) ($midX - $badgeW / 2), $rectY, (int) ($midX + $badgeW / 2), $rectY + 30, $colBadgeBg);
-            imagerectangle($im, (int) ($midX - $badgeW / 2), $rectY, (int) ($midX + $badgeW / 2), $rectY + 30, $colGold);
-            $drawCenteredText($im, 14, $midX, $textY, $colTextGold, $fontSansBold, $label);
+            $rectY = ($ha['labelPos'] ?? 'below') === 'above' ? $y - 36 : $y + 8;
+            $textY = ($ha['labelPos'] ?? 'below') === 'above' ? $y - 16 : $y + 28;
+            imagefilledrectangle($im, (int) ($midX - $badgeW / 2), $rectY, (int) ($midX + $badgeW / 2), $rectY + 28, $bgBlack);
+            $drawCenteredText($im, 15, $midX, $textY, $colTextGold, $fontSansBold, $label);
         }
 
         // Vertikale Maßpfeile
@@ -4658,7 +4631,7 @@ SVG,
             $x = (int) $va['x'];
             $midY = (int) round(($y1 + $y2) / 2);
             $label = (string) $va['label'];
-            $badgeW = (int) max(155, strlen($label) * 9 + 26);
+            $badgeW = $measureWidth(15, $fontSansBold, $label) + 24;
 
             if (isset($va['dashedXFrom1'])) {
                 imageline($im, (int) $va['dashedXFrom1'], $y1, $x, $y1, IMG_COLOR_STYLED);
@@ -4667,11 +4640,11 @@ SVG,
                 imageline($im, (int) $va['dashedXFrom2'], $y2, $x, $y2, IMG_COLOR_STYLED);
             }
 
-            imageline($im, $x - 8, $y1, $x + 8, $y1, $colBrightGold);
-            imageline($im, $x - 8, $y2, $x + 8, $y2, $colBrightGold);
-            imageline($im, $x, $y1 + 4, $x, $y2 - 4, $colBrightGold);
-            imagefilledpolygon($im, [$x, $y1, $x - 5, $y1 + 11, $x + 5, $y1 + 11], $colBrightGold);
-            imagefilledpolygon($im, [$x, $y2, $x - 5, $y2 - 11, $x + 5, $y2 - 11], $colBrightGold);
+            imageline($im, $x - 8, $y1, $x + 8, $y1, $colGold);
+            imageline($im, $x - 8, $y2, $x + 8, $y2, $colGold);
+            imageline($im, $x, $y1 + 4, $x, $y2 - 4, $colGold);
+            imagefilledpolygon($im, [$x, $y1, $x - 5, $y1 + 11, $x + 5, $y1 + 11], $colGold);
+            imagefilledpolygon($im, [$x, $y2, $x - 5, $y2 - 11, $x + 5, $y2 - 11], $colGold);
 
             $vPos = $va['labelPos'] ?? 'center';
             $badgeY = match ($vPos) {
@@ -4679,9 +4652,8 @@ SVG,
                 'below' => $y2 + 24,
                 default => $midY,
             };
-            imagefilledrectangle($im, (int) ($x - $badgeW / 2), $badgeY - 16, (int) ($x + $badgeW / 2), $badgeY + 16, $colBadgeBg);
-            imagerectangle($im, (int) ($x - $badgeW / 2), $badgeY - 16, (int) ($x + $badgeW / 2), $badgeY + 16, $colGold);
-            $drawCenteredText($im, 14, $x, $badgeY + 5, $colTextGold, $fontSansBold, $label);
+            imagefilledrectangle($im, (int) ($x - $badgeW / 2), $badgeY - 14, (int) ($x + $badgeW / 2), $badgeY + 14, $bgBlack);
+            $drawCenteredText($im, 15, $x, $badgeY + 5, $colTextGold, $fontSansBold, $label);
         }
 
         // Callouts
@@ -4691,27 +4663,28 @@ SVG,
             $tx = (int) $co['tx'];
             $ty = (int) $co['ty'];
             $label = (string) $co['label'];
-            $badgeW = (int) max(170, strlen($label) * 9 + 28);
+            $badgeW = $measureWidth(15, $fontSansBold, $label) + 24;
 
-            imageline($im, $x, $y, $tx, $ty, $colBrightGold);
-            imagefilledellipse($im, $x, $y, 10, 10, $colBrightGold);
-            imagefilledrectangle($im, (int) ($tx - $badgeW / 2), $ty - 16, (int) ($tx + $badgeW / 2), $ty + 16, $colBadgeBg);
-            imagerectangle($im, (int) ($tx - $badgeW / 2), $ty - 16, (int) ($tx + $badgeW / 2), $ty + 16, $colGold);
-            $drawCenteredText($im, 14, $tx, $ty + 5, $colTextGold, $fontSansBold, $label);
+            imageline($im, $x, $y, $tx, $ty, $colGold);
+            imagefilledellipse($im, $x, $y, 10, 10, $colGold);
+            imagefilledrectangle($im, (int) ($tx - $badgeW / 2), $ty - 14, (int) ($tx + $badgeW / 2), $ty + 14, $bgBlack);
+            $drawCenteredText($im, 15, $tx, $ty + 5, $colTextGold, $fontSansBold, $label);
         }
 
-        // 4 Spezifikations-Kacheln unten
+        // Schlichte 4 Maß-Spalten ohne Kachel-Rahmen und ohne Subtext
+        imageline($im, 72, 848, 952, 848, $colHairline);
         foreach (array_slice($cfg['specs'] ?? [], 0, 4) as $idx => $s) {
             $bx = 56 + $idx * 232;
-            imagefilledrectangle($im, $bx, 845, $bx + 216, 957, $colCardBg);
-            imagerectangle($im, $bx, 845, $bx + 216, 957, $borderGold);
+            if ($idx > 0) {
+                imageline($im, $bx - 8, 868, $bx - 8, 938, $colHairline);
+            }
 
-            $drawCenteredText($im, 13, $bx + 108, 882, $colMuted, $fontSansBold, mb_strtoupper((string) $s['label']));
-            $drawCenteredText($im, 18, $bx + 108, 918, $colWhite, $fontSansBold, (string) $s['value']);
-            $drawCenteredText($im, 12.5, $bx + 108, 942, $colGold, $fontSans, (string) ($s['sub'] ?? ''));
+            $drawCenteredText($im, 12.5, $bx + 108, 892, $colMuted, $fontSansBold, mb_strtoupper((string) $s['label']));
+            $drawCenteredText($im, 19, $bx + 108, 926, $colTextGold, $fontSansBold, (string) $s['value']);
         }
 
-        imagejpeg($im, $prodDir . '/' . $cfg['outFileName'], 92);
+        imageinterlace($im, true);
+        imagejpeg($im, $prodDir . '/' . $cfg['outFileName'], 85);
         imagedestroy($im);
     }
 }

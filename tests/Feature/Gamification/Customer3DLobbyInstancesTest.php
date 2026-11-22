@@ -912,19 +912,15 @@ class Customer3DLobbyInstancesTest extends TestCase
 
         $this->travel(3)->seconds();
         $this->actingAs($p1, 'customer')
-            ->postJson('/funkenwerk-welt/lobby/chat', ['message' => 'Unsichtbare Shadow-Mute Nachricht'])
-            ->assertOk()
-            ->assertJsonPath('shadow_muted', true);
+            ->postJson('/funkenwerk-welt/lobby/chat', ['message' => 'Gesperrte Nachricht nach 2 Meldungen'])
+            ->assertStatus(422)
+            ->assertJsonPath('chat_moderation.is_muted', true);
 
-        // Sender selbst sieht seine Nachricht lokal weiterhin, Mitspieler p2 sieht sie NICHT!
-        $syncMutedSelf = $this->actingAs($p1, 'customer')
-            ->postJson('/funkenwerk-welt/lobby/sync', ['zone' => 'heroes', 'x' => -1.5, 'z' => -29.5]);
-        $this->assertCount(3, $syncMutedSelf->json('messages'));
-
+        // Mitspieler p2 sieht keine gesperrte Nachricht im Raum-Chat!
         $syncListenerAfterMute = $this->actingAs($p2, 'customer')
             ->postJson('/funkenwerk-welt/lobby/sync', ['zone' => 'heroes', 'x' => 2.0, 'z' => -30.0]);
         $listenerTexts = collect($syncListenerAfterMute->json('messages'))->pluck('message')->all();
-        $this->assertNotContains('Unsichtbare Shadow-Mute Nachricht', $listenerTexts);
+        $this->assertNotContains('Gesperrte Nachricht nach 2 Meldungen', $listenerTexts);
     }
 
     public function test_lobby_ping_endpoint_server_timestamps_165ms_tick_interval_and_rapid_vx_vz_sync_without_429(): void

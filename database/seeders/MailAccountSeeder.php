@@ -161,5 +161,40 @@ class MailAccountSeeder extends Seeder
                 MailAccount::whereIn('id', $deprecatedIds)->delete();
             }
         }
+
+        // Verschlüsselt gemerkte Postfach-Zugangsdaten aus lokalem Vault wiederherstellen (überlebt migrate:fresh --seed)
+        $vaultPath = storage_path('app/leitung/mail/mail_accounts_vault.json');
+        if (file_exists($vaultPath)) {
+            $vaultMap = json_decode((string) file_get_contents($vaultPath), true) ?: [];
+            foreach ($vaultMap as $encBlob) {
+                try {
+                    $dec = json_decode(\Illuminate\Support\Facades\Crypt::decryptString((string) $encBlob), true);
+                    if (!is_array($dec) || empty($dec['email']) || empty($dec['password'])) {
+                        continue;
+                    }
+                    MailAccount::updateOrCreate(
+                        ['email' => strtolower(trim((string) $dec['email']))],
+                        [
+                            'name' => $dec['name'] ?? $dec['email'],
+                            'imap_host' => $dec['imap_host'] ?? '',
+                            'imap_port' => (int) ($dec['imap_port'] ?? 993),
+                            'imap_encryption' => $dec['imap_encryption'] ?? 'ssl',
+                            'imap_username' => $dec['imap_username'] ?? $dec['email'],
+                            'smtp_host' => $dec['smtp_host'] ?? '',
+                            'smtp_port' => (int) ($dec['smtp_port'] ?? 465),
+                            'smtp_encryption' => $dec['smtp_encryption'] ?? 'ssl',
+                            'smtp_username' => $dec['smtp_username'] ?? $dec['email'],
+                            'signature' => $dec['signature'] ?? null,
+                            'is_default' => (bool) ($dec['is_default'] ?? false),
+                            'is_commercial' => (bool) ($dec['is_commercial'] ?? false),
+                            'password' => (string) $dec['password'],
+                            'status' => 'connected',
+                        ]
+                    );
+                } catch (\Throwable) {
+                    // ignore outdated APP_KEY entries
+                }
+            }
+        }
     }
 }

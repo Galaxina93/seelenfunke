@@ -3,13 +3,16 @@
     {{-- 1. ZENTRALER KOPFBEREICH MIT ZEITRAUM-FILTER --}}
     <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl sm:rounded-3xl p-5 sm:p-6 lg:p-7 shadow-sm transition-colors duration-300">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-                <h1 class="text-2xl sm:text-3xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">
+            <div class="flex items-center gap-3">
+                <span class="p-2.5 rounded-xl border border-[var(--theme-color-20)] bg-[var(--theme-color-10)] text-[var(--theme-color)]">
+                    <x-heroicon-o-chart-pie class="w-6 h-6" />
+                </span>
+                <h1 class="text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
                     Produkt-, Konfigurator- & Rechner-Analyse
+                    <x-heroicon-o-information-circle
+                        class="w-5 h-5 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors"
+                        title="Auswertung des Kundenverhaltens im 2D/3D-Konfigurator, Funnel-Messung des Mengenrechners (/calculator) sowie Netto-Margen- und LUCID-Verpackungskalkulation." />
                 </h1>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-2xl">
-                    Präzise Auswertungen des Kundenverhaltens im Konfigurator, Funnel-Messung des Mengenrechners und betriebswirtschaftliche Margen-Kalkulation.
-                </p>
             </div>
 
             <div class="flex items-center gap-3 shrink-0">
@@ -162,17 +165,14 @@
                 {{-- Modus-Auswahl & Upload-Formate --}}
                 <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
                     <div>
-                        <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center justify-between mb-5">
                             <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                 <x-heroicon-o-swatch class="w-4 h-4 text-[var(--theme-color)]" />
                                 Einstiegs-Entscheidung
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Verhältnis zwischen gewählten Design-Vorlagen und freier Eigenkonfiguration auf Kristallglas, Schiefer und Edelstahl." />
                             </h3>
                             <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">{{ $configuratorModeData['total'] ?? 0 }} Klicks</span>
                         </div>
-
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-6">
-                            Wie oft Kunden eine fertige Design-Vorlage wählen vs. komplett bei Null auf dem Holzartikel starten.
-                        </p>
 
                         {{-- Visueller Balken --}}
                         <div class="space-y-4 mb-6">
@@ -223,24 +223,16 @@
                             @endif
                         </div>
                     </div>
-
-                    <div class="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
-                        💡 <strong>Tipp:</strong> Wenn über 60% Vorlagen wählen, lohnt sich der Ausbau weiterer Vorlagen für saisonale Anlässe (Muttertag, Hochzeit).
-                    </div>
                 </div>
 
                 {{-- Vorlagen Hitliste (2 Spalten breit) --}}
                 <div class="lg:col-span-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm">
                     <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <x-heroicon-o-fire class="w-4 h-4 text-amber-500" />
-                                Top Vorlagen-Hitliste
-                            </h3>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                Welche Vorlagen am häufigsten als Gestaltungsgrundlage ausgewählt wurden.
-                            </p>
-                        </div>
+                        <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <x-heroicon-o-fire class="w-4 h-4 text-amber-500" />
+                            Top Vorlagen-Hitliste
+                            <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Am häufigsten ausgewählte Gestaltungsvorlagen im Konfigurator." />
+                        </h3>
                         <a href="{{ route('admin.products', ['section' => 'templates']) }}" class="text-xs font-bold text-[var(--theme-color)] hover:underline flex items-center gap-1">
                             Vorlagen verwalten →
                         </a>
@@ -308,15 +300,11 @@
                 {{-- Beliebteste Symbole (2 Spalten breit) --}}
                 <div class="lg:col-span-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm">
                     <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <x-heroicon-o-sparkles class="w-4 h-4 text-[var(--theme-color)]" />
-                                Beliebteste Symbole & Gravurmotive
-                            </h3>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                Welche Icons und Vektoren aus der Symbol-Bibliothek am häufigsten auf das Holz graviert werden.
-                            </p>
-                        </div>
+                        <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <x-heroicon-o-sparkles class="w-4 h-4 text-[var(--theme-color)]" />
+                            Beliebteste Symbole & Gravurmotive
+                            <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Am häufigsten platzierte Vektor-Symbole und Gravurmotive aus der Bibliothek für die UV-Laser-Veredelung." />
+                        </h3>
                         <div class="flex items-center gap-3">
                             <span class="text-xs font-black text-gray-400">
                                 {{ $configuratorStats['symbols_used'] ?? 0 }} Gravuren
@@ -411,15 +399,11 @@
                 <div class="lg:col-span-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
                     <div>
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                            <div>
-                                <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <x-heroicon-o-gift class="w-5 h-5 text-[var(--theme-color)]" />
-                                    <span>🎁 Aufpreis-Extras, Verpackungs-Upgrades &amp; Bundle-Optionen</span>
-                                </h3>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    Universelle Auswertung aller produktbezogenen Zusatz-Optionen (z.&nbsp;B. Edle Schmuckbox, Geschenkpapier &amp; individuelle Bundle-Extras).
-                                </p>
-                            </div>
+                            <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <x-heroicon-o-gift class="w-5 h-5 text-[var(--theme-color)]" />
+                                <span>Aufpreis-Extras, Verpackungs-Upgrades &amp; Bundle-Optionen</span>
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Universelle Auswertung aller produktbezogenen Zusatz-Optionen wie Westpack-Geschenkbox, Geschenkpapier und Bundle-Extras inklusive Klick-Rate und Bestell-Umsatz." />
+                            </h3>
                             <div class="flex items-center gap-2 shrink-0">
                                 <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                     + {{ number_format($addonStats['total_revenue_euros'] ?? 0, 2, ',', '.') }} € Zusatz-Umsatz
@@ -539,25 +523,17 @@
                             </div>
                         @endif
                     </div>
-
-                    <div class="mt-5 pt-4 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
-                        🎁 <strong>Universell:</strong> Jedes neue Extra, das du im Produkt-Editor unter <em>„Aufpreis-Extras, Verpackungs-Upgrades &amp; Bundle-Optionen“</em> anlegst, wird hier automatisch inklusive Vorschaubild, Klick-Rate und Bestell-Umsatz ausgewertet.
-                    </div>
                 </div>
 
                 {{-- 2. Produkt-spezifische Aufschlüsselung der gebuchten Extras (1 Spalte breit) --}}
                 <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
                     <div>
                         <div class="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                    <x-heroicon-o-cube class="w-4 h-4 text-[var(--theme-color)]" />
-                                    <span>Extras nach Produkt</span>
-                                </h3>
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    Welches Produkt welche Zusatz-Extras am stärksten verkauft.
-                                </p>
-                            </div>
+                            <h3 class="text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <x-heroicon-o-cube class="w-4 h-4 text-[var(--theme-color)]" />
+                                <span>Extras nach Produkt</span>
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Zeigt für jedes physische Produkt alle hinterlegten Extras inklusive Optionen mit 0 Buchungen zur Sortiments- und Preisoptimierung." />
+                            </h3>
                             <span class="text-[10px] font-black uppercase tracking-widest text-gray-400">
                                 {{ count($productAddonBreakdown) }} Produkte
                             </span>
@@ -604,10 +580,6 @@
                                 </div>
                             @endforelse
                         </div>
-                    </div>
-
-                    <div class="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800 text-[11px] text-gray-500 dark:text-gray-400">
-                        📊 Zeigt für jedes physische Produkt alle hinterlegten Extras – auch solche mit <strong>0 Buchungen</strong>, um Preis- oder Sortimentspotenziale sofort zu erkennen.
                     </div>
                 </div>
 
@@ -694,15 +666,11 @@
             {{-- 5-STUFEN TRICHTER (FUNNEL) --}}
             <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 lg:p-8 shadow-sm">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
-                    <div>
-                        <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <x-heroicon-o-arrow-trending-down class="w-5 h-5 text-[var(--theme-color)]" />
-                            5-Stufen-Trichter: Wo springen Interessenten ab?
-                        </h3>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Lückenlose Verfolgung jedes Einzelschritts von der Startseite bis zur versendeten Angebotsanfrage.
-                        </p>
-                    </div>
+                    <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <x-heroicon-o-arrow-trending-down class="w-5 h-5 text-[var(--theme-color)]" />
+                        5-Stufen-Trichter: Wo springen Interessenten ab?
+                        <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Verfolgung jedes Einzelschritts im Mengenrechner (/calculator) vom Aufruf bis zur versendeten Angebotsanfrage." />
+                    </h3>
                     <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
                         Trichter-Tracking
                     </span>
@@ -828,17 +796,15 @@
             <div class="bg-white dark:bg-gradient-to-br dark:from-gray-900 dark:via-gray-950 dark:to-black rounded-[2rem] p-6 lg:p-8 border border-gray-200 dark:border-[var(--theme-color-20)] dark:shadow-2xl transition-colors duration-300 relative overflow-hidden">
                 <div class="hidden dark:block absolute -top-24 -right-24 w-64 h-64 bg-[var(--theme-color-10)] rounded-full blur-3xl pointer-events-none"></div>
 
-                <div class="mb-8 flex justify-between items-start">
-                    <div>
-                        <h3 class="text-xl flex-col sm:flex-row sm:text-2xl font-serif font-bold text-gray-900 dark:text-white mb-2 flex items-start sm:items-center gap-3">
-                            <i class="solar-wallet-money-bold-duotone text-[var(--theme-color)] text-2xl"></i> Produkt-Performance & Wahre Zahlen
-                        </h3>
-                        <p class="text-[11px] font-medium text-gray-600 dark:text-gray-400 max-w-2xl leading-relaxed">
-                            Echte Netto-Margen inklusive Einkauf, Laser, Verpackung, Versand, Marketing und Stripe-Transaktionsgebühren kombiniert mit der Verkaufsgeschwindigkeit und Logistik.
-                        </p>
-                    </div>
-                    <button wire:click.prevent="downloadFullReport" class="hidden sm:inline-flex items-center gap-2 bg-[var(--theme-color)] hover:bg-black/90 dark:hover:bg-white text-white dark:text-gray-900 px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all dark:shadow-[0_0_20px_var(--theme-color-30)] dark:hover:shadow-[0_0_30px_var(--theme-color-50)] group">
-                        <i class="fa-solid fa-file-pdf text-white/80 dark:text-gray-800 transition-colors"></i> Jahresabschlussbericht
+                <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <h3 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                        <x-heroicon-o-banknotes class="w-6 h-6 text-[var(--theme-color)] shrink-0" />
+                        <span>Produkt-Performance & Wahre Zahlen</span>
+                        <x-heroicon-o-information-circle class="w-5 h-5 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors shrink-0" title="Netto-Margen inklusive Rohling-EK, xTool UV-Laser-Laufzeit, Verpackung, DHL-Versand, Marketing und Stripe-Gebühren. Tipp: Pflege im Produkt-Editor die exakte UV-Laser-Laufzeit in Minuten für K9-Kristallglas, Schiefer und Edelstahl." />
+                    </h3>
+                    <button wire:click.prevent="downloadFullReport" class="inline-flex items-center justify-center gap-2 bg-[var(--theme-color)] hover:opacity-90 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shrink-0">
+                        <x-heroicon-o-document-arrow-down class="w-4 h-4" />
+                        <span>Jahresabschlussbericht</span>
                     </button>
                 </div>
 
@@ -867,7 +833,7 @@
                                     </div>
                                 </td>
                                 <td class="p-4 align-middle">
-                                    <div class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5"><i class="bi bi-truck text-gray-500"></i> {{ $cd['supplier_name'] }}</div>
+                                    <div class="text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1.5"><x-heroicon-o-truck class="w-4 h-4 text-gray-500 shrink-0" /> {{ $cd['supplier_name'] }}</div>
                                     <div class="flex items-center gap-2 mt-1 text-[9px] font-black uppercase tracking-widest text-nowrap">
                                         <span class="text-gray-500">{{ $cd['delivery_days'] }} Tage LZ</span>
                                         <span class="text-gray-400 dark:text-gray-700">&bull;</span>
@@ -896,7 +862,7 @@
                                             </div>
                                             <div class="flex items-center gap-1 pl-1">
                                                 <span class="text-[8px] font-black uppercase tracking-tight px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-400 group-hover:text-[var(--theme-color)] group-hover:bg-[var(--theme-color-10)] transition-colors"
-                                                      x-text="open ? '–' : '+6'"></span>
+                                                      x-text="open ? '-' : '+6'"></span>
                                                 <svg class="w-3 h-3 text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-transform duration-300 ease-out"
                                                      :class="open ? 'rotate-180 text-[var(--theme-color)]' : ''"
                                                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -912,27 +878,27 @@
                                              style="display: none;"
                                              class="mt-1.5 p-2.5 rounded-xl bg-gray-50/90 dark:bg-gray-950/70 border border-gray-200/80 dark:border-gray-800/80 shadow-xs space-y-1.5 backdrop-blur-xs">
                                             <div class="flex justify-between items-center text-[10px] font-black">
-                                                <span class="text-gray-500 flex items-center cursor-help" title="Berechnete Stromkosten und Maschinenabnutzung pro Gravur-Minute.">Laser <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Berechnete Stromkosten und Maschinenabnutzung pro UV-Laser-Minute.">Laser <x-heroicon-o-information-circle class="w-3 h-3 ml-1 opacity-70" />:</span>
                                                 <span class="text-amber-600 dark:text-amber-500 font-mono">{{ number_format($cd['laser_cost'], 2, ',', '.') }} €</span>
                                             </div>
                                             <div class="flex justify-between items-center text-[10px] font-black">
-                                                <span class="text-gray-500 flex items-center cursor-help" title="Reine Materialkosten für die Verpackung (z.B. der Karton selbst in €).">Material <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Reine Materialkosten für die Versandverpackung in Euro.">Material <x-heroicon-o-information-circle class="w-3 h-3 ml-1 opacity-70" />:</span>
                                                 <span class="text-emerald-600 dark:text-emerald-500 font-mono">{{ number_format($cd['packaging_cost'], 2, ',', '.') }} €</span>
                                             </div>
                                             <div class="flex justify-between items-center text-[10px] font-black">
-                                                <span class="text-gray-500 flex items-center cursor-help" title="Die Portokosten, die für das DHL-Label gezahlt werden.">Versand <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Portokosten für das DHL-Versandlabel.">Versand <x-heroicon-o-information-circle class="w-3 h-3 ml-1 opacity-70" />:</span>
                                                 <span class="text-gray-600 dark:text-gray-400 font-mono">{{ number_format($cd['shipping_cost'], 2, ',', '.') }} €</span>
                                             </div>
                                             <div class="flex justify-between items-center text-[10px] font-black">
-                                                <span class="text-gray-500 flex items-center cursor-help" title="Geplante Marketing-Kosten ({{ $cd['marketing_percent'] }}% vom Netto).">Marketing <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Geplante Marketing-Kosten ({{ $cd['marketing_percent'] }}% vom Netto).">Marketing <x-heroicon-o-information-circle class="w-3 h-3 ml-1 opacity-70" />:</span>
                                                 <span class="text-pink-600 dark:text-pink-500 font-mono">{{ number_format($cd['marketing_cost'], 2, ',', '.') }} €</span>
                                             </div>
                                             <div class="flex justify-between items-center text-[10px] font-black">
-                                                <span class="text-gray-500 flex items-center cursor-help" title="Kalkulatorische Stripe-Zahlungsgebühr ({{ number_format($cd['payment_fee_percent'], 1, ',', '.') }}% vom Brutto-VK + {{ number_format($cd['payment_fee_fixed'], 2, ',', '.') }} € Fixgebühr für Kreditkarte, Klarna, Apple Pay).">Stripe <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Kalkulatorische Stripe-Zahlungsgebühr ({{ number_format($cd['payment_fee_percent'], 1, ',', '.') }}% vom Brutto-VK + {{ number_format($cd['payment_fee_fixed'], 2, ',', '.') }} € Fixgebühr).">Stripe <x-heroicon-o-information-circle class="w-3 h-3 ml-1 opacity-70" />:</span>
                                                 <span class="text-indigo-600 dark:text-indigo-400 font-mono">{{ number_format($cd['payment_cost'], 2, ',', '.') }} €</span>
                                             </div>
                                             <div class="flex justify-between items-center text-[10px] font-black mt-1.5 pt-1.5 border-t border-gray-200 dark:border-gray-800/60">
-                                                <span class="text-gray-500 flex items-center cursor-help" title="Das Leergewicht der Versandverpackung (Karton, Luftpolster). Das finale Bruttogewicht für DHL setzt sich aus dem Netto-Produktgewicht und diesem Tara-Wert zusammen.">Tara <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:</span>
+                                                <span class="text-gray-500 flex items-center cursor-help" title="Leergewicht der Versandverpackung (Karton, Polstermaterial).">Tara <x-heroicon-o-information-circle class="w-3 h-3 ml-1 opacity-70" />:</span>
                                                 <span class="text-blue-500 dark:text-blue-400 font-mono">{{ $cd['packaging_weight'] !== null ? $cd['packaging_weight'] . ' g' : '-' }}</span>
                                             </div>
                                             <div class="flex justify-between items-center text-[10px] font-black mt-1 pt-1 border-t border-dashed border-gray-200 dark:border-gray-800/60">
@@ -944,15 +910,15 @@
                                 </td>
                                 <td class="p-4 pr-6 align-middle text-right">
                                     <div class="text-[9px] text-gray-500 uppercase tracking-wider font-black mb-1">
-                                        <span class="cursor-help flex items-center justify-end" title="Brutto: Verkaufspreis im Shop inkl. MwSt. | Netto: Dein reiner Umsatz nach Steuerabzug.">
+                                        <span class="cursor-help flex items-center justify-end" title="Brutto: Verkaufspreis im Shop inkl. MwSt. | Netto: Umsatz nach Steuerabzug.">
                                             Brutto: <span class="text-gray-700 dark:text-gray-400 ml-1 mr-1">{{ number_format($cd['price'], 2, ',', '.') }} €</span> |
                                             Netto: <span class="text-gray-900 dark:text-gray-300 ml-1">{{ number_format($cd['net_price'], 2, ',', '.') }} €</span>
-                                            <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>
+                                            <x-heroicon-o-information-circle class="w-3 h-3 ml-1 opacity-70" />
                                         </span>
                                     </div>
                                     <div class="text-[16px] font-black text-gray-900 dark:text-white block mb-0.5 mt-2 flex justify-end items-center">
-                                        <span class="text-[10px] tracking-widest uppercase text-gray-500 mr-2 flex items-center cursor-help" title="Netto VK abzüglich ALLER anfallenden Kosten (EK, Laser, Material, Versand, Marketing, Stripe-Gebühr). Das ist der Betrag, der am Ende des Tages als Gewinn hängen bleibt.">
-                                            Reingewinn <i class="bi bi-exclamation-circle ml-1 text-[8px] opacity-70"></i>:
+                                        <span class="text-[10px] tracking-widest uppercase text-gray-500 mr-2 flex items-center cursor-help" title="Netto-VK abzüglich aller direkten Produktkosten (EK, Laser, Verpackung, Versand, Marketing, Stripe-Gebühr).">
+                                            Reingewinn <x-heroicon-o-information-circle class="w-3 h-3 ml-1 opacity-70" />:
                                         </span>
                                         {{ number_format($cd['net_margin'], 2, ',', '.') }} €
                                     </div>
@@ -969,22 +935,17 @@
                         <div class="p-8 text-center text-gray-500 text-sm font-medium">Zeigt aktuell keine Daten an.</div>
                     @endif
                 </div>
-
-                <div class="mt-6 bg-gray-50 dark:bg-[var(--theme-color-5)] border border-gray-200 dark:border-[var(--theme-color-20)] rounded-xl p-4 flex gap-4 items-start">
-                    <i class="bi bi-lightbulb text-[var(--theme-color)] text-xl"></i>
-                    <div>
-                        <h4 class="text-xs font-black text-gray-900 dark:text-white uppercase tracking-widest mb-1">Tipp für maximale Rentabilität</h4>
-                        <p class="text-[10px] text-gray-600 dark:text-gray-400 leading-relaxed">Passe im Produkt-Editor die "Laserlaufzeit in Min." und "Stromfaktor pro Min." an, wenn du neue Materialstärken nutzt. Ein 6mm Holz benötigt ca. 40% mehr Laufzeit als das 3mm Standard-Holz, was den Gewinn senkt.</p>
-                    </div>
-                </div>
             </div>
 
             <!-- TAB 2: LUCID / PACKAGING DETAILS -->
-            <div class="bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-800 rounded-[2rem] p-6 lg:p-8 dark:shadow-inner transition-colors duration-300">
-                <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-3"><i class="solar-leaf-bold-duotone text-emerald-500 text-xl"></i> Detaillierte Zusammensetzung pro Produkt (LUCID Report {{ $lucidData['year'] }})</h3>
-                <p class="text-[11px] font-medium text-gray-600 dark:text-gray-400 max-w-2xl leading-relaxed mb-6">
-                    Zusammensetzung der in diesem Jahr verbrauchten Verpackungsmaterialien nach Produkt (Anzahl Verkäufe x Theoretisches Gewicht).
-                </p>
+            <div class="bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 rounded-[2rem] p-6 lg:p-8 transition-colors duration-300">
+                <div class="flex items-center justify-between gap-3 mb-6">
+                    <h3 class="text-lg font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2.5">
+                        <x-heroicon-o-globe-europe-africa class="w-5 h-5 text-emerald-500 shrink-0" />
+                        <span>LUCID Verpackungs-Zusammensetzung ({{ $lucidData['year'] }})</span>
+                        <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors shrink-0" title="Im laufenden Jahr verbrauchte Verpackungsmaterialien je Produkt (abgeschlossene Verkäufe multipliziert mit hinterlegtem Verpackungsgewicht)." />
+                    </h3>
+                </div>
 
                 <div class="overflow-x-auto border border-gray-200 dark:border-gray-800/60 rounded-xl">
                     <table class="w-full text-left border-collapse bg-gray-50/50 dark:bg-gray-950/30 min-w-[700px]">
@@ -1034,15 +995,16 @@
                 </div>
 
                 <div class="mt-6 border-t border-gray-200 dark:border-gray-800 pt-6">
-                    <button wire:click.prevent="downloadLucidReport" class="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-white text-gray-700 dark:text-gray-400 hover:text-black border border-gray-200 dark:border-gray-700 px-6 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
-                        <i class="fa-solid fa-leaf text-emerald-500"></i> LUCID Bericht herunterladen
+                    <button wire:click.prevent="downloadLucidReport" class="inline-flex w-full sm:w-auto justify-center sm:justify-start items-center gap-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer">
+                        <x-heroicon-o-arrow-down-tray class="w-4 h-4 text-emerald-500" />
+                        <span>LUCID Bericht herunterladen</span>
                     </button>
                 </div>
             </div>
 
             {{-- Main Charting Wrapper (Alpine.js integration for Chart.js) --}}
             <div x-data="productDashboard()"
-                 x-init="initCharts()"
+                 x-init="$nextTick(() => initCharts())"
                  @analytics-updated.window="updateCharts()"
                  @theme-changed.window="initCharts()"
                  class="space-y-6 mb-12">
@@ -1050,6 +1012,7 @@
                 {{-- Hidden JSON variables to bridge Livewire PHP arrays directly to Alpine/ChartJS --}}
                 <div class="hidden"
                      id="analytics-data-bridge"
+                     data-theme-color="{{ $this->themeColorHex }}"
                      data-loss='@json($lossData)'
                      data-toploss='@json($topLossData)'
                      data-review='@json($reviewData)'
@@ -1058,72 +1021,68 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {{-- Loss Chart --}}
-                    <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-700 p-6 dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors duration-300">
-                        <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-rose-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm flex flex-col justify-between">
                         <div>
-                            <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
-                                <x-heroicon-o-exclamation-triangle class="w-5 h-5 text-rose-500" />
-                                Schadensmeldungen & Verlust (Menge)
+                            <h3 class="text-gray-900 dark:text-white text-base font-serif font-semibold flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2">
+                                    <x-heroicon-o-exclamation-triangle class="w-5 h-5 text-rose-500" />
+                                    Schadensmeldungen & Bruch (Menge)
+                                </span>
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Anzahl der im Zeitraum als Bruch, Ausschuss oder Verlust erfassten Einheiten." />
                             </h3>
                             <div class="relative h-64 w-full mt-4" wire:ignore>
                                 <canvas id="lossChart"></canvas>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-rose-500 dark:text-rose-400 uppercase text-[10px] tracking-widest block mb-1">Qualitäts-Tracker</strong>Zeigt an, wie viele Einheiten pro Zeitraum als Verlust oder Defekt gemeldet wurden.</p>
-                        </div>
                     </div>
 
                     {{-- Top Loss Chart --}}
-                    <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-rose-900/40 p-6 dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors duration-300">
-                        <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm flex flex-col justify-between">
                         <div>
-                            <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
-                                <x-heroicon-o-currency-euro class="w-5 h-5 text-red-500" />
-                                Top 5 Schadens-Treiber (€)
+                            <h3 class="text-gray-900 dark:text-white text-base font-serif font-semibold flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2">
+                                    <x-heroicon-o-currency-euro class="w-5 h-5 text-red-500" />
+                                    Top 5 Schadens-Treiber (€)
+                                </span>
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Die 5 Produkte mit dem höchsten monetären Bruch- bzw. Schadenswert im Zeitraum." />
                             </h3>
                             <div class="relative h-64 w-full mt-4" wire:ignore>
                                 <canvas id="topLossChart"></canvas>
                             </div>
-                        </div>
-                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-red-900/50">
-                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-red-500 dark:text-red-400 uppercase text-[10px] tracking-widest block mb-1">Finanzieller Impact</strong>Identifiziert sofort die 5 fehleranfälligsten Produkte, basierend auf dem monetären Schaden.</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {{-- Review Categories --}}
-                    <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-700 p-6 dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors duration-300">
-                        <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm flex flex-col justify-between">
                         <div>
-                            <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
-                                <x-heroicon-o-star class="w-5 h-5 text-amber-500" />
-                                Kundenbewertungen (Sterne)
+                            <h3 class="text-gray-900 dark:text-white text-base font-serif font-semibold flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2">
+                                    <x-heroicon-o-star class="w-5 h-5 text-[var(--theme-color)]" />
+                                    Produktbewertungen (Sterne)
+                                </span>
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Verteilung der abgegebenen Produktbewertungen (1 bis 5 Sterne) im gewählten Zeitraum." />
                             </h3>
                             <div class="relative h-64 w-full mt-4 flex items-center justify-center" wire:ignore>
                                 <canvas id="reviewChart"></canvas>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-amber-500 dark:text-amber-400 uppercase text-[10px] tracking-widest block mb-1">Kundenzufriedenheit</strong>Die Verteilung der vergebenen Ratings (1-5 Sterne) auf deine Produkte.</p>
-                        </div>
                     </div>
 
                     {{-- Supplier Types --}}
-                    <div class="bg-white dark:bg-gray-800/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-700 p-6 dark:shadow-xl relative overflow-hidden group flex flex-col justify-between transition-colors duration-300">
-                        <div class="hidden dark:block absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm flex flex-col justify-between">
                         <div>
-                            <h3 class="text-gray-900 dark:text-white text-lg font-serif font-semibold flex items-center gap-2">
-                                <x-heroicon-o-truck class="w-5 h-5 text-indigo-500" />
-                                Lieferanten Klumpenrisiko
+                            <h3 class="text-gray-900 dark:text-white text-base font-serif font-semibold flex items-center justify-between gap-2">
+                                <span class="flex items-center gap-2">
+                                    <x-heroicon-o-truck class="w-5 h-5 text-indigo-500" />
+                                    Lieferanten-Verteilung
+                                </span>
+                                <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Anzahl aktiver physischer Produkte je zugeordnetem Rohling-Lieferanten zur Erkennung von Klumpenrisiken." />
                             </h3>
                             <div class="relative h-64 w-full mt-4 flex items-center justify-center" wire:ignore>
                                 <canvas id="supplierChart"></canvas>
                             </div>
-                        </div>
-                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700/50">
-                            <p class="text-xs text-gray-600 dark:text-gray-400 mb-1"><strong class="text-indigo-500 dark:text-indigo-400 uppercase text-[10px] tracking-widest block mb-1">Lieferketten Logistik</strong>Anzahl der physischen Produkte, die an einen einzelnen Lieferanten gebunden sind.</p>
                         </div>
                     </div>
                 </div>

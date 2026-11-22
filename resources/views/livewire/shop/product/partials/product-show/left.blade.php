@@ -88,26 +88,294 @@
     @endphp
     <div class="space-y-4 sm:space-y-6"
          x-data="{
+            galleryItems: @js($displayGallery),
             activeMedia: '{{ !empty($displayGallery[0]) ? $displayGallery[0]['url'] : '' }}',
             activeType: '{{ !empty($displayGallery[0]) ? ($displayGallery[0]['type'] ?? 'image') : 'image' }}',
             activeIsAi: {{ !empty($displayGallery[0]['is_ai_generated']) ? 'true' : 'false' }},
-            activeAlt: @js(!empty($displayGallery[0]['alt']) ? $displayGallery[0]['alt'] : $product->name)
+            activeAlt: @js(!empty($displayGallery[0]['alt']) ? $displayGallery[0]['alt'] : $product->name),
+
+            // Zoom & Extra-Zoomfenster (identische Logik zum 3D Produktkonfigurator)
+            stageZoom: 1.0,
+            stagePanX: 0.0,
+            stagePanY: 0.0,
+            _zoomFocusX: null,
+            _zoomFocusY: null,
+            isDraggingMinimap: false,
+            _minimapOffsetX: 0,
+            _minimapOffsetY: 0,
+            isPanningStage: false,
+            _panStartX: 0,
+            _panStartY: 0,
+            _panOriginX: 0,
+            _panOriginY: 0,
+            _justDraggedStage: false,
+
+            // Lightbox-Großansicht
+            lightboxOpen: false,
+            lightboxIndex: 0,
+
+            setStageZoom(val) {
+                const z = Math.max(1.0, Math.min(3.0, Number(val) || 1.0));
+                if (z <= 1.01) {
+                    this.stageZoom = 1.0;
+                    this.stagePanX = 0.0;
+                    this.stagePanY = 0.0;
+                    this._zoomFocusX = null;
+                    this._zoomFocusY = null;
+                    return;
+                }
+                if (this._zoomFocusX === null || this._zoomFocusY === null) {
+                    this._zoomFocusX = 50;
+                    this._zoomFocusY = 50;
+                }
+                const maxPan = 50 * (z - 1);
+                this.stageZoom = Number(z.toFixed(3));
+                this.stagePanX = Number(Math.max(-maxPan, Math.min(maxPan, (50 - this._zoomFocusX) * z)).toFixed(2));
+                this.stagePanY = Number(Math.max(-maxPan, Math.min(maxPan, (50 - this._zoomFocusY) * z)).toFixed(2));
+            },
+            stepStageZoom(delta) {
+                const next = Math.max(1.0, Math.min(3.0, Number((Number(this.stageZoom || 1.0) + Number(delta || 0)).toFixed(2))));
+                this.setStageZoom(next);
+            },
+            resetStageZoom() {
+                this.setStageZoom(1.0);
+            },
+            getMinimapViewportStyle() {
+                const z = Math.max(1.0, Number(this.stageZoom || 1.0));
+                const vw = 100 / z;
+                const vh = 100 / z;
+                const left = Math.max(0, Math.min(100 - vw, 50 - (50 + Number(this.stagePanX || 0)) / z));
+                const top = Math.max(0, Math.min(100 - vh, 50 - (50 + Number(this.stagePanY || 0)) / z));
+                return `left: ${left.toFixed(2)}%; top: ${top.toFixed(2)}%; width: ${vw.toFixed(2)}%; height: ${vh.toFixed(2)}%;`;
+            },
+            startMinimapDrag(event) {
+                if (this.stageZoom <= 1.01) return;
+                const minimap = this.$refs.zoomMinimap;
+                if (!minimap) return;
+                const rect = minimap.getBoundingClientRect();
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                const mx = ((clientX - rect.left) / Math.max(1, rect.width)) * 100;
+                const my = ((clientY - rect.top) / Math.max(1, rect.height)) * 100;
+                const z = Math.max(1.01, Number(this.stageZoom || 1.01));
+                const cx = 50 - Number(this.stagePanX || 0) / z;
+                const cy = 50 - Number(this.stagePanY || 0) / z;
+                const halfW = 50 / z;
+                const halfH = 50 / z;
+                this.isDraggingMinimap = true;
+                if (Math.abs(mx - cx) <= halfW && Math.abs(my - cy) <= halfH) {
+                    this._minimapOffsetX = mx - cx;
+                    this._minimapOffsetY = my - cy;
+                } else {
+                    this._minimapOffsetX = 0;
+                    this._minimapOffsetY = 0;
+                    this.updateMinimapFromEvent(event);
+                }
+            },
+            updateMinimapFromEvent(event) {
+                if (!this.isDraggingMinimap || this.stageZoom <= 1.01) return;
+                const minimap = this.$refs.zoomMinimap;
+                if (!minimap) return;
+                const rect = minimap.getBoundingClientRect();
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                const mx = ((clientX - rect.left) / Math.max(1, rect.width)) * 100;
+                const my = ((clientY - rect.top) / Math.max(1, rect.height)) * 100;
+                const targetCx = mx - (this._minimapOffsetX || 0);
+                const targetCy = my - (this._minimapOffsetY || 0);
+                const z = Math.max(1.01, Number(this.stageZoom || 1.01));
+                const maxPan = 50 * (z - 1);
+                this.stagePanX = Number(Math.max(-maxPan, Math.min(maxPan, (50 - targetCx) * z)).toFixed(2));
+                this.stagePanY = Number(Math.max(-maxPan, Math.min(maxPan, (50 - targetCy) * z)).toFixed(2));
+                this._zoomFocusX = Number((50 - this.stagePanX / z).toFixed(2));
+                this._zoomFocusY = Number((50 - this.stagePanY / z).toFixed(2));
+            },
+            startStagePan(event) {
+                if (this.activeType !== 'image' || this.stageZoom <= 1.01) return;
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                this.isPanningStage = true;
+                this._panStartX = clientX;
+                this._panStartY = clientY;
+                this._panOriginX = this.stagePanX;
+                this._panOriginY = this.stagePanY;
+                this._justDraggedStage = false;
+            },
+            handleWindowMove(event) {
+                if (this.isDraggingMinimap) {
+                    this.updateMinimapFromEvent(event);
+                    return;
+                }
+                if (!this.isPanningStage || this.stageZoom <= 1.01) return;
+                const stage = this.$refs.mediaStage;
+                if (!stage) return;
+                const rect = stage.getBoundingClientRect();
+                const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+                const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+                const dx = clientX - this._panStartX;
+                const dy = clientY - this._panStartY;
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                    this._justDraggedStage = true;
+                }
+                const z = Math.max(1.01, Number(this.stageZoom || 1.01));
+                const maxPan = 50 * (z - 1);
+                const pctDx = (dx / Math.max(1, rect.width)) * 100;
+                const pctDy = (dy / Math.max(1, rect.height)) * 100;
+                this.stagePanX = Number(Math.max(-maxPan, Math.min(maxPan, this._panOriginX + pctDx)).toFixed(2));
+                this.stagePanY = Number(Math.max(-maxPan, Math.min(maxPan, this._panOriginY + pctDy)).toFixed(2));
+                this._zoomFocusX = Number((50 - this.stagePanX / z).toFixed(2));
+                this._zoomFocusY = Number((50 - this.stagePanY / z).toFixed(2));
+            },
+            handleWindowUp() {
+                if (this.isDraggingMinimap) {
+                    this.isDraggingMinimap = false;
+                }
+                if (this.isPanningStage) {
+                    this.isPanningStage = false;
+                    setTimeout(() => { this._justDraggedStage = false; }, 80);
+                }
+            },
+            getImageSlides() {
+                const slides = (this.galleryItems || []).filter(item => (item.type || 'image') === 'image' && item.url);
+                if (this.activeType === 'image' && this.activeMedia && !slides.some(s => s.url === this.activeMedia)) {
+                    return [{ type: 'image', url: this.activeMedia, alt: this.activeAlt || @js($product->name) }, ...slides];
+                }
+                return slides;
+            },
+            openLightbox() {
+                if (this.activeType !== 'image' || !this.activeMedia) return;
+                const slides = this.getImageSlides();
+                const idx = slides.findIndex(s => s.url === this.activeMedia);
+                this.lightboxIndex = idx >= 0 ? idx : 0;
+                this.lightboxOpen = true;
+            },
+            closeLightbox() {
+                this.lightboxOpen = false;
+            },
+            nextSlide() {
+                const slides = this.getImageSlides();
+                if (!slides.length) return;
+                this.lightboxIndex = (this.lightboxIndex + 1) % slides.length;
+            },
+            prevSlide() {
+                const slides = this.getImageSlides();
+                if (!slides.length) return;
+                this.lightboxIndex = (this.lightboxIndex - 1 + slides.length) % slides.length;
+            }
          }"
-         @variant-selected.window="if ($event.detail && $event.detail.imageUrl) { activeMedia = $event.detail.imageUrl; activeType = 'image'; activeIsAi = !!$event.detail.imageIsAi; if ($event.detail.imageLabel) { activeAlt = @js($product->name . ' – ') + $event.detail.imageLabel; } }">
+         @mousemove.window="handleWindowMove($event)"
+         @touchmove.window="handleWindowMove($event)"
+         @mouseup.window="handleWindowUp()"
+         @touchend.window="handleWindowUp()"
+         @keydown.escape.window="if (lightboxOpen) closeLightbox()"
+         @keydown.arrow-right.window="if (lightboxOpen) nextSlide()"
+         @keydown.arrow-left.window="if (lightboxOpen) prevSlide()"
+         @variant-selected.window="if ($event.detail && $event.detail.imageUrl) { activeMedia = $event.detail.imageUrl; activeType = 'image'; activeIsAi = !!$event.detail.imageIsAi; if ($event.detail.imageLabel) { activeAlt = @js($product->name . ' ') + $event.detail.imageLabel; } resetStageZoom(); }">
+
+        @if(!empty($displayGallery))
+        {{-- Zoom-Regler über die volle Breite (identisch zum 3D Produktkonfigurator) --}}
+        <div x-show="activeType === 'image'"
+             x-cloak
+             @mousedown.stop
+             @touchstart.stop
+             class="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border w-full transition-all bg-white/95 border-gray-200/80 text-gray-800 shadow-2xs">
+            <button type="button"
+                    @click.stop="stepStageZoom(-0.15)"
+                    :disabled="stageZoom <= 1.01"
+                    :class="stageZoom > 1.01 ? 'hover:text-primary active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                    class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
+                    title="Herauszoomen">
+                <x-heroicon-m-magnifying-glass-minus class="w-4 h-4 text-[#C5A059]" />
+            </button>
+            <input type="range"
+                   min="1"
+                   max="3"
+                   step="0.02"
+                   :value="stageZoom"
+                   @input.stop="setStageZoom($event.target.value)"
+                   aria-label="Produktbild zoomen (100% bis 300%)"
+                   class="flex-1 h-1.5 rounded-lg appearance-none cursor-pointer accent-[#C5A059] bg-gray-200"
+                   title="Produktbild zoomen (100% - 300%)">
+            <button type="button"
+                    @click.stop="stepStageZoom(0.15)"
+                    :disabled="stageZoom >= 2.99"
+                    :class="stageZoom < 2.99 ? 'hover:text-primary active:scale-90 cursor-pointer' : 'opacity-40 cursor-not-allowed'"
+                    class="w-6 h-6 rounded-full flex items-center justify-center transition-all select-none shrink-0"
+                    title="Heranzoomen">
+                <x-heroicon-m-magnifying-glass-plus class="w-4 h-4 text-[#C5A059]" />
+            </button>
+            <button type="button"
+                    @click.stop="resetStageZoom()"
+                    :class="stageZoom > 1.01 ? 'text-[#9A7B3E] hover:text-primary cursor-pointer' : 'text-gray-400 cursor-default'"
+                    class="min-w-[38px] text-right text-[10px] font-black tracking-tight transition-colors select-none shrink-0"
+                    title="Zoom zurücksetzen (100%)">
+                <span x-text="Math.round(stageZoom * 100) + '%'">100%</span>
+            </button>
+        </div>
+        @endif
 
         {{-- Hauptbild / Video Container --}}
-        <div class="aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 shadow-sm relative group">
+        <div x-ref="mediaStage"
+             @mousedown="startStagePan($event)"
+             @touchstart="startStagePan($event)"
+             @click="if (activeType === 'image' && stageZoom <= 1.01 && !_justDraggedStage) openLightbox()"
+             :class="activeType === 'image' ? (stageZoom > 1.01 ? 'cursor-grab active:cursor-grabbing touch-none' : 'cursor-zoom-in') : ''"
+             class="aspect-square bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 shadow-sm relative group select-none">
 
             @if(!empty($displayGallery))
-                {{-- Bild Anzeige --}}
-                <img x-show="activeType === 'image'"
-                     :src="activeMedia"
-                     :alt="activeAlt"
-                     :data-is-ai-generated="activeIsAi ? 'true' : null"
-                     fetchpriority="high"
-                     decoding="async"
-                     class="w-full h-full object-cover transition-transform duration-700 lg:group-hover:scale-105"
-                     alt="{{ !empty($displayGallery[0]['alt']) ? $displayGallery[0]['alt'] : $product->name }}">
+                {{-- Bild Anzeige mit synchroner Configurator Zoom-/Pan-Transformation --}}
+                <div x-show="activeType === 'image'"
+                     class="w-full h-full"
+                     :style="`transform-origin: 50% 50%; transform: translate3d(${stagePanX}%, ${stagePanY}%, 0) scale(${stageZoom}); -webkit-transform: translate3d(${stagePanX}%, ${stagePanY}%, 0) scale(${stageZoom});`">
+                    <img :src="activeMedia"
+                         :alt="activeAlt"
+                         :data-is-ai-generated="activeIsAi ? 'true' : null"
+                         fetchpriority="high"
+                         decoding="async"
+                         draggable="false"
+                         :class="stageZoom <= 1.01 ? 'transition-transform duration-700 lg:group-hover:scale-105' : 'transition-none'"
+                         class="w-full h-full object-cover pointer-events-none"
+                         alt="{{ !empty($displayGallery[0]['alt']) ? $displayGallery[0]['alt'] : $product->name }}">
+                </div>
+
+                {{-- Dezentes Hover-"Plus"-Icon für Großansicht (verschwindet beim Heranzoomen) --}}
+                <div x-show="activeType === 'image' && stageZoom <= 1.01"
+                     x-cloak
+                     class="hidden lg:flex absolute inset-0 z-10 items-center justify-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 pointer-events-none">
+                    <button type="button"
+                            @click.stop="openLightbox()"
+                            aria-label="Produktbild in Großansicht öffnen"
+                            title="In Großansicht anzeigen"
+                            class="pointer-events-auto w-11 h-11 rounded-full bg-white/80 hover:bg-white text-gray-700 hover:text-[#C5A059] border border-gray-200/80 shadow-sm backdrop-blur-sm flex items-center justify-center transition-all duration-300 group-hover:scale-105 cursor-zoom-in">
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                    </button>
+                </div>
+
+                {{-- Extra-Zoomfenster (Navigator / Minimap) oben rechts beim Heranzoomen --}}
+                <div x-show="activeType === 'image' && stageZoom > 1.01"
+                     x-cloak
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0 scale-90"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-150"
+                     x-transition:leave-start="opacity-100 scale-100"
+                     x-transition:leave-end="opacity-0 scale-90"
+                     x-ref="zoomMinimap"
+                     @mousedown.stop.prevent="startMinimapDrag($event)"
+                     @touchstart.stop.prevent="startMinimapDrag($event)"
+                     @click.stop
+                     title="Ausschnitt im Zoomfenster verschieben"
+                     class="absolute top-2.5 right-2.5 z-40 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shadow-[0_8px_24px_rgba(0,0,0,0.28)] border-2 border-[#C5A059] bg-white/95 backdrop-blur-md cursor-grab active:cursor-grabbing select-none touch-none pointer-events-auto">
+                    <img :src="activeMedia" class="absolute inset-0 w-full h-full object-cover pointer-events-none" alt="">
+                    <div class="absolute z-[5] border-2 border-[#C5A059] bg-[#C5A059]/15 rounded-[3px] pointer-events-none shadow-[0_0_0_999px_rgba(0,0,0,0.42)]"
+                         :style="getMinimapViewportStyle()">
+                        <div class="absolute inset-0 flex items-center justify-center opacity-75">
+                            <div class="w-1.5 h-1.5 rounded-full bg-[#C5A059] shadow-sm"></div>
+                        </div>
+                    </div>
+                </div>
 
                 {{-- KI-Generiert Hinweis unten rechts --}}
                 <span x-show="activeType === 'image' && activeIsAi"
@@ -133,7 +401,7 @@
             @endif
 
             {{-- Badges --}}
-            <div class="absolute top-4 left-4 flex flex-col items-start gap-1.5">
+            <div class="absolute top-4 left-4 z-20 pointer-events-none flex flex-col items-start gap-1.5">
                 @if($product->compare_at_price > $product->price)
                     <span class="w-fit bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">Sale</span>
                 @endif
@@ -169,8 +437,8 @@
                         <div class="snap-start shrink-0" style="width: calc(20% - 13px);">
                             <button type="button"
                                     aria-label="Vorschau: {{ $media['alt'] ?? $product->name }}"
-                                    @click="activeMedia = '{{ $media['url'] }}'; activeType = '{{ $media['type'] ?? 'image' }}'; activeIsAi = {{ !empty($media['is_ai_generated']) ? 'true' : 'false' }}; activeAlt = @js($media['alt'] ?? $product->name)"
-                                    class="aspect-square w-full rounded-lg overflow-hidden border-2 transition-all block relative"
+                                    @click="activeMedia = '{{ $media['url'] }}'; activeType = '{{ $media['type'] ?? 'image' }}'; activeIsAi = {{ !empty($media['is_ai_generated']) ? 'true' : 'false' }}; activeAlt = @js($media['alt'] ?? $product->name); resetStageZoom()"
+                                    class="aspect-square w-full rounded-lg overflow-hidden border-2 transition-all block relative cursor-pointer"
                                     :class="activeMedia === '{{ $media['url'] }}' ? 'border-[var(--theme-color)] ring-2 ring-[var(--theme-color-20)]' : 'border-transparent hover:border-gray-300'">
 
                                 @if(isset($media['type']) && $media['type'] === 'video')
@@ -197,6 +465,67 @@
                 </button>
             </div>
         @endif
+
+        {{-- Lightbox Modal (Großansicht im selben Fenster, Light-Mode) --}}
+        <template x-teleport="body">
+            <div x-show="lightboxOpen"
+                 x-cloak
+                 style="display: none;"
+                 x-transition.opacity.duration.200ms
+                 @click="closeLightbox()"
+                 class="fixed inset-0 z-[2147483647] flex items-center justify-center p-4 sm:p-6 bg-[#262016]/55 backdrop-blur-md">
+                <div @click.stop
+                     x-show="lightboxOpen"
+                     x-transition:enter="transition ease-out duration-250"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     class="relative w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl border border-[#e6d7bc] bg-[#fdfbf7] text-gray-900 p-4 sm:p-6">
+
+                    <button type="button"
+                            @click="closeLightbox()"
+                            aria-label="Großansicht schließen"
+                            title="Schließen"
+                            class="absolute top-3.5 right-3.5 z-20 w-9 h-9 rounded-full flex items-center justify-center bg-white hover:bg-[#f7f1e6] text-gray-600 hover:text-gray-900 border border-[#e6d7bc] shadow-sm transition-colors cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+
+                    <template x-if="lightboxOpen && getImageSlides().length > 0">
+                        <div class="relative flex flex-col items-center">
+                            <div class="relative w-full flex items-center justify-center bg-white rounded-2xl border border-[#eadcc4]/80 overflow-hidden p-2 sm:p-4">
+                                <button type="button"
+                                        x-show="getImageSlides().length > 1"
+                                        @click.stop="prevSlide()"
+                                        aria-label="Vorheriges Bild"
+                                        class="absolute left-2.5 sm:left-4 z-10 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-700 hover:text-[#C5A059] border border-gray-200 shadow-sm flex items-center justify-center transition-colors cursor-pointer">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                                </button>
+
+                                <img :src="(getImageSlides()[lightboxIndex] || {}).url || activeMedia"
+                                     :alt="(getImageSlides()[lightboxIndex] || {}).alt || activeAlt"
+                                     class="max-h-[75vh] w-auto max-w-full rounded-xl object-contain select-none">
+
+                                <button type="button"
+                                        x-show="getImageSlides().length > 1"
+                                        @click.stop="nextSlide()"
+                                        aria-label="Nächstes Bild"
+                                        class="absolute right-2.5 sm:right-4 z-10 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-700 hover:text-[#C5A059] border border-gray-200 shadow-sm flex items-center justify-center transition-colors cursor-pointer">
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                </button>
+                            </div>
+
+                            <div class="mt-3 flex items-center justify-between w-full gap-4 px-1">
+                                <p class="text-xs sm:text-sm font-medium text-gray-700 truncate" x-text="(getImageSlides()[lightboxIndex] || {}).alt || activeAlt"></p>
+                                <span x-show="getImageSlides().length > 1"
+                                      class="text-xs font-bold text-[#9A7B3E] shrink-0"
+                                      x-text="(lightboxIndex + 1) + ' / ' + getImageSlides().length"></span>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
 
         <style>
             .no-scrollbar::-webkit-scrollbar { display: none; }

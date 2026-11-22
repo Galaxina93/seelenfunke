@@ -1,259 +1,377 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
-<div class="px-4 py-8 max-w-[1600px] mx-auto min-h-screen">
-    <!-- Header -->
-    <div class="text-center mb-12 mt-4 font-mono">
-        <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] tracking-widest uppercase shadow-none dark:shadow-[0_0_15px_var(--theme-color)]/20 drop-shadow-none dark:drop-shadow-md">
-            KI Analytics
-        </h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-2 text-sm uppercase tracking-widest">
-            Übersichtskennzahlen, Token-Ökonomie und Tool-Usage der digitalen Belegschaft.
-        </p>
-    </div>
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-50: {{ $this->themeColorHex }}80;">
+    <div class="px-4 sm:px-6 lg:px-8 py-8 w-full max-w-9xl mx-auto space-y-8"
+         x-data="aiAnalyticsCharts()"
+         x-init="initCharts()"
+         @ai-analytics-updated.window="$nextTick(() => initCharts())"
+         @theme-changed.window="initCharts()">
 
-    <!-- ApexCharts CDN Injection -->
-    <script src="{{ asset('vendor/apexcharts/apexcharts.min.js') }}"></script>
+        <div id="ai-analytics-data-bridge" class="hidden" data-dailytokens='@json($dailyTokens)'></div>
 
-    <!-- Kachel-KPIs -->
-    <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
-        <!-- Tokens Today -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 relative overflow-hidden shadow-sm dark:shadow-none">
-            <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-emerald-500/20 to-transparent"></div>
-            <div class="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Tokens heute</div>
-            <div class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($tokensToday, 0, ',', '.') }}</div>
-            <div class="text-xs {{ $tokensToday > $tokensYesterday ? 'text-red-400' : 'text-emerald-400' }}">
-                <i class="fa-solid fa-trend-{{ $tokensToday > $tokensYesterday ? 'up' : 'down' }} mr-1"></i>
-                vs. {{ number_format($tokensYesterday, 0, ',', '.') }} Gestern
+        {{-- Header & Controls --}}
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-gray-900/80 backdrop-blur-md p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm dark:shadow-xl">
+            <div class="flex items-center gap-3">
+                <span class="p-2.5 rounded-xl border border-[var(--theme-color-20)] bg-[var(--theme-color-10)] text-[var(--theme-color)]">
+                    <x-heroicon-o-cpu-chip class="w-6 h-6" />
+                </span>
+                <h1 class="text-2xl font-serif font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    KI-Telemetrie & Metriken
+                    <x-heroicon-o-information-circle
+                        class="w-5 h-5 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors"
+                        title="Echtzeit-Überwachung von Token-Verbrauch, Vertex-AI-Monatskosten, Antwort-Latenzen, Erfolgsraten und Werkzeug-Aufrufen aller internen Agenten." />
+                </h1>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Vertex AI Aktiv
+                </span>
+
+                <label for="aiDateRangeSelect" class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Zeitraum:</label>
+                <select id="aiDateRangeSelect" wire:model.live="dateRange" class="bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-xl focus:ring-2 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] block px-4 py-2 transition-colors cursor-pointer">
+                    <option value="7">Letzte 7 Tage</option>
+                    <option value="30">Letzte 30 Tage</option>
+                    <option value="90">Letzte 90 Tage</option>
+                    <option value="365">Letztes Jahr</option>
+                </select>
             </div>
         </div>
 
-        <!-- Paket Auslastung -->
-        @php
-            $limit = $activePlan ? $activePlan->token_limit : 75000000;
-            $isUnlimited = !$limit;
-            $percent = $isUnlimited ? 0 : min(100, ($tokensThisMonth / $limit) * 100);
-            $planName = $activePlan ? $activePlan->name : 'Unbekanntes Paket';
-            $price = $activePlan ? number_format($activePlan->price_monthly, 2, ',', '.') : '0,00';
-            
-            if (!function_exists('formatTokenSuffix')) {
-                function formatTokenSuffix($amount) {
-                    if ($amount >= 1000000) return round($amount / 1000000, 1) . ' Mio.';
-                    if ($amount >= 1000) return round($amount / 1000, 1) . 'k';
-                    return $amount;
-                }
-            }
-        @endphp
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 relative overflow-hidden shadow-sm dark:shadow-none">
-            <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-blue-500/10 to-transparent"></div>
-            <div class="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Paket ({{ $planName }})</div>
-            
-            @if($price === '0,00')
-                <div class="text-3xl font-bold text-emerald-400 mb-2">~{{ number_format($estimatedCostThisMonth, 2, ',', '.') }} € <span class="text-sm font-normal text-gray-400 uppercase tracking-widest text-[10px]">Verbrauch</span></div>
-            @else
-                <div class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ $price }} € <span class="text-sm font-normal text-gray-400">/ Mon.</span></div>
-            @endif
-            
-            <div class="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1 mt-2">
-                <span>{{ number_format($tokensThisMonth, 0, ',', '.') }} Tokens</span>
-                <span>{{ $isUnlimited ? 'Unbegrenzt' : formatTokenSuffix($limit) . ' Limit' }}</span>
-            </div>
-            <!-- ProgressBar -->
-            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                <div class="{{ $percent > 90 ? 'bg-red-500' : 'bg-blue-500' }} h-1.5 rounded-full transition-all duration-500" style="width: {{ $isUnlimited ? 100 : $percent }}%"></div>
-            </div>
-        </div>
+        {{-- Top 4 KPI Cards --}}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
-        <!-- Avg Latency -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm dark:shadow-none">
-            <div class="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Ø Latenz (30 Tage)</div>
-            <div class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ $avgLatency }} <span class="text-lg text-gray-400">ms</span></div>
-            <div class="text-xs text-gray-500">
-                Time To First Token (TTFT/Total)
-            </div>
-        </div>
-
-        <!-- Success Rate -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm dark:shadow-none">
-            <div class="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Erfolgsquote (30 Tage)</div>
-            <div class="text-3xl font-bold {{ $successRate < 95 ? 'text-red-400' : 'text-emerald-400' }} mb-2">{{ $successRate }}%</div>
-            <div class="text-xs text-gray-500">
-                Erfolgreiche KI Inferences
-            </div>
-        </div>
-
-        <!-- Chat Interactions -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 relative overflow-hidden shadow-sm dark:shadow-none">
-            <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-purple-500/10 to-transparent"></div>
-            <div class="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">KI-Chats (30 Tage)</div>
-            <div class="text-3xl font-bold text-gray-900 dark:text-white mb-2">{{ number_format($totalChatMessages, 0, ',', '.') }}</div>
-            <div class="text-xs text-gray-500">
-                Nachrichten & Interaktionen
-            </div>
-        </div>
-        
-        <!-- Top Werkzeuge -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 relative overflow-hidden flex flex-col justify-center shadow-sm dark:shadow-none">
-            <div class="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[var(--theme-color-15)] to-transparent"></div>
-            <div class="text-gray-600 dark:text-gray-400 text-[11px] uppercase tracking-widest font-bold mb-3 flex items-center gap-1.5"><i class="bi bi-cpu text-[var(--theme-color)]"></i> Top KI-Tools</div>
-            <div class="space-y-1.5 overflow-hidden">
-                @forelse($topToolsAllAgents as $t)
-                    <div class="flex justify-between items-center text-xs text-gray-700 dark:text-gray-300 font-mono">
-                        <span class="truncate pr-2 w-32" title="{{ $t->tool_name }}">{{ Str::limit(str_replace('support_', '', $t->tool_name), 12) }}</span>
-                        <span class="text-[var(--theme-color)] font-bold bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-1.5 py-0.5 rounded">{{ $t->usage_count }}</span>
-                    </div>
-                @empty
-                    <div class="text-[10px] text-gray-500 italic mt-2">Noch keine Tool-Aktivität heute.</div>
-                @endforelse
-            </div>
-        </div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        
-        <!-- Token-Trend Chart -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 lg:col-span-2 shadow-sm dark:shadow-none" 
-             x-data='analyticsTrendChart({{ $trendData }})'>
-            <h3 class="text-gray-900 dark:text-white font-semibold mb-4 text-lg">Token-Trend (Verbrauch / Letzte 30 Tage)</h3>
-            <div class="w-full h-[350px]">
-                <div x-ref="chart"></div>
-            </div>
-        </div>
-
-        <!-- Cognitive Load (Aktuelle Höchstwerte) -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm dark:shadow-none">
-            <h3 class="text-gray-900 dark:text-white font-semibold mb-4 text-lg">Kognitive Auslastung (Heute)</h3>
-            
-            <div class="space-y-4 overflow-y-auto max-h-[350px] pr-2">
-                @forelse($cognitiveLoad as $load)
-                <div class="border border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
-                    <div class="flex justify-between items-center mb-2">
-                        <div class="flex items-center space-x-2">
-                            <div class="w-3 h-3 rounded-full bg-{{ $load['color'] }}-500"></div>
-                            <span class="text-gray-700 dark:text-gray-300 font-medium">{{ $load['agent'] }}</span>
-                        </div>
-                        <span class="text-xs text-secondary-400 font-mono">{{ number_format($load['tokens'], 0, ',', '.') }} / 32k</span>
-                    </div>
-                    <!-- ProgressBar -->
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                        <div class="{{ $load['percent'] > 80 ? 'bg-red-500' : 'bg-'.$load['color'].'-500' }} h-1.5 rounded-full" style="width: {{ $load['percent'] }}%"></div>
+            {{-- Card 1: Tokens Heute --}}
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                        Tokens Heute (24h)
+                        <x-heroicon-o-information-circle class="w-3.5 h-3.5 text-gray-400 cursor-help" title="Summe aller Input- und Output-Tokens seit Tagesbeginn (00:00 Uhr)." />
+                    </span>
+                    <div class="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <x-heroicon-o-bolt class="w-5 h-5" />
                     </div>
                 </div>
-                @empty
-                    <div class="text-sm text-gray-500 text-center py-6">Heute keine Kontext-Auslastung protokolliert.</div>
-                @endforelse
+                <div>
+                    <h3 class="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-baseline gap-2">
+                        {{ \App\Livewire\Shop\Ai\AiAnalytics::formatCompactTokens($tokensToday) }}
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400">/ 1 Mio.</span>
+                    </h3>
+                    <div class="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: {{ min(100, ($tokensToday / 1000000) * 100) }}%"></div>
+                    </div>
+                </div>
             </div>
+
+            {{-- Card 2: Geschätzte Kosten (Monat) --}}
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                        Monatskosten ({{ now()->locale('de')->translatedFormat('M') }})
+                        <x-heroicon-o-information-circle class="w-3.5 h-3.5 text-gray-400 cursor-help" title="Modellgenaue Kostenschätzung (Flash, Flash-Lite, Pro, Live) im laufenden Kalendermonat." />
+                    </span>
+                    <div class="p-2 rounded-xl bg-[var(--theme-color-10)] text-[var(--theme-color)]">
+                        <x-heroicon-o-banknotes class="w-5 h-5" />
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-baseline gap-2">
+                        {{ number_format($estimatedCostThisMonth, 2, ',', '.') }} €
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-400">/ {{ number_format($monthlyBudgetEur, 2, ',', '.') }} € Budget</span>
+                    </h3>
+                    @php
+                        $totalTokensMonth = $inputTokensThisMonth + $outputTokensThisMonth;
+                        $usagePercent = $planTokenLimit > 0
+                            ? min(100, ($totalTokensMonth / $planTokenLimit) * 100)
+                            : ($monthlyBudgetEur > 0 ? min(100, ($estimatedCostThisMonth / $monthlyBudgetEur) * 100) : 0);
+                    @endphp
+                    <div class="w-full bg-gray-100 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-[var(--theme-color)] h-full rounded-full transition-all duration-500" style="width: {{ $usagePercent }}%"></div>
+                    </div>
+                    <div class="flex justify-between items-center text-[10px] text-gray-500 dark:text-gray-400 font-bold tracking-wider uppercase mt-2 gap-2">
+                        <span class="truncate">{{ $planDisplayName }}</span>
+                        <span class="shrink-0">In {{ \App\Livewire\Shop\Ai\AiAnalytics::formatCompactTokens($inputTokensThisMonth) }} · Out {{ \App\Livewire\Shop\Ai\AiAnalytics::formatCompactTokens($outputTokensThisMonth) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Card 3: Ø Latenz --}}
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                        Ø Antwortzeit (TTFT)
+                        <x-heroicon-o-information-circle class="w-3.5 h-3.5 text-gray-400 cursor-help" title="Durchschnittliche Inferenz-Antwortzeit in Millisekunden im gewählten Zeitraum." />
+                    </span>
+                    <div class="p-2 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                        <x-heroicon-o-clock class="w-5 h-5" />
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                        {{ $avgLatency }} <span class="text-sm font-medium text-gray-500 dark:text-gray-400">ms</span>
+                    </h3>
+                    <div class="text-[10px] font-bold uppercase tracking-wider {{ $avgLatency > 3000 ? 'text-rose-500' : ($avgLatency > 1500 ? 'text-amber-500' : 'text-emerald-600 dark:text-emerald-400') }}">
+                        {{ $avgLatency > 3000 ? 'Hohe Latenz' : ($avgLatency > 1500 ? 'Normale Last' : 'Schnelle Antwortzeit') }}
+                    </div>
+                </div>
+            </div>
+
+            {{-- Card 4: Erfolgsrate --}}
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                        Erfolgsquote
+                        <x-heroicon-o-information-circle class="w-3.5 h-3.5 text-gray-400 cursor-help" title="Anteil fehlerfrei beantworteter KI-Anfragen im gewählten Zeitraum ({{ number_format($totalInferences, 0, ',', '.') }} Calls)." />
+                    </span>
+                    <div class="p-2 rounded-xl {{ $successRate >= 95 ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400' }}">
+                        <x-heroicon-o-shield-check class="w-5 h-5" />
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                        {{ $successRate }} %
+                    </h3>
+                    <div class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        {{ number_format($totalInferences, 0, ',', '.') }} Inferenzen geprüft
+                    </div>
+                </div>
+            </div>
+
         </div>
+
+        {{-- Charts & Agent Breakdown --}}
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {{-- Token Verlauf Chart --}}
+            <div class="lg:col-span-2 bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-serif font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <x-heroicon-o-chart-bar class="w-5 h-5 text-[var(--theme-color)]" />
+                        Token-Verlauf ({{ $dateRange }} Tage)
+                    </h2>
+                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Tägliches Aufkommen an Input-Prompts und generierten Output-Tokens im gewählten Zeitraum." />
+                </div>
+
+                <div class="flex-1 w-full min-h-[300px]" wire:ignore>
+                    <div id="tokenChart" class="w-full h-full"></div>
+                </div>
+            </div>
+
+            {{-- Agenten Aktivität --}}
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-serif font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <x-heroicon-o-user-group class="w-5 h-5 text-[var(--theme-color)]" />
+                        Agenten-Auslastung
+                    </h2>
+                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Aufrufe, durchschnittliche Antwortzeit und Token-Volumen je KI-Agent im gewählten Zeitraum." />
+                </div>
+
+                <div class="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[320px]">
+                    @forelse($agentUsage as $usage)
+                        @php $ag = $usage->agent; @endphp
+                        @if($ag)
+                            <div class="p-3.5 bg-gray-50 dark:bg-gray-950/60 border border-gray-200/70 dark:border-gray-800 rounded-xl flex items-center justify-between hover:border-[var(--theme-color-30)] transition-colors">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <div class="w-2.5 h-2.5 rounded-full shrink-0 {{ \App\Livewire\Shop\Ai\AiAnalytics::resolveAgentDotClass($ag->color) }}"></div>
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-bold text-gray-900 dark:text-white truncate">{{ $ag->name }}</div>
+                                        <div class="text-[10px] text-gray-500 dark:text-gray-400 font-mono mt-0.5 truncate">{{ $usage->calls }} Calls · Ø {{ round($usage->avg_latency) }}ms</div>
+                                    </div>
+                                </div>
+                                <div class="text-right shrink-0 ml-2">
+                                    <div class="text-xs font-black text-emerald-600 dark:text-emerald-400">{{ \App\Livewire\Shop\Ai\AiAnalytics::formatCompactTokens($usage->total_tokens) }}</div>
+                                    <div class="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Tokens</div>
+                                </div>
+                            </div>
+                        @endif
+                    @empty
+                        <div class="text-center py-10 text-gray-400 dark:text-gray-500 text-xs font-medium">
+                            Keine Agenten-Aktivität im Zeitraum
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+
+        </div>
+
+        {{-- Tools & Error Log --}}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {{-- Meistgenutzte Tools --}}
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-serif font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <x-heroicon-o-wrench-screwdriver class="w-5 h-5 text-[var(--theme-color)]" />
+                        Top 10 Werkzeuge (Function Calling)
+                    </h2>
+                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Meistgenutzte interne Systemfunktionen der KI-Agenten inklusive Fehlerzähler." />
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-gray-200 dark:border-gray-800 text-[10px] uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                                <th class="pb-3 font-black">Werkzeug</th>
+                                <th class="pb-3 font-black text-right">Aufrufe</th>
+                                <th class="pb-3 font-black text-right">Fehler</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-800/60 text-xs">
+                            @forelse($topTools as $tool)
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+                                    <td class="py-3 font-mono text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                        <x-heroicon-o-code-bracket class="w-4 h-4 text-[var(--theme-color)] shrink-0" />
+                                        {{ $tool->tool_name }}
+                                    </td>
+                                    <td class="py-3 text-right font-bold text-gray-900 dark:text-white">{{ number_format($tool->uses, 0, ',', '.') }}</td>
+                                    <td class="py-3 text-right">
+                                        @if($tool->errors > 0)
+                                            <span class="px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold border border-rose-200 dark:border-rose-500/20">{{ $tool->errors }}</span>
+                                        @else
+                                            <span class="text-gray-400 dark:text-gray-600">0</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="3" class="py-8 text-center text-gray-400 dark:text-gray-500 text-xs">Keine Werkzeug-Aufrufe im Zeitraum</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {{-- Letzte Systemfehler --}}
+            <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-base font-serif font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <x-heroicon-o-exclamation-triangle class="w-5 h-5 text-rose-500" />
+                        Inferenz-Fehlerprotokoll
+                    </h2>
+                    <x-heroicon-o-information-circle class="w-4 h-4 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors" title="Die letzten 5 fehlgeschlagenen KI-Inferenzaufrufe (z. B. API-Timeouts oder Rate-Limits)." />
+                </div>
+
+                <div class="space-y-3">
+                    @forelse($recentErrors as $err)
+                        <div class="p-3.5 bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-500/20 rounded-xl flex items-start gap-3">
+                            <x-heroicon-o-x-circle class="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between mb-1 gap-2">
+                                    <span class="text-xs font-bold text-rose-700 dark:text-rose-300 truncate">{{ $err->agent ? $err->agent->name : 'System' }}</span>
+                                    <span class="text-[10px] font-mono text-gray-500 shrink-0">{{ $err->created_at->diffForHumans() }}</span>
+                                </div>
+                                <p class="text-[11px] font-mono text-rose-700/80 dark:text-rose-200/80 break-words leading-relaxed">
+                                    {{ $err->error_message ?: 'Unbekannter API-Abbruch' }}
+                                </p>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="flex flex-col items-center justify-center py-10 text-center border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
+                            <x-heroicon-o-check-badge class="w-10 h-10 text-emerald-500/60 mb-2" />
+                            <span class="text-xs font-bold text-gray-600 dark:text-gray-300">0 Inferenz-Fehler im Zeitraum</span>
+                        </div>
+                    @endforelse
+                </div>
+            </div>
+
+        </div>
+
     </div>
 
-    <!-- Zweite Reihe Charts -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        <!-- Donut: Ressourcen Verteilung -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm dark:shadow-none" x-data='analyticsDonutChart({{ $resourceDistribution }})'>
-            <h3 class="text-gray-900 dark:text-white font-semibold mb-4 text-lg">Ressourcen-Verteilung (Tokens pro Agent / Monat)</h3>
-            <div class="flex justify-center h-[300px]">
-                <div x-ref="chart"></div>
-            </div>
-        </div>
+    @push('scripts')
+    <script src="{{ asset('vendor/apexcharts/apexcharts.min.js') }}"></script>
+    <script>
+        document.addEventListener('alpine:init', () => {
+            window.aiTokenChartInstance = window.aiTokenChartInstance || null;
 
-        <!-- Bar: Tool Fehler -->
-        <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm dark:shadow-none" x-data='analyticsBarChart({{ $toolErrors }})'>
-            <h3 class="text-gray-900 dark:text-white font-semibold mb-4 text-lg">Tool-Fehlerquote (Most Failed)</h3>
-            <div class="w-full h-[300px]">
-                <div x-ref="chart"></div>
-            </div>
-        </div>
-
-    </div>
-</div>
-
-<script>
-    (function() {
-        function runWithApexCharts(callback) {
-            if (window.ApexCharts) {
-                callback();
-            } else {
-                const interval = setInterval(() => {
-                    if (window.ApexCharts) {
-                        clearInterval(interval);
-                        callback();
+            Alpine.data('aiAnalyticsCharts', () => ({
+                readDailyData() {
+                    const bridge = document.getElementById('ai-analytics-data-bridge');
+                    if (!bridge) return [];
+                    try {
+                        return JSON.parse(bridge.getAttribute('data-dailytokens') || '[]');
+                    } catch (e) {
+                        return [];
                     }
-                }, 50);
-                setTimeout(() => clearInterval(interval), 5000);
-            }
-        }
+                },
+                initCharts() {
+                    const el = document.querySelector('#tokenChart');
+                    if (!el || typeof ApexCharts === 'undefined') return;
 
-        function registerAlpineComponents() {
-            Alpine.data('analyticsTrendChart', (data) => ({
-                init() {
-                    runWithApexCharts(() => {
-                        if (!this.$refs.chart) return;
-                        let options = {
-                            series: [{ name: 'Tokens', data: data.data }],
-                            chart: { type: 'area', height: 350, toolbar: { show: false }, background: 'transparent' },
-                            colors: ['{{ $this->themeColorHex }}'],
-                            fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] } },
-                            dataLabels: { enabled: false },
-                            stroke: { curve: 'smooth', width: 2 },
-                            xaxis: { categories: data.product_categories, labels: { style: { colors: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' } }, axisBorder: { show: false }, axisTicks: { show: false } },
-                            yaxis: { labels: { style: { colors: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280', formatter: (val) => { return Math.round(val) } } } },
-                            grid: { borderColor: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb', strokeDashArray: 4 },
-                            theme: { mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light' }
-                        };
-                        let chart = new ApexCharts(this.$refs.chart, options);
-                        chart.render();
-                    });
+                    if (window.aiTokenChartInstance) {
+                        try { window.aiTokenChartInstance.destroy(); } catch (e) {}
+                        window.aiTokenChartInstance = null;
+                    }
+                    el.innerHTML = '';
+
+                    const raw = this.readDailyData();
+                    const dates = raw.map(d => d.date);
+                    const inputs = raw.map(d => parseInt(d.input_sum || 0, 10));
+                    const outputs = raw.map(d => parseInt(d.output_sum || 0, 10));
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const axisColor = isDark ? '#94a3b8' : '#64748b';
+                    const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+
+                    const options = {
+                        series: [
+                            { name: 'Input Tokens (Prompts)', data: inputs },
+                            { name: 'Output Tokens (Antworten)', data: outputs }
+                        ],
+                        chart: {
+                            type: 'area',
+                            height: 300,
+                            background: 'transparent',
+                            toolbar: { show: false },
+                            fontFamily: 'inherit',
+                            animations: { enabled: true, easing: 'easeinout', speed: 450 }
+                        },
+                        colors: ['#10b981', '#c5a059'],
+                        fill: {
+                            type: 'gradient',
+                            gradient: {
+                                shadeIntensity: 1,
+                                opacityFrom: isDark ? 0.35 : 0.25,
+                                opacityTo: 0.02,
+                                stops: [0, 95, 100]
+                            }
+                        },
+                        dataLabels: { enabled: false },
+                        stroke: { curve: 'smooth', width: 2 },
+                        xaxis: {
+                            categories: dates,
+                            labels: { style: { colors: axisColor, fontSize: '10px' } },
+                            axisBorder: { show: false },
+                            axisTicks: { show: false }
+                        },
+                        yaxis: {
+                            labels: {
+                                style: { colors: axisColor, fontSize: '10px' },
+                                formatter: (val) => val >= 1000 ? (val / 1000).toFixed(1) + 'k' : Math.round(val)
+                            }
+                        },
+                        grid: {
+                            borderColor: gridColor,
+                            strokeDashArray: 4,
+                            yaxis: { lines: { show: true } }
+                        },
+                        theme: { mode: isDark ? 'dark' : 'light' },
+                        legend: {
+                            position: 'top',
+                            horizontalAlign: 'right',
+                            labels: { colors: axisColor }
+                        },
+                        noData: {
+                            text: 'Keine Token-Daten im gewählten Zeitraum',
+                            style: { color: axisColor, fontSize: '12px' }
+                        }
+                    };
+
+                    window.aiTokenChartInstance = new ApexCharts(el, options);
+                    window.aiTokenChartInstance.render();
                 }
             }));
-
-            Alpine.data('analyticsDonutChart', (data) => ({
-                init() {
-                    runWithApexCharts(() => {
-                        if (!this.$refs.chart) return;
-                        let options = {
-                            series: data.series.length > 0 ? data.series.map(d => Number(d)) : [1],
-                            chart: { type: 'donut', height: 300, background: 'transparent' },
-                            labels: data.labels.length > 0 ? data.labels : ['Keine Daten'],
-                            colors: ['#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#14b8a6'],
-                            plotOptions: { pie: { donut: { size: '70%' } } },
-                            dataLabels: { enabled: false },
-                            stroke: { show: true, colors: [document.documentElement.classList.contains('dark') ? '#1f2937' : '#ffffff'] },
-                            legend: { position: 'bottom', labels: { colors: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' } },
-                            theme: { mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light' }
-                        };
-                        let chart = new ApexCharts(this.$refs.chart, options);
-                        chart.render();
-                    });
-                }
-            }));
-
-            Alpine.data('analyticsBarChart', (data) => ({
-                init() {
-                    runWithApexCharts(() => {
-                        if (!this.$refs.chart) return;
-                        let options = {
-                            series: [{ name: 'Fehler', data: data.data.length > 0 ? data.data : [0] }],
-                            chart: { type: 'bar', height: 300, toolbar: { show: false }, background: 'transparent' },
-                            colors: ['#ef4444'],
-                            plotOptions: { bar: { borderRadius: 4, horizontal: true } },
-                            dataLabels: { enabled: false },
-                            xaxis: { categories: data.product_categories.length > 0 ? data.product_categories : ['Keine Daten'], labels: { style: { colors: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' } }, axisBorder: { show: false }, axisTicks: { show: false } },
-                            yaxis: { labels: { style: { colors: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280' } } },
-                            grid: { borderColor: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb', strokeDashArray: 4 },
-                            theme: { mode: document.documentElement.classList.contains('dark') ? 'dark' : 'light' }
-                        };
-                        let chart = new ApexCharts(this.$refs.chart, options);
-                        chart.render();
-                    });
-                }
-            }));
-        }
-
-        if (window.Alpine) {
-            registerAlpineComponents();
-        } else {
-            document.addEventListener('alpine:init', registerAlpineComponents);
-        }
-    })();
-</script>
-
+        });
+    </script>
+    @endpush
 </div>

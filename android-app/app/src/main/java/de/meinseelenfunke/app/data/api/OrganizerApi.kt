@@ -2,7 +2,9 @@ package de.meinseelenfunke.app.data.api
 
 import com.google.gson.annotations.SerializedName
 import de.meinseelenfunke.app.util.SmartAlarmItem
+import de.meinseelenfunke.app.util.SmartHomeGroupDto
 import de.meinseelenfunke.app.util.SmartPlugDevice
+import de.meinseelenfunke.app.util.SmartShutterDevice
 import de.meinseelenfunke.app.util.TimerPresetItem
 import de.meinseelenfunke.app.util.WakeUpLogEntry
 import okhttp3.MultipartBody
@@ -112,6 +114,8 @@ data class AlarmSyncPackagePayload(
     val alarms: List<SmartAlarmItem>? = null,
     val timers: List<TimerPresetItem>? = null,
     @SerializedName("smart_plugs") val smartPlugs: List<SmartPlugDevice>? = null,
+    @SerializedName("smart_shutters") val smartShutters: List<SmartShutterDevice>? = null,
+    @SerializedName("smart_groups") val smartGroups: List<SmartHomeGroupDto>? = null,
     @SerializedName("wake_up_logs") val wakeUpLogs: Map<String, WakeUpLogEntry>? = null,
     @SerializedName("funkira_voice") val funkiraVoice: String? = "Aoede",
     @SerializedName("tapo_email") val tapoEmail: String? = null,

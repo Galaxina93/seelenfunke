@@ -222,7 +222,18 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v10')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261120v36')", $html);
+        $this->assertStringContainsString('data-testid="lobby-character-picker-modal"', $html);
+        $this->assertStringContainsString('data-testid="lobby-char-select-male"', $html);
+        $this->assertStringContainsString('data-testid="lobby-char-select-female"', $html);
+        $this->assertStringContainsString('data-testid="lobby-char-switch-btn"', $html);
+        $this->assertStringContainsString('data-testid="lobby-armory-prompt-card"', $html);
+        $this->assertStringContainsString('data-testid="lobby-weapon-swing-btn"', $html);
+        $this->assertStringContainsString('Charakter wählen', $html);
+        $this->assertStringContainsString('Männlich', $html);
+        $this->assertStringContainsString('Weiblich', $html);
+        $this->assertStringContainsString('Starter · Barfuß', $html);
+        $this->assertStringContainsString('avatar_gender:', $html);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $html);
         $this->assertStringContainsString('window.__sfLobbyAudioRegistry', $html);
         $this->assertStringContainsString('volume: 5,', $html);
@@ -441,7 +452,15 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('_hasActiveMovementKeys', $js);
         $this->assertStringContainsString('_detectWallForCling', $js);
         $this->assertStringContainsString('isWallClinging', $js);
-        $this->assertStringContainsString('this.player.wallClingTimer = 1.0;', $js);
+        $this->assertStringContainsString('this.player.wallClingTimer = 0.0;', $js);
+        $this->assertStringContainsString('_executeWallSalto', $js);
+        $this->assertStringContainsString('wallJumpChain', $js);
+        $this->assertStringContainsString('sameWallCooldown', $js);
+        $this->assertStringContainsString('buildRealisticSeasonalSkyTexture', $js);
+        $this->assertStringContainsString('rebuildSkyEnvironment', $js);
+        $this->assertStringContainsString('_buildHighResExoskeletonAvatar', $js);
+        $this->assertStringContainsString('_createExoVisorFaceController', $js);
+        $this->assertStringContainsString('setCharacterGender', $js);
         $this->assertStringContainsString('_spawnWallKickBurst', $js);
         $this->assertStringContainsString('pierInst', $js);
         $this->assertStringContainsString('canEnterSanctums', $js);
@@ -544,7 +563,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261118v10', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261120v36', $hostJs);
         $this->assertStringContainsString("root.setAttribute('data-sf-3d-lobby-modal', 'heroes')", $hostJs);
         $this->assertStringContainsString('stopPrewarmAndForceLobbySilence', $hostJs);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $hostJs);
@@ -1149,5 +1168,206 @@ class Louvre3DShowroomTest extends TestCase
         $afterThreeBoot = $this->actingAs($customer, 'customer')->getJson('/shop/showroom-data')->assertStatus(200);
         $afterThreeBoot->assertJsonPath('atelier_review.my_rating', 3);
         $afterThreeBoot->assertJsonPath('atelier_review.my_comment', 'Noch mehr Schmuck-Vitrinen im Nordflügel wären wunderbar.');
+    }
+
+    public function test_realistic_day_night_sky_exoskeleton_characters_and_multi_wall_jump_sync(): void
+    {
+        // 1. Tages-Himmel im Frühling (13:30 Uhr) mit saisonalem Wetter
+        $this->travelTo(\Illuminate\Support\Carbon::create(2027, 4, 15, 13, 30, 0, 'Europe/Berlin'));
+        $dayBoot = $this->getJson('/shop/showroom-data')->assertStatus(200);
+        $dayBoot->assertJsonPath('environment.season_key', 'spring');
+        $dayBoot->assertJsonPath('environment.is_night', false);
+        $dayBoot->assertJsonPath('environment.day_phase', 'day');
+        $dayBoot->assertJsonPath('environment.weather_condition', 'spring_breeze');
+
+        // 2. Sternenhimmel in der Nacht im Winter (23:15 Uhr) unter Beibehaltung der Jahreszeiten-Logik
+        $this->travelTo(\Illuminate\Support\Carbon::create(2026, 12, 18, 23, 15, 0, 'Europe/Berlin'));
+        $nightBoot = $this->getJson('/shop/showroom-data')->assertStatus(200);
+        $nightBoot->assertJsonPath('environment.season_key', 'winter');
+        $nightBoot->assertJsonPath('environment.is_night', true);
+        $nightBoot->assertJsonPath('environment.day_phase', 'night');
+        $nightBoot->assertJsonPath('environment.weather_condition', 'starry_night');
+        $this->travelBack();
+
+        // 3. Multiplayer-Sync überträgt avatar_gender ('female' Funkira vs 'male' Funki) sauber zwischen Kunden
+        $funkira = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Elena',
+            'last_name' => 'Funkira',
+            'email' => 'elena.funkira@example.com',
+            'email_verified_at' => now(),
+            'password' => bcrypt('Secret2026!'),
+        ]);
+        CustomerGamification::create([
+            'customer_id' => $funkira->id,
+            'is_active' => true,
+            'level' => 5,
+            'funken_balance' => 600,
+            'funken_total_earned' => 600,
+        ]);
+
+        $funki = Customer::create([
+            'id' => (string) Str::uuid(),
+            'first_name' => 'Lukas',
+            'last_name' => 'Funki',
+            'email' => 'lukas.funki@example.com',
+            'email_verified_at' => now(),
+            'password' => bcrypt('Secret2026!'),
+        ]);
+        CustomerGamification::create([
+            'customer_id' => $funki->id,
+            'is_active' => true,
+            'level' => 4,
+            'funken_balance' => 350,
+            'funken_total_earned' => 350,
+        ]);
+
+        $joinFunkira = $this->actingAs($funkira, 'customer')->postJson('/funkenwerk-welt/lobby/join', [
+            'x' => 0.0,
+            'y' => 0.0,
+            'z' => -40.0,
+            'rot_y' => 0.0,
+            'speed' => 0.0,
+            'zone' => 'heroes',
+            'avatar_gender' => 'female',
+        ])->assertStatus(200);
+        $instId = (int) $joinFunkira->json('instance_id');
+
+        $joinFunki = $this->actingAs($funki, 'customer')->postJson('/funkenwerk-welt/lobby/join', [
+            'instance_id' => $instId,
+            'x' => 1.5,
+            'y' => 0.0,
+            'z' => -40.0,
+            'rot_y' => 1.2,
+            'speed' => 0.0,
+            'zone' => 'heroes',
+            'avatar_gender' => 'male',
+        ])->assertStatus(200);
+
+        $peers = collect($joinFunki->json('peers'));
+        $this->assertCount(1, $peers);
+        $this->assertSame('female', $peers->first()['avatar_gender'] ?? null);
+    }
+
+    public function test_funkenwerk_3d_native_rigged_funki_and_funkira_glbs_are_valid_and_wired(): void
+    {
+        $malePath = public_path('shop/customer/gamification/models/funki_male_rigged.glb');
+        $femalePath = public_path('shop/customer/gamification/models/funkira_female_rigged.glb');
+
+        $this->assertFileExists($malePath);
+        $this->assertFileExists($femalePath);
+
+        $optimizer = app(\App\Services\Storage\GlbOptimizerService::class);
+        foreach (['male' => $malePath, 'female' => $femalePath] as $gender => $path) {
+            $info = $optimizer->inspectGlb($path);
+            $this->assertTrue($info['exists'] ?? false, "GLB missing for {$gender}");
+            $this->assertTrue($info['has_copyright_watermark'] ?? false, "Copyright missing for {$gender}");
+            $this->assertGreaterThanOrEqual(45000, (int) ($info['triangles'] ?? 0), "Expected HD triangle mesh for {$gender}");
+
+            $fp = fopen($path, 'rb');
+            $this->assertNotFalse($fp);
+            $hdr = unpack('a4magic/Vversion/Vlength/VchunkLen/a4chunkType', (string) fread($fp, 20));
+            $this->assertSame('glTF', $hdr['magic']);
+            $this->assertSame(2, $hdr['version']);
+            $json = json_decode((string) fread($fp, (int) $hdr['chunkLen']), true);
+            fclose($fp);
+
+            $this->assertIsArray($json);
+            $this->assertCount(1, $json['skins'] ?? []);
+            $this->assertCount(22, $json['skins'][0]['joints'] ?? []);
+            $this->assertCount(8, $json['animations'] ?? []);
+
+            $animNames = array_column($json['animations'], 'name');
+            $this->assertSame(['Idle', 'Walk', 'Sprint', 'Jump', 'WallSalto', 'Wave', 'Cheer', 'Dance'], $animNames);
+
+            $nodeNames = array_column($json['nodes'] ?? [], 'name');
+            $this->assertContains('rightHandWeaponSocket', $nodeNames);
+            $this->assertContains('headSocket', $nodeNames);
+            if ($gender === 'female') {
+                $this->assertContains('FunkiraStarDiadem', $nodeNames);
+            }
+        }
+
+        $js = (string) file_get_contents(public_path('js/seelenfunke-louvre-showroom-3d.js'));
+        $this->assertStringContainsString('RIGGED_AVATAR_GLB_URLS', $js);
+        $this->assertStringContainsString('/shop/customer/gamification/models/char_starter_male_rigged.glb', $js);
+        $this->assertStringContainsString('/shop/customer/gamification/models/char_starter_female_rigged.glb', $js);
+        $this->assertStringContainsString('_loadNativeRiggedAvatarTemplate', $js);
+    }
+
+    public function test_universal_starter_characters_and_outer_gate_armory_showcase_are_valid_and_wired(): void
+    {
+        $optimizer = app(\App\Services\Storage\GlbOptimizerService::class);
+
+        $starterPaths = [
+            'male' => public_path('shop/customer/gamification/models/char_starter_male_rigged.glb'),
+            'female' => public_path('shop/customer/gamification/models/char_starter_female_rigged.glb'),
+        ];
+
+        foreach ($starterPaths as $gender => $path) {
+            $this->assertFileExists($path);
+            $info = $optimizer->inspectGlb($path);
+            $this->assertTrue($info['exists'] ?? false, "Starter GLB missing for {$gender}");
+            $this->assertTrue($info['has_copyright_watermark'] ?? false, "Copyright missing for starter {$gender}");
+
+            $fp = fopen($path, 'rb');
+            $this->assertNotFalse($fp);
+            $hdr = unpack('a4magic/Vversion/Vlength/VchunkLen/a4chunkType', (string) fread($fp, 20));
+            $this->assertSame('glTF', $hdr['magic']);
+            $json = json_decode((string) fread($fp, (int) $hdr['chunkLen']), true);
+            fclose($fp);
+
+            $this->assertIsArray($json);
+            $totalTris = 0;
+            foreach ($json['meshes'] ?? [] as $meshDef) {
+                foreach ($meshDef['primitives'] ?? [] as $primDef) {
+                    if (isset($primDef['indices'])) {
+                        $totalTris += intdiv((int) ($json['accessors'][$primDef['indices']]['count'] ?? 0), 3);
+                    } elseif (isset($primDef['attributes']['POSITION'])) {
+                        $totalTris += intdiv((int) ($json['accessors'][$primDef['attributes']['POSITION']]['count'] ?? 0), 3);
+                    }
+                }
+            }
+            $this->assertGreaterThanOrEqual(7500, $totalTris, "Expected sculpted Funki-species starter mesh for {$gender}");
+            $this->assertNotEmpty($json['materials'][0]['normalTexture'] ?? null, "Expected tangent-space normal map on {$gender} starter");
+            $this->assertCount(1, $json['skins'] ?? []);
+            $this->assertCount(22, $json['skins'][0]['joints'] ?? []);
+            $nodeNames = array_column($json['nodes'] ?? [], 'name');
+            $this->assertContains('StarterHairMesh', $nodeNames);
+            $this->assertContains('Body_Head', $nodeNames);
+            $this->assertContains('Body_Torso_UpperArms', $nodeNames);
+            $this->assertContains('Body_Forearms_Hands', $nodeNames);
+            $this->assertContains('Body_Pelvis_Underwear', $nodeNames);
+            $this->assertContains('Body_Legs_Feet', $nodeNames);
+            $this->assertContains('rightHandWeaponSocket', $nodeNames);
+            $this->assertContains('headSocket', $nodeNames);
+        }
+
+        $armoryFiles = [
+            'armor_crystal_helm.glb',
+            'armor_crystal_chest.glb',
+            'armor_crystal_gauntlets.glb',
+            'armor_crystal_boots.glb',
+            'weapon_crystal_lance.glb',
+            'weapon_crystal_spear.glb',
+        ];
+
+        foreach ($armoryFiles as $fileName) {
+            $full = public_path('shop/customer/gamification/models/armory/' . $fileName);
+            $this->assertFileExists($full, "Missing extracted armory GLB {$fileName}");
+            $info = $optimizer->inspectGlb($full);
+            $this->assertTrue($info['has_copyright_watermark'] ?? false, "Missing copyright on {$fileName}");
+            $this->assertGreaterThan(500, (int) ($info['triangles'] ?? 0), "Empty mesh in {$fileName}");
+        }
+
+        $js = (string) file_get_contents(public_path('js/seelenfunke-louvre-showroom-3d.js'));
+        $this->assertStringContainsString('ARMORY_SHOWCASE_ITEMS', $js);
+        $this->assertStringContainsString('_buildOuterGateArmoryShowcase', $js);
+        $this->assertStringContainsString('_syncRigBodySubMeshMasking', $js);
+        $this->assertStringContainsString('toggleArmoryItem', $js);
+        $this->assertStringContainsString('triggerWeaponSwing', $js);
+        foreach ($armoryFiles as $fileName) {
+            $this->assertStringContainsString('/shop/customer/gamification/models/armory/' . $fileName, $js);
+        }
     }
 }

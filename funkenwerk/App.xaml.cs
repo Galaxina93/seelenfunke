@@ -28,7 +28,7 @@ namespace Funkenwerk
         public string Message { get; set; } = "";
         public string Stacktrace { get; set; } = "";
         public string Fingerprint { get; set; } = "";
-        public string AppVersion { get; set; } = "1.4.0";
+        public string AppVersion { get; set; } = FunkenwerkVersioning.SentinelVersionString;
         public string Device { get; set; } = Environment.MachineName;
         public bool AutoHealed { get; set; }
         public string HealSummary { get; set; } = "";
@@ -117,7 +117,7 @@ namespace Funkenwerk
                     Message = ScrubSecrets(message ?? safeTitle),
                     Stacktrace = ScrubSecrets(stacktrace ?? ""),
                     Fingerprint = fp,
-                    AppVersion = "1.4.0",
+                    AppVersion = FunkenwerkVersioning.SentinelVersionString,
                     Device = Environment.MachineName,
                     AutoHealed = autoHealed,
                     HealSummary = ScrubSecrets(healSummary ?? ""),
@@ -356,32 +356,6 @@ namespace Funkenwerk
                     Environment.Exit(exitCode);
                 });
                 return;
-            }
-
-            if (e.Args != null && e.Args.Contains("--verify-camera-studio", StringComparer.OrdinalIgnoreCase))
-            {
-                Dispatcher.InvokeAsync(async () =>
-                {
-                    try
-                    {
-                        if (MainWindow is MainWindow mw)
-                        {
-                            await mw.RunAutomatedCameraStudioVerificationAsync(reportPath);
-                        }
-                        else
-                        {
-                            File.WriteAllText(reportPath, "MainWindow was null");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        File.WriteAllText(reportPath, "EXCEPTION: " + RedactSensitiveCrashDetails(ex.ToString()));
-                    }
-                    finally
-                    {
-                        Shutdown(0);
-                    }
-                });
             }
         }
 

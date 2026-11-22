@@ -1,15 +1,13 @@
-<div wire:key="tab-cronjobs" class="flex-1 shrink-0 rounded-2xl border border-gray-200 dark:border-[var(--theme-color-50)] bg-white dark:bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-sm dark:shadow-[0_0_30px_var(--theme-color-20)] h-full w-full p-4 sm:p-6">
-<div class="h-full flex flex-col space-y-6 overflow-y-auto custom-scrollbar">
+<div wire:key="tab-cronjobs" class="flex-1 shrink-0 rounded-2xl border border-gray-200 dark:border-[var(--theme-color-50)] bg-white dark:bg-gray-900/80 backdrop-blur-xl flex flex-col overflow-hidden relative shadow-sm h-full w-full p-4 sm:p-6">
+<div class="h-full flex flex-col space-y-5 overflow-y-auto custom-scrollbar">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-2">
-        <div>
-            <h2 class="text-xl sm:text-2xl font-black text-gray-900 dark:text-gray-100 flex items-center gap-2 sm:gap-3">
-                <x-heroicon-o-clock class="w-8 h-8 text-[var(--theme-color)]" />
+    <div class="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 pb-3">
+        <div class="flex items-center gap-2.5">
+            <x-heroicon-o-clock class="w-7 h-7 text-[var(--theme-color)]" />
+            <h2 class="text-xl sm:text-2xl font-black text-gray-900 dark:text-gray-100 uppercase tracking-wider">
                 Server Cronjobs
             </h2>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1 max-w-2xl">
-                Verwalte und überwache hier alle automatisierten Hintergrundprozesse (Cronjobs). Du kannst Jobs temporär pausieren oder sie manuell sofort anstoßen, um Fehler zu debuggen.
-            </p>
+            <span class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500 text-[9px] font-bold flex items-center justify-center cursor-help" title="Automatisierte Hintergrundprozesse pausieren, Intervalle anpassen oder manuell sofort anstoßen">!</span>
         </div>
         <div class="hidden sm:flex items-center gap-2">
             <div class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-2">
@@ -23,9 +21,9 @@
     <div class="flex flex-col gap-3 pb-4">
         <!-- Table Header (hidden on mobile) -->
         <div class="hidden lg:grid grid-cols-12 gap-4 px-6 py-3 text-gray-500 dark:text-gray-400 text-[10px] sm:text-xs uppercase tracking-widest bg-gray-100/80 dark:bg-gray-900/40 rounded-xl font-bold border border-gray-200 dark:border-gray-800/50">
-            <div class="col-span-3">Cronjob & Info</div>
-            <div class="col-span-3">Befehl & Intervall</div>
-            <div class="col-span-3">Status & Letzter Lauf</div>
+            <div class="col-span-3">Cronjob</div>
+            <div class="col-span-3">Befehl &amp; Intervall</div>
+            <div class="col-span-3">Status &amp; Letzter Lauf</div>
             <div class="col-span-3 text-right">Aktionen</div>
         </div>
 
@@ -34,34 +32,34 @@
                 $nextRun = $job->next_run_at;
                 $lastRun = $job->last_run_at ?? $job->previous_run_at;
             @endphp
-            <div class="relative bg-gray-50/80 dark:bg-gray-900/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-50)] transition-all duration-300 overflow-hidden group shadow-sm dark:shadow-xl">
-                
+            <div class="relative bg-gray-50/80 dark:bg-gray-900/50 backdrop-blur-md rounded-xl border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color-50)] transition-all duration-300 overflow-hidden group shadow-sm">
+
                 <!-- Status Line indicator -->
                 <div class="absolute top-0 left-0 w-1.5 h-full transition-colors duration-500 {{ !$job->is_active ? 'bg-gray-400 dark:bg-gray-500' : ($job->status === 'success' ? 'bg-emerald-500' : ($job->status === 'error' ? 'bg-red-500' : 'bg-[var(--theme-color)]')) }}"></div>
-                
+
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 pl-6 items-center relative z-10">
-                    
-                    <!-- Title & Description -->
+
+                    <!-- Title + Tooltip -->
                     <div class="col-span-1 lg:col-span-3">
                         <h3 class="text-sm sm:text-base font-bold text-gray-900 dark:text-gray-200 group-hover:text-[var(--theme-color)] transition-colors flex items-center gap-2">
-                            {{ $job->name }}
+                            <span class="truncate">{{ $job->name }}</span>
+                            @if(!empty($job->description))
+                                <span class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500 text-[9px] font-bold flex items-center justify-center cursor-help shrink-0" title="{{ $job->description }}">!</span>
+                            @endif
                         </h3>
-                        <p class="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2" title="{{ $job->description }}">
-                            {{ $job->description }}
-                        </p>
                     </div>
 
                     <!-- Command & Schedule -->
                     <div class="col-span-1 lg:col-span-3 flex flex-col gap-2">
                         <div>
-                            <code class="text-[10px] sm:text-xs text-stone-800 dark:text-[var(--theme-color-60)] bg-stone-200/70 dark:bg-[var(--theme-color-10)] px-2 py-0.5 rounded font-mono break-all">{{ $job->command }}</code>
+                            <code class="text-[10px] sm:text-xs text-gray-800 dark:text-[var(--theme-color)] bg-gray-200/80 dark:bg-[var(--theme-color-10)] px-2 py-0.5 rounded font-mono break-all">{{ $job->command }}</code>
                         </div>
-                        
+
                         @if($editingJobId === $job->id)
                             <!-- Edit Mode -->
                             <div class="flex items-center gap-2">
-                                <input type="text" wire:model="editingSchedule" 
-                                       class="bg-white dark:bg-black border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-[10px] sm:text-xs font-mono rounded focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] w-full p-1" 
+                                <input type="text" wire:model="editingSchedule"
+                                       class="bg-white dark:bg-black border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-[10px] sm:text-xs font-mono rounded focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] w-full p-1"
                                        placeholder="z.B. everyMinute">
                                 <button wire:click="saveSchedule" class="text-emerald-600 dark:text-green-400 hover:brightness-110 p-1"><x-heroicon-o-check class="w-4 h-4" /></button>
                                 <button wire:click="cancelEdit" class="text-gray-400 hover:text-gray-700 dark:hover:text-white p-1"><x-heroicon-o-x-mark class="w-4 h-4" /></button>
@@ -88,7 +86,9 @@
                             <div class="flex items-center gap-1.5" x-data="{
                                 nextRunTs: {{ $nextRun->timestamp * 1000 }},
                                 countdown: '',
-                                init() { setInterval(() => this.update(), 1000); this.update(); },
+                                timer: null,
+                                init() { this.update(); this.timer = setInterval(() => this.update(), 1000); },
+                                destroy() { if (this.timer) { clearInterval(this.timer); this.timer = null; } },
                                 update() {
                                     let diff = Math.max(0, this.nextRunTs - Date.now());
                                     if (diff === 0) { this.countdown = 'Jetzt'; return; }
@@ -115,17 +115,17 @@
 
                     <!-- Actions -->
                     <div class="col-span-1 lg:col-span-3 flex items-center justify-end gap-3 sm:gap-4 mt-2 lg:mt-0">
-                        <button wire:click="runNow('{{ $job->id }}')" 
+                        <button wire:click="runNow('{{ $job->id }}')"
                                 wire:loading.attr="disabled"
                                 class="py-1.5 px-3 rounded-lg text-[10px] sm:text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2
                                 {{ $job->is_active ? 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-[var(--theme-color-20)] text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-[var(--theme-color)] border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-[var(--theme-color-50)]' : 'bg-gray-100 dark:bg-gray-900 text-gray-400 dark:text-gray-600 cursor-not-allowed border border-gray-200 dark:border-gray-800' }}"
                                 {{ !$job->is_active ? 'disabled' : '' }}>
-                            
+
                             <span wire:loading.remove wire:target="runNow('{{ $job->id }}')" class="flex items-center gap-1.5">
                                 <x-heroicon-o-play class="w-3.5 h-3.5" />
                                 <span class="hidden sm:inline">Ausführen</span>
                             </span>
-                            
+
                             <span wire:loading wire:target="runNow('{{ $job->id }}')" class="flex items-center gap-1.5 text-[color:var(--theme-color)]">
                                 <svg class="animate-spin h-3.5 w-3.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -136,7 +136,7 @@
                         </button>
 
                         <!-- Toggle Switch -->
-                        <button wire:click="toggleCronjob('{{ $job->id }}')" 
+                        <button wire:click="toggleCronjob('{{ $job->id }}')"
                                 class="relative inline-flex h-5 w-9 sm:h-6 sm:w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--theme-color)] focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900 {{ $job->is_active ? 'bg-[var(--theme-color)]' : 'bg-gray-300 dark:bg-gray-700' }}">
                             <span class="pointer-events-none inline-block h-4 w-4 sm:h-5 sm:w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out {{ $job->is_active ? 'translate-x-4 sm:translate-x-5' : 'translate-x-0' }}"></span>
                         </button>
@@ -146,12 +146,14 @@
 
                 <!-- Full Width Progress Bar (Bottom) -->
                 @if($job->is_active && $nextRun && $lastRun)
-                <div class="absolute bottom-0 left-0 w-full h-1 bg-gray-200 dark:bg-gray-950/50" 
+                <div class="absolute bottom-0 left-0 w-full h-1 bg-gray-200 dark:bg-gray-950/50"
                      x-data="{
                         nextRunTs: {{ $nextRun->timestamp * 1000 }},
                         lastRunTs: {{ $lastRun->timestamp * 1000 }},
                         progress: 0,
-                        init() { setInterval(() => this.update(), 1000); this.update(); },
+                        timer: null,
+                        init() { this.update(); this.timer = setInterval(() => this.update(), 1000); },
+                        destroy() { if (this.timer) { clearInterval(this.timer); this.timer = null; } },
                         update() {
                             let total = this.nextRunTs - this.lastRunTs;
                             let current = Date.now() - this.lastRunTs;
@@ -161,7 +163,7 @@
                             else this.progress = (current / total) * 100;
                         }
                      }">
-                    <div class="h-full bg-gradient-to-r from-[color:var(--theme-color)] to-[color:var(--theme-color-50)] transition-all duration-1000 ease-linear shadow-[0_0_10px_var(--theme-color-50)]" :style="`width: ${progress}%`"></div>
+                    <div class="h-full bg-gradient-to-r from-[color:var(--theme-color)] to-[color:var(--theme-color-50)] transition-all duration-1000 ease-linear" :style="`width: ${progress}%`"></div>
                 </div>
                 @endif
             </div>

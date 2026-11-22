@@ -17,6 +17,7 @@ class ProductPackagingSeeder extends Seeder
     {
         $westpack = ProductSupplier::where('name', 'LIKE', '%Westpack%')->first();
         $kartonEu = ProductSupplier::where('name', 'LIKE', '%Karton.eu%')->first();
+        $natuerlichVerpacken = ProductSupplier::where('name', 'LIKE', '%Natürlich verpacken%')->first();
 
         // Entferne veraltete LESER-, Test-SKUs und den ungenutzten Platzhalter PKG-BOX-GLASS
         $obsoleteIds = ProductPackagingItem::whereIn('sku', ['PKG-LESER-0210', 'PKG-WP-30286060102', 'PKG-BOX-GLASS'])
@@ -204,16 +205,16 @@ class ProductPackagingSeeder extends Seeder
             ]
         );
 
-        // 7. Geschenkpapier Schwarz-Gold (700 x 500 x 1 mm)
+        // 7. Geschenkpapier Schwarz-Gold (700 x 500 x 1 mm Zuschnitt von 2x 0,70 x 10 m Wenderolle Art.-Nr. 2821171260)
         ProductPackagingItem::updateOrCreate(
             ['sku' => 'PKG-WRAP-BLACK-GOLD'],
             [
                 'name' => 'Geschenkpapier Schwarz-Gold',
                 'category' => 'accessory',
-                'description' => 'Edles Geschenkpapier in Mattschwarz-Gold fuer physische Manufaktur-Produkte (Optional +2,90 EUR im Konfigurator).',
-                'supplier_name' => 'Handel / Manufaktur-Bedarf',
-                'product_supplier_id' => null,
-                'reorder_url' => null,
+                'description' => 'Beidseitig bedrucktes Wende-Geschenkpapier Schwarz & Gold (Natuerlich verpacken Art.-Nr. 2821171260, Order 22026114411-NV, 2x Rolle 0,70 x 10 m = 20 Laufmeter fuer ca. 130 Geschenkeinwicklungen). Optional +2,90 EUR im Konfigurator.',
+                'supplier_name' => 'Natürlich verpacken',
+                'product_supplier_id' => $natuerlichVerpacken?->id,
+                'reorder_url' => 'https://www.natuerlich-verpacken.de/zweifarbiges-geschenkpapier-schwarz-gold-rolle-kaufen',
                 'length_mm' => 700.0,
                 'width_mm' => 500.0,
                 'height_mm' => 1.0,
@@ -222,13 +223,129 @@ class ProductPackagingSeeder extends Seeder
                 'primary_weight_grams' => 8,
                 'secondary_material_type' => null,
                 'secondary_weight_grams' => 0,
-                'pack_quantity' => 100,
-                'pack_price_cents' => 1000,
+                'pack_quantity' => 130,
+                'pack_price_cents' => 2771,
                 'unit_cost_cents' => 10,
-                'stock_quantity' => 100,
-                'min_stock_threshold' => 20,
+                'stock_quantity' => 130,
+                'min_stock_threshold' => 25,
                 'is_upsell_option' => true,
                 'upsell_price_cents' => 290,
+                'is_active' => true,
+            ]
+        );
+
+        // 8. Vollpapp-Versandtasche DIN A5 (250 x 175 x 5 mm, Verpacking.com Art.-Nr. 3895-001)
+        ProductPackagingItem::updateOrCreate(
+            ['sku' => 'PKG-ENV-VOUCHER'],
+            [
+                'name' => 'Vollpapp-Versandtasche DIN A5',
+                'category' => 'shipping_envelope',
+                'description' => 'Stabile Vollpapp-Versandtasche DIN A5 selbstklebend weiss (Verpacking.com Art.-Nr. 3895-001, Innenmass 167 x 240 mm, 100er Einheit). Knickschutz fuer Post-Geschenkgutscheine im Edel-Umschlag.',
+                'supplier_name' => 'Verpacking.com',
+                'product_supplier_id' => null,
+                'reorder_url' => 'https://www.verpacking.com/Versandtasche-Vollpappe-167x240-mm-DIN-A5-selbstklebend-weiss',
+                'length_mm' => 250.0,
+                'width_mm' => 175.0,
+                'height_mm' => 5.0,
+                'weight_grams' => 45,
+                'primary_material_type' => 'paper',
+                'primary_weight_grams' => 45,
+                'secondary_material_type' => null,
+                'secondary_weight_grams' => 0,
+                'pack_quantity' => 100,
+                'pack_price_cents' => 3500,
+                'unit_cost_cents' => 35,
+                'stock_quantity' => 100,
+                'min_stock_threshold' => 20,
+                'is_upsell_option' => false,
+                'upsell_price_cents' => 0,
+                'is_active' => true,
+            ]
+        );
+
+        // 9. Schwarze Kraftpapier-Schmucktüte Klein (100 x 60 x 1 mm, Amazon ASIN B0DYHWRDFF, 200 Stk.)
+        $smallBlackPaperBag = ProductPackagingItem::updateOrCreate(
+            ['sku' => 'PKG-BAG-PAPER-100X60'],
+            [
+                'name' => 'Schwarze Kraftpapier-Schmucktüte (10 × 6 cm)',
+                'category' => 'filler',
+                'description' => '100 % plastikfreie, mattschwarze Kraftpapier-Schmucktuete 100 x 60 mm inkl. Klebeband (Amazon ASIN B0DYHWRDFF, Order 306-9003625-9724350, 200 Stk.). Standard-Innenverpackung fuer Anhaenger, Talisman, Pfote und Herz ohne Schmuckbox.',
+                'supplier_name' => 'Amazon (REBECASKYENS / MERVYN GLYNN HUNTER LTD)',
+                'product_supplier_id' => null,
+                'reorder_url' => 'https://www.amazon.de/dp/B0DYHWRDFF',
+                'length_mm' => 100.0,
+                'width_mm' => 60.0,
+                'height_mm' => 1.0,
+                'weight_grams' => 2,
+                'primary_material_type' => 'paper',
+                'primary_weight_grams' => 2,
+                'secondary_material_type' => null,
+                'secondary_weight_grams' => 0,
+                'pack_quantity' => 200,
+                'pack_price_cents' => 1141,
+                'unit_cost_cents' => 6,
+                'stock_quantity' => 200,
+                'min_stock_threshold' => 30,
+                'is_upsell_option' => false,
+                'upsell_price_cents' => 0,
+                'is_active' => true,
+            ]
+        );
+
+        // 10. Schwarzer Papierflachbeutel Mittel (165 x 130 x 1 mm, Frau WUNDERVoll ASIN B0CPJT35H8, 100 Stk.)
+        $mediumBlackPaperBag = ProductPackagingItem::updateOrCreate(
+            ['sku' => 'PKG-BAG-PAPER-165X130'],
+            [
+                'name' => 'Schwarzer Papierflachbeutel (13 × 16,5 cm)',
+                'category' => 'filler',
+                'description' => '100 % plastikfreier, mattschwarzer Papierflachbeutel 130 x 165 mm + 20 mm Umfaltlasche (Frau WUNDERVoll Amazon ASIN B0CPJT35H8, Order 306-3879066-2697958, 100 Stk.). Standard-Innenverpackung fuer 18,5 cm ID-Armbaender ohne Schmuckbox.',
+                'supplier_name' => 'Amazon (Frau WUNDERVoll)',
+                'product_supplier_id' => null,
+                'reorder_url' => 'https://www.amazon.de/dp/B0CPJT35H8',
+                'length_mm' => 165.0,
+                'width_mm' => 130.0,
+                'height_mm' => 1.0,
+                'weight_grams' => 3,
+                'primary_material_type' => 'paper',
+                'primary_weight_grams' => 3,
+                'secondary_material_type' => null,
+                'secondary_weight_grams' => 0,
+                'pack_quantity' => 100,
+                'pack_price_cents' => 839,
+                'unit_cost_cents' => 8,
+                'stock_quantity' => 100,
+                'min_stock_threshold' => 20,
+                'is_upsell_option' => false,
+                'upsell_price_cents' => 0,
+                'is_active' => true,
+            ]
+        );
+
+        // 11. Goldenes Geschenkband (10x 91,44 m Spulen im Bestand, flache Kreuzsicherung fuer Schmuckbox)
+        ProductPackagingItem::updateOrCreate(
+            ['sku' => 'PKG-RIBBON-GOLD'],
+            [
+                'name' => 'Goldenes Geschenkband',
+                'category' => 'accessory',
+                'description' => 'Goldfarbenes Geschenkband auf Massivholz-Bandhalter (10 Spulen a 91,44 m = 914 m, Order PO-076-06811572188790774). Standard-Sicherung um Schmuckboxen flach gegen Aufspringen im Versand zu sichern.',
+                'supplier_name' => 'Bestand Manufaktur (Temu / Victory Party)',
+                'product_supplier_id' => null,
+                'reorder_url' => null,
+                'length_mm' => 500.0,
+                'width_mm' => 5.0,
+                'height_mm' => 1.0,
+                'weight_grams' => 1,
+                'primary_material_type' => 'plastic',
+                'primary_weight_grams' => 1,
+                'secondary_material_type' => null,
+                'secondary_weight_grams' => 0,
+                'pack_quantity' => 1800,
+                'pack_price_cents' => 1252,
+                'unit_cost_cents' => 1,
+                'stock_quantity' => 1800,
+                'min_stock_threshold' => 200,
+                'is_upsell_option' => false,
+                'upsell_price_cents' => 0,
                 'is_active' => true,
             ]
         );
@@ -253,6 +370,7 @@ class ProductPackagingSeeder extends Seeder
             $slug = mb_strtolower((string) $product->slug);
             $name = mb_strtolower((string) $product->name);
 
+            $innerPaperBag = null;
             if (str_contains($slug, 'echtgold')) {
                 $targetItem = $frankfurtBox;
             } elseif (str_contains($slug, 'kristall') || str_contains($slug, 'schiefer') || str_contains($name, 'kristall') || str_contains($name, 'schiefer')) {
@@ -261,6 +379,11 @@ class ProductPackagingSeeder extends Seeder
                 $targetItem = $normalBox;
             } else {
                 $targetItem = $bubbleEnvelope;
+                if (str_contains($slug, 'armband') || str_contains($name, 'armband')) {
+                    $innerPaperBag = $mediumBlackPaperBag;
+                } elseif (!str_contains($slug, 'gutschein') && !str_contains($name, 'gutschein')) {
+                    $innerPaperBag = $smallBlackPaperBag;
+                }
             }
 
             $product->packagings()->delete();
@@ -283,9 +406,19 @@ class ProductPackagingSeeder extends Seeder
                 ]);
             }
 
-            $product->packaging_weight = (int) $targetItem->weight_grams;
-            if ((int) $targetItem->unit_cost_cents > 0) {
-                $product->packaging_cost = (int) $targetItem->unit_cost_cents;
+            if ($innerPaperBag) {
+                $product->packagings()->create([
+                    'packaging_item_id' => $innerPaperBag->id,
+                    'material_type' => $innerPaperBag->primary_material_type,
+                    'label' => $innerPaperBag->name,
+                    'weight_grams' => $innerPaperBag->primary_weight_grams,
+                ]);
+            }
+
+            $product->packaging_weight = (int) $targetItem->weight_grams + ($innerPaperBag ? (int) $innerPaperBag->weight_grams : 0);
+            $totalUnitCostCents = (int) $targetItem->unit_cost_cents + ($innerPaperBag ? (int) $innerPaperBag->unit_cost_cents : 0);
+            if ($totalUnitCostCents > 0) {
+                $product->packaging_cost = $totalUnitCostCents;
             }
             $product->saveQuietly();
         }

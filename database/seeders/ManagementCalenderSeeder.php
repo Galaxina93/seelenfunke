@@ -89,6 +89,26 @@ class ManagementCalenderSeeder extends Seeder
                 'description' => "Abgabefrist für die erste Umsatzsteuer-Voranmeldung (November 2026) in ELSTER unter der neuen betrieblichen Steuernummer.\n- Alle Vorsteuerbeträge aus den Gründungs- und Equipment-Käufen (insb. xTool F2 Ultra UV Laser mit 783,55 € Vorsteuer, Laserschutz-Schulung mit 113,81 € Vorsteuer, Kartonagen, Rohlinge etc.) eintragen.\n- Erstattung des Vorsteuer-Überschusses erfolgt durch das Finanzamt Gifhorn direkt auf das hinterlegte FYRST-Geschäftskonto (DE76 2507 0370 0079 8629 00).",
                 'priority' => 'high',
             ],
+            [
+                'title' => 'Prüfen: Bewilligungsbescheid freiwillige Arbeitslosenversicherung (§ 28a SGB III) eingetroffen?',
+                'start_date' => Carbon::create(2027, 1, 15, 10, 0, 0),
+                'end_date' => Carbon::create(2027, 1, 15, 11, 0, 0),
+                'is_all_day' => false,
+                'reminder_minutes' => 120,
+                'category' => 'project',
+                'description' => "Der Antrag auf freiwillige Weiterversicherung (§ 28a SGB III, Az. 241D129534) wurde bereits fristgerecht am 20.11.2026 um 12:48 Uhr online bei der Bundesagentur für Arbeit eingereicht (Sendebestätigung im Vertragsarchiv hinterlegt).\n- Prüfen, ob der schriftliche Bewilligungs- und Beitragsbescheid der BA inzwischen vorliegt und ob der monatliche SEPA-Lastschrifteinzug (Startphase 50 % ca. 49,35 €/Monat) über das FYRST-Geschäftskonto aktiv ist.\n- Zur Sicherheit vor Ablauf der gesetzlichen 3-Monats-Frist (31.01.2027) kurz im BA-eService-Postfach nachsehen, falls noch kein Bescheid eingegangen sein sollte.",
+                'priority' => 'medium',
+            ],
+            [
+                'title' => 'Gründungszuschuss Phase 2 (300 €/Monat für 9 Monate) online beantragen & EÜR-Übersicht prüfen',
+                'start_date' => Carbon::create(2027, 4, 20, 10, 0, 0),
+                'end_date' => Carbon::create(2027, 4, 20, 11, 0, 0),
+                'is_all_day' => false,
+                'reminder_minutes' => 120,
+                'category' => 'project',
+                'description' => "Gründungszuschuss Phase 1 (2.106,30 €/Monat, Az. 241D129534) endet am 30.04.2027.\n- Zum Ende der Phase 1 / Beginn Phase 2 (01.05.2027 bis 31.01.2028) digital im eService der Bundesagentur für Arbeit den Antrag auf Phase 2 (300,00 €/Monat zur sozialen Absicherung für weitere 9 Monate) stellen.\n- Beizufügen: Einnahmen-/Ausgaben-Übersicht der ersten 6 Monate aus Mein-Seelenfunke + kurze Darlegung der hauptberuflichen Aktivitäten (Hinweis: Phase 2 entfällt nur, falls die Gewinne die laufenden privaten Lebenshaltungskosten bereits vollständig decken).",
+                'priority' => 'high',
+            ],
         ];
 
         foreach ($events as $eventData) {

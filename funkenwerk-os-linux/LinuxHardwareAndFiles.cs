@@ -1819,7 +1819,11 @@ namespace FunkenwerkOSLinux
                 psi.ArgumentList.Add("--no-first-run");
                 psi.ArgumentList.Add("--no-default-browser-check");
                 psi.ArgumentList.Add("--password-store=basic");
+                psi.ArgumentList.Add("--ignore-gpu-blocklist");
                 psi.ArgumentList.Add("--enable-gpu-rasterization");
+                psi.ArgumentList.Add("--enable-zero-copy");
+                psi.ArgumentList.Add("--disable-background-timer-throttling");
+                psi.ArgumentList.Add("--enable-features=VaapiVideoDecodeLinuxGL,CanvasOopRasterization");
                 psi.ArgumentList.Add("--start-maximized");
                 psi.ArgumentList.Add("--new-window");
                 psi.ArgumentList.Add("--");

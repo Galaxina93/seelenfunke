@@ -90,7 +90,7 @@ class SeoController extends Controller
         foreach ($products as $product) {
             $loc = route('product.show', $product->slug);
             $lastmod = optional($product->updated_at ?? $product->created_at)->toAtomString() ?: now()->toAtomString();
-            $mainImgUrl = $product->resolveMainImageUrl(null, false) ?: $product->resolveMainImageUrl();
+            $mainImgUrl = $product->resolveSeoMainImageMeta()['url'] ?? null;
 
             $imageEntries = [];
             $videoEntries = [];
@@ -461,7 +461,7 @@ class SeoController extends Controller
         $xml[] = '    <description>' . e('Handveredelte Unikate mit hochpräziser Lasergravur und Live-3D-Konfigurator aus der Manufaktur ' . $companyName . ' in ' . $city . '.') . '</description>';
 
         foreach ($products as $product) {
-            $mainMeta = $product->resolveMainImageMeta(null, false);
+            $mainMeta = $product->resolveSeoMainImageMeta();
             if ($requireRealPhotos && (empty($mainMeta['url']) || !empty($mainMeta['is_ai_generated']))) {
                 continue;
             }
@@ -470,7 +470,7 @@ class SeoController extends Controller
             $link = route('product.show', $product->slug);
             $mainImg = !empty($mainMeta['url'])
                 ? $mainMeta['url']
-                : ($product->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
+                : asset('shop/projekt/logo/mein-seelenfunke-logo.png');
 
             $additionalImages = [];
             foreach ($product->media_gallery ?? [] as $media) {
@@ -624,7 +624,7 @@ class SeoController extends Controller
                     'average' => $product->reviews->count() > 0 ? round($product->reviews->avg('rating'), 1) : null,
                     'count' => $product->reviews->count(),
                 ],
-                'main_image_url' => $product->resolveMainImageUrl(null, false) ?: $product->resolveMainImageUrl(),
+                'main_image_url' => $product->resolveSeoMainImageMeta()['url'] ?? null,
                 'dimension_sheet_image_url' => $dimensionSheetUrl,
                 'gallery_images' => $images,
                 'promo_video_url' => $videoUrl,

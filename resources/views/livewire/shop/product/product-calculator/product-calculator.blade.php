@@ -345,87 +345,34 @@
             @elseif($step === 2)
                 <div class="h-full min-h-[600px] bg-white rounded-xl overflow-hidden animate-fade-in flex flex-col relative">
                     <div class="bg-gray-50 px-6 py-4 border-b flex justify-between items-center shrink-0">
-                        <h3 class="font-bold text-gray-800">Artikel anpassen</h3>
-                        <button wire:click="cancelConfig" class="text-sm text-gray-500 hover:text-red-500">Abbrechen</button>
-                    </div>
-
-                    @if($showTemplateSelection)
-                        <div class="flex-1 flex flex-col items-center justify-center p-8 bg-gray-50/50">
-                            <h2 class="text-3xl font-serif font-bold text-gray-900 mb-8 text-center">Wie möchten Sie starten?</h2>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl w-full">
-                                <button type="button" wire:click="openTemplatesList" class="bg-white border border-gray-200 p-8 rounded-3xl shadow-sm hover:shadow-xl hover:border-primary/50 transition-all group text-left flex flex-col items-center text-center">
-                                    <div class="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center text-primary mb-6 group-hover:scale-110 transition-transform">
-                                        <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
-                                    </div>
-                                    <h3 class="text-xl font-bold text-gray-900 mb-2">Vorlage nutzen</h3>
-                                    <p class="text-gray-500 text-sm">Wählen Sie aus unseren liebevoll gestalteten Vorlagen und passen Sie nur noch die Texte an.</p>
+                        <div class="flex items-center gap-3">
+                            <h3 class="font-bold text-gray-800">Artikel anpassen</h3>
+                            @if(!$showTemplateSelection && !$showTemplatesList && $editingIndex < 0 && ($currentProduct['uses_studio_configurator'] ?? true))
+                                <button type="button"
+                                        wire:click="returnToCalculatorStartSelection"
+                                        class="text-xs font-bold text-gray-500 hover:text-gray-900 flex items-center gap-1 cursor-pointer">
+                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                                    Startauswahl
                                 </button>
-                                <button type="button" wire:click="startCustomConfig" class="bg-white border border-gray-200 p-8 rounded-3xl shadow-sm hover:shadow-xl hover:border-gray-400 transition-all group text-left flex flex-col items-center text-center">
-                                    <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 mb-6 group-hover:scale-110 transition-transform">
-                                        <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                    </div>
-                                    <h3 class="text-xl font-bold text-gray-900 mb-2">Selber Konfigurieren</h3>
-                                    <p class="text-gray-500 text-sm">Starten Sie mit einem leeren Produkt und lassen Sie Ihrer Kreativität freien Lauf.</p>
-                                </button>
-                            </div>
-                        </div>
-                    @elseif($showTemplatesList)
-                        <div class="flex-1 p-8 bg-gray-50/50 overflow-y-auto">
-                            <div class="flex items-center justify-between mb-8 max-w-5xl mx-auto">
-                                <h2 class="text-2xl font-serif font-bold text-gray-900">Vorlagen für {{ $currentProduct['name'] ?? 'Produkt' }}</h2>
-                                <button wire:click="$set('showTemplatesList', false); $set('showTemplateSelection', true)" class="text-sm font-bold text-gray-500 hover:text-gray-900 flex items-center gap-2">
-                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                                    Zurück
-                                </button>
-                            </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                                @foreach($productTemplates as $tpl)
-                                    <div wire:click="selectTemplate('{{ $tpl['id'] }}')" class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:border-primary transition-all cursor-pointer group">
-                                        <div class="aspect-square w-full bg-gray-100 relative overflow-hidden flex items-center justify-center">
-                                            @if(!empty($tpl['preview_image']))
-                                                <img src="{{ \App\Models\Product\ProductTemplate::resolveImageUrl($tpl['preview_image']) }}"
-                                                     @if($tpl['is_ai_generated'] ?? true) data-is-ai-generated="true" @endif
-                                                     class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500">
-                                                @if($tpl['is_ai_generated'] ?? true)
-                                                    <span style="font-size: 6.5px; line-height: 1; padding: 1.5px 4px; background: rgba(0,0,0,0.36); color: rgba(255,255,255,0.68);"
-                                                          class="pointer-events-none select-none absolute bottom-1.5 right-1.5 z-10 backdrop-blur-sm font-normal tracking-normal rounded border border-white/10">
-                                                        KI-generiert
-                                                    </span>
-                                                @endif
-                                            @else
-                                                <svg class="w-12 h-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                            @endif
-                                            <div class="absolute inset-0 bg-primary/0 group-hover:bg-primary/10 transition-colors"></div>
-                                        </div>
-                                        <div class="p-5 text-center">
-                                            <h3 class="font-bold text-gray-900 text-lg group-hover:text-primary transition-colors">{{ $tpl['name'] }}</h3>
-                                            <p class="text-xs text-gray-500 mt-1">Vorlage auswählen</p>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-
-                            @if($hiddenSeasonalTemplatesCount > 0 || $showAllSeasonalTemplates)
-                                <div class="mt-5 text-center max-w-5xl mx-auto">
-                                    <button type="button"
-                                            wire:click="toggleShowAllTemplates"
-                                            class="text-[11px] text-gray-400 hover:text-[var(--theme-color)] transition-colors underline underline-offset-4 cursor-pointer">
-                                        @if($showAllSeasonalTemplates)
-                                            Nur aktuelle Saison anzeigen
-                                        @else
-                                            Alle Vorlagen anzeigen ({{ count($productTemplates) + $hiddenSeasonalTemplatesCount }})
-                                        @endif
-                                    </button>
-                                </div>
                             @endif
                         </div>
+                        <button type="button" wire:click="cancelConfig" class="text-sm text-gray-500 hover:text-red-500 cursor-pointer">Abbrechen</button>
+                    </div>
+
+                    @if($showTemplateSelection || $showTemplatesList)
+                        @include('livewire.shop.product.partials.configurator-start-selection', [
+                            'productName' => $currentProduct['name'] ?? 'Produkt',
+                            'isWideContainer' => true,
+                        ])
                     @else
-                        <livewire:shop.product.product-configurator.product-configurator
-                            :product="$currentProduct['id']"
-                            :initialData="$currentConfig"
-                            context="calculator"
-                            :key="'calc-conf-'.$currentProduct['id'].'-'.time()"
-                        />
+                        <div class="p-0" @cancel-configurator.window="$wire.returnToCalculatorStartSelection()">
+                            <livewire:shop.product.product-configurator.product-configurator
+                                :product="$currentProduct['id']"
+                                :initialData="$currentConfig"
+                                context="calculator"
+                                :key="'calc-conf-'.$currentProduct['id'].'-'.md5(json_encode($currentConfig))"
+                            />
+                        </div>
                     @endif
                 </div>
             @elseif($step === 3)

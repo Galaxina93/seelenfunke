@@ -45,9 +45,9 @@ namespace FunkenwerkCraft
         public string OverlayBadge { get; set; } = "";
         public string OverlayTitle { get; set; } = "";
         public string OverlaySubtitle { get; set; } = "";
-        public string Transition { get; set; } = "whip_zoom"; // "whip_zoom" | "whip_pan" | "dark_cut" | "velvet_dissolve" | "flash_cut" | "dissolve" | "smoothleft" | "fadeblack"
+        public string Transition { get; set; } = "velvet_dissolve"; // "velvet_dissolve" | "dark_cut" | "flash_cut" | "smoothleft" | "smoothup" | "circleopen"
         public double TransitionDurSec { get; set; } = 0.0; // 0 = inherit project TransitionDurationSec
-        public string TransitionSfx { get; set; } = @"Uebergaenge_Whoosh\Cinema_Whoosh_Deep_Impact_01.wav";
+        public string TransitionSfx { get; set; } = @"Uebergaenge_Studio\Silk_Air_Cut_Soft_01.wav";
         public string ImpactSfx { get; set; } = "";
         public string RiserSfx { get; set; } = "";
         public bool KeepOriginalAudio { get; set; } = false;
@@ -59,15 +59,15 @@ namespace FunkenwerkCraft
         public string Name { get; set; } = "Projekt 1";
         public string AspectRatio { get; set; } = "9:16"; // "9:16" | "1:1" | "16:9"
         public int Fps { get; set; } = 60;
-        public double TransitionDurationSec { get; set; } = 0.20;
+        public double TransitionDurationSec { get; set; } = 0.22;
         public string ColorGrade { get; set; } = "dark_luxury"; // "dark_luxury" | "natural"
         public string OverlayStyle { get; set; } = "editorial_minimal"; // "editorial_minimal" | "card"
-        public string BackgroundMusic { get; set; } = @"Beats_und_Ambient\Dark_Luxury_Viral_808_120BPM_CC0.wav";
+        public string BackgroundMusic { get; set; } = ""; // Standard: Ohne Musik (nur Übergangs-SFX; eigene Suno-Musik optional dezent hinterlegbar)
         public double MusicStartSec { get; set; } = 0.0;
-        public double MusicVolume { get; set; } = 0.56;
-        public double SfxVolume { get; set; } = 0.82;
-        public string IntroAccentSfx { get; set; } = @"Effekte_Akzente\Sub_Bass_Drop_Punch_06.wav";
-        public string OutroAccentSfx { get; set; } = @"Effekte_Akzente\Mystic_Crystal_Velvet_Swell_05.wav";
+        public double MusicVolume { get; set; } = 0.18;
+        public double SfxVolume { get; set; } = 0.85;
+        public string IntroAccentSfx { get; set; } = @"Uebergaenge_Studio\Dark_Luxury_Pulse_Cut_04.wav";
+        public string OutroAccentSfx { get; set; } = @"Uebergaenge_Studio\Warm_Outro_Velvet_Bloom_06.wav";
         public bool ShowBrandHeader { get; set; } = false;
         public string BrandHeaderText { get; set; } = "MEIN SEELENFUNKE";
         public string OutputFileName { get; set; } = "Social_Media_Ready_Projekt_1.mp4";
@@ -102,6 +102,8 @@ namespace FunkenwerkCraft
         public bool IsPortrait => EffectiveHeight >= EffectiveWidth;
         public double DurationSec { get; set; }
         public double Fps { get; set; }
+        public double AvgFps { get; set; }
+        public bool IsVariableOrLowFps { get; set; }
         public bool HasAudio { get; set; }
         public double SizeMb { get; set; }
     }
@@ -155,18 +157,22 @@ namespace FunkenwerkCraft
         {
             get
             {
-                string desktopCol = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-                    "Funkenwerk Collection",
-                    "Funkenwerk Craft");
-                if (Directory.Exists(desktopCol)) return desktopCol;
-
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
                 if (baseDir.EndsWith("Funkenwerk Craft", StringComparison.OrdinalIgnoreCase))
                     return baseDir;
 
-                Directory.CreateDirectory(desktopCol);
-                return desktopCol;
+                string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+                string modularCol = Path.Combine(desktop, "Funkenwerk Collection", "Module", "Funkenwerk Craft");
+                if (Directory.Exists(modularCol)) return modularCol;
+
+                string legacyCol = Path.Combine(desktop, "Funkenwerk Collection", "Funkenwerk Craft");
+                if (Directory.Exists(legacyCol)) return legacyCol;
+
+                const string sharedKontaCol = @"C:\Users\konta\Desktop\Funkenwerk Collection\Module\Funkenwerk Craft";
+                if (Directory.Exists(sharedKontaCol)) return sharedKontaCol;
+
+                Directory.CreateDirectory(modularCol);
+                return modularCol;
             }
         }
 
@@ -441,12 +447,16 @@ namespace FunkenwerkCraft
             return a.Length.CompareTo(b.Length);
         }
 
+        public const string AutoVariedTransitionSfxToken = "__AUTO__";
+
         public static string? ResolveSafeAudioPath(string? relOrFull, string? projectDir = null, bool requireExists = true)
         {
             if (string.IsNullOrWhiteSpace(relOrFull))
                 return null;
 
             string trimmed = relOrFull.Trim();
+            if (string.Equals(trimmed, AutoVariedTransitionSfxToken, StringComparison.OrdinalIgnoreCase))
+                return null;
             if (HasAlternateDataStreamOrUnc(trimmed) || ContainsTraversalSegment(trimmed))
                 throw new UnauthorizedAccessException($"Unsicherer Audio-Pfad blockiert: {relOrFull}");
 
@@ -526,6 +536,11 @@ namespace FunkenwerkCraft
         // =====================================================================
         public static string FindTrustedFfmpegExe() => FindTrustedMediaTool("ffmpeg.exe");
         public static string FindTrustedFfprobeExe() => FindTrustedMediaTool("ffprobe.exe");
+        public static string? TryFindTrustedFfprobeExe()
+        {
+            try { return FindTrustedMediaTool("ffprobe.exe"); }
+            catch { return null; }
+        }
 
         private static string FindTrustedMediaTool(string exeName)
         {
@@ -538,12 +553,23 @@ namespace FunkenwerkCraft
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             candidates.Add(Path.Combine(baseDir, exeName));
             candidates.Add(Path.Combine(baseDir, "ffmpeg", exeName));
+            candidates.Add(Path.Combine(ProductionWorkspaceRoot, exeName));
             candidates.Add(Path.Combine(ProductionWorkspaceRoot, "engine", "ffmpeg", exeName));
 
-            string desktopCol = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-                "Funkenwerk Collection");
-            candidates.Add(Path.Combine(desktopCol, "Funkenwerk Video", "ffmpeg", exeName));
+            string[] collectionRoots =
+            [
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Funkenwerk Collection"),
+                @"C:\Users\konta\Desktop\Funkenwerk Collection"
+            ];
+            foreach (string desktopCol in collectionRoots)
+            {
+                candidates.Add(Path.Combine(desktopCol, "Funkenwerk", exeName));
+                candidates.Add(Path.Combine(desktopCol, "Module", "Funkenwerk Craft", exeName));
+                candidates.Add(Path.Combine(desktopCol, "Module", "Funkenwerk Video", "ffmpeg", exeName));
+                candidates.Add(Path.Combine(desktopCol, "Module", "Funkenwerk Kamera", exeName));
+                candidates.Add(Path.Combine(desktopCol, "Module", "Funkenwerk SmartHome", exeName));
+                candidates.Add(Path.Combine(desktopCol, "Funkenwerk Video", "ffmpeg", exeName));
+            }
 
             // 2. Dynamic WinGet Packages discovery (real binary directory, no CWD probing)
             string wingetPkgs = Path.Combine(
@@ -794,6 +820,9 @@ namespace FunkenwerkCraft
             var model = new CraftProjectModel
             {
                 Name = safe,
+                BackgroundMusic = "",
+                MusicVolume = 0.18,
+                SfxVolume = 0.85,
                 OutputFileName = $"Social_Media_Ready_{safe.Replace(' ', '_')}.mp4"
             };
 
@@ -809,12 +838,13 @@ namespace FunkenwerkCraft
                     StartSec = 0,
                     DurationSec = isImg ? 2.6 : 2.2,
                     FitMode = "fill",
-                    SpeedMode = isImg ? "linear" : "speed_ramp",
-                    SlowMoFactor = 0.42,
-                    Transition = "whip_zoom"
+                    SpeedMode = "linear",
+                    SlowMoFactor = 0.50,
+                    Transition = "velvet_dissolve"
                 });
             }
 
+            AutoCurateSceneTransitionsAndSfx(model, overwriteExistingTransitions: true);
             SaveProject(model);
             return model;
         }
@@ -973,9 +1003,9 @@ namespace FunkenwerkCraft
                 if (string.IsNullOrWhiteSpace(s.FitMode))
                     s.FitMode = "fill";
                 if (string.IsNullOrWhiteSpace(s.SpeedMode))
-                    s.SpeedMode = (s.MediaType == "image" || s.MediaType == "brand_outro") ? "linear" : "speed_ramp";
+                    s.SpeedMode = "linear";
                 if (string.IsNullOrWhiteSpace(s.Transition))
-                    s.Transition = "whip_zoom";
+                    s.Transition = "velvet_dissolve";
             }
 
             project.UpdatedAtUtc = DateTime.UtcNow;
@@ -983,8 +1013,541 @@ namespace FunkenwerkCraft
             File.WriteAllText(jsonPath, JsonSerializer.Serialize(project, JsonOpts), new UTF8Encoding(false));
         }
 
+        public static string ImportCustomMusicToProject(string projectName, string sourceAudioPath)
+        {
+            if (string.IsNullOrWhiteSpace(sourceAudioPath))
+                throw new ArgumentException("Musik-Dateipfad darf nicht leer sein.");
+
+            string trimmed = sourceAudioPath.Trim();
+            if (HasAlternateDataStreamOrUnc(trimmed) || ContainsTraversalSegment(trimmed))
+                throw new UnauthorizedAccessException($"Unsicherer Musik-Importpfad blockiert: {sourceAudioPath}");
+
+            string leaf = Path.GetFileName(trimmed);
+            if (string.IsNullOrWhiteSpace(leaf) || IsReservedWindowsDeviceName(leaf))
+                throw new UnauthorizedAccessException($"Ungueltiger Musik-Dateiname blockiert: {leaf}");
+
+            string ext = Path.GetExtension(leaf);
+            if (string.IsNullOrWhiteSpace(ext) || !AudioExts.Contains(ext))
+                throw new UnauthorizedAccessException($"Nicht erlaubtes Audioformat: '{ext}'. Erlaubt: .mp3, .wav, .m4a, .flac, .ogg");
+
+            string fullSrc = Path.GetFullPath(trimmed);
+            if (!File.Exists(fullSrc))
+                throw new FileNotFoundException($"Musikdatei nicht gefunden: {fullSrc}");
+
+            EnsureNoReparsePointsInChain(fullSrc);
+
+            string projDir = GetProjectDirectory(projectName);
+            string prefix = NormalizeRootPrefix(projDir);
+            string dest = Path.GetFullPath(Path.Combine(projDir, leaf));
+            if (!dest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("Zielpfad liegt ausserhalb des Projektordners.");
+
+            EnsureNoReparsePointsInChain(dest, projDir);
+            if (!string.Equals(fullSrc, dest, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(fullSrc, dest, overwrite: true);
+            }
+
+            return leaf;
+        }
+
+        public static readonly (string RelPath, string DisplayLabel, string BestTransition)[] CuratedStudioTransitions =
+        [
+            (@"Uebergaenge_Studio\Silk_Air_Cut_Soft_01.wav", "Silk Air Breeze (Seidig L-R)", "velvet_dissolve"),
+            (@"Uebergaenge_Studio\Velvet_Sub_Whoosh_02.wav", "Deep 808 Sub Drop (Tief & Warm)", "dark_cut"),
+            (@"Uebergaenge_Studio\Cinema_Lens_Swish_03.wav", "Shutter Click & Lens Swish (Knackig)", "smoothleft"),
+            (@"Uebergaenge_Studio\Dark_Luxury_Pulse_Cut_04.wav", "Double Heartbeat Thud (Puls)", "flash_cut"),
+            (@"Uebergaenge_Studio\Crystal_Air_Shimmer_05.wav", "Crystal Glass Shimmer (Edel)", "velvet_dissolve"),
+            (@"Uebergaenge_Studio\Matte_Felt_Snap_07.wav", "Matte Box Snap (Präziser Klick)", "flash_cut"),
+            (@"Uebergaenge_Studio\Reverse_Vacuum_Pull_08.wav", "Reverse Vacuum Pull (Sog-Schnitt)", "velvet_dissolve"),
+            (@"Uebergaenge_Studio\Analog_Tape_Flutter_09.wav", "Analog Tape Flutter (Warm)", "smoothleft"),
+            (@"Uebergaenge_Studio\Double_Whip_Micro_10.wav", "Double Micro Whip (Schneller Wechsel)", "smoothleft"),
+            (@"Uebergaenge_Studio\Warm_Outro_Velvet_Bloom_06.wav", "Warm Velvet Bloom (Marken-Abgang)", "velvet_dissolve")
+        ];
+
+        private static readonly (string RelPath, string StyleGroup)[] ExtendedWhooshCatalog =
+        [
+            (@"Uebergaenge_Studio\Silk_Air_Cut_Soft_01.wav", "soft"),
+            (@"Uebergaenge_Studio\Cinema_Lens_Swish_03.wav", "swish"),
+            (@"Uebergaenge_Studio\Velvet_Sub_Whoosh_02.wav", "sub"),
+            (@"Uebergaenge_Studio\Matte_Felt_Snap_07.wav", "snap"),
+            (@"Uebergaenge_Studio\Reverse_Vacuum_Pull_08.wav", "vacuum"),
+            (@"Uebergaenge_Studio\Double_Whip_Micro_10.wav", "swish"),
+            (@"Uebergaenge_Studio\Dark_Luxury_Pulse_Cut_04.wav", "sub"),
+            (@"Uebergaenge_Studio\Analog_Tape_Flutter_09.wav", "soft"),
+            (@"Uebergaenge_Studio\Crystal_Air_Shimmer_05.wav", "shimmer"),
+            (@"Uebergaenge_Whoosh\Whoosh_Klassisch_Schnell_01.wav", "swish"),
+            (@"Uebergaenge_Whoosh\Zoom_Punch_Vacuum_07.wav", "vacuum"),
+            (@"Uebergaenge_Whoosh\Whoosh_Klassisch_Klangvoll_03.wav", "soft"),
+            (@"Effekte_Akzente\Sub_Bass_Hit_Tight_07.wav", "sub"),
+            (@"Uebergaenge_Whoosh\Whoosh_Klassisch_Schnell_02.wav", "snap"),
+            (@"Uebergaenge_Whoosh\Whip_Whoosh_Fast_Cut_04.wav", "swish"),
+            (@"Uebergaenge_Whoosh\Vacuum_SpeedRamp_Suck_06.wav", "vacuum"),
+            (@"Effekte_Akzente\Glas_Resonanz_Echt.wav", "shimmer"),
+            (@"Uebergaenge_Whoosh\Trailer_Whoosh_Hit_Tight_03.wav", "snap"),
+            (@"Uebergaenge_Whoosh\Whip_Pan_Heavy_Air_08.wav", "swish"),
+            (@"Uebergaenge_Whoosh\Bass_Pulse_Transition_09.wav", "sub")
+        ];
+
+        public static List<(string RelPath, string StyleGroup)> GetAvailableDiverseTransitionPool(string? projDir = null)
+        {
+            EnsureCuratedStudioTransitionSfxPack();
+            var available = new List<(string RelPath, string StyleGroup)>();
+            foreach (var item in ExtendedWhooshCatalog)
+            {
+                string? full = ResolveSafeAudioPath(item.RelPath, projDir, requireExists: true);
+                if (!string.IsNullOrWhiteSpace(full) && File.Exists(full))
+                {
+                    available.Add(item);
+                }
+            }
+            return available;
+        }
+
+        public static void AutoCurateSceneTransitionsAndSfx(CraftProjectModel project, bool overwriteExistingTransitions = false)
+        {
+            if (project?.Scenes == null || project.Scenes.Count == 0) return;
+            EnsureCuratedStudioTransitionSfxPack();
+
+            project.IntroAccentSfx = @"Uebergaenge_Studio\Dark_Luxury_Pulse_Cut_04.wav";
+            project.OutroAccentSfx = @"Uebergaenge_Studio\Warm_Outro_Velvet_Bloom_06.wav";
+
+            string[] cleanTransitions = ["velvet_dissolve", "flash_cut", "smoothleft", "dark_cut", "smoothup", "velvet_dissolve"];
+            for (int i = 0; i < project.Scenes.Count; i++)
+            {
+                var sc = project.Scenes[i];
+                bool isOutro = string.Equals(sc.MediaType, "brand_outro", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(sc.FileName, "__BRAND_OUTRO__", StringComparison.OrdinalIgnoreCase);
+
+                if (isOutro || i == project.Scenes.Count - 1)
+                {
+                    sc.Transition = "velvet_dissolve";
+                    sc.TransitionSfx = "";
+                    sc.ImpactSfx = "";
+                    sc.RiserSfx = "";
+                    continue;
+                }
+
+                if (overwriteExistingTransitions ||
+                    string.IsNullOrWhiteSpace(sc.Transition) ||
+                    sc.Transition.Equals("whip_zoom", StringComparison.OrdinalIgnoreCase) ||
+                    sc.Transition.Equals("whip_pan", StringComparison.OrdinalIgnoreCase))
+                {
+                    sc.Transition = cleanTransitions[i % cleanTransitions.Length];
+                }
+
+                sc.TransitionSfx = AutoVariedTransitionSfxToken;
+                sc.ImpactSfx = "";
+                sc.RiserSfx = "";
+            }
+
+            _ = DiversifyProjectTransitionSfxIfMonotonous(project, forceReshuffle: true);
+        }
+
+        /// <summary>
+        /// Ensures every cut in a project uses varied, non-repeating transition sound effects.
+        /// Automatically resolves "__AUTO__" tokens AND breaks up monotonous legacy projects where
+        /// consecutive cuts (or >= 3 cuts) all had the exact same TransitionSfx file assigned.
+        /// Explicitly silent cuts ("") and already-diverse user selections remain untouched.
+        /// </summary>
+        public static int DiversifyProjectTransitionSfxIfMonotonous(CraftProjectModel project, bool forceReshuffle = false, Random? rng = null)
+        {
+            if (project?.Scenes == null || project.Scenes.Count < 2) return 0;
+
+            string? projDir = null;
+            try { if (!string.IsNullOrWhiteSpace(project.Name)) projDir = GetProjectDirectory(project.Name); } catch { }
+            var pool = GetAvailableDiverseTransitionPool(projDir);
+            if (pool.Count == 0) return 0;
+
+            int cutCount = project.Scenes.Count - 1;
+            var activeIndices = new List<int>();
+            var freq = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            bool hasAutoToken = false;
+            bool hasConsecutiveDuplicate = false;
+            string? prevNonEmpty = null;
+
+            for (int i = 0; i < cutCount; i++)
+            {
+                var sc = project.Scenes[i];
+                bool isOutro = string.Equals(sc.MediaType, "brand_outro", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(sc.FileName, "__BRAND_OUTRO__", StringComparison.OrdinalIgnoreCase);
+                if (isOutro) continue;
+
+                string sfx = (sc.TransitionSfx ?? "").Trim().Replace('/', '\\');
+                if (string.IsNullOrEmpty(sfx))
+                {
+                    prevNonEmpty = null;
+                    continue; // Respect explicit "Kein Übergangs-Sound"
+                }
+
+                activeIndices.Add(i);
+                if (string.Equals(sfx, AutoVariedTransitionSfxToken, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasAutoToken = true;
+                    prevNonEmpty = null;
+                    continue;
+                }
+
+                if (prevNonEmpty != null && string.Equals(prevNonEmpty, sfx, StringComparison.OrdinalIgnoreCase))
+                {
+                    hasConsecutiveDuplicate = true;
+                }
+                prevNonEmpty = sfx;
+                freq[sfx] = freq.TryGetValue(sfx, out int c) ? c + 1 : 1;
+            }
+
+            bool hasHeavyRepeat = freq.Values.Any(v => v >= 3) || (activeIndices.Count >= 2 && freq.Count == 1 && !hasAutoToken);
+            if (!forceReshuffle && !hasAutoToken && !hasConsecutiveDuplicate && !hasHeavyRepeat)
+                return 0;
+
+            rng ??= Random.Shared;
+            var recentWindow = new Queue<string>();
+            int windowCap = Math.Max(1, Math.Min(pool.Count - 1, 14));
+
+            // Shuffle-bag without replacement so up to 20 cuts NEVER repeat a single WAV file
+            List<(string RelPath, string StyleGroup)> RefillShuffledBag()
+            {
+                var bag = pool.ToList();
+                for (int k = bag.Count - 1; k > 0; k--)
+                {
+                    int j = rng.Next(k + 1);
+                    (bag[k], bag[j]) = (bag[j], bag[k]);
+                }
+                return bag;
+            }
+
+            var currentBag = RefillShuffledBag();
+
+            string PickDistinctForTransition(string? transitionType, bool intoOutro)
+            {
+                if (intoOutro)
+                {
+                    var shimmer = pool.FirstOrDefault(p => p.StyleGroup == "shimmer" && !recentWindow.Contains(p.RelPath, StringComparer.OrdinalIgnoreCase));
+                    if (!string.IsNullOrEmpty(shimmer.RelPath))
+                    {
+                        currentBag.RemoveAll(b => string.Equals(b.RelPath, shimmer.RelPath, StringComparison.OrdinalIgnoreCase));
+                        return shimmer.RelPath;
+                    }
+                }
+
+                string normTr = (transitionType ?? "").Trim().ToLowerInvariant();
+                string[] preferredStyles = normTr switch
+                {
+                    "whip_zoom" or "flash_cut" or "fadefast" => ["snap", "vacuum", "swish"],
+                    "whip_pan" or "smoothleft" or "smoothup" => ["swish", "snap", "vacuum"],
+                    "dark_cut" or "fadeblack" => ["sub", "vacuum", "soft"],
+                    _ => ["soft", "vacuum", "swish", "shimmer", "snap", "sub"]
+                };
+
+                if (currentBag.Count == 0)
+                    currentBag = RefillShuffledBag();
+
+                int chosenIdx = -1;
+                foreach (var style in preferredStyles)
+                {
+                    chosenIdx = currentBag.FindIndex(item =>
+                        item.StyleGroup == style &&
+                        !recentWindow.Contains(item.RelPath, StringComparer.OrdinalIgnoreCase));
+                    if (chosenIdx >= 0) break;
+                }
+
+                if (chosenIdx < 0)
+                {
+                    chosenIdx = currentBag.FindIndex(item =>
+                        !recentWindow.Contains(item.RelPath, StringComparer.OrdinalIgnoreCase));
+                }
+
+                if (chosenIdx < 0)
+                    chosenIdx = 0;
+
+                var picked = currentBag[chosenIdx];
+                currentBag.RemoveAt(chosenIdx);
+                return picked.RelPath;
+            }
+
+            // If all active cuts were identical (legacy monotonous project like Projekt 2), diversify ALL cuts cleanly!
+            bool allWereIdentical = freq.Count == 1 && !hasAutoToken && activeIndices.Count >= 2;
+            var usedOnce = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int changed = 0;
+
+            foreach (int i in activeIndices)
+            {
+                var sc = project.Scenes[i];
+                string cur = (sc.TransitionSfx ?? "").Trim().Replace('/', '\\');
+                bool intoOutro = (i + 1 < project.Scenes.Count) &&
+                    (string.Equals(project.Scenes[i + 1].MediaType, "brand_outro", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(project.Scenes[i + 1].FileName, "__BRAND_OUTRO__", StringComparison.OrdinalIgnoreCase));
+
+                bool mustReplace = forceReshuffle
+                    || allWereIdentical
+                    || string.Equals(cur, AutoVariedTransitionSfxToken, StringComparison.OrdinalIgnoreCase)
+                    || recentWindow.Contains(cur, StringComparer.OrdinalIgnoreCase)
+                    || (freq.TryGetValue(cur, out int fCount) && fCount >= 2 && !usedOnce.Add(cur));
+
+                string finalSfx = cur;
+                if (mustReplace)
+                {
+                    finalSfx = PickDistinctForTransition(sc.Transition, intoOutro);
+                    if (!string.Equals(sc.TransitionSfx, finalSfx, StringComparison.OrdinalIgnoreCase))
+                    {
+                        sc.TransitionSfx = finalSfx;
+                        sc.ImpactSfx = "";
+                        sc.RiserSfx = "";
+                        changed++;
+                    }
+                }
+                else
+                {
+                    currentBag.RemoveAll(b => string.Equals(b.RelPath, finalSfx, StringComparison.OrdinalIgnoreCase));
+                }
+
+                recentWindow.Enqueue(finalSfx);
+                while (recentWindow.Count > windowCap)
+                    recentWindow.Dequeue();
+            }
+
+            // Also replace legacy monotonous trailer intro boom if project was all-identical legacy
+            if ((forceReshuffle || allWereIdentical) &&
+                string.Equals(project.IntroAccentSfx?.Replace('/', '\\'), @"Effekte_Akzente\Sub_Bass_Drop_Punch_06.wav", StringComparison.OrdinalIgnoreCase))
+            {
+                project.IntroAccentSfx = @"Uebergaenge_Studio\Dark_Luxury_Pulse_Cut_04.wav";
+            }
+
+            return changed;
+        }
+
+        private static string? _studioSfxInitializedRoot;
+        private static readonly object _studioSfxLock = new();
+
+        public static void EnsureCuratedStudioTransitionSfxPack()
+        {
+            string currentSoundsRoot = SoundsRoot;
+            if (string.Equals(_studioSfxInitializedRoot, currentSoundsRoot, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            lock (_studioSfxLock)
+            {
+                if (string.Equals(_studioSfxInitializedRoot, currentSoundsRoot, StringComparison.OrdinalIgnoreCase))
+                    return;
+                try
+                {
+                    string studioDir = Path.Combine(currentSoundsRoot, "Uebergaenge_Studio");
+                    EnsureNoReparsePointsInChain(currentSoundsRoot);
+                    Directory.CreateDirectory(studioDir);
+
+                    string versionMarker = Path.Combine(studioDir, ".studio_sfx_v2_diverse10");
+                    bool forceRebuild = !File.Exists(versionMarker);
+
+                    // 10 genuinely distinct physical/acoustic transition archetypes (48 kHz 16-bit Stereo)
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Silk_Air_Cut_Soft_01.wav"), archetype: 1, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Velvet_Sub_Whoosh_02.wav"), archetype: 2, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Cinema_Lens_Swish_03.wav"), archetype: 3, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Dark_Luxury_Pulse_Cut_04.wav"), archetype: 4, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Crystal_Air_Shimmer_05.wav"), archetype: 5, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Warm_Outro_Velvet_Bloom_06.wav"), archetype: 6, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Matte_Felt_Snap_07.wav"), archetype: 7, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Reverse_Vacuum_Pull_08.wav"), archetype: 8, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Analog_Tape_Flutter_09.wav"), archetype: 9, forceRebuild);
+                    SynthesizeDistinctStudioArchetypeWav(Path.Combine(studioDir, "Double_Whip_Micro_10.wav"), archetype: 10, forceRebuild);
+
+                    if (forceRebuild)
+                        File.WriteAllText(versionMarker, "v2-10-archetypes");
+
+                    _studioSfxInitializedRoot = currentSoundsRoot;
+                }
+                catch { }
+            }
+        }
+
+        private static void SynthesizeDistinctStudioArchetypeWav(string wavPath, int archetype, bool forceOverwrite)
+        {
+            if (!forceOverwrite && File.Exists(wavPath) && new FileInfo(wavPath).Length > 8192)
+                return;
+
+            double durationSec = archetype switch
+            {
+                1 => 0.54, // Silk Air Breeze L->R
+                2 => 0.66, // Pure Deep 808 Sub Drop
+                3 => 0.42, // Mechanical Camera Shutter + Lens Swish
+                4 => 0.62, // Double Heartbeat Thud
+                5 => 0.92, // Crystal Glass Harmonics
+                6 => 1.65, // Warm Velvet Chord Bloom (Outro)
+                7 => 0.36, // Matte Jewelry Box Felt Snap
+                8 => 0.58, // Reverse Vacuum Suction Pull
+                9 => 0.48, // Analog Tape Pitch-Flutter Cut
+                _ => 0.44  // Energetic Stereo Double-Whip
+            };
+
+            const int sr = 48000;
+            const short ch = 2;
+            const short bits = 16;
+            int n = Math.Max(4800, (int)Math.Round(durationSec * sr));
+            int dataBytes = n * ch * (bits / 8);
+
+            var rngL = new Random(archetype * 997 + 13);
+            var rngR = new Random(archetype * 997 + 41);
+
+            double lp1L = 0, lp2L = 0, hpPrevL = 0, hpOutL = 0;
+            double lp1R = 0, lp2R = 0, hpPrevR = 0, hpOutR = 0;
+            double phase1 = 0, phase2 = 0, phase3 = 0;
+
+            using var fs = new FileStream(wavPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            using var bw = new BinaryWriter(fs);
+
+            bw.Write(Encoding.ASCII.GetBytes("RIFF"));
+            bw.Write(36 + dataBytes);
+            bw.Write(Encoding.ASCII.GetBytes("WAVE"));
+            bw.Write(Encoding.ASCII.GetBytes("fmt "));
+            bw.Write(16);
+            bw.Write((short)1);
+            bw.Write(ch);
+            bw.Write(sr);
+            bw.Write(sr * ch * (bits / 8));
+            bw.Write((short)(ch * (bits / 8)));
+            bw.Write(bits);
+            bw.Write(Encoding.ASCII.GetBytes("data"));
+            bw.Write(dataBytes);
+
+            double dt = 1.0 / sr;
+            for (int i = 0; i < n; i++)
+            {
+                double t = i * dt;
+                double rawL = rngL.NextDouble() * 2.0 - 1.0;
+                double rawR = rngR.NextDouble() * 2.0 - 1.0;
+                double outL = 0.0, outR = 0.0;
+
+                switch (archetype)
+                {
+                    case 1: // Silk Air Breeze L->R (pure airy breath, zero heavy bass boom)
+                    {
+                        double peak = 0.22;
+                        double env = t <= peak ? Math.Pow(t / peak, 1.8) : Math.Pow(Math.Max(0, 1.0 - (t - peak) / (durationSec - peak)), 2.2);
+                        double cutoff = 550.0 + 2400.0 * env;
+                        double a = dt / ((1.0 / (2.0 * Math.PI * cutoff)) + dt);
+                        lp1L += a * (rawL - lp1L); lp2L += a * (lp1L - lp2L);
+                        lp1R += a * (rawR - lp1R); lp2R += a * (lp1R - lp2R);
+                        hpOutL = 0.94 * (hpOutL + lp2L - hpPrevL); hpPrevL = lp2L;
+                        hpOutR = 0.94 * (hpOutR + lp2R - hpPrevR); hpPrevR = lp2R;
+                        double pan = -0.55 + 1.10 * (t / durationSec);
+                        outL = hpOutL * env * 1.65 * Math.Sqrt(0.5 * (1.0 - pan));
+                        outR = hpOutR * env * 1.65 * Math.Sqrt(0.5 * (1.0 + pan));
+                        break;
+                    }
+                    case 2: // Deep 808 Sub Drop (pure warm sub-bass pitch drop, zero white-noise hiss)
+                    {
+                        double env = t < 0.025 ? (t / 0.025) : Math.Exp(-(t - 0.025) * 6.2);
+                        double hz = 36.0 + 78.0 * Math.Exp(-t * 14.0);
+                        phase1 += 2.0 * Math.PI * hz * dt;
+                        double body = (Math.Sin(phase1) + 0.18 * Math.Sin(phase1 * 2.0)) * env * 0.85;
+                        outL = body;
+                        outR = body;
+                        break;
+                    }
+                    case 3: // Mechanical Camera Shutter Click + Fast R->L Lens Swish
+                    {
+                        double click1 = t >= 0.14 && t < 0.162 ? Math.Exp(-(t - 0.14) * 260.0) * Math.Sin(2.0 * Math.PI * 1850.0 * (t - 0.14)) * 0.72 : 0.0;
+                        double click2 = t >= 0.178 && t < 0.205 ? Math.Exp(-(t - 0.178) * 220.0) * Math.Sin(2.0 * Math.PI * 1320.0 * (t - 0.178)) * 0.65 : 0.0;
+                        double swEnv = Math.Exp(-Math.Pow((t - 0.17) / 0.085, 2.0));
+                        double a = dt / ((1.0 / (2.0 * Math.PI * (400.0 + 2800.0 * swEnv))) + dt);
+                        lp1L += a * (rawL - lp1L); lp1R += a * (rawR - lp1R);
+                        double pan = 0.50 - 1.0 * Math.Clamp(t / durationSec, 0, 1);
+                        outL = click1 + click2 * 0.9 + lp1L * swEnv * 0.85 * (0.5 - 0.4 * pan);
+                        outR = click1 * 0.9 + click2 + lp1R * swEnv * 0.85 * (0.5 + 0.4 * pan);
+                        break;
+                    }
+                    case 4: // Double Heartbeat Thud (muted low da-dum luxury pulse)
+                    {
+                        double hit1 = t >= 0.04 && t < 0.24 ? Math.Exp(-(t - 0.04) * 19.0) * Math.Sin(2.0 * Math.PI * (76.0 - 24.0 * (t - 0.04)) * (t - 0.04)) * 0.58 : 0.0;
+                        double hit2 = t >= 0.21 && t < 0.58 ? Math.Exp(-(t - 0.21) * 11.5) * Math.Sin(2.0 * Math.PI * (64.0 - 22.0 * (t - 0.21)) * (t - 0.21)) * 0.86 : 0.0;
+                        outL = hit1 * 1.04 + hit2 * 0.98;
+                        outR = hit1 * 0.96 + hit2 * 1.02;
+                        break;
+                    }
+                    case 5: // Crystal Glass Shimmer (delicate Seelenfunke glass harmonics, reverse into cut at 0.34s)
+                    {
+                        double peak = 0.34;
+                        double env = t <= peak ? Math.Pow(t / peak, 2.6) : Math.Exp(-(t - peak) * 4.8);
+                        phase1 += 2.0 * Math.PI * 587.33 * dt; // D5
+                        phase2 += 2.0 * Math.PI * 880.00 * dt; // A5
+                        phase3 += 2.0 * Math.PI * 1318.5 * dt; // E6
+                        double chimeL = (0.52 * Math.Sin(phase1) + 0.30 * Math.Sin(phase2) + 0.14 * Math.Sin(phase3)) * env * 0.55;
+                        double chimeR = (0.48 * Math.Sin(phase1 + 0.25) + 0.34 * Math.Sin(phase2 - 0.2) + 0.16 * Math.Sin(phase3 + 0.4)) * env * 0.55;
+                        outL = chimeL;
+                        outR = chimeR;
+                        break;
+                    }
+                    case 6: // Warm Outro Velvet Bloom (deep warm pad chord swell)
+                    {
+                        double peak = 0.42;
+                        double env = t <= peak ? Math.Pow(t / peak, 2.0) : Math.Exp(-(t - peak) * 2.2);
+                        phase1 += 2.0 * Math.PI * 110.0 * dt;
+                        phase2 += 2.0 * Math.PI * 164.81 * dt;
+                        phase3 += 2.0 * Math.PI * 220.0 * dt;
+                        outL = (0.55 * Math.Sin(phase1) + 0.28 * Math.Sin(phase2) + 0.18 * Math.Sin(phase3)) * env * 0.68;
+                        outR = (0.55 * Math.Sin(phase1) + 0.30 * Math.Sin(phase2 + 0.3) + 0.20 * Math.Sin(phase3 - 0.25)) * env * 0.68;
+                        break;
+                    }
+                    case 7: // Matte Jewelry Box Felt Snap (crisp muted foley tap)
+                    {
+                        double tap = t >= 0.10 ? Math.Exp(-(t - 0.10) * 52.0) : 0.0;
+                        double a = dt / ((1.0 / (2.0 * Math.PI * 920.0)) + dt);
+                        lp1L += a * (rawL - lp1L); lp1R += a * (rawR - lp1R);
+                        phase1 += 2.0 * Math.PI * (145.0 * Math.Exp(-Math.Max(0, t - 0.10) * 35.0) + 48.0) * dt;
+                        double woody = t >= 0.10 ? Math.Sin(phase1) * Math.Exp(-(t - 0.10) * 32.0) * 0.68 : 0.0;
+                        outL = woody + lp1L * tap * 0.75;
+                        outR = woody + lp1R * tap * 0.75;
+                        break;
+                    }
+                    case 8: // Reverse Vacuum Suction Pull (exponential reverse rise + instant hard drop at 0.46s!)
+                    {
+                        double cutPt = 0.46;
+                        double env = t <= cutPt
+                            ? Math.Pow(t / cutPt, 3.6)
+                            : Math.Exp(-(t - cutPt) * 48.0);
+                        double cutoff = 160.0 + 2900.0 * Math.Pow(Math.Clamp(t / cutPt, 0, 1), 2.8);
+                        double a = dt / ((1.0 / (2.0 * Math.PI * cutoff)) + dt);
+                        lp1L += a * (rawL - lp1L); lp2L += a * (lp1L - lp2L);
+                        lp1R += a * (rawR - lp1R); lp2R += a * (lp1R - lp2R);
+                        phase1 += 2.0 * Math.PI * (44.0 + 95.0 * Math.Pow(Math.Clamp(t / cutPt, 0, 1), 2.2)) * dt;
+                        double sub = Math.Sin(phase1) * env * 0.45;
+                        outL = lp2L * env * 1.35 + sub;
+                        outR = lp2R * env * 1.35 + sub;
+                        break;
+                    }
+                    case 9: // Analog Tape Pitch-Flutter Cut
+                    {
+                        double env = Math.Exp(-Math.Pow((t - 0.21) / 0.11, 2.0));
+                        double flutterHz = 195.0 - 95.0 * Math.Clamp((t - 0.08) / 0.28, 0, 1) + 14.0 * Math.Sin(2.0 * Math.PI * 26.0 * t);
+                        phase1 += 2.0 * Math.PI * flutterHz * dt;
+                        double a = dt / ((1.0 / (2.0 * Math.PI * 1150.0)) + dt);
+                        lp1L += a * (rawL - lp1L); lp1R += a * (rawR - lp1R);
+                        outL = (Math.Sin(phase1) * 0.52 + lp1L * 0.55) * env;
+                        outR = (Math.Sin(phase1 + 0.35) * 0.52 + lp1R * 0.55) * env;
+                        break;
+                    }
+                    default: // 10: Energetic Stereo Double-Whip (L-swish then R-swish)
+                    {
+                        double w1 = Math.Exp(-Math.Pow((t - 0.13) / 0.055, 2.0));
+                        double w2 = Math.Exp(-Math.Pow((t - 0.26) / 0.065, 2.0));
+                        double a = dt / ((1.0 / (2.0 * Math.PI * (500.0 + 2600.0 * Math.Max(w1, w2)))) + dt);
+                        lp1L += a * (rawL - lp1L); lp1R += a * (rawR - lp1R);
+                        outL = lp1L * (w1 * 1.25 + w2 * 0.35);
+                        outR = lp1R * (w1 * 0.35 + w2 * 1.25);
+                        break;
+                    }
+                }
+
+                double tailGuard = t > durationSec - 0.025 ? Math.Clamp((durationSec - t) / 0.025, 0.0, 1.0) : 1.0;
+                short pcmL = (short)Math.Clamp(Math.Tanh(outL * tailGuard * 1.15) * 28000.0, short.MinValue + 64, short.MaxValue - 64);
+                short pcmR = (short)Math.Clamp(Math.Tanh(outR * tailGuard * 1.15) * 28000.0, short.MinValue + 64, short.MaxValue - 64);
+                bw.Write(pcmL);
+                bw.Write(pcmR);
+            }
+        }
+
         public static List<CraftSoundItem> ListSoundPool(string? categoryFilter = null)
         {
+            EnsureCuratedStudioTransitionSfxPack();
             var list = new List<CraftSoundItem>();
             string soundsRootFull = SoundsRoot;
             string licFile = Path.Combine(soundsRootFull, "LIZENZEN_GEWERBLICHE_NUTZUNG.json");
@@ -1103,7 +1666,12 @@ namespace FunkenwerkCraft
                 return info;
             }
 
-            string ffprobeExe = FindTrustedFfprobeExe();
+            string? ffprobeExe = TryFindTrustedFfprobeExe();
+            if (string.IsNullOrWhiteSpace(ffprobeExe))
+            {
+                return await ProbeMediaViaFfmpegBannerAsync(fi.FullName, info);
+            }
+
             var args = new[]
             {
                 "-v", "quiet",
@@ -1134,6 +1702,8 @@ namespace FunkenwerkCraft
                     {
                         info.Width = st.TryGetProperty("width", out var wp) ? wp.GetInt32() : 0;
                         info.Height = st.TryGetProperty("height", out var hp) ? hp.GetInt32() : 0;
+                        double rFps = 0;
+                        double avgFps = 0;
                         if (st.TryGetProperty("r_frame_rate", out var rfr))
                         {
                             string rate = rfr.GetString() ?? "30/1";
@@ -1142,9 +1712,23 @@ namespace FunkenwerkCraft
                                 double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double num) &&
                                 double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double den) && den > 0)
                             {
-                                info.Fps = Math.Round(num / den, 2);
+                                rFps = Math.Round(num / den, 2);
                             }
                         }
+                        if (st.TryGetProperty("avg_frame_rate", out var afr))
+                        {
+                            string rate = afr.GetString() ?? "";
+                            string[] parts = rate.Split('/');
+                            if (parts.Length == 2 &&
+                                double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double num) &&
+                                double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double den) && den > 0)
+                            {
+                                avgFps = Math.Round(num / den, 2);
+                            }
+                        }
+                        info.AvgFps = avgFps > 0.05 ? avgFps : rFps;
+                        info.Fps = (avgFps > 0.2 && avgFps < rFps * 0.92) ? avgFps : (rFps > 0 ? rFps : avgFps);
+                        info.IsVariableOrLowFps = info.Fps < 20.0 || (rFps > 0 && avgFps > 0 && Math.Abs(rFps - avgFps) > 1.8);
                         if (st.TryGetProperty("side_data_list", out var sdl) && sdl.ValueKind == JsonValueKind.Array)
                         {
                             foreach (var sd in sdl.EnumerateArray())
@@ -1159,6 +1743,45 @@ namespace FunkenwerkCraft
                         info.HasAudio = true;
                     }
                 }
+            }
+
+            return info;
+        }
+
+        private static async Task<CraftMediaInfo> ProbeMediaViaFfmpegBannerAsync(string fullPath, CraftMediaInfo info)
+        {
+            string ffmpegExe = FindTrustedFfmpegExe();
+            var (_, _, stdErr) = await RunProcessBoundedAsync(ffmpegExe, new[] { "-hide_banner", "-i", fullPath }, timeoutMs: 20000);
+
+            var durMatch = System.Text.RegularExpressions.Regex.Match(stdErr, @"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)");
+            if (durMatch.Success &&
+                int.TryParse(durMatch.Groups[1].Value, out int hh) &&
+                int.TryParse(durMatch.Groups[2].Value, out int mm) &&
+                double.TryParse(durMatch.Groups[3].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double ss))
+            {
+                info.DurationSec = Math.Round(hh * 3600 + mm * 60 + ss, 3);
+            }
+
+            var vidMatch = System.Text.RegularExpressions.Regex.Match(stdErr, @"Video:.*?,\s*(\d{2,5})x(\d{2,5})\b");
+            if (vidMatch.Success &&
+                int.TryParse(vidMatch.Groups[1].Value, out int w) &&
+                int.TryParse(vidMatch.Groups[2].Value, out int h))
+            {
+                info.Width = w;
+                info.Height = h;
+            }
+
+            var fpsMatch = System.Text.RegularExpressions.Regex.Match(stdErr, @"(\d+(?:\.\d+)?)\s*fps\b");
+            if (fpsMatch.Success && double.TryParse(fpsMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out double fpsVal))
+            {
+                info.Fps = fpsVal;
+                info.AvgFps = fpsVal;
+                info.IsVariableOrLowFps = fpsVal < 20.0;
+            }
+
+            if (stdErr.Contains("Audio:", StringComparison.OrdinalIgnoreCase))
+            {
+                info.HasAudio = true;
             }
 
             return info;
@@ -2476,7 +3099,7 @@ namespace FunkenwerkCraft
             psi.ArgumentList.Add("-i");
             psi.ArgumentList.Add("anullsrc=channel_layout=stereo:sample_rate=48000");
             psi.ArgumentList.Add("-vf");
-            psi.ArgumentList.Add("scale=out_color_matrix=bt709:out_range=tv,format=yuv420p");
+            psi.ArgumentList.Add($"scale=in_range=pc:out_color_matrix=bt709:out_range=tv,fps={fps}:round=near,settb=1/{fps},format=yuv420p");
             psi.ArgumentList.Add("-map");
             psi.ArgumentList.Add("0:v");
             psi.ArgumentList.Add("-map");
@@ -2746,6 +3369,10 @@ namespace FunkenwerkCraft
                 throw new InvalidOperationException("Das Projekt enthaelt noch keine Szenen zum Rendern.");
 
             string projDir = GetProjectDirectory(project.Name);
+            if (DiversifyProjectTransitionSfxIfMonotonous(project) > 0)
+            {
+                SaveProject(project);
+            }
             var (outW, outH) = ResolveDimensions(project.AspectRatio);
             int fps = Math.Clamp(project.Fps, 24, 60);
             double defaultTransDur = project.Scenes.Count > 1 ? Math.Clamp(project.TransitionDurationSec, 0.10, 1.20) : 0.0;
@@ -2929,17 +3556,24 @@ namespace FunkenwerkCraft
             CancellationToken ct)
         {
             string durStr = durSec.ToString("0.###", CultureInfo.InvariantCulture);
-            double slowFactor = Math.Clamp(slowMoFactor <= 0 ? 0.42 : slowMoFactor, 0.25, 0.90);
-            string normSpeed = isImage ? "linear" : (speedMode?.Trim().ToLowerInvariant() ?? "speed_ramp");
+            int exactTotalFrames = Math.Max(12, (int)Math.Round(durSec * fps));
+            double slowFactor = Math.Clamp(slowMoFactor <= 0 ? 0.50 : slowMoFactor, 0.25, 0.95);
+            string normSpeed = isImage ? "linear" : (speedMode?.Trim().ToLowerInvariant() ?? "linear");
             bool isContainBlur = string.Equals(fitMode, "contain_blur", StringComparison.OrdinalIgnoreCase);
-            bool nativeHighFps = mediaInfo.Fps >= 90.0;
 
+            // Prevent extreme slow-motion stutter/freeze on VFR or ultra-low-FPS smartphone screen/timelapse clips (< 18 fps)
+            if (!isImage && mediaInfo.Fps > 0.05 && mediaInfo.Fps < 18.0 && !keepSourceAudio)
+            {
+                normSpeed = "linear";
+            }
+
+            // Clean, halo-free Dark-Luxury cinema grade (zero post-vignette unsharp ringing or specular clipping on crystal glass)
             string gradeChain = string.Equals(colorGrade, "natural", StringComparison.OrdinalIgnoreCase)
                 ? "setsar=1"
-                : "eq=contrast=1.11:brightness=-0.028:saturation=1.08,colorbalance=rs=0.015:gs=0.0:bs=-0.025:rh=0.055:gh=0.022:bh=-0.042,vignette=PI/5.6,unsharp=5:5:0.52:5:5:0.0,setsar=1";
+                : "eq=contrast=1.06:brightness=-0.015:saturation=1.05,colorbalance=rs=0.010:gs=0.0:bs=-0.015:rh=0.032:gh=0.014:bh=-0.024,vignette=PI/6.5,setsar=1";
 
             double readStartSec = startSec;
-            double readDurSec = durSec + 0.35;
+            double readDurSec = durSec + 0.50;
             string baseVideoFilter;
             string audioFilter;
             string volStr = Math.Clamp(sourceAudioVol, 0.0, 1.5).ToString("0.##", CultureInfo.InvariantCulture);
@@ -2948,6 +3582,9 @@ namespace FunkenwerkCraft
             string scaleCropFilter = isContainBlur
                 ? $"split=2[bgsrc][fgsrc];[bgsrc]scale={outW}:{outH}:force_original_aspect_ratio=increase:flags=bilinear,crop={outW}:{outH},boxblur=28:4,eq=brightness=-0.18:saturation=0.82[bg];[fgsrc]scale={outW}:{outH}:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1"
                 : $"scale={outW}:{outH}:force_original_aspect_ratio=increase:flags=lanczos,crop={outW}:{outH},setsar=1";
+
+            // Pure optical CFR cadenceizer: ZERO minterpolate (no block-morphing/liquid streaks!) and ZERO tmix (no ghost trails!)
+            string cfrLock = $"fps={fps}:round=near,tpad=stop_mode=clone:stop_duration=0.45,trim=0:{durStr},setpts=PTS-STARTPTS,settb=1/{fps}";
 
             if (isImage)
             {
@@ -2958,29 +3595,31 @@ namespace FunkenwerkCraft
                 if (isContainBlur)
                 {
                     baseVideoFilter =
-                        $"[0:v]{scaleCropFilter},trim=0:{durStr},setpts=PTS-STARTPTS,{gradeChain}{endDip},format=yuv420p[vraw]";
+                        $"[0:v]{scaleCropFilter},{cfrLock},{gradeChain}{endDip},format=yuv420p[vraw]";
                 }
                 else
                 {
-                    int totalFrames = Math.Max(24, (int)Math.Round(durSec * fps));
-                    int preW = ((int)(outW * 1.18) / 2) * 2;
-                    int preH = ((int)(outH * 1.18) / 2) * 2;
+                    // 2.4x Lanczos supersampling eliminates zoompan integer-coordinate stair-step shimmer completely
+                    int preW = ((int)(outW * 2.40) / 2) * 2;
+                    int preH = ((int)(outH * 2.40) / 2) * 2;
                     baseVideoFilter =
                         $"[0:v]trim=end_frame=1,scale={preW}:{preH}:force_original_aspect_ratio=increase:flags=lanczos,crop={preW}:{preH}," +
-                        $"zoompan=z='min(zoom+0.00072,1.12)':d={totalFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={outW}x{outH}:fps={fps}," +
-                        $"{gradeChain}{endDip},format=yuv420p[vraw]";
+                        $"zoompan=z='min(zoom+0.00055,1.09)':d={exactTotalFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={outW}x{outH}:fps={fps}," +
+                        $"setpts=PTS-STARTPTS,settb=1/{fps},{gradeChain}{endDip},format=yuv420p[vraw]";
                 }
                 audioFilter = nullAudioFilter;
             }
             else if (normSpeed == "speed_ramp" && durSec >= 1.4)
             {
-                double whipOutDur = Math.Min(0.26, durSec * 0.13);
+                double whipOutDur = Math.Min(0.24, durSec * 0.12);
                 double slowHeroOutDur = Math.Max(0.60, durSec - 2.0 * whipOutDur);
-                double fastMul = 2.40;
+                double fastMul = 1.85;
+                // Clamp slowFactor gently on 24/30fps footage so motion remains crisp & fluid without optical-flow artifacts
+                double safeSlow = mediaInfo.Fps >= 50.0 ? slowFactor : Math.Max(slowFactor, 0.58);
 
                 double src1 = whipOutDur * fastMul;
-                double src2 = slowHeroOutDur * slowFactor;
-                double src3 = (whipOutDur + 0.08) * fastMul;
+                double src2 = slowHeroOutDur * safeSlow;
+                double src3 = (whipOutDur + 0.12) * fastMul;
                 double neededSrc = src1 + src2 + src3;
 
                 if (mediaInfo.DurationSec > 0.6)
@@ -2995,33 +3634,29 @@ namespace FunkenwerkCraft
                         src1 *= ratio;
                         src2 *= ratio;
                         src3 *= ratio;
-                        fastMul = Math.Max(1.15, src1 / whipOutDur);
-                        slowFactor = Math.Clamp(src2 / slowHeroOutDur, 0.25, 0.95);
+                        fastMul = Math.Max(1.10, src1 / whipOutDur);
+                        safeSlow = Math.Clamp(src2 / slowHeroOutDur, 0.30, 0.98);
                     }
                 }
-                readDurSec = src1 + src2 + src3 + 0.20;
+                readDurSec = src1 + src2 + src3 + 0.35;
 
                 string t1End = src1.ToString("0.###", CultureInfo.InvariantCulture);
                 string t2End = (src1 + src2).ToString("0.###", CultureInfo.InvariantCulture);
                 string t3End = (src1 + src2 + src3).ToString("0.###", CultureInfo.InvariantCulture);
                 string fastStr = fastMul.ToString("0.###", CultureInfo.InvariantCulture);
-                string slowStr = slowFactor.ToString("0.###", CultureInfo.InvariantCulture);
-
-                string slowInterp = nativeHighFps
-                    ? $"fps={fps}"
-                    : $"minterpolate=fps={fps}:mi_mode=mci:mc_mode=obmc:me_mode=bilat:scd=none";
+                string slowStr = safeSlow.ToString("0.###", CultureInfo.InvariantCulture);
 
                 baseVideoFilter =
                     $"[0:v]{scaleCropFilter},split=3[s1][s2][s3];" +
-                    $"[s1]trim=0:{t1End},setpts=(PTS-STARTPTS)/{fastStr},tmix=frames=3:weights='1 2 1',fps={fps}[v1];" +
-                    $"[s2]trim={t1End}:{t2End},setpts=(PTS-STARTPTS)/{slowStr},{slowInterp}[v2];" +
-                    $"[s3]trim={t2End}:{t3End},setpts=(PTS-STARTPTS)/{fastStr},tmix=frames=3:weights='1 2 1',fps={fps}[v3];" +
-                    $"[v1][v2][v3]concat=n=3:v=1:a=0,trim=0:{durStr},setpts=PTS-STARTPTS,{gradeChain},format=yuv420p[vraw]";
+                    $"[s1]trim=0:{t1End},setpts=(PTS-STARTPTS)/{fastStr},fps={fps}:round=near,settb=1/{fps}[v1];" +
+                    $"[s2]trim={t1End}:{t2End},setpts=(PTS-STARTPTS)/{slowStr},fps={fps}:round=near,settb=1/{fps}[v2];" +
+                    $"[s3]trim={t2End}:{t3End},setpts=(PTS-STARTPTS)/{fastStr},fps={fps}:round=near,settb=1/{fps}[v3];" +
+                    $"[v1][v2][v3]concat=n=3:v=1:a=0,{cfrLock},{gradeChain},format=yuv420p[vraw]";
 
                 if (keepSourceAudio)
                 {
                     string fastAtempo = BuildAtempoChain(fastMul);
-                    string slowAtempo = BuildAtempoChain(slowFactor);
+                    string slowAtempo = BuildAtempoChain(safeSlow);
                     audioFilter =
                         $"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,asplit=3[as1][as2][as3];" +
                         $"[as1]atrim=0:{t1End},asetpts=PTS-STARTPTS,{fastAtempo}[a1];" +
@@ -3045,14 +3680,11 @@ namespace FunkenwerkCraft
                     if (avail < neededSrc)
                         slowFactor = Math.Clamp((avail * 0.95) / (durSec + 0.08), 0.25, 1.0);
                 }
-                readDurSec = (durSec + 0.15) * slowFactor + 0.15;
+                readDurSec = (durSec + 0.25) * slowFactor + 0.25;
                 string slowStr = slowFactor.ToString("0.###", CultureInfo.InvariantCulture);
-                string slowInterp = nativeHighFps
-                    ? $"fps={fps}"
-                    : $"minterpolate=fps={fps}:mi_mode=mci:mc_mode=obmc:me_mode=bilat:scd=none";
 
                 baseVideoFilter =
-                    $"[0:v]{scaleCropFilter},setpts=(PTS-STARTPTS)/{slowStr},{slowInterp},trim=0:{durStr},setpts=PTS-STARTPTS,{gradeChain},format=yuv420p[vraw]";
+                    $"[0:v]{scaleCropFilter},setpts=(PTS-STARTPTS)/{slowStr},{cfrLock},{gradeChain},format=yuv420p[vraw]";
 
                 if (keepSourceAudio)
                 {
@@ -3069,9 +3701,9 @@ namespace FunkenwerkCraft
             {
                 if (mediaInfo.DurationSec > 0.6 && readStartSec + durSec > mediaInfo.DurationSec)
                     readStartSec = Math.Max(0.0, mediaInfo.DurationSec - durSec);
-                readDurSec = durSec + 0.15;
+                readDurSec = durSec + 0.35;
                 baseVideoFilter =
-                    $"[0:v]fps={fps},{scaleCropFilter},trim=0:{durStr},setpts=PTS-STARTPTS,{gradeChain},format=yuv420p[vraw]";
+                    $"[0:v]{scaleCropFilter},{cfrLock},{gradeChain},format=yuv420p[vraw]";
 
                 audioFilter = keepSourceAudio
                     ? $"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={volStr},apad=whole_dur={durStr},atrim=0:{durStr},asetpts=PTS-STARTPTS[aout]"
@@ -3081,10 +3713,10 @@ namespace FunkenwerkCraft
             string rackFocusFilter;
             if (velvetOutroMelt && durSec >= 1.5)
             {
-                string blurSt = Math.Max(0.2, durSec - 0.92).ToString("0.###", CultureInfo.InvariantCulture);
+                string blurSt = Math.Max(0.2, durSec - 0.85).ToString("0.###", CultureInfo.InvariantCulture);
                 rackFocusFilter =
                     $"[vraw]split=2[vsharp][vsoftsrc];" +
-                    $"[vsoftsrc]gblur=sigma=18,eq=brightness=-0.10,format=rgba,fade=t=in:st={blurSt}:d=0.82:alpha=1[vsoft];" +
+                    $"[vsoftsrc]gblur=sigma=14,eq=brightness=-0.08,format=rgba,fade=t=in:st={blurSt}:d=0.75:alpha=1[vsoft];" +
                     $"[vsharp][vsoft]overlay=0:0:format=auto,format=yuv420p[vbase]";
             }
             else
@@ -3092,12 +3724,12 @@ namespace FunkenwerkCraft
                 rackFocusFilter = "[vraw]null[vbase]";
             }
 
-            string ovFadeIn = (normSpeed == "speed_ramp" ? 0.20 : 0.12).ToString("0.###", CultureInfo.InvariantCulture);
-            string ovFadeOut = Math.Max(0.32, durSec - (velvetOutroMelt ? 0.85 : 0.30)).ToString("0.###", CultureInfo.InvariantCulture);
+            string ovFadeIn = (normSpeed == "speed_ramp" ? 0.18 : 0.12).ToString("0.###", CultureInfo.InvariantCulture);
+            string ovFadeOut = Math.Max(0.32, durSec - (velvetOutroMelt ? 0.80 : 0.28)).ToString("0.###", CultureInfo.InvariantCulture);
 
             string overlayFilter =
-                $"[1:v]format=rgba,fade=t=in:st={ovFadeIn}:d=0.26:alpha=1,fade=t=out:st={ovFadeOut}:d=0.24:alpha=1[ov];" +
-                $"[vbase][ov]overlay=0:0:format=auto,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p[vout]";
+                $"[1:v]format=rgba,fade=t=in:st={ovFadeIn}:d=0.24:alpha=1,fade=t=out:st={ovFadeOut}:d=0.22:alpha=1[ov];" +
+                $"[vbase][ov]overlay=0:0:format=auto,scale=in_range=auto:out_color_matrix=bt709:out_range=tv,fps={fps}:round=near,settb=1/{fps},format=yuv420p[vout]";
 
             string fullComplex = $"{baseVideoFilter};{rackFocusFilter};{overlayFilter};{audioFilter}";
             string mkvPath = Path.ChangeExtension(outSegMp4, ".mkv");
@@ -3187,6 +3819,7 @@ namespace FunkenwerkCraft
             string stagedMp4,
             CancellationToken ct)
         {
+            EnsureCuratedStudioTransitionSfxPack();
             int n = segPaths.Count;
             string projDir = GetProjectDirectory(project.Name);
 
@@ -3227,7 +3860,9 @@ namespace FunkenwerkCraft
 
             int nextInputIdx = n;
             int? musicInputIdx = null;
-            string? musicFull = ResolveSafeAudioPath(project.BackgroundMusic, projDir, requireExists: true);
+            string? musicFull = project.MusicVolume > 0.005
+                ? ResolveSafeAudioPath(project.BackgroundMusic, projDir, requireExists: true)
+                : null;
             if (!string.IsNullOrWhiteSpace(musicFull))
             {
                 if (project.MusicStartSec > 0.02)
@@ -3244,26 +3879,40 @@ namespace FunkenwerkCraft
                 musicInputIdx = nextInputIdx++;
             }
 
-            var sfxEvents = new List<(int InputIdx, int DelayMs, double MaxPlaySec, double FadeOutSec, double Gain)>();
+            var sfxEvents = new List<(int InputIdx, int DelayMs, double MaxPlaySec, double FadeInSec, double FadeOutSec, double Gain, bool FlipStereo)>();
 
-            void SchedulePeakAlignedSfx(string? relOrFull, double targetPeakTimelineSec, double gainMul, bool hardCutAfterPeak = false, double maxTailAfterPeak = 2.6)
+            void SchedulePeakAlignedSfx(
+                string? relOrFull,
+                double targetPeakTimelineSec,
+                double gainMul,
+                bool hardCutAfterPeak = false,
+                double maxLeadBeforePeak = 1.6,
+                double maxTailAfterPeak = 2.2,
+                bool flipStereo = false)
             {
                 string? full = ResolveSafeAudioPath(relOrFull, projDir, requireExists: true);
                 if (string.IsNullOrWhiteSpace(full)) return;
 
                 var (peakSec, fileDur) = GetAudioPeakEnvelopeInfo(full, projDir);
-                double alignedPeak = Math.Min(peakSec, 3.2);
-                double startTimelineSec = targetPeakTimelineSec - alignedPeak;
                 double trimInFile = 0.0;
+                double effectivePeak = peakSec;
+                if (effectivePeak > maxLeadBeforePeak)
+                {
+                    trimInFile = effectivePeak - maxLeadBeforePeak;
+                    effectivePeak = maxLeadBeforePeak;
+                }
+
+                double startTimelineSec = targetPeakTimelineSec - effectivePeak;
                 if (startTimelineSec < 0.0)
                 {
-                    trimInFile = -startTimelineSec;
+                    trimInFile += -startTimelineSec;
+                    effectivePeak = Math.Max(0.02, effectivePeak + startTimelineSec);
                     startTimelineSec = 0.0;
                 }
 
                 double playDur = hardCutAfterPeak
-                    ? Math.Max(0.15, (alignedPeak - trimInFile) + 0.08)
-                    : Math.Min(Math.Max(0.25, fileDur - trimInFile), Math.Max(0.4, (alignedPeak - trimInFile) + maxTailAfterPeak));
+                    ? Math.Max(0.15, effectivePeak + 0.08)
+                    : Math.Min(Math.Max(0.22, fileDur - trimInFile), Math.Max(0.28, effectivePeak + maxTailAfterPeak));
 
                 if (trimInFile > 0.02)
                 {
@@ -3276,14 +3925,15 @@ namespace FunkenwerkCraft
                 args.Add(full);
 
                 int delayMs = Math.Max(0, (int)Math.Round(startTimelineSec * 1000.0));
-                double fadeOut = hardCutAfterPeak ? 0.06 : Math.Min(0.85, playDur * 0.35);
-                sfxEvents.Add((nextInputIdx++, delayMs, playDur, fadeOut, project.SfxVolume * gainMul));
+                double fadeIn = trimInFile > 0.02 ? Math.Min(0.045, playDur * 0.18) : 0.0;
+                double fadeOut = hardCutAfterPeak ? 0.05 : Math.Min(0.45, playDur * 0.36);
+                sfxEvents.Add((nextInputIdx++, delayMs, playDur, fadeIn, fadeOut, project.SfxVolume * gainMul, flipStereo));
             }
 
             // 1. Cold-Open Intro Sub-Pulse right at frame 0 (0.04s)
-            SchedulePeakAlignedSfx(project.IntroAccentSfx, 0.04, 0.88, hardCutAfterPeak: false, maxTailAfterPeak: 2.0);
+            SchedulePeakAlignedSfx(project.IntroAccentSfx, 0.04, 0.85, hardCutAfterPeak: false, maxLeadBeforePeak: 0.25, maxTailAfterPeak: 0.85);
 
-            // 2. Beat-Locked Transition / Riser / Impact SFX per cut
+            // 2. Beat-Locked Varied Transition / Riser / Impact SFX per cut (crisp lead-in & tight decay so cuts never muddy!)
             var sb = new StringBuilder();
             for (int k = 1; k < n; k++)
             {
@@ -3291,69 +3941,75 @@ namespace FunkenwerkCraft
                 double td = cutTransDurs[k - 1];
                 double cutCenter = offset + (td * 0.5);
                 var prevScene = project.Scenes[k - 1];
+                bool alternateStereo = (k % 2 == 0);
 
                 if (!string.IsNullOrWhiteSpace(prevScene.RiserSfx))
-                    SchedulePeakAlignedSfx(prevScene.RiserSfx, cutCenter - 0.02, 0.75, hardCutAfterPeak: true);
+                    SchedulePeakAlignedSfx(prevScene.RiserSfx, cutCenter - 0.02, 0.72, hardCutAfterPeak: true, maxLeadBeforePeak: 0.75, maxTailAfterPeak: 0.10, flipStereo: alternateStereo);
 
                 if (!string.IsNullOrWhiteSpace(prevScene.TransitionSfx))
-                    SchedulePeakAlignedSfx(prevScene.TransitionSfx, cutCenter, 0.86, hardCutAfterPeak: false, maxTailAfterPeak: 1.6);
+                    SchedulePeakAlignedSfx(prevScene.TransitionSfx, cutCenter, 0.86, hardCutAfterPeak: false, maxLeadBeforePeak: 0.38, maxTailAfterPeak: 0.65, flipStereo: alternateStereo);
 
                 if (!string.IsNullOrWhiteSpace(prevScene.ImpactSfx))
-                    SchedulePeakAlignedSfx(prevScene.ImpactSfx, cutCenter + 0.02, 0.84, hardCutAfterPeak: false, maxTailAfterPeak: 2.0);
+                    SchedulePeakAlignedSfx(prevScene.ImpactSfx, cutCenter + 0.02, 0.82, hardCutAfterPeak: false, maxLeadBeforePeak: 0.18, maxTailAfterPeak: 0.85, flipStereo: alternateStereo);
             }
 
             // 3. Mystical Outro Swell & Crystal Harmonics on the final reveal dissolve
             if (n >= 2 && !string.IsNullOrWhiteSpace(project.OutroAccentSfx))
             {
                 double finalCutCenter = cutOffsets.Last() + (cutTransDurs.Last() * 0.5);
-                SchedulePeakAlignedSfx(project.OutroAccentSfx, finalCutCenter, 0.92, hardCutAfterPeak: false, maxTailAfterPeak: 3.4);
+                SchedulePeakAlignedSfx(project.OutroAccentSfx, finalCutCenter, 0.90, hardCutAfterPeak: false, maxLeadBeforePeak: 0.55, maxTailAfterPeak: 2.2);
             }
 
-            // 4. Build Cinema Video Transition Chain (with per-cut custom smoothness)
+            // 4. Build Streak-Free Cinema Video Transition Chain (strictly CFR + uniform 1/fps timebase; zero zoomin/hblur smearing!)
             if (n == 1)
             {
-                sb.Append("[0:v]null[vmaster];[0:a]anull[aseg];");
+                sb.Append($"[0:v]fps={fps}:round=near,settb=1/{fps},setsar=1,format=yuv420p[vmaster];[0:a]anull[aseg];");
             }
             else
             {
-                string prevV = "0:v";
+                for (int k = 0; k < n; k++)
+                {
+                    sb.Append($"[{k}:v]fps={fps}:round=near,settb=1/{fps},setsar=1,format=yuv420p[vn{k}];");
+                }
+
+                string prevV = "vn0";
                 string prevA = "0:a";
 
                 for (int k = 1; k < n; k++)
                 {
-                    string rawTr = project.Scenes[k - 1].Transition?.Trim().ToLowerInvariant() ?? "whip_zoom";
+                    string rawTr = project.Scenes[k - 1].Transition?.Trim().ToLowerInvariant() ?? "velvet_dissolve";
+                    // NOTE: Map legacy whip_zoom -> fadefast and whip_pan -> smoothleft to eliminate FFmpeg zoomin/hblur pixel-stretching streaks!
                     string xfadeName = rawTr switch
                     {
-                        "whip_zoom" or "zoom_in" or "zoomin" => "zoomin",
-                        "whip_pan" or "hblur" => "hblur",
-                        "dark_cut" or "fadeblack" => "fadeblack",
                         "velvet_dissolve" or "dissolve" or "fade" => "fade",
-                        "flash_cut" or "fadefast" => "fadefast",
-                        "flash_white" or "fadewhite" => "fadewhite",
+                        "dark_cut" or "fadeblack" => "fadeblack",
+                        "whip_zoom" or "flash_cut" or "fadefast" or "zoom_in" or "zoomin" => "fadefast",
+                        "whip_pan" or "smoothleft" or "hblur" => "smoothleft",
                         "smoothup" => "smoothup",
-                        "smoothleft" => "smoothleft",
-                        _ => "zoomin"
+                        "circleopen" or "iris" => "circleopen",
+                        "flash_white" or "fadewhite" => "fadewhite",
+                        _ => "fade"
                     };
                     string tdStr = cutTransDurs[k - 1].ToString("0.###", CultureInfo.InvariantCulture);
                     string offStr = cutOffsets[k - 1].ToString("0.###", CultureInfo.InvariantCulture);
                     string outV = (k == n - 1) ? "vmaster" : $"vx{k}";
                     string outA = (k == n - 1) ? "aseg" : $"ax{k}";
 
-                    sb.Append($"[{prevV}][{k}:v]xfade=transition={xfadeName}:duration={tdStr}:offset={offStr}[{outV}];");
+                    sb.Append($"[{prevV}][vn{k}]xfade=transition={xfadeName}:duration={tdStr}:offset={offStr}[{outV}];");
                     sb.Append($"[{prevA}][{k}:a]acrossfade=d={tdStr}:c1=tri:c2=tri[{outA}];");
                     prevV = outV;
                     prevA = outA;
                 }
             }
 
-            // 5. Build Cinema Multi-Bus Audio Mix + Broadcast Mastering (-14.5 LUFS, -1.2 dBTP)
+            // 5. Build Cinema Multi-Bus Audio Mix (SFX-Only Clean True-Peak Mastering + Optional Subtle Suno Music Bed)
             var mixInputs = new List<string> { "[aseg]" };
 
             if (musicInputIdx.HasValue)
             {
                 string mVol = Math.Clamp(project.MusicVolume, 0.0, 1.5).ToString("0.##", CultureInfo.InvariantCulture);
-                string fadeOutSt = Math.Max(0.2, totalVideoDur - 0.85).ToString("0.###", CultureInfo.InvariantCulture);
-                sb.Append($"[{musicInputIdx.Value}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={mVol},afade=t=in:st=0:d=0.14,afade=t=out:st={fadeOutSt}:d=0.80,atrim=0:{totalDurStr},asetpts=PTS-STARTPTS[amusic];");
+                string fadeOutSt = Math.Max(0.2, totalVideoDur - 0.95).ToString("0.###", CultureInfo.InvariantCulture);
+                sb.Append($"[{musicInputIdx.Value}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={mVol},afade=t=in:st=0:d=0.25,afade=t=out:st={fadeOutSt}:d=0.90,atrim=0:{totalDurStr},asetpts=PTS-STARTPTS[amusic];");
                 mixInputs.Add("[amusic]");
             }
 
@@ -3361,19 +4017,22 @@ namespace FunkenwerkCraft
             {
                 var ev = sfxEvents[s];
                 string gStr = Math.Clamp(ev.Gain, 0.05, 1.6).ToString("0.##", CultureInfo.InvariantCulture);
+                string fiChain = ev.FadeInSec > 0.005 ? $",afade=t=in:st=0:d={ev.FadeInSec.ToString("0.###", CultureInfo.InvariantCulture)}" : "";
+                string panChain = ev.FlipStereo ? ",pan=stereo|c0=c1|c1=c0" : "";
                 string foStart = Math.Max(0.02, ev.MaxPlaySec - ev.FadeOutSec).ToString("0.###", CultureInfo.InvariantCulture);
                 string foDur = Math.Max(0.04, ev.FadeOutSec).ToString("0.###", CultureInfo.InvariantCulture);
-                sb.Append($"[{ev.InputIdx}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=out:st={foStart}:d={foDur},volume={gStr},adelay={ev.DelayMs}|{ev.DelayMs}[asfx{s}];");
+                sb.Append($"[{ev.InputIdx}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,highpass=f=30{panChain}{fiChain},afade=t=out:st={foStart}:d={foDur},volume={gStr},adelay={ev.DelayMs}|{ev.DelayMs}[asfx{s}];");
                 mixInputs.Add($"[asfx{s}]");
             }
 
             if (mixInputs.Count == 1)
             {
-                sb.Append($"[aseg]loudnorm=I=-15:TP=-1.2:LRA=10,atrim=0:{totalDurStr},asetpts=PTS-STARTPTS[amaster]");
+                sb.Append($"[aseg]alimiter=limit=0.89:level=false:attack=5:release=60,atrim=0:{totalDurStr},asetpts=PTS-STARTPTS[amaster]");
             }
             else
             {
-                sb.Append($"{string.Join("", mixInputs)}amix=inputs={mixInputs.Count}:duration=longest:dropout_transition=0:normalize=0,acompressor=threshold=-12dB:ratio=2.2:attack=8:release=110,loudnorm=I=-14.5:TP=-1.2:LRA=9,atrim=0:{totalDurStr},asetpts=PTS-STARTPTS[amaster]");
+                // Preserve exact user-selected subtle music level & clean transient SFX dynamics without loudnorm pumping silence!
+                sb.Append($"{string.Join("", mixInputs)}amix=inputs={mixInputs.Count}:duration=longest:dropout_transition=0:normalize=0,alimiter=limit=0.89:level=false:attack=5:release=60,atrim=0:{totalDurStr},asetpts=PTS-STARTPTS[amaster]");
             }
 
             args.Add("-filter_complex");
@@ -3385,19 +4044,23 @@ namespace FunkenwerkCraft
             args.Add("-t");
             args.Add(totalDurStr);
 
-            // Strict WhatsApp / Instagram Reels / TikTok / Windows Explorer H.264 Main + AAC faststart compliance
+            // High-Profile H.264 (8x8 DCT, CRF 15, clean BT.709, +faststart) for razor-sharp Social Media & Desktop playback
             args.Add("-c:v");
             args.Add("libx264");
             args.Add("-preset");
             args.Add("medium");
             args.Add("-crf");
-            args.Add("16");
+            args.Add("15");
             args.Add("-aq-mode");
             args.Add("3");
             args.Add("-aq-strength");
-            args.Add("1.15");
+            args.Add("1.05");
             args.Add("-profile:v");
-            args.Add("main");
+            args.Add("high");
+            args.Add("-bf");
+            args.Add("2");
+            args.Add("-g");
+            args.Add((fps * 2).ToString(CultureInfo.InvariantCulture));
             args.Add("-pix_fmt");
             args.Add("yuv420p");
             args.Add("-color_range");

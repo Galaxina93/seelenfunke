@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261118v10';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261120v36';
 
     function ensurePrewarmRegistryAndRegister(audioEl) {
         if (!audioEl || typeof window === 'undefined') return audioEl;
@@ -458,8 +458,11 @@
             volume: 5,
             cameraSensitivity: 100,
             useRealName: false,
-            graphicsQuality: 'high'
+            graphicsQuality: 'high',
+            characterGender: 'male',
+            skyTimeMode: 'auto'
         };
+        this.characterPickerOpen = false;
         this.keybindings = {
             jump: 'Space',
             moveForward: 'KeyW',
@@ -512,6 +515,8 @@
                     self._setSanctumGateOpen(false);
                 } else if (self.outerGateModalOpen) {
                     self._setOuterGateModalOpen(false);
+                } else if (self.characterPickerOpen) {
+                    self._setCharacterPickerOpen(false);
                 } else if (self.settingsOpen) {
                     self._setSettingsOpen(false);
                 } else if (self.instanceMenuOpen) {
@@ -643,6 +648,7 @@
             '    </div>',
             '    <div class="sf-lobby-nav-pill">',
             '      <span data-lobby-current-zone-badge data-testid="lobby-current-zone-badge" class="sf-lobby-zone-badge">🛍️ Kollektion</span>',
+            '      <button type="button" data-lobby-char-btn data-testid="lobby-char-switch-btn" class="sf-lobby-stages-btn">✦ Funki</button>',
             '      <button type="button" data-lobby-stages-btn data-testid="lobby-stages-preview-btn" class="sf-lobby-stages-btn" style="display:none;">✨ Stufen</button>',
             '    </div>',
             '  </div>',
@@ -752,6 +758,28 @@
             '      <div data-sanctum-cta-wrap></div>',
             '    </div>',
             '  </div>',
+            '  <div data-lobby-char-modal data-testid="lobby-character-picker-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
+            '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Charakter wählen" style="max-width:360px;">',
+            '      <div class="sf-lobby-settings-head">',
+            '        <h3 class="sf-lobby-settings-title"><span style="color:#C5A059;">✦</span><span>Charakter wählen</span></h3>',
+            '        <button type="button" data-lobby-char-close style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;" aria-label="Schließen">&times;</button>',
+            '      </div>',
+            '      <div class="sf-lobby-char-grid">',
+            '        <button type="button" data-lobby-char-card="male" data-testid="lobby-char-select-male" class="sf-lobby-char-card is-selected">',
+            '          <span data-lobby-char-chk="male" class="sf-lobby-char-check">&#10003;</span>',
+            '          <span class="sf-lobby-char-emblem" aria-hidden="true"><svg width="42" height="42" viewBox="0 0 48 48" fill="none"><path d="M24 5L28 13H20L24 5Z" fill="#C5A059"/><circle cx="24" cy="25" r="14" fill="#171C26" stroke="#C5A059" stroke-width="2"/><rect x="13" y="19" width="22" height="11" rx="5.5" fill="#0B101B" stroke="#C5A059" stroke-width="1.3"/><ellipse cx="19" cy="24" rx="2.4" ry="2.8" fill="#FAF8F5"/><ellipse cx="29" cy="24" rx="2.4" ry="2.8" fill="#FAF8F5"/><path d="M20.5 27.6Q24 29.8 27.5 27.6" stroke="#F4D58D" stroke-width="1.8" stroke-linecap="round"/></svg></span>',
+            '          <span class="sf-lobby-char-name">Männlich</span>',
+            '          <span class="sf-lobby-char-tag">Starter · Barfuß</span>',
+            '        </button>',
+            '        <button type="button" data-lobby-char-card="female" data-testid="lobby-char-select-female" class="sf-lobby-char-card">',
+            '          <span data-lobby-char-chk="female" class="sf-lobby-char-check" style="display:none;">&#10003;</span>',
+            '          <span class="sf-lobby-char-emblem" aria-hidden="true"><svg width="42" height="42" viewBox="0 0 48 48" fill="none"><path d="M16 13L20 8L24 11L28 8L32 13" stroke="#C5A059" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="25" r="13.5" fill="#F6F2EA" stroke="#C5A059" stroke-width="2"/><rect x="13.5" y="19" width="21" height="11" rx="5.5" fill="#0B101B" stroke="#C5A059" stroke-width="1.3"/><ellipse cx="19" cy="24" rx="2.4" ry="2.9" fill="#FAF8F5"/><ellipse cx="29" cy="24" rx="2.4" ry="2.9" fill="#FAF8F5"/><path d="M16.2 21.6L14.8 20.5M31.8 21.6L33.2 20.5" stroke="#F4D58D" stroke-width="1.5" stroke-linecap="round"/><path d="M20.5 27.6Q24 30.1 27.5 27.6" stroke="#F4D58D" stroke-width="1.8" stroke-linecap="round"/></svg></span>',
+            '          <span class="sf-lobby-char-name">Weiblich</span>',
+            '          <span class="sf-lobby-char-tag">Starter · Barfuß</span>',
+            '        </button>',
+            '      </div>',
+            '    </div>',
+            '  </div>',
             '  <div data-lobby-settings-modal data-testid="lobby-settings-modal" class="sf-lobby-settings-backdrop" style="display:none;">',
             '    <div class="sf-lobby-settings-card" role="dialog" aria-label="Einstellungen">',
             '      <div class="sf-lobby-settings-head">',
@@ -780,6 +808,25 @@
             '          <span data-lobby-camera-label style="font-size:11px;font-weight:800;color:#9A7738;">100 %</span>',
             '        </div>',
             '        <input type="range" min="50" max="150" step="1" value="100" data-lobby-camera-slider data-testid="lobby-camera-sensitivity-slider" class="sf-lobby-slider" aria-label="Kamera-Tempo">',
+            '      </div>',
+            '      <div class="sf-lobby-settings-section">',
+            '        <div class="sf-lobby-settings-row">',
+            '          <span class="sf-lobby-settings-label">Charakter</span>',
+            '          <div style="display:flex;align-items:center;gap:6px;">',
+            '            <button type="button" data-lobby-char="male" class="sf-lobby-step-btn is-active">Männlich</button>',
+            '            <button type="button" data-lobby-char="female" class="sf-lobby-step-btn">Weiblich</button>',
+            '          </div>',
+            '        </div>',
+            '      </div>',
+            '      <div class="sf-lobby-settings-section">',
+            '        <div class="sf-lobby-settings-row">',
+            '          <span class="sf-lobby-settings-label">Himmel</span>',
+            '          <div style="display:flex;align-items:center;gap:6px;">',
+            '            <button type="button" data-lobby-sky="auto" class="sf-lobby-step-btn is-active">Auto</button>',
+            '            <button type="button" data-lobby-sky="day" class="sf-lobby-step-btn">Tag</button>',
+            '            <button type="button" data-lobby-sky="night" class="sf-lobby-step-btn">Nacht</button>',
+            '          </div>',
+            '        </div>',
             '      </div>',
             '      <div class="sf-lobby-settings-section">',
             '        <div class="sf-lobby-settings-row">',
@@ -1525,8 +1572,71 @@
         }
     };
 
+    SeelenfunkeUnifiedLobbyHost.prototype._setCharacterPickerOpen = function (flag) {
+        this.characterPickerOpen = Boolean(flag);
+        var facade = getFacade(this);
+        if (this.characterPickerOpen) {
+            this.settingsOpen = false;
+            this.sanctumGateOpen = false;
+            this.outerGateModalOpen = false;
+            if (facade && typeof facade.releasePointerLock === 'function') {
+                facade.releasePointerLock();
+            }
+        }
+        if (this.modalEl) {
+            var cModal = this.modalEl.querySelector('[data-lobby-char-modal]');
+            if (cModal) cModal.style.display = this.characterPickerOpen ? 'flex' : 'none';
+            if (this.characterPickerOpen) {
+                var sModal = this.modalEl.querySelector('[data-lobby-settings-modal]');
+                if (sModal) sModal.style.display = 'none';
+            }
+        }
+        this._syncHudState();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._selectCharacterGender = function (gender) {
+        var clean = gender === 'female' ? 'female' : 'male';
+        this.userSettings.characterGender = clean;
+        var facade = getFacade(this);
+        if (facade && typeof facade.setCharacterGender === 'function') {
+            facade.setCharacterGender(clean);
+        } else if (this._mod && typeof this._mod.saveLobbyUserSettings === 'function') {
+            this._mod.saveLobbyUserSettings({ characterGender: clean });
+        }
+        if (this.isOpen && this.currentZone === 'heroes' && !this.soloMode && !this.multiplayerDisabled) {
+            this._sendWsStateNow(true);
+            this._requestImmediateSync();
+        }
+        if (this._audio) this._audio.playUiSwitch();
+        this._syncHudState();
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._setSkyTimeMode = function (mode) {
+        var clean = (mode === 'day' || mode === 'night') ? mode : 'auto';
+        this.userSettings.skyTimeMode = clean;
+        var facade = getFacade(this);
+        if (facade && typeof facade.updateSettings === 'function') {
+            facade.updateSettings({ skyTimeMode: clean });
+            if (typeof facade.getEnvironment === 'function') {
+                this.environmentInfo = facade.getEnvironment();
+            }
+        } else if (this._mod && typeof this._mod.saveLobbyUserSettings === 'function') {
+            this._mod.saveLobbyUserSettings({ skyTimeMode: clean });
+        }
+        if (this._audio) this._audio.playUiSwitch();
+        this._syncHudState();
+        this._syncRealtimeHud();
+    };
+
     SeelenfunkeUnifiedLobbyHost.prototype._setSettingsOpen = function (flag) {
         this.settingsOpen = Boolean(flag);
+        if (this.settingsOpen) {
+            this.characterPickerOpen = false;
+            if (this.modalEl) {
+                var cModal = this.modalEl.querySelector('[data-lobby-char-modal]');
+                if (cModal) cModal.style.display = 'none';
+            }
+        }
         if (!this.settingsOpen) {
             this.listeningKeyAction = '';
         }
@@ -2207,6 +2317,52 @@
             });
         }
 
+        var charBtn = root.querySelector('[data-lobby-char-btn]');
+        if (charBtn) {
+            charBtn.addEventListener('click', function () {
+                if (self._audio) self._audio.playUiClick();
+                self._setCharacterPickerOpen(true);
+            });
+        }
+        var charModal = root.querySelector('[data-lobby-char-modal]');
+        if (charModal) {
+            charModal.addEventListener('click', function (ev) {
+                if (ev.target === ev.currentTarget) {
+                    if (self._audio) self._audio.playUiClick();
+                    self._setCharacterPickerOpen(false);
+                }
+            });
+        }
+        var charClose = root.querySelector('[data-lobby-char-close]');
+        if (charClose) {
+            charClose.addEventListener('click', function () {
+                if (self._audio) self._audio.playUiClick();
+                self._setCharacterPickerOpen(false);
+            });
+        }
+        var charCards = root.querySelectorAll('[data-lobby-char-card]');
+        for (var cc = 0; cc < charCards.length; cc++) {
+            charCards[cc].addEventListener('click', function (ev) {
+                var gVal = ev.currentTarget.getAttribute('data-lobby-char-card') === 'female' ? 'female' : 'male';
+                self._selectCharacterGender(gVal);
+                self._setCharacterPickerOpen(false);
+            });
+        }
+        var charStepBtns = root.querySelectorAll('[data-lobby-char]');
+        for (var cs = 0; cs < charStepBtns.length; cs++) {
+            charStepBtns[cs].addEventListener('click', function (ev) {
+                var gVal = ev.currentTarget.getAttribute('data-lobby-char') === 'female' ? 'female' : 'male';
+                self._selectCharacterGender(gVal);
+            });
+        }
+        var skyStepBtns = root.querySelectorAll('[data-lobby-sky]');
+        for (var sk = 0; sk < skyStepBtns.length; sk++) {
+            skyStepBtns[sk].addEventListener('click', function (ev) {
+                var mVal = ev.currentTarget.getAttribute('data-lobby-sky');
+                self._setSkyTimeMode(mVal);
+            });
+        }
+
         var gfxBtns = root.querySelectorAll('[data-lobby-gfx]');
         for (var g = 0; g < gfxBtns.length; g++) {
             gfxBtns[g].addEventListener('click', function (ev) {
@@ -2437,6 +2593,47 @@
         var zoneBadge = root.querySelector('[data-lobby-current-zone-badge]');
         if (zoneBadge) {
             zoneBadge.textContent = this.currentZone === 'heroes' ? '🏛️ Halle der Helden' : '🛍️ Kollektion';
+        }
+
+        var isFem = Boolean(this.userSettings && this.userSettings.characterGender === 'female');
+        var charTopBtn = root.querySelector('[data-lobby-char-btn]');
+        if (charTopBtn) {
+            charTopBtn.textContent = isFem ? '✦ Weiblich' : '✦ Männlich';
+        }
+        var charCardM = root.querySelector('[data-lobby-char-card="male"]');
+        var charCardF = root.querySelector('[data-lobby-char-card="female"]');
+        var charChkM = root.querySelector('[data-lobby-char-chk="male"]');
+        var charChkF = root.querySelector('[data-lobby-char-chk="female"]');
+        if (charCardM) {
+            if (!isFem) charCardM.classList.add('is-selected');
+            else charCardM.classList.remove('is-selected');
+        }
+        if (charCardF) {
+            if (isFem) charCardF.classList.add('is-selected');
+            else charCardF.classList.remove('is-selected');
+        }
+        if (charChkM) charChkM.style.display = !isFem ? 'inline-flex' : 'none';
+        if (charChkF) charChkF.style.display = isFem ? 'inline-flex' : 'none';
+
+        var charStepM = root.querySelector('[data-lobby-char="male"]');
+        var charStepF = root.querySelector('[data-lobby-char="female"]');
+        if (charStepM) {
+            if (!isFem) charStepM.classList.add('is-active');
+            else charStepM.classList.remove('is-active');
+        }
+        if (charStepF) {
+            if (isFem) charStepF.classList.add('is-active');
+            else charStepF.classList.remove('is-active');
+        }
+
+        var curSky = (this.userSettings && (this.userSettings.skyTimeMode === 'day' || this.userSettings.skyTimeMode === 'night'))
+            ? this.userSettings.skyTimeMode
+            : 'auto';
+        var skyBtns = root.querySelectorAll('[data-lobby-sky]');
+        for (var si = 0; si < skyBtns.length; si++) {
+            var sMode = skyBtns[si].getAttribute('data-lobby-sky') || 'auto';
+            if (sMode === curSky) skyBtns[si].classList.add('is-active');
+            else skyBtns[si].classList.remove('is-active');
         }
 
         var stagesBtn = root.querySelector('[data-lobby-stages-btn]');
@@ -3070,7 +3267,10 @@
             somersault_seq: st.somersault_seq || 0,
             somersault_dir: st.somersault_dir || 0,
             somersault_prog: st.somersault_prog || 0,
-            emote: st.emote || null
+            emote: st.emote || null,
+            avatar_gender: st.avatar_gender === 'female'
+                ? 'female'
+                : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male')
         };
     };
 
@@ -3092,6 +3292,7 @@
         if ((st.somersault_seq || 0) !== (prev.somersault_seq || 0)) return true;
         if ((st.somersault_dir || 0) !== (prev.somersault_dir || 0)) return true;
         if ((st.emote || null) !== (prev.emote || null)) return true;
+        if ((st.avatar_gender || 'male') !== (prev.avatar_gender || 'male')) return true;
         return false;
     };
 
@@ -3494,6 +3695,9 @@
                     somersault_prog: st.somersault_prog || 0,
                     zone: 'gallery',
                     emote: st.emote || null,
+                    avatar_gender: st.avatar_gender === 'female'
+                        ? 'female'
+                        : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                     combo_seq: 0,
                     combo_stage: 0
                 })
@@ -3536,6 +3740,9 @@
                 somersault_prog: st.somersault_prog || 0,
                 zone: 'heroes',
                 emote: st.emote || null,
+                avatar_gender: st.avatar_gender === 'female'
+                    ? 'female'
+                    : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                 combo_seq: 0,
                 combo_stage: 0
             })
@@ -3822,6 +4029,9 @@
                 somersault_prog: st.somersault_prog || 0,
                 zone: 'heroes',
                 emote: st.emote || null,
+                avatar_gender: st.avatar_gender === 'female'
+                    ? 'female'
+                    : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                 combo_seq: 0,
                 combo_stage: 0
             })
@@ -3947,6 +4157,9 @@
                 somersault_seq: st.somersault_seq || 0,
                 somersault_dir: st.somersault_dir || 0,
                 somersault_prog: st.somersault_prog || 0,
+                avatar_gender: st.avatar_gender === 'female'
+                    ? 'female'
+                    : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                 zone: 'heroes'
             })
         })
@@ -4261,6 +4474,7 @@
                     audio: self._audio || undefined,
                     isAuthenticatedCustomer: isAuth,
                     initialZone: (startZone === 'my_place' || startZone === 'hall') ? 'heroes' : startZone,
+                    characterGender: (self.userSettings && self.userSettings.characterGender === 'female') ? 'female' : 'male',
                     onFocusProductChange: function (prod, idx) {
                         self.focusedProduct = prod || null;
                         if (typeof idx === 'number' && idx >= 0) {
@@ -4326,9 +4540,15 @@
                 if (typeof createdFacade.getPlayerHudState === 'function') {
                     self.playerHud = createdFacade.getPlayerHudState();
                 }
+                if (typeof createdFacade.getEnvironment === 'function') {
+                    self.environmentInfo = createdFacade.getEnvironment();
+                }
                 self.currentZone = createdFacade.getCurrentZone();
                 if (startZone === 'my_place' && self.sanctumGateState.canEnter) {
                     createdFacade.focusMyHeroPlace();
+                }
+                if (startZone === 'gallery') {
+                    self._setCharacterPickerOpen(true);
                 }
 
                 self._activeSyncZone = null;
@@ -4367,6 +4587,7 @@
         this.isOpen = false;
         this.instanceMenuOpen = false;
         this.settingsOpen = false;
+        this.characterPickerOpen = false;
         this.sanctumGateOpen = false;
         this.outerGateModalOpen = false;
         this.listeningKeyAction = '';

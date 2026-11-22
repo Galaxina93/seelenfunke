@@ -235,6 +235,10 @@ namespace FunkenwerkVideo
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             if (!string.IsNullOrWhiteSpace(desktop))
             {
+                string modularVideoDir = Path.Combine(desktop, "Funkenwerk Collection", "Module", "Funkenwerk Video");
+                if (Directory.Exists(modularVideoDir))
+                    return Path.GetFullPath(modularVideoDir);
+
                 string collectionVideoDir = Path.Combine(desktop, "Funkenwerk Collection", "Funkenwerk Video");
                 if (Directory.Exists(collectionVideoDir))
                     return Path.GetFullPath(collectionVideoDir);
@@ -385,6 +389,7 @@ namespace FunkenwerkVideo
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             if (!string.IsNullOrWhiteSpace(desktop))
             {
+                yield return Path.Combine(desktop, "Funkenwerk Collection", "Module", "Funkenwerk Video", "effectcraft");
                 yield return Path.Combine(desktop, "Funkenwerk Collection", "Funkenwerk Video", "effectcraft");
                 yield return Path.Combine(desktop, "Funkenwerk Video", "effectcraft");
             }

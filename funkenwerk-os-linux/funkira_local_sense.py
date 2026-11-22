@@ -484,6 +484,67 @@ class LocalSenseEngine:
         except Exception as e:
             return {"ok": False, "faceReady": True, "faceDetected": False, "message": str(e)}
 
+    @staticmethod
+    def evaluate_frontal_metrics(f, w: int, h: int) -> tuple[bool, float, float]:
+        bw = max(1.0, float(f[2]))
+        rel_w = bw / max(1.0, float(w))
+        det_score = float(f[-1])
+        if len(f) < 15:
+            return bool(det_score >= 0.80 and rel_w >= 0.068), 0.0, 0.0
+        re_x, re_y = float(f[4]), float(f[5])
+        le_x, le_y = float(f[6]), float(f[7])
+        nt_x = float(f[8])
+        eye_dist = math.hypot(le_x - re_x, le_y - re_y)
+        if eye_dist < 1.0:
+            return False, 1.0, 1.0
+        eye_mid_x = 0.5 * (re_x + le_x)
+        yaw_asym = abs(nt_x - eye_mid_x) / eye_dist
+        roll_tilt = abs(le_y - re_y) / eye_dist
+        eye_span_ratio = eye_dist / bw
+        is_frontal = bool(
+            det_score >= 0.80
+            and rel_w >= 0.068
+            and yaw_asym <= 0.24
+            and roll_tilt <= 0.25
+            and eye_span_ratio >= 0.25
+        )
+        return is_frontal, yaw_asym, roll_tilt
+
+    @staticmethod
+    def _crop_portrait_jpeg_b64(orig_img, f, scale_x: float, scale_y: float) -> str:
+        if not CV2_AVAILABLE or orig_img is None:
+            return ""
+        oh, ow = orig_img.shape[:2]
+        if oh < 32 or ow < 32:
+            return ""
+        ox = float(f[0]) * scale_x
+        oy = float(f[1]) * scale_y
+        obw = max(8.0, float(f[2]) * scale_x)
+        obh = max(8.0, float(f[3]) * scale_y)
+        side_px = max(obw, obh) * 1.56
+        cx_px = ox + 0.5 * obw
+        cy_px = oy + 0.46 * obh
+        x0 = max(0, int(round(cx_px - 0.5 * side_px)))
+        y0 = max(0, int(round(cy_px - 0.5 * side_px)))
+        x1 = min(ow, int(round(cx_px + 0.5 * side_px)))
+        y1 = min(oh, int(round(cy_px + 0.5 * side_px)))
+        if (x1 - x0) < 24 or (y1 - y0) < 24:
+            return ""
+        crop = orig_img[y0:y1, x0:x1]
+        ch, cw = crop.shape[:2]
+        max_dim = max(ch, cw)
+        if max_dim > 320:
+            s = 320.0 / float(max_dim)
+            crop = cv2.resize(
+                crop,
+                (max(24, int(round(cw * s))), max(24, int(round(ch * s)))),
+                interpolation=cv2.INTER_AREA
+            )
+        ok_enc, enc_buf = cv2.imencode(".jpg", crop, [int(cv2.IMWRITE_JPEG_QUALITY), 86])
+        if not ok_enc:
+            return ""
+        return base64.b64encode(enc_buf.tobytes()).decode("ascii")
+
     def analyze_face(self, jpeg_b64: str, owner_embedding: list | None, include_embedding: bool, known_companions: list | None = None) -> dict:
         if not CV2_AVAILABLE or self.detector is None or self.recognizer is None:
             return {"ok": False, "faceReady": False, "faceDetected": False, "identity": "unavailable"}
@@ -497,16 +558,20 @@ class LocalSenseEngine:
         try:
             raw = base64.b64decode(jpeg_b64)
             arr = np.frombuffer(raw, dtype=np.uint8)
-            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-            if img is None or img.shape[0] < 32 or img.shape[1] < 32:
+            orig_img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if orig_img is None or orig_img.shape[0] < 32 or orig_img.shape[1] < 32:
                 return {"ok": False, "faceReady": True, "faceDetected": False, "identity": "none"}
 
-            h0, w0 = img.shape[:2]
+            h0, w0 = orig_img.shape[:2]
             if w0 > 640:
                 scale = 640.0 / float(w0)
-                img = cv2.resize(img, (640, max(32, int(round(h0 * scale)))), interpolation=cv2.INTER_AREA)
+                img = cv2.resize(orig_img, (640, max(32, int(round(h0 * scale)))), interpolation=cv2.INTER_AREA)
+            else:
+                img = orig_img
 
             h, w = img.shape[:2]
+            scale_x = float(w0) / max(1.0, float(w))
+            scale_y = float(h0) / max(1.0, float(h))
             extracted_faces = []
             with self.face_lock:
                 self.detector.setInputSize((w, h))
@@ -523,6 +588,7 @@ class LocalSenseEngine:
                         continue
                     mirror_x = 1.0 - cx
                     side = "links" if mirror_x < 0.40 else ("rechts" if mirror_x > 0.60 else "mitte")
+                    is_frontal, yaw_asym, roll_tilt = self.evaluate_frontal_metrics(f, w, h)
 
                     aligned = self.recognizer.alignCrop(img, f)
                     feat = self.recognizer.feature(aligned).flatten().astype(np.float32)
@@ -536,6 +602,10 @@ class LocalSenseEngine:
                         "relHeight": rel_h,
                         "score": det_score,
                         "side": side,
+                        "isFrontal": is_frontal,
+                        "yawAsym": yaw_asym,
+                        "rollTilt": roll_tilt,
+                        "rawFace": f.copy() if hasattr(f, "copy") else list(f),
                         "feat": feat
                     })
 
@@ -584,7 +654,7 @@ class LocalSenseEngine:
             recognized_companions = []
             companions_wire = []
             unknown_sides = []
-            largest_unknown_feat = None
+            largest_unknown_face = None
 
             for i, fd in enumerate(extracted_faces):
                 if i == owner_face_idx:
@@ -603,6 +673,7 @@ class LocalSenseEngine:
                         "name": matched_comp["name"],
                         "relationship": matched_comp["relationship"],
                         "side": fd["side"],
+                        "isFrontal": bool(fd["isFrontal"]),
                         "cosine": round(best_comp_cos, 4)
                     }
                     recognized_companions.append(entry)
@@ -615,10 +686,11 @@ class LocalSenseEngine:
                         "name": "",
                         "relationship": "",
                         "side": fd["side"],
+                        "isFrontal": bool(fd["isFrontal"]),
                         "cosine": 0.0
                     })
-                    if largest_unknown_feat is None:
-                        largest_unknown_feat = fd["feat"]
+                    if largest_unknown_face is None:
+                        largest_unknown_face = fd
 
             companions_count = len(recognized_companions) + len(unknown_sides)
 
@@ -628,6 +700,10 @@ class LocalSenseEngine:
                 identity = "alina_with_companion"
             elif owner_present:
                 identity = "alina"
+            elif len(recognized_companions) > 0 and len(unknown_sides) == 0:
+                identity = "known_companion"
+            elif len(recognized_companions) > 0 and len(unknown_sides) > 0:
+                identity = "visitor"
             elif best_owner_cos >= 0.275 or primary["relWidth"] < 0.065 or primary["score"] < 0.80:
                 identity = "uncertain"
             else:
@@ -645,11 +721,13 @@ class LocalSenseEngine:
                 "faceCount": len(extracted_faces),
                 "facesCount": len(extracted_faces),
                 "ownerPresent": owner_present,
+                "primaryFrontal": bool(focus_face["isFrontal"]),
                 "companionsCount": companions_count,
                 "companions": companions_wire,
                 "recognizedCompanions": recognized_companions,
                 "unknownCompanionsCount": len(unknown_sides),
                 "unknownCompanionSides": unknown_sides,
+                "unknownPersonPresent": largest_unknown_face is not None,
                 "cx": round(focus_face["cx"], 4),
                 "cy": round(focus_face["cy"], 4),
                 "relWidth": round(focus_face["relWidth"], 4),
@@ -660,8 +738,13 @@ class LocalSenseEngine:
             }
             if include_embedding:
                 out["embedding"] = [round(float(v), 6) for v in primary["feat"].tolist()]
-            if owner_present and largest_unknown_feat is not None:
-                out["companionEmbedding"] = [round(float(v), 6) for v in largest_unknown_feat.tolist()]
+            if largest_unknown_face is not None and identity != "uncertain":
+                out["unknownFaceFrontal"] = bool(largest_unknown_face["isFrontal"])
+                out["unknownYawAsym"] = round(float(largest_unknown_face["yawAsym"]), 4)
+                out["companionEmbedding"] = [round(float(v), 6) for v in largest_unknown_face["feat"].tolist()]
+                portrait_b64 = self._crop_portrait_jpeg_b64(orig_img, largest_unknown_face["rawFace"], scale_x, scale_y)
+                if portrait_b64:
+                    out["companionPortraitBase64"] = portrait_b64
             return out
         except Exception as e:
             return {"ok": False, "faceReady": True, "faceDetected": False, "identity": "error", "message": str(e)}
@@ -1071,7 +1154,7 @@ class LocalSenseEngine:
             return {"ok": False, "message": str(e)}
 
 
-ENGINE = LocalSenseEngine()
+ENGINE = None if "--self-test" in sys.argv else LocalSenseEngine()
 
 
 class SenseHandler(BaseHTTPRequestHandler):
@@ -1192,7 +1275,34 @@ class SenseHandler(BaseHTTPRequestHandler):
         self._send_json(404, {"ok": False})
 
 
+def run_self_test() -> int:
+    # 1. Frontal YuNet landmark symmetry check
+    frontal_row = [220.0, 120.0, 140.0, 175.0, 260.0, 185.0, 320.0, 186.0, 290.0, 218.0, 268.0, 252.0, 312.0, 252.0, 0.94]
+    ok_front, yaw_front, roll_front = LocalSenseEngine.evaluate_frontal_metrics(frontal_row, 640, 480)
+    assert ok_front is True and yaw_front < 0.05 and roll_front < 0.05, f"Expected frontal=True, got {ok_front}"
+
+    # 2. Turned side-profile check (nose shifted right past eye midpoint)
+    profile_row = [220.0, 120.0, 140.0, 175.0, 260.0, 185.0, 305.0, 186.0, 303.0, 218.0, 275.0, 252.0, 302.0, 252.0, 0.92]
+    ok_prof, yaw_prof, _ = LocalSenseEngine.evaluate_frontal_metrics(profile_row, 640, 480)
+    assert ok_prof is False and yaw_prof > 0.24, f"Expected profile=False, got {ok_prof} (yaw={yaw_prof})"
+
+    # 3. Portrait crop check (if OpenCV available)
+    if CV2_AVAILABLE:
+        synth = np.full((720, 1280, 3), 42, dtype=np.uint8)
+        b64_port = LocalSenseEngine._crop_portrait_jpeg_b64(synth, frontal_row, 2.0, 1.5)
+        raw_jpg = base64.b64decode(b64_port)
+        assert len(raw_jpg) > 200 and raw_jpg[0] == 0xFF and raw_jpg[1] == 0xD8, "Invalid JPEG crop"
+
+    sys.stdout.write("FUNKIRA LOCAL SENSE PYTHON SELF-TEST: PASS\n")
+    return 0
+
+
 def main():
+    if "--self-test" in sys.argv:
+        sys.exit(run_self_test())
+    global ENGINE
+    if ENGINE is None:
+        ENGINE = LocalSenseEngine()
     port = int(os.environ.get("FW_SENSE_PORT", "17701"))
     srv = ThreadingHTTPServer(("127.0.0.1", port), SenseHandler)
     sys.stdout.write(

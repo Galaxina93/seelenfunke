@@ -618,13 +618,14 @@ class SentinelTriageService
             && (str_contains($titleLower, 'unknownhostexception')
                 || str_contains($msgLower, 'unknownhostexception')
                 || str_contains($titleLower, 'connectexception')
-                || str_contains($titleLower, 'sockettimeoutexception'))
+                || str_contains($titleLower, 'sockettimeoutexception')
+                || ((str_contains($titleLower, 'httpexception') || str_contains($msgLower, 'httpexception')) && $occurrences < 5))
             && $occurrences < 8
             && $this->verifyCoreConnectivityHealthy()) {
             return [
                 'healed' => true,
                 'playbook' => 'transient_mobile_offline_recovered',
-                'summary' => 'Kurzzeitiger DNS-/Mobilfunk-Wechsel am Endgerät (lokaler Offline-Cache übernahm unterbrechungsfrei).',
+                'summary' => 'Kurzzeitiger DNS-/Mobilfunk-Wechsel oder API-Reconnect am Endgerät (lokaler Offline-Cache übernahm unterbrechungsfrei).',
             ];
         }
 
@@ -651,8 +652,22 @@ class SentinelTriageService
             }
         }
 
-        // Playbook 8: Infrastruktur-Check Backup: Überholt, sobald ein valides Backup (< 48h) vorliegt
+        // Playbook 8: Infrastruktur-Check Backup: Überholt, sobald ein valides Backup (< 48h) vorliegt oder in lokaler Entwicklungsumgebung
         if (str_contains($actionId, 'health_fail') && (str_contains($msgLower, 'backup') || str_contains($titleLower, 'backup'))) {
+            $originEnvForBackup = strtolower(trim((string) ($payload['origin_environment'] ?? '')));
+            $isLocalBackupLog = !app()->environment('production', 'staging')
+                && ($originEnvForBackup !== '' ? $originEnvForBackup === 'local' : app()->environment('local'))
+                && !str_starts_with((string) $log->title, '[STAGE]')
+                && !str_starts_with((string) $log->title, '[LIVE]');
+
+            if ($isLocalBackupLog) {
+                return [
+                    'healed' => true,
+                    'playbook' => 'local_dev_backup_check_skipped',
+                    'summary' => 'Lokale Entwicklungsumgebung erkannt (tägliche Backup-Pflicht gilt ausschließlich für Stage/Live).',
+                ];
+            }
+
             $diskName = (string) config('backup.backup.destination.disks.0', 'local');
             $backupName = (string) config('backup.backup.name', config('app.name') . '-db-backup');
             $hasFreshBackup = false;
@@ -810,6 +825,29 @@ class SentinelTriageService
                 'healed' => true,
                 'playbook' => 'planned_maintenance_503_window_ended',
                 'summary' => 'Geplantes Wartungsfenster (php artisan down -> HTTP 503) ist beendet; Anwendung nimmt Anfragen wieder regulär entgegen.',
+            ];
+        }
+
+        // Playbook 15: Erfolgreiche Auto-Firewall-Abwehr (Honeypot / Exploit-Scanner-Ban für 24h)
+        if (in_array($actionId, ['security:exploit_path_ban', 'security:auto_ip_ban'], true)) {
+            $bannedIp = (string) ($payload['ip_address'] ?? '');
+            return [
+                'healed' => true,
+                'playbook' => 'auto_firewall_ip_blocked',
+                'summary' => 'Automatische Firewall-Abwehr erfolgreich: Angreifer-IP' . ($bannedIp !== '' ? " ({$bannedIp})" : '') . ' wurde für 24 Stunden gesperrt (Audit-Nachweis bleibt 30 Tage im Archiv erhalten).',
+            ];
+        }
+
+        // Playbook 16: Zweiter Reverb-Startversuch auf bereits aktivem Port 6001 (Address already in use)
+        if (
+            str_contains($msgLower, 'address already in use')
+            && (str_contains($msgLower, '6001') || str_contains($msgLower, 'reverb'))
+            && $occurrences < 10
+        ) {
+            return [
+                'healed' => true,
+                'playbook' => 'reverb_daemon_already_running',
+                'summary' => 'WebSocket-Port 6001 ist bereits durch den primären Reverb-Daemon belegt; kein Dienstausfall.',
             ];
         }
 

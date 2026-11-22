@@ -206,6 +206,284 @@ class SystemLog extends Model implements HasSystemBlueprint
     }
 
     /**
+     * Ermittelt für Spalte 1 ("Bereich") und die Detailansicht in /admin/global-logs
+     * sowohl die Plattform & Umgebung (LOKAL / STAGE / LIVE) als auch die exakte Unterseite / Route / Komponente.
+     */
+    public function resolveAreaAndSubpageMeta(): array
+    {
+        $payload = is_array($this->payload) ? $this->payload : (json_decode((string) $this->payload, true) ?: []);
+        $platformMeta = $this->resolvePlatformMeta();
+        $platformKey = $platformMeta['key'];
+
+        $titleStr = (string) $this->title;
+        $actionId = (string) $this->action_id;
+        $messageStr = (string) $this->message;
+
+        $execCtx = is_array($payload['execution_context'] ?? null) ? $payload['execution_context'] : [];
+        $serverEnv = is_array($payload['server_environment'] ?? null) ? $payload['server_environment'] : [];
+        $dossier = is_array($payload['antigravity_dossier'] ?? null) ? $payload['antigravity_dossier'] : [];
+
+        $fullUrl = trim((string) ($payload['url'] ?? $execCtx['url'] ?? ''));
+        $referer = trim((string) ($payload['referer'] ?? $payload['referrer'] ?? $execCtx['referer'] ?? ''));
+
+        // 1. Umgebung ermitteln (LOKAL, STAGE, LIVE)
+        $rawEnv = strtolower(trim((string) (
+            $payload['origin_environment']
+            ?? $serverEnv['resolved_env']
+            ?? $serverEnv['app_env']
+            ?? ''
+        )));
+
+        $urlLower = strtolower($fullUrl . ' ' . $referer . ' ' . (string) ($serverEnv['app_url'] ?? ''));
+        $envKey = match (true) {
+            str_starts_with($titleStr, '[STAGE]') || in_array($rawEnv, ['stage', 'staging'], true) || str_contains($urlLower, 'stage.mein-seelenfunke.de') => 'stage',
+            str_starts_with($titleStr, '[LIVE]') || str_starts_with($titleStr, '[PROD]') || in_array($rawEnv, ['production', 'live', 'prod'], true) || (str_contains($urlLower, 'mein-seelenfunke.de') && !str_contains($urlLower, 'stage.')) => 'live',
+            default => 'local',
+        };
+
+        $envMeta = match ($envKey) {
+            'stage' => [
+                'key' => 'stage',
+                'label' => 'STAGE',
+                'badge_class' => 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30',
+            ],
+            'live' => [
+                'key' => 'live',
+                'label' => 'LIVE',
+                'badge_class' => 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
+            ],
+            default => [
+                'key' => 'local',
+                'label' => 'LOKAL',
+                'badge_class' => 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+            ],
+        };
+
+        // 2. Exakte Unterseite / Route / CLI-Befehl ermitteln
+        $subpagePath = trim((string) ($payload['subpage_path'] ?? $execCtx['subpage_path'] ?? ''));
+
+        if ($subpagePath === '' && !empty($payload['request_uri'])) {
+            $subpagePath = '/' . ltrim(trim((string) $payload['request_uri']), '/');
+        }
+
+        if (($subpagePath === '' || $subpagePath === '/livewire/update' || $subpagePath === 'livewire/update') && $referer !== '') {
+            $refPath = parse_url($referer, PHP_URL_PATH);
+            if (is_string($refPath) && $refPath !== '') {
+                $subpagePath = '/' . ltrim($refPath, '/');
+            }
+        }
+
+        if ($subpagePath === '' && $fullUrl !== '') {
+            $parsedPath = parse_url($fullUrl, PHP_URL_PATH);
+            if (is_string($parsedPath) && $parsedPath !== '') {
+                $candidate = '/' . ltrim($parsedPath, '/');
+                if ($candidate !== '/livewire/update' && $candidate !== '/api/log/frontend-error') {
+                    $subpagePath = $candidate;
+                }
+            }
+        }
+
+        if ($subpagePath === '' && !empty($execCtx['route']) && !in_array((string) $execCtx['route'], ['livewire.update', 'livewire/update'], true)) {
+            $routeStr = trim((string) $execCtx['route']);
+            $subpagePath = str_starts_with($routeStr, '/') ? $routeStr : ('/' . $routeStr);
+        }
+
+        if ($subpagePath === '') {
+            $cmd = trim((string) ($payload['command'] ?? $execCtx['command'] ?? ''));
+            if ($cmd !== '') {
+                $shortCmd = trim((string) preg_replace('/^.*?\bartisan\s+/i', '', $cmd));
+                $subpagePath = 'CLI: ' . ($shortCmd !== '' ? $shortCmd : $cmd);
+            } elseif (str_starts_with($actionId, 'scheduler:cronjob_failed:')) {
+                $subpagePath = 'CLI: ' . substr($actionId, strlen('scheduler:cronjob_failed:'));
+            }
+        }
+
+        if ($subpagePath === '' && !empty($dossier['route_or_command']) && $dossier['route_or_command'] !== 'unbekannt') {
+            $rc = trim((string) $dossier['route_or_command']);
+            if ($rc !== 'livewire.update' && $rc !== 'livewire/update') {
+                $subpagePath = str_starts_with($rc, 'php ') || str_starts_with($rc, 'CLI:')
+                    ? ('CLI: ' . trim((string) preg_replace('/^.*?\bartisan\s+/i', '', $rc)))
+                    : (str_starts_with($rc, '/') ? $rc : '/' . $rc);
+            }
+        }
+
+        $fileStr = (string) ($payload['file'] ?? $dossier['file'] ?? '');
+        if ($subpagePath === '') {
+            if ($platformKey === 'android' && !empty($payload['component'])) {
+                $subpagePath = 'Android · ' . trim((string) $payload['component']);
+            } elseif ($platformKey === 'minipc_linux' && !empty($payload['component'])) {
+                $subpagePath = 'Mini-PC · ' . trim((string) $payload['component']);
+            } elseif ($platformKey === 'windows_desktop' && !empty($payload['component'])) {
+                $subpagePath = 'Desktop · ' . trim((string) $payload['component']);
+            } elseif ($actionId === 'system:health_fail') {
+                $subpagePath = '/admin/dashboard';
+            } elseif ($actionId === 'security:package_audit') {
+                $subpagePath = 'CLI: system:security-audit';
+            } elseif (str_contains($fileStr, 'XtoolLaserCockpitService') || str_contains($messageStr, 'XtoolLaserCockpitService')) {
+                $subpagePath = '/admin/orders';
+            } elseif (str_contains($messageStr, '0.0.0.0:6001') || str_contains($messageStr, 'reverb')) {
+                $subpagePath = 'CLI: reverb:start';
+            } elseif (str_contains($fileStr, 'InfluencerDashboard')) {
+                $subpagePath = '/employee/influencer/dashboard';
+            } elseif (str_contains($fileStr, 'InfluencerInvitationAccept')) {
+                $subpagePath = '/influencer/einladung';
+            } elseif (str_contains($fileStr, 'MarketingInfluencer')) {
+                $subpagePath = '/admin/marketing-influencers';
+            } elseif (str_contains($fileStr, 'TaxAdvisorDashboard')) {
+                $subpagePath = '/employee/steuerberater/dashboard';
+            } elseif (!empty($payload['source_file'])) {
+                $subpagePath = 'Log: ' . trim((string) $payload['source_file']);
+            } else {
+                $subpagePath = '/';
+            }
+        }
+
+        $subpageLabel = !empty($payload['subpage_label'])
+            ? (string) $payload['subpage_label']
+            : self::humanizeSubpageLabel($subpagePath, $actionId, $payload);
+
+        $livewireComponent = trim((string) ($payload['livewire_component'] ?? $execCtx['livewire_component'] ?? ''));
+        $livewireMethod = trim((string) ($payload['livewire_method'] ?? $execCtx['livewire_method'] ?? ''));
+        $livewireAction = $livewireComponent !== ''
+            ? ($livewireMethod !== '' ? "{$livewireComponent}::{$livewireMethod}()" : $livewireComponent)
+            : ($livewireMethod !== '' ? "{$livewireMethod}()" : null);
+
+        $httpMethod = trim((string) ($execCtx['method'] ?? ($execCtx['mode'] ?? '') === 'cli' ? 'CLI' : ''));
+
+        return [
+            'platform_key' => $platformKey,
+            'platform_short' => $platformMeta['short'],
+            'platform_label' => $platformMeta['label'],
+            'env_key' => $envMeta['key'],
+            'env_label' => $envMeta['label'],
+            'env_badge_class' => $envMeta['badge_class'],
+            'subpage_path' => $subpagePath,
+            'subpage_label' => $subpageLabel,
+            'livewire_component' => $livewireComponent !== '' ? $livewireComponent : null,
+            'livewire_method' => $livewireMethod !== '' ? $livewireMethod : null,
+            'livewire_action' => $livewireAction,
+            'http_method' => $httpMethod !== '' ? $httpMethod : null,
+            'full_url' => $fullUrl !== '' ? $fullUrl : null,
+            'referer' => $referer !== '' ? $referer : null,
+        ];
+    }
+
+    /**
+     * Übersetzt einen technischen Route-Pfad oder CLI-Befehl in eine sprechende deutsche Bereichs-/Unterseiten-Bezeichnung.
+     */
+    public static function humanizeSubpageLabel(string $subpagePath, ?string $actionId = null, ?array $payload = null): string
+    {
+        $clean = strtolower(trim($subpagePath));
+        $act = strtolower(trim((string) $actionId));
+        $file = strtolower(trim((string) ($payload['file'] ?? '')));
+        $msg = strtolower(trim((string) ($payload['log_message'] ?? '')));
+
+        if (str_starts_with($act, 'security:exploit_path_ban') || str_starts_with($act, 'security:auto_ip_ban')) {
+            return 'Firewall · Honeypot-Abwehr';
+        }
+
+        if (str_contains($file, 'xtoollasercockpitservice') || str_contains($msg, 'xtoollasercockpitservice')) {
+            return 'Produktion · xTool Laser-Cockpit';
+        }
+
+        $exactMap = [
+            '/' => 'Shop · Startseite',
+            '/shop' => 'Shop · Produktkatalog',
+            '/cart' => 'Shop · Warenkorb',
+            '/checkout' => 'Shop · Kasse & Checkout',
+            '/links' => 'Marketing · Linktree (/links)',
+            '/login' => 'Auth · Anmeldung',
+            '/admin/dashboard' => 'Leitung · Kommandozentrale',
+            '/admin/global-logs' => 'System · Globale Logs',
+            '/admin/settings' => 'System · Shop-Konfiguration',
+            '/admin/users' => 'System · Benutzerverwaltung',
+            '/admin/backups' => 'System · Datenbank-Backups',
+            '/admin/shipping' => 'Logistik · Versand & Zonen',
+            '/admin/delivery-display' => 'Logistik · Lieferzeiten',
+            '/admin/orders' => 'Bestellungen · Übersicht & Laser',
+            '/admin/carts' => 'Bestellungen · Warenkörbe',
+            '/admin/quote-requests' => 'Bestellungen · Angebotsanfragen',
+            '/admin/revocations' => 'Bestellungen · Widerrufe',
+            '/admin/products' => 'Produkte · Produktverwaltung',
+            '/admin/packaging' => 'Produkte · Verpackungs-Kalkulator',
+            '/admin/suppliers' => 'Produkte · Lieferanten',
+            '/admin/product-templates' => 'Produkte · Vorlagen',
+            '/admin/product-categories' => 'Produkte · Kategorien',
+            '/admin/product-attributes' => 'Produkte · Attribute',
+            '/admin/product-reviews' => 'Produkte · Bewertungen',
+            '/admin/product-fracture' => 'Produkte · Bruch & Verlust',
+            '/admin/product-crawler' => 'Produkte · Nischen-Crawler',
+            '/admin/financial-fix-costs' => 'Buchhaltung · Fixkosten & Verträge',
+            '/admin/financial-variable-costs' => 'Buchhaltung · Sonderausgaben',
+            '/admin/financial-invoices' => 'Buchhaltung · Rechnungen & Gutschriften',
+            '/admin/financial-banks' => 'Buchhaltung · Bank & Konten',
+            '/admin/financial-tax-exports' => 'Buchhaltung · Steuer-Export',
+            '/admin/financial-analytics' => 'Buchhaltung · Liquidität & Analyse',
+            '/admin/marketing-influencers' => 'Marketing · Influencer & Creator',
+            '/admin/marketing-vouchers' => 'Marketing · Gutscheine & Coupons',
+            '/admin/marketing-blog' => 'Marketing · Magazin & Blog',
+            '/admin/marketing-newsletter' => 'Marketing · Newsletter',
+            '/admin/marketing-landing-pages' => 'Marketing · Landingpages',
+            '/admin/marketing-herzensprojekte' => 'Marketing · Herzensprojekte',
+            '/admin/marketing-linktree' => 'Marketing · Linktree-Editor',
+            '/admin/mail' => 'Leitung · E-Mail-Zentrale',
+            '/admin/calendar' => 'Leitung · Kalender',
+            '/admin/contacts' => 'Leitung · Kontakte',
+            '/admin/routine' => 'Leitung · Tagesroutine',
+            '/admin/tasks' => 'Leitung · Aufgaben & To-Do',
+            '/admin/employees' => 'Leitung · Mitarbeiter & Rollen',
+            '/admin/organigramm' => 'KI & 3D · Organigramm & Wasserstadt',
+            '/admin/ai-workspace' => 'KI & 3D · KI-Workspace & Cronjobs',
+            '/admin/ai/workspace' => 'KI & 3D · KI-Workspace & Cronjobs',
+            '/admin/support-tickets' => 'Support · Tickets',
+            '/admin/support-chats' => 'Support · Live-Chats',
+            '/admin/support-telephony' => 'Support · KI-Telefonie',
+            '/employee/influencer/dashboard' => 'Creator Cockpit · Influencer Portal',
+            '/employee/steuerberater/dashboard' => 'Steuerberater Cockpit · DATEV Portal',
+            '/employee/dashboard' => 'Mitarbeiter · Portal',
+            '/customer/dashboard' => 'Kundenkonto · Übersicht',
+        ];
+
+        if (isset($exactMap[$clean])) {
+            return $exactMap[$clean];
+        }
+
+        if (str_starts_with($clean, '/influencer/einladung')) {
+            return 'Creator · Einladungs-Onboarding';
+        }
+        if (str_starts_with($clean, '/mitarbeiter/einladung')) {
+            return 'Mitarbeiter · Einladungs-Annahme';
+        }
+        if (str_starts_with($clean, '/produkt/') || str_starts_with($clean, '/product/')) {
+            return 'Shop · Produkt & 3D-Konfigurator';
+        }
+        if (str_starts_with($clean, 'cli:')) {
+            $cmdPart = trim(substr($clean, 4));
+            return match (true) {
+                str_contains($cmdPart, 'crm:fetch-mails') => 'Cronjob · IMAP E-Mail-Abruf',
+                str_contains($cmdPart, 'system:security-audit') => 'Cronjob · Sicherheits- & System-Audit',
+                str_contains($cmdPart, 'reverb:start') => 'Daemon · Reverb WebSocket-Server',
+                str_contains($cmdPart, 'sentinel') => 'Cronjob · Sentinel Selbstheilung',
+                str_contains($cmdPart, 'backup') => 'Cronjob · Datenbank-Backup',
+                default => 'Konsole · ' . $cmdPart,
+            };
+        }
+        if (str_starts_with($clean, 'android ·')) {
+            return match (true) {
+                str_contains($clean, 'financerepo') => 'Android · Finanzen-Modul',
+                str_contains($clean, 'organizerrepo') => 'Android · Organizer-Modul',
+                str_contains($clean, 'airepo') => 'Android · KI-Agenten-Modul',
+                default => trim($subpagePath),
+            };
+        }
+        if (str_starts_with($clean, 'log:')) {
+            return 'Server-Log · laravel.log';
+        }
+
+        return $subpagePath !== '' ? $subpagePath : 'Webportal · Allgemein';
+    }
+
+    /**
      * Prüft, ob dieser Log-Eintrag ein schützenswerter DSGVO-, Einwilligungs- oder Sicherheits-Auditnachweis ist
      * (30 Tage Aufbewahrung gemäß RetentionPolicy::ShortLived_30Days statt 7-Tage Kurzzeit-Archiv).
      */
@@ -388,6 +666,28 @@ class SystemLog extends Model implements HasSystemBlueprint
         $platformKey = self::detectPlatformKey($type, $actionId, $payload);
         $payload['platform'] = $payload['platform'] ?? $platformKey;
         $payload['platform_label'] = $payload['platform_label'] ?? (self::PLATFORMS[$platformKey]['label'] ?? 'Webportal');
+
+        if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+            if (empty($payload['server_environment'])) {
+                $payload['server_environment'] = \App\Services\System\SystemErrorLogger::buildServerEnvironment();
+            }
+            if (empty($payload['origin_environment'])) {
+                $payload['origin_environment'] = $payload['server_environment']['resolved_env'] ?? config('app.env', 'local');
+            }
+            if (empty($payload['execution_context']) && in_array($status, ['error', 'warning'], true)) {
+                $payload['execution_context'] = \App\Services\System\SystemErrorLogger::buildExecutionContext();
+            }
+            if (empty($payload['subpage_path']) && !empty($payload['execution_context']['subpage_path'])) {
+                $payload['subpage_path'] = $payload['execution_context']['subpage_path'];
+            }
+            if (empty($payload['diagnosis']) && in_array($status, ['error', 'warning'], true)) {
+                $payload['diagnosis'] = \App\Services\System\SystemErrorLogger::diagnose(
+                    $message,
+                    isset($payload['exception_class']) ? (string) $payload['exception_class'] : null,
+                    isset($payload['file']) ? (string) $payload['file'] : null
+                );
+            }
+        }
 
         if ($type === 'frontend_error' && self::isTransientFrontendNoise($message, $title)) {
             $attributes['payload'] = $payload;

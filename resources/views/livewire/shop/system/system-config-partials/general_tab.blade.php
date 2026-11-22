@@ -1,7 +1,9 @@
 <div x-show="activeTab === 'general'" class="space-y-6 md:space-y-8 animate-fade-in">
     {{-- KARTE 1: SHOP-DOMAINS & LIVEGANG-STATUS --}}
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 relative overflow-hidden">
-        <div class="hidden dark:block absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color)]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3 pointer-events-none"></div>
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 relative z-30">
+        <div class="hidden dark:block absolute inset-0 overflow-hidden rounded-[2.5rem] pointer-events-none">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color)]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>
+        </div>
 
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-800 pb-4 mb-8">
             <h3 class="text-sm sm:text-base font-serif font-bold text-gray-900 dark:text-white flex items-center gap-3 tracking-wide">
@@ -17,16 +19,11 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 xl:gap-6">
             {{-- 1. HAUPT-SHOP: PERSONALISIERTE MANUFAKTUR --}}
-            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3 relative hover:z-40">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] text-[var(--theme-color)] font-bold border border-[var(--theme-color-20)]">mein-seelenfunke.de</span>
-                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['shop_is_live'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
-                                {{ $infoTexts['shop_is_live'] }}
-                            </div>
-                        </div>
+                        @include('components.alerts.info-tooltip', ['key' => 'shop_is_live'])
                     </div>
                 </div>
                 <div>
@@ -48,16 +45,11 @@
             </div>
 
             {{-- 2. SCHAUFENSTER-WARTUNGSMODUS (KAUF PAUSIERT) --}}
-            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3 relative hover:z-40">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-red-500/10 text-red-600 dark:text-red-400 font-bold border border-red-500/20">Alle Domains</span>
-                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['maintenance_mode'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
-                                {{ $infoTexts['maintenance_mode'] }}
-                            </div>
-                        </div>
+                        @include('components.alerts.info-tooltip', ['key' => 'maintenance_mode'])
                     </div>
                 </div>
                 <div>
@@ -79,16 +71,11 @@
             </div>
 
             {{-- 3. 3D-SHOWROOM MULTI-USER & RAUM-CHAT --}}
-            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3 relative hover:z-40">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] text-[var(--theme-color)] font-bold border border-[var(--theme-color-20)]">3D-Welt</span>
-                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['showroom_multiplayer_enabled'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
-                                {{ $infoTexts['showroom_multiplayer_enabled'] }}
-                            </div>
-                        </div>
+                        @include('components.alerts.info-tooltip', ['key' => 'showroom_multiplayer_enabled'])
                     </div>
                 </div>
                 <div>
@@ -110,16 +97,11 @@
             </div>
 
             {{-- 4. ANGEBOTSKALKULATOR (FRONTEND-FREIGABE) --}}
-            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3">
+            <div class="p-5 rounded-2xl bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/70 dark:border-gray-800 space-y-3 relative hover:z-40">
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] text-[var(--theme-color)] font-bold border border-[var(--theme-color-20)]">/calculator</span>
-                        <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                            <button type="button" @click.prevent="open = !open" title="{{ $infoTexts['quote_calculator_enabled'] }}" class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-300 text-[10px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                            <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-72 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-3 text-[11px] leading-relaxed text-gray-700 dark:text-gray-200 shadow-xl pointer-events-none">
-                                {{ $infoTexts['quote_calculator_enabled'] }}
-                            </div>
-                        </div>
+                        @include('components.alerts.info-tooltip', ['key' => 'quote_calculator_enabled'])
                     </div>
                 </div>
                 <div>
@@ -143,7 +125,7 @@
     </div>
 
     {{-- KARTE 2: STEUERN & FINANZEN (§ 19 UStG & MwSt-Sätze) --}}
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 relative overflow-hidden">
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 relative z-20">
         <h3 class="text-sm sm:text-base font-serif font-bold text-gray-900 dark:text-white mb-8 flex items-center gap-3 tracking-wide border-b border-gray-100 dark:border-gray-800 pb-4">
             <span class="w-8 h-8 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner flex items-center justify-center italic font-serif shrink-0">%</span>
             Steuern &amp; Finanzen (§ 19 UStG &amp; MwSt-Sätze)
@@ -169,7 +151,6 @@
                                     {{ $this->taxStatusSummary['badge'] }}
                                 </span>
                             </div>
-                            <span class="text-[10px] text-gray-500 font-medium mt-1 block leading-normal">{{ $this->taxStatusSummary['desc'] }}</span>
                         </div>
                     </button>
                 </div>
@@ -178,7 +159,6 @@
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Standard-MwSt Satz (%)</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'default_tax_rate'])
                 </div>
                 <div class="relative">
                     <input type="number" step="0.1" wire:model="settings.default_tax_rate" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
@@ -190,7 +170,6 @@
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Ermäßigter MwSt Satz (%)</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'reduced_tax_rate'])
                 </div>
                 <div class="relative">
                     <input type="number" step="0.1" wire:model="settings.reduced_tax_rate" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
@@ -202,7 +181,6 @@
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Admin E-Mail Benachrichtigung</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'send_order_email_to_admin'])
                 </div>
                 <label class="{{ $checkboxContainerClass }}">
                     <div class="relative flex items-center shrink-0">
@@ -212,14 +190,13 @@
                     </div>
                     <div class="min-w-0">
                         <span class="block font-bold text-gray-900 dark:text-white text-sm group-hover:text-[var(--theme-color)] transition-colors">Bestell-Mails erhalten</span>
-                        <span class="text-[10px] text-gray-500 font-medium uppercase tracking-wider mt-0.5 block">Admin erhält Kopie der Bestellung</span>
                     </div>
                 </label>
             </div>
         </div>
     </div>
 
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8">
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 relative z-10">
         <h3 class="text-sm sm:text-base font-serif font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-3 tracking-wide border-b border-gray-100 dark:border-gray-800 pb-4">
             <div class="p-2 rounded-xl bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] text-[var(--theme-color)] shadow-inner shrink-0">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>

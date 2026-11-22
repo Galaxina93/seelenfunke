@@ -98,7 +98,7 @@ class ShippingCalculatorService
 
         // If only gift vouchers (with post delivery) and/or digital items are in the cart, charge the voucher shipping rate
         if (!$hasOtherPhysical) {
-            $voucherCost = (int) shop_setting('shipping_cost_voucher', 350);
+            $voucherCost = (int) shop_setting('shipping_cost_voucher', 450);
             return [
                 'cost' => $voucherCost,
                 'is_free' => ($voucherCost === 0),

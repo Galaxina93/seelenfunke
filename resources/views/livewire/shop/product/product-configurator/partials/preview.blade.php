@@ -45,7 +45,7 @@
                         Platziere, drehe und skaliere Texte, Motive oder eigene Bilder frei auf der Fläche. Produktionsbedingt sind minimale <a href="/agb#konfigurator" target="_blank" rel="noopener noreferrer" class="underline font-semibold hover:opacity-80 transition-opacity">Abweichungen</a> zur Vorschau möglich.
                     </p>
                     <p x-show="config.isBeginnerMode" x-cloak class="{{ $isDark ? 'text-blue-200/90' : 'text-blue-800' }}">
-                        Im Neulings-Modus sind Symbol (oben mittig) und Wunschtext (unten mittig) fest an der optimalen Position ausgerichtet. Deine Eingaben unten aktualisieren diese 2D- & 3D-Vorschau automatisch in Echtzeit.
+                        Im Neulings-Modus werden Symbol und Wunschtext automatisch konturgenau in die Gravurfläche eingepasst. Deine Eingaben unten aktualisieren diese 2D- & 3D-Vorschau sofort in Echtzeit.
                     </p>
                 </div>
             </div>
@@ -310,7 +310,7 @@
             {{-- Miniatur-Produkt-Overlay --}}
             <img x-show="Boolean(activeOverlayImg || config.fallbackImg)"
                  :src="activeOverlayImg || config.fallbackImg"
-                 :style="(isMirroredBackSide() && hasTransparentOverlay) ? 'transform: scaleX(-1); -webkit-transform: scaleX(-1);' : ''"
+                 :style="(Boolean(activeOverlayImg || config.fallbackImg) ? '' : 'display: none; ') + ((isMirroredBackSide() && hasTransparentOverlay) ? 'transform: scaleX(-1); -webkit-transform: scaleX(-1);' : '')"
                  class="absolute inset-0 w-full h-full object-contain pointer-events-none z-[2]"
                  alt="">
             {{-- Miniatur-Arbeitsfläche (Grüne Gravurkontur zur Orientierung) --}}
@@ -1118,16 +1118,16 @@
     </div>
 
     {{-- VORDERSEITE / RÜCKSEITE SWITCH (Direkt unter dem Rahmen) --}}
-    <div x-show="config.has_back_side && !config.isBeginnerMode && (context !== 'preview' || (texts_back && texts_back.some(t => t && t.text && String(t.text).trim() !== '')) || (logos_back && logos_back.length > 0))" x-cloak class="mt-5 shadow-sm border rounded-full p-1 flex items-center justify-center relative z-40 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
+    <div x-show="config.has_back_side && (context === 'preview' ? ((texts_back && texts_back.some(t => t && t.text && String(t.text).trim() !== '')) || (logos_back && logos_back.length > 0)) : (!config.isBeginnerMode || config.hasBackBeginnerOption || (texts_back && texts_back.some(t => t && t.text && String(t.text).trim() !== '')) || (logos_back && logos_back.length > 0)))" x-cloak class="mt-5 shadow-sm border rounded-full p-1 flex items-center justify-center relative z-40 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100' }}">
         <button type="button"
                 @click="switchSide('front')"
-                :class="activeSide === 'front' ? 'bg-primary text-white shadow-md' : '{{ $isDark ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-800' }}'"
+                :class="activeSide === 'front' ? 'bg-primary text-gray-900 shadow-sm' : '{{ $isDark ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-800' }}'"
                 class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center cursor-pointer">
             Vorderseite
         </button>
         <button type="button"
                 @click="switchSide('back')"
-                :class="activeSide === 'back' ? 'bg-purple-500 text-white shadow-md' : '{{ $isDark ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-800' }}'"
+                :class="activeSide === 'back' ? 'bg-primary text-gray-900 shadow-sm' : '{{ $isDark ? 'text-gray-500 hover:text-white' : 'text-gray-500 hover:text-gray-800' }}'"
                 class="px-6 py-2.5 rounded-full text-xs font-black uppercase tracking-widest transition-all duration-300 w-36 text-center cursor-pointer">
             Rückseite
         </button>

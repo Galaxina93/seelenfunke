@@ -500,6 +500,10 @@ class FunkenwerkPrintService
             Storage::disk('local')->put(self::QUEUE_FILE, $encryptedPayload);
             $fullPath = Storage::disk('local')->path(self::QUEUE_FILE);
             @chmod($fullPath, 0660);
+            if (function_exists('posix_geteuid') && @posix_geteuid() === 0) {
+                @chown($fullPath, 'www-data');
+                @chgrp($fullPath, 'www-data');
+            }
         } catch (\Throwable) {
         }
     }

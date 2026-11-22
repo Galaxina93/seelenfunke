@@ -1355,7 +1355,21 @@ class InfluencerService
 
             return $relativePath;
         } catch (\Throwable $e) {
-            Log::error("Fehler beim Erstellen der Influencer-Gutschrift {$payout->credit_note_number}: " . $e->getMessage());
+            if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                \App\Services\System\SystemErrorLogger::recordException(
+                    $e,
+                    'marketing',
+                    'influencer:credit_note_pdf_failed',
+                    'Influencer-Gutschrift PDF Fehler',
+                    [
+                        'payout_id' => $payout->id,
+                        'credit_note_number' => $payout->credit_note_number,
+                        'influencer_id' => $payout->influencer_id,
+                        'influencer_handle' => $payout->influencer?->handle,
+                    ]
+                );
+            }
+            Log::error("Fehler beim Erstellen der Influencer-Gutschrift {$payout->credit_note_number}: " . $e->getMessage(), ['exception' => $e]);
             return null;
         }
     }

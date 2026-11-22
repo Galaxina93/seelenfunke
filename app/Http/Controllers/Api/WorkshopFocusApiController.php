@@ -670,10 +670,18 @@ class WorkshopFocusApiController extends Controller
             ? $request->boolean('laser_online')
             : null;
         $laserIp = $request->query('laser_ip');
+        $workTelemetry = $request->has('work_mode') ? [
+            'mode'         => (string) $request->query('work_mode', ''),
+            'sub_mode'     => (string) $request->query('work_submode', ''),
+            'desc'         => (string) $request->query('work_desc', ''),
+            'progress_pct' => max(0, min(100, (int) $request->query('work_progress', 0))),
+            'worktime_sec' => max(0, (int) $request->query('work_time_sec', 0)),
+        ] : null;
 
         $job = $this->laserService->claimNextPendingRelayJob(
             $laserOnline,
-            is_string($laserIp) ? $laserIp : null
+            is_string($laserIp) ? $laserIp : null,
+            $workTelemetry
         );
 
         return response()->json([
@@ -700,6 +708,8 @@ class WorkshopFocusApiController extends Controller
             'error' => 'nullable|string|max:500',
             'warped_jpeg_base64' => 'nullable|string|max:16000000',
             'raw_jpeg_base64' => 'nullable|string|max:24000000',
+            'focus_mm' => 'nullable|numeric|min:0|max:250',
+            'raw_z_mm' => 'nullable|numeric|min:0|max:260',
         ]);
 
         $completed = $this->laserService->completeRelayJob((string) $data['job_id'], $data);

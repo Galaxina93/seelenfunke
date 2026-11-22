@@ -678,7 +678,7 @@ fun FalconFocusScreen(
                             )
                     )
                     Text(
-                        text = "Falcone · Mitgründer",
+                        text = "Funkira · Stabschefin",
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = stageHudText,
@@ -865,7 +865,7 @@ fun FalconFocusScreen(
                     if (previewBitmap != null) {
                         Image(
                             bitmap = previewBitmap!!,
-                            contentDescription = "Falcone Live-Kamera",
+                            contentDescription = "Funkira Live-Kamera",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -1410,7 +1410,7 @@ fun FalconFocusScreen(
                         } else {
                             Icon(
                                 imageVector = if (isConnected) Icons.Default.CallEnd else Icons.Default.Mic,
-                                contentDescription = if (isConnected) "Gespräch beenden" else "Mit Falcone sprechen",
+                                contentDescription = if (isConnected) "Gespräch beenden" else "Mit Funkira sprechen",
                                 tint = if (isConnected) Color.White else SpaceBlack,
                                 modifier = Modifier.size(27.dp)
                             )

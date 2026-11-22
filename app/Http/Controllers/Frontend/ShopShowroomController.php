@@ -1371,12 +1371,38 @@ class ShopShowroomController extends Controller
             $holidayLabel = 'Halloween';
         }
 
+        $minutesOfDay = ((int) $now->hour * 60) + (int) $now->minute;
+        [$sunriseMin, $sunsetMin] = match ($seasonKey) {
+            'winter' => [465, 1005],
+            'spring' => [390, 1185],
+            'summer' => [330, 1275],
+            default => [420, 1095],
+        };
+        $isNight = ($minutesOfDay < ($sunriseMin - 25)) || ($minutesOfDay > ($sunsetMin + 25));
+        $dayPhase = match (true) {
+            $minutesOfDay >= ($sunriseMin - 25) && $minutesOfDay <= ($sunriseMin + 35) => 'dawn',
+            $minutesOfDay >= ($sunsetMin - 35) && $minutesOfDay <= ($sunsetMin + 25) => 'dusk',
+            $isNight => 'night',
+            default => 'day',
+        };
+        $weatherCondition = $isNight
+            ? 'starry_night'
+            : match ($seasonKey) {
+                'winter' => 'winter_snow_sun',
+                'spring' => 'spring_breeze',
+                'summer' => 'summer_clear',
+                default => 'autumn_gold',
+            };
+
         return [
             'season_key' => $seasonKey,
             'season_label' => $seasonLabel,
             'holiday_key' => $holidayKey,
             'holiday_label' => $holidayLabel,
             'server_time' => $now->format('H:i'),
+            'is_night' => $isNight,
+            'day_phase' => $dayPhase,
+            'weather_condition' => $weatherCondition,
         ];
     }
 

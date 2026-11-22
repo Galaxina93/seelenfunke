@@ -12,7 +12,8 @@ services:
             - ./docker/php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
         # Dieser Befehl ändert das Hauptverzeichnis auf /public, startet den Node-Server im Hintergrund und aktiviert mod_rewrite
         command: >
-            bash -c "sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
+            bash -c "[ -f /var/www/html/public/index.php ] || { echo 'Waiting for WSL bind-mount /var/www/html/public...'; sleep 2; exit 1; }
+            && (grep -q '/var/www/html/public' /etc/apache2/sites-available/000-default.conf || sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf)
             && a2enmod rewrite
             && (cd /var/www/html && nohup node --no-warnings server-twilio.js >/dev/null 2>>/var/www/html/storage/logs/twilio_bridge.log &)
             && apache2-foreground"
@@ -45,7 +46,8 @@ services:
         volumes:
             - ../funkenreich:/var/www/html/
         command: >
-            bash -c "sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
+            bash -c "[ -f /var/www/html/public/index.php ] || { echo 'Waiting for WSL bind-mount /var/www/html/public...'; sleep 2; exit 1; }
+            && (grep -q '/var/www/html/public' /etc/apache2/sites-available/000-default.conf || sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf)
             && a2enmod rewrite
             && ( [ -f /var/www/html/.env ] && chgrp www-data /var/www/html/.env && chmod 640 /var/www/html/.env || true )
             && mkdir -p /var/www/html/storage/database /var/www/html/storage/sessions /var/www/html/storage/nonces /var/www/html/storage/logs

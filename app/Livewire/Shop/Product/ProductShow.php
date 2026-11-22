@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Shop\Product;
 
+use App\Livewire\Shop\Product\Traits\ManagesConfiguratorStartSelection;
 use App\Models\Product\Product;
 use App\Models\Product\ProductTemplate;
 use App\Services\ProductTrackingService;
@@ -10,16 +11,10 @@ use Livewire\Component;
 
 class ProductShow extends Component
 {
+    use ManagesConfiguratorStartSelection;
+
     #[\Livewire\Attributes\Locked]
     public Product $product;
-    public $showTemplateSelection = false;
-    public $showTemplatesList = false;
-    #[\Livewire\Attributes\Locked]
-    public $productTemplates = [];
-    public bool $showAllSeasonalTemplates = false;
-    #[\Livewire\Attributes\Locked]
-    public int $hiddenSeasonalTemplatesCount = 0;
-    public $currentConfig = [];
 
     public function mount(Product $product)
     {
@@ -32,151 +27,36 @@ class ProductShow extends Component
         // Telemetrie: Seitenaufruf Konfigurator
         ProductTrackingService::trackConfiguratorView($this->product->id);
 
-        // Startauswahl ("Neuling -> Anfänger -> Profi") anzeigen, wenn das Produkt den interaktiven 2D/3D Studio-Konfigurator nutzt
+        // Startauswahl ("Neuling -> Anfänger -> Profi") zentral initialisieren, wenn das Produkt den Studio-Konfigurator nutzt
         if ($this->product->usesStudioConfigurator()) {
-            $templates = ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
-
-            if ($templates->isNotEmpty()) {
-                $this->refreshStorefrontTemplates($templates);
-
-                // Template Projection Deep-Link Check (gilt 365 Tage im Jahr für alle aktiven Vorlagen)
-                $requestedTemplateId = request()->query('t');
-                if ($requestedTemplateId) {
-                    $matchingTemplate = $templates->firstWhere('id', $requestedTemplateId);
-                    if ($matchingTemplate) {
-                        $this->selectTemplate($matchingTemplate->id);
-                        return;
-                    }
-                }
-            }
-
-            $this->showTemplateSelection = true;
-        }
-    }
-
-    protected function refreshStorefrontTemplates(?iterable $allActiveTemplates = null): void
-    {
-        $templates = $allActiveTemplates !== null
-            ? collect($allActiveTemplates)
-            : ProductTemplate::where('product_id', $this->product->id)->where('is_active', true)->get();
-
-        if ($templates->isEmpty()) {
-            $this->productTemplates = [];
-            $this->hiddenSeasonalTemplatesCount = 0;
-            $this->showAllSeasonalTemplates = false;
-            return;
-        }
-
-        $allAsArrays = $templates->map(fn ($t) => $t instanceof ProductTemplate ? $t->toArray() : (array) $t)->values()->all();
-        $totalActive = count($allAsArrays);
-        $curated = ProductTemplate::filterAndSortForStorefront($allAsArrays, false);
-
-        if (empty($curated)) {
-            $this->productTemplates = ProductTemplate::filterAndSortForStorefront($allAsArrays, true);
-            $this->hiddenSeasonalTemplatesCount = 0;
-            $this->showAllSeasonalTemplates = false;
-            return;
-        }
-
-        if (count($curated) === $totalActive) {
-            $this->productTemplates = $curated;
-            $this->hiddenSeasonalTemplatesCount = 0;
-            $this->showAllSeasonalTemplates = false;
-            return;
-        }
-
-        if ($this->showAllSeasonalTemplates) {
-            $this->productTemplates = ProductTemplate::filterAndSortForStorefront($allAsArrays, true);
-            $this->hiddenSeasonalTemplatesCount = 0;
-            return;
-        }
-
-        $this->productTemplates = $curated;
-        $this->hiddenSeasonalTemplatesCount = max(0, $totalActive - count($curated));
-    }
-
-    public function toggleShowAllTemplates(): void
-    {
-        $this->showAllSeasonalTemplates = !$this->showAllSeasonalTemplates;
-        $this->refreshStorefrontTemplates();
-    }
-
-    public function startBeginnerConfig()
-    {
-        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
-            return;
-        }
-
-        ProductTrackingService::trackModeChosen($this->product->id, 'beginner');
-        $this->showTemplateSelection = false;
-        $this->showTemplatesList = false;
-        $this->currentConfig = [
-            'personalization_mode' => 'custom_fields',
-        ];
-
-        $this->dispatch('scroll-to-config-stage');
-    }
-
-    public function openTemplatesList()
-    {
-        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
-            return;
-        }
-
-        ProductTrackingService::trackModeChosen($this->product->id, 'template');
-        $this->showTemplateSelection = false;
-        $this->showTemplatesList = true;
-        $this->dispatch('scroll-to-config-stage');
-    }
-
-    public function startCustomConfig()
-    {
-        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
-            return;
-        }
-
-        ProductTrackingService::trackModeChosen($this->product->id, 'custom');
-        $this->showTemplateSelection = false;
-        $this->showTemplatesList = false;
-        $this->currentConfig = [
-            'personalization_mode' => 'studio',
-        ];
-
-        $mainMeta = $this->product->resolveMainMediaMeta(null, $this->product->isAutoSeasonalMainImageEnabled());
-        if (!empty($mainMeta['url']) && ($mainMeta['type'] ?? 'image') === 'image') {
-            $this->dispatch('variant-selected',
-                variantId: null,
-                variantName: null,
-                formattedPrice: null,
-                imageUrl: $mainMeta['url'],
-                imageIsAi: (bool) ($mainMeta['is_ai_generated'] ?? true),
-                imageLabel: $mainMeta['label'] ?? $this->product->name
+            $requestedTemplateId = request()->query('t');
+            $this->initStartSelectionForStudioProduct(
+                is_string($requestedTemplateId) && $requestedTemplateId !== '' ? $requestedTemplateId : null
             );
         }
-
-        $this->dispatch('scroll-to-config-stage');
     }
 
-    public function selectTemplate($templateId)
+    protected function resolveStartSelectionProductId(): ?string
     {
-        if (filter_var(shop_setting('maintenance_mode', false), FILTER_VALIDATE_BOOLEAN)) {
-            return;
-        }
+        return isset($this->product) ? (string) $this->product->id : null;
+    }
 
-        $template = ProductTemplate::where('product_id', $this->product->id)
-            ->where('is_active', true)
-            ->find($templateId);
-        if ($template) {
-            $config = $template->configuration ?? [];
-            if (empty($config['background_theme'])) {
-                $config['background_theme'] = app(\App\Services\ConfiguratorService::class)
-                    ->resolveThemeKey($template->holiday ?? $template->name);
+    protected function afterStartModeTransition(string $mode, ?ProductTemplate $selectedTemplate = null): void
+    {
+        if ($mode === 'custom') {
+            $mainMeta = $this->product->resolveMainMediaMeta(null, $this->product->isAutoSeasonalMainImageEnabled());
+            if (!empty($mainMeta['url']) && ($mainMeta['type'] ?? 'image') === 'image') {
+                $this->dispatch('variant-selected',
+                    variantId: null,
+                    variantName: null,
+                    formattedPrice: null,
+                    imageUrl: $mainMeta['url'],
+                    imageIsAi: (bool) ($mainMeta['is_ai_generated'] ?? true),
+                    imageLabel: $mainMeta['label'] ?? $this->product->name
+                );
             }
-            $config['holiday'] = $template->holiday;
-            $config['template_name'] = $template->name;
-            $this->currentConfig = $config;
-            ProductTrackingService::trackTemplateSelected($this->product->id, $templateId, $template->name ?? $template->title ?? ('Vorlage #' . $templateId));
-
+        } elseif ($mode === 'template' && $selectedTemplate) {
+            $config = $this->currentConfig ?? [];
             $tplVariantId = $config['variant_id'] ?? null;
             $tplPriceCents = (int) $this->product->price;
             if ($tplVariantId) {
@@ -189,23 +69,20 @@ class ProductShow extends Component
                 $taxRate = (float) ($this->product->tax_rate ?? shop_setting('default_tax_rate', 19.0));
                 $tplPriceCents = (int) round($tplPriceCents * (1 + ($taxRate / 100)));
             }
-            $tplImgUrl = !empty($template->preview_image)
-                ? ProductTemplate::resolveImageUrl($template->preview_image)
-                : ($tplVariantId ? ($this->product->resolveVariantImageMeta($tplVariantId, $template->holiday ?: null)['url'] ?? null) : null);
+            $tplImgUrl = !empty($selectedTemplate->preview_image)
+                ? ProductTemplate::resolveImageUrl($selectedTemplate->preview_image)
+                : ($tplVariantId ? ($this->product->resolveVariantImageMeta($tplVariantId, $selectedTemplate->holiday ?: null)['url'] ?? null) : null);
 
             $this->dispatch('variant-selected',
                 variantId: $tplVariantId,
                 variantName: $config['variant_name'] ?? null,
                 formattedPrice: number_format($tplPriceCents / 100, 2, ',', '.') . ' €',
                 imageUrl: $tplImgUrl,
-                imageIsAi: (bool) ($template->is_ai_generated ?? true),
-                imageLabel: $template->name
+                imageIsAi: (bool) ($selectedTemplate->is_ai_generated ?? true),
+                imageLabel: $selectedTemplate->name
             );
-        } else {
-            $this->currentConfig = [];
         }
-        $this->showTemplateSelection = false;
-        $this->showTemplatesList = false;
+
         $this->dispatch('scroll-to-config-stage');
     }
 
@@ -248,8 +125,8 @@ class ProductShow extends Component
         $seoTitle = $this->product->seo_title ?: ($this->product->name . ' · Personalisiert mit Lasergravur');
         $rawDesc = $this->product->seo_description ?: ($this->product->short_description ?: $this->product->description);
         $seoDescription = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $rawDesc))), 160);
-        $mainImageUrl = $this->product->resolveMainImageUrl(null, false)
-            ?: ($this->product->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
+        $mainImageUrl = $this->product->resolveSeoMainImageMeta()['url']
+            ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png');
         $canonicalUrl = route('product.show', $this->product->slug);
 
         $productSchema = $this->product->buildStructuredDataSchema($canonicalUrl);

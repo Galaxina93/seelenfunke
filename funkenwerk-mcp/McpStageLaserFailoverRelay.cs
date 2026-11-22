@@ -142,10 +142,12 @@ namespace FunkenwerkMcp
             public string? Error { get; set; }
             public string? WarpedJpegBase64 { get; set; }
             public string? RawJpegBase64 { get; set; }
+            public double? FocusMm { get; set; }
+            public double? RawZMm { get; set; }
 
             public JsonObject ToJsonObject()
             {
-                return new JsonObject
+                var obj = new JsonObject
                 {
                     ["job_id"] = JobId,
                     ["ok"] = Ok,
@@ -155,6 +157,9 @@ namespace FunkenwerkMcp
                     ["warped_jpeg_base64"] = WarpedJpegBase64,
                     ["raw_jpeg_base64"] = RawJpegBase64
                 };
+                if (FocusMm.HasValue) obj["focus_mm"] = Math.Round(FocusMm.Value, 2);
+                if (RawZMm.HasValue) obj["raw_z_mm"] = Math.Round(RawZMm.Value, 2);
+                return obj;
             }
         }
 
@@ -1960,6 +1965,92 @@ namespace FunkenwerkMcp
                 };
             }
 
+            if (string.Equals(job.Action, "stop_laser", StringComparison.OrdinalIgnoreCase))
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+                string uuid = Guid.NewGuid().ToString("D");
+                using var mainWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=instruction", cts.Token).ConfigureAwait(false);
+                if (mainWs == null)
+                {
+                    return new LaserRelayCompletionPayload { JobId = job.JobId, Ok = false, LaserOnline = false, State = "OFFLINE", Error = offlineMsg };
+                }
+                var mainBuf = new List<byte>(4096);
+                var txId = new RefInt();
+                string sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, cts.Token).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(sessionToken))
+                {
+                    return new LaserRelayCompletionPayload { JobId = job.JobId, Ok = false, LaserOnline = true, State = "AUTH_ERROR", Error = "Authentifizierung am Laser fehlgeschlagen." };
+                }
+                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/processing/state", new JsonObject { ["action"] = "stop" }, new JsonObject { ["action"] = "stop" }, cts.Token).ConfigureAwait(false);
+                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "POST", "/v1/laser-head/focus/control", new JsonObject(), new JsonObject { ["action"] = "auto_stop" }, cts.Token).ConfigureAwait(false);
+                return new LaserRelayCompletionPayload { JobId = job.JobId, Ok = true, LaserOnline = true, State = "STOPPED" };
+            }
+
+            if (string.Equals(job.Action, "auto_focus", StringComparison.OrdinalIgnoreCase))
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(24));
+                string uuid = Guid.NewGuid().ToString("D");
+                using var mainWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=instruction", cts.Token).ConfigureAwait(false);
+                if (mainWs == null)
+                {
+                    return new LaserRelayCompletionPayload { JobId = job.JobId, Ok = false, LaserOnline = false, State = "OFFLINE", Error = offlineMsg };
+                }
+                var mainBuf = new List<byte>(4096);
+                var txId = new RefInt();
+                string sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, cts.Token).ConfigureAwait(false);
+                if (string.IsNullOrWhiteSpace(sessionToken))
+                {
+                    return new LaserRelayCompletionPayload { JobId = job.JobId, Ok = false, LaserOnline = true, State = "AUTH_ERROR", Error = "Authentifizierung am Laser fehlgeschlagen." };
+                }
+
+                _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/device/mode", new JsonObject(), new JsonObject { ["mode"] = "P_AUTOFOCUS" }, cts.Token).ConfigureAwait(false);
+                await Task.Delay(200, cts.Token).ConfigureAwait(false);
+                var startNode = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "POST", "/v1/laser-head/focus/control", new JsonObject(), new JsonObject { ["action"] = "auto_start" }, cts.Token).ConfigureAwait(false);
+                int startCode = startNode?["code"]?.GetValue<int>() ?? 0;
+                if (startCode != 0)
+                {
+                    return new LaserRelayCompletionPayload { JobId = job.JobId, Ok = false, LaserOnline = true, State = "FOCUS_ERROR", Error = "Auto-Fokus konnte vom Laser nicht gestartet werden." };
+                }
+
+                DateTime deadline = DateTime.UtcNow.AddSeconds(21);
+                bool finished = false;
+                while (DateTime.UtcNow < deadline && !cts.IsCancellationRequested)
+                {
+                    await Task.Delay(650, cts.Token).ConfigureAwait(false);
+                    var rt = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "GET", "/v1/device/runtime-infos", new JsonObject(), new JsonObject(), cts.Token).ConfigureAwait(false);
+                    string curMode = rt?["data"]?["curMode"]?["mode"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrEmpty(curMode) && !string.Equals(curMode, "P_AUTOFOCUS", StringComparison.Ordinal))
+                    {
+                        finished = true;
+                        break;
+                    }
+                }
+
+                if (!finished)
+                {
+                    _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "POST", "/v1/laser-head/focus/control", new JsonObject(), new JsonObject { ["action"] = "auto_stop" }, cts.Token).ConfigureAwait(false);
+                    return new LaserRelayCompletionPayload { JobId = job.JobId, Ok = false, LaserOnline = true, State = "TIMEOUT", Error = "Zeitüberschreitung beim automatischen Einmessen." };
+                }
+
+                await Task.Delay(180, cts.Token).ConfigureAwait(false);
+                var coord = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "POST", "/v1/laser-head/focus/control", new JsonObject(), new JsonObject { ["action"] = "coord" }, cts.Token).ConfigureAwait(false);
+                double rawZ = coord?["data"]?["value"]?.GetValue<double>() ?? 0.0;
+                if (rawZ <= 0.0)
+                {
+                    return new LaserRelayCompletionPayload { JobId = job.JobId, Ok = false, LaserOnline = true, State = "FOCUS_ERROR", Error = "Z-Höhe konnte nicht ausgelesen werden." };
+                }
+                double focusMm = Math.Round(Math.Max(0.1, rawZ - 6.0), 1);
+                return new LaserRelayCompletionPayload
+                {
+                    JobId = job.JobId,
+                    Ok = true,
+                    LaserOnline = true,
+                    State = "FOCUS_OK",
+                    FocusMm = focusMm,
+                    RawZMm = Math.Round(rawZ, 2)
+                };
+            }
+
             return new LaserRelayCompletionPayload
             {
                 JobId = job.JobId,
@@ -2151,6 +2242,8 @@ namespace FunkenwerkMcp
                 }
 
                 int onlineFlag = laserOnline ? 1 : 0;
+                // WICHTIG: Im 2,5s-Hintergrundloop NIEMALS AuthenticateParityAsync (/v1/user/parity) aufrufen,
+                // da der xTool F2 Ultra UV bei jedem /v1/user/parity einen lauten Verbindungs-Piepton auslöst!
                 string pollUrl = $"{PinnedStageApiBaseUrl}/shop/workshop-focus/laser-relay/poll?laser_online={onlineFlag}&laser_ip={Uri.EscapeDataString(DefaultLaserIp)}";
 
                 HttpResponseMessage pollResp = await SendStageAuthenticatedAsync(HttpMethod.Get, pollUrl, bearer, null, 8, ct).ConfigureAwait(false);

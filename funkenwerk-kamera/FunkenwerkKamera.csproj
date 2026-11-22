@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>FunkenwerkKamera</AssemblyName>
+    <RootNamespace>Funkenwerk</RootNamespace>
+    <ApplicationTitle>Funkenwerk Kamera</ApplicationTitle>
+    <Product>Funkenwerk Kamera</Product>
+    <Company>Mein-Seelenfunke</Company>
+    <Version>1.6.1</Version>
+    <AssemblyVersion>1.6.1.19</AssemblyVersion>
+    <FileVersion>1.6.1.19</FileVersion>
+    <InformationalVersion>1.6.1+b19</InformationalVersion>
+    <ApplicationIcon>funkenwerk_kamera.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
+    <Compile Include="..\funkenwerk\FunkenwerkSharedSession.cs" Link="Shared\FunkenwerkSharedSession.cs" />
+    <Compile Include="..\funkenwerk\SmartHomeEngine.cs" Link="Shared\SmartHomeEngine.cs" />
+    <Resource Include="funkenwerk_kamera.ico" />
+    <Resource Include="funkenwerk_kamera.png" />
+    <None Include="funkenwerk_kamera.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="FunkenwerkCam64.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="FunkenwerkCam32.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="placeholder.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="funkenwerk_dlc_bridge.py" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

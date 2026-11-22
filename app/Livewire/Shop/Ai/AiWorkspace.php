@@ -75,14 +75,14 @@ class AiWorkspace extends Component
         $this->loadFileManagerFiles();
         $this->loadHealthData();
 
-        $this->activeAgentIds = AiAgent::where('is_in_chat', true)->where('name', '!=', 'Funki')->pluck('id')->toArray();
+        $this->activeAgentIds = AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->pluck('id')->toArray();
         $this->forcedAgentIds = $this->activeAgentIds;
 
-        $teamLeader = AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->whereHas('role', function($q) {
+        $teamLeader = AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->whereHas('role', function($q) {
             $q->where('name', 'like', '%Teamleiter%');
         })->first();
         
-        $fallbackAgent = $teamLeader ?? AiAgent::where('is_active', true)->where('name', '!=', 'Funki')->first();
+        $fallbackAgent = $teamLeader ?? AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->first();
 
         if (empty($this->activeAgentIds) && $fallbackAgent) {
             $fallbackAgent->update(['is_in_chat' => true]);

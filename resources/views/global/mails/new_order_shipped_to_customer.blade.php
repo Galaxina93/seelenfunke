@@ -33,12 +33,17 @@
 
     @if(!empty($data['tracking_numbers']) && count($data['tracking_numbers']) > 0)
         <div style="margin-top: 15px; padding: 15px; background-color: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; font-size: 13px; color: #92400e; line-height: 1.5; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02)">
-            <strong style="color: #b45309; font-size: 14px;">🚚 Deine DHL Sendungsverfolgung:</strong><br>
-            <div style="margin-top: 5px;">Klicke direkt auf die Tracking-Nummer, um den aktuellen Status abzurufen:</div>
+            <strong style="color: #b45309; font-size: 14px;">🚚 {{ !empty($data['has_brief_shipment']) ? 'Deine Sendungsverfolgung (Deutsche Post):' : 'Deine DHL Sendungsverfolgung:' }}</strong><br>
+            <div style="margin-top: 5px;">Klicke direkt auf die Sendungsnummer, um den aktuellen Status abzurufen:</div>
             <ul style="margin-top: 10px; margin-bottom: 0; padding-left: 20px;">
                 @foreach($data['tracking_numbers'] as $trackingNumber)
+                    @php
+                        $trackUrl = !empty($data['has_brief_shipment'])
+                            ? ('https://www.deutschepost.de/de/s/sendungsverfolgung.html?piececode=' . urlencode((string) $trackingNumber))
+                            : ('https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode=' . urlencode((string) $trackingNumber));
+                    @endphp
                     <li style="margin-bottom: 4px;">
-                        <a href="https://www.dhl.de/de/privatkunden/dhl-sendungsverfolgung.html?piececode={{ $trackingNumber }}" 
+                        <a href="{{ $trackUrl }}"
                            target="_blank" 
                            style="color: #d97706; font-weight: bold; text-decoration: underline;">
                             {{ $trackingNumber }}
@@ -46,6 +51,11 @@
                     </li>
                 @endforeach
             </ul>
+        </div>
+    @elseif(!empty($data['has_brief_shipment']))
+        <div style="margin-top: 15px; padding: 15px; background-color: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; font-size: 13px; color: #92400e; line-height: 1.5;">
+            <strong style="color: #b45309; font-size: 14px;">✉️ Versand per Deutsche Post Großbrief:</strong><br>
+            <div style="margin-top: 5px;">Deine Sendung wurde knickgeschützt im schwarzen Edel-Umschlag auf den Weg gebracht und wird regulär direkt in den Briefkasten zugestellt.</div>
         </div>
     @endif
 

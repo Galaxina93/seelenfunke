@@ -189,21 +189,21 @@
 
             <!-- LIGHTBOX OVERLAY FOR TEXT/MARKDOWN -->
             @if($this->previewContent !== null)
-            <div class="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm shadow-2xl" x-data="{ viewMode: 'markdown' }">
-                <div class="relative max-w-6xl w-full max-h-full h-[85vh] flex flex-col bg-gray-950 shadow-[0_0_50px_black] rounded-xl border border-gray-800 overflow-hidden">
-                    <button wire:click="closeFilePreview" class="absolute top-3 right-4 text-gray-400 hover:text-red-500 transition-colors z-10">
+            <div class="fixed inset-0 z-[200] bg-black/75 flex items-center justify-center p-4 backdrop-blur-sm shadow-2xl" x-data="{ viewMode: 'markdown' }">
+                <div class="relative max-w-6xl w-full max-h-full h-[85vh] flex flex-col bg-white dark:bg-gray-950 shadow-2xl rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden text-gray-900 dark:text-gray-100">
+                    <button wire:click="closeFilePreview" class="absolute top-3 right-4 text-gray-500 hover:text-red-500 transition-colors z-10">
                         <x-heroicon-o-x-mark class="w-6 h-6"/>
                     </button>
                     
                     <!-- Viewer Header -->
-                    <div class="bg-[var(--theme-color-10)] border-b border-gray-800 px-6 py-3 flex items-center pr-16">
+                    <div class="bg-[var(--theme-color-10)] border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center pr-16">
                         <div class="font-mono text-[var(--theme-color)] font-bold text-sm tracking-widest uppercase flex-1 truncate">
                             <x-heroicon-o-document-text class="w-5 h-5 inline-block mr-2 -mt-0.5" />
                             {{ $this->previewFilename }}
                         </div>
                         <div class="flex gap-2 shrink-0">
-                            <button @click="viewMode = 'markdown'" :class="viewMode === 'markdown' ? 'bg-[var(--theme-color)] text-black' : 'bg-gray-800 text-gray-400 hover:text-white'" class="px-3 py-1 text-xs font-bold rounded shadow-sm">Preview</button>
-                            <button @click="viewMode = 'code'"     :class="viewMode === 'code' ? 'bg-[var(--theme-color)] text-black' : 'bg-gray-800 text-gray-400 hover:text-white'" class="px-3 py-1 text-xs font-bold rounded shadow-sm">RAW Editor</button>
+                            <button @click="viewMode = 'markdown'" :class="viewMode === 'markdown' ? 'bg-[var(--theme-color)] text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'" class="px-3 py-1 text-xs font-bold rounded shadow-sm">Preview</button>
+                            <button @click="viewMode = 'code'"     :class="viewMode === 'code' ? 'bg-[var(--theme-color)] text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'" class="px-3 py-1 text-xs font-bold rounded shadow-sm">RAW Editor</button>
                         </div>
                     </div>
 
@@ -217,7 +217,7 @@
 
                         <!-- RAW Code Block -->
                         <div x-show="viewMode === 'code'" style="display: none;" class="w-full h-full">
-                            <textarea class="w-full h-full bg-gray-950 text-emerald-400 font-mono text-sm p-4 border border-gray-800 rounded outline-none custom-scrollbar" readonly>{{ $this->previewContent }}</textarea>
+                            <textarea class="w-full h-full bg-gray-50 dark:bg-gray-950 text-emerald-700 dark:text-emerald-400 font-mono text-sm p-4 border border-gray-200 dark:border-gray-800 rounded outline-none custom-scrollbar" readonly>{{ $this->previewContent }}</textarea>
                         </div>
                     </div>
                 </div>
@@ -227,21 +227,21 @@
             <!-- FOLDER CONTEXT MENU -->
             <template x-teleport="body">
                 <div x-show="contextMenuOpen" x-cloak 
-                     class="fixed z-[9999] bg-gray-900 border border-gray-700 rounded-lg shadow-xl py-1 overflow-hidden min-w-[150px]"
+                     class="fixed z-[9999] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-1 overflow-hidden min-w-[160px]"
                      :style="`top: ${contextMenuY}px; left: ${contextMenuX}px;`"
                      @click.outside="closeContextMenu()"
                      @click.stop>
-                    <button type="button" @click="startRenaming()" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 transition-colors text-sm font-mono flex items-center gap-2">
+                    <button type="button" @click="startRenaming()" class="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm font-mono flex items-center gap-2">
                         <x-heroicon-o-pencil class="w-4 h-4" /> Umbenennen
                     </button>
-                    <button type="button" @click="startMoving()" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 transition-colors text-sm font-mono flex items-center gap-2">
+                    <button type="button" @click="startMoving()" class="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm font-mono flex items-center gap-2">
                         <x-heroicon-o-arrows-right-left class="w-4 h-4" /> Verschieben in...
                     </button>
-                    <button type="button" @click="$wire.archiveFileManagerItem(contextMenuPath); closeContextMenu()" class="w-full text-left px-4 py-2 text-gray-300 hover:bg-gray-800 transition-colors text-sm font-mono flex items-center gap-2">
+                    <button type="button" @click="$wire.archiveFileManagerItem(contextMenuPath); closeContextMenu()" class="w-full text-left px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm font-mono flex items-center gap-2">
                         <x-heroicon-o-archive-box class="w-4 h-4" /> Archivieren
                     </button>
-                    <div class="h-px bg-gray-700 my-1"></div>
-                    <button type="button" @click="if(confirm('Element wirklich löschen?')) { $wire.deleteFileManagerItem(contextMenuPath); } closeContextMenu()" class="w-full text-left px-4 py-2 text-red-500 hover:bg-gray-800 transition-colors text-sm font-mono flex items-center gap-2">
+                    <div class="h-px bg-gray-200 dark:bg-gray-700 my-1"></div>
+                    <button type="button" @click="if(confirm('Element wirklich löschen?')) { $wire.deleteFileManagerItem(contextMenuPath); } closeContextMenu()" class="w-full text-left px-4 py-2 text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-gray-800 transition-colors text-sm font-mono flex items-center gap-2">
                         <x-heroicon-s-trash class="w-4 h-4" /> Löschen
                     </button>
                 </div>
@@ -454,12 +454,10 @@
                                                 <span class="text-xs text-gray-500 italic">Verzeichnis</span>
                                             @else
                                                 @if(!empty($file['category']))
-                                                    <span class="inline-block text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-950/60 text-fuchsia-300 border border-fuchsia-800/40 font-semibold mb-0.5">{{ $file['category'] }}</span>
+                                                    <span class="inline-block text-[10px] px-1.5 py-0.5 rounded bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)] font-semibold mb-0.5" title="{{ $file['purpose'] ?? '' }}">{{ $file['category'] }}</span>
                                                 @endif
                                                 @if(!empty($file['purpose']))
-                                                    <div class="text-[11px] text-gray-400 truncate max-w-xs" title="{{ $file['purpose'] }}">
-                                                        <span class="text-amber-400 font-medium">Zweck:</span> {{ $file['purpose'] }}
-                                                    </div>
+                                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500 text-[9px] font-bold ml-1 cursor-help" title="{{ $file['purpose'] }}">!</span>
                                                 @endif
                                             @endif
                                         </td>
@@ -467,7 +465,7 @@
                                         <td class="py-3 text-gray-500">{{ $file['mimeType'] }}</td>
                                         <td class="py-3 text-gray-500">{{ \Carbon\Carbon::createFromTimestamp($file['lastModified'])->diffForHumans() }}</td>
                                         <td class="py-3 text-right pr-2">
-                                            <button type="button" @click="openContextMenu($event, '{{ addslashes($file['path']) }}', '{{ addslashes($file['name']) }}')" class="text-gray-400 hover:text-white transition-colors p-1">
+                                            <button type="button" @click="openContextMenu($event, '{{ addslashes($file['path']) }}', '{{ addslashes($file['name']) }}')" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors p-1">
                                                 <x-heroicon-o-ellipsis-horizontal class="w-5 h-5" />
                                             </button>
                                         </td>
@@ -486,16 +484,16 @@
 
             <!-- MOVE MODAL -->
             <template x-teleport="body">
-                <div x-show="moveModalOpen" x-cloak class="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div @click.outside="moveModalOpen = false" class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-6 w-full max-w-md">
-                        <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <div x-show="moveModalOpen" x-cloak class="fixed inset-0 z-[10000] bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div @click.outside="moveModalOpen = false" class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-6 w-full max-w-md text-gray-900 dark:text-white">
+                        <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                             <x-heroicon-o-arrows-right-left class="w-6 h-6 text-[var(--theme-color)]" />
                             Element verschieben
                         </h3>
-                        <p class="text-sm text-gray-400 mb-4 break-all">Wohin soll <span class="text-white font-bold" x-text="contextMenuName"></span> verschoben werden?</p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-4 break-all">Wohin soll <span class="text-gray-900 dark:text-white font-bold" x-text="contextMenuName"></span> verschoben werden?</p>
                         
                         <div class="mb-6">
-                            <select x-model="moveModalTarget" class="w-full bg-black/50 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:border-[var(--theme-color)] outline-none custom-scrollbar">
+                            <select x-model="moveModalTarget" class="w-full bg-gray-50 dark:bg-black/50 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-gray-200 focus:border-[var(--theme-color)] outline-none custom-scrollbar">
                                 <option value="">-- Zielordner auswählen --</option>
                                 @foreach($this->getAllWorkspaceDirectories() as $dir)
                                     <option value="{{ addslashes($dir) }}">{{ $dir }}</option>
@@ -504,7 +502,7 @@
                         </div>
 
                         <div class="flex justify-end gap-3 mt-4">
-                            <button type="button" @click="moveModalOpen = false" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm font-bold transition-colors">
+                            <button type="button" @click="moveModalOpen = false" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-bold transition-colors">
                                 Abbrechen
                             </button>
                             <button type="button" 

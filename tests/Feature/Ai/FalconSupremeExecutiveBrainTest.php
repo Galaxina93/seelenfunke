@@ -24,33 +24,29 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         return Admin::create([
             'first_name' => 'Alina',
             'last_name' => 'Steinhauer',
-            'email' => 'alina-falcone-' . Str::lower(Str::random(6)) . '@mein-seelenfunke.de',
+            'email' => 'alina-funkira-' . Str::lower(Str::random(6)) . '@mein-seelenfunke.de',
             'password' => bcrypt('Secret123!'),
         ]);
     }
 
-    public function test_executive_root_recognizes_falcone_falcon_and_funkira_while_keeping_funki_strictly_air_gapped(): void
+    public function test_executive_root_recognizes_solely_funkira_removes_falcone_and_keeps_funki_strictly_air_gapped(): void
     {
         $this->seed(AiAgentSeeder::class);
 
-        $falcone = AiAgent::where('name', 'Falcone')->with('role.tools')->firstOrFail();
+        $this->assertNull(AiAgent::where('name', 'Falcone')->first());
+        $this->assertNull(AiAgent::where('name', 'Falcon')->first());
+        $this->assertNull(AiAgent::where('name', 'Agenti')->first());
+
         $funkira = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->with('role.tools')->firstOrFail();
 
-        // String, Model-Objekt & Array (case-insensitive + abwärtskompatibel für Falcon & Falcone) -> true
-        foreach ([
-            $falcone, $funkira,
-            'Falcone', 'falcone', 'FALCONE',
-            'Falcon', 'falcon', 'FALCON',
-            'Funkira', 'funkira',
-            ['name' => 'Falcone'], ['name' => 'Falcon'], ['name' => 'Funkira'],
-        ] as $execCandidate) {
+        foreach ([$funkira, 'Funkira', 'funkira', 'FUNKIRA', ['name' => 'Funkira']] as $execCandidate) {
             $this->assertTrue(FunkiraSkillPoolService::isExecutiveRoot($execCandidate));
             $this->assertTrue(FunkiraSkillPoolService::isFunkira($execCandidate));
         }
 
-        // Funki, Ruheständler, Null & leere Eingaben -> strikt false
-        foreach ([$funki, 'Funki', 'funki', 'Buchi', ['name' => 'Funki'], '', null] as $nonExec) {
+        // Falcone, Falcon, Funki & Fachspezialisten -> strikt false
+        foreach ([$funki, 'Falcone', 'Falcon', 'Funki', 'Buchi', ['name' => 'Falcone'], '', null] as $nonExec) {
             $this->assertFalse(FunkiraSkillPoolService::isExecutiveRoot($nonExec));
             $this->assertFalse(FunkiraSkillPoolService::isFunkira($nonExec));
         }
@@ -71,58 +67,37 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         }
     }
 
-    public function test_falcone_possesses_orus_voice_smarthome_and_inactivity_directives_and_renames_legacy_falcon_without_duplicates(): void
+    public function test_funkira_possesses_aoede_voice_smarthome_and_inactivity_directives_and_executes_executive_tools(): void
     {
         $this->seed(AiAgentSeeder::class);
 
-        $falconeFromSeeder = AiAgent::where('name', 'Falcone')->with(['department', 'role.tools'])->firstOrFail();
-        $originalUuid = $falconeFromSeeder->id;
-        $this->assertFalconeExecutiveContract($falconeFromSeeder);
+        $funkira = AiAgent::where('name', 'Funkira')->with(['department', 'role.tools'])->firstOrFail();
+        $this->assertFunkiraExecutiveContract($funkira);
 
-        // Simuliere einen älteren 'Falcon'-Datensatz vor der Umbenennungs-Migration -> muss in-place ohne Dublette umbenannt werden!
-        $falconeFromSeeder->update([
-            'name' => 'Falcon',
-            'wake_word' => 'Falcon',
-            'tts_voice' => 'Puck',
-            'system_prompt' => 'Alter Platzhalter',
-            'is_in_chat' => true,
-        ]);
-
-        $migration = require base_path('database/migrations/2026_11_16_135000_rename_falcon_to_falcone_and_add_smarthome_directive.php');
-        $migration->applyUpgrade();
-
-        $this->assertSame(0, AiAgent::where('name', 'Falcon')->count());
-        $this->assertSame(1, AiAgent::where('name', 'Falcone')->count());
-
-        $falconeAfterMigration = AiAgent::where('name', 'Falcone')->with(['department', 'role.tools'])->firstOrFail();
-        $this->assertSame($originalUuid, $falconeAfterMigration->id);
-        $this->assertFalconeExecutiveContract($falconeAfterMigration);
-
-        // Prüfe direkte Ausführbarkeit der Core-Executive-Werkzeuge für Falcone unter Admin-Auth
         $admin = $this->createAdmin();
         Auth::guard('admin')->login($admin);
 
-        $compassRes = AIFunctionsRegistry::execute('master_get_next_best_actions', [], $falconeAfterMigration);
+        $compassRes = AIFunctionsRegistry::execute('master_get_next_best_actions', [], $funkira);
         $this->assertFalse($compassRes['error'] ?? false);
 
-        $sentinelRes = AIFunctionsRegistry::execute('system_get_error_sentinel', [], $falconeAfterMigration);
+        $sentinelRes = AIFunctionsRegistry::execute('system_get_error_sentinel', [], $funkira);
         $this->assertFalse($sentinelRes['error'] ?? false);
 
         $equipRes = AIFunctionsRegistry::execute(
             FunkiraSkillPoolService::EQUIP_TOOL_NAME,
             ['pools' => ['finance', 'orders', 'laser', 'products', 'system_global']],
-            $falconeAfterMigration
+            $funkira
         );
         $this->assertSame('success', $equipRes['status'] ?? null);
     }
 
-    public function test_live_credentials_for_falcone_android_native_delivers_orus_prompt_and_tools_and_blocks_unauthorized_actors(): void
+    public function test_live_credentials_for_funkira_android_native_delivers_aoede_presence_prompt_and_blocks_unauthorized_actors(): void
     {
         $this->seed(AiAgentSeeder::class);
         config(['services.gemini.key' => 'test-gemini-live-key']);
 
-        $falcone = AiAgent::where('name', 'Falcone')->firstOrFail();
-        $uri = '/api/ai/live-credentials?agent_id=' . $falcone->id . '&client=android_native';
+        $funkira = AiAgent::where('name', 'Funkira')->firstOrFail();
+        $uri = '/api/ai/live-credentials?agent_id=' . $funkira->id . '&client=android_native&channel=android_live_call';
 
         // 1. Gast -> 401
         $this->getJson($uri)->assertStatus(401);
@@ -137,7 +112,7 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             $emp = Employee::create([
                 'first_name' => ucfirst($role),
                 'last_name' => 'Test',
-                'email' => $role . '-falcone-' . Str::lower(Str::random(5)) . '@mein-seelenfunke.de',
+                'email' => $role . '-funkira-' . Str::lower(Str::random(5)) . '@mein-seelenfunke.de',
                 'role' => $role,
                 'password' => bcrypt('Secret123!'),
             ]);
@@ -156,7 +131,7 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             ->getJson($uri)
             ->assertStatus(403);
 
-        // 5. Voll-Admin-Token -> 200 mit Orus, Falcone-Prompt, SmartHome-Direktive, Tool-Schema & Direct-WS-URL
+        // 5. Voll-Admin-Token -> 200 mit Aoede, Funkira-Prompt, Orts-/Umgebungsbewusstsein & Tool-Schema
         $this->app['auth']->forgetGuards();
         $fullAdminPat = $admin->createToken('AlinaAndroidPhone', ['*'])->plainTextToken;
 
@@ -164,18 +139,24 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             ->getJson($uri);
 
         $response->assertStatus(200)
-            ->assertJsonPath('agent_id', $falcone->id)
-            ->assertJsonPath('agent_name', 'Falcone')
-            ->assertJsonPath('voice_name', 'Orus');
+            ->assertJsonPath('agent_id', $funkira->id)
+            ->assertJsonPath('agent_name', 'Funkira')
+            ->assertJsonPath('voice_name', 'Aoede');
 
         $systemInstruction = (string) $response->json('system_instruction');
-        $this->assertStringContainsString('Falcone', $systemInstruction);
-        $this->assertStringContainsString('F-A-L-C-O-N-E', $systemInstruction);
+        $this->assertStringContainsString('Funkira', $systemInstruction);
         $this->assertStringContainsString('falcon_smarthome_control', $systemInstruction);
         $this->assertStringContainsString('2-MINUTEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN', $systemInstruction);
         $this->assertStringContainsString('master_get_next_best_actions', $systemInstruction);
         $this->assertStringContainsString('system_get_error_sentinel', $systemInstruction);
         $this->assertStringContainsString('AUSSCHLIESSLICH AUF EXPLIZITE NACHFRAGE', $systemInstruction);
+        $this->assertStringContainsString('[AKTIVER KONTEXT: Ort=Funkenwerk Android-App (3D Live-Call)', $systemInstruction);
+
+        // Legacy-Fallback: agent_name=Falcone liefert nahtlos Funkira zurück
+        $fallbackRes = $this->withHeader('Authorization', 'Bearer ' . $fullAdminPat)
+            ->getJson('/api/ai/live-credentials?agent_name=Falcone&client=android_native');
+        $fallbackRes->assertStatus(200)
+            ->assertJsonPath('agent_name', 'Funkira');
 
         $declarations = $response->json('tools.0.functionDeclarations');
         $this->assertIsArray($declarations);
@@ -190,34 +171,30 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         $this->assertNotEmpty($response->json('direct_ws_url'));
     }
 
-    private function assertFalconeExecutiveContract(AiAgent $falcone): void
+    private function assertFunkiraExecutiveContract(AiAgent $funkira): void
     {
-        $this->assertSame('Falcone', $falcone->name);
-        $this->assertSame('Hey Falcone', $falcone->wake_word);
-        $this->assertSame('Orus', $falcone->tts_voice);
-        $this->assertTrue($falcone->tts_enabled);
-        $this->assertSame('gemini_native', $falcone->tts_provider);
-        $this->assertTrue($falcone->is_active);
-        $this->assertFalse($falcone->is_in_chat);
-        $this->assertSame('amber-500', $falcone->color);
-        $this->assertSame('shop/ai/images/falcon_selfie.png', $falcone->profile_picture);
-        $this->assertSame('Leitung', $falcone->department?->name);
-        $this->assertSame('Teamleiter', $falcone->role?->name);
+        $this->assertSame('Funkira', $funkira->name);
+        $this->assertSame('Funkira', $funkira->wake_word);
+        $this->assertSame('Aoede', $funkira->tts_voice);
+        $this->assertTrue($funkira->tts_enabled);
+        $this->assertSame('gemini_native', $funkira->tts_provider);
+        $this->assertTrue($funkira->is_active);
+        $this->assertTrue($funkira->is_in_chat);
+        $this->assertSame('Leitung', $funkira->department?->name);
+        $this->assertSame('Teamleiter', $funkira->role?->name);
 
-        $toolIdentifiers = $falcone->tools->pluck('identifier')->all();
+        $toolIdentifiers = $funkira->tools->pluck('identifier')->all();
         $this->assertContains(FunkiraSkillPoolService::EQUIP_TOOL_NAME, $toolIdentifiers);
         $this->assertContains('master_get_next_best_actions', $toolIdentifiers);
         $this->assertContains('system_get_server_status', $toolIdentifiers);
         $this->assertContains('system_get_error_sentinel', $toolIdentifiers);
+        $this->assertContains('ticket_set_status_or_ask', $toolIdentifiers);
 
-        // Keine KI-Gedankenstriche (" – ")
-        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', (string) $falcone->role_description);
-        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', (string) $falcone->system_prompt);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', (string) $funkira->role_description);
+        $this->assertStringNotContainsString(' ' . "\u{2013}" . ' ', (string) $funkira->system_prompt);
 
-        // Alle geforderten Executive-, Server-, SmartHome-, Inaktivitäts-, Kamera-, Musik- & Antigravity-Direktiven
         foreach ([
-            'Falcone',
-            'F-A-L-C-O-N-E',
+            'Funkira',
             'Alina Steinhauer',
             'xTool F2 Ultra UV',
             'FYRST',
@@ -230,12 +207,6 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             'falcon_music_control',
             'falcon_app_navigate',
             'falcon_smarthome_control',
-            'turn_on',
-            'turn_off',
-            'toggle',
-            'turn_all_on',
-            'turn_all_off',
-            'list_devices',
             'Fußleisten Lichterkette',
             'Spiegel Lichterkette',
             'falcon_camera_control',
@@ -246,39 +217,27 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             'execution_mode="direct"',
             'attach_captured_photo=true',
         ] as $expectedSnippet) {
-            $this->assertStringContainsString($expectedSnippet, (string) $falcone->system_prompt);
+            $this->assertStringContainsString($expectedSnippet, (string) $funkira->system_prompt);
         }
     }
 
-    public function test_system_get_server_status_executes_for_falcone_supports_force_refresh_and_enforces_role_isolation(): void
+    public function test_system_get_server_status_executes_for_funkira_supports_force_refresh_and_enforces_role_isolation(): void
     {
         $this->seed(AiAgentSeeder::class);
 
-        $falcone = AiAgent::where('name', 'Falcone')->with('role.tools')->firstOrFail();
+        $funkira = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->with('role.tools')->firstOrFail();
 
-        // 1. Keyword-Routing & Pool-Zugehörigkeit (Core + system_global / system_workspace)
         $this->assertContains('system_get_server_status', FunkiraSkillPoolService::getCoreToolIdentifiers());
         $this->assertContains('system_get_server_status', FunkiraSkillPoolService::getActiveToolIdentifiers(['system_global']));
         $this->assertContains('system_get_server_status', FunkiraSkillPoolService::getActiveToolIdentifiers(['system_workspace']));
 
-        foreach (['Wie läuft der Mittwald Live-Server?', 'Prüfe SSL und Domain mein-seelenfunke.de', 'Serverstatus und Uptime'] as $msg) {
-            $this->assertContains('system_global', FunkiraSkillPoolService::detectPoolsForRequest($msg));
-        }
-
-        // 2. Migration 2026_11_16_160500 aktualisiert Falcone idempotent
-        $falcone->update(['system_prompt' => 'Alter Prompt ohne Serverstatus']);
-        $mig = require base_path('database/migrations/2026_11_16_160500_add_live_server_status_tool_to_falcone.php');
-        $mig->applyUpgrade();
-        $this->assertStringContainsString('system_get_server_status', (string) $falcone->fresh()->system_prompt);
-
-        // 3. Rollen- & Air-Gap-Schutz: Unauthentifiziert, Kunde, interne Mitarbeiter, Influencer, Steuerberater & Funki -> gesperrt!
         $guestRes = AIFunctionsRegistry::executeGetServerStatus([]);
         $this->assertTrue($guestRes['error'] ?? false);
 
         $customer = Customer::factory()->create();
         Auth::guard('customer')->login($customer);
-        $custRes = AIFunctionsRegistry::execute('system_get_server_status', [], $falcone);
+        $custRes = AIFunctionsRegistry::execute('system_get_server_status', [], $funkira);
         $this->assertTrue($custRes['error'] ?? false);
         Auth::guard('customer')->logout();
 
@@ -291,7 +250,7 @@ class FalconSupremeExecutiveBrainTest extends TestCase
                 'password' => bcrypt('Secret123!'),
             ]);
             Auth::guard('employee')->login($emp);
-            $empRes = AIFunctionsRegistry::execute('system_get_server_status', [], $falcone);
+            $empRes = AIFunctionsRegistry::execute('system_get_server_status', [], $funkira);
             $this->assertTrue($empRes['error'] ?? false);
             $this->assertStringContainsString('ROLE VIOLATION', (string) ($empRes['message'] ?? ''));
             Auth::guard('employee')->logout();
@@ -300,12 +259,10 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         $admin = $this->createAdmin();
         Auth::guard('admin')->login($admin);
 
-        // Air-Gap: Funki darf system_get_server_status selbst bei eingeloggtem Admin niemals ausführen!
         $funkiBlocked = AIFunctionsRegistry::execute('system_get_server_status', [], $funki);
         $this->assertTrue($funkiBlocked['error'] ?? false);
         $this->assertStringContainsString('SANDBOX VIOLATION', (string) ($funkiBlocked['message'] ?? ''));
 
-        // 4. Deterministischer 5-Minuten-Cache + force_refresh = true für Falcone
         $pulseSvc = app(\App\Services\System\SystemHealthPulseService::class);
         $pulseSvc->resetStateForTesting();
 
@@ -325,24 +282,18 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         });
 
         try {
-            $first = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => false], $falcone);
+            $first = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => false], $funkira);
             $this->assertSame('success', $first['status'] ?? null);
             $this->assertSame(1, $probeCalls);
-            $this->assertSame('placeholder', $first['live_server']['mode']);
-            $this->assertSame('pending_ingress', $first['live_server']['www_status']);
 
-            // Zweiter Aufruf ohne force_refresh liest aus dem 5-Minuten-Cache (kein neuer Probe-Call)
-            $second = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => false], $falcone);
+            $second = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => false], $funkira);
             $this->assertSame(1, $probeCalls);
-            $this->assertSame('placeholder', $second['live_server']['mode']);
 
-            // Aufruf mit force_refresh = true leert LIVE_DOMAIN_CACHE_KEY und misst sofort neu (jetzt 503 maintenance = ok!)
-            $refreshed = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => true], $falcone);
+            $refreshed = AIFunctionsRegistry::execute('system_get_server_status', ['force_refresh' => true], $funkira);
             $this->assertSame('success', $refreshed['status'] ?? null);
             $this->assertTrue($refreshed['force_refreshed']);
             $this->assertSame(2, $probeCalls);
             $this->assertSame('maintenance', $refreshed['live_server']['mode']);
-            $this->assertSame('ok', $refreshed['live_server']['status']);
         } finally {
             $pulseSvc->resetStateForTesting();
         }

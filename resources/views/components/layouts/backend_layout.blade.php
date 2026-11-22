@@ -18,7 +18,7 @@
     <script src="{{ mix('js/app.js') }}" defer></script>
     <script src="{{ mix('js/admin-bundle.js') }}" defer></script>
     <script src="{{ asset('vendor/chartjs/chart.umd.js') }}"></script>
-    <script src="{{ asset('js/analytics-dashboards.js') }}"></script>
+    <script src="{{ asset('js/analytics-dashboards.js') }}?v={{ file_exists(public_path('js/analytics-dashboards.js')) ? filemtime(public_path('js/analytics-dashboards.js')) : 1 }}"></script>
     <script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js" integrity="sha384-IBDNY5TVKWr+u1841ldzW99oyOoUBpoGeouNuoXVwF0PBFR3v10dzwm09xNIEeiG" crossorigin="anonymous" defer></script>
 
     @livewireStyles
@@ -31,6 +31,11 @@
         // Fallbacks für Alpine-Variablen, die bei Page-Transitions (wire:navigate) kurzzeitig ihre Scopes verlieren können
         window.showAllOperative = false;
         window.tooltip = false;
+        window.focusMode = false;
+        window.expanded = false;
+        window.t1 = 70;
+        window.t2 = 85;
+        window.t3 = 95;
 
         // Theme Initialisierung: Standardmäßig Light Mode (Kunden & Influencer immer im Light Mode)
         (function() {

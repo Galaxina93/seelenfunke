@@ -140,6 +140,22 @@ data class SmartCameraDevice(
     @SerializedName("description") val description: String = ""
 )
 
+data class SmartShutterDevice(
+    @SerializedName("device_url") val deviceUrl: String = "",
+    @SerializedName("label") val label: String = "",
+    @SerializedName("controllable_name") val controllableName: String = "",
+    @SerializedName("closure_percent") val closurePercent: Int = 0,
+    @SerializedName("supports_position") val supportsPosition: Boolean = true,
+    @SerializedName("is_available") val isAvailable: Boolean = true
+)
+
+data class SmartHomeGroupDto(
+    @SerializedName("id") val id: String = "",
+    @SerializedName("name") val name: String = "",
+    @SerializedName("shutter_targets") val shutterTargets: List<String> = emptyList(),
+    @SerializedName("plug_targets") val plugTargets: List<String> = emptyList()
+)
+
 data class WakeUpLogEntry(
     @SerializedName("date") val date: String = "",
     @SerializedName("scheduled_time") val scheduledTime: String = "",
@@ -155,6 +171,8 @@ object FunkenwerkAlarmManager {
     private const val KEY_ALARMS = "alarms_json"
     private const val KEY_TIMERS = "timers_json"
     private const val KEY_SMART_PLUGS = "smart_plugs_json"
+    private const val KEY_SMART_SHUTTERS = "smart_shutters_json"
+    private const val KEY_SMART_GROUPS = "smart_groups_json"
     private const val KEY_WAKE_LOGS = "wake_up_logs_json"
     private const val KEY_LAST_SYNC = "last_synced_at"
     private const val KEY_TAPO_EMAIL = "tapo_local_email"
@@ -207,6 +225,23 @@ object FunkenwerkAlarmManager {
 
     private val _smartPlugsFlow = MutableStateFlow<List<SmartPlugDevice>>(emptyList())
     val smartPlugsFlow: StateFlow<List<SmartPlugDevice>> = _smartPlugsFlow.asStateFlow()
+
+    private val _smartShuttersFlow = MutableStateFlow<List<SmartShutterDevice>>(emptyList())
+    val smartShuttersFlow: StateFlow<List<SmartShutterDevice>> = _smartShuttersFlow.asStateFlow()
+
+    private val _smartGroupsFlow = MutableStateFlow<List<SmartHomeGroupDto>>(emptyList())
+    val smartGroupsFlow: StateFlow<List<SmartHomeGroupDto>> = _smartGroupsFlow.asStateFlow()
+
+    internal fun setSmartHomeInventoryForTests(
+        plugs: List<SmartPlugDevice>? = null,
+        shutters: List<SmartShutterDevice>? = null,
+        groups: List<SmartHomeGroupDto>? = null
+    ) {
+        if (plugs != null) _smartPlugsFlow.value = plugs
+        if (shutters != null) _smartShuttersFlow.value = shutters
+        if (groups != null) _smartGroupsFlow.value = groups
+        isInitialized = true
+    }
 
     private val _wakeLogsFlow = MutableStateFlow<Map<String, WakeUpLogEntry>>(emptyMap())
     val wakeLogsFlow: StateFlow<Map<String, WakeUpLogEntry>> = _wakeLogsFlow.asStateFlow()
@@ -460,6 +495,30 @@ object FunkenwerkAlarmManager {
         val loadedPlugs = normalizeSmartPlugs(rawPlugs)
         _smartPlugsFlow.value = loadedPlugs
         ServiceLocator.putEncryptedPref(prefs, KEY_SMART_PLUGS, gson.toJson(loadedPlugs))
+
+        // 3b. Load Connexoon Window Somfy Shutters & SmartHome Device Groups
+        val shuttersJson = ServiceLocator.getDecryptedPref(prefs, KEY_SMART_SHUTTERS, null)
+        if (!shuttersJson.isNullOrBlank()) {
+            try {
+                val sType = object : TypeToken<List<SmartShutterDevice>>() {}.type
+                _smartShuttersFlow.value = gson.fromJson<List<SmartShutterDevice>>(shuttersJson, sType)
+                    ?.filter { it.label.isNotBlank() || it.deviceUrl.isNotBlank() }
+                    ?: emptyList()
+            } catch (_: Exception) {
+                _smartShuttersFlow.value = emptyList()
+            }
+        }
+        val groupsJson = ServiceLocator.getDecryptedPref(prefs, KEY_SMART_GROUPS, null)
+        if (!groupsJson.isNullOrBlank()) {
+            try {
+                val gType = object : TypeToken<List<SmartHomeGroupDto>>() {}.type
+                _smartGroupsFlow.value = gson.fromJson<List<SmartHomeGroupDto>>(groupsJson, gType)
+                    ?.filter { it.name.isNotBlank() && (it.shutterTargets.isNotEmpty() || it.plugTargets.isNotEmpty()) }
+                    ?: emptyList()
+            } catch (_: Exception) {
+                _smartGroupsFlow.value = emptyList()
+            }
+        }
 
         // 4. Load Wake-Up Logs
         val logsJson = ServiceLocator.getDecryptedPref(prefs, KEY_WAKE_LOGS, null)
@@ -1027,6 +1086,35 @@ object FunkenwerkAlarmManager {
             .apply()
     }
 
+    fun applyRemoteSmartHomeInventory(
+        context: Context,
+        plugs: List<SmartPlugDevice>? = null,
+        shutters: List<SmartShutterDevice>? = null,
+        groups: List<SmartHomeGroupDto>? = null
+    ) {
+        ensureInitialized(context)
+        val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!plugs.isNullOrEmpty()) {
+            val normalizedPlugs = normalizeSmartPlugs(plugs)
+            _smartPlugsFlow.value = normalizedPlugs
+            ServiceLocator.putEncryptedPref(prefs, KEY_SMART_PLUGS, gson.toJson(normalizedPlugs))
+        }
+        if (shutters != null) {
+            val cleanShutters = shutters.filter { it.label.isNotBlank() || it.deviceUrl.isNotBlank() }
+            if (cleanShutters.isNotEmpty() || _smartShuttersFlow.value.isEmpty()) {
+                _smartShuttersFlow.value = cleanShutters
+                ServiceLocator.putEncryptedPref(prefs, KEY_SMART_SHUTTERS, gson.toJson(cleanShutters))
+            }
+        }
+        if (groups != null) {
+            val cleanGroups = groups.filter {
+                it.name.isNotBlank() && (it.shutterTargets.isNotEmpty() || it.plugTargets.isNotEmpty())
+            }
+            _smartGroupsFlow.value = cleanGroups
+            ServiceLocator.putEncryptedPref(prefs, KEY_SMART_GROUPS, gson.toJson(cleanGroups))
+        }
+    }
+
     fun applyRemotePackage(
         context: Context,
         alarms: List<SmartAlarmItem>?,
@@ -1035,7 +1123,9 @@ object FunkenwerkAlarmManager {
         wakeLogs: Map<String, WakeUpLogEntry>?,
         lastSyncedAt: String?,
         tapoEmail: String? = null,
-        tapoPassword: String? = null
+        tapoPassword: String? = null,
+        shutters: List<SmartShutterDevice>? = null,
+        groups: List<SmartHomeGroupDto>? = null
     ) {
         ensureInitialized(context)
         val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -1090,6 +1180,9 @@ object FunkenwerkAlarmManager {
             val normalizedPlugs = normalizeSmartPlugs(plugs)
             _smartPlugsFlow.value = normalizedPlugs
             ServiceLocator.putEncryptedPref(prefs, KEY_SMART_PLUGS, gson.toJson(normalizedPlugs))
+        }
+        if (shutters != null || groups != null) {
+            applyRemoteSmartHomeInventory(context, plugs = null, shutters = shutters, groups = groups)
         }
         if (!wakeLogs.isNullOrEmpty()) {
             val merged = _wakeLogsFlow.value.toMutableMap()
@@ -1199,6 +1292,19 @@ object FunkenwerkAlarmManager {
                         if (tp.isNotBlank() && ServiceLocator.getTapoPassword().isBlank()) {
                             ServiceLocator.saveTapoPassword(tp)
                         }
+                        val shuttersArr = d.optJSONArray("smart_shutters")
+                        val groupsArr = d.optJSONArray("smart_groups")
+                        val parsedShutters = shuttersArr?.let {
+                            val sType = object : TypeToken<List<SmartShutterDevice>>() {}.type
+                            gson.fromJson<List<SmartShutterDevice>>(it.toString(), sType)
+                        }
+                        val parsedGroups = groupsArr?.let {
+                            val gType = object : TypeToken<List<SmartHomeGroupDto>>() {}.type
+                            gson.fromJson<List<SmartHomeGroupDto>>(it.toString(), gType)
+                        }
+                        if (parsedShutters != null || parsedGroups != null) {
+                            applyRemoteSmartHomeInventory(appCtx, plugs = null, shutters = parsedShutters, groups = parsedGroups)
+                        }
                     }
                 } catch (_: Exception) {}
                 conn.disconnect()
@@ -1216,6 +1322,131 @@ object FunkenwerkAlarmManager {
         val appCtx = context.applicationContext
         scope.launch(Dispatchers.IO) {
             pushAlarmPackageToConfiguredEndpoint(appCtx)
+        }
+    }
+
+    suspend fun refreshSmartHomeInventoryFromPortalSuspend(context: Context): Boolean = withContext(Dispatchers.IO) {
+        val appCtx = context.applicationContext
+        try {
+            ensureInitialized(appCtx)
+            ServiceLocator.ensureInitialized(appCtx)
+            val base = resolveSingleApiBaseUrl(
+                configuredBaseUrl = ServiceLocator.getBaseUrl(),
+                isDebugBuild = de.meinseelenfunke.app.BuildConfig.DEBUG
+            ) ?: return@withContext false
+            val endpoint = "$base/funki/routine/smarthome-sync"
+            val token = ServiceLocator.getAuthToken()
+            if (token.isNullOrBlank() || !ServiceLocator.shouldAttachBearerToken(endpoint, de.meinseelenfunke.app.BuildConfig.DEBUG)) {
+                return@withContext false
+            }
+
+            val isLan = endpoint.contains("192.168.") || endpoint.contains("10.0.") || endpoint.contains("127.0.0.1")
+            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                requestMethod = "GET"
+                connectTimeout = if (isLan) 1800 else 3500
+                readTimeout = 4000
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            val code = conn.responseCode
+            if (code in 200..299) {
+                val rawResp = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                val respObj = JSONObject(rawResp)
+                if (respObj.optBoolean("success") && respObj.has("data")) {
+                    val d = respObj.getJSONObject("data")
+                    val plugsArr = d.optJSONArray("plugs")
+                    val shuttersArr = d.optJSONArray("shutters")
+                    val groupsArr = d.optJSONArray("groups")
+                    val pType = object : TypeToken<List<SmartPlugDevice>>() {}.type
+                    val sType = object : TypeToken<List<SmartShutterDevice>>() {}.type
+                    val gType = object : TypeToken<List<SmartHomeGroupDto>>() {}.type
+                    val parsedPlugs = plugsArr?.let { gson.fromJson<List<SmartPlugDevice>>(it.toString(), pType) }
+                    val parsedShutters = shuttersArr?.let { gson.fromJson<List<SmartShutterDevice>>(it.toString(), sType) }
+                    val parsedGroups = groupsArr?.let { gson.fromJson<List<SmartHomeGroupDto>>(it.toString(), gType) }
+                    applyRemoteSmartHomeInventory(appCtx, plugs = parsedPlugs, shutters = parsedShutters, groups = parsedGroups)
+                    return@withContext true
+                }
+            } else {
+                conn.disconnect()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "refreshSmartHomeInventoryFromPortalSuspend failed: ${e.message}")
+        }
+        false
+    }
+
+    fun refreshSmartHomeInventoryFromPortalAsync(context: Context) {
+        val appCtx = context.applicationContext
+        scope.launch(Dispatchers.IO) {
+            refreshSmartHomeInventoryFromPortalSuspend(appCtx)
+        }
+    }
+
+    suspend fun dispatchSmartHomeRelayCommandSuspend(
+        context: Context,
+        action: String,
+        target: String,
+        position: Int? = null
+    ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        val appCtx = context.applicationContext
+        try {
+            ServiceLocator.ensureInitialized(appCtx)
+            val base = resolveSingleApiBaseUrl(
+                configuredBaseUrl = ServiceLocator.getBaseUrl(),
+                isDebugBuild = de.meinseelenfunke.app.BuildConfig.DEBUG
+            ) ?: return@withContext Pair(false, "SmartHome-Relay blockiert: API-Endpunkt nicht freigegeben.")
+            val endpoint = "$base/funki/routine/smarthome-command"
+            val token = ServiceLocator.getAuthToken()
+            if (token.isNullOrBlank() || !ServiceLocator.shouldAttachBearerToken(endpoint, de.meinseelenfunke.app.BuildConfig.DEBUG)) {
+                return@withContext Pair(false, "SmartHome-Relay nicht möglich: Bitte zuerst in der App anmelden.")
+            }
+
+            val bodyJson = JSONObject().apply {
+                put("action", action)
+                put("target", target.ifBlank { "alle" })
+                if (position != null) {
+                    put("position", position.coerceIn(0, 100))
+                }
+            }.toString()
+
+            val isLan = endpoint.contains("192.168.") || endpoint.contains("10.0.") || endpoint.contains("127.0.0.1")
+            val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                requestMethod = "POST"
+                connectTimeout = if (isLan) 2200 else 4500
+                readTimeout = 5500
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            conn.outputStream.use { it.write(bodyJson.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            val rawResp = try {
+                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            } catch (_: Exception) {
+                ""
+            }
+            conn.disconnect()
+
+            if (rawResp.isNotBlank()) {
+                val respObj = JSONObject(rawResp)
+                val status = respObj.optString("status", "")
+                val msg = respObj.optString("message", "").ifBlank {
+                    "SmartHome-Befehl ($action -> $target) an Funkenwerk übermittelt."
+                }
+                val ok = code in 200..299 && status != "error"
+                return@withContext Pair(ok, msg)
+            }
+            if (code in 200..299) {
+                return@withContext Pair(true, "SmartHome-Befehl ($action -> $target) übermittelt.")
+            }
+            return@withContext Pair(false, "Server antwortete mit HTTP $code beim SmartHome-Befehl.")
+        } catch (e: Exception) {
+            return@withContext Pair(false, "SmartHome-Relay fehlgeschlagen: ${e.message}")
         }
     }
 

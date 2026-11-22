@@ -68,7 +68,18 @@ class LogArchiveService
                 return null;
             }
 
-            return trim($m[2]);
+            $msgBody = trim($m[2]);
+            if (
+                str_contains($msgBody, 'at Standard input code:')
+                || str_contains($msgBody, 'in Standard input code:')
+                || str_contains($msgBody, 'at Command line code:')
+                || str_contains($msgBody, 'in Command line code:')
+                || str_contains($msgBody, 'called in Command line code on line')
+            ) {
+                return null;
+            }
+
+            return $msgBody;
         }
 
         if ($baseName === 'twilio_bridge.log' && (str_contains($trimmed, '❌') || stripos($trimmed, 'ERROR:') !== false)) {
@@ -187,29 +198,56 @@ class LogArchiveService
             $normForFp = preg_replace('/\b\d+\b/', '#', strtolower(mb_substr($cleanMsg, 0, 180)));
             $fingerprint = hash('sha256', 'raw_logfile|' . strtolower($baseName) . '|' . $normForFp);
 
-            $exists = SystemLog::where('payload->fingerprint', $fingerprint)
-                ->where('started_at', '>=', now()->subHours(24))
+            $parsedExceptionClass = null;
+            $parsedFile = null;
+            $parsedLine = null;
+            if (preg_match('/\[object\]\s*\(([^(\s]+)\(code:\s*[^)]*\):.*?\s+at\s+([^:\s]+):(\d+)\)/i', $cleanMsg, $exMatch)) {
+                $parsedExceptionClass = trim($exMatch[1]);
+                $parsedFile = trim($exMatch[2]);
+                $parsedLine = (int) $exMatch[3];
+            }
+
+            $exists = SystemLog::where('started_at', '>=', now()->subHours(24))
+                ->where(function ($q) use ($fingerprint, $parsedFile, $parsedLine) {
+                    $q->where('payload->fingerprint', $fingerprint);
+                    if ($parsedFile !== null && $parsedLine !== null) {
+                        $q->orWhere(function ($sq) use ($parsedFile, $parsedLine) {
+                            $sq->where('payload->file', $parsedFile)
+                                ->where('payload->line', $parsedLine);
+                        });
+                    }
+                })
                 ->exists();
 
             if ($exists) {
                 continue;
             }
 
+            $headlineMsg = trim(Str::before($cleanMsg, '{"exception"'));
+            if ($headlineMsg === '') {
+                $headlineMsg = trim(Str::before($cleanMsg, '{'));
+            }
+
             SystemLog::create([
                 'type' => 'system',
                 'action_id' => 'logfile:' . $baseName . ':' . substr($fingerprint, 0, 12),
-                'title' => Str::limit("[{$baseName}] " . trim(Str::before($cleanMsg, '{')), 180),
+                'title' => Str::limit("[{$baseName}] " . $headlineMsg, 180),
                 'message' => $cleanMsg,
                 'status' => 'error',
-                'payload' => [
+                'payload' => array_filter([
                     'platform' => 'portal',
                     'platform_label' => 'Webportal',
                     'fingerprint' => $fingerprint,
+                    'source_file' => $baseName,
                     'source_logfile' => 'storage/logs/' . $baseName,
+                    'exception_class' => $parsedExceptionClass,
+                    'file' => $parsedFile,
+                    'line' => $parsedLine,
+                    'diagnosis' => SystemErrorLogger::diagnose($cleanMsg, $parsedExceptionClass, $parsedFile),
                     'occurrences_count' => 1,
                     'first_seen_at' => now()->toIso8601String(),
                     'last_seen_at' => now()->toIso8601String(),
-                ],
+                ], fn ($v) => $v !== null),
                 'started_at' => now(),
                 'finished_at' => now(),
             ]);

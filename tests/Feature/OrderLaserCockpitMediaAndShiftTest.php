@@ -294,12 +294,21 @@ class OrderLaserCockpitMediaAndShiftTest extends TestCase
             ->assertSet('laserCenterYMm', 88.61)
             ->assertSet('laserAngleDeg', -1.3);
 
-        // Erneutes Öffnen der Bestellung lädt die 0,01 mm Koordinaten verlustfrei
+        // Volle 360°-Drehung (-180° bis +180°) inkl. Wrap-Around über ±180° hinaus (z. B. 135° oder 210° -> -150°) verifizieren
+        $component->call('updateLaserCoordinates', $item->id, 104.29, 88.61, 137.42, 31.48, 27.94, 5)
+            ->assertSet('laserAngleDeg', 137.42);
+        $this->assertSame(137.42, (float) ($item->fresh()->configuration['laser_cockpit_coordinates']['front']['angle_deg'] ?? 0));
+
+        $component->call('nudgeLaserPosition', 0.0, 0.0, 50.0)
+            ->assertSet('laserAngleDeg', -172.58);
+
+        // Erneutes Öffnen der Bestellung lädt volle 360°-Winkel & 0,01 mm Koordinaten verlustfrei
         Livewire::actingAs($admin, 'admin')
             ->test(OrderOverview::class)
             ->call('openDetail', $order->id)
             ->assertSet('laserCenterXMm', 104.29)
             ->assertSet('laserCenterYMm', 88.61)
+            ->assertSet('laserAngleDeg', -172.58)
             ->assertSet('laserWidthMm', 31.48)
             ->assertSet('laserHeightMm', 27.94);
     }
@@ -524,12 +533,16 @@ class OrderLaserCockpitMediaAndShiftTest extends TestCase
         $component = Livewire::actingAs($admin, 'admin')
             ->test(OrderOverview::class)
             ->call('openDetail', $order->id)
-            ->assertSet('laserCameraLightMode', 'anti_glare')
+            ->assertSet('laserCameraLightMode', 'normal')
             ->assertSee('Blendfrei (LED aus)')
             ->assertSee('Gedimmt')
             ->assertSee('Licht an');
 
-        // Wechsel auf 'dim' speichert in configuration['laser_camera_light_mode'] und übergibt es an detectBlankPositionOnBed
+        // Wechsel auf 'anti_glare' & 'dim' speichert in configuration['laser_camera_light_mode'] und übergibt es an detectBlankPositionOnBed
+        $component->call('setLaserCameraLightMode', 'anti_glare', $item->id)
+            ->assertSet('laserCameraLightMode', 'anti_glare');
+        $this->assertSame('anti_glare', $item->fresh()->configuration['laser_camera_light_mode'] ?? null);
+
         $component->call('setLaserCameraLightMode', 'dim', $item->id)
             ->assertSet('laserCameraLightMode', 'dim');
         $this->assertSame('dim', $item->fresh()->configuration['laser_camera_light_mode'] ?? null);
@@ -562,7 +575,11 @@ class OrderLaserCockpitMediaAndShiftTest extends TestCase
         $this->assertStringContainsString('e.shiftKey', $html);
         $this->assertStringContainsString('fineMode ? 0.15 : 1.0', $html);
         $this->assertStringContainsString('fineMode ? 0.02 : 0.20', $html);
-        $this->assertStringContainsString('SHIFT · FEIN-MODUS (0,01 MM)', $html);
+        $this->assertStringContainsString('SHIFT · FEIN-MODUS (0,01 MM / 0,01°)', $html);
+        $this->assertStringContainsString('normalizeAngleDeg(', $html);
+        $this->assertStringContainsString('const rotateGear = fineMode ? 0.08 : 1.0;', $html);
+        $this->assertStringContainsString('min="-180"', $html);
+        $this->assertStringContainsString('max="180"', $html);
         $this->assertStringContainsString('tabindex="0"', $html);
         $this->assertStringContainsString('handleViewportKeydown($event)', $html);
 
@@ -842,5 +859,60 @@ class OrderLaserCockpitMediaAndShiftTest extends TestCase
             ->call('setOrderStep', 1)
             ->html();
         $this->assertStringContainsString('Schritt 1 · In Bearbeitung', $shippedHtml);
+    }
+
+    #[Test]
+    public function two_sided_order_displays_stepper_switches_primary_cta_to_back_side_and_guards_premature_shipping_transition(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        $admin = $this->createAdmin();
+        $product = $this->createLaserProduct(false);
+        $relPhoto = 'bestellungen/cart-uploads/herz_front.png';
+        Storage::disk('public')->put($relPhoto, $this->createSampleGradientPortraitPng(64, 64));
+
+        [$order, $item] = $this->createOrderWithPhotoUpload($product, $relPhoto);
+        $conf = $item->configuration;
+        $conf['texts_back'] = [[
+            'text'     => 'Für immer vereint · 22.11.2026',
+            'font'     => 'Great Vibes',
+            'align'    => 'center',
+            'x'        => 50,
+            'y'        => 50,
+            'size'     => 1.0,
+            'rotation' => 0,
+        ]];
+        $item->update(['configuration' => $conf]);
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id)
+            ->assertSet('activeOrderStep', 1)
+            ->assertSet('laserCockpitSide', 'front');
+
+        $htmlFront = $component->html();
+        // 1. Deutlicher 2-Seiten-Badge im Header + breiter 1/2 Stepper im Cockpit + primärer CTA führt auf Seite 2/2
+        $this->assertStringContainsString('data-step1-two-sided-badge', $htmlFront);
+        $this->assertStringContainsString('2 Seiten (0/2)', $htmlFront);
+        $this->assertStringContainsString('data-cockpit-two-sided-stepper', $htmlFront);
+        $this->assertStringContainsString('Beidseitig (0/2)', $htmlFront);
+        $this->assertStringContainsString('Rückseite · Offen', $htmlFront);
+        $this->assertStringContainsString('data-step1-switch-to-back-cta', $htmlFront);
+        $this->assertStringContainsString('Zur Rückseite wechseln (Seite 2/2)', $htmlFront);
+
+        // 2. Backend-Schutznetz: Ein direkter Aufruf von completeStepOneAndProceedToShipping auf Seite 1 springt NICHT in Schritt 2, sondern wechselt auf Rückseite!
+        $component->call('completeStepOneAndProceedToShipping')
+            ->assertSet('activeOrderStep', 1)
+            ->assertSet('laserCockpitSide', 'back')
+            ->assertDispatched('order-feedback');
+
+        // 3. Sobald die Rückseite aktiv ist, steht der reguläre "Weiter zur Verpackung"-CTA bereit und erlaubt den Abschluss zu Schritt 2
+        $htmlBack = $component->html();
+        $this->assertStringNotContainsString('data-step1-switch-to-back-cta', $htmlBack);
+        $this->assertStringContainsString('Weiter zur Verpackung', $htmlBack);
+
+        $component->call('completeStepOneAndProceedToShipping')
+            ->assertSet('activeOrderStep', 2);
     }
 }

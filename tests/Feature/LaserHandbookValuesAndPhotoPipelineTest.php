@@ -29,11 +29,11 @@ class LaserHandbookValuesAndPhotoPipelineTest extends TestCase
     private const EXPECTED = [
         'seelen-pfote-hundemarke'   => ['dark_on_light', [21.5, 95, 1100, 100, 1270, 1], [21.5, 95, 25, 100, 1000, 1]],
         'goldenes-seelen-herz'      => ['dark_on_light', [21.5, 95, 1100, 100, 1270, 1], [21.5, 95, 25, 100, 1000, 1]],
-        'seelen-talisman'           => ['dark_on_light', [21.5, 95, 1100, 100, 1270, 1], [21.5, 95, 25, 100, 1000, 1]],
+        'seelen-talisman'           => ['dark_on_light', [19.5, 95, 1100, 100, 1270, 1], [19.5, 95, 25, 100, 1000, 1]],
         'seelen-anhaenger'          => ['white_on_dark', [19.9, 85, 280, 40, 600, 1], [19.9, 70, 450, 40, 300, 1]],
         'id-armband-silber-herz'    => ['dark_on_light', [2.2, 75, 240, 50, 1000, 2], [2.2, 75, 180, 50, 400, 2]],
         'id-armband-gold-herz'      => ['dark_on_light', [2.5, 34, 180, 70, 1000, 1], [2.5, 34, 130, 70, 400, 1]],
-        'seelen-kristall'           => ['white_on_dark', [33.1, 100, 450, 40, 500, 1], [33.1, 60, 80, 40, 300, 1]],
+        'seelen-kristall'           => ['frost_on_glass', [31.2, 100, 650, 40, 600, 1], [31.2, 100, 40, 40, 300, 2]],
         'weizenglas-personalisiert' => ['white_on_dark', [74.0, 55, 260, 40, 400, 1], [74.0, 55, 380, 40, 300, 1]],
     ];
 
@@ -490,5 +490,72 @@ class LaserHandbookValuesAndPhotoPipelineTest extends TestCase
         $this->assertSame(1000, $vectorProfile['values']['density']);
         $this->assertNull($xcs['photo_jarvis_png'], 'Silhouetten benötigen keine Jarvis-Vorschau');
         $zip->close();
+    }
+
+    #[Test]
+    public function it_generates_true_600_dpi_constant_velocity_k9_scanlines_and_enforces_40khz_uv_hardware_floor(): void
+    {
+        $this->seededProducts();
+        $crystal = Product::where('slug', 'seelen-kristall')->firstOrFail();
+        $cockpit = app(XtoolLaserCockpitService::class);
+
+        $item = $this->createItem($crystal, [
+            'logos' => [$this->photoLogo($this->syntheticPortraitPng('rgb'), 50.0, 48.0, 210.0)],
+            'texts' => [[
+                'text' => 'Goldene Hochzeit · 26.05.2026',
+                'font' => 'Playfair Display',
+                'align' => 'center',
+                'x' => 30.0,
+                'y' => 45.0,
+                'size' => 1.3,
+                'curve' => 45,
+                'rotation' => 0,
+            ]],
+        ]);
+
+        // 1) Echtes 600-DPI-Raster (3164 x 3164 px bei 133,93 mm) statt altem 800-px-Deckel
+        $payload = app(FileDownloadService::class)->buildLaserDesignPayload($item, 'front', true);
+        $jarvisPng = $cockpit->buildDitheredPreviewPng(
+            (string) $payload['photoLayerPngBytes'],
+            (float) $payload['widthMm'],
+            (float) $payload['heightMm'],
+            600,
+            'jarvis'
+        );
+        $this->assertNotNull($jarvisPng);
+        $jarvisGd = imagecreatefromstring($jarvisPng);
+        $this->assertGreaterThanOrEqual(3100, imagesx($jarvisGd), 'Seelenkristall Foto-Layer muss mit echten ~3164 px (600 DPI) gerastert werden');
+        $this->assertGreaterThanOrEqual(3100, imagesy($jarvisGd));
+        imagedestroy($jarvisGd);
+
+        // 2) Multi-Layer .xf: Konstantgeschwindigkeits-Scanzeilen (G1...S0 + G1...S1000), exakter Vorschub & 2 Vektor-Pässe
+        $xf = $cockpit->generateXfPackageBytes($item, 'front', 100.0, 100.0, 0.0);
+        $this->assertTrue($xf['is_multi_layer']);
+        $this->assertEqualsWithDelta(31.2, (float) $xf['description']['focus'], 0.01);
+        $this->assertSame(650, $xf['description']['processingParams'][0]['dotDuration']);
+        $this->assertSame(100, $xf['description']['processingParams'][0]['power']);
+        $this->assertSame(100, $xf['description']['processingParams'][1]['power']);
+        $this->assertSame(40, $xf['description']['processingParams'][1]['speed']);
+        $this->assertSame(2, $xf['description']['processingParams'][1]['repeat']);
+
+        // Vektor-Vorschub 40 mm/s = F2400 + G104 P2 (2 Durchgänge) + G1...S0 Leerfahrt-Brücken ohne Puls-Clipping
+        $this->assertStringContainsString('G1F2400S0', $xf['motion_gcode']);
+        $this->assertStringContainsString('G104 P2', $xf['motion_gcode']);
+        $this->assertMatchesRegularExpression('/G1X[0-9.]+(?:Y[0-9.]+)?S0\nG1X[0-9.]+(?:Y[0-9.]+)?S1000/', $xf['motion_gcode']);
+
+        // 3) 40-kHz-Hardware-Untergrenze (GS009-CLASS-4 UV-Kristallschutz): Werte < 40 kHz werden hart auf 40 kHz begrenzt
+        $saved = $cockpit->persistItemLaserParameters($item, 'front', [
+            'frequency_khz' => 15,
+            'vector_note'   => 'Gravieren · 100 % · 40 mm/s · 300 Linien/cm · 20 kHz · 2x',
+        ]);
+        $this->assertSame(40, $saved['frequency_khz']);
+
+        $xfClamped = $cockpit->generateXfPackageBytes($item->fresh(), 'front', 100.0, 100.0, 0.0);
+        $this->assertStringNotContainsString('G0Q15', $xfClamped['motion_gcode']);
+        $this->assertStringNotContainsString('G0Q20', $xfClamped['motion_gcode']);
+        $this->assertStringContainsString('G0Q40', $xfClamped['motion_gcode']);
+
+        $normProf = Product::normalizeLaserProfileItem(['title' => 'Untergrenze Test', 'frequency_khz' => 12]);
+        $this->assertSame(40, $normProf['frequency_khz']);
     }
 }

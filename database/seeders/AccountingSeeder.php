@@ -77,7 +77,12 @@ class AccountingSeeder extends Seeder
 
         AccountingCostItem::whereHas('group', fn($q) => $q->where('admin_id', $admin->id))->delete();
         AccountingGroup::where('admin_id', $admin->id)->delete();
-        AccountingSpecialIssue::where('admin_id', $admin->id)->delete();
+        AccountingSpecialIssue::where('admin_id', $admin->id)
+            ->where(function ($q) {
+                $q->whereNull('note')
+                  ->orWhere('note', 'not like', '%' . \App\Services\AI\BuchiReceiptPipelineService::LIVE_MARKER . '%');
+            })
+            ->delete();
 
         $groupsData = [
             'Einnahmen'        => ['type' => 'income',  'pos' => 10],
@@ -107,19 +112,24 @@ class AccountingSeeder extends Seeder
             [
                 'group'                 => 'Einnahmen',
                 'name'                  => 'ALG 1 / Gründerzuschuss',
-                'amount'                => 1806.30,
+                'amount'                => 2106.30,
                 'interval'              => 1, // monthly
-                'start_date'            => '2026-01-30',
+                'start_date'            => '2026-11-01',
+                'last_date'             => '2027-04-30',
+                'contract_end_date'     => '2027-04-30',
+                'is_business'           => false,
                 'provider_company'      => 'Agentur für Arbeit Gifhorn',
                 'provider_street'       => 'Winkeler Straße',
                 'provider_house_number' => '1',
                 'provider_zip'          => '38518',
                 'provider_city'         => 'Gifhorn',
                 'provider_phone'        => '0800 4 5555-00',
+                'provider_website'      => 'https://www.arbeitsagentur.de',
                 'contract_number'       => '241D129534',
-                'description'           => "Ansprechpartnerin: Frau Grandke | Telefon Alternativ: +49 5351 522 888\nÖffnungszeiten: Mo – Do: 08:00 – 18:00, Fr: 08:00 – 14:00\nAb 01.11.2026 Übergang in Gründungszuschuss Phase 1 (§ 93 SGB III): ALG-1-Anteil (1.806,30 €) + monatliche Pauschale zur sozialen Absicherung (300,00 € = 2.106,30 €) für 6 Monate vom 01.11.2026 bis 30.04.2027 (Bewilligungsbescheid folgt).",
-                'tags'                  => ['Einnahme', 'Staat', 'Förderung', 'Einkommen', 'Gründungszuschuss', 'Agentur für Arbeit'],
-                'contract_file_path'    => 'buchhaltung/contracts/2026/01/2026-01-30_Staat_ALG-1.pdf'
+                'notice_period'         => 'Phase 1 befristet bis 30.04.2027 (Antrag Phase 2 über 300,00 €/Monat für 9 Monate gesondert zum Ende Phase 1)',
+                'description'           => "Bewilligungsbescheid Gründungszuschuss Phase 1 (§§ 93, 94 SGB III, Formular BA GZ 10, Team OS Alg Plus, Antrag vom 10.02.2026):\n- Kundennummer / Mein Zeichen: 241D129534 (Ansprechpartnerin vor Ort: Frau Grandke, Tel. Alternativ: +49 5351 522 888)\n- Bewilligungszeitraum Phase 1 (6 Monate): 01.11.2026 bis 30.04.2027\n- Monatlicher Förderbetrag: 2.106,30 € (1.806,30 € bisheriger ALG-1-Anspruch + 300,00 € Pauschale zur sozialen Absicherung), Auszahlung monatlich nachträglich.\n- Steuerliche Einordnung: 100 % steuerfrei nach § 3 Nr. 2a EStG und ohne Progressionsvorbehalt (§ 32b EStG greift nicht für Gründungszuschuss) -> rein private Einnahme, keine Betriebseinnahme von Mein-Seelenfunke.\n- Hinweis Phase 2: Nach Ablauf am 30.04.2027 optional weitere 9 Monate à 300,00 € monatlich auf gesonderten Online-Antrag (mit Einnahmen-/Ausgaben-Übersicht der Phase 1; entfällt, wenn Gewinne die Lebenshaltungskosten bereits decken).\n- Vorbescheid ALG 1 (ab 30.01.2026): buchhaltung/contracts/2026/01/2026-01-30_Staat_ALG-1.pdf",
+                'tags'                  => ['Einnahme', 'Staat', 'Förderung', 'Einkommen', 'Gründungszuschuss', 'Agentur für Arbeit', 'Steuerfrei'],
+                'contract_file_path'    => 'buchhaltung/contracts/2026/11/2026-11-20_Agentur-fuer-Arbeit-Gifhorn_Bewilligungsbescheid-Gruendungszuschuss-Phase-1_241D129534.pdf'
             ],
             [
                 'group'       => 'Einnahmen',
@@ -418,7 +428,7 @@ class AccountingSeeder extends Seeder
             [
                 'group'       => 'Versicherungen',
                 'name'        => 'Arbeitslosenversicherung',
-                'amount'      => 0,
+                'amount'      => -49.35,
                 'interval'    => 1, // monthly
                 'start_date'  => '2026-11-01',
                 'is_business' => false,
@@ -431,8 +441,9 @@ class AccountingSeeder extends Seeder
                 'provider_phone'   => '0800 4 5555-00',
                 'contract_number'  => '241D129534',
                 'notice_period'    => 'Nach 5 Jahren jederzeit mit 3 Monaten Frist (oder bei Aufgabe der Selbstständigkeit)',
-                'description' => "Freiwillige Weiterversicherung gegen Arbeitslosigkeit (§ 28a SGB III). Steuerlich private Vorsorgeaufwendung / Sonderausgabe (keine Betriebsausgabe).\nStatus: Wartet auf Bewilligungsbescheid des Gründungszuschusses (3-Monats-Antragsfrist ab Gründung läuft bis 31.01.2027; Startbeitrag 50 % in den ersten 24 Monaten ca. 49,35 €/Monat).",
-                'tags'        => ['Versicherung', 'Privat', 'Vorsorge', 'Absicherung', 'Agentur für Arbeit'],
+                'description' => "Freiwillige Weiterversicherung gegen Arbeitslosigkeit (§ 28a SGB III). Steuerlich private Vorsorgeaufwendung / Sonderausgabe (keine Betriebsausgabe in der EÜR).\nStatus: Am 20.11.2026 um 12:48 Uhr erfolgreich online im eService der Bundesagentur für Arbeit beantragt (inkl. unterschriebenem Formular APV 002, Personalausweis, SEPA-Lastschriftmandat, Gewerbeanmeldung GewA 1 und Bewilligungsbescheid Gründungszuschuss Phase 1).\nZahlungsweise: Monatlicher SEPA-Lastschrifteinzug über FYRST Geschäftskonto (IBAN DE76 2507 0370 0079 8629 00, BIC DEUTDE2HP24) als Privatentnahme.\nBeitrag: In der Startphase (erste 24 Monate ab 01.11.2026) halber Beitragssatz (ca. 49,35 €/Monat; exakter Betrag wird im kommenden Bewilligungsbescheid festgesetzt).\nUnterlagen im Vertragsarchiv: 2026-11-20_Agentur-fuer-Arbeit-Gifhorn_Antrag-Arbeitslosenversicherung-28a-SGB-III_241D129534.pdf & Sendebestätigung.",
+                'tags'        => ['Versicherung', 'Privat', 'Vorsorge', 'Absicherung', 'Agentur für Arbeit', 'SEPA', 'FYRST'],
+                'contract_file_path' => 'buchhaltung/contracts/2026/11/2026-11-20_Agentur-fuer-Arbeit-Gifhorn_Sendebestaetigung-Arbeitslosenversicherung-28a-SGB-III_241D129534.pdf',
             ],
 
             // Vertrag & Lizenz (Ausgaben = Negativ)
@@ -471,25 +482,6 @@ class AccountingSeeder extends Seeder
                 'description' => "Geschäftsführung: Christian Bockelt\nFaxnummer: 06181 7074 063\nErreichbarkeitszeiten: Täglich 6–22 Uhr",
                 'tags'        => ['Vertrag', 'Mobilfunk', 'Kommunikation', 'Smartphone', 'Drillisch'],
                 'contract_file_path' => 'buchhaltung/contracts/2025/02/2025-02-10_Drillisch_Handy.pdf'
-            ],
-            [
-                'group'       => 'Vertrag & Lizenz',
-                'name'        => 'PHP Storm',
-                'amount'      => -70.21,
-                'interval'    => 12,
-                'start_date'  => '2025-04-29',
-                'description' => "The Netherlands\nFax: +31 (0)20 205 01 19",
-                'provider_company' => 'JetBrains N.V.',
-                'provider_street'  => 'Gelrestraat',
-                'provider_house_number' => '16',
-                'provider_zip'     => '1079 MZ',
-                'provider_city'    => 'Amsterdam',
-                'provider_phone'   => '+31 (0)20 205 01 18',
-                'provider_email'   => 'legal-nl@jetbrains.com',
-                'contract_number'  => 'DZTR3UPAP9',
-                'notice_period'    => 'K/A',
-                'tags'        => ['Lizenz', 'Vertrag', 'Software', 'Entwicklung', 'Abo'],
-                'contract_file_path' => 'buchhaltung/contracts/2025/04/2025-04-29_JetBrains_PHP-Storm.pdf'
             ],
             [
                 'group'       => 'Vertrag & Lizenz',
@@ -651,6 +643,59 @@ class AccountingSeeder extends Seeder
         // --- 3. Sonderausgaben erstellen (Gewerblich) ---
 
         $specialIssues = [
+            [
+                'title'          => '2x Rolle Geschenkpapier Schwarz & Gold (0,70 x 10 m, beidseitig bedruckt / wendbar)',
+                'location'       => 'www.natuerlich-verpacken.de (Parterremedia GmbH / Natürlich verpacken)',
+                'amount'         => -32.97,
+                'date'           => '2026-11-22',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => '42026159952 (Bestellnr. 22026114411-NV)',
+                'note'           => "Rechnungsnummer (Belegnr.): 42026159952 | Rechnungsdatum: 22.11.2026 | Auftragsnummer: 22026187349 | Lieferschein-Nr.: 22026187349-001 | Bestellnummer: 22026114411-NV | Kundennummer: K2026141803 | Zahlungsart: Amazon Pay (Volksbank eG Braunschweig Wolfsburg ••• 000)\nHändler: Natürlich verpacken / Parterremedia GmbH, Groß-Berliner Damm 153, 12489 Berlin (USt-IdNr.: DE301876264, Steuer-Nr.: 37/466/30942, HRB 170146 AG Berlin-Charlottenburg)\nPositionen:\n- Pos. 1: 2x Rolle Geschenkpapier Schwarz & Gold, 0,70 x 10 m = 20 Laufmeter gesamt, beidseitig bedruckt / wendbar (Art.-Nr.: 2821171260, 19 % MwSt.): je 11,42 € netto = 22,84 € netto (27,18 € brutto)\n- Pos. 2: 1x DHL Paket Versand (19 % MwSt.): 4,87 € netto (5,79 € brutto)\nGesamt Netto: 27,71 € | zzgl. 19,00 % DE MwSt.: 5,26 € | Rechnungsbetrag: 32,95 € | Erhaltene Zahlung am 22.11.2026 (tatsächlicher Geldabfluss): 32,97 € (0,02 € Shop-Rundungsdifferenz / Guthaben)\nEinsatzzweck: Sofort lieferbares Schwarz-Gold-Geschenkpapier (Ersatz für nicht lieferbare Westpack-Rolle 03307510300) für Geschenkverpackungs-Upsell (+2,90 €).\nProdukt-Link: https://www.natuerlich-verpacken.de/zweifarbiges-geschenkpapier-schwarz-gold-rolle-kaufen",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-22_Natuerlich-Verpacken_2x-Geschenkpapier-Schwarz-Gold-2821171260_Rechnung-42026159952.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-22_Natuerlich-Verpacken_2x-Geschenkpapier-Schwarz-Gold-2821171260_Order-22026114411-NV.pdf',
+                ]
+            ],
+            [
+                'title'          => '2x 100 Stück (200 Stk.) Schwarze Kraftpapier-Schmucktüten Klein (10 x 6 cm inkl. Klebeband)',
+                'location'       => 'Amazon (MERVYN GLYNN HUNTER LTD)',
+                'amount'         => -13.58,
+                'date'           => '2026-11-22',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => '306-9003625-9724350',
+                'note'           => "Bestellnummer: 306-9003625-9724350 | Bestellt am: 22.11.2026 | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000 | Zustellung: Di., 24.11.2026\nPosition:\n- 2x 100 Stück (gesamt 200 Stück) Papiertüten Klein / Schmucktütchen 10 x 6 cm (100 x 60,5 mm) Schwarz aus Kraftpapier inkl. doppelseitigem Klebeband (ASIN: B0DYHWRDFF, Marke: REBECASKYENS, Verkauf durch: MERVYN GLYNN HUNTER LTD): je 6,79 € brutto = 13,58 € brutto\nZwischensumme / Gesamt vor USt. (Netto): 11,41 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 2,17 € | Gesamtsumme (Brutto): 13,58 €\nEinsatzzweck: 100 % plastikfreie, schwarze Kraftpapier-Innenverpackung für kleine Einzelprodukte ohne Geschenkbox (Seelenanhänger, Talisman, Hundemarke, Herzanhänger).\nProdukt-Link: https://www.amazon.de/dp/B0DYHWRDFF\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=306-9003625-9724350",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-22_Amazon_200x-Schwarze-Kraftpapiertueten-10x6cm_Order-306-9003625-9724350.pdf'
+                ]
+            ],
+            [
+                'title'          => '100 Stück Frau WUNDERVoll Schwarze Papierflachbeutel mit Lasche (13 x 16,5 cm)',
+                'location'       => 'Amazon (frauwundervoll)',
+                'amount'         => -9.99,
+                'date'           => '2026-11-22',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => '306-3879066-2697958',
+                'note'           => "Bestellnummer: 306-3879066-2697958 | Bestellt am: 22.11.2026 | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000 | Zustellung: Do., 26.11.2026\nPosition:\n- 1x 100 Stück Frau WUNDERVoll® Papiertüten / Papierflachbeutel Schwarz, 13 x 16,5 cm (+ 2 cm Umfaltlasche), 45 g/m² unbeschichtetes Papier (ASIN: B0CPJT35H8, Verkauf durch: frauwundervoll): 9,99 € brutto\nZwischensumme / Gesamt vor USt. (Netto): 8,39 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 1,60 € | Gesamtsumme (Brutto): 9,99 €\nEinsatzzweck: 100 % plastikfreie, schwarze Papierflachbeutel für längliche Schmuckstücke ohne Geschenkbox (insbesondere 18,5 cm ID-Seelenarmbänder, die nicht ungeknickt in 10x6 cm passen, sowie Mehrfach-Anhänger).\nProdukt-Link: https://www.amazon.de/dp/B0CPJT35H8\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=306-3879066-2697958",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-22_Amazon_100x-Frau-WUNDERVoll-Schwarze-Papierflachbeutel-13x16-5cm_Order-306-3879066-2697958.pdf'
+                ]
+            ],
+            [
+                'title'          => 'Bambu Lab A1 3D-Drucker inkl. 1x PETG Matte Black (1 kg) & 2x PLA Matte Charcoal (je 1 kg)',
+                'location'       => 'Bambu Lab EU (Bambulab GmbH)',
+                'amount'         => -281.25,
+                'date'           => '2026-11-17',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'BBLEU2615V426CI69 (Bestellnr. EN798653717418160128)',
+                'note'           => "Rechnungsnummer: BBLEU2615V426CI69 | Bestellnummer: EN798653717418160128 | Rechnungs- & Lieferdatum: 17.11.2026 | Zahlungsdatum: 16.11.2026 (PayPal)\nHändler: Bambu Lab EU / Bambulab GmbH, Hanauer Landstraße 291, 60314 Frankfurt am Main, USt-IdNr.: DE360354704, Web: eu.store.bambulab.com\nPositionen:\n- 1x Bambu Lab A1 3D Printer (SKU: PF002-A-EU2, Variant: A1): 239,00 € brutto (inkl. 38,16 € DE MwSt. 19 %)\n- 1x PETG Matte Black (35101) Filament mit Spule 1 kg (SKU: G03-K00-1.75-1000-SPL, Listenpreis 18,99 €, Rabatt -8,93 €): 10,06 € brutto (inkl. 1,61 € DE MwSt. 19 %)\n- 2x PLA Matte Charcoal (11101) Filament mit Spule 1 kg (SKU: A01-K1-1.75-1000-SPL, Listenpreis je 19,99 €, Rabatt -18,79 €): 21,19 € brutto (inkl. 3,38 € DE MwSt. 19 %)\nZwischensumme Artikel: 270,25 € brutto | Versand: 11,00 € brutto | Gesamt (Netto): 236,34 € | DE MwSt. (19 %): 44,91 € | Gesamtbetrag (Brutto): 281,25 €",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-17_Bambu-Lab-EU_Bambu-Lab-A1-3D-Drucker-und-3x-Filament-1kg-Rechnung-BBLEU2615V426CI69.pdf'
+                ]
+            ],
             [
                 'title'          => 'Google AI Ultra (30 TB, Google One)',
                 'location'       => 'Google Payment Ireland Ltd.',
@@ -1295,6 +1340,29 @@ class AccountingSeeder extends Seeder
                     'note'           => $issue['note'] ?? null,
                 ]
             );
+        }
+
+        // --- 4. Kalkulatorische Reinvestitions-Ziele (Initial-Beispiel nur falls leer) ---
+        if (\Illuminate\Support\Facades\Schema::hasTable('accounting_investment_plans')
+            && \App\Models\Accounting\AccountingInvestmentPlan::withTrashed()->where('admin_id', $admin->id)->count() === 0
+        ) {
+            \App\Models\Accounting\AccountingInvestmentPlan::create([
+                'admin_id'            => $admin->id,
+                'title'               => 'Zweit- / Ersatz-Laser (xTool UV / MOPA)',
+                'target_amount_gross' => 4950.00,
+                'tax_rate'            => 19,
+                'saved_initial'       => 0.00,
+                'allocation_mode'     => 'fixed_monthly',
+                'monthly_rate'        => 125.00,
+                'profit_percent'      => 10.00,
+                'start_date'          => '2027-01-01',
+                'target_date'         => '2029-12-31',
+                'afa_years'           => 5,
+                'use_iab'             => false,
+                'is_active'           => true,
+                'priority'            => 1,
+                'note'                => 'Kalkulatorische Rücklage für Kapazitätserweiterung bzw. Ersatz-Lasersystem.',
+            ]);
         }
     }
 }

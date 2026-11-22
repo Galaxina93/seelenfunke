@@ -123,6 +123,8 @@
             lastSpeechStartTime: 0,
             lastAiPacketTime: 0,
             generationCompleteReceived: false,
+            turnCompleteReceived: false,
+            hasOutputTranscriptionInTurn: false,
             turnStartTime: null,
             activeAgentName: initialAgentName, // Neu: Speichert den Namen des antwortenden Agenten
             agentTtsEnabled: false, // Prevents calling TTS apis
@@ -849,10 +851,10 @@
             isOutputActive() {
                 const now = Date.now();
                 const hasActiveSources = Array.isArray(this.activeAudioSources) && this.activeAudioSources.length > 0;
-                // 650ms Raumhall-Puffer nach aktiver Sprachausgabe (deckt 256ms ScriptProcessor-Frame + Lautsprecher-Latenz + Raumhall ab)
-                const roomEchoCushion = (now - (this.lastSpeechEndTime || 0)) < 650;
-                // Halte Output-Schutz aktiv, solange die KI noch mitten in einem laufenden Turn generiert (verhindert Mikrofon-Unmute in kurzen Chunk-Lücken)
-                const aiTurnGenerating = this.isAiSpeakingTurn && !this.generationCompleteReceived && (now - (this.lastAiPacketTime || 0)) < 3500;
+                // 850ms Raumhall-Puffer nach aktiver Sprachausgabe (deckt ScriptProcessor-Frame + Lautsprecher-Latenz + Raumhall ab)
+                const roomEchoCushion = (now - (this.lastSpeechEndTime || 0)) < 850;
+                // Halte Output-Schutz aktiv, bis turnComplete (nicht vorzeitig generationComplete!) eingetroffen ist
+                const aiTurnGenerating = this.isAiSpeakingTurn && !this.turnCompleteReceived && (now - (this.lastAiPacketTime || 0)) < 4000;
                 return hasActiveSources || roomEchoCushion || aiTurnGenerating;
             },
 
@@ -1669,21 +1671,37 @@
                     this.liveWs.onopen = () => {
                         console.log('Gemini Live WS Connected (' + this.liveWsMode + ')');
 
-                        // Send Initial Setup
+                        // Send Initial Setup (with fast 420ms VAD endpointing & zero dynamic thinking delay on 2.5 native audio)
+                        const setupModelName = (this.liveWsMode === 'direct_gemini' && creds.live_model)
+                            ? creds.live_model
+                            : "models/gemini-3.1-flash-live-preview";
+                        const genCfg = {
+                            responseModalities: ["AUDIO"],
+                            speechConfig: {
+                                voiceConfig: {
+                                    prebuiltVoiceConfig: {
+                                        voiceName: creds.voice_name || "Puck"
+                                    }
+                                }
+                            }
+                        };
+                        if (String(setupModelName).includes('2.5')) {
+                            genCfg.thinkingConfig = { thinkingBudget: 0 };
+                        }
                         const setupMsg = {
                             setup: {
-                                model: "models/gemini-3.1-flash-live-preview",
+                                model: setupModelName,
                                 systemInstruction: {
                                     parts: [{ text: creds.system_instruction }]
                                 },
-                                generationConfig: {
-                                    responseModalities: ["AUDIO"],
-                                    speechConfig: {
-                                        voiceConfig: {
-                                            prebuiltVoiceConfig: {
-                                                voiceName: creds.voice_name || "Puck"
-                                            }
-                                        }
+                                generationConfig: genCfg,
+                                realtimeInputConfig: {
+                                    automaticActivityDetection: {
+                                        disabled: false,
+                                        startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+                                        endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
+                                        prefixPaddingMs: 100,
+                                        silenceDurationMs: 420
                                     }
                                 },
                                 tools: creds.tools || [],
@@ -2139,6 +2157,8 @@
                     }
                 }
                 if (aiTranscriptChunk) {
+                    this.hasOutputTranscriptionInTurn = true;
+                    this.turnCompleteReceived = false;
                     this.currentLiveTranscript += aiTranscriptChunk;
                     this.lastAiPacketTime = Date.now();
                     this.isSpeaking = true;
@@ -2169,7 +2189,7 @@
                         if (!alreadyInHistory) {
                             this.funkiLogs.push({ role: 'user', time: new Date().toLocaleTimeString('de-DE'), message: userText });
                             this.chatHistory.push({ role: 'user', content: userText, time: timeStr, created_at: timeStr });
-                            if (this.$wire) {
+                            if (this.$wire && this.liveWsMode !== 'bridge') {
                                 this.$wire.call('saveUserLiveMessage', userText, this.currentChatSessionId || null);
                             }
                         }
@@ -2178,6 +2198,7 @@
 
                 if (data.serverContent && data.serverContent.modelTurn) {
                     this.lastAiPacketTime = Date.now();
+                    this.turnCompleteReceived = false;
                     this.isSpeaking = true;
                     this.isAiSpeakingTurn = true;
                     if (!this.turnStartTime) this.turnStartTime = Date.now();
@@ -2188,19 +2209,26 @@
                         if (part.inlineData && part.inlineData.data) {
                             this.playLiveAudioChunk(part.inlineData.data);
                         }
-                        if (part.text) {
+                        // Ignoriere interne Gemini-Gedanken (part.thought === true) und vermeide Doppelung mit outputTranscription
+                        if (part.text && part.thought !== true && !this.hasOutputTranscriptionInTurn) {
                             chunkText += part.text;
                         }
                     });
 
-                    if (chunkText) {
+                    if (chunkText && !this.currentLiveTranscript.includes(chunkText)) {
                         this.currentLiveTranscript += chunkText;
                     }
                 }
 
-                // Sobald die KI fertig generiert hat, wandeln wir das Transkript sofort in eine permanente Chatnachricht um
-                if (data.serverContent && (data.serverContent.turnComplete || data.serverContent.generationComplete)) {
+                if (data.serverContent && data.serverContent.generationComplete && !data.serverContent.turnComplete) {
                     this.generationCompleteReceived = true;
+                }
+
+                // Erst bei echtem turnComplete das vollständige Transkript einmalig abschließen (verhindert Split-Duplikate nach generationComplete)
+                if (data.serverContent && data.serverContent.turnComplete) {
+                    this.generationCompleteReceived = true;
+                    this.turnCompleteReceived = true;
+                    this.hasOutputTranscriptionInTurn = false;
                     if (this.turnDrainTimeout) {
                         clearTimeout(this.turnDrainTimeout);
                         this.turnDrainTimeout = null;
@@ -2223,8 +2251,8 @@
                             this.chatHistory.push({ role: 'assistant', content: finalTxt, name: agentName, time: timeStr, created_at: timeStr });
                             this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: finalTxt.replace(/\[.*?\]/s, '') });
                             
-                            // Persistieren der gesprochenen KI-Antwort in der Datenbank
-                            if (this.$wire) {
+                            // Im Bridge-Modus speichert server-twilio.js zentral via /api/ai/save-live-transcript (verhindert Doppel-Speicher-Rennen)
+                            if (this.$wire && this.liveWsMode !== 'bridge') {
                                 this.$wire.call('saveAssistantLiveMessage', finalTxt, this.activeAgentId || null, this.currentChatSessionId || null);
                             }
                         }
@@ -2243,6 +2271,8 @@
                         this.stopCurrentAudioPlayback();
                         this.turnStartTime = null;
                         this.generationCompleteReceived = false;
+                        this.turnCompleteReceived = true;
+                        this.hasOutputTranscriptionInTurn = false;
                         if (this.currentLiveTranscript && this.currentLiveTranscript.trim() !== '') {
                             let interruptedTxt = this.currentLiveTranscript.trim();
                             let agentName = this.activeAgentName || data.agent_name || 'Funkira';
@@ -2250,7 +2280,7 @@
                             this.chatHistory.push({ role: 'assistant', content: interruptedTxt, name: agentName, time: timeStr, created_at: timeStr });
                             this.funkiLogs.push({ role: 'ai', time: new Date().toLocaleTimeString('de-DE'), message: interruptedTxt.replace(/\[.*?\]/s, '') });
                             
-                            if (this.$wire) {
+                            if (this.$wire && this.liveWsMode !== 'bridge') {
                                 this.$wire.call('saveAssistantLiveMessage', interruptedTxt, this.activeAgentId || null, this.currentChatSessionId || null);
                             }
 
@@ -2653,7 +2683,10 @@
                     this.checkBridgePing();
                 }, 30000);
                 
-                window.addEventListener('ai-analyze-camera', async (e) => {
+                if (this._onAnalyzeCameraHandler) {
+                    window.removeEventListener('ai-analyze-camera', this._onAnalyzeCameraHandler);
+                }
+                this._onAnalyzeCameraHandler = async (e) => {
                     const video = document.getElementById('funki-local-camera');
                     if (!video || !video.srcObject) {
                         this.$wire.set('input', '[SYSTEM_LOG]: Fehler: Die Kamera ist aktuell nicht eingeschaltet. Bitte informiere den Nutzer darüber.');
@@ -2709,5 +2742,6 @@
                             }
                         }, 'image/jpeg', 0.9);
                     }
-                });
+                };
+                window.addEventListener('ai-analyze-camera', this._onAnalyzeCameraHandler);
             },

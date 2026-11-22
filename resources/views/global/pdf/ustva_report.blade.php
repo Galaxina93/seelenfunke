@@ -141,23 +141,42 @@
 
 <div class="page-break"></div>
 
+@php
+    $operatingNet = $data['operating_expenses_net'] ?? ($data['expenses_net'] ?? 0);
+    $capitalAddNet = $data['capital_additions_net'] ?? 0;
+    $depreciationNet = $data['depreciation_net'] ?? 0;
+    $euerExpensesNet = $data['euer_expenses_net'] ?? ($operatingNet + $depreciationNet);
+    $euerProfit = $data['euer_profit'] ?? (($data['revenue_net'] ?? 0) - $euerExpensesNet);
+    $finService = app(\App\Services\FinancialService::class);
+    $isSmallBusinessYear = !empty($data['is_small_business_year']);
+    $expenseCount = $data['expense_count'] ?? (count($data['raw_specials'] ?? []) + count($data['raw_fixed'] ?? []));
+@endphp
+
 <h2>Betriebswirtschaftliche Auswertung (EÜR Übersicht)</h2>
 <table class="kpi-table">
     <tr>
         <td class="kpi-cell">
             <div class="kpi-label">Umsatz (Netto)</div>
             <div class="kpi-val" style="color: #16a34a;">+ {{ number_format($data['revenue_net'] ?? 0, 2, ',', '.') }} €</div>
-            <div style="font-size: 8px; color: #999; margin-top: 5px;">Aus {{ $data['order_count'] ?? count($data['raw_orders'] ?? []) }} Bestellungen</div>
+            <div style="font-size: 8px; color: #999; margin-top: 5px;">Aus {{ $data['order_count'] ?? count($data['raw_orders'] ?? []) }} Belegen</div>
         </td>
         <td class="kpi-cell">
-            <div class="kpi-label">Kosten (Netto)</div>
-            <div class="kpi-val" style="color: #dc2626;">- {{ number_format($data['expenses_net'] ?? 0, 2, ',', '.') }} €</div>
-            <div style="font-size: 8px; color: #999; margin-top: 5px;">Aus {{ $data['expense_count'] ?? (count($data['raw_specials'] ?? []) + count($data['raw_fixed'] ?? [])) }} Positionen</div>
+            <div class="kpi-label">EÜR-Aufwand (Lfd. + AfA)</div>
+            <div class="kpi-val" style="color: #dc2626;">- {{ number_format($euerExpensesNet, 2, ',', '.') }} €</div>
+            <div style="font-size: 8px; color: #999; margin-top: 5px;">
+                Lfd.: {{ number_format($operatingNet, 2, ',', '.') }} € | AfA: {{ number_format($depreciationNet, 2, ',', '.') }} €
+            </div>
         </td>
         <td class="kpi-cell">
             <div class="kpi-label">Vorl. Gewinn (EÜR)</div>
-            <div class="kpi-val">{{ number_format($data['profit'] ?? 0, 2, ',', '.') }} €</div>
-            <div style="font-size: 8px; color: #999; margin-top: 5px;">Monatsergebnis</div>
+            <div class="kpi-val">{{ number_format($euerProfit, 2, ',', '.') }} €</div>
+            <div style="font-size: 8px; color: #999; margin-top: 5px;">
+                @if($capitalAddNet > 0)
+                    Exkl. {{ number_format($capitalAddNet, 2, ',', '.') }} € Anlagezugang (Kto. 0440)
+                @else
+                    Ergebnis nach AfA
+                @endif
+            </div>
         </td>
     </tr>
 </table>
@@ -167,29 +186,28 @@
     <thead>
     <tr>
         <th>Datum</th>
+        <th>SKR03</th>
         <th>Typ / Kategorie</th>
-        <th>Bezeichnung / Verwendungszweck</th>
+        <th>Bezeichnung</th>
         <th class="text-center">Belegnr.</th>
         <th class="text-right">Brutto</th>
         <th class="text-right">Darin Vorsteuer</th>
     </tr>
     </thead>
     <tbody>
-    @php
-        $isSmallBusinessYear = !empty($data['is_small_business_year']);
-        $expenseCount = $data['expense_count'] ?? (count($data['raw_specials'] ?? []) + count($data['raw_fixed'] ?? []));
-    @endphp
     @foreach($data['raw_specials'] ?? [] as $sp)
         @php
             $rawRate = $sp->tax_rate ?? 0;
             $rate = (!$isSmallBusinessYear && \App\Services\FinancialService::isEligibleGermanInputVatRate($rawRate)) ? (float) round((float) $rawRate) : 0.0;
             $amt = abs($sp->amount);
             $vPaid = $rate > 0 ? ($amt - ($amt / (1 + ($rate / 100)))) : 0.0;
+            $skr = $finService->resolveSkr03ExpenseAccountAndBuKey($sp, $isSmallBusinessYear);
         @endphp
         <tr>
             <td>{{ \Carbon\Carbon::parse($sp->execution_date)->format('d.m.Y') }}</td>
+            <td><strong>{{ $skr['account'] }}</strong></td>
             <td>Variabel ({{ $sp->category }})</td>
-            <td>{{ Str::limit($sp->title, 40) }}</td>
+            <td>{{ Str::limit($sp->title, 38) }}</td>
             <td class="text-center">{{ $sp->invoice_number ?? '-' }}</td>
             <td class="text-right">{{ number_format($amt, 2, ',', '.') }} €</td>
             <td class="text-right">{{ number_format($vPaid, 2, ',', '.') }} €</td>
@@ -202,11 +220,15 @@
             $rate = (!$isSmallBusinessYear && \App\Services\FinancialService::isEligibleGermanInputVatRate($rawRate)) ? (float) round((float) $rawRate) : 0.0;
             $amt = abs($fix->amount);
             $vPaid = $rate > 0 ? ($amt - ($amt / (1 + ($rate / 100)))) : 0.0;
+            $dueMonth = (int) ($fix->_due_month ?? (is_numeric($data['month_number'] ?? null) ? $data['month_number'] : 1));
+            $dueDateLabel = '28.' . str_pad((string) max(1, min(12, $dueMonth)), 2, '0', STR_PAD_LEFT) . '.' . $data['year'];
+            $skr = $finService->resolveSkr03ExpenseAccountAndBuKey($fix, $isSmallBusinessYear);
         @endphp
         <tr>
-            <td>Wiederkehrend</td>
+            <td>{{ $dueDateLabel }}</td>
+            <td><strong>{{ $skr['account'] }}</strong></td>
             <td>Fixkosten</td>
-            <td>{{ Str::limit($fix->name, 40) }}</td>
+            <td>{{ Str::limit($fix->name, 38) }}</td>
             <td class="text-center">-</td>
             <td class="text-right">{{ number_format($amt, 2, ',', '.') }} €</td>
             <td class="text-right">{{ number_format($vPaid, 2, ',', '.') }} €</td>
@@ -214,7 +236,7 @@
     @endforeach
 
     @if($expenseCount == 0)
-        <tr><td colspan="6" class="text-center" style="padding: 20px; color: #999; font-style: italic;">Keine Ausgaben in diesem Zeitraum verbucht.</td></tr>
+        <tr><td colspan="7" class="text-center" style="padding: 20px; color: #999; font-style: italic;">Keine Ausgaben in diesem Zeitraum verbucht.</td></tr>
     @endif
     </tbody>
 </table>

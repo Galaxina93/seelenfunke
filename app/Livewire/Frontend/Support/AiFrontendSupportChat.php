@@ -369,10 +369,15 @@ class AiFrontendSupportChat extends Component
                 . "- **Shop-Entdeckung**: Bis zu " . \App\Services\Gamification\GameConfig::DAILY_SPARK_LIMIT . " versteckte Seelenfunken täglich auf unseren Shop-Seiten (sobald **„Magie aktivieren“** im [Kunden-Dashboard](/dashboard) aktiv ist).";
         }
 
-        // 5. Lokaler 0-Token Fast-Track für Fragen rund um Seelenfunken, Funki (Level 1–10), Musik & UI-Wegweiser
+        // 5. Lokaler 0-Token Fast-Track für Fragen rund um Seelenfunken, Funki (Level 1 bis 10), Musik & Kunden-Dashboard-Wegweiser
         $localGamificationReply = $this->resolveLocalGamificationGuide($normalized);
         if ($localGamificationReply !== null) {
             return $localGamificationReply;
+        }
+
+        $localDashboardReply = $this->resolveLocalDashboardGuide($normalized);
+        if ($localDashboardReply !== null) {
+            return $localDashboardReply;
         }
 
         return null;
@@ -390,7 +395,7 @@ class AiFrontendSupportChat extends Component
         }
 
         $isGamificationQuery = preg_match(
-            '/\b(?:seelenfunken|funken\s+sammeln|funken-suche|funken\s+einlösen|funken\s+guthaben|mein(?:e)?\s+funken|wie\s+viele\s+funken|magie\s+aktivieren|funki\s+öffnen|funki\s+modal|funki\s+level|evolutionsstufen|halle\s+der\s+helden|seelengott|titel\s+und\s+ränge|spielername|funki\s+musik|bgm_funki_game|musik\s+laufen\s+lassen|geburtstags-?funken|geburtstagsbonus|stammkunden-?bonus|hintergründe\s+freischalten)\b/iu',
+            '/\b(?:seelenfunken|funken\s+sammeln|funken-suche|funken\s+einlösen|funken\s+guthaben|mein(?:e)?\s+funken|wie\s+viele\s+funken|magie\s+aktivieren|funki\s+öffnen|funki\s+seite|funki\s+modal|funki\s+level|evolutionsstufen|halle\s+der\s+helden|seelengott|titel\s+und\s+ränge|spielername|funki\s+musik|bgm_funki_game|musik\s+laufen\s+lassen|geburtstags-?funken|geburtstagsbonus|stammkunden-?bonus|hintergründe\s+freischalten)\b/iu',
             $normalized
         ) === 1;
 
@@ -428,21 +433,21 @@ class AiFrontendSupportChat extends Component
         // Spezifische Detailfragen gezielt beantworten
         if (preg_match('/\b(?:musik|sound|lautstärke|stumm|mute|bgm_funki_game|musik\s+laufen\s+lassen)\b/iu', $normalized) === 1) {
             return "**So steuerst du die Funki-Musik & Soundeffekte:** 🎵\n"
-                . "- **Im Funki-Modal**: Sobald du im [Kunden-Dashboard](/dashboard) auf **„Funki öffnen“** klickst, findest du **oben rechts direkt neben dem „X“** den Lautstärkeregler, den Stumm-Button (Mute) und die Checkbox **„Musik laufen lassen“**.\n"
-                . "- **Auf allen Seiten weiterhören**: Wenn du **„Musik laufen lassen“** aktivierst, spielt die Musik beim Schließen des Modals und beim Seitenwechsel nahtlos weiter. Unten rechts (direkt über dem *„Nach oben scrollen“*-Pfeil) erscheint dann ein kompaktes Musik-Steuerfeld.\n"
+                . "- **Auf der Funki-Seite**: Öffne [Dein Funki & Prämien](/funki) (oder klicke im [Kunden-Dashboard](/dashboard) auf **„Funki öffnen“**). Oben rechts findest du den Lautstärkeregler, den Stumm-Button (Mute) und die Checkbox **„Musik laufen lassen“**.\n"
+                . "- **Auf allen Seiten weiterhören**: Wenn du **„Musik laufen lassen“** aktivierst, spielt die Musik beim Seitenwechsel nahtlos weiter. Unten rechts (direkt über dem *„Nach oben scrollen“*-Pfeil) erscheint dann ein kompaktes Musik-Steuerfeld.\n"
                 . "- Deine Einstellungen werden automatisch in deinem Kundenkonto gespeichert." . $personalStatusBlock;
         }
 
         if (preg_match('/\b(?:halle\s+der\s+helden|spielername|echtname|rangliste)\b/iu', $normalized) === 1) {
             return "**Alles zur Halle der Helden & deinem Spielernamen:** 🏛️\n"
-                . "- **Wo du sie findest**: Öffne dein [Kunden-Dashboard](/dashboard), klicke oben rechts auf **„Funki öffnen“** und wähle den 4. Reiter **„Halle der Helden“**.\n"
+                . "- **Wo du sie findest**: Öffne [Dein Funki & Prämien](/funki) (oder klicke im [Kunden-Dashboard](/dashboard) auf **„Funki öffnen“**) und wähle den 4. Reiter **„Halle der Helden“**.\n"
                 . "- **Anzeige-Einstellungen (Opt-In)**: Unten im Reiter **„Halle der Helden“** kannst du selbst entscheiden, ob du öffentlich sichtbar sein möchtest und ob dein **Spielername** (mind. 3 bis max. 20 Zeichen, einzigartig) oder dein **Echtname** angezeigt wird.\n"
                 . "- **Bewertungs-Steckbrief**: Auch bei deinen Produktbewertungen können andere Besucher auf dein animiertes Funki-Profilbild klicken, um deinen Helden-Steckbrief zu bestaunen!" . $personalStatusBlock;
         }
 
         if (preg_match('/\b(?:titel|ränge|seelengott|diamant)\b/iu', $normalized) === 1) {
             return "**So funktionieren Titel, Ränge & das ultimative Ziel:** 🏆\n"
-                . "- **Wo du sie findest**: Im [Kunden-Dashboard](/dashboard) -> **„Funki öffnen“** -> Reiter **„Titel & Ränge“**.\n"
+                . "- **Wo du sie findest**: Unter [Dein Funki & Prämien](/funki) im Reiter **„Titel & Ränge“**.\n"
                 . "- **5 Kategorien (Bestellungen, Warenwert, Einzelartikel, Bewertungen, Funken-Sammler) und 4 Stufen (Bronze, Silber, Gold, Diamant)**: Du schaltest durch Bestellungen, Warenwert, Einzelartikel, Produktbewertungen und gesammelte Funken jeweils 4 Stufen (Bronze, Silber, Gold, Diamant) frei (Stufe 4 = **Diamant-Status** 💎).\n"
                 . "- **Ultimatives Ziel**: Sobald du alle **5 von 5 Titeln auf Maximum (Diamant)** gebracht und **Funki Level 10** erreicht hast, erhältst du den höchsten Ehrentitel **„Seelengott unter Sterblichen“**!" . $personalStatusBlock;
         }
@@ -457,15 +462,75 @@ class AiFrontendSupportChat extends Component
         // Allgemeine Komplett-Übersicht + Wegweiser
         return "**Hier findest du alles rund um Seelenfunken & deinen Begleiter Funki:** ✨\n\n"
             . "1. **Wo du Funki öffnest & aktivierst**:\n"
-            . "   Gehe in dein [Kunden-Dashboard](/dashboard). Unten in der mittleren Kachel **„✨ Seelenfunken & Prämien“** kannst du das Programm mit **„Magie aktivieren“** starten (oder unten links im Funki-Modal jederzeit pausieren). Oben rechts öffnest du über **„Funki öffnen“** das Hauptfenster mit den 4 Reitern **„Rabatte“**, **„Level“**, **„Titel & Ränge“** und **„Halle der Helden“**.\n"
+            . "   Gehe in dein [Kunden-Dashboard](/dashboard). Unten in der mittleren Kachel **„✨ Seelenfunken & Prämien“** kannst du das Programm mit **„Magie aktivieren“** starten (oder jederzeit pausieren). Sobald es aktiv ist, erreichst du über **„Funki öffnen“** direkt deine eigene Übersichtsseite [Dein Funki & Prämien](/funki) mit den 4 Reitern **„Rabatte“**, **„Level“**, **„Titel & Ränge“** und **„Halle der Helden“**.\n"
             . "2. **Wie du Seelenfunken sammelst**:\n"
             . "   - **Einkauf**: `1,00 € Warenwert = +1 ✨ Seelenfunke` (wird im Konfigurator, Checkout und auf der Rechnung angezeigt).\n"
-            . "   - **Produktbewertung**: **+15 ✨** für jede freigegebene ehrliche Bewertung auf der Produktseite.\n"
+            . "   - **Produktbewertung**: **+15 ✨** für jede freigegebene ehrliche Bewertung unter [Meine Bewertungen](/reviews) oder auf der Produktseite.\n"
             . "   - **Geburtstag & Jahrestag**: Jeweils **+50 ✨** (Geburtsdatum unter [Mein Profil](/profile) hinterlegen).\n"
             . "   - **Auf Shop-Seiten**: Bis zu " . \App\Services\Gamification\GameConfig::DAILY_SPARK_LIMIT . " versteckte Seelenfunken täglich im Shop anklicken.\n"
-            . "3. **Rabatte & Level 1–10**:\n"
-            . "   Im Reiter **„Rabatte“** tauschst du Funken gegen Gutscheine ein (**60 ✨ = 5 %**, **150 ✨ = 10 %**, **350 ✨ = 15 %**). Dein **Funki-Level (1–10)** samt animiertem Hintergrund richtet sich nach deinen *Lebenszeit-Funken* und sinkt beim Einlösen von Gutscheinen niemals!"
+            . "3. **Rabatte & Level 1 bis 10**:\n"
+            . "   Im Reiter **„Rabatte“** auf [Dein Funki & Prämien](/funki) tauschst du Funken gegen Gutscheine ein (**60 ✨ = 5 %**, **150 ✨ = 10 %**, **350 ✨ = 15 %**). Dein **Funki-Level (1 bis 10)** samt animiertem Hintergrund richtet sich nach deinen *Lebenszeit-Funken* und sinkt beim Einlösen von Gutscheinen niemals!"
             . $personalStatusBlock;
+    }
+
+    /**
+     * Lokaler 0-Token-Wegweiser für die Bedienung des Kunden-Dashboards, Kontobereichs,
+     * Rechnungs-Archivs, Blueprint-Verlaufs, 3D-Shoppens und der reinen Chat-Erreichbarkeit.
+     */
+    protected function resolveLocalDashboardGuide(string $normalized): ?string
+    {
+        // Konkrete Bestell-/Ticket-Nummern oder Reklamationen immer an den Tool-Agenten weiterleiten
+        if (preg_match('/\b(?:ord-\d|tck-|msf-|reklamation|defekt|kaputt|beschädigt|fehlt|stornier|widerruf)\b/iu', $normalized) === 1) {
+            return null;
+        }
+
+        // Klare Abgrenzung: Funki führt keine Telefonate, sondern hilft direkt hier im Chat
+        if (preg_match('/\b(?:ruf(?:t|en)?\s+mich\s+an|zurückrufen|rückruf|telefonieren|am\s+telefon|telefonisch\s+sprechen|hotline)\b/iu', $normalized) === 1) {
+            return "Als dein digitaler Begleiter **Funki** telefoniere ich nicht, sondern helfe dir **24/7 direkt hier im Chat** sofort weiter. ✨\n\n"
+                . "- Für schriftliche Anliegen an unser Manufaktur-Team kannst du jederzeit ein Ticket unter [Support & Tickets](/support) einsehen oder unser [Kontaktformular](/kontakt) nutzen (Bearbeitung werktags 09:00 bis 17:00 Uhr).";
+        }
+
+        // 3D-Atelier-Welt / 3D-Shoppen Wegweiser
+        if (preg_match('/\b(?:3d\s*shopp(?:en|ing)|3d\s*atelier|3d\s*welt|funkira\s+auswählen|wandsprung)\b/iu', $normalized) === 1) {
+            return "**So funktioniert das 3D-Shoppen in unserer Atelier-Welt:** 🏛️\n"
+                . "- **Starten**: Klicke im [Shop](/shop) oben auf **„3D Shoppen“** und wähle zwischen **Funki** und **Funkira**.\n"
+                . "- **Steuerung**: Bewege dich mit `W A S D` (bzw. Touch-Steuerung am Smartphone), sprinte mit `Shift` und springe mit der `Leertaste` (direkt an einer Wand erneut `Leertaste` für Mehrfach-Wandsprünge).\n"
+                . "- **Produkte ansehen**: Tritt einfach an ein ausgestelltes Unikat heran und klicke es an, um direkt den Produktkonfigurator zu öffnen.";
+        }
+
+        // Spezifische Fragen zu Rechnungen / PDF-Download (ohne konkrete Bestellnummer)
+        if (preg_match('/\b(?:wo\s+finde\s+ich.*rechnung|rechnung(?:en)?\s+herunterladen|rechnung(?:en)?\s+download|rechnungsarchiv|rechnungs-archiv|gutschein\s*pdf)\b/iu', $normalized) === 1) {
+            return "**Hier findest du deine Rechnungen & Gutschein-PDFs:** 📄\n"
+                . "- **Rechnungs-Archiv**: Alle PDF-Rechnungen und eventuelle Gutschriften kannst du jederzeit gesammelt unter [Rechnungs-Archiv](/invoices) herunterladen.\n"
+                . "- **Geschenkgutschein-PDFs**: Gekaufte Geschenkgutscheine findest du zusätzlich direkt auf deinem [Kunden-Dashboard](/dashboard) zum Sofort-Download.\n"
+                . "- Wenn ich für dich direkt eine bestimmte Bestellung prüfen soll, nenne mir einfach deine Bestellnummer (`ORD-...`).";
+        }
+
+        // Spezifische Fragen zu Gravur-Vorschau / Blueprint im Kundenkonto
+        if (preg_match('/\b(?:blueprint|gravur-?vorschau|meine\s+konfiguration\s+ansehen|vorschau\s+meiner\s+bestellung)\b/iu', $normalized) === 1) {
+            return "**So siehst du deine gespeicherte Gravur-Vorschau (Blueprint) ein:** 🔍\n"
+                . "- Öffne [Meine Bestellungen](/orders) und klicke auf die gewünschte Bestellung.\n"
+                . "- Direkt beim jeweiligen Artikel kannst du deine hinterlegte **Gravur-Vorschau** samt Texten, Schriftart und Positionierung jederzeit noch einmal prüfen.\n"
+                . "- Solange deine Bestellung noch den Status *Ausstehend* hat, sind dort auch noch Korrekturen vor Produktionsstart möglich.";
+        }
+
+        // Allgemeine Kunden-Dashboard- & Konto-Orientierung ("Wo finde ich was im Dashboard / Kundenkonto?")
+        $isDashboardNavigationQuery = preg_match(
+            '/(?:wie\s+(?:bediene|nutze|funktioniert)\s+(?:ich\s+)?(?:mein\s+|das\s+)?(?:kunden-?)?(?:dashboard|kundenkonto|kundenbereich)|wo\s+finde\s+ich\s+(?:was\s+)?im\s+(?:dashboard|kundenkonto|profil)|übersicht\s+(?:über\s+)?mein\s+(?:dashboard|kundenkonto)|was\s+kann\s+ich\s+im\s+(?:dashboard|kundenkonto)\s+machen|wo\s+ändere\s+ich\s+(?:mein(?:e)?\s+)?(?:passwort|adresse|e-?mail|datenschutz))/iu',
+            $normalized
+        ) === 1;
+
+        if (!$isDashboardNavigationQuery) {
+            return null;
+        }
+
+        return "**Dein Wegweiser durch das Kundenkonto & Dashboard:** 🧭\n\n"
+            . "1. **[Kunden-Dashboard](/dashboard)**: Zentrale Übersicht mit deinen letzten Bestellungen, Geschenkgutscheinen, Empfehlungs-Code und Schnellstart zu Funki.\n"
+            . "2. **[Mein Profil](/profile)**: Namen, Liefer-/Rechnungsadresse, Passwort, **Geburtsdatum** (`+50 ✨` Bonus) sowie deine **DSGVO- & KI-Datenschutz-Einstellungen** verwalten.\n"
+            . "3. **[Meine Bestellungen](/orders)**: Live-Fertigungsstatus, **DHL-Tracking** und Einsicht in deine gespeicherte **Gravur-Vorschau (Blueprint)**.\n"
+            . "4. **[Rechnungs-Archiv](/invoices)**: Alle PDF-Rechnungen und Gutschriften jederzeit herunterladen.\n"
+            . "5. **[Dein Funki & Prämien](/funki)**: Eigene Prämien-Seite für **Rabatt-Gutscheine** (5 % / 10 % / 15 %), **Level 1 bis 10**, **Titel & Ränge** und **Halle der Helden**.\n"
+            . "6. **[Meine Bewertungen](/reviews)** & **[Support & Tickets](/support)**: Gekaufte Unikate bewerten (`+15 ✨`) oder Support-Tickets (`TCK-...`) einsehen.";
     }
 
     public function sendMessage()
@@ -856,7 +921,7 @@ class AiFrontendSupportChat extends Component
                 ]);
                 $content = self::FRIENDLY_UNAVAILABLE_MESSAGE;
             } else {
-                $content = $rawContent;
+                $content = \App\Services\AI\AiOutputQualityGate::sanitizeText($rawContent);
             }
 
             // Nachricht speichern

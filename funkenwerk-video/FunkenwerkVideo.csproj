@@ -8,11 +8,18 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>FunkenwerkVideo</AssemblyName>
     <RootNamespace>FunkenwerkVideo</RootNamespace>
+    <Product>Funkenwerk Video</Product>
+    <Company>Mein-Seelenfunke</Company>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.8</AssemblyVersion>
+    <FileVersion>1.2.0.8</FileVersion>
+    <InformationalVersion>1.2.0+b8</InformationalVersion>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>funkenwerk_video.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
     <Resource Include="funkenwerk_video.ico" />
     <Resource Include="funkenwerk_video.png" />
     <None Include="funkenwerk_video.ico" CopyToOutputDirectory="PreserveNewest" />

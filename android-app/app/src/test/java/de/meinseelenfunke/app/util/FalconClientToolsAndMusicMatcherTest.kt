@@ -879,4 +879,129 @@ class FalconClientToolsAndMusicMatcherTest {
         assertTrue(js.contains("polygonOffset: true"))
         assertTrue(js.contains("polygonOffsetFactor: -2"))
     }
+
+    @Test
+    fun `smarthome control supports Connexoon Somfy shutters device groups and compound commands for Funkira and Falcone`() = runBlocking {
+        FunkenwerkAlarmManager.ensureInitialized(context)
+        val plugs = FunkenwerkAlarmManager.defaultSmartPlugs()
+        val shutters = listOf(
+            SmartShutterDevice(deviceUrl = "io://0813-5321-9574/111", label = "Wohnzimmer", closurePercent = 0),
+            SmartShutterDevice(deviceUrl = "io://0813-5321-9574/222", label = "Terrassentür", closurePercent = 20)
+        )
+        val groups = listOf(
+            SmartHomeGroupDto(
+                id = "grp_garden",
+                name = "Gartenfront",
+                shutterTargets = listOf("Wohnzimmer", "Terrassentür"),
+                plugTargets = emptyList()
+            ),
+            SmartHomeGroupDto(
+                id = "grp_lights",
+                name = "Abendlicht",
+                shutterTargets = emptyList(),
+                plugTargets = listOf("Lichterkette Fußleiste", "Lichterkette Spiegel")
+            )
+        )
+        FunkenwerkAlarmManager.setSmartHomeInventoryForTests(
+            plugs = plugs,
+            shutters = shutters,
+            groups = groups
+        )
+
+        val decls = JsonArray()
+        FalconClientTools.appendFalconToolDeclarations(decls)
+        val shDecl = (0 until decls.size())
+            .map { decls.get(it).asJsonObject }
+            .first { it.get("name").asString == "falcon_smarthome_control" }
+        val props = shDecl.getAsJsonObject("parameters").getAsJsonObject("properties")
+        assertTrue(props.has("position_percent"))
+        assertTrue(props.getAsJsonObject("action").get("description").asString.contains("group_close"))
+
+        val directive = FalconClientTools.buildSmartHomeLiveInventoryDirective(plugs, shutters, groups)
+        assertTrue(directive.contains("Wohnzimmer"))
+        assertTrue(directive.contains("Terrassentür"))
+        assertTrue(directive.contains("Gartenfront"))
+        assertTrue(directive.contains("Abendlicht"))
+
+        // 1. list_devices exposes plugs, shutters, and groups
+        val listRes = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_smarthome_control",
+            argsElement = JsonObject().apply { addProperty("action", "list_devices") },
+            chatSessionId = "s-sh-1",
+            onEmotionChanged = {},
+            onNavigate = {}
+        )
+        assertEquals("success", listRes.get("status").asString)
+        assertEquals(2, listRes.getAsJsonArray("available_shutters").size())
+        assertEquals(2, listRes.getAsJsonArray("available_groups").size())
+
+        // 2. Shutter group command ("Gruppe Gartenfront" -> group_close)
+        var capturedRelay: Triple<String, String, Int?>? = null
+        val grpShutterRes = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_smarthome_control",
+            argsElement = JsonObject().apply {
+                addProperty("action", "shutter_close")
+                addProperty("device_name", "Gruppe Gartenfront")
+            },
+            chatSessionId = "s-sh-2",
+            onEmotionChanged = {},
+            onNavigate = {},
+            smartHomeRelayExecutorOverride = { act, target, pos ->
+                capturedRelay = Triple(act, target, pos)
+                Pair(true, "Gruppe Gartenfront geschlossen")
+            }
+        )
+        assertEquals("success", grpShutterRes.get("status").asString)
+        assertEquals("group_close", capturedRelay?.first)
+        assertEquals("Gartenfront", capturedRelay?.second)
+
+        // 3. Compound shutter command ("Wohnzimmer und Terassentür" at 65%)
+        val compoundShutterRes = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_smarthome_control",
+            argsElement = JsonObject().apply {
+                addProperty("action", "shutter_position")
+                addProperty("device_name", "Wohnzimmer und Terassentür")
+                addProperty("position_percent", 65)
+            },
+            chatSessionId = "s-sh-3",
+            onEmotionChanged = {},
+            onNavigate = {},
+            smartHomeRelayExecutorOverride = { act, target, pos ->
+                capturedRelay = Triple(act, target, pos)
+                Pair(true, "Wohnzimmer & Terrassentür auf 65 %")
+            }
+        )
+        assertEquals("success", compoundShutterRes.get("status").asString)
+        assertEquals("shutter_position", capturedRelay?.first)
+        assertEquals(65, capturedRelay?.third)
+
+        // 4. Plug-only group command ("Abendlicht" -> switches both local Tapo plugs!)
+        var capturedPlugIps: List<String> = emptyList()
+        val plugGroupRes = FalconClientTools.executeLocalFalconTool(
+            context = context,
+            toolName = "falcon_smarthome_control",
+            argsElement = JsonObject().apply {
+                addProperty("action", "turn_on")
+                addProperty("device_name", "Abendlicht")
+            },
+            chatSessionId = "s-sh-4",
+            onEmotionChanged = {},
+            onNavigate = {},
+            smartHomeExecutorOverride = { _, ips ->
+                capturedPlugIps = ips
+                Pair(true, "2 Steckdosen eingeschaltet")
+            }
+        )
+        assertEquals("success", plugGroupRes.get("status").asString)
+        assertEquals(listOf("192.168.188.109", "192.168.188.123"), capturedPlugIps)
+
+        FunkenwerkAlarmManager.setSmartHomeInventoryForTests(
+            plugs = plugs,
+            shutters = emptyList(),
+            groups = emptyList()
+        )
+    }
 }

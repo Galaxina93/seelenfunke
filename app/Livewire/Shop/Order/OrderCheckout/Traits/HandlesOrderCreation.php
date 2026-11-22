@@ -278,51 +278,55 @@ trait HandlesOrderCreation
             }
 
             if (!$customer) {
-                $tempPassword = Str::random(32);
-                $isExistingEmployee = \App\Models\Employee\Employee::where('email', $this->email)->exists();
-                $hasProductDigitalDocuments = $cart && $cart->items && $cart->items->contains(
-                    fn ($ci) => $ci->product && method_exists($ci->product, 'hasDigitalDocuments') && $ci->product->hasDigitalDocuments()
-                );
-                $wantsAccount = !$isExistingEmployee && (bool) ($this->create_account || $this->hasDigitalOrIngameItems($cart) || $hasProductDigitalDocuments);
-                $customer = Customer::create([
-                    'email' => $this->email,
-                    'first_name' => $this->first_name,
-                    'last_name' => $this->last_name,
-                    'password' => bcrypt($tempPassword),
-                    'needs_password_change' => $wantsAccount,
-                    'temporary_password' => null,
-                ]);
+                $isExistingEmployeeOrAdmin = \App\Models\Employee\Employee::withTrashed()->where('email', $this->email)->exists()
+                    || \App\Models\Admin\Admin::withTrashed()->where('email', $this->email)->exists();
 
-                // Split street and house number
-                $streetVal = trim($this->address);
-                $houseNumVal = '';
-                if (preg_match('#^(.*?)\s*(\d+[a-zA-Z]?(?:\s*[-/]\s*\d+[a-zA-Z]?)?)$#', $streetVal, $matches)) {
-                    $streetVal = trim($matches[1]);
-                    $houseNumVal = trim($matches[2]);
-                }
+                if (!$isExistingEmployeeOrAdmin) {
+                    $tempPassword = Str::random(32);
+                    $hasProductDigitalDocuments = $cart && $cart->items && $cart->items->contains(
+                        fn ($ci) => $ci->product && method_exists($ci->product, 'hasDigitalDocuments') && $ci->product->hasDigitalDocuments()
+                    );
+                    $wantsAccount = (bool) ($this->create_account || $this->hasDigitalOrIngameItems($cart) || $hasProductDigitalDocuments);
+                    $customer = Customer::create([
+                        'email' => $this->email,
+                        'first_name' => $this->first_name,
+                        'last_name' => $this->last_name,
+                        'password' => bcrypt($tempPassword),
+                        'needs_password_change' => $wantsAccount,
+                        'temporary_password' => null,
+                    ]);
 
-                if ($customer->profile) {
-                    $customer->profile->update([
-                        'street' => $streetVal,
-                        'house_number' => $houseNumVal,
-                        'city' => $this->city,
-                        'postal' => $this->postal_code,
-                        'country' => $this->country,
-                        'email_verified_at' => null,
-                    ]);
-                } else {
-                    $customer->profile()->create([
-                        'street' => $streetVal,
-                        'house_number' => $houseNumVal,
-                        'city' => $this->city,
-                        'postal' => $this->postal_code,
-                        'country' => $this->country,
-                        'email_verified_at' => null,
-                    ]);
+                    // Split street and house number
+                    $streetVal = trim($this->address);
+                    $houseNumVal = '';
+                    if (preg_match('#^(.*?)\s*(\d+[a-zA-Z]?(?:\s*[-/]\s*\d+[a-zA-Z]?)?)$#', $streetVal, $matches)) {
+                        $streetVal = trim($matches[1]);
+                        $houseNumVal = trim($matches[2]);
+                    }
+
+                    if ($customer->profile) {
+                        $customer->profile->update([
+                            'street' => $streetVal,
+                            'house_number' => $houseNumVal,
+                            'city' => $this->city,
+                            'postal' => $this->postal_code,
+                            'country' => $this->country,
+                            'email_verified_at' => null,
+                        ]);
+                    } else {
+                        $customer->profile()->create([
+                            'street' => $streetVal,
+                            'house_number' => $houseNumVal,
+                            'city' => $this->city,
+                            'postal' => $this->postal_code,
+                            'country' => $this->country,
+                            'email_verified_at' => null,
+                        ]);
+                    }
                 }
             }
 
-            $customerId = $customer->id;
+            $customerId = $customer?->id;
 
             $shipping_data = $this->has_separate_shipping ? [
                 'first_name' => $this->shipping_first_name,

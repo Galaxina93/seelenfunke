@@ -2863,6 +2863,10 @@ class LobbyInstanceService
 
         $somersaultDirParsed = (int) self::parseFiniteFloat($input['somersault_dir'] ?? null, 0);
         $somersaultDir = in_array($somersaultDirParsed, [-1, 0, 1], true) ? $somersaultDirParsed : 0;
+        $rawAvatarGender = is_string($input['avatar_gender'] ?? null)
+            ? strtolower(trim($input['avatar_gender']))
+            : (is_string($prevState['avatar_gender'] ?? null) ? strtolower(trim($prevState['avatar_gender'])) : 'male');
+        $avatarGender = $rawAvatarGender === 'female' ? 'female' : 'male';
 
         return [
             'x' => round($clampedX, 3),
@@ -2885,6 +2889,7 @@ class LobbyInstanceService
             'combo_stage' => max(0, min(4, $rawComboStage)),
             'weapon_seq' => max(0, min(10000000, $rawWeaponSeq)),
             'emote' => $emote,
+            'avatar_gender' => $avatarGender,
             'ability_slot' => max(0, min(4, $rawAbilitySlot)),
             'last_sync_ms' => $hasInputCoords ? $nowMs : $prevLastSyncMs,
         ];
@@ -2942,6 +2947,7 @@ class LobbyInstanceService
             'combo_stage' => $state['combo_stage'],
             'weapon_seq' => $state['weapon_seq'] ?? $state['combo_seq'],
             'emote' => $state['emote'],
+            'avatar_gender' => ($state['avatar_gender'] ?? 'male') === 'female' ? 'female' : 'male',
             'ability_slot' => $state['ability_slot'],
             'last_sync_ms' => $state['last_sync_ms'] ?? null,
             'expires_at' => $now + self::HEARTBEAT_TTL_SECONDS,
@@ -3014,6 +3020,7 @@ class LobbyInstanceService
                 'combo_stage' => (int) ($entry['combo_stage'] ?? 0),
                 'weapon_seq' => (int) ($entry['weapon_seq'] ?? $comboSeq),
                 'emote' => in_array($rawEmote, self::ALLOWED_EMOTES, true) ? $rawEmote : '',
+                'avatar_gender' => ($entry['avatar_gender'] ?? 'male') === 'female' ? 'female' : 'male',
                 'ability_slot' => max(0, min(4, (int) ($entry['ability_slot'] ?? 0))),
             ];
         }

@@ -1950,6 +1950,19 @@ PROMPT;
                 $sub = 'Steuern_Finanzamt_Gewerbe';
                 $subject = 'Gewerbe';
             }
+        } elseif (str_contains($low, 'rente') || str_contains($low, 'drv') || str_contains($low, 'versorgungsausgleich')
+            || str_contains($low, 'kontenklärung') || str_contains($low, 'kontenklaerung')
+            || str_contains($low, 'sozialversicherungsausweis')) {
+            $main = '05_Familie_Ausweise_Vorsorge';
+            $sub = "Rente_Vorsorge/{$year}";
+            $sender = 'DRV';
+            $subject = 'Renteninformation';
+        } elseif (str_contains($low, 'arbeitslos') || str_contains($low, 'agentur für arbeit')
+            || str_contains($low, 'agentur fuer arbeit') || str_contains($low, 'bundesagentur')) {
+            $main = '07_Behoerden_Recht_Berufshistorie';
+            $sub = "Agentur_fuer_Arbeit/{$year}";
+            $sender = 'Bundesagentur';
+            $subject = 'Bescheid';
         } elseif (str_contains($low, 'bkk') || str_contains($low, 'firmus') || str_contains($low, 'krank')
             || str_contains($low, 'arzt') || str_contains($low, 'befund') || str_contains($low, 'rezept')
             || str_contains($low, 'gesundheit') || str_contains($low, 'attest') || str_contains($low, 'eau')) {
@@ -2009,15 +2022,11 @@ PROMPT;
                 $sub = 'Versicherungen_Privat';
                 $subject = 'Police';
             }
-        } elseif (str_contains($low, 'rente') || str_contains($low, 'drv') || str_contains($low, 'ausweis')
+        } elseif (str_contains($low, 'ausweis')
             || str_contains($low, 'führerschein') || str_contains($low, 'fuehrerschein') || str_contains($low, 'urkunde')
             || str_contains($low, 'vollmacht') || str_contains($low, 'testament')) {
             $main = '05_Familie_Ausweise_Vorsorge';
-            if (str_contains($low, 'rente') || str_contains($low, 'drv')) {
-                $sub = "Rente_Vorsorge/{$year}";
-                $sender = 'DRV';
-                $subject = 'Renteninformation';
-            } elseif (str_contains($low, 'ausweis') || str_contains($low, 'führerschein') || str_contains($low, 'fuehrerschein')) {
+            if (str_contains($low, 'ausweis') || str_contains($low, 'führerschein') || str_contains($low, 'fuehrerschein')) {
                 $sub = 'Ausweise_Fuehrerschein';
                 $subject = 'Ausweis';
             } elseif (str_contains($low, 'urkunde')) {

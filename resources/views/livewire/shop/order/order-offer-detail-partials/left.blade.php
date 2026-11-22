@@ -75,8 +75,9 @@
         {{-- 2b. AUTONOME 3-SCHRITTE-ABARBEITUNG & KONFIGURATOR-CHECKLISTE (Ersetzt manuelles Feld "Werkstatt-Stand") --}}
         @if($isOrder)
             @php
+                $_lwLeft = $__livewire ?? ((isset($this) && is_object($this)) ? $this : null);
                 $stepOverview = $model->getManufacturingOverview();
-                $activeStep = (int) ($this->activeOrderStep ?? 1);
+                $activeStep = (int) ($_lwLeft->activeOrderStep ?? 1);
                 $previewChecklist = $previewItem ? $previewItem->resolveManufacturingChecklist() : null;
                 $packDetails = !$model->isOnlyDigital() ? $model->getDhlWeightDetails(1, 'box') : null;
             @endphp
@@ -229,7 +230,7 @@
                                             wire:click="openDhlModal('{{ $model->id }}')"
                                             class="flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer">
                                         <span class="w-5 h-5 rounded-full bg-gray-950 text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black">1</span>
-                                        <span>DHL Label &amp; MUNBYN Druck</span>
+                                        <span>{{ $model->isPostalVoucherOnly() ? 'Großbrief-Label & MUNBYN Druck' : 'Versandlabel & MUNBYN Druck' }}</span>
                                     </button>
                                 @endif
                                 <button type="button"
@@ -255,11 +256,12 @@
                                 </div>
                             @endif
 
-                            @if(!empty($this->nextQueueOrder))
+                            @php $nextQueueOrderData = $_lwLeft->nextQueueOrder ?? null; @endphp
+                            @if(!empty($nextQueueOrderData))
                                 <button type="button"
-                                        wire:click="openDetail('{{ $this->nextQueueOrder['id'] }}')"
+                                        wire:click="openDetail('{{ $nextQueueOrderData['id'] }}')"
                                         class="flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer shrink-0">
-                                    <span>Nächster Auftrag (#{{ $this->nextQueueOrder['order_number'] }})</span>
+                                    <span>Nächster Auftrag (#{{ $nextQueueOrderData['order_number'] }})</span>
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                                 </button>
                             @endif
@@ -396,7 +398,7 @@
                                             @endif
                                             @if(($conf['delivery_method'] ?? 'email') === 'post')
                                                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm">
-                                                    ✉️ Per Post im Umschlag (+ 3,50 €)
+                                                    ✉️ Per Post im Umschlag (+ {{ number_format(((int) ($conf['post_shipping_cents'] ?? $conf['shipping_surcharge'] ?? shop_setting('shipping_cost_voucher', 450))) / 100, 2, ',', '.') }} €)
                                                 </span>
                                             @else
                                                 <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30 shadow-sm">

@@ -133,20 +133,20 @@ class FalconeApprovalBlockadeGuardTest extends TestCase
         $questionText = 'Wartet auf deine Entscheidung: Warmgold 3000K oder Galerie-Neutralweiss 4000K?';
         $this->inboxService->completeItem($blockadeId, $questionText);
 
-        $falcone = AiAgent::where('name', 'Falcone')->first() ?: AiAgent::create([
-            'name' => 'Falcone',
-            'wake_word' => 'falcone',
-            'role_description' => 'Chef-Dirigent',
-            'system_prompt' => 'Du bist Falcone.',
+        $funkira = AiAgent::where('name', 'Funkira')->first() ?: AiAgent::create([
+            'name' => 'Funkira',
+            'wake_word' => 'Funkira',
+            'role_description' => 'Oberste Stabschefin',
+            'system_prompt' => 'Du bist Funkira.',
             'model' => 'gemini-3.5-flash',
             'is_active' => true,
         ]);
 
         $admin = $this->createAdmin();
-        $token = $admin->createToken('android-falcone-voice', ['*'])->plainTextToken;
+        $token = $admin->createToken('android-funkira-voice', ['*'])->plainTextToken;
 
         $res = $this->withHeaders(['Authorization' => 'Bearer ' . $token])
-            ->getJson('/api/ai/live-credentials?agent_id=' . $falcone->id)
+            ->getJson('/api/ai/live-credentials?agent_id=' . $funkira->id)
             ->assertStatus(200);
 
         $sysInstruction = (string) $res->json('system_instruction');
@@ -179,11 +179,11 @@ class FalconeApprovalBlockadeGuardTest extends TestCase
 
     public function test_execute_ag_resolve_pending_blockade_and_rest_endpoints_close_stalled_items_and_enqueue_direct_followup(): void
     {
-        $falcone = AiAgent::where('name', 'Falcone')->first() ?: AiAgent::create([
-            'name' => 'Falcone',
-            'wake_word' => 'falcone',
-            'role_description' => 'Chef-Dirigent',
-            'system_prompt' => 'Du bist Falcone.',
+        $funkira = AiAgent::where('name', 'Funkira')->first() ?: AiAgent::create([
+            'name' => 'Funkira',
+            'wake_word' => 'Funkira',
+            'role_description' => 'Oberste Stabschefin',
+            'system_prompt' => 'Du bist Funkira.',
             'model' => 'gemini-3.5-flash',
             'is_active' => true,
         ]);
@@ -201,12 +201,12 @@ class FalconeApprovalBlockadeGuardTest extends TestCase
         );
 
         $admin = $this->createAdmin();
-        $adminToken = $admin->createToken('android-falcone-exec', ['*'])->plainTextToken;
+        $adminToken = $admin->createToken('android-funkira-exec', ['*'])->plainTextToken;
 
         // 1. Aufloesung ueber KI-Tool POST /api/ai/execute (ag_resolve_pending_blockade)
         $execRes = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
             ->postJson('/api/ai/execute', [
-                'agent_id' => $falcone->id,
+                'agent_id' => $funkira->id,
                 'function' => 'ag_resolve_pending_blockade',
                 'args' => [
                     'item_id' => $conceptId,

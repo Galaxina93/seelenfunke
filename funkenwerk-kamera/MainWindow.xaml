@@ -1,0 +1,1569 @@
+<Window x:Class="Funkenwerk.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Funkenwerk Kamera"
+        Icon="funkenwerk_kamera.ico"
+        Width="1420" Height="880"
+        MinWidth="1020" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="#0F1117"
+        Foreground="#F9FAFB"
+        FontFamily="Segoe UI">
+    <Window.Resources>
+        <SolidColorBrush x:Key="CamComboBgBrush" Color="#181B24"/>
+        <SolidColorBrush x:Key="CamComboFgBrush" Color="#F9FAFB"/>
+        <SolidColorBrush x:Key="CamComboBorderBrush" Color="#2E3446"/>
+        <SolidColorBrush x:Key="CamComboPopupBgBrush" Color="#141720"/>
+        <SolidColorBrush x:Key="CamComboItemHoverBrush" Color="#26231F"/>
+        <SolidColorBrush x:Key="CamScrollThumbBrush" Color="#374151"/>
+
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="6"/>
+            <Setter Property="MinWidth" Value="6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="Transparent" Width="6">
+                            <Track x:Name="PART_Track" IsDirectionReversed="true">
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="{DynamicResource CamScrollThumbBrush}" CornerRadius="3" Margin="1,2"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource CamComboFgBrush}"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="ItemBd" Background="{TemplateBinding Background}" CornerRadius="6" Margin="3,1" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="ItemBd" Property="Background" Value="{DynamicResource CamComboItemHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBd" Property="Background" Value="{DynamicResource CamComboItemHoverBrush}"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource CamComboBgBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource CamComboFgBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CamComboBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="9,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          ClickMode="Press"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="ComboBd"
+                                                Background="{Binding Background, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                BorderBrush="{Binding BorderBrush, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                BorderThickness="{Binding BorderThickness, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                CornerRadius="8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="24"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="1" Text="▾" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ComboBd" Property="BorderBrush" Value="#C5A059"/>
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="ComboBd" Property="BorderBrush" Value="#C5A059"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                              Margin="10,4,24,4"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left">
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource CamComboFgBrush}"/>
+                                    </Style>
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
+                            <Popup x:Name="Popup"
+                                   Placement="Bottom"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border x:Name="DropDownBorder"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                        Margin="0,3,0,0"
+                                        Background="{DynamicResource CamComboPopupBgBrush}"
+                                        BorderBrush="#C5A059"
+                                        BorderThickness="1"
+                                        CornerRadius="8"
+                                        Padding="2,3">
+                                    <ScrollViewer SnapsToDevicePixels="True" VerticalScrollBarVisibility="Auto">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid x:Name="CamRootGrid" Background="#0F1117">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" Background="#0B0D12" BorderBrush="#222634" BorderThickness="0,0,0,1" Padding="20,0">
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="funkenwerk_kamera.png" Width="22" Height="22" Margin="0,0,10,0"/>
+                    <TextBlock Text="FUNKENWERK KAMERA" FontSize="13.5" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Button x:Name="StandaloneThemeBtn" Click="StandaloneThemeToggle_Click" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1" Padding="10,4" Cursor="Hand" FontSize="12" Content="🌙" ToolTip="Light / Dark Mode">
+                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                </Button>
+            </Grid>
+        </Border>
+            <Grid x:Name="CameraStudioViewGrid" Grid.Row="1" Visibility="Visible">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="310" MinWidth="240" MaxWidth="460"/>
+                    <ColumnDefinition Width="5"/>
+                    <ColumnDefinition Width="*" MinWidth="460"/>
+                    <ColumnDefinition Width="5"/>
+                    <ColumnDefinition Width="355" MinWidth="290" MaxWidth="500"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- COLUMN 0: SCENES, SCREEN-SPLITTING & MEDIA GALLERY -->
+                <Border Grid.Column="0" Background="#141720" BorderBrush="#1F222D" BorderThickness="0,0,1,0" Padding="14,16">
+                    <DockPanel>
+                        <!-- Brand Header -->
+                        <StackPanel DockPanel.Dock="Top" Margin="4,0,4,12">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Image Source="pack://application:,,,/funkenwerk_kamera.png" Width="28" Height="28" Margin="0,0,10,0"/>
+                                <StackPanel>
+                                    <TextBlock Text="Funkenwerk Studio" Foreground="#F9FAFB" FontSize="17" FontWeight="Bold"/>
+                                    <TextBlock x:Name="CamVirtualStatusSubTxt" Text="Virtuelle Kamera: Funkenwerk Kamera" Foreground="#34D399" FontSize="11" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- SCREENSPLITTING / SCENE MODES -->
+                        <Border DockPanel.Dock="Top" Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="11,10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="SCREENSPLITTING &amp; SZENEN" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <Button x:Name="CamSwapSourcesBtn" Grid.Column="1" Click="CamSwapSources_Click" Background="#1F2430" Foreground="#C5A059" BorderThickness="0" Padding="8,3" Cursor="Hand" FontSize="10.5" FontWeight="Bold" ToolTip="Haupt- und Zweitquelle tauschen (z.B. Kamera &lt;-&gt; Spiel)" Content="⇄ Tauschen">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                    </Button>
+                                </Grid>
+
+                                <UniformGrid Columns="2" Rows="2" Margin="0,0,0,5">
+                                    <Button x:Name="CamSplitSingleBtn" Click="CamSplitMode_Click" Tag="single" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="8,7" Margin="0,0,3,5" Cursor="Hand" FontSize="11.5" Content="▣ 1x Einfach">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button x:Name="CamSplitPipBtn" Click="CamSplitMode_Click" Tag="pip" Background="#13161F" Foreground="#D1D5DB" FontWeight="SemiBold" BorderThickness="0" Padding="8,7" Margin="3,0,0,5" Cursor="Hand" FontSize="11.5" Content="⧉ 2-Fach (PiP)">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button x:Name="CamSplitSideBySideBtn" Click="CamSplitMode_Click" Tag="sidebyside" Background="#13161F" Foreground="#D1D5DB" FontWeight="SemiBold" BorderThickness="0" Padding="8,7" Margin="0,0,3,0" Cursor="Hand" FontSize="11.5" Content="◫ Links / Rechts">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button x:Name="CamSplitTopBottomBtn" Click="CamSplitMode_Click" Tag="topbottom" Background="#13161F" Foreground="#D1D5DB" FontWeight="SemiBold" BorderThickness="0" Padding="8,7" Margin="3,0,0,0" Cursor="Hand" FontSize="11.5" Content="⬒ 2-Fach Oben/Unten">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                    </Button>
+                                </UniformGrid>
+
+                                <UniformGrid Columns="2" Rows="1" Margin="0,5,0,8">
+                                    <Button x:Name="CamSplitScreenOnlyBtn" Click="CamSplitMode_Click" Tag="screenshare_only" Background="#13161F" Foreground="#D1D5DB" FontWeight="SemiBold" BorderThickness="0" Padding="8,7" Margin="0,0,3,0" Cursor="Hand" FontSize="11.5" ToolTip="Nur das geteilte Bild / Fenster / Maus-Follow einzeln im Vollbild anzeigen (ohne Zweitfenster)" Content="🖥 Nur Teilen (Pur)">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button x:Name="CamSplitWindowShareBtn" Click="CamSplitMode_Click" Tag="windowshare" Background="#13161F" Foreground="#D1D5DB" FontWeight="SemiBold" BorderThickness="0" Padding="8,7" Margin="3,0,0,0" Cursor="Hand" FontSize="11.5" ToolTip="Geteiltes Bild / Fenster im Vollbild + Kamera als Zweitfenster (PiP)" Content="🎮 Teilen + Cam">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                    </Button>
+                                </UniformGrid>
+
+                                <!-- Secondary Source & Window Share Picker (32:9 Ultrawide + OBS Sources + Interactive Mouse PiP) -->
+                                <StackPanel x:Name="CamSecondaryConfigPanel" Visibility="Visible">
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="FENSTER / MONITOR-QUELLE" Foreground="#9CA3AF" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,4,0"/>
+                                        <Button Grid.Column="1" Click="CamRefreshWindows_Click" Background="Transparent" Foreground="#C5A059" BorderThickness="0" Padding="4,1" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="↻ Aktualisieren"/>
+                                    </Grid>
+                                    <ComboBox x:Name="CamWindowTargetCombo" SelectionChanged="CamWindowTargetCombo_SelectionChanged" DisplayMemberPath="DisplayLabel" Padding="9,6" FontSize="11.5" Margin="0,0,0,6"/>
+
+                                    <!-- Custom Screen Region, Tutorial Mouse-Follow & Mirror Shared Area (Discord Fix) -->
+                                    <StackPanel Margin="0,0,0,7">
+                                        <Grid Margin="0,0,0,5">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="6"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="CamDefineCustomRegionBtn" Grid.Column="0" Click="CamDefineCustomScreenRegion_Click" Background="#1E1F22" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="6,5" Cursor="Hand" FontSize="10.5" FontWeight="Bold" ToolTip="Benutzerdefinierte Fläche auf dem Monitor per Maus-Rechteck auswählen" Content="📐 Fläche wählen">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                            </Button>
+                                            <Button x:Name="CamQuickMouseFollowBtn" Grid.Column="2" Click="CamQuickMouseFollow_Click" Background="#1E1F22" Foreground="#F2F3F5" BorderBrush="#2B2D31" BorderThickness="1" Padding="6,5" Cursor="Hand" FontSize="10.5" FontWeight="Bold" ToolTip="Tutorial Maus-Verfolgung: Kamera folgt deiner Maus butterweich mit einem definierten Bereich (Klick = Aktivieren / Zoom-Stufe wechseln)" Content="🎯 Maus-Follow">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                            </Button>
+                                        </Grid>
+                                        <CheckBox x:Name="CamMirrorSharedCheck" Content="↔ Geteilten Bereich spiegeln (Discord-Fix)" Foreground="#34D399" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center" Checked="CamMirrorSharedCheck_Changed" Unchecked="CamMirrorSharedCheck_Changed" Cursor="Hand" ToolTip="Spiegelt den geteilten Bildschirm/Fensterbereich horizontal (verhindert spiegelverkehrte Anzeige in Discord!)"/>
+                                    </StackPanel>
+
+                                    <TextBlock Text="ODER ZWEITE HARDWARE-KAMERA" Foreground="#9CA3AF" FontSize="10" FontWeight="Bold" Margin="0,0,0,3"/>
+                                    <ComboBox x:Name="CamSecondaryDeviceCombo" SelectionChanged="CamSecondaryDeviceCombo_SelectionChanged" Padding="9,6" FontSize="11.5" Margin="0,0,0,7"/>
+
+                                    <!-- Interactive PiP Quick Controls (Replaces static PiP Corner Dropdown) -->
+                                    <Border Background="#111214" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="9" Padding="8,7">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,5">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="🖱 ZWEITFENSTER" Foreground="#C5A059" FontSize="9.5" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                <Button x:Name="CamPipToggleVisibilityBtn" Grid.Column="1" Click="CamPipToggleVisibility_Click" Background="#1E1F22" Foreground="#34D399" BorderBrush="#2B2D31" BorderThickness="1" Padding="6,2" Margin="4,0,6,0" Cursor="Hand" FontSize="9.5" FontWeight="Bold" ToolTip="Zweitfenster (PiP) ein- oder ausblenden" Content="👁 An">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
+                                                </Button>
+                                                <Slider x:Name="CamPipScaleSlider" Grid.Column="2" Width="64" Minimum="0.14" Maximum="0.65" Value="0.30" VerticalAlignment="Center" ValueChanged="CamPipScaleSlider_ValueChanged" ToolTip="Größe des Zweitfensters (auch direkt per Mausrad/Ecke im Live-Bild änderbar)"/>
+                                            </Grid>
+                                            <UniformGrid Columns="4" Rows="1">
+                                                <Button x:Name="CamPipQuickShapeBtn" Click="CamPipCycleShape_Click" Background="#1E1F22" Foreground="#E5E7EB" BorderBrush="#2B2D31" BorderThickness="1" Padding="4,4" Margin="0,0,2,0" Cursor="Hand" FontSize="10" FontWeight="SemiBold" ToolTip="Form des Zweitfensters wechseln (Abgerundet / Rund / Hexagon / Rechteck)" Content="⭕ Form">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button x:Name="CamPipQuickCropBtn" Click="CamPipToggleScissors_Click" Background="#1E1F22" Foreground="#E5E7EB" BorderBrush="#2B2D31" BorderThickness="1" Padding="4,4" Margin="2,0,2,0" Cursor="Hand" FontSize="10" FontWeight="SemiBold" ToolTip="Scheren-Werkzeug: Zweitfenster im Live-Bild zuschneiden" Content="✂ Schere">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button x:Name="CamPipQuickChromaBtn" Click="CamPipToggleChroma_Click" Background="#1E1F22" Foreground="#E5E7EB" BorderBrush="#2B2D31" BorderThickness="1" Padding="4,4" Margin="2,0,2,0" Cursor="Hand" FontSize="10" FontWeight="SemiBold" ToolTip="Greenscreen / Chroma Key auf das Zweitfenster anwenden" Content="🟩 Key">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamPipResetLayout_Click" Background="#1E1F22" Foreground="#9CA3AF" BorderBrush="#2B2D31" BorderThickness="1" Padding="4,4" Margin="2,0,0,0" Cursor="Hand" FontSize="10" ToolTip="Position, Größe &amp; Zuschnitt des Zweitfensters zurücksetzen" Content="↺ Reset">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- MEDIA GALLERY HEADER -->
+                        <Grid DockPanel.Dock="Top" Margin="2,2,2,6">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="AUFNAHMEN &amp; FOTOS" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <Border Background="#26231F" CornerRadius="7" Padding="6,1" Margin="6,0,0,0">
+                                    <TextBlock x:Name="CamMediaCountBadge" Text="0" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold"/>
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Click="CamOpenMediaFolder_Click" Background="#1F2430" Foreground="#D1D5DB" BorderThickness="0" Padding="7,3" Margin="0,0,4,0" Cursor="Hand" FontSize="10.5" ToolTip="Medien-Ordner im Windows Explorer öffnen" Content="📂 Ordner">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                </Button>
+                                <Button Click="CamRefreshGallery_Click" Background="#1F2430" Foreground="#C5A059" BorderThickness="0" Padding="6,3" Cursor="Hand" FontSize="10.5" ToolTip="Medienliste aktualisieren" Content="↻">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- MEDIA GALLERY SCROLL LIST -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="CamMediaGalleryPanel"/>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" Cursor="SizeWE"/>
+
+                <!-- COLUMN 2: CENTER LIVE CAMERA VIEWPORT + TOP MODE BAR + DISCORD-STYLE BOTTOM DECK -->
+                <Border Grid.Column="2" Background="#0F1117" Padding="18,14">
+                    <DockPanel>
+                        <!-- TOP BAR: Camera Select, FPS, Resolution, Recording Mode, VirtualCam Status -->
+                        <Border x:Name="CamTopModeBarBorder" DockPanel.Dock="Top" Background="#141720" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="14" Padding="14,10" Margin="0,0,0,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Primary Camera Selector -->
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <TextBlock Text="🎥 KAMERA:" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <ComboBox x:Name="CamPrimaryDeviceCombo" Width="185" SelectionChanged="CamPrimaryDeviceCombo_SelectionChanged" Padding="10,6" FontSize="12"/>
+                                </StackPanel>
+
+                                <!-- FPS Selector (Requirement 1) -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <TextBlock Text="FPS:" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <ComboBox x:Name="CamFpsCombo" Width="96" SelectionChanged="CamFpsCombo_SelectionChanged" SelectedIndex="2" Padding="10,6" FontSize="12" FontWeight="Bold">
+                                        <ComboBoxItem Content="15 FPS" Tag="15"/>
+                                        <ComboBoxItem Content="24 FPS" Tag="24"/>
+                                        <ComboBoxItem Content="30 FPS" Tag="30"/>
+                                        <ComboBoxItem Content="60 FPS" Tag="60"/>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <!-- Resolution Selector -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <TextBlock Text="FORMAT:" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <ComboBox x:Name="CamResolutionCombo" Width="132" SelectionChanged="CamResolutionCombo_SelectionChanged" SelectedIndex="0" Padding="10,6" FontSize="12">
+                                        <ComboBoxItem Content="1280x720 HD" Tag="1280x720"/>
+                                        <ComboBoxItem Content="1920x1080 FHD" Tag="1920x1080"/>
+                                        <ComboBoxItem Content="960x540 qHD" Tag="960x540"/>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <!-- Recording Mode Selector (Requirement 2) -->
+                                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                                    <TextBlock Text="MODUS:" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <ComboBox x:Name="CamRecordModeCombo" Width="178" SelectionChanged="CamRecordModeCombo_SelectionChanged" SelectedIndex="0" Padding="10,6" FontSize="12">
+                                        <ComboBoxItem Content="🎬 Standard (Video+Ton)" Tag="standard"/>
+                                        <ComboBoxItem Content="🎮 Gaming (High-Bitrate)" Tag="gaming"/>
+                                        <ComboBoxItem Content="🔇 Nur Video (Stumm)" Tag="silent"/>
+                                        <ComboBoxItem Content="⏱ 3s Selbstauslöser" Tag="countdown3"/>
+                                        <ComboBoxItem Content="⚡ 15s Short-Clip" Tag="clip15"/>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <!-- Hardware Camera Start/Stop + Virtual Cam Live Output Toggle + Settings Button -->
+                                <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Button x:Name="CamHardwareStartStopBtn" Click="CamHardwareStartStop_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="12,6" Margin="0,0,8,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="PC-Hardware-Kamera (Webcam) erst bei Bedarf starten oder wieder ausschalten" Content="▶ Kamera starten">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button x:Name="CamVirtualCamToggleBtn" Click="CamVirtualCamToggle_Click" Background="#163026" Foreground="#34D399" BorderBrush="#10B981" BorderThickness="1" Padding="12,6" Margin="0,0,8,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="Virtuelle Windows-Kamera 'Funkenwerk Kamera' für Discord, Teams, Zoom, OBS &amp; Browser aktivieren/synchronisieren" Content="🎥 Funkenwerk Kamera">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button Click="CamOpenCameraSettings_Click" Background="#1E1F22" Foreground="#D1D5DB" BorderBrush="#2B2D31" BorderThickness="1" Padding="10,6" Cursor="Hand" FontSize="12" ToolTip="Kamera-, Mikrofon- &amp; Speicherpfad-Einstellungen öffnen" Content="⚙">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- DISCORD-INSPIRED BOTTOM TRANSPORT & AUDIO MIXER DECK (Screenshots 1 & 2 Design) -->
+                        <Border x:Name="CamBottomDeckBorder" DockPanel.Dock="Bottom" Background="#141720" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="16" Padding="14,10" Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.1*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="1.1*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- LEFT: MICROPHONE VOLUME, MUTE, DROPDOWN SELECTOR + LIVE VU METER (Requirement 6 + Bottom Mic Dropdown) -->
+                                <Border Grid.Column="0" Background="#1E1F22" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="12" Padding="12,7" Margin="0,0,10,0">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="42"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="CamMicMuteBtn" Grid.Column="0" Click="CamMicMute_Click" Background="#2B2D31" Foreground="#34D399" BorderThickness="0" Padding="9,4" Margin="0,0,8,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="Mikrofon stummschalten / aktivieren" Content="🎙 Mikro">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                            </Button>
+                                            <Slider x:Name="CamMicVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="85" VerticalAlignment="Center" ValueChanged="CamMicVolumeSlider_ValueChanged" Cursor="Hand" ToolTip="Mikrofon-Lautstärke regeln"/>
+                                            <TextBlock x:Name="CamMicVolumeTxt" Grid.Column="2" Text="85 %" Foreground="#F2F3F5" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="52"/></Grid.ColumnDefinitions>
+                                            <ComboBox x:Name="CamBottomMicCombo" Grid.Column="0" SelectionChanged="CamBottomMicCombo_SelectionChanged" Padding="7,3" FontSize="11" Margin="0,0,8,0" ToolTip="Mikrofon direkt hier auswählen"/>
+                                            <TextBlock x:Name="CamActiveMicLabel" Text="Standard-Mikrofon" Visibility="Collapsed"/>
+                                            <ProgressBar x:Name="CamMicVuBar" Grid.Column="1" Minimum="0" Maximum="100" Value="12" Height="6" Background="#111214" Foreground="#23A55A" BorderThickness="0" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- CENTER: DISCORD VOICE/VIDEO CONTROL PILL CLUSTER (Matches User Screenshot 1 & 2) -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <!-- Discord Pill Group 1: Mic + Chevron & Cam + Chevron -->
+                                    <Border Background="#1E1F22" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="12" Padding="4" Margin="0,0,8,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- Quick Camera / VirtualCam Popup Selector Button (Like Discord Camera Button + ^) -->
+                                            <Button Click="CamOpenDiscordDevicePopup_Click" Background="#2B2D31" Foreground="#F2F3F5" BorderThickness="0" Padding="11,8" Margin="0,0,2,0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" ToolTip="Kamera-Auswahl &amp; Discord Virtuelle Kamera Menü öffnen">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🎥 Kamera" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="▴" Foreground="#949BA4" FontSize="10" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- Screen Share Quick Toggle + Source Menu (Fensterauswahl, Ganzer Monitor, Benutzerdefinierte Fläche, Spiegeln) -->
+                                            <Button x:Name="CamDiscordScreenShareBtn" Click="CamQuickScreenShare_Click" Background="#2B2D31" Foreground="#F2F3F5" BorderThickness="0" Padding="11,8" Cursor="Hand" FontSize="12" FontWeight="SemiBold" ToolTip="Auswahl öffnen: Fenster teilen, Ganzen Monitor teilen, Benutzerdefinierte Fläche definieren &amp; Geteilten Bereich spiegeln" Content="🖥 Teilen ▴">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Discord Pill Group 2: Snapshot, 3s Timer, Spin, Confetti, DeepFake -->
+                                    <Border Background="#1E1F22" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="12" Padding="4" Margin="0,0,8,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- Foto machen -->
+                                            <Button x:Name="CamTakePhotoBtn" Click="CamTakePhoto_Click" Background="#2B2D31" Foreground="#F2F3F5" FontWeight="Bold" BorderThickness="0" Padding="12,8" Margin="0,0,3,0" Cursor="Hand" FontSize="12" ToolTip="Sofort-Foto (Full-HD PNG) mit allen aktiven Effekten aufnehmen" Content="📸 Foto">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                            </Button>
+
+                                            <!-- 3s Timer Foto -->
+                                            <Button x:Name="CamTakePhotoTimerBtn" Click="CamTakePhotoTimer_Click" Background="Transparent" Foreground="#B5BAC1" FontWeight="SemiBold" BorderThickness="0" Padding="9,8" Margin="0,0,3,0" Cursor="Hand" FontSize="11.5" ToolTip="Foto mit 3-Sekunden-Countdown aufnehmen" Content="⏱ 3s">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                            </Button>
+
+                                            <!-- Quick Action: 360° Spin -->
+                                            <Button Click="CamTriggerSpin_Click" Background="Transparent" Foreground="#C5A059" BorderThickness="0" Padding="9,8" Margin="0,0,3,0" Cursor="Hand" FontSize="12" FontWeight="Bold" ToolTip="Spezialeffekt: Bild dreht sich um 360° (Barrel Roll)!" Content="🔄 Spin">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                            </Button>
+
+                                            <!-- Quick Action: Confetti -->
+                                            <Button Click="CamTriggerConfetti_Click" Background="Transparent" Foreground="#F2F3F5" BorderThickness="0" Padding="9,8" Cursor="Hand" FontSize="12" ToolTip="Spezialeffekt: Konfetti-Kanone abfeuern!" Content="🎉">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Discord Red Action Pill: Video Aufnahme Start / Stop (#DA373C) -->
+                                    <Button x:Name="CamRecordVideoBtn" Click="CamRecordVideo_Click" Background="#DA373C" Foreground="#FFFFFF" FontWeight="Bold" BorderThickness="0" Padding="15,10" Margin="0,0,5,0" Cursor="Hand" FontSize="12.5" ToolTip="MP4 Videoaufnahme starten oder beenden (Standard-Tempo: 1x Echtzeit)" Content="⏺ Aufnahme">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="12"/></Style></Button.Resources>
+                                    </Button>
+
+                                    <!-- Pause Recording -->
+                                    <Button x:Name="CamPauseRecordBtn" Click="CamPauseRecord_Click" Background="#2B2D31" Foreground="#FBBF24" FontWeight="Bold" BorderThickness="0" Padding="11,10" Margin="0,0,5,0" Cursor="Hand" FontSize="12.5" Visibility="Collapsed" ToolTip="Laufende Videoaufnahme pausieren / fortsetzen" Content="⏸">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="12"/></Style></Button.Resources>
+                                    </Button>
+
+                                    <!-- Recording Speed / Tempo Selector Pill (1x Standard | 2x | 3x | Individuell) -->
+                                    <Border x:Name="CamRecordSpeedPillBorder" Background="#1E1F22" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="12" Padding="4" ToolTip="Aufnahme- &amp; Abspiel-Tempo wählen (Standard: 1x Echtzeit)">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button x:Name="CamRecSpeed1xBtn" Click="CamRecordSpeedPreset_Click" Tag="1x" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="8,7" Margin="0,0,2,0" Cursor="Hand" FontSize="11.5" ToolTip="Tempo 1x (Standard Echtzeit-Aufnahme)" Content="1x">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                            </Button>
+                                            <Button x:Name="CamRecSpeed2xBtn" Click="CamRecordSpeedPreset_Click" Tag="2x" Background="Transparent" Foreground="#B5BAC1" FontWeight="SemiBold" BorderThickness="0" Padding="8,7" Margin="0,0,2,0" Cursor="Hand" FontSize="11.5" ToolTip="Tempo 2x (Doppelte Geschwindigkeit / Zeitraffer)" Content="2x">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                            </Button>
+                                            <Button x:Name="CamRecSpeed3xBtn" Click="CamRecordSpeedPreset_Click" Tag="3x" Background="Transparent" Foreground="#B5BAC1" FontWeight="SemiBold" BorderThickness="0" Padding="8,7" Margin="0,0,2,0" Cursor="Hand" FontSize="11.5" ToolTip="Tempo 3x (Dreifache Geschwindigkeit / Zeitraffer)" Content="3x">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                            </Button>
+                                            <Button x:Name="CamRecSpeedCustomBtn" Click="CamRecordSpeedPreset_Click" Tag="custom" Background="Transparent" Foreground="#B5BAC1" FontWeight="SemiBold" BorderThickness="0" Padding="8,7" Cursor="Hand" FontSize="11" ToolTip="Individuelles Tempo eingeben (z.B. 0.5x bis 10x)" Content="Indiv.">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                            </Button>
+                                            <StackPanel x:Name="CamRecSpeedCustomWrap" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,3,0" Visibility="Collapsed">
+                                                <TextBox x:Name="CamRecSpeedCustomBox" Text="1.5" Width="38" Background="#111214" Foreground="#F2F3F5" BorderBrush="#C5A059" BorderThickness="1" Padding="3,3" FontSize="11" FontWeight="Bold" HorizontalContentAlignment="Center" LostFocus="CamRecSpeedCustomBox_LostFocus" KeyDown="CamRecSpeedCustomBox_KeyDown" ToolTip="Eigenen Tempo-Faktor eingeben (0.25 bis 10.0) und Enter drücken"/>
+                                                <TextBlock Text="x" Foreground="#C5A059" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- RIGHT: SYSTEM SOUND VOLUME & MUTE + LIVE VU METER (Requirement 7) -->
+                                <Border Grid.Column="2" Background="#1E1F22" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="12" Padding="12,7" Margin="10,0,0,0">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="42"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button x:Name="CamSoundMuteBtn" Grid.Column="0" Click="CamSoundMute_Click" Background="#2B2D31" Foreground="#5865F2" BorderThickness="0" Padding="9,4" Margin="0,0,8,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="System-Sound / Lautsprecher stummschalten oder aktivieren" Content="🎧 Sound">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                            </Button>
+                                            <Slider x:Name="CamSoundVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="80" VerticalAlignment="Center" ValueChanged="CamSoundVolumeSlider_ValueChanged" Cursor="Hand" ToolTip="System-Lautstärke regeln"/>
+                                            <TextBlock x:Name="CamSoundVolumeTxt" Grid.Column="2" Text="80 %" Foreground="#F2F3F5" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="System-Audio Pegel" Foreground="#949BA4" FontSize="10" Width="115" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <ProgressBar x:Name="CamSoundVuBar" Grid.Column="1" Minimum="0" Maximum="100" Value="5" Height="6" Background="#111214" Foreground="#5865F2" BorderThickness="0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- CENTER VIEWPORT: 16:9 LIVE COMPOSITOR CANVAS + INTERACTIVE PIP GIZMO + OVERLAYS -->
+                        <Border x:Name="CamViewportContainerBorder" Tag="FixedDarkOverlay" Background="#07090D" BorderBrush="#222634" BorderThickness="1.5" CornerRadius="16" ClipToBounds="True" SizeChanged="CamViewport_SizeChanged">
+                            <Grid x:Name="CamViewportRootGrid">
+                                <!-- Live Composited Camera Image (Supports Eyedropper Pipette Click) -->
+                                <Image x:Name="CamLivePreviewImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"
+                                       MouseLeftButtonDown="CamLivePreviewImage_MouseLeftButtonDown" Cursor="Arrow" SizeChanged="CamViewport_SizeChanged"/>
+
+                                <!-- INTERACTIVE MOUSE-DRAGGABLE, RESIZABLE & RIGHT-CLICKABLE PIP OVERLAY GIZMO -->
+                                <Canvas x:Name="CamPipInteractiveCanvas" Visibility="Collapsed"
+                                        Width="{Binding ActualWidth, ElementName=CamLivePreviewImage}"
+                                        Height="{Binding ActualHeight, ElementName=CamLivePreviewImage}"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Border x:Name="CamPipInteractiveBox"
+                                            Width="240" Height="135" Canvas.Left="420" Canvas.Top="240"
+                                            Background="#02FFFFFF" BorderBrush="Transparent" BorderThickness="2" CornerRadius="12"
+                                            Cursor="SizeAll"
+                                            MouseEnter="CamPipBox_MouseEnter"
+                                            MouseLeave="CamPipBox_MouseLeave"
+                                            MouseLeftButtonDown="CamPipBox_MouseLeftButtonDown"
+                                            MouseMove="CamPipBox_MouseMove"
+                                            MouseLeftButtonUp="CamPipBox_MouseLeftButtonUp"
+                                            MouseWheel="CamPipBox_MouseWheel"
+                                            ToolTip="Zweitfenster: Ziehen zum Verschieben • Mausrad/Ecke zum Skalieren • Rechtsklick für Chroma Key, Runde Form &amp; Scheren-Zuschnitt">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="🚫 Zweitfenster ausblenden (Nur geteiltes Bild einzeln zeigen)" Click="CamPipHideFromHover_Click"/>
+                                                <Separator/>
+                                                <MenuItem x:Name="CamPipContextChromaItem" Header="🟩 Greenscreen / Chroma Key auf Zweitfenster" Click="CamPipToggleChroma_Click"/>
+                                                <MenuItem Header="✂ Scheren-Werkzeug: Zweitfenster zuschneiden" Click="CamPipToggleScissors_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="📐 Form: Abgerundet (Standard)" Tag="rounded" Click="CamPipSetShapeMenu_Click"/>
+                                                <MenuItem Header="⭕ Form: Rund / Kreis" Tag="circle" Click="CamPipSetShapeMenu_Click"/>
+                                                <MenuItem Header="⬢ Form: 6-Eck / Hexagon" Tag="hexagon" Click="CamPipSetShapeMenu_Click"/>
+                                                <MenuItem Header="▭ Form: Klassisches Rechteck" Tag="rect" Click="CamPipSetShapeMenu_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="⇄ Haupt- und Zweitquelle tauschen" Click="CamSwapSources_Click"/>
+                                                <MenuItem Header="↺ Größe, Position &amp; Zuschnitt zurücksetzen" Click="CamPipResetLayout_Click"/>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+
+                                        <Grid>
+                                            <!-- Exact Shape Hover Outline (Matches Rounded, Circle/Ellipse, 6-Eck Hexagon, and Rectangle 1:1!) -->
+                                            <Path x:Name="CamPipShapeHoverOutline" IsHitTestVisible="False" Visibility="Collapsed"
+                                                  Stroke="#C5A059" StrokeThickness="2.2" Fill="#18C5A059" Stretch="None"/>
+
+                                            <!-- Hover Floating Action Bar inside PiP Window -->
+                                            <Border x:Name="CamPipHoverToolbar" Visibility="Collapsed"
+                                                    Background="#E6111214" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="8" Padding="4,3"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,6,0,0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Click="CamPipCycleShape_Click" Background="#2B2D31" Foreground="#F2F3F5" BorderThickness="0" Padding="6,2" Margin="0,0,3,0" Cursor="Hand" FontSize="10.5" ToolTip="Form ändern (Rund / Abgerundet / 6-Eck / Rechteck)" Content="⭕ Form">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
+                                                    </Button>
+                                                    <Button x:Name="CamPipChromaBtn" Click="CamPipToggleChroma_Click" Background="#2B2D31" Foreground="#34D399" BorderThickness="0" Padding="6,2" Margin="0,0,3,0" Cursor="Hand" FontSize="10.5" ToolTip="Greenscreen auf Zweitfenster anwenden" Content="🟩 Chroma">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
+                                                    </Button>
+                                                    <Button Click="CamPipToggleScissors_Click" Background="#2B2D31" Foreground="#FBBF24" BorderThickness="0" Padding="6,2" Margin="0,0,3,0" Cursor="Hand" FontSize="10.5" ToolTip="Scheren-Werkzeug zum Zuschneiden aktivieren" Content="✂ Schere">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
+                                                    </Button>
+                                                    <Button Click="CamSwapSources_Click" Background="#2B2D31" Foreground="#C5A059" BorderThickness="0" Padding="6,2" Margin="0,0,3,0" Cursor="Hand" FontSize="10.5" ToolTip="Quellen tauschen" Content="⇄">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
+                                                    </Button>
+                                                    <Button Click="CamPipHideFromHover_Click" Background="#2B2D31" Foreground="#F87171" BorderThickness="0" Padding="6,2" Cursor="Hand" FontSize="10.5" FontWeight="Bold" ToolTip="Zweitfenster ausblenden (Nur geteiltes Bild einzeln anzeigen)" Content="✕">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Scissors Crop Mode Guides (Visible when Scissors Crop tool is active) -->
+                                            <Border x:Name="CamPipScissorsBanner" Visibility="Collapsed"
+                                                    Background="#D97C2D12" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="6" Padding="7,2"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,6">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="✂ Kanten ziehen zum Zuschneiden" Foreground="#FEF3C7" FontSize="9.5" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <Button Click="CamPipCropSideStep_Click" Tag="left" Background="#1E1F22" Foreground="#FBBF24" BorderThickness="0" Padding="4,1" Margin="0,0,2,0" Cursor="Hand" FontSize="9" Content="◀L"/>
+                                                    <Button Click="CamPipCropSideStep_Click" Tag="right" Background="#1E1F22" Foreground="#FBBF24" BorderThickness="0" Padding="4,1" Margin="0,0,2,0" Cursor="Hand" FontSize="9" Content="R▶"/>
+                                                    <Button Click="CamPipCropSideStep_Click" Tag="top" Background="#1E1F22" Foreground="#FBBF24" BorderThickness="0" Padding="4,1" Margin="0,0,2,0" Cursor="Hand" FontSize="9" Content="▲O"/>
+                                                    <Button Click="CamPipCropSideStep_Click" Tag="bottom" Background="#1E1F22" Foreground="#FBBF24" BorderThickness="0" Padding="4,1" Cursor="Hand" FontSize="9" Content="U▼"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Bottom-Right Resize Grip Handle -->
+                                            <Border x:Name="CamPipResizeGrip" Visibility="Collapsed"
+                                                    Width="20" Height="20" CornerRadius="5" Background="#C5A059"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,2,2"
+                                                    Cursor="SizeNWSE"
+                                                    MouseLeftButtonDown="CamPipResizeGrip_MouseLeftButtonDown"
+                                                    MouseMove="CamPipResizeGrip_MouseMove"
+                                                    MouseLeftButtonUp="CamPipResizeGrip_MouseLeftButtonUp"
+                                                    ToolTip="Ziehen zum Vergrößern / Verkleinern">
+                                                <TextBlock Text="⤡" Foreground="#111827" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </Canvas>
+
+                                <!-- Eyedropper Active Banner Overlay -->
+                                <Border x:Name="CamEyedropperBanner" Background="#D90F172A" BorderBrush="#34D399" BorderThickness="1.5" CornerRadius="10" Padding="16,8"
+                                        HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,16,0,0" Visibility="Collapsed">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="💧 Pipette aktiv: Klicke jetzt direkt im Live-Kamerabild auf deinen Hintergrund (z.B. Grün/Blau/Wand)!" Foreground="#34D399" FontSize="12.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                        <Button Click="CamCancelEyedropper_Click" Background="#1E293B" Foreground="#F9FAFB" BorderThickness="0" Padding="8,3" Margin="12,0,0,0" Cursor="Hand" FontSize="11" Content="Abbrechen">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Top-Left Live Status Badges -->
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="16,14,0,0" IsHitTestVisible="False">
+                                    <Border x:Name="CamLiveStatsBadgeBorder" Background="#CC111827" BorderBrush="#374151" BorderThickness="1" CornerRadius="8" Padding="10,4" Margin="0,0,8,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse x:Name="CamLiveDotIndicator" Width="8" Height="8" Fill="#34D399" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock x:Name="CamLiveStatsBadgeTxt" Text="LIVE • 1280x720 • 30 FPS" Foreground="#F9FAFB" FontSize="11" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border x:Name="CamRecordingBadge" Background="#E6DC2626" CornerRadius="8" Padding="10,4" Margin="0,0,8,0" Visibility="Collapsed">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Fill="#FFFFFF" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                            <TextBlock x:Name="CamRecordingTimerTxt" Text="REC 00:00" Foreground="#FFFFFF" FontSize="11.5" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border x:Name="CamActiveEffectsBadge" Background="#CC26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="8" Padding="10,4" Visibility="Collapsed">
+                                        <TextBlock x:Name="CamActiveEffectsBadgeTxt" Text="✨ Filter aktiv" Foreground="#C5A059" FontSize="11" FontWeight="Bold"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Center Countdown Overlay (3.. 2.. 1..) -->
+                                <Border x:Name="CamCountdownOverlay" Background="#88000000" Visibility="Collapsed" IsHitTestVisible="False">
+                                    <TextBlock x:Name="CamCountdownNumberTxt" Text="3" Foreground="#C5A059" FontSize="110" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+
+                                <!-- White Photo Shutter Flash Overlay -->
+                                <Border x:Name="CamShutterFlashBorder" Background="#FFFFFF" Opacity="0" Visibility="Collapsed" IsHitTestVisible="False"/>
+
+                                <!-- Toast Notification inside Viewport -->
+                                <Border x:Name="CamToastBanner" Background="#E6161922" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="10" Padding="16,8"
+                                        HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18" Visibility="Collapsed" IsHitTestVisible="False">
+                                    <TextBlock x:Name="CamToastBannerTxt" Text="📸 Foto gespeichert!" Foreground="#F9FAFB" FontSize="12.5" FontWeight="SemiBold"/>
+                                </Border>
+
+                                <!-- BUILT-IN MEDIA PREVIEW OVERLAY (For viewing recorded videos / photos) -->
+                                <Border x:Name="CamMediaPreviewOverlay" Background="#F20B0D13" Visibility="Collapsed" Padding="18">
+                                    <DockPanel>
+                                        <Border DockPanel.Dock="Top" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="11" Padding="14,9" Margin="0,0,0,12">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock x:Name="CamPreviewTitleTxt" Text="Medien-Vorschau" Foreground="#F9FAFB" FontSize="14" FontWeight="Bold"/>
+                                                    <TextBlock x:Name="CamPreviewSubTxt" Text="" Foreground="#9CA3AF" FontSize="11"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <!-- Playback Speed Controls inside Video Preview -->
+                                                    <Border x:Name="CamPreviewSpeedBarBorder" Background="#1F2430" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="8" Padding="4,2" Margin="0,0,8,0">
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="Tempo:" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="4,0,6,0"/>
+                                                            <Button x:Name="CamPrevSpeed1xBtn" Click="CamPreviewSpeedPreset_Click" Tag="1x" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="7,4" Margin="0,0,2,0" Cursor="Hand" FontSize="11" Content="1x">
+                                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                            </Button>
+                                                            <Button x:Name="CamPrevSpeed2xBtn" Click="CamPreviewSpeedPreset_Click" Tag="2x" Background="Transparent" Foreground="#D1D5DB" FontWeight="SemiBold" BorderThickness="0" Padding="7,4" Margin="0,0,2,0" Cursor="Hand" FontSize="11" Content="2x">
+                                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                            </Button>
+                                                            <Button x:Name="CamPrevSpeed3xBtn" Click="CamPreviewSpeedPreset_Click" Tag="3x" Background="Transparent" Foreground="#D1D5DB" FontWeight="SemiBold" BorderThickness="0" Padding="7,4" Margin="0,0,2,0" Cursor="Hand" FontSize="11" Content="3x">
+                                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                            </Button>
+                                                            <Button x:Name="CamPrevSpeedCustomBtn" Click="CamPreviewSpeedPreset_Click" Tag="custom" Background="Transparent" Foreground="#D1D5DB" FontWeight="SemiBold" BorderThickness="0" Padding="7,4" Cursor="Hand" FontSize="11" Content="Indiv.">
+                                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                            </Button>
+                                                            <StackPanel x:Name="CamPrevSpeedCustomWrap" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,2,0" Visibility="Collapsed">
+                                                                <TextBox x:Name="CamPrevSpeedCustomBox" Text="1.5" Width="36" Background="#111214" Foreground="#F9FAFB" BorderBrush="#C5A059" BorderThickness="1" Padding="2,2" FontSize="11" FontWeight="Bold" HorizontalContentAlignment="Center" LostFocus="CamPrevSpeedCustomBox_LostFocus" KeyDown="CamPrevSpeedCustomBox_KeyDown"/>
+                                                                <TextBlock Text="x" Foreground="#C5A059" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="2,0,2,0"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Button x:Name="CamPreviewPlayPauseBtn" Click="CamPreviewPlayPause_Click" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="12,6" Margin="0,0,8,0" Cursor="Hand" FontSize="12" Content="⏯ Start/Pause">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                    </Button>
+                                                    <Button Click="CamPreviewOpenExplorer_Click" Background="#1F2430" Foreground="#D1D5DB" BorderThickness="0" Padding="12,6" Margin="0,0,8,0" Cursor="Hand" FontSize="12" Content="📂 Im Explorer zeigen">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                    </Button>
+                                                    <Button Click="CamCloseMediaPreview_Click" Background="#2D161B" Foreground="#F87171" FontWeight="Bold" BorderThickness="0" Padding="12,6" Cursor="Hand" FontSize="12" Content="✕ Zurück zum Live-Studio">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                        <Grid>
+                                            <MediaElement x:Name="CamPreviewMediaElement" LoadedBehavior="Manual" UnloadedBehavior="Close" Stretch="Uniform" MediaOpened="CamPreviewMedia_MediaOpened" MediaEnded="CamPreviewMedia_MediaEnded" MediaFailed="CamPreviewMedia_MediaFailed"/>
+                                            <Image x:Name="CamPreviewSnapshotImage" Stretch="Uniform" Visibility="Collapsed"/>
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DockPanel>
+                </Border>
+
+                <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent" Cursor="SizeWE"/>
+
+                <!-- COLUMN 4: RIGHT STUDIO INSPECTOR (BILD & ZOOM | EFFEKTE | DEEP FAKE | GREENSCREEN) -->
+                <Border Grid.Column="4" Background="#141720" BorderBrush="#1F222D" BorderThickness="1,0,0,0" Padding="14,16">
+                    <DockPanel>
+                        <!-- Inspector Sub-Tab Bar (5 Tabs: Bild & Zoom | Stimme | Effekte | Deep Fake | Chroma) -->
+                        <Border DockPanel.Dock="Top" Background="#0D0F14" BorderBrush="#1F222D" BorderThickness="1" CornerRadius="11" Padding="3" Margin="0,0,0,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.15*"/>
+                                    <ColumnDefinition Width="0.90*"/>
+                                    <ColumnDefinition Width="0.90*"/>
+                                    <ColumnDefinition Width="1.05*"/>
+                                    <ColumnDefinition Width="0.88*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border x:Name="CamTabImageBtn" Grid.Column="0" Background="#2E291F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="8" Padding="3,7" Cursor="Hand" MouseLeftButtonUp="CamInspectorTab_Click" Tag="image">
+                                    <TextBlock x:Name="CamTabImageTxt" Text="🎛 Bild &amp; Zoom" Foreground="#F9FAFB" FontSize="10.2" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                </Border>
+                                <Border x:Name="CamTabVoiceBtn" Grid.Column="1" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="8" Padding="3,7" Cursor="Hand" MouseLeftButtonUp="CamInspectorTab_Click" Tag="voice">
+                                    <TextBlock x:Name="CamTabVoiceTxt" Text="🎙 Stimme" Foreground="#E5E7EB" FontSize="10.2" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                </Border>
+                                <Border x:Name="CamTabEffectsBtn" Grid.Column="2" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="8" Padding="3,7" Cursor="Hand" MouseLeftButtonUp="CamInspectorTab_Click" Tag="effects">
+                                    <TextBlock x:Name="CamTabEffectsTxt" Text="✨ Effekte" Foreground="#E5E7EB" FontSize="10.2" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                </Border>
+                                <Border x:Name="CamTabDeepFakeBtn" Grid.Column="3" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="8" Padding="3,7" Cursor="Hand" MouseLeftButtonUp="CamInspectorTab_Click" Tag="deepfake">
+                                    <TextBlock x:Name="CamTabDeepFakeTxt" Text="🎭 Deep Fake" Foreground="#E5E7EB" FontSize="10.2" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                </Border>
+                                <Border x:Name="CamTabChromaBtn" Grid.Column="4" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="8" Padding="3,7" Cursor="Hand" MouseLeftButtonUp="CamInspectorTab_Click" Tag="chroma">
+                                    <TextBlock x:Name="CamTabChromaTxt" Text="🟩 Chroma" Foreground="#E5E7EB" FontSize="10.2" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <!-- ======================================================= -->
+                                <!-- INSPECTOR PANE 1: BILD, ZOOM, FOKUS, AWB & VIDEO-SIGNAL -->
+                                <!-- (Requirements 10, 11, 12, 13 + Dynamic Video Signal)    -->
+                                <!-- ======================================================= -->
+                                <StackPanel x:Name="CamInspectorImagePane" Visibility="Visible">
+                                    <!-- 10. ZOOM & PAN / TILT -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🔍 ZOOM &amp; SCHWENKEN / NEIGEN" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="CamZoomValueTxt" Grid.Column="1" Text="1.0x" Foreground="#C5A059" FontSize="12" FontWeight="Bold"/>
+                                            </Grid>
+
+                                            <Slider x:Name="CamZoomSlider" Minimum="1.0" Maximum="4.0" Value="1.0" SmallChange="0.1" LargeChange="0.5" ValueChanged="CamZoomSlider_ValueChanged" Cursor="Hand" Margin="0,0,0,8"/>
+
+                                            <!-- Quick Zoom Presets -->
+                                            <UniformGrid Columns="4" Rows="1" Margin="0,0,0,8">
+                                                <Button Click="CamZoomPreset_Click" Tag="1.0" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="4,5" Margin="0,0,3,0" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="1.0x">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamZoomPreset_Click" Tag="1.5" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="4,5" Margin="2,0,2,0" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="1.5x">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamZoomPreset_Click" Tag="2.0" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="4,5" Margin="2,0,2,0" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="2.0x">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamZoomPreset_Click" Tag="3.0" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="4,5" Margin="3,0,0,0" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="3.0x">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+
+                                            <!-- Pan X / Tilt Y (Now works immediately even at 1.0x via Overscan + Hardware PTZ!) -->
+                                            <Grid Margin="0,0,0,5">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Schwenken (X):" Foreground="#9CA3AF" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamPanXSlider" Grid.Column="1" Minimum="-100" Maximum="100" Value="0" ValueChanged="CamPanTilt_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamPanXTxt" Grid.Column="2" Text="0" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Neigen (Y):" Foreground="#9CA3AF" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamPanYSlider" Grid.Column="1" Minimum="-100" Maximum="100" Value="0" ValueChanged="CamPanTilt_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamPanYTxt" Grid.Column="2" Text="0" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Mirror H / Flip V -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="6"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                                <CheckBox x:Name="CamMirrorHCheck" Grid.Column="0" Content="↔ Spiegeln (H)" Foreground="#D1D5DB" FontSize="11.5" Checked="CamTransformCheck_Changed" Unchecked="CamTransformCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFlipVCheck" Grid.Column="2" Content="↕ Kopfüber (V)" Foreground="#D1D5DB" FontSize="11.5" Checked="CamTransformCheck_Changed" Unchecked="CamTransformCheck_Changed" Cursor="Hand"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 11 & 12. AUTOFOCUS & AUTOMATISCHER WEISSABGLEICH -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="🎯 AUTOFOKUS &amp; WEISSABGLEICH" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,8"/>
+
+                                            <!-- Autofocus (Requirement 11) -->
+                                            <Grid Margin="0,0,0,6" ToolTip="Automatische Scharfstellung des Kamera-Sensors">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Autofokus (Kamera-Hardware)" Foreground="#F9FAFB" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                <CheckBox x:Name="CamAutofocusCheck" Grid.Column="1" IsChecked="True" VerticalAlignment="Center" Checked="CamAutofocusCheck_Changed" Unchecked="CamAutofocusCheck_Changed" Cursor="Hand">
+                                                    <CheckBox.LayoutTransform><ScaleTransform ScaleX="1.15" ScaleY="1.15"/></CheckBox.LayoutTransform>
+                                                </CheckBox>
+                                            </Grid>
+
+                                            <Grid x:Name="CamManualFocusRow" Margin="0,0,0,10" Opacity="0.45" IsEnabled="False">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="95"/><ColumnDefinition Width="*"/><ColumnDefinition Width="38"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Manueller Fokus:" Foreground="#9CA3AF" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamManualFocusSlider" Grid.Column="1" Minimum="0" Maximum="250" Value="60" ValueChanged="CamManualFocusSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamManualFocusTxt" Grid.Column="2" Text="60" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <Border Height="1" Background="#232734" Margin="0,0,0,8"/>
+
+                                            <!-- Auto White Balance (Requirement 12) -->
+                                            <Grid ToolTip="Hardware-AWB und automatische Farbtemperatur-Korrektur">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Automatischer Weißabgleich (AWB)" Foreground="#F9FAFB" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                <CheckBox x:Name="CamAutoWbCheck" Grid.Column="1" IsChecked="True" VerticalAlignment="Center" Checked="CamAutoWbCheck_Changed" Unchecked="CamAutoWbCheck_Changed" Cursor="Hand">
+                                                    <CheckBox.LayoutTransform><ScaleTransform ScaleX="1.15" ScaleY="1.15"/></CheckBox.LayoutTransform>
+                                                </CheckBox>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 13. BILDEINSTELLUNGEN (Helligkeit, Kontrast, Wärme, Schärfe) -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="☀ BILDEINSTELLUNGEN" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <Button Click="CamResetImageAdjustments_Click" Background="#1F2430" Foreground="#C5A059" BorderThickness="0" Padding="8,3" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="↺ Standard">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                            </Grid>
+
+                                            <!-- Helligkeit -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="82"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Helligkeit:" Foreground="#D1D5DB" FontSize="11.5" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamBrightnessSlider" Grid.Column="1" Minimum="-100" Maximum="100" Value="0" ValueChanged="CamImageSetting_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamBrightnessTxt" Grid.Column="2" Text="0" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Kontrast -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="82"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Kontrast:" Foreground="#D1D5DB" FontSize="11.5" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamContrastSlider" Grid.Column="1" Minimum="-100" Maximum="100" Value="0" ValueChanged="CamImageSetting_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamContrastTxt" Grid.Column="2" Text="0" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Wärme -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="82"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Wärme:" Foreground="#D1D5DB" FontSize="11.5" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamWarmthSlider" Grid.Column="1" Minimum="-100" Maximum="100" Value="0" ValueChanged="CamImageSetting_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamWarmthTxt" Grid.Column="2" Text="0" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Schärfe -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="82"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Schärfe:" Foreground="#D1D5DB" FontSize="11.5" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamSharpnessSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="0" ValueChanged="CamImageSetting_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamSharpnessTxt" Grid.Column="2" Text="0" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- ======================================================= -->
+                                    <!-- NEW: DYNAMIC VIDEO SIGNAL INJECTOR & LOOP DECK          -->
+                                    <!-- (Bottom of "Bild & Zoom" as requested)                  -->
+                                    <!-- ======================================================= -->
+                                    <Border Background="#181B24" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="12" Padding="12,11" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,8" ToolTip="Videos und Tarn-Clips per Knopfdruck als Live-Kamerasignal einspielen">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🎬 VIDEO-EINSPIELER &amp; TARN-CLIP" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <CheckBox x:Name="CamVideoLoopCheck" Grid.Column="1" Content="🔁 Dauerschleife" IsChecked="True" Foreground="#34D399" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Checked="CamVideoLoopCheck_Changed" Unchecked="CamVideoLoopCheck_Changed" Cursor="Hand"/>
+                                            </Grid>
+
+                                            <!-- Playback Behavior Checkboxes: Return to Original Live Recording + Boomerang -->
+                                            <StackPanel Margin="0,0,0,8">
+                                                <CheckBox x:Name="CamVideoSignalReturnLiveCheck" Content="↩ Auf Original-Aufnahme springen nach Ablauf" IsChecked="False" Foreground="#F2F3F5" FontSize="11" FontWeight="SemiBold" Margin="0,0,0,5" Checked="CamVideoSignalReturnLiveCheck_Changed" Unchecked="CamVideoSignalReturnLiveCheck_Changed" Cursor="Hand" ToolTip="Springt automatisch zurück auf das Live-Kamerabild, sobald der Tarn-Clip oder das Video einmal abgelaufen ist"/>
+                                                <CheckBox x:Name="CamVideoSignalBoomerangCheck" Content="🪃 Boomerang-Modus (Vorwärts ⇄ Rückwärts)" IsChecked="False" Foreground="#D1D5DB" FontSize="11" FontWeight="SemiBold" Checked="CamVideoSignalBoomerangCheck_Changed" Unchecked="CamVideoSignalBoomerangCheck_Changed" Cursor="Hand" ToolTip="Spielt den Clip nahtlos vorwärts und rückwärts ab"/>
+                                            </StackPanel>
+
+                                            <!-- Tarn-Clip Duration Selector (Default 10s: 5s | 10s | 15s | Manuell) -->
+                                            <Border Background="#111214" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="8" Padding="8,6" Margin="0,0,0,8">
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,5">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <TextBlock Text="⏱ TARN-CLIP LÄNGE (STANDARD: 10 SEK.)" Foreground="#9CA3AF" FontSize="9.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="Manuell:" Foreground="#9CA3AF" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                            <TextBox x:Name="CamTarnCustomSecBox" Text="10" Width="40" Background="#1E1F22" Foreground="#F2F3F5" BorderBrush="#2B2D31" BorderThickness="1" Padding="4,2" FontSize="11" FontWeight="Bold" HorizontalContentAlignment="Center" TextChanged="CamTarnCustomSecBox_TextChanged" ToolTip="Eigene Tarn-Clip Dauer in Sekunden (1 - 120s)"/>
+                                                            <TextBlock Text="s" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center" Margin="3,0,0,0"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <UniformGrid Columns="4" Rows="1">
+                                                        <Button x:Name="CamTarnLen5Btn" Click="CamTarnDurationPreset_Click" Tag="5" Background="#1E1F22" Foreground="#D1D5DB" BorderBrush="#2B2D31" BorderThickness="1" Padding="4,4" Margin="0,0,2,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="5 Sek."/>
+                                                        <Button x:Name="CamTarnLen10Btn" Click="CamTarnDurationPreset_Click" Tag="10" Background="#C5A059" Foreground="#111827" BorderBrush="#C5A059" BorderThickness="1" Padding="4,4" Margin="2,0,2,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="10 Sek. (Std)"/>
+                                                        <Button x:Name="CamTarnLen15Btn" Click="CamTarnDurationPreset_Click" Tag="15" Background="#1E1F22" Foreground="#D1D5DB" BorderBrush="#2B2D31" BorderThickness="1" Padding="4,4" Margin="2,0,2,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="15 Sek."/>
+                                                        <Button x:Name="CamTarnLenCustomBtn" Click="CamTarnDurationPreset_Click" Tag="custom" Background="#1E1F22" Foreground="#D1D5DB" BorderBrush="#2B2D31" BorderThickness="1" Padding="4,4" Margin="2,0,0,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="Manuell"/>
+                                                    </UniformGrid>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Quick Actions: Add Video File + Record Tarn-Clip (10s default) + Record Instagram Boomerang Clip -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="5"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="5"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button Click="CamAddVideoSignal_Click" Grid.Column="0" Background="#2B2D31" Foreground="#F2F3F5" BorderBrush="#3F4147" BorderThickness="1" Padding="7,6" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="➕ Video...">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button x:Name="CamRecordQuickLoopBtn" Click="CamRecordQuickLoop_Click" Grid.Column="2" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="8,6" Cursor="Hand" FontSize="10.5" FontWeight="Bold" ToolTip="Nimmt deine aktuelle Kamera für die gewählte Dauer (Standard: 10s) auf und legt es als abspielbares Tarn-Video an!" Content="⏺ 10s Tarn-Clip">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button x:Name="CamRecordBoomerangBtn" Click="CamRecordBoomerangClip_Click" Grid.Column="4" Background="#2B2D31" Foreground="#F2F3F5" BorderBrush="#3F4147" BorderThickness="1" Padding="8,6" Cursor="Hand" FontSize="10.5" FontWeight="Bold" ToolTip="Erstellt einen Kurz-Clip, der nahtlos vorwärts und rückwärts läuft" Content="🪃 Boomerang">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                            </Grid>
+
+                                            <!-- Active Signal Status Banner -->
+                                            <Border x:Name="CamVideoSignalActiveBar" Background="#064E3B" BorderBrush="#10B981" BorderThickness="1" CornerRadius="8" Padding="8,6" Margin="0,0,0,8" Visibility="Collapsed">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                    <TextBlock x:Name="CamVideoSignalStatusTxt" Text="▶ Sendet: Video.mp4 (Dauerschleife)" Foreground="#ECFDF5" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <Button x:Name="CamStopVideoSignalBtn" Grid.Column="1" Click="CamStopVideoSignal_Click" Background="#DC2626" Foreground="#FFFFFF" BorderThickness="0" Padding="8,3" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="⏹ Live-Kamera">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Dynamic Clip List Container -->
+                                            <StackPanel x:Name="CamVideoSignalListPanel"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- ======================================================= -->
+                                    <!-- MUSIK-EINSPIELER & STUDIO-SOUND (Under Video-Einspieler)-->
+                                    <!-- ======================================================= -->
+                                    <Border Background="#181B24" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="12" Padding="12,11" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🎵 MUSIK-EINSPIELER" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <CheckBox x:Name="CamMusicLoopCheck" Grid.Column="1" Content="🔁 Dauerschleife" IsChecked="True" Foreground="#34D399" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Checked="CamMusicLoopCheck_Changed" Unchecked="CamMusicLoopCheck_Changed" Cursor="Hand"/>
+                                            </Grid>
+
+                                            <!-- Music Volume Slider (0 - 100%) -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="82"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🔊 Lautstärke:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamMusicSignalVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="75" SmallChange="1" LargeChange="5" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="CamMusicSignalVolumeSlider_ValueChanged" Cursor="Hand" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="CamMusicSignalVolumeTxt" Grid.Column="2" Text="75 %" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Quick Actions: Add Music File + Load SF Album -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="6"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button Click="CamAddMusicSignal_Click" Grid.Column="0" Background="#2B2D31" Foreground="#F2F3F5" BorderBrush="#3F4147" BorderThickness="1" Padding="7,6" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="➕ Musik..." ToolTip="Eigene Audiodatei (.mp3, .m4a, .wav, .flac) für den Musik-Einspieler hinzufügen">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamLoadSfMusicCatalog_Click" Grid.Column="2" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="9,6" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="✨ SF-Album laden" ToolTip="Lädt die eigenen Seelenfunke Studio- &amp; Reel-Songs direkt in den Musik-Einspieler">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                            </Grid>
+
+                                            <!-- Active Music Signal Status Banner -->
+                                            <Border x:Name="CamMusicSignalActiveBar" Background="#064E3B" BorderBrush="#10B981" BorderThickness="1" CornerRadius="8" Padding="8,6" Margin="0,0,0,8" Visibility="Collapsed">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                    <TextBlock x:Name="CamMusicSignalStatusTxt" Text="▶ Spielt: Song (Dauerschleife)" Foreground="#ECFDF5" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <Button x:Name="CamStopMusicSignalBtn" Grid.Column="1" Click="CamStopMusicSignal_Click" Background="#DC2626" Foreground="#FFFFFF" BorderThickness="0" Padding="8,3" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="⏹ Stopp">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="5"/></Style></Button.Resources>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Dynamic Music Clip List Container -->
+                                            <StackPanel x:Name="CamMusicSignalListPanel"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ======================================================= -->
+                                <!-- INSPECTOR PANE 1B: STIMMENVERZERRER (VOICE CHANGER DSP) -->
+                                <!-- (Phase 5 Requirement 1: Extra Tab "Stimme" next to Bild)-->
+                                <!-- ======================================================= -->
+                                <StackPanel x:Name="CamInspectorVoicePane" Visibility="Collapsed">
+                                    <!-- MASTER ACTIVATION & LIVE DSP STATUS CARD -->
+                                    <Border Background="#181B24" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="12" Padding="12,11" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,8" ToolTip="Echtzeit Pitch, Formant-Shifting, Vocoder und Studio-Hall">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🎙 KI &amp; DSP STIMMENVERZERRER" Foreground="#C5A059" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <CheckBox x:Name="CamVoiceEnableCheck" Grid.Column="1" Content="Aktivieren" IsChecked="False" Foreground="#34D399" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center" Checked="CamVoiceEnableCheck_Changed" Unchecked="CamVoiceEnableCheck_Changed" Cursor="Hand"/>
+                                            </Grid>
+
+                                            <!-- Active Voice Preset & Output Level Meter -->
+                                            <Border Background="#111214" BorderBrush="#262A36" BorderThickness="1" CornerRadius="8" Padding="9,7">
+                                                <StackPanel>
+                                                    <Grid Margin="0,0,0,5">
+                                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                        <TextBlock x:Name="CamVoiceActivePresetTxt" Text="Aktives Profil: 🟢 Natürlich (Original)" Foreground="#F2F3F5" FontSize="11" FontWeight="Bold"/>
+                                                        <TextBlock x:Name="CamVoiceLatencyBadgeTxt" Grid.Column="1" Text="20ms Low-Latency DSP" Foreground="#34D399" FontSize="10" FontWeight="Bold"/>
+                                                    </Grid>
+                                                    <Border Height="6" Background="#1F2430" CornerRadius="3" ClipToBounds="True">
+                                                        <Border x:Name="CamVoiceMeterFillBar" HorizontalAlignment="Left" Width="0" Background="#10B981" CornerRadius="3"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 12 STUDIO VOICE PRESETS GRID -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="🎭 STIMMEN-PROFILE (1-KLICK PRESETS)" Foreground="#FFFFFF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,8"/>
+                                            <UniformGrid x:Name="CamVoicePresetsGrid" Columns="2">
+                                                <Button Click="CamVoicePreset_Click" Tag="none" Background="#C5A059" Foreground="#111827" BorderThickness="0" Padding="8,7" Margin="0,0,3,6" Cursor="Hand" FontSize="11" FontWeight="Bold" Content="🟢 Natürlich">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="anonymous" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="3,0,0,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="🕵️ Anonymous">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="robot" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="0,0,3,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="🤖 Cyborg / Robot">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="demon" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="3,0,0,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="👹 Dämon / Lord">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="chipmunk" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="0,0,3,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="🐿️ Chipmunk / Helium">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="female" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="3,0,0,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="👩 Weiblich (KI)">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="deep_male" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="0,0,3,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="🎙️ Tiefe Stimme">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="alien" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="3,0,0,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="👽 Alien / Space">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="radio" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="0,0,3,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="📻 Funkgerät">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="autotune" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="3,0,0,6" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="⚡ Cyber-Tune">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="monster" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="0,0,3,0" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="🦖 Titan / Monster">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamVoicePreset_Click" Tag="ghost" Background="#13161F" Foreground="#FFFFFF" BorderThickness="0" Padding="8,7" Margin="3,0,0,0" Cursor="Hand" FontSize="11" FontWeight="SemiBold" Content="👻 Geist / Echo">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- DSP FINE-TUNING SLIDERS (PITCH, FORMANT, ROBOT, REVERB, SUB-BASS, NOISE GATE) -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🎚 DSP FEINABSTIMMUNG (ECHTZEIT)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <Button Click="CamVoiceResetSliders_Click" Background="#1F2430" Foreground="#C5A059" BorderThickness="0" Padding="8,3" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="↺ Reset">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                            </Grid>
+
+                                            <!-- Pitch Semitones (-12 .. +12) -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="48"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Tonhöhe (Pitch):" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamVoicePitchSlider" Grid.Column="1" Minimum="-12" Maximum="12" Value="0" SmallChange="0.5" LargeChange="2" ValueChanged="CamVoiceSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamVoicePitchTxt" Grid.Column="2" Text="0.0 st" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Formant Shift (-100 .. +100) -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="48"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Klangfarbe:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamVoiceFormantSlider" Grid.Column="1" Minimum="-100" Maximum="100" Value="0" ValueChanged="CamVoiceSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamVoiceFormantTxt" Grid.Column="2" Text="0%" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Robot / Vocoder Modulation (0 .. 100) -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="48"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Roboter / Synth:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamVoiceRobotSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="0" ValueChanged="CamVoiceSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamVoiceRobotTxt" Grid.Column="2" Text="0%" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Studio Reverb / Echo (0 .. 100) -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="48"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Raumhall / Echo:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamVoiceReverbSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="0" ValueChanged="CamVoiceSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamVoiceReverbTxt" Grid.Column="2" Text="0%" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Sub-Octave Bass Boost (0 .. 100) -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="48"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Sub-Bass / Druck:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamVoiceBassSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="0" ValueChanged="CamVoiceSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamVoiceBassTxt" Grid.Column="2" Text="0%" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Noise Gate (0 .. 100) -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="96"/><ColumnDefinition Width="*"/><ColumnDefinition Width="48"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Noise-Gate:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamVoiceGateSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="10" ValueChanged="CamVoiceSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamVoiceGateTxt" Grid.Column="2" Text="10%" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- LIVE MONITORING, ROUTING & 4-SECOND VOICE TEST DECK -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="🎧 LIVE-MONITORING &amp; STIMM-PROBE" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,8"/>
+
+                                            <CheckBox x:Name="CamVoiceMonitorCheck" Content="🎧 Eigene verzerrte Stimme live mithören (Monitoring)" IsChecked="False" Foreground="#F2F3F5" FontSize="11.5" FontWeight="SemiBold" Margin="0,0,0,8" Checked="CamVoiceMonitorCheck_Changed" Unchecked="CamVoiceMonitorCheck_Changed" Cursor="Hand" ToolTip="Gibt die verzerrte Stimme in Echtzeit auf dem gewählten Ausgabegerät (oder Virtual Audio Cable für Discord) aus"/>
+
+                                            <TextBlock Text="Ausgabegerät (Kopfhörer / Virtual Audio Cable):" Foreground="#9CA3AF" FontSize="10.5" Margin="0,0,0,4"/>
+                                            <ComboBox x:Name="CamVoiceOutputDeviceCombo" SelectionChanged="CamVoiceOutputDeviceCombo_SelectionChanged" Margin="0,0,0,10"/>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="6"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                                <Button x:Name="CamVoiceRecordSampleBtn" Grid.Column="0" Click="CamVoiceRecordSample_Click" Background="#2B2D31" Foreground="#F2F3F5" BorderBrush="#3F4147" BorderThickness="1" Padding="8,7" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="⏺ 4s Stimm-Probe">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button x:Name="CamVoicePlaySampleBtn" Grid.Column="2" Click="CamVoicePlaySample_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="8,7" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="▶ Probe anhören">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                            </Grid>
+                                            <TextBlock x:Name="CamVoiceSampleStatusTxt" Text="" Visibility="Collapsed" Foreground="#6B7280" FontSize="10" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ======================================================= -->
+                                <!-- INSPECTOR PANE 2: TIKTOK BEAUTY, 60FPS SHADERS & FILTER -->
+                                <!-- (Requirement 9 + Modern Fluid Effects + TikTok Beauty)  -->
+                                <!-- ======================================================= -->
+                                <StackPanel x:Name="CamInspectorEffectsPane" Visibility="Collapsed">
+                                    <!-- NEW: TIKTOK & BEAUTY FACE FILTER -->
+                                    <Border Background="#181B24" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="✨ TIKTOK &amp; BEAUTY GESICHTSFILTER" Foreground="#C5A059" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Bilateral AI" Foreground="#34D399" FontSize="10" FontWeight="Bold"/>
+                                            </Grid>
+
+                                            <UniformGrid x:Name="CamBeautyFilterGrid" Columns="2" Rows="3" Margin="0,0,0,8">
+                                                <Button Click="CamBeautyFilter_Click" Tag="none" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="🙂 Natürlich (Aus)">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamBeautyFilter_Click" Tag="tiktok_glow" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="✨ TikTok Soft Glow">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamBeautyFilter_Click" Tag="porcelain" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="💎 Porcelain Skin">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamBeautyFilter_Click" Tag="golden_hour" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="🌅 Golden Hour Sun">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamBeautyFilter_Click" Tag="cyber_glam" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,0" Cursor="Hand" FontSize="11" Content="💄 Studio Glamour">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamBeautyFilter_Click" Tag="soft_dream" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,0" Cursor="Hand" FontSize="11" Content="🌸 Dreamy Bloom">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+
+                                            <!-- Skin Smoothing Slider -->
+                                            <Grid Margin="0,0,0,5">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="95"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Hautglättung:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamBeautySkinSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="0" ValueChanged="CamBeautySlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamBeautySkinTxt" Grid.Column="2" Text="0 %" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <!-- Face Glow / Radiance Slider -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="95"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Teint &amp; Glow:" Foreground="#D1D5DB" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamBeautyGlowSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="0" ValueChanged="CamBeautySlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamBeautyGlowTxt" Grid.Column="2" Text="0 %" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- ONE-SHOT ACTION SPEZIALEFFEKTE & 60FPS ANIMATIONS -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🚀 60FPS ACTION &amp; SHADER-ANIMATIONEN" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <Button Click="CamResetAllEffects_Click" Background="#2D161B" Foreground="#F87171" BorderThickness="0" Padding="8,3" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="✕ Alle aus">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                            </Grid>
+
+                                            <UniformGrid Columns="2" Rows="3" Margin="0,0,0,6">
+                                                <Button Click="CamTriggerSpin_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="6,7" Margin="0,0,3,5" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="🔄 360° Bild-Spin">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamTriggerFlipSpin_Click" Background="#13161F" Foreground="#E5E7EB" BorderThickness="0" Padding="6,7" Margin="3,0,0,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="🪙 3D Münzwurf-Flip">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamTriggerEarthquake_Click" Background="#13161F" Foreground="#E5E7EB" BorderThickness="0" Padding="6,7" Margin="0,0,3,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="🌋 Erdbeben-Shake">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamTriggerGlitch_Click" Background="#13161F" Foreground="#E5E7EB" BorderThickness="0" Padding="6,7" Margin="3,0,0,5" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="⚡ Cyber-Glitch">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamTriggerConfetti_Click" Background="#13161F" Foreground="#E5E7EB" BorderThickness="0" Padding="6,7" Margin="0,0,3,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="🎉 Konfetti-Kanone">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamTriggerPaparazzi_Click" Background="#13161F" Foreground="#E5E7EB" BorderThickness="0" Padding="6,7" Margin="3,0,0,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="📸 Paparazzi-Blitz">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+
+                                            <TextBlock Text="FLÜSSIGE ECHTZEIT-SHADER &amp; OVERLAYS" Foreground="#9CA3AF" FontSize="10" FontWeight="Bold" Margin="0,4,0,5"/>
+                                            <UniformGrid Columns="2" Rows="5">
+                                                <CheckBox x:Name="CamFxNeonPulseCheck" Content="⚡ Neon Edge Pulse" Foreground="#38BDF8" FontSize="11.5" FontWeight="SemiBold" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxRgbWaveCheck" Content="🌈 RGB Chroma-Wave" Foreground="#C5A059" FontSize="11.5" FontWeight="SemiBold" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxHoloHudCheck" Content="🛸 3D Hologramm-HUD" Foreground="#34D399" FontSize="11.5" FontWeight="SemiBold" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxFireAuraCheck" Content="🔥 Rising Fire Aura" Foreground="#FB923C" FontSize="11.5" FontWeight="SemiBold" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxContinuousSpinCheck" Content="🌀 Endlos-Spin" Foreground="#D1D5DB" FontSize="11.5" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxDiscoCheck" Content="🪩 Disco-Party" Foreground="#D1D5DB" FontSize="11.5" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxVhsCheck" Content="📼 VHS 1994" Foreground="#D1D5DB" FontSize="11.5" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxMatrixRainCheck" Content="💻 Matrix-Regen" Foreground="#D1D5DB" FontSize="11.5" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxDealWithItCheck" Content="🕶 Deal With It" Foreground="#D1D5DB" FontSize="11.5" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                                <CheckBox x:Name="CamFxCinemaBarsCheck" Content="🎬 21:9 Kino-Balken" Foreground="#D1D5DB" FontSize="11.5" Margin="0,2" Checked="CamSpecialFxCheck_Changed" Unchecked="CamSpecialFxCheck_Changed" Cursor="Hand"/>
+                                            </UniformGrid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- FARBFILTER (12 FILTERS) -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="🎨 FARBFILTER (12 LOOKS)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
+                                            <UniformGrid x:Name="CamColorFilterGrid" Columns="2" Rows="6">
+                                                <Button Click="CamColorFilter_Click" Tag="none" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="✨ Original (Kein Filter)">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="grayscale" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="🖤 Schwarz-Weiß Noir">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="sepia" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="📜 Vintage Sepia">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="cyberpunk" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="🔮 Cyberpunk Neon">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="matrix" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="🟢 Matrix Grün">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="thermal" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="🔥 Thermal Wärmebild">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="invert" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="🩻 Röntgen / Negativ">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="gold" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="👑 Seelenfunke Gold">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="arctic" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="❄ Arktis Eisblau">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="synthwave" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="🌆 Synthwave 80s">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="comic" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,0" Cursor="Hand" FontSize="11" Content="💥 Comic Pop-Art">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamColorFilter_Click" Tag="nightvision" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,0" Cursor="Hand" FontSize="11" Content="🦉 Nachtsichtgerät">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- LUSTIGE VERZERRFILTER (10 DISTORTIONS) -->
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="🤪 LUSTIGE VERZERRFILTER (60FPS FLUID)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
+                                            <UniformGrid x:Name="CamDistortionFilterGrid" Columns="2" Rows="5" Margin="0,0,0,8">
+                                                <Button Click="CamDistortionFilter_Click" Tag="none" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="🙂 Normal">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="fisheye" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="🐡 Fischauge / Dicke Nase">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="pinch" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="👽 Schrumpfkopf">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="swirl" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="🌀 Strudel / Twirl">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="wave" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="🥴 Betrunken / Wellen">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="kaleidoscope" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="💎 Kaleidoskop 6x">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="mirror_left" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="🪞 Spiegel-Alien (L)">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="mirror_right" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="👁 Zyklop-Spiegel (R)">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="pixelate" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,0" Cursor="Hand" FontSize="11" Content="👾 8-Bit Pixel-Art">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDistortionFilter_Click" Tag="quad" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,0" Cursor="Hand" FontSize="11" Content="🎛 4er Klon-Wand">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="95"/><ColumnDefinition Width="*"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Verzerr-Stärke:" Foreground="#9CA3AF" FontSize="11" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamDistortionIntensitySlider" Grid.Column="1" Minimum="10" Maximum="100" Value="65" ValueChanged="CamDistortionIntensity_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamDistortionIntensityTxt" Grid.Column="2" Text="65 %" Foreground="#C5A059" FontSize="11" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ======================================================= -->
+                                <!-- INSPECTOR PANE 3: DEEP FAKE KI STUDIO (Deep-Live-Cam)   -->
+                                <!-- (Integrates C:\Users\konta\Documents\Deep-Live-Cam)     -->
+                                <!-- ======================================================= -->
+                                <StackPanel x:Name="CamInspectorDeepFakePane" Visibility="Collapsed">
+                                    <Border Background="#181B24" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="12" Padding="12,12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <!-- Master Enable Checkbox -->
+                                            <Grid Margin="0,0,0,10" ToolTip="Deep-Live-Cam (InSwapper 128 FP16 + DirectML GPU)">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🎭 Deep Fake Live-KI" Foreground="#F9FAFB" FontSize="13.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <CheckBox x:Name="CamDeepFakeEnableCheck" Grid.Column="1" VerticalAlignment="Center" Checked="CamDeepFakeEnableCheck_Changed" Unchecked="CamDeepFakeEnableCheck_Changed" Cursor="Hand">
+                                                    <CheckBox.LayoutTransform><ScaleTransform ScaleX="1.25" ScaleY="1.25"/></CheckBox.LayoutTransform>
+                                                </CheckBox>
+                                            </Grid>
+
+                                            <!-- Engine Live Status Pill -->
+                                            <Border Background="#11131A" BorderBrush="#262A36" BorderThickness="1" CornerRadius="8" Padding="9,6" Margin="0,0,0,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                                    <Ellipse x:Name="CamDeepFakeStatusDot" Width="8" Height="8" Fill="#10B981" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                                    <TextBlock x:Name="CamDeepFakeStatusTxt" Grid.Column="1" Text="Deep-Live-Cam KI bereit" Foreground="#D1D5DB" FontSize="10.5" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Active Target Face Preview + Custom Upload -->
+                                            <TextBlock Text="AKTIVES ZIEL-GESICHT (QUELLBILD)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
+                                            <Border Background="#11131A" BorderBrush="#2B2D31" BorderThickness="1" CornerRadius="10" Padding="8" Margin="0,0,0,10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="54"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                    <Border Width="48" Height="48" CornerRadius="8" Background="#1E1F22" BorderBrush="#C5A059" BorderThickness="1" ClipToBounds="True">
+                                                        <Image x:Name="CamDeepFakeActiveFaceImg" Stretch="UniformToFill"/>
+                                                    </Border>
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+                                                        <TextBlock x:Name="CamDeepFakeActiveFaceNameTxt" Text="Kein Gesicht gewählt" Foreground="#F9FAFB" FontSize="12" FontWeight="Bold" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                    <Button Grid.Column="2" Click="CamDeepFakeBrowseFace_Click" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="10,7" Cursor="Hand" FontSize="11" VerticalAlignment="Center" Content="📂 Eigenes Foto...">
+                                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Deep-Live-Cam Face Presets Grid -->
+                                            <TextBlock Text="DEEP-LIVE-CAM GESICHTER-BIBLIOTHEK" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
+                                            <WrapPanel x:Name="CamDeepFakePresetsPanel" Margin="0,0,0,10"/>
+
+                                            <Border Height="1" Background="#232734" Margin="0,0,0,10"/>
+
+                                            <!-- Deep-Live-Cam Neural Controls -->
+                                            <TextBlock Text="KI FACE-SWAP EINSTELLUNGEN" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
+                                            <CheckBox x:Name="CamDeepFakeMouthMaskCheck" Content="👄 Original-Mund für echte Lippenbewegung (Mouth Mask)" Foreground="#E5E7EB" FontSize="11.5" Margin="0,0,0,6" Checked="CamDeepFakeOption_Changed" Unchecked="CamDeepFakeOption_Changed" Cursor="Hand"/>
+                                            <CheckBox x:Name="CamDeepFakeColorCorrCheck" Content="🎨 Automatische Hautton-Anpassung (LAB Color Match)" IsChecked="False" Foreground="#E5E7EB" FontSize="11.5" Margin="0,0,0,6" Checked="CamDeepFakeOption_Changed" Unchecked="CamDeepFakeOption_Changed" Cursor="Hand"/>
+                                            <CheckBox x:Name="CamDeepFakeEnhanceCheck" Content="✨ KI Face-Enhancer (Detail-Schärfung &amp; Kontrast)" Foreground="#E5E7EB" FontSize="11.5" Margin="0,0,0,10" Checked="CamDeepFakeOption_Changed" Unchecked="CamDeepFakeOption_Changed" Cursor="Hand"/>
+
+                                            <!-- Blend Opacity -->
+                                            <Grid Margin="0,0,0,12">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="95"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="KI-Intensität:" Foreground="#D1D5DB" FontSize="11.5" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamDeepFakeOpacitySlider" Grid.Column="1" Minimum="20" Maximum="100" Value="100" ValueChanged="CamDeepFakeOpacity_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamDeepFakeOpacityTxt" Grid.Column="2" Text="100 %" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <Border Height="1" Background="#232734" Margin="0,0,0,10"/>
+
+                                            <!-- 106-Point Facial Landmark AR Special Effects -->
+                                            <TextBlock Text="🤖 KI GESICHTS-TRACKING AR-EFFEKTE (106 LANDMARKS)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
+                                            <UniformGrid x:Name="CamDeepFakeArGrid" Columns="2" Rows="3">
+                                                <Button Click="CamDeepFakeArMode_Click" Tag="none" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="🙂 Kein AR-Overlay">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDeepFakeArMode_Click" Tag="cyber_visor" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="🕶 Cyber-Laser Visor">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDeepFakeArMode_Click" Tag="anime_eyes" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,4" Cursor="Hand" FontSize="11" Content="👀 Anime Big Eyes">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDeepFakeArMode_Click" Tag="alien_morph" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,4" Cursor="Hand" FontSize="11" Content="👽 Alien Face Morph">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDeepFakeArMode_Click" Tag="terminator" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="0,0,3,0" Cursor="Hand" FontSize="11" Content="🔴 Terminator HUD">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamDeepFakeArMode_Click" Tag="pixel_anon" Background="#13161F" Foreground="#D1D5DB" BorderThickness="0" Padding="6,6" Margin="3,0,0,0" Cursor="Hand" FontSize="11" Content="🕵️‍♂️ KI Anonymisierer">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- ======================================================= -->
+                                <!-- INSPECTOR PANE 4: GREENSCREEN / CHROMA KEY + PIPETTE    -->
+                                <!-- (Requirement 14 - Upgraded YCbCr + Spill Suppression)   -->
+                                <!-- ======================================================= -->
+                                <StackPanel x:Name="CamInspectorChromaPane" Visibility="Collapsed">
+                                    <Border Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <!-- Master Enable -->
+                                            <Grid Margin="0,0,0,10" ToolTip="Präzise YCbCr-Farbentfernung inklusive grüner Kanten-Entfärbung (Despill)">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="🟩 Studio Chroma Key (YCbCr + Despill)" Foreground="#F9FAFB" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+                                                <CheckBox x:Name="CamChromaEnableCheck" Grid.Column="1" VerticalAlignment="Center" Checked="CamChromaEnableCheck_Changed" Unchecked="CamChromaEnableCheck_Changed" Cursor="Hand">
+                                                    <CheckBox.LayoutTransform><ScaleTransform ScaleX="1.2" ScaleY="1.2"/></CheckBox.LayoutTransform>
+                                                </CheckBox>
+                                            </Grid>
+
+                                            <!-- Color Swatch + Eyedropper Pipette Button -->
+                                            <TextBlock Text="SCHLÜSSELFARBE &amp; PIPETTE (5x5 MEDIAN-SAMPLE)" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,5"/>
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="42"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Border x:Name="CamChromaColorSwatch" Grid.Column="0" Width="36" Height="36" CornerRadius="8" Background="#00B43C" BorderBrush="#F9FAFB" BorderThickness="1.5" HorizontalAlignment="Left"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0">
+                                                    <TextBlock x:Name="CamChromaHexTxt" Text="#00B43C" Foreground="#F9FAFB" FontSize="12.5" FontWeight="Bold"/>
+                                                    <TextBlock x:Name="CamChromaRgbTxt" Text="R: 0  G: 180  B: 60" Foreground="#9CA3AF" FontSize="10.5"/>
+                                                </StackPanel>
+                                                <Button x:Name="CamEyedropperPipetteBtn" Grid.Column="2" Click="CamStartEyedropper_Click" Background="#C5A059" Foreground="#111827" FontWeight="Bold" BorderThickness="0" Padding="12,8" Cursor="Hand" FontSize="11.5" ToolTip="Klicke hier und danach im Live-Kamerabild auf die gewünschte Hintergrundfarbe" Content="💧 Pipette">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                </Button>
+                                            </Grid>
+
+                                            <!-- Quick Color Presets -->
+                                            <UniformGrid Columns="3" Rows="1" Margin="0,0,0,12">
+                                                <Button Click="CamChromaPresetColor_Click" Tag="0,180,60" Background="#13161F" Foreground="#34D399" BorderThickness="0" Padding="6,5" Margin="0,0,3,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="🟩 Grün">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamChromaPresetColor_Click" Tag="0,95,210" Background="#13161F" Foreground="#60A5FA" BorderThickness="0" Padding="6,5" Margin="2,0,2,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="🟦 Bluescreen">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                                <Button Click="CamChromaPresetColor_Click" Tag="215,215,215" Background="#13161F" Foreground="#E5E7EB" BorderThickness="0" Padding="6,5" Margin="3,0,0,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="⬜ Weiße Wand">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                                </Button>
+                                            </UniformGrid>
+
+                                            <!-- Tolerance & Edge Smoothness -->
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Toleranz:" Foreground="#D1D5DB" FontSize="11.5" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamChromaToleranceSlider" Grid.Column="1" Minimum="5" Maximum="100" Value="38" ValueChanged="CamChromaSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamChromaToleranceTxt" Grid.Column="2" Text="38 %" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <Grid Margin="0,0,0,12">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="Kantenglättung:" Foreground="#D1D5DB" FontSize="11.5" VerticalAlignment="Center"/>
+                                                <Slider x:Name="CamChromaSmoothSlider" Grid.Column="1" Minimum="0" Maximum="60" Value="18" ValueChanged="CamChromaSlider_ValueChanged" Cursor="Hand"/>
+                                                <TextBlock x:Name="CamChromaSmoothTxt" Grid.Column="2" Text="18 %" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            </Grid>
+
+                                            <Border Height="1" Background="#232734" Margin="0,0,0,10"/>
+
+                                            <!-- Replacement Background Selection -->
+                                            <TextBlock Text="ERSATZ-HINTERGRUND" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,5"/>
+                                            <ComboBox x:Name="CamChromaBgModeCombo" SelectionChanged="CamChromaBgModeCombo_SelectionChanged" SelectedIndex="0" Padding="8,6" FontSize="12" Margin="0,0,0,8">
+                                                <ComboBoxItem Content="🌌 Funkenwerk Cyber-Studio" Tag="studio_cyber"/>
+                                                <ComboBoxItem Content="✨ Seelenfunke Gold-Lounge" Tag="studio_gold"/>
+                                                <ComboBoxItem Content="🌫 Portrait-Unschärfe (Bokeh Blur)" Tag="blur"/>
+                                                <ComboBoxItem Content="🎮 Geteiltes Fenster / Gaming-Bild" Tag="secondary"/>
+                                                <ComboBoxItem Content="🖼 Eigenes Hintergrundbild..." Tag="image"/>
+                                            </ComboBox>
+
+                                            <Button Click="CamChooseChromaImage_Click" Background="#1F2430" Foreground="#C5A059" BorderThickness="0" Padding="10,7" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="🖼 Eigenes Hintergrundbild wählen...">
+                                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Grid>
+
+        <Grid x:Name="CamSettingsModalOverlay" Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="999" Visibility="Collapsed" Background="#BF000000">
+            <Border Width="480" VerticalAlignment="Center" HorizontalAlignment="Center" Background="#141720" BorderBrush="#C5A059" BorderThickness="1.5" CornerRadius="14" Padding="22">
+                <StackPanel>
+                    <TextBlock Text="Kamera-Einstellungen" FontSize="16" FontWeight="Bold" Foreground="#F9FAFB" Margin="0,0,0,14"/>
+                    <TextBlock Text="MEDIEN-ORDNER" FontSize="11" FontWeight="Bold" Foreground="#9CA3AF" Margin="0,0,0,6"/>
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBox x:Name="CamSettingsPathBox" Background="#0F1117" Foreground="#F9FAFB" BorderBrush="#262A36" Padding="10,7" FontSize="12"/>
+                        <Button Grid.Column="1" Click="BrowseCamSettingsFolder_Click" Background="#1E222D" Foreground="#C5A059" BorderThickness="0" Padding="12,7" Margin="8,0,0,0" Cursor="Hand" FontWeight="Bold" Content="Ordner..."/>
+                    </Grid>
+                    <Button Click="RegisterVirtualCamFromModal_Click" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1" Padding="12,8" Margin="0,0,0,16" Cursor="Hand" FontWeight="Bold" Content="🎥 Virtuelle Kamera in Windows registrieren"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Click="CloseCamSettingsModal_Click" Background="#1E222D" Foreground="#D1D5DB" BorderThickness="0" Padding="14,8" Margin="0,0,8,0" Cursor="Hand" FontWeight="SemiBold" Content="Abbrechen"/>
+                        <Button Click="SaveCamSettingsModal_Click" Background="#C5A059" Foreground="#111827" BorderThickness="0" Padding="16,8" Cursor="Hand" FontWeight="Bold" Content="Speichern"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

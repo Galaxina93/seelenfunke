@@ -2711,7 +2711,7 @@ class ProductCreate extends Component
         $this->setBeginnerImage($index);
     }
 
-    private function resizeAndSaveImage($sourcePath, $destinationPath)
+    private function resizeAndSaveImage($sourcePath, $destinationPath, string $disk = 'public')
     {
         $info = @getimagesize($sourcePath);
         if ($info === false || empty($info[0]) || empty($info[1])) {
@@ -2738,8 +2738,8 @@ class ProductCreate extends Component
         $white = imagecolorallocate($dst, 255, 255, 255);
         imagefilledrectangle($dst, 0, 0, $newWidth, $newHeight, $white);
         imagecopyresampled($dst, $src, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
-        ob_start(); imagejpeg($dst, null, 85); $imageData = ob_get_clean();
-        Storage::disk('public')->put($destinationPath, $imageData);
+        ob_start(); imagejpeg($dst, null, 88); $imageData = ob_get_clean();
+        Storage::disk($disk)->put($destinationPath, $imageData);
         imagedestroy($src); imagedestroy($dst);
     }
 
@@ -3187,23 +3187,27 @@ class ProductCreate extends Component
         ]);
 
         $slug = $this->product->slug ?: 'draft';
-        $holidaySlug = Str::slug($holidayKey);
-        $folder = "produkte/products/{$slug}/seasonal";
-        $filename = time() . "_{$slug}-{$holidaySlug}.jpg";
+        $holidaySlug = \App\Models\Product\ProductTemplate::resolveSeasonalSlotFileSlug($holidayKey);
+        $folder = trim(\App\Models\Product\ProductTemplate::PRIVATE_SEASONAL_PREFIX, '/') . '/' . $slug;
+        $filename = "{$holidaySlug}.jpg";
         $fullPath = "{$folder}/{$filename}";
 
-        $this->resizeAndSaveImage($file->getRealPath(), $fullPath);
-
+        // Vorherige Datei auf altem public- oder neuem private-Speicher bereinigen
         $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
         if (!isset($settings['seasonal_images']) || !is_array($settings['seasonal_images'])) {
             $settings['seasonal_images'] = [];
         }
 
-        // Vorherige eigene Datei aufräumen, falls sie im seasonal-Ordner lag
         $prevPath = $settings['seasonal_images'][$holidayKey]['path'] ?? null;
-        if (is_string($prevPath) && str_contains($prevPath, '/seasonal/')) {
-            Storage::disk('public')->delete($prevPath);
+        if (is_string($prevPath) && $prevPath !== $fullPath) {
+            if (str_starts_with($prevPath, \App\Models\Product\ProductTemplate::PRIVATE_SEASONAL_PREFIX)) {
+                Storage::disk('local')->delete($prevPath);
+            } elseif (str_contains($prevPath, '/seasonal/')) {
+                Storage::disk('public')->delete($prevPath);
+            }
         }
+
+        $this->resizeAndSaveImage($file->getRealPath(), $fullPath, 'local');
 
         $settings['seasonal_images'][$holidayKey] = [
             'path' => $fullPath,
@@ -3215,17 +3219,16 @@ class ProductCreate extends Component
         $this->product->configurator_settings = $settings;
         $this->product->save();
 
-        // Synchronisiere auch das Vorschaubild einer ggf. vorhandenen Produktvorlage für diesen Anlass
+        // Geschützte Saisonbilder bleiben im Private-Store (kein Leak über öffentliche Vorlagenkarten)
         \App\Models\Product\ProductTemplate::where('product_id', $this->product->id)
             ->whereRaw('LOWER(holiday) = ?', [mb_strtolower($holidayKey)])
             ->update([
-                'preview_image' => $fullPath,
                 'is_ai_generated' => false,
             ]);
 
         $this->product->refresh();
         unset($this->seasonal_media_uploads[$holidayKey]);
-        session()->flash('success', "Saison-Hauptbild für „{$holidayKey}“ gespeichert!");
+        session()->flash('success', "Saison-Hauptbild für „{$holidayKey}“ geschützt gespeichert!");
     }
 
     public function toggleSeasonalImageAiGenerated(string $holidayKey): void
@@ -3271,8 +3274,12 @@ class ProductCreate extends Component
 
         $settings = is_array($this->product->configurator_settings) ? $this->product->configurator_settings : [];
         $prevPath = $settings['seasonal_images'][$holidayKey]['path'] ?? null;
-        if (is_string($prevPath) && str_contains($prevPath, '/seasonal/')) {
-            Storage::disk('public')->delete($prevPath);
+        if (is_string($prevPath)) {
+            if (str_starts_with($prevPath, \App\Models\Product\ProductTemplate::PRIVATE_SEASONAL_PREFIX)) {
+                Storage::disk('local')->delete($prevPath);
+            } elseif (str_contains($prevPath, '/seasonal/')) {
+                Storage::disk('public')->delete($prevPath);
+            }
         }
 
         unset($settings['seasonal_images'][$holidayKey]);
@@ -3615,6 +3622,8 @@ class ProductCreate extends Component
             'options_raw'     => '',
             'surcharge_cents' => 0,
             'surcharge_price' => '0.00',
+            'target_side'     => 'front',
+            'default_side'    => 'front',
         ];
 
         $this->persistCustomFieldsToProduct();
@@ -3933,6 +3942,7 @@ class ProductCreate extends Component
                 ],
             ];
         } elseif ($presetKey === 'front_back_engraving') {
+            $this->configSettings['has_back_side'] = true;
             $this->configSettings['custom_fields'] = [
                 [
                     'id'              => 'cf_front',
@@ -3946,6 +3956,8 @@ class ProductCreate extends Component
                     'options_raw'     => '',
                     'surcharge_cents' => 0,
                     'surcharge_price' => '0.00',
+                    'target_side'     => 'front',
+                    'default_side'    => 'front',
                 ],
                 [
                     'id'              => 'cf_back',
@@ -3959,6 +3971,8 @@ class ProductCreate extends Component
                     'options_raw'     => '',
                     'surcharge_cents' => 500,
                     'surcharge_price' => '5.00',
+                    'target_side'     => 'back',
+                    'default_side'    => 'back',
                 ],
             ];
         }

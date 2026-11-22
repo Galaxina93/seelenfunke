@@ -373,6 +373,12 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                     if (!serverPass.isNullOrBlank() && serviceLocator.getTapoPassword().isBlank()) {
                         serviceLocator.saveTapoPassword(serverPass)
                     }
+                    de.meinseelenfunke.app.util.FunkenwerkAlarmManager.applyRemoteSmartHomeInventory(
+                        context = context,
+                        plugs = response.data.smartPlugs,
+                        shutters = response.data.smartShutters,
+                        groups = response.data.smartGroups
+                    )
                 }
                 val stamp = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.GERMANY).format(java.util.Date())
                 de.meinseelenfunke.app.util.FunkenwerkAlarmManager.markSyncCompleted(context, stamp)
@@ -400,7 +406,9 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
                     wakeLogs = pkg.wakeUpLogs,
                     lastSyncedAt = pkg.lastSyncedAt,
                     tapoEmail = pkg.tapoEmail,
-                    tapoPassword = pkg.tapoPassword
+                    tapoPassword = pkg.tapoPassword,
+                    shutters = pkg.smartShutters,
+                    groups = pkg.smartGroups
                 )
                 Result.success(Unit)
             } else {

@@ -177,20 +177,36 @@ async function ensureVertexAccessToken(forceRefresh = false) {
             grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
             assertion
         });
-        const res = await fetch(tokenUri, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
-        });
-        if (res.ok) {
-            const json = await res.json();
-            if (json && json.access_token) {
-                cachedVertexToken = json.access_token;
-                cachedVertexTokenExpiresAt = nowSec + Number(json.expires_in || 3600);
-                return cachedVertexToken;
+
+        let lastFetchErr = null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                const res = await fetch(tokenUri, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body.toString(),
+                    signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined
+                });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json && json.access_token) {
+                        cachedVertexToken = json.access_token;
+                        cachedVertexTokenExpiresAt = nowSec + Number(json.expires_in || 3600);
+                        return cachedVertexToken;
+                    }
+                } else {
+                    console.warn(`⚠️ Vertex OAuth2 Token HTTP ${res.status}`);
+                    break;
+                }
+            } catch (fetchErr) {
+                lastFetchErr = fetchErr;
+                if (attempt < 2) {
+                    await new Promise((resolve) => setTimeout(resolve, 1200));
+                }
             }
-        } else {
-            console.warn(`⚠️ Vertex OAuth2 Token HTTP ${res.status}`);
+        }
+        if (lastFetchErr) {
+            throw lastFetchErr;
         }
     } catch (err) {
         console.warn('⚠️ Vertex OAuth2 Token Fehler:', scrubBridgeSecrets(err?.message || String(err)));
@@ -825,10 +841,8 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
                 }
                 if (data.serverContent.generationComplete) {
                     scLog += ' [GEN_COMPLETE]';
-                    if (aiTurnTranscript.trim()) {
-                        persistTranscript('assistant', aiTurnTranscript.trim());
-                        aiTurnTranscript = "";
-                    }
+                    // Nicht bereits bei generationComplete flushen, da Google häufig noch letzte outputTranscription-Wörter
+                    // unmittelbar vor turnComplete nachliefert (sonst entstehen zwei geteilte KI-Nachrichten pro Antwort).
                 }
                 if (data.serverContent.turnComplete) {
                     scLog += ' [TURN_COMPLETE]';
@@ -912,10 +926,24 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
             return;
         }
 
+        const rawStr = message.toString();
+
+        // Fast zero-JSON.parse pass-through for high-frequency realtimeInput.audio frames (~24 packets/sec)
+        if (isGoogleSetupComplete && googleWs.readyState === WebSocket.OPEN &&
+            rawStr.includes('"realtimeInput"') && rawStr.includes('"audio"') &&
+            !rawStr.includes('"mediaChunks"') && !rawStr.includes('"setup"')) {
+            clientAudioPacketsReceived++;
+            if (clientAudioPacketsReceived === 1) {
+                recordEvent('first_client_audio', 'fast_passthrough_pcm');
+            }
+            safeSend(googleWs, message);
+            return;
+        }
+
         let data = null;
         let outgoingMessage = message;
         try {
-            data = JSON.parse(message.toString());
+            data = JSON.parse(rawStr);
             if (data && data.type === 'ping') {
                 safeSend(clientWs, JSON.stringify({ type: 'pong' }));
                 return;
@@ -953,6 +981,25 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
                     }
                 }
                 effectiveModel = data.setup.model;
+                if (effectiveModel && String(effectiveModel).includes('2.5')) {
+                    data.setup.generationConfig = data.setup.generationConfig || {};
+                    if (!data.setup.generationConfig.thinkingConfig) {
+                        data.setup.generationConfig.thinkingConfig = { thinkingBudget: 0 };
+                        setupModified = true;
+                    }
+                }
+                if (!data.setup.realtimeInputConfig) {
+                    data.setup.realtimeInputConfig = {
+                        automaticActivityDetection: {
+                            disabled: false,
+                            startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+                            endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
+                            prefixPaddingMs: 100,
+                            silenceDurationMs: 420
+                        }
+                    };
+                    setupModified = true;
+                }
                 if (!data.setup.inputAudioTranscription) {
                     data.setup.inputAudioTranscription = {};
                     setupModified = true;
@@ -1274,12 +1321,22 @@ Sobald du dich verabschiedet hast, MUSST du sofort das Tool 'end_call' aufrufen,
                     }],
                     generationConfig: {
                         responseModalities: ["audio"],
+                        ...(useVertexTwilio ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
                         speechConfig: {
                             voiceConfig: {
                                 prebuiltVoiceConfig: {
                                     voiceName: "Aoede" // Weibliche, angenehme Stimme
                                 }
                             }
+                        }
+                    },
+                    realtimeInputConfig: {
+                        automaticActivityDetection: {
+                            disabled: false,
+                            startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
+                            endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
+                            prefixPaddingMs: 100,
+                            silenceDurationMs: 420
                         }
                     },
                     inputAudioTranscription: {},

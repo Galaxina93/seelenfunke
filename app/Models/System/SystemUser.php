@@ -146,6 +146,14 @@ use HasApiTokens, HasFactory, Notifiable;
             if ($ignoreGuard === $guard && !empty($ignoreId)) {
                 $query->where('id', '!=', $ignoreId);
             }
+            if ($guard === 'customer' && $ignoreGuard === 'employee' && !empty($ignoreId)) {
+                // Unverifizierte Gast-Bestell-Datensätze (ohne aktives Kundenkonto) dürfen das Bearbeiten
+                // eines bereits existierenden Mitarbeiters/Influencers mit derselben E-Mail niemals blockieren.
+                $query->where(function ($q) {
+                    $q->where('needs_password_change', true)
+                        ->orWhereHas('profile', fn ($pq) => $pq->whereNotNull('email_verified_at'));
+                });
+            }
             if ($query->exists()) {
                 return true;
             }

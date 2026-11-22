@@ -294,11 +294,12 @@ class XtoolLaserCockpitTest extends TestCase
             ->assertSee('@keyframes sfLaserBtnSpin', false)
             ->assertSee('sf-laser-btn-spin', false)
             ->assertSee('wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"', false)
-            ->assertSee('wire:loading.remove wire:target="refreshLaserCameraAndAlign"', false)
-            ->assertSee('wire:loading wire:target="refreshLaserCameraAndAlign"', false)
-            ->assertSee('wire:loading.remove wire:target="sendJobDirectlyToLaser"', false)
-            ->assertSee('wire:loading wire:target="sendJobDirectlyToLaser"', false)
-            ->assertSee('wire:loading wire:target="triggerLaserFraming"', false)
+            ->assertSee('wire:loading.class="invisible" wire:target="refreshLaserCameraAndAlign"', false)
+            ->assertSee('wire:loading.flex wire:target="refreshLaserCameraAndAlign"', false)
+            ->assertSee('wire:loading.class="invisible" wire:target="sendJobDirectlyToLaser"', false)
+            ->assertSee('wire:loading.flex wire:target="sendJobDirectlyToLaser"', false)
+            ->assertSee('wire:loading.class="invisible" wire:target="triggerLaserFraming"', false)
+            ->assertSee('wire:loading.flex wire:target="triggerLaserFraming"', false)
             ->assertDontSee(" \u{2013} ")
             ->assertSee('Weiter zur Verpackung')
             ->assertDontSee('Status / Optionen')
@@ -1174,9 +1175,13 @@ class XtoolLaserCockpitTest extends TestCase
             $queueState = app(XtoolLaserCockpitService::class)->getQueueState(false);
             $this->assertSame(118.0, (float) $queueState['pending_jobs'][0]['width_mm']);
             $this->assertSame(118.0, (float) $queueState['pending_jobs'][0]['height_mm']);
-            // 100.0 - (118.0 / 2) = 41.000 mm bis 159.000 mm
-            $this->assertStringContainsString('G0X41.000Y41.000', $queueState['pending_jobs'][0]['border_gcode']);
-            $this->assertStringContainsString('G1X159.000Y41.000', $queueState['pending_jobs'][0]['border_gcode']);
+            // 100.0 +/- (118.0 / 2) = 41.000 mm bis 159.000 mm (1:1 Kreis-Kontur startet rechts bei X159.000Y100.000 und läuft links bis X41.000Y100.000)
+            $this->assertStringContainsString('G0X159.000Y100.000', $queueState['pending_jobs'][0]['border_gcode']);
+            $this->assertStringContainsString('G1X41.000Y100.000', $queueState['pending_jobs'][0]['border_gcode']);
+
+            $rectXf = app(XtoolLaserCockpitService::class)->generateXfPackageBytes($item->fresh(), 'front', null, null, 0.0, null, null, 'rect');
+            $this->assertStringContainsString('G0X41.000Y41.000', $rectXf['border_gcode']);
+            $this->assertStringContainsString('G1X159.000Y41.000', $rectXf['border_gcode']);
 
             $xfScaled = app(XtoolLaserCockpitService::class)->generateXfPackageBytes($item->fresh(), 'front');
             $maxRadius = 0.0;
@@ -1585,9 +1590,9 @@ class XtoolLaserCockpitTest extends TestCase
         $this->assertStringNotContainsString('min-w-[220px]', $renderedHtml);
         $this->assertStringNotContainsString('sm:flex-row sm:items-end justify-between gap-2 pt-0.5', $renderedHtml);
 
-        // 6b. Validierte Handbuch-Presets (PDF 1 & 2) sind in Schritt 1 wählbar
-        $this->assertStringContainsString('data-sf-handbook-presets=', $renderedHtml);
-        $this->assertStringContainsString('Handbuch-Preset', $renderedHtml);
+        // 6b. Produkt-Profile sind in Schritt 1 wählbar
+        $this->assertStringContainsString('data-sf-product-profiles=', $renderedHtml);
+        $this->assertStringContainsString('Produkt-Profil', $renderedHtml);
 
         $component->call('resetOrderItemLaserParameters', $item->id, 'front')
             ->assertDispatched('laser-params-sync');
@@ -1702,14 +1707,15 @@ class XtoolLaserCockpitTest extends TestCase
         $this->assertStringContainsString('getCockpitStageTransformStyle()', $html);
         $this->assertStringContainsString('window.__sfLaserCockpitZoom', $html);
 
-        // 3. Exakte 1:1 Maus-Geometrie bei aktivem Zoom: ausschließlich getBoundingClientRect() auf bedStage/bedViewport, kein offsetWidth/clientWidth-Mix
+        // 3. Exakte 1:1 Maus-Geometrie bei aktivem Zoom im Laser-Cockpit: ausschließlich getBoundingClientRect() auf bedStage/bedViewport, kein offsetWidth/clientWidth-Mix
+        $cockpitSource = (string) file_get_contents(resource_path('views/livewire/shop/order/order-offer-detail-partials/laser-cockpit-card.blade.php'));
         $this->assertStringContainsString('data-cockpit-bed-stage', $html);
         $this->assertStringContainsString('data-cockpit-blue-frame', $html);
-        $this->assertStringContainsString('this.$refs.bedStage.getBoundingClientRect()', $html);
-        $this->assertStringNotContainsString('offsetWidth', $html);
-        $this->assertStringNotContainsString('clientWidth', $html);
-        $this->assertStringNotContainsString('offsetHeight', $html);
-        $this->assertStringNotContainsString('clientHeight', $html);
+        $this->assertStringContainsString('this.$refs.bedStage.getBoundingClientRect()', $cockpitSource);
+        $this->assertStringNotContainsString('offsetWidth', $cockpitSource);
+        $this->assertStringNotContainsString('clientWidth', $cockpitSource);
+        $this->assertStringNotContainsString('offsetHeight', $cockpitSource);
+        $this->assertStringNotContainsString('clientHeight', $cockpitSource);
 
         // 4. Kompakte Dreh- und Eck-Anfasser via scale(1 / cockpitZoom) ohne Tailwind Doppel-Translation & 0 KI-Gedankenstriche
         $this->assertStringContainsString('data-rotate-handle', $html);
@@ -1864,16 +1870,17 @@ class XtoolLaserCockpitTest extends TestCase
         $pfoteAfterSecondRun = Product::where('slug', 'seelen-pfote-hundemarke')->firstOrFail()->getRawOriginal('configurator_settings');
         $this->assertSame($pfoteBeforeSecondRun, $pfoteAfterSecondRun);
 
-        // 1. Alle 3 Gold-Edelstahl-Produkte besitzen exakt die geforderten Lamellenrost-Profile
+        // 1. Alle 3 Gold-Edelstahl-Produkte besitzen exakt ihr 1 klares Master-Profil
         foreach (['seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'seelen-talisman'] as $slug) {
+            $expectedFocus = ($slug === 'seelen-talisman') ? 19.5 : 21.5;
             $prod = Product::where('slug', $slug)->firstOrFail();
             $profiles = $prod->getLaserProfiles();
-            $this->assertGreaterThanOrEqual(3, count($profiles), "{$slug} muss mindestens 3 Profile besitzen");
+            $this->assertCount(1, $profiles, "{$slug} soll exakt 1 Master-Profil besitzen");
 
             $p1 = $profiles[0];
             $this->assertTrue($p1['is_default']);
             $this->assertSame('Schwarz (Anlass-Gravur 100 kHz)', $p1['title']);
-            $this->assertSame(21.5, (float) $p1['focus_mm']);
+            $this->assertSame($expectedFocus, (float) $p1['focus_mm']);
             $this->assertSame(95, (int) $p1['power_percent']);
             $this->assertSame(1100, (int) $p1['dot_duration_us']);
             $this->assertSame(1270, (int) $p1['dpi']);
@@ -1883,31 +1890,9 @@ class XtoolLaserCockpitTest extends TestCase
             $this->assertSame('Schwellenwert', $p1['bitmap_mode']);
             $this->assertSame('Bidirektional', $p1['engrave_mode']);
 
-            $p2 = $profiles[1];
-            $this->assertFalse($p2['is_default']);
-            $this->assertSame('Cockpit-Sweetspot 65 kHz', $p2['title']);
-            $this->assertSame(20.9, (float) $p2['focus_mm']);
-            $this->assertSame(45, (int) $p2['power_percent']);
-            $this->assertSame(210, (int) $p2['dot_duration_us']);
-            $this->assertSame(800, (int) $p2['dpi']);
-            $this->assertSame(65, (int) $p2['frequency_khz']);
-            $this->assertSame(110, (int) $p2['speed_mms']);
-            $this->assertSame('Jarvis', $p2['bitmap_mode']);
-
-            $p3 = $profiles[2];
-            $this->assertFalse($p3['is_default']);
-            $this->assertSame('Weiß / Silber-Kontrast', $p3['title']);
-            $this->assertSame(19.5, (float) $p3['focus_mm']);
-            $this->assertSame(45, (int) $p3['power_percent']);
-            $this->assertSame(210, (int) $p3['dot_duration_us']);
-            $this->assertSame(600, (int) $p3['dpi']);
-            $this->assertSame(40, (int) $p3['frequency_khz']);
-            $this->assertSame(550, (int) $p3['speed_mms']);
-            $this->assertSame('Jarvis', $p3['bitmap_mode']);
-
             // Rückwärtskompatible Synchronisation der primären Produkt-Felder
             $cfg = $prod->configurator_settings;
-            $this->assertSame(21.5, (float) $cfg['xtool_focus_mm']);
+            $this->assertSame($expectedFocus, (float) $cfg['xtool_focus_mm']);
             $this->assertSame(95, (int) $cfg['xtool_power_percent']);
             $this->assertSame(1100, (int) $cfg['xtool_dot_duration_us']);
             $this->assertSame(1270, (int) $cfg['xtool_dpi']);
@@ -1916,14 +1901,16 @@ class XtoolLaserCockpitTest extends TestCase
             $this->assertSame('Schwellenwert', $cfg['xtool_bitmap_mode']);
         }
 
-        // 2. Seelen Kristall behält unantastbar die 33,1 mm / 32,8 mm Master-Referenz
+        // 2. Seelen Kristall nutzt das einzige überarbeitete K9-Seidenmatt-Frost-Profil inkl. invert:true
         $kristall = Product::where('slug', 'seelen-kristall')->firstOrFail();
         $kristallProfiles = $kristall->getLaserProfiles();
-        $this->assertSame(33.1, (float) $kristall->configurator_settings['xtool_focus_mm']);
-        $this->assertSame(33.1, (float) $kristallProfiles[0]['focus_mm']);
-        $this->assertSame(32.8, (float) $kristallProfiles[1]['focus_mm']);
+        $this->assertCount(1, $kristallProfiles);
+        $this->assertSame('Außen Seidenmatt-Frost (Überarbeitet)', $kristallProfiles[0]['title']);
+        $this->assertSame(32.7, (float) $kristall->configurator_settings['xtool_focus_mm']);
+        $this->assertSame(32.7, (float) $kristallProfiles[0]['focus_mm']);
+        $this->assertTrue($kristallProfiles[0]['photo_studio']['invert'] ?? false);
 
-        // 3. Produkt-Editor Schritt 4.2 rendert das Accordion & synchronisiert beim Umschalten des Standards die Primärfelder
+        // 3. Produkt-Editor Schritt 4.2 rendert das Accordion & synchronisiert beim Anlegen/Umschalten eines zweiten Admin-Profils die Primärfelder
         $pfote = Product::where('slug', 'seelen-pfote-hundemarke')->firstOrFail();
         $prodEditor = Livewire::actingAs($admin, 'admin')
             ->test(\App\Livewire\Shop\Product\ProductCreate::class)
@@ -1943,7 +1930,24 @@ class XtoolLaserCockpitTest extends TestCase
 
         $editedProfiles = $pfote->getLaserProfiles();
         $editedProfiles[0]['is_default'] = false;
-        $editedProfiles[2]['is_default'] = true; // Weiß / Silber-Kontrast (19.5 mm) wird Standard
+        $editedProfiles[] = [
+            'id'              => 'custom_admin_test_19_5',
+            'title'           => 'Eigenes Testprofil 19,5 mm',
+            'is_default'      => true,
+            'focus_mm'        => 19.5,
+            'element_type'    => 'Bild',
+            'engrave_tab'     => 'Gravieren',
+            'preset_mode'     => 'Benutzerdefiniert',
+            'dot_duration_us' => 210,
+            'power_percent'   => 45,
+            'dpi'             => 600,
+            'frequency_khz'   => 40,
+            'speed_mms'       => 550,
+            'passes'          => 1,
+            'bitmap_mode'     => 'Jarvis',
+            'engrave_mode'    => 'Bidirektional',
+            'vector_note'     => 'Gravieren · 28 % · 550 mm/s · 300 Linien/cm · 40 kHz',
+        ];
         $prodEditor->set('configSettings.xtool_profiles', $editedProfiles)
             ->call('save');
 
@@ -1954,15 +1958,18 @@ class XtoolLaserCockpitTest extends TestCase
         $this->assertSame(600, (int) $pfoteReloaded->configurator_settings['xtool_dpi']);
         $this->assertSame(550, (int) $pfoteReloaded->configurator_settings['xtool_speed_mms']);
 
-        // 4. Schritt-1-Cockpit zeigt Produkt-Profile ganz oben, lädt Profil sofort & speichert neues benanntes Profil am Produkt
+        // 4. Schritt-1-Cockpit zeigt Produkt-Profil ganz oben (ohne Werkstoff-Ballast), größere Vorschau, Lineal-A & STOP-Button
         [$order, $item] = $this->createSampleOrderWithItem($pfoteReloaded);
         $cockpitComp = Livewire::actingAs($admin, 'admin')
             ->test(OrderOverview::class)
             ->call('openDetail', $order->id)
-            ->assertSee('Produkt-Profile')
+            ->assertSee('Produkt-Profil')
+            ->assertDontSee('Naturschiefer')
             ->assertSee('Schwarz (Anlass-Gravur 100 kHz)')
-            ->assertSee('Cockpit-Sweetspot 65 kHz')
-            ->assertSee('Weiß / Silber-Kontrast')
+            ->assertSee('Eigenes Testprofil 19,5 mm')
+            ->assertSee('data-sf-autofocus-btn', false)
+            ->assertSee('data-sf-laser-stop-btn', false)
+            ->assertSee('max-w-[680px]', false)
             ->assertSee('+ Als Produkt-Profil speichern');
 
         // Wechsel auf Profil 1 (Schwarz 100 kHz -> 21,5 mm) im Cockpit
@@ -2135,5 +2142,78 @@ class XtoolLaserCockpitTest extends TestCase
                 'Verbotener KI-Gedankenstrich in ' . basename($filePath) . ' gefunden!'
             );
         }
+    }
+
+    #[Test]
+    public function it_defaults_camera_light_mode_to_normal_and_keeps_elongated_blank_upright_on_cached_background(): void
+    {
+        $this->assertSame('normal', XtoolLaserCockpitService::normalizeCameraLightMode(null));
+        $this->assertSame('normal', XtoolLaserCockpitService::normalizeCameraLightMode(''));
+        $this->assertSame('anti_glare', XtoolLaserCockpitService::normalizeCameraLightMode('anti_glare'));
+        $this->assertSame('dim', XtoolLaserCockpitService::normalizeCameraLightMode('dim'));
+
+        $product = Product::create([
+            'name'        => 'Seelen-Talisman Winkel-Test',
+            'slug'        => 'seelen-talisman-angle-guard-' . Str::lower(Str::random(5)),
+            'type'        => 'physical',
+            'status'      => 'active',
+            'price'       => 2990,
+            'width'       => 28,
+            'height'      => 50,
+            'length'      => 2,
+            'weight'      => 15,
+            'configurator_settings' => [
+                'allow_personalization' => true,
+                'overlay_type'          => 'plane',
+                'xtool_plane_width'     => 28.0,
+                'xtool_plane_height'    => 50.0,
+                'xtool_contour_shape'   => 'dogtag_talisman',
+                'area_shape'            => 'custom',
+            ],
+        ]);
+
+        // Fake gecachtes Hintergrundbild mit schraegen/asymmetrischen Lamellen-Reflexen
+        $publicDisk = Storage::disk('public');
+        $bgPath = $publicDisk->path('bestellungen/xtool/background.jpg');
+        @mkdir(dirname($bgPath), 0777, true);
+        $img = imagecreatetruecolor(400, 400);
+        imagefill($img, 0, 0, imagecolorallocate($img, 35, 38, 42));
+        for ($x = 120; $x <= 280; $x += 20) {
+            imagefilledrectangle($img, $x, 30, $x + 8, 340, imagecolorallocate($img, 185, 185, 190));
+        }
+        imagefilledellipse($img, 200, 200, 240, 240, imagecolorallocate($img, 220, 220, 220));
+        imagejpeg($img, $bgPath, 90);
+        imagedestroy($img);
+
+        $cockpit = app(XtoolLaserCockpitService::class);
+        $detected = $cockpit->detectBlankPositionOnBed($product, [], 'front', false);
+
+        $this->assertSame(0.0, (float) ($detected['angle_deg'] ?? -1.0));
+        $this->assertSame('normal', $detected['light_mode']);
+    }
+
+    #[Test]
+    public function it_preselects_default_product_profile_for_talisman_19_5mm_and_uses_zero_jitter_loading_buttons(): void
+    {
+        $this->seed(\Database\Seeders\ProductSeeder::class);
+        $admin = $this->createAdmin();
+        $product = Product::where('slug', 'seelen-talisman')->firstOrFail();
+        [, $item] = $this->createSampleOrderWithItem($product);
+
+        $cockpit = app(XtoolLaserCockpitService::class);
+        $lp = $cockpit->resolveEffectiveLaserParameters($item, 'front');
+        $this->assertSame(19.5, (float) ($lp['focus_mm'] ?? 0.0));
+        $this->assertSame('prof_schwarz_100khz', (string) ($lp['active_profile_id'] ?? ''));
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $item->order_id);
+
+        $html = $component->html();
+        $this->assertStringContainsString('value="profile:prof_schwarz_100khz" selected', $html);
+        $this->assertStringContainsString('wire:loading.class="invisible" wire:target="refreshLaserCameraAndAlign"', $html);
+        $this->assertStringContainsString('wire:loading.class="invisible" wire:target="sendJobDirectlyToLaser"', $html);
+        $this->assertStringContainsString('wire:loading.flex wire:target="refreshLaserCameraAndAlign"', $html);
+        $this->assertStringContainsString('wire:loading.flex wire:target="sendJobDirectlyToLaser"', $html);
     }
 }

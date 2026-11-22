@@ -58,7 +58,16 @@ namespace FunkenwerkCraft
                 if (e.Args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
                 {
                     EnsureConsoleAttached();
-                    int code = await CraftEngine.RunSelfTestAsync();
+                    int code = 1;
+                    try
+                    {
+                        code = await CraftEngine.RunSelfTestAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"FATAL SELF-TEST ERROR: {ex}");
+                        Console.Error.Flush();
+                    }
                     Environment.Exit(code);
                     return;
                 }

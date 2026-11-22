@@ -2,14 +2,17 @@
 
 namespace App\Livewire\Shop\Order;
 
+use App\Livewire\Traits\WithDepartmentTheming;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderQuoteRequest;
 use App\Models\Order\OrderRevocation;
+use App\Services\AI\AiAuthHelper;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
-use App\Livewire\Traits\WithDepartmentTheming;
 
 #[Layout('components.layouts.backend_layout')]
 class OrderAnalytics extends Component
@@ -18,355 +21,441 @@ class OrderAnalytics extends Component
 
     public string $themingDepartment = 'Bestellungen';
 
-    // Filters
-    public $dateRange = '30'; // 7, 30, 90, 365, all
-    
+    private const ALLOWED_DATE_RANGES = ['7', '30', '90', '365', 'all'];
+    private const EXCLUDED_PAID_STATUSES = ['cancelled', 'refunded', 'failed'];
 
-    // Processed Chart Data
-    public array $b2bData = [];
-    public array $processingData = [];
-    public array $peakTimesData = [];
-    public array $retentionData = [];
-    public array $cancellationData = [];
-    public array $bestsellerData = [];
-    public array $weekdayData = [];
-    public array $quotesData = [];
-    public array $revocationsData = [];
+    #[Url]
+    public string $dateRange = '30';
+
+    // Headline KPIs
+    public int $kpiPaidOrdersCount = 0;
+    public float $kpiGrossRevenueEuro = 0.0;
+    public float $kpiAvgOrderValueEuro = 0.0;
+    public float $kpiCancelRevokeRate = 0.0;
+
+    // Chart Payloads
+    public array $b2bChartData = ['labels' => ['B2C (Privat)', 'B2B (Gewerbe)'], 'data' => [0, 0]];
+    public array $processingTimeData = ['labels' => [], 'data' => []];
+    public array $peakTimesData = ['labels' => [], 'data' => []];
+    public array $retentionData = ['labels' => ['Wiederkehrend', 'Neukunden'], 'data' => [0, 0]];
+    public array $cancellationData = ['labels' => [], 'data' => []];
+    public array $bestsellerData = ['labels' => [], 'data' => []];
+    public array $weekdayData = ['labels' => [], 'data' => []];
+    public array $quotesChartData = ['labels' => [], 'data' => []];
+    public array $revocationsChartData = ['labels' => [], 'data' => []];
 
     public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            abort(403);
+        if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+            abort(403, 'Zugriff verweigert: Nur für autorisiertes Personal.');
+        }
+
+        if (!in_array($this->dateRange, self::ALLOWED_DATE_RANGES, true)) {
+            $this->dateRange = '30';
         }
     }
 
-    public function mount()
+    public function mount(): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            abort(403);
-        }
-
         $this->calculateMetrics();
     }
 
-    public function calculateMetrics()
+    public function updatedDateRange(): void
     {
-        $query = OrderOrder::query()
-            ->with(['items.product']);
-
-        // Date Filtering
-        if ($this->dateRange !== 'all') {
-            $days = in_array((int)$this->dateRange, [7, 30, 90, 365], true) ? (int)$this->dateRange : 30;
-            $query->where('created_at', '>=', now()->subDays($days));
+        if (!in_array($this->dateRange, self::ALLOWED_DATE_RANGES, true)) {
+            $this->dateRange = '30';
         }
 
-        // We fetch the collection to do complex grouping/JSON analytics in memory 
-        // because JSON extraction in raw MySQL can be inconsistent across environments.
-        $orders = $query->get();
-
-        $this->computeB2bRatio($orders);
-        $this->computeProcessingTime($orders);
-        $this->computePeakTimes($orders);
-        $this->computeRetentionRate($orders);
-        $this->computeCancellationDrain($orders);
-        $this->computeBestsellers($orders);
-        $this->computeWeekdayVolume($orders);
-        $this->computeQuotes();
-        $this->computeRevocations();
-        
-        // Let the Alpine/Chart.js frontend know data has refreshed
+        $this->calculateMetrics();
         $this->dispatch('analytics-updated');
     }
 
-    public function updatedDateRange()
+    public function calculateMetrics(): void
     {
-        $this->calculateMetrics();
-    }
+        $now = Carbon::now()->endOfDay();
 
-    private function computeB2bRatio($orders)
-    {
-        $b2b = 0;
-        $b2c = 0;
-
-        foreach ($orders as $order) {
-            if (($order->payment_status ?? '') !== 'paid') {
-                continue;
-            }
-            $isB2b = !empty($order->billing_address['company'] ?? null);
-            if ($isB2b) {
-                $b2b++;
-            } else {
-                $b2c++;
-            }
+        if ($this->dateRange === 'all') {
+            $earliest = array_filter([
+                OrderOrder::min('created_at'),
+                OrderQuoteRequest::min('created_at'),
+                OrderRevocation::min('created_at'),
+            ]);
+            $startDate = !empty($earliest)
+                ? Carbon::parse(min($earliest))->startOfDay()
+                : Carbon::now()->subDays(30)->startOfDay();
+        } else {
+            $days = max(1, (int) $this->dateRange);
+            $startDate = Carbon::now()->subDays($days)->startOfDay();
         }
 
-        $this->b2bData = [
-            'labels' => ['B2C (Privat)', 'B2B (Geschäfts.)'],
-            'data' => [$b2c, $b2b]
-        ];
-    }
+        $groupByMonth = in_array($this->dateRange, ['365', 'all'], true) && $startDate->diffInDays($now) > 90;
 
-    private function computeProcessingTime($orders)
-    {
-        // Focus only on shipped or completed orders to measure actual fulfillment time
-        $fulfilledOrders = $orders->filter(function($order) {
-            return in_array($order->status, ['shipped', 'completed']);
+        $orders = OrderOrder::with(['items', 'shipments:id,order_id,created_at'])
+            ->whereBetween('created_at', [$startDate, $now])
+            ->get();
+
+        $quotes = OrderQuoteRequest::whereBetween('created_at', [$startDate, $now])->get(['id', 'created_at']);
+        $revocations = OrderRevocation::whereBetween('created_at', [$startDate, $now])->get(['id', 'created_at']);
+
+        $validPaidOrders = $orders->filter(function ($o) {
+            return $o->payment_status === 'paid'
+                && !in_array((string) $o->status, self::EXCLUDED_PAID_STATUSES, true);
         });
 
-        // Group by Date (Y-m-d)
-        $grouped = $fulfilledOrders->groupBy(function($order) {
-            return $order->created_at->format('Y-m-d');
-        })->sortKeys();
+        // 0. Headline KPIs
+        $this->kpiPaidOrdersCount = $validPaidOrders->count();
+        $grossCents = (int) $validPaidOrders->sum('total_price');
+        $this->kpiGrossRevenueEuro = round($grossCents / 100.0, 2);
+        $this->kpiAvgOrderValueEuro = $this->kpiPaidOrdersCount > 0
+            ? round($this->kpiGrossRevenueEuro / $this->kpiPaidOrdersCount, 2)
+            : 0.0;
 
-        $labels = [];
-        $avgTimesRaw = [];
+        $cancelledOrRefundedCount = $orders->filter(
+            fn ($o) => in_array((string) $o->status, ['cancelled', 'refunded'], true)
+        )->count();
+        $problemCount = $cancelledOrRefundedCount + $revocations->count();
+        $totalBase = max(1, $orders->count());
+        $this->kpiCancelRevokeRate = $orders->count() > 0
+            ? round(min(100.0, ($problemCount / $totalBase) * 100.0), 1)
+            : 0.0;
 
-        foreach ($grouped as $date => $dailyOrders) {
-            $totalHours = 0;
-            $count = 0;
-            
-            foreach ($dailyOrders as $order) {
-                // If it's shipped, updated_at typically represents the fulfillment timestamp
-                $totalHours += abs($order->created_at->diffInHours($order->updated_at));
-                $count++;
-            }
+        // Charts
+        $this->computeB2bRatio($validPaidOrders);
+        $this->computeProcessingTime($orders, $startDate, $now, $groupByMonth);
+        $this->computePeakTimes($validPaidOrders);
+        $this->computeRetentionRate($validPaidOrders);
+        $this->computeCancellationDrain($orders, $startDate, $now, $groupByMonth);
+        $this->computeBestsellers($validPaidOrders);
+        $this->computeWeekdayVolume($validPaidOrders);
+        $this->computeQuotesTimeline($quotes, $startDate, $now, $groupByMonth);
+        $this->computeRevocationsTimeline($revocations, $startDate, $now, $groupByMonth);
+    }
 
-            if ($count > 0) {
-                $labels[] = Carbon::parse($date)->format('d.m.');
-                $avgTimesRaw[] = round($totalHours / $count, 1);
+    protected function buildEmptyTimeline(Carbon $from, Carbon $to, bool $groupByMonth): array
+    {
+        $map = [];
+        $cursor = $groupByMonth ? $from->copy()->startOfMonth() : $from->copy();
+        while ($cursor->lte($to)) {
+            $key = $groupByMonth ? $cursor->format('m/Y') : $cursor->format('d.m.');
+            $map[$key] = 0.0;
+            $cursor = $groupByMonth ? $cursor->addMonth() : $cursor->addDay();
+        }
+
+        return $map;
+    }
+
+    private function computeB2bRatio(Collection $validPaidOrders): void
+    {
+        $b2bCount = 0;
+        $b2cCount = 0;
+
+        foreach ($validPaidOrders as $order) {
+            $billing = is_array($order->billing_address) ? $order->billing_address : [];
+            if (!empty(trim((string) ($billing['company'] ?? '')))) {
+                $b2bCount++;
+            } else {
+                $b2cCount++;
             }
         }
 
-        $this->processingData = [
-            'labels' => $labels,
-            'data' => $avgTimesRaw
+        $this->b2bChartData = [
+            'labels' => ['B2C (Privat)', 'B2B (Gewerbe)'],
+            'data' => [$b2cCount, $b2bCount],
         ];
     }
 
-    private function computePeakTimes($orders)
+    private function computeProcessingTime(Collection $orders, Carbon $from, Carbon $to, bool $groupByMonth): void
     {
-        // Group by hour of day (0-23)
-        $hourCounts = array_fill(0, 24, 0);
+        $completed = $orders->filter(fn ($o) => in_array((string) $o->status, ['shipped', 'completed'], true));
 
-        foreach ($orders as $order) {
-            if (($order->payment_status ?? '') !== 'paid') {
+        $buckets = [];
+        $cursor = $groupByMonth ? $from->copy()->startOfMonth() : $from->copy();
+        while ($cursor->lte($to)) {
+            $key = $groupByMonth ? $cursor->format('m/Y') : $cursor->format('d.m.');
+            $buckets[$key] = [];
+            $cursor = $groupByMonth ? $cursor->addMonth() : $cursor->addDay();
+        }
+
+        foreach ($completed as $order) {
+            if (!$order->created_at) {
                 continue;
             }
-            $hour = (int)$order->created_at->format('H');
-            $hourCounts[$hour]++;
+
+            $earliestShipment = $order->relationLoaded('shipments')
+                ? $order->shipments->sortBy('created_at')->first()
+                : null;
+
+            $finishTime = ($earliestShipment && $earliestShipment->created_at)
+                ? $earliestShipment->created_at
+                : $order->updated_at;
+
+            if (!$finishTime) {
+                continue;
+            }
+
+            $hours = round(max(0.0, $order->created_at->diffInMinutes($finishTime, false)) / 60.0, 1);
+            $key = $groupByMonth ? $order->created_at->format('m/Y') : $order->created_at->format('d.m.');
+            if (array_key_exists($key, $buckets)) {
+                $buckets[$key][] = $hours;
+            }
         }
 
         $labels = [];
-        for ($i=0; $i<24; $i++) {
-            $labels[] = str_pad($i, 2, '0', STR_PAD_LEFT) . ':00';
+        $data = [];
+        foreach ($buckets as $key => $hoursList) {
+            if (!empty($hoursList)) {
+                $labels[] = $key;
+                $data[] = round(array_sum($hoursList) / count($hoursList), 1);
+            }
+        }
+
+        $this->processingTimeData = [
+            'labels' => $labels,
+            'data' => $data,
+        ];
+    }
+
+    private function computePeakTimes(Collection $validPaidOrders): void
+    {
+        $hours = array_fill(0, 24, 0);
+
+        foreach ($validPaidOrders as $order) {
+            if ($order->created_at) {
+                $hour = (int) $order->created_at->format('G');
+                $hours[$hour]++;
+            }
+        }
+
+        $labels = [];
+        for ($i = 0; $i < 24; $i++) {
+            $labels[] = str_pad((string) $i, 2, '0', STR_PAD_LEFT) . ':00';
         }
 
         $this->peakTimesData = [
             'labels' => $labels,
-            'data' => $hourCounts
+            'data' => array_values($hours),
         ];
     }
 
-    private function computeRetentionRate($orders)
+    private function computeRetentionRate(Collection $validPaidOrders): void
     {
-        $newCustomers = 0;
-        $returningCustomers = 0;
+        if ($validPaidOrders->isEmpty()) {
+            $this->retentionData = [
+                'labels' => ['Wiederkehrend', 'Neukunden'],
+                'data' => [0, 0],
+            ];
 
-        foreach ($orders as $order) {
-            if (($order->payment_status ?? '') !== 'paid') {
+            return;
+        }
+
+        $customerIds = $validPaidOrders->pluck('customer_id')->filter()->unique()->values()->all();
+        $emails = $validPaidOrders->map(function ($o) {
+            $raw = $o->email ?: ($o->billing_address['email'] ?? null);
+
+            return is_string($raw) && trim($raw) !== '' ? mb_strtolower(trim($raw)) : null;
+        })->filter()->unique()->values()->all();
+
+        $firstByCustomerId = [];
+        if (!empty($customerIds)) {
+            $rows = OrderOrder::query()
+                ->select('customer_id', DB::raw('MIN(created_at) as first_at'))
+                ->where('payment_status', 'paid')
+                ->whereNotIn('status', self::EXCLUDED_PAID_STATUSES)
+                ->whereIn('customer_id', $customerIds)
+                ->groupBy('customer_id')
+                ->get();
+            foreach ($rows as $r) {
+                if ($r->customer_id && $r->first_at) {
+                    $firstByCustomerId[(string) $r->customer_id] = Carbon::parse($r->first_at);
+                }
+            }
+        }
+
+        $firstByEmail = [];
+        if (!empty($emails)) {
+            $rows = OrderOrder::query()
+                ->select(DB::raw('LOWER(email) as norm_email'), DB::raw('MIN(created_at) as first_at'))
+                ->where('payment_status', 'paid')
+                ->whereNotIn('status', self::EXCLUDED_PAID_STATUSES)
+                ->whereNotNull('email')
+                ->whereIn(DB::raw('LOWER(email)'), $emails)
+                ->groupBy(DB::raw('LOWER(email)'))
+                ->get();
+            foreach ($rows as $r) {
+                if ($r->norm_email && $r->first_at) {
+                    $firstByEmail[(string) $r->norm_email] = Carbon::parse($r->first_at);
+                }
+            }
+        }
+
+        $returningOrders = 0;
+        $newOrders = 0;
+
+        foreach ($validPaidOrders as $order) {
+            if (!$order->created_at) {
+                $newOrders++;
                 continue;
             }
-            $email = $order->email ?? ($order->shipping_address['email'] ?? ($order->billing_address['email'] ?? null));
-            $customerId = $order->customer_id ?? null;
 
-            if ($email || $customerId) {
-                // Check if this customer has a paid order BEFORE this specific order's creation date
-                $hasPrior = OrderOrder::where(function ($q) use ($email, $customerId) {
-                        if ($customerId) {
-                            $q->orWhere('customer_id', $customerId);
-                        }
-                        if ($email) {
-                            $q->orWhere('email', $email)
-                              ->orWhere('shipping_address->email', $email)
-                              ->orWhere('billing_address->email', $email);
-                        }
-                    })
-                    ->where('payment_status', 'paid')
-                    ->whereNotIn('status', ['cancelled', 'refunded'])
-                    ->where('created_at', '<', $order->created_at)
-                    ->exists();
+            $cid = $order->customer_id ? (string) $order->customer_id : null;
+            $rawEmail = $order->email ?: ($order->billing_address['email'] ?? null);
+            $normEmail = is_string($rawEmail) && trim($rawEmail) !== '' ? mb_strtolower(trim($rawEmail)) : null;
 
-                if ($hasPrior) {
-                    $returningCustomers++;
-                } else {
-                    $newCustomers++;
+            $earliestAt = null;
+            if ($cid && isset($firstByCustomerId[$cid])) {
+                $earliestAt = $firstByCustomerId[$cid];
+            }
+            if ($normEmail && isset($firstByEmail[$normEmail])) {
+                $cand = $firstByEmail[$normEmail];
+                if ($earliestAt === null || $cand->lt($earliestAt)) {
+                    $earliestAt = $cand;
                 }
+            }
+
+            if ($earliestAt !== null && $earliestAt->lt($order->created_at)) {
+                $returningOrders++;
             } else {
-                $newCustomers++; // Fallback if no email is attached natively
+                $newOrders++;
             }
         }
 
         $this->retentionData = [
-            'labels' => ['Stammkunden', 'Neukunden'],
-            'data' => [$returningCustomers, $newCustomers]
+            'labels' => ['Wiederkehrend', 'Neukunden'],
+            'data' => [$returningOrders, $newOrders],
         ];
     }
 
-    private function computeCancellationDrain($orders)
+    private function computeCancellationDrain(Collection $orders, Carbon $from, Carbon $to, bool $groupByMonth): void
     {
-        $cancelledOrders = $orders->filter(function($order) {
-            return in_array($order->status, ['cancelled', 'refunded', 'failed']);
+        $lostOrders = $orders->filter(function ($o) {
+            return in_array((string) $o->status, ['cancelled', 'refunded'], true)
+                || (string) $o->payment_status === 'failed';
         });
 
-        // Group by Date for timeline analysis
-        $grouped = $cancelledOrders->groupBy(function($order) {
-            return $order->created_at->format('Y-m-d');
-        })->sortKeys();
+        $timeline = $this->buildEmptyTimeline($from, $to, $groupByMonth);
 
-        $labels = [];
-        $moneyRaw = [];
-        $totalLost = 0;
-
-        foreach ($grouped as $date => $dailyOrders) {
-            $sum = 0;
-            foreach ($dailyOrders as $order) {
-                $sum += ((int) ($order->total_price ?? 0)) / 100;
+        foreach ($lostOrders as $order) {
+            if (!$order->created_at) {
+                continue;
             }
-            $labels[] = Carbon::parse($date)->format('d.m.');
-            $moneyRaw[] = round($sum, 2);
-            $totalLost += $sum;
+            $key = $groupByMonth ? $order->created_at->format('m/Y') : $order->created_at->format('d.m.');
+            if (array_key_exists($key, $timeline)) {
+                $timeline[$key] = round($timeline[$key] + (((int) $order->total_price) / 100.0), 2);
+            }
         }
 
         $this->cancellationData = [
-            'labels' => $labels,
-            'data' => $moneyRaw,
-            'total_lost' => round($totalLost, 2)
+            'labels' => array_keys($timeline),
+            'data' => array_values($timeline),
         ];
     }
 
-    private function computeBestsellers($orders)
+    private function computeBestsellers(Collection $validPaidOrders): void
     {
-        $productCounts = [];
-        $productNames = [];
+        $productSales = [];
 
-        foreach ($orders as $order) {
-            // Only count successfully sold & paid metrics
-            if (($order->payment_status ?? '') === 'paid' && !in_array($order->status, ['cancelled', 'failed', 'refunded'])) {
-                foreach ($order->items as $item) {
-                    if ($item->product || $item->product_id) {
-                        $pid = $item->product_id;
-                        if (!isset($productCounts[$pid])) {
-                            $productCounts[$pid] = 0;
-                            // Ensure string length is safely capped for Chart arrays
-                            $productNames[$pid] = mb_strimwidth($item->product->name ?? ($item->product_name ?? 'Unbekannt'), 0, 20, '...');
-                        }
-                        $productCounts[$pid] += $item->quantity;
-                    }
+        foreach ($validPaidOrders as $order) {
+            foreach ($order->items as $item) {
+                $pName = trim((string) ($item->product_name ?: 'Unbekanntes Produkt'));
+                $pid = $item->product_id
+                    ? 'prod_' . $item->product_id
+                    : 'custom_' . md5(mb_strtolower($pName));
+
+                if (!isset($productSales[$pid])) {
+                    $productSales[$pid] = [
+                        'name' => $pName,
+                        'qty' => 0,
+                    ];
                 }
+                $productSales[$pid]['qty'] += max(0, (int) $item->quantity);
             }
         }
 
-        // Sort descending
-        arsort($productCounts);
-        $top5Ids = array_slice(array_keys($productCounts), 0, 5);
+        usort($productSales, fn ($a, $b) => $b['qty'] <=> $a['qty']);
+        $top5 = array_slice($productSales, 0, 5);
 
         $labels = [];
         $data = [];
-
-        foreach ($top5Ids as $id) {
-            $labels[] = $productNames[$id];
-            $data[] = $productCounts[$id];
+        foreach ($top5 as $p) {
+            if ($p['qty'] <= 0) {
+                continue;
+            }
+            $labels[] = mb_strlen($p['name']) > 28 ? (mb_substr($p['name'], 0, 28) . '...') : $p['name'];
+            $data[] = $p['qty'];
         }
 
         $this->bestsellerData = [
             'labels' => $labels,
-            'data' => $data
+            'data' => $data,
         ];
     }
 
-    private function computeWeekdayVolume($orders)
+    private function computeWeekdayVolume(Collection $validPaidOrders): void
     {
         $days = [
-            1 => 'Montag', 
-            2 => 'Dienstag', 
-            3 => 'Mittwoch', 
-            4 => 'Donnerstag', 
-            5 => 'Freitag', 
-            6 => 'Samstag', 
-            7 => 'Sonntag'
+            1 => ['name' => 'Montag', 'count' => 0],
+            2 => ['name' => 'Dienstag', 'count' => 0],
+            3 => ['name' => 'Mittwoch', 'count' => 0],
+            4 => ['name' => 'Donnerstag', 'count' => 0],
+            5 => ['name' => 'Freitag', 'count' => 0],
+            6 => ['name' => 'Samstag', 'count' => 0],
+            7 => ['name' => 'Sonntag', 'count' => 0],
         ];
-        
-        $dayCounts = array_fill_keys(array_values($days), 0);
 
-        foreach ($orders as $order) {
-            if (($order->payment_status ?? '') !== 'paid') {
-                continue;
+        foreach ($validPaidOrders as $order) {
+            if ($order->created_at) {
+                $dayOfWeek = (int) $order->created_at->format('N');
+                if (isset($days[$dayOfWeek])) {
+                    $days[$dayOfWeek]['count']++;
+                }
             }
-            // Format N outputs 1 for Monday to 7 for Sunday
-            $dayOfWeek = $order->created_at->format('N');
-            $dayName = $days[(int)$dayOfWeek];
-            $dayCounts[$dayName]++;
         }
 
         $this->weekdayData = [
-            'labels' => array_keys($dayCounts),
-            'data' => array_values($dayCounts)
+            'labels' => array_column($days, 'name'),
+            'data' => array_column($days, 'count'),
         ];
     }
 
-    private function computeQuotes()
+    private function computeQuotesTimeline(Collection $quotes, Carbon $from, Carbon $to, bool $groupByMonth): void
     {
-        $query = OrderQuoteRequest::query();
-        if ($this->dateRange !== 'all') {
-            $days = in_array((int)$this->dateRange, [7, 30, 90, 365], true) ? (int)$this->dateRange : 30;
-            $query->where('created_at', '>=', now()->subDays($days));
-        }
-        $quotes = $query->get();
-        // Group by Date for timeline
-        $grouped = $quotes->groupBy(function($q) {
-            return $q->created_at->format('Y-m-d');
-        })->sortKeys();
+        $timeline = $this->buildEmptyTimeline($from, $to, $groupByMonth);
 
-        $labels = [];
-        $data = [];
-
-        foreach ($grouped as $date => $dailyQuotes) {
-            $labels[] = Carbon::parse($date)->format('d.m.');
-            $data[] = $dailyQuotes->count();
+        foreach ($quotes as $q) {
+            if (!$q->created_at) {
+                continue;
+            }
+            $key = $groupByMonth ? $q->created_at->format('m/Y') : $q->created_at->format('d.m.');
+            if (array_key_exists($key, $timeline)) {
+                $timeline[$key]++;
+            }
         }
 
-        $this->quotesData = [
-            'labels' => $labels,
-            'data' => $data
+        $this->quotesChartData = [
+            'labels' => array_keys($timeline),
+            'data' => array_map('intval', array_values($timeline)),
         ];
     }
 
-    private function computeRevocations()
+    private function computeRevocationsTimeline(Collection $revocations, Carbon $from, Carbon $to, bool $groupByMonth): void
     {
-        $query = OrderRevocation::query();
-        if ($this->dateRange !== 'all') {
-            $days = in_array((int)$this->dateRange, [7, 30, 90, 365], true) ? (int)$this->dateRange : 30;
-            $query->where('created_at', '>=', now()->subDays($days));
-        }
-        $revocations = $query->get();
-        $grouped = $revocations->groupBy(function($r) {
-            return $r->created_at->format('Y-m-d');
-        })->sortKeys();
+        $timeline = $this->buildEmptyTimeline($from, $to, $groupByMonth);
 
-        $labels = [];
-        $data = [];
-
-        foreach ($grouped as $date => $dailyRevs) {
-            $labels[] = Carbon::parse($date)->format('d.m.');
-            $data[] = $dailyRevs->count();
+        foreach ($revocations as $r) {
+            if (!$r->created_at) {
+                continue;
+            }
+            $key = $groupByMonth ? $r->created_at->format('m/Y') : $r->created_at->format('d.m.');
+            if (array_key_exists($key, $timeline)) {
+                $timeline[$key]++;
+            }
         }
 
-        $this->revocationsData = [
-            'labels' => $labels,
-            'data' => $data
+        $this->revocationsChartData = [
+            'labels' => array_keys($timeline),
+            'data' => array_map('intval', array_values($timeline)),
         ];
     }
-
 
     public function render()
     {

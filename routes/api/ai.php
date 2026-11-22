@@ -218,5 +218,13 @@ Route::prefix('ai')->group(function () {
                 'Cache-Control' => 'no-store, no-cache, must-revalidate, private',
             ]);
         })->middleware('throttle:20,1');
+
+        // --- Zentrales Funkira Universum-Ticketsystem (Android, Funkenwerk Desktop, Mini-PC & Tresor-Worker) ---
+        Route::get('/tickets', [AIController::class, 'listUniverseTickets']);
+        Route::post('/tickets', [AIController::class, 'dispatchUniverseMessage'])->middleware('throttle:60,1');
+        Route::post('/tickets/{id}/action', [AIController::class, 'performUniverseTicketAction'])->middleware('throttle:60,1');
+        Route::get('/tresor-queue', [AIController::class, 'pollTresorQueue'])->middleware('throttle:60,1');
+        Route::post('/tresor-queue/{id}/complete', [AIController::class, 'completeTresorOrder'])->middleware('throttle:30,1');
+        Route::post('/antigravity/heartbeat', [AIController::class, 'antigravityHeartbeat'])->middleware('throttle:60,1');
     });
 });

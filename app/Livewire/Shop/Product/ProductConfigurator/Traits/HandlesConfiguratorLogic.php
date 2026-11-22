@@ -1104,8 +1104,441 @@ trait HandlesConfiguratorLogic
     }
 
     /**
-     * Synchronisiert die Eingaben des „Neuling“-Modus (Symbol oben mittig + Wunschtext unten mittig)
-     * direkt auf das 2D/3D-Zeichenbrett ($this->logos und $this->texts).
+     * Liefert den durchschnittlichen Zeichenbreiten-Faktor einer Konfigurator-Schriftart (relativ zu 1em).
+     */
+    public function getBeginnerFontWidthFactor(string $fontName): float
+    {
+        $fLower = mb_strtolower(trim($fontName));
+        if (in_array($fLower, ['cinzel', 'bebas neue', 'montserrat', 'comfortaa'], true)) {
+            return 0.62;
+        }
+        if (in_array($fLower, ['dancing script', 'great vibes', 'alex brush', 'sacramento', 'pacifico', 'allura'], true)) {
+            return 0.48;
+        }
+        return 0.55;
+    }
+
+    /**
+     * Berechnet die effektive Kontur-Geometrie (inkl. horizontaler Spiegelung auf der Rückseite)
+     * für die exakte Smart-Fit-Kollisions- und Konturprüfung.
+     */
+    public function getEffectiveShapeGeometryForSide(string $side = 'front', array $settings = []): array
+    {
+        if (empty($settings)) {
+            $settings = is_array($this->configSettings ?? null) && !empty($this->configSettings)
+                ? $this->configSettings
+                : (is_array($this->product->configurator_settings ?? null) ? $this->product->configurator_settings : []);
+        }
+
+        $isMirroredBack = ($side === 'back' && !empty($settings['has_back_side']) && ($settings['overlay_type'] ?? 'plane') !== 'cylinder');
+        $areaShape = (string) ($settings['area_shape'] ?? 'rect');
+
+        if ($areaShape === 'custom' && !empty($settings['custom_points']) && is_array($settings['custom_points'])) {
+            $pts = [];
+            foreach ($settings['custom_points'] as $p) {
+                if (is_array($p) && isset($p['x'], $p['y']) && is_numeric($p['x']) && is_numeric($p['y'])) {
+                    $px = (float) $p['x'];
+                    $py = (float) $p['y'];
+                    $pts[] = [
+                        'x' => $isMirroredBack ? round(100.0 - $px, 3) : $px,
+                        'y' => $py,
+                    ];
+                }
+            }
+            if ($isMirroredBack && count($pts) >= 3) {
+                $pts = array_reverse($pts);
+            }
+            if (count($pts) >= 3) {
+                $xs = array_column($pts, 'x');
+                $ys = array_column($pts, 'y');
+                return [
+                    'shape'       => 'custom',
+                    'is_mirrored' => $isMirroredBack,
+                    'points'      => $pts,
+                    'min_x'       => (float) min($xs),
+                    'max_x'       => (float) max($xs),
+                    'min_y'       => (float) min($ys),
+                    'max_y'       => (float) max($ys),
+                ];
+            }
+        }
+
+        $rawLeft = (float) ($settings['area_left'] ?? 25.0);
+        $top = (float) ($settings['area_top'] ?? 25.0);
+        $width = max(6.0, (float) ($settings['area_width'] ?? 50.0));
+        $height = max(6.0, (float) ($settings['area_height'] ?? 50.0));
+        $left = $isMirroredBack ? max(0.0, min(100.0, 100.0 - $rawLeft - $width)) : $rawLeft;
+
+        return [
+            'shape'       => ($areaShape === 'circle' ? 'circle' : 'rect'),
+            'is_mirrored' => $isMirroredBack,
+            'points'      => [],
+            'min_x'       => $left,
+            'max_x'       => $left + $width,
+            'min_y'       => $top,
+            'max_y'       => $top + $height,
+        ];
+    }
+
+    /**
+     * Wählt aus aufsteigend sortierten Strahl-Schnittpunkten das Innen-Intervall, das $hint enthält (oder am nächsten liegt).
+     */
+    protected function pickRayIntervalContaining(array $hits, float $hint): ?array
+    {
+        $count = count($hits);
+        if ($count < 2) {
+            return null;
+        }
+        sort($hits, SORT_NUMERIC);
+
+        $bestPair = null;
+        $bestDist = INF;
+        for ($i = 0; $i + 1 < $count; $i += 2) {
+            $a = (float) $hits[$i];
+            $b = (float) $hits[$i + 1];
+            if (($b - $a) < 1.5) {
+                continue;
+            }
+            if ($hint >= ($a - 0.05) && $hint <= ($b + 0.05)) {
+                return [$a, $b];
+            }
+            $dist = ($hint < $a) ? ($a - $hint) : ($hint - $b);
+            if ($dist < $bestDist) {
+                $bestDist = $dist;
+                $bestPair = [$a, $b];
+            }
+        }
+
+        return $bestPair;
+    }
+
+    /**
+     * Misst per Vertikal-Strahlschnitt die echte nutzbare Innenhöhe [safe_top, safe_bottom] der grünen Gravurkontur
+     * rund um $anchorX (berücksichtigt Einschnürungen wie Knochen-Taille, Herz-Kerbe oder Ösen-Aussparungen).
+     */
+    public function measureVerticalSafeSpanAtX(array $geom, float $anchorX, float $hintY): array
+    {
+        $shape = (string) ($geom['shape'] ?? 'rect');
+        $sliceAtX = function (float $px) use ($geom, $shape, $hintY): ?array {
+            if ($shape === 'custom' && !empty($geom['points'])) {
+                $pts = $geom['points'];
+                $n = count($pts);
+                $hits = [];
+                for ($i = 0; $i < $n; $i++) {
+                    $p1 = $pts[$i];
+                    $p2 = $pts[($i + 1) % $n];
+                    $x1 = (float) $p1['x'];
+                    $y1 = (float) $p1['y'];
+                    $x2 = (float) $p2['x'];
+                    $y2 = (float) $p2['y'];
+                    if ((($x1 <= $px && $x2 > $px) || ($x2 <= $px && $x1 > $px)) && abs($x2 - $x1) > 1e-6) {
+                        $t = ($px - $x1) / ($x2 - $x1);
+                        $hits[] = $y1 + $t * ($y2 - $y1);
+                    }
+                }
+                return $this->pickRayIntervalContaining($hits, $hintY);
+            }
+
+            if ($shape === 'circle') {
+                $cx = ($geom['min_x'] + $geom['max_x']) / 2.0;
+                $cy = ($geom['min_y'] + $geom['max_y']) / 2.0;
+                $rx = max(3.0, ($geom['max_x'] - $geom['min_x']) / 2.0);
+                $ry = max(3.0, ($geom['max_y'] - $geom['min_y']) / 2.0);
+                $dxNorm = ($px - $cx) / $rx;
+                if (abs($dxNorm) >= 0.98) {
+                    return null;
+                }
+                $dy = $ry * sqrt(max(0.0, 1.0 - ($dxNorm * $dxNorm)));
+                return [$cy - $dy, $cy + $dy];
+            }
+
+            return [(float) $geom['min_y'], (float) $geom['max_y']];
+        };
+
+        $tops = [];
+        $bottoms = [];
+        foreach ([-3.0, 0.0, 3.0] as $offset) {
+            $pair = $sliceAtX($anchorX + $offset);
+            if ($pair !== null) {
+                $tops[] = $pair[0];
+                $bottoms[] = $pair[1];
+            }
+        }
+
+        if (!empty($tops) && (min($bottoms) - max($tops)) >= 6.0) {
+            $rawTop = (float) max($tops);
+            $rawBottom = (float) min($bottoms);
+        } else {
+            $centerPair = $sliceAtX($anchorX);
+            if ($centerPair !== null && ($centerPair[1] - $centerPair[0]) >= 6.0) {
+                $rawTop = (float) $centerPair[0];
+                $rawBottom = (float) $centerPair[1];
+            } else {
+                $rawTop = (float) ($geom['min_y'] ?? 25.0);
+                $rawBottom = (float) ($geom['max_y'] ?? 75.0);
+            }
+        }
+
+        $span = max(6.0, $rawBottom - $rawTop);
+        $padY = max(1.1, min(2.4, $span * 0.065));
+
+        return [
+            'raw_top'     => round($rawTop, 2),
+            'raw_bottom'  => round($rawBottom, 2),
+            'safe_top'    => round($rawTop + $padY, 2),
+            'safe_bottom' => round($rawBottom - $padY, 2),
+        ];
+    }
+
+    /**
+     * Misst per Horizontal-Strahlschnitt die symmetrisch um $anchorX nutzbare Innenbreite im Höhenband [$yMin, $yMax]
+     * (respektiert seitliche Ausstanzungen wie den Pfoten-Durchbruch unten rechts bzw. gespiegelt unten links).
+     */
+    public function measureHorizontalSafeWidthInBand(array $geom, float $anchorX, float $yMin, float $yMax): float
+    {
+        $shape = (string) ($geom['shape'] ?? 'rect');
+        $bTop = min($yMin, $yMax);
+        $bBot = max($yMin, $yMax);
+        $bandH = max(0.5, $bBot - $bTop);
+
+        $sliceAtY = function (float $py) use ($geom, $shape, $anchorX): ?array {
+            if ($shape === 'custom' && !empty($geom['points'])) {
+                $pts = $geom['points'];
+                $n = count($pts);
+                $hits = [];
+                for ($i = 0; $i < $n; $i++) {
+                    $p1 = $pts[$i];
+                    $p2 = $pts[($i + 1) % $n];
+                    $x1 = (float) $p1['x'];
+                    $y1 = (float) $p1['y'];
+                    $x2 = (float) $p2['x'];
+                    $y2 = (float) $p2['y'];
+                    if ((($y1 <= $py && $y2 > $py) || ($y2 <= $py && $y1 > $py)) && abs($y2 - $y1) > 1e-6) {
+                        $t = ($py - $y1) / ($y2 - $y1);
+                        $hits[] = $x1 + $t * ($x2 - $x1);
+                    }
+                }
+                return $this->pickRayIntervalContaining($hits, $anchorX);
+            }
+
+            if ($shape === 'circle') {
+                $cx = ($geom['min_x'] + $geom['max_x']) / 2.0;
+                $cy = ($geom['min_y'] + $geom['max_y']) / 2.0;
+                $rx = max(3.0, ($geom['max_x'] - $geom['min_x']) / 2.0);
+                $ry = max(3.0, ($geom['max_y'] - $geom['min_y']) / 2.0);
+                $dyNorm = ($py - $cy) / $ry;
+                if (abs($dyNorm) >= 0.98) {
+                    return null;
+                }
+                $dx = $rx * sqrt(max(0.0, 1.0 - ($dyNorm * $dyNorm)));
+                return [$cx - $dx, $cx + $dx];
+            }
+
+            return [(float) $geom['min_x'], (float) $geom['max_x']];
+        };
+
+        $symWidths = [];
+        foreach ([0.10, 0.30, 0.50, 0.70, 0.90] as $ratio) {
+            $py = $bTop + ($bandH * $ratio);
+            $pair = $sliceAtY($py);
+            if ($pair !== null) {
+                $leftDist = $anchorX - (float) $pair[0];
+                $rightDist = (float) $pair[1] - $anchorX;
+                if ($leftDist > 2.0 && $rightDist > 2.0) {
+                    $symWidths[] = 2.0 * min($leftDist, $rightDist);
+                }
+            }
+        }
+
+        $rawWidth = !empty($symWidths)
+            ? (float) min($symWidths)
+            : max(10.0, (float) (($geom['max_x'] ?? 75.0) - ($geom['min_x'] ?? 25.0)));
+
+        return round(max(8.0, $rawWidth - 2.4), 2);
+    }
+
+    /**
+     * Berechnet kollisionsfrei und kontursicher Position & Größe von Symbol und Text für eine Produktseite ('front' | 'back').
+     */
+    public function solveSmartBeginnerSideLayout(
+        string $side,
+        ?string $symbolRelPath,
+        string $rawText,
+        string $fontName,
+        array $coords,
+        array $settings = [],
+        string $existingLogoId = 'beginner_symbol_1',
+        string $existingTextId = 'beginner_text_1'
+    ): array {
+        $geom = $this->getEffectiveShapeGeometryForSide($side, $settings);
+        $isMirrored = !empty($geom['is_mirrored']);
+
+        $symX = $isMirrored
+            ? round(100.0 - (float) ($coords['symbol_x'] ?? 50.0), 2)
+            : round((float) ($coords['symbol_x'] ?? 50.0), 2);
+        $txtX = $isMirrored
+            ? round(100.0 - (float) ($coords['text_x'] ?? 50.0), 2)
+            : round((float) ($coords['text_x'] ?? 50.0), 2);
+        $centerX = $isMirrored
+            ? round(100.0 - (float) ($coords['center_x'] ?? 50.0), 2)
+            : round((float) ($coords['center_x'] ?? 50.0), 2);
+        $centerY = round((float) ($coords['center_y'] ?? 50.0), 2);
+
+        $vSpan = $this->measureVerticalSafeSpanAtX($geom, $centerX, $centerY);
+        $safeTop = (float) $vSpan['safe_top'];
+        $safeBottom = (float) $vSpan['safe_bottom'];
+        $availH = max(6.0, $safeBottom - $safeTop);
+        $opticalMidY = round(($safeTop + $safeBottom) / 2.0, 2);
+
+        $midSafeW = $this->measureHorizontalSafeWidthInBand(
+            $geom,
+            $txtX,
+            $safeTop + ($availH * 0.15),
+            $safeBottom - ($availH * 0.15)
+        );
+
+        $displayText = $this->formatBeginnerTextForWorkingArea($rawText, $midSafeW);
+        $hasSymbol = ($symbolRelPath !== null && trim($symbolRelPath) !== '');
+        $hasText = ($displayText !== '');
+
+        if (!$hasSymbol && !$hasText) {
+            return ['logo' => null, 'text' => null];
+        }
+
+        $symSize = (float) ($coords['symbol_size'] ?? 64.0);
+        $baseTxtSize = (float) ($coords['text_size'] ?? 0.95);
+        $fontWidthFactor = $this->getBeginnerFontWidthFactor($fontName);
+
+        $lines = $hasText ? explode("\n", $displayText) : [];
+        $lineCount = count($lines);
+        $maxLineChars = 0;
+        foreach ($lines as $ln) {
+            $maxLineChars = max($maxLineChars, mb_strlen($ln));
+        }
+
+        if ($lineCount === 2) {
+            $txtSize = $baseTxtSize * 0.90;
+        } elseif ($lineCount >= 3) {
+            $txtSize = $baseTxtSize * max(0.60, 0.80 - (($lineCount - 3) * 0.07));
+        } else {
+            $txtSize = $baseTxtSize;
+        }
+
+        $finalSymY = round((float) ($coords['symbol_y'] ?? $opticalMidY), 2);
+        $finalTxtY = round((float) ($coords['text_y'] ?? $opticalMidY), 2);
+
+        if ($hasSymbol && !$hasText) {
+            $symH = $symSize * 0.19;
+            if ($symH > ($availH * 0.86)) {
+                $symSize = ($availH * 0.86) / 0.19;
+                $symH = $symSize * 0.19;
+            }
+            $finalSymY = $opticalMidY;
+            $symSafeW = $this->measureHorizontalSafeWidthInBand($geom, $symX, $finalSymY - ($symH * 0.42), $finalSymY + ($symH * 0.42));
+            if (($symSize * 0.19) > ($symSafeW * 0.92)) {
+                $symSize = ($symSafeW * 0.92) / 0.19;
+            }
+            $symSize = round(max(22.0, $symSize), 1);
+        } elseif (!$hasSymbol && $hasText) {
+            $txtH = $lineCount * 4.60 * $txtSize;
+            if ($txtH > ($availH * 0.92)) {
+                $txtSize *= ($availH * 0.92) / $txtH;
+                $txtH = $lineCount * 4.60 * $txtSize;
+            }
+            if (($centerY - ($txtH / 2.0)) >= ($safeTop - 0.3) && ($centerY + ($txtH / 2.0)) <= ($safeBottom + 0.3)) {
+                $finalTxtY = $centerY;
+            } else {
+                $finalTxtY = $opticalMidY;
+            }
+            $txtSafeW = $this->measureHorizontalSafeWidthInBand($geom, $txtX, $finalTxtY - ($txtH * 0.42), $finalTxtY + ($txtH * 0.42));
+            $estTxtW = ($maxLineChars * 4.0 * $fontWidthFactor * $txtSize) + 1.6;
+            if ($estTxtW > $txtSafeW && $estTxtW > 0.1) {
+                $txtSize *= ($txtSafeW / $estTxtW);
+            }
+            $txtSize = round(max(0.42, $txtSize), 2);
+        } else {
+            // Symbol + Text gemeinsam auf derselben Seite: garantiert kollisionsfrei stapeln & skalieren
+            $minGap = max(1.4, min(2.8, $availH * 0.08));
+            $symH = $symSize * 0.19;
+            $txtH = $lineCount * 4.60 * $txtSize;
+
+            if (($symH + $minGap + $txtH) > $availH) {
+                $availForElements = max(4.0, $availH - $minGap);
+                $vScale = $availForElements / max(1.0, $symH + $txtH);
+                $symSize = max(22.0, $symSize * $vScale);
+                $txtSize = max(0.42, $txtSize * $vScale);
+                $symH = $symSize * 0.19;
+                $txtH = $lineCount * 4.60 * $txtSize;
+            }
+
+            $curSymY = (float) ($coords['symbol_y'] ?? $opticalMidY);
+            $curTxtY = (float) ($coords['text_y'] ?? $opticalMidY);
+            $curFitsTop = ($curSymY - ($symH / 2.0)) >= ($safeTop - 0.3);
+            $curFitsBottom = ($curTxtY + ($txtH / 2.0)) <= ($safeBottom + 0.3);
+            $curGapOk = (($curTxtY - ($txtH / 2.0)) - ($curSymY + ($symH / 2.0))) >= ($minGap - 0.2);
+
+            if ($curFitsTop && $curFitsBottom && $curGapOk) {
+                $finalSymY = round($curSymY, 2);
+                $finalTxtY = round($curTxtY, 2);
+            } else {
+                $effGap = min($minGap, max(0.9, $availH - $symH - $txtH));
+                $totalStackH = $symH + $effGap + $txtH;
+                $stackTop = $safeTop + max(0.0, ($availH - $totalStackH) / 2.0);
+                $finalSymY = round($stackTop + ($symH / 2.0), 2);
+                $finalTxtY = round($stackTop + $symH + $effGap + ($txtH / 2.0), 2);
+            }
+
+            $symSafeW = $this->measureHorizontalSafeWidthInBand($geom, $symX, $finalSymY - ($symH * 0.42), $finalSymY + ($symH * 0.42));
+            if (($symSize * 0.19) > ($symSafeW * 0.92)) {
+                $symSize = max(22.0, ($symSafeW * 0.92) / 0.19);
+            }
+
+            $txtSafeW = $this->measureHorizontalSafeWidthInBand($geom, $txtX, $finalTxtY - ($txtH * 0.42), $finalTxtY + ($txtH * 0.42));
+            $estTxtW = ($maxLineChars * 4.0 * $fontWidthFactor * $txtSize) + 1.6;
+            if ($estTxtW > $txtSafeW && $estTxtW > 0.1) {
+                $txtSize = max(0.42, $txtSize * ($txtSafeW / $estTxtW));
+            }
+
+            $symSize = round($symSize, 1);
+            $txtSize = round($txtSize, 2);
+        }
+
+        $logoItem = null;
+        if ($hasSymbol) {
+            $vectorVal = 'vectors/' . ltrim((string) $symbolRelPath, '/');
+            $vectorService = app(\App\Services\ProductConfiguratorService::class);
+            $logoItem = [
+                'id'       => $existingLogoId,
+                'type'     => 'vector',
+                'value'    => $vectorVal,
+                'url'      => $vectorService->resolveVectorUrl($vectorVal),
+                'x'        => $symX,
+                'y'        => $finalSymY,
+                'size'     => $symSize,
+                'rotation' => 0,
+            ];
+        }
+
+        $textItem = null;
+        if ($hasText) {
+            $textItem = [
+                'id'       => $existingTextId,
+                'text'     => $displayText,
+                'font'     => $fontName,
+                'align'    => 'center',
+                'x'        => $txtX,
+                'y'        => $finalTxtY,
+                'size'     => $txtSize,
+                'rotation' => 0,
+            ];
+        }
+
+        return ['logo' => $logoItem, 'text' => $textItem];
+    }
+
+    /**
+     * Synchronisiert die Eingaben des „Neuling“-Modus (Vorderseite & optional Rückseite)
+     * kontur- und kollisionssicher auf das 2D/3D-Zeichenbrett ($this->logos, $this->texts, $this->logos_back, $this->texts_back).
      */
     public function syncBeginnerPositionToCanvas(bool $forSave = false): void
     {
@@ -1113,13 +1546,18 @@ trait HandlesConfiguratorLogic
             return;
         }
 
-        $coords = $this->getBeginnerPositionCoordinates();
+        $settings = is_array($this->configSettings ?? null) && !empty($this->configSettings)
+            ? $this->configSettings
+            : (is_array($this->product->configurator_settings ?? null) ? $this->product->configurator_settings : []);
+        $coords = $this->getBeginnerPositionCoordinates($settings);
         $definitions = $this->product->getCustomFieldsDefinition(true);
-        $vectorService = app(\App\Services\ProductConfiguratorService::class);
+        $hasBackSide = !empty($settings['has_back_side']);
 
         $chosenFont = 'Arial';
-        $matchedSymbolRel = null;
-        $textLines = [];
+        $frontSymbolRel = null;
+        $backSymbolRel = null;
+        $frontTextLines = [];
+        $backTextLines = [];
         $fallbackPreviewText = 'Dein Wunschtext';
 
         foreach ($definitions as $cfDef) {
@@ -1135,9 +1573,18 @@ trait HandlesConfiguratorLogic
                 continue;
             }
 
+            $effectiveSide = ($hasBackSide && method_exists($this, 'resolveEffectiveCustomFieldSide'))
+                ? $this->resolveEffectiveCustomFieldSide($cfDef)
+                : 'front';
+
             $isSymbolField = ($fType === 'select') && (str_contains($labelLower, 'symbol') || str_contains(mb_strtolower($cfId), 'symbol'));
             if ($isSymbolField) {
-                $matchedSymbolRel = $this->resolveBeginnerSymbolVectorRelPath($rawVal);
+                $resolvedSym = $this->resolveBeginnerSymbolVectorRelPath($rawVal);
+                if ($effectiveSide === 'back') {
+                    $backSymbolRel = $resolvedSym;
+                } else {
+                    $frontSymbolRel = $resolvedSym;
+                }
                 continue;
             }
 
@@ -1148,14 +1595,22 @@ trait HandlesConfiguratorLogic
             }
 
             if ($cleanVal !== '' && !in_array(mb_strtolower($cleanVal), ['kein symbol', 'keine', 'nein', '-'], true)) {
-                // Falls ein Select-Feld ohne 'symbol' im Label dennoch ein bekanntes Symbol enthält:
-                $maybeSym = ($fType === 'select' && $matchedSymbolRel === null) ? $this->resolveBeginnerSymbolVectorRelPath($cleanVal) : null;
+                $currentSideSym = ($effectiveSide === 'back') ? $backSymbolRel : $frontSymbolRel;
+                $maybeSym = ($fType === 'select' && $currentSideSym === null) ? $this->resolveBeginnerSymbolVectorRelPath($cleanVal) : null;
                 if ($maybeSym !== null) {
-                    $matchedSymbolRel = $maybeSym;
+                    if ($effectiveSide === 'back') {
+                        $backSymbolRel = $maybeSym;
+                    } else {
+                        $frontSymbolRel = $maybeSym;
+                    }
                 } else {
-                    $textLines[] = $cleanVal;
+                    if ($effectiveSide === 'back') {
+                        $backTextLines[] = $cleanVal;
+                    } else {
+                        $frontTextLines[] = $cleanVal;
+                    }
                 }
-            } elseif (!empty($cfDef['required']) && !empty($cfDef['placeholder'])) {
+            } elseif ($effectiveSide === 'front' && !empty($cfDef['required']) && !empty($cfDef['placeholder'])) {
                 $ph = trim((string) preg_replace('/^z\.\s*B\.\s*/iu', '', (string) $cfDef['placeholder']));
                 if ($ph !== '' && $fallbackPreviewText === 'Dein Wunschtext') {
                     $fallbackPreviewText = $ph;
@@ -1163,54 +1618,41 @@ trait HandlesConfiguratorLogic
             }
         }
 
-        if ($matchedSymbolRel !== null) {
-            $vectorVal = 'vectors/' . ltrim($matchedSymbolRel, '/');
-            $this->logos = [[
-                'id'       => $this->logos[0]['id'] ?? 'beginner_symbol_1',
-                'type'     => 'vector',
-                'value'    => $vectorVal,
-                'url'      => $vectorService->resolveVectorUrl($vectorVal),
-                'x'        => $coords['symbol_x'],
-                'y'        => $coords['symbol_y'],
-                'size'     => $coords['symbol_size'],
-                'rotation' => 0,
-            ]];
-        } else {
-            $this->logos = [];
-        }
-
-        $rawDisplayText = !empty($textLines)
-            ? implode("\n", $textLines)
+        $rawFrontText = !empty($frontTextLines)
+            ? implode("\n", $frontTextLines)
             : (($forSave || $this->context === 'preview') ? '' : $fallbackPreviewText);
 
-        $displayText = $this->formatBeginnerTextForWorkingArea($rawDisplayText, (float) ($coords['area_width_pct'] ?? 40.0));
+        $frontLayout = $this->solveSmartBeginnerSideLayout(
+            'front',
+            $frontSymbolRel,
+            $rawFrontText,
+            $chosenFont,
+            $coords,
+            $settings,
+            $this->logos[0]['id'] ?? 'beginner_symbol_1',
+            $this->texts[0]['id'] ?? 'beginner_text_1'
+        );
 
-        if ($displayText !== '') {
-            $lineCount = substr_count($displayText, "\n") + 1;
-            $baseTextSize = (float) ($coords['text_size'] ?? 0.75);
-            if ($lineCount === 2) {
-                $effectiveTextSize = round($baseTextSize * 0.90, 2);
-            } elseif ($lineCount >= 3) {
-                $effectiveTextSize = round($baseTextSize * 0.80, 2);
-            } else {
-                $effectiveTextSize = $baseTextSize;
-            }
+        $this->logos = $frontLayout['logo'] !== null ? [$frontLayout['logo']] : [];
+        $this->texts = $frontLayout['text'] !== null ? [$frontLayout['text']] : [];
 
-            $this->texts = [[
-                'id'       => $this->texts[0]['id'] ?? 'beginner_text_1',
-                'text'     => $displayText,
-                'font'     => $chosenFont,
-                'align'    => 'center',
-                'x'        => $coords['text_x'],
-                'y'        => $matchedSymbolRel !== null ? $coords['text_y'] : $coords['center_y'],
-                'size'     => $effectiveTextSize,
-                'rotation' => 0,
-            ]];
+        if ($hasBackSide && ($backSymbolRel !== null || !empty($backTextLines))) {
+            $rawBackText = implode("\n", $backTextLines);
+            $backLayout = $this->solveSmartBeginnerSideLayout(
+                'back',
+                $backSymbolRel,
+                $rawBackText,
+                $chosenFont,
+                $coords,
+                $settings,
+                $this->logos_back[0]['id'] ?? 'beginner_symbol_back_1',
+                $this->texts_back[0]['id'] ?? 'beginner_text_back_1'
+            );
+            $this->logos_back = $backLayout['logo'] !== null ? [$backLayout['logo']] : [];
+            $this->texts_back = $backLayout['text'] !== null ? [$backLayout['text']] : [];
         } else {
-            $this->texts = [];
+            $this->logos_back = [];
+            $this->texts_back = [];
         }
-
-        $this->logos_back = [];
-        $this->texts_back = [];
     }
 }

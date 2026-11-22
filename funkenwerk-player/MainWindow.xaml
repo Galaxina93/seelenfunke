@@ -1,6 +1,7 @@
 <Window x:Class="FunkenwerkPlayer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:FunkenwerkPlayer"
         Title="Funkenwerk Player"
         Icon="funkenwerk_player.ico"
         Width="1180" Height="720"
@@ -35,10 +36,22 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Brand -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,16,0">
+                <!-- Brand + Mode Switch -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
                     <Ellipse Width="10" Height="10" Fill="#C5A059" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <TextBlock Text="FUNKENWERK PLAYER" FontSize="13.5" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center"/>
+                    <TextBlock Text="FUNKENWERK PLAYER" FontSize="13.5" FontWeight="Bold" Foreground="#C5A059" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <Button x:Name="ModePlaylistsBtn" Click="ModePlaylists_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                            Padding="11,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="♫ Playlists">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                    </Button>
+                    <Button x:Name="ModeMediaBtn" Click="ModeMedia_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                            Padding="11,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="SemiBold" Content="🎬 Mediaplayer">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                    </Button>
+                    <Button x:Name="EnterFocusModeBtn" Click="EnterFocusMode_Click" Focusable="False" Background="#181B24" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                            Padding="11,4" Cursor="Hand" FontSize="11.5" FontWeight="Bold" ToolTip="GPU Fokus-Modus starten" Content="✦ Fokus">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                    </Button>
                 </StackPanel>
 
                 <!-- Active Media Title + Badge -->
@@ -169,6 +182,80 @@
                     </ScrollViewer>
                 </Grid>
             </Border>
+
+            <!-- Manufaktur Playlists & Offline Music Library View -->
+            <Grid x:Name="ManufakturPlaylistsViewGrid" Grid.Column="0" Grid.ColumnSpan="2" Visibility="Collapsed" Background="#0F1117">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="250"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Playlists Sidebar -->
+                <Border x:Name="ManufakturSidebarBorder" Grid.Column="0" Background="#11131A" BorderBrush="#232734" BorderThickness="0,0,1,0" Padding="14">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                            <Border x:Name="ManufakturAllBtn" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="9" Padding="12,9" Margin="0,0,0,6" Cursor="Hand" MouseLeftButtonUp="SelectManufakturAll_Click">
+                                <Grid>
+                                    <TextBlock Text="🎵  Alle Songs" FontSize="12.5" FontWeight="Bold" Foreground="#F9FAFB"/>
+                                    <TextBlock x:Name="ManufakturCountAllTxt" Text="0" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </Border>
+                            <Border x:Name="ManufakturFavBtn" Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Padding="12,9" Cursor="Hand" MouseLeftButtonUp="SelectManufakturFavorites_Click">
+                                <Grid>
+                                    <TextBlock Text="♥  Favoriten" FontSize="12.5" FontWeight="Bold" Foreground="#F9FAFB"/>
+                                    <TextBlock x:Name="ManufakturCountFavTxt" Text="0" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="ManufakturPlaylistsStack"/>
+                        </ScrollViewer>
+
+                        <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                            <TextBlock x:Name="ManufakturCacheStatusTxt" Text="⚡ Lokal bereit" FontSize="11" FontWeight="SemiBold" Foreground="#9CA3AF" Margin="2,0,0,6" TextTrimming="CharacterEllipsis"/>
+                            <Button x:Name="ManufakturCacheAllBtn" Click="ManufakturCacheAll_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
+                                    Padding="10,7" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="⚡ Offline cachen">
+                                <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Right Track List -->
+                <Grid Grid.Column="1" Margin="20,16,20,12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="240"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ManufakturHeaderTitleTxt" Grid.Column="0" Text="Playlists" FontSize="18" FontWeight="Bold" Foreground="#F9FAFB" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <Border Grid.Column="1" Background="#11131A" BorderBrush="#262A36" BorderThickness="1" CornerRadius="8" Padding="10,6" Margin="10,0">
+                            <TextBox x:Name="ManufakturSearchBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="12.5" TextChanged="ManufakturSearchBox_TextChanged"/>
+                        </Border>
+                        <Button x:Name="ManufakturShuffleBtn" Grid.Column="2" Click="ManufakturShuffle_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                Padding="12,6" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="🔀 Zufall">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                        </Button>
+                    </Grid>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ManufakturTracksStack"/>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
         </Grid>
 
         <!-- ================================================================= -->
@@ -283,5 +370,46 @@
                 </Grid>
             </StackPanel>
         </Border>
+
+        <!-- ================================================================= -->
+        <!-- FULL-WINDOW GPU CELESTIAL FOCUS MODE OVERLAY                      -->
+        <!-- ================================================================= -->
+        <Grid x:Name="MusicVenomFocusOverlay" Grid.Row="0" Grid.RowSpan="3"
+              Panel.ZIndex="9950" Visibility="Collapsed" Background="#030407" ClipToBounds="True"
+              MouseEnter="MusicVenomFocusOverlay_MouseEnter"
+              MouseMove="MusicVenomFocusOverlay_MouseMove"
+              MouseLeave="MusicVenomFocusOverlay_MouseLeave"
+              MouseLeftButtonDown="MusicVenomFocusOverlay_MouseLeftButtonDown">
+
+            <local:CelestialFocusRenderer x:Name="CelestialFocusHost" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+
+            <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Width="640" Margin="0,0,0,54" IsHitTestVisible="False">
+                <Border Background="#26C5A059" BorderBrush="#6EC5A059" BorderThickness="1" CornerRadius="12"
+                        Padding="12,4" HorizontalAlignment="Center" Margin="0,0,0,10">
+                    <TextBlock Text="✦   S E E L E N F U N K E   F O K U S   ✦" Foreground="#FDE68A" FontSize="10" FontWeight="Bold"/>
+                </Border>
+                <TextBlock x:Name="FocusTrackTitleTxt" Text="Seelenfunke Klangwelt" Foreground="#F9FAFB"
+                           FontSize="21" FontWeight="Bold" TextAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="FocusTrackArtistTxt" Text="Mein Seelenfunke" Foreground="#C5A059"
+                           FontSize="13.5" FontWeight="SemiBold" TextAlignment="Center" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+
+            <Border x:Name="VenomExitFocusBtn" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,26,22"
+                    Background="#BF0B0D12" BorderBrush="#88C5A059" BorderThickness="1" CornerRadius="12" Padding="8,6"
+                    Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Click="PrevTrack_Click" Focusable="False" ToolTip="Vorheriger Titel" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="8,4" Cursor="Hand" FontSize="12.5" Content="⏮"/>
+                    <Button x:Name="FocusOverlayPlayPauseBtn" Click="PlayPause_Click" Focusable="False" ToolTip="Play / Pause" Background="#26C5A059" Foreground="#FDE68A" BorderBrush="#88C5A059" BorderThickness="1" Width="30" Height="30" Margin="4,0" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="❚❚">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="15"/></Style></Button.Resources>
+                    </Button>
+                    <Button Click="NextTrack_Click" Focusable="False" ToolTip="Nächster Titel" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="8,4" Margin="0,0,8,0" Cursor="Hand" FontSize="12.5" Content="⏭"/>
+                    <Button Click="ExitFocusMode_Click" Focusable="False" ToolTip="Fokus-Modus beenden (Esc oder Doppelklick)"
+                            Background="#261F15" Foreground="#FDE68A" BorderBrush="#88C5A059" BorderThickness="1"
+                            Padding="13,6" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="✦ Fokus beenden">
+                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="9"/></Style></Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

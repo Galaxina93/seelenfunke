@@ -131,11 +131,19 @@ class InfluencerDashboard extends Component
             }
         }
 
-        $link = $service->createOrGetProductTrackingLink($influencer, $product, trim($this->newLinkTitle));
+        try {
+            $link = $service->createOrGetProductTrackingLink($influencer, $product, trim($this->newLinkTitle));
 
-        $this->newLinkTitle = '';
-        $this->newLinkTargetProductSlug = '';
-        session()->flash('creator_success', "Neuer Kurzlink (/t/{$link->slug}) erfolgreich erstellt!");
+            $this->newLinkTitle = '';
+            $this->newLinkTargetProductSlug = '';
+            session()->flash('creator_success', "Neuer Kurzlink (/t/{$link->slug}) erfolgreich erstellt!");
+        } catch (\Throwable $e) {
+            $this->logCreatorError($e, 'influencer:create_tracking_link_failed', $influencer, [
+                'link_title' => $this->newLinkTitle,
+                'product_slug' => $this->newLinkTargetProductSlug,
+            ]);
+            session()->flash('creator_error', 'Der Tracking-Kurzlink konnte nicht erstellt werden: ' . $e->getMessage());
+        }
     }
 
     public function quickCreateProductLink(string $productSlug, InfluencerService $service): void
@@ -153,8 +161,15 @@ class InfluencerDashboard extends Component
             return;
         }
 
-        $link = $service->createOrGetProductTrackingLink($influencer, $product);
-        session()->flash('creator_success', "Produkt-Deep-Link (/t/{$link->slug}) für „{$product->name}“ ist bereit zum Kopieren!");
+        try {
+            $link = $service->createOrGetProductTrackingLink($influencer, $product);
+            session()->flash('creator_success', "Produkt-Deep-Link (/t/{$link->slug}) für „{$product->name}“ ist bereit zum Kopieren!");
+        } catch (\Throwable $e) {
+            $this->logCreatorError($e, 'influencer:quick_product_link_failed', $influencer, [
+                'product_slug' => $productSlug,
+            ]);
+            session()->flash('creator_error', 'Der Produkt-Deep-Link konnte nicht erstellt werden: ' . $e->getMessage());
+        }
     }
 
     public function unlockSampleVoucher(InfluencerService $service): void
@@ -200,6 +215,7 @@ class InfluencerDashboard extends Component
             $this->sampleInlineSuccess = "Dein 100 % Gratis-Muster ({$voucher->code}) ist freigeschaltet! Wähle jetzt unten in der Produkttabelle dein Wunsch-Unikat über „Muster gestalten“ aus.";
             session()->flash('creator_success', $this->sampleInlineSuccess);
         } catch (\Throwable $e) {
+            $this->logCreatorError($e, 'influencer:unlock_sample_failed', $influencer);
             $this->sampleInlineError = $e->getMessage();
             session()->flash('creator_error', $e->getMessage());
         }
@@ -239,6 +255,9 @@ class InfluencerDashboard extends Component
 
             return redirect()->route('product.show', $product->slug);
         } catch (\Throwable $e) {
+            $this->logCreatorError($e, 'influencer:start_sample_configurator_failed', $influencer, [
+                'product_slug' => $productSlug,
+            ]);
             $this->sampleInlineError = $e->getMessage();
             session()->flash('creator_error', $e->getMessage());
         }
@@ -281,7 +300,7 @@ class InfluencerDashboard extends Component
         if ($cleanUrl === '' && $cleanFeedback === '') {
             $service->saveSampleConfiguratorFeedback($influencer, $this->sampleConfiguratorRating, null);
             $this->addError('samplePostUrl', 'Bitte füge den Link zu deinem Beitrag/Story ein oder schreibe links ein kurzes Konfigurator-Feedback.');
-            $this->sampleInlineError = "Sterne-Bewertung ({$this->sampleConfiguratorRating}/5 ★) vermerkt – für den Abschluss fehlt noch dein Verlinkungs-Nachweis (Link zu Story / Reel / Beitrag) oder ein kurzes Feedback.";
+            $this->sampleInlineError = "Sterne-Bewertung ({$this->sampleConfiguratorRating}/5 ★) vermerkt, für den Abschluss fehlt noch dein Verlinkungs-Nachweis (Link zu Story / Reel / Beitrag) oder ein kurzes Feedback.";
             return;
         }
 
@@ -306,6 +325,10 @@ class InfluencerDashboard extends Component
                 session()->flash('creator_success', $this->sampleInlineSuccess);
             }
         } catch (\Throwable $e) {
+            $this->logCreatorError($e, 'influencer:save_sample_feedback_failed', $influencer, [
+                'sample_post_url' => $cleanUrl,
+                'rating' => $this->sampleConfiguratorRating,
+            ]);
             $this->sampleInlineError = $e->getMessage();
             session()->flash('creator_error', $e->getMessage());
         }
@@ -353,42 +376,55 @@ class InfluencerDashboard extends Component
         ]);
 
         if ($this->country === 'DE' && $this->taxStatus === 'reverse_charge') {
-            $this->addError('taxStatus', 'Das Reverse-Charge-Verfahren (§ 13b UStG) gilt nur für im Ausland ansässige Unternehmen.');
+            $msg = 'Das Reverse-Charge-Verfahren (§ 13b UStG) gilt nur für im Ausland ansässige Unternehmen.';
+            $this->addError('taxStatus', $msg);
+            session()->flash('creator_error', $msg);
             return;
         }
 
         if ($this->country !== 'DE' && $this->taxStatus === 'standard_tax') {
-            $this->addError('taxStatus', 'Der Ausweis deutscher Umsatzsteuer (19 %) ist nur bei Sitz in Deutschland zulässig. Bitte wähle Reverse-Charge (§ 13b UStG) oder Kleinunternehmer.');
+            $msg = 'Der Ausweis deutscher Umsatzsteuer (19 %) ist nur bei Sitz in Deutschland zulässig. Bitte wähle Reverse-Charge (§ 13b UStG) oder Kleinunternehmer.';
+            $this->addError('taxStatus', $msg);
+            session()->flash('creator_error', $msg);
             return;
         }
 
-        $profile = $influencer->employee->profile()->firstOrCreate([]);
-        $profile->update([
-            'company_name' => trim($this->companyName) ?: null,
-            'is_business' => true,
-            'vat_id' => trim($this->taxNumber),
-            'street' => trim($this->street),
-            'house_number' => trim($this->houseNumber),
-            'postal' => trim($this->postal),
-            'city' => trim($this->city),
-            'country' => strtoupper(trim($this->country)),
-        ]);
+        try {
+            $profile = $influencer->employee->profile()->firstOrCreate([]);
+            $profile->update([
+                'company_name' => trim($this->companyName) ?: null,
+                'is_business' => true,
+                'vat_id' => trim($this->taxNumber),
+                'street' => trim($this->street),
+                'house_number' => trim($this->houseNumber),
+                'postal' => trim($this->postal),
+                'city' => trim($this->city),
+                'country' => strtoupper(trim($this->country)),
+            ]);
 
-        $cleanIban = strtoupper(preg_replace('/\s+/', '', $this->iban));
+            $cleanIban = strtoupper(preg_replace('/\s+/', '', $this->iban));
 
-        $influencer->update([
-            'tax_status' => $this->taxStatus,
-            'tax_number' => trim($this->taxNumber),
-            'self_employed_confirmed' => true,
-            'self_employed_confirmed_at' => $influencer->self_employed_confirmed_at ?: now(),
-            'payout_method' => $this->payoutMethod,
-            'account_holder' => trim($this->accountHolder) ?: null,
-            'iban' => $cleanIban !== '' ? $cleanIban : null,
-            'bic' => strtoupper(trim($this->bic)) ?: null,
-            'paypal_email' => strtolower(trim($this->paypalEmail)) ?: null,
-        ]);
+            $influencer->update([
+                'tax_status' => $this->taxStatus,
+                'tax_number' => trim($this->taxNumber),
+                'self_employed_confirmed' => true,
+                'self_employed_confirmed_at' => $influencer->self_employed_confirmed_at ?: now(),
+                'payout_method' => $this->payoutMethod,
+                'account_holder' => trim($this->accountHolder) ?: null,
+                'iban' => $cleanIban !== '' ? $cleanIban : null,
+                'bic' => strtoupper(trim($this->bic)) ?: null,
+                'paypal_email' => strtolower(trim($this->paypalEmail)) ?: null,
+            ]);
 
-        session()->flash('creator_success', 'Deine Steuer- & Auszahlungsdaten wurden sicher verschlüsselt gespeichert!');
+            session()->flash('creator_success', 'Deine Steuer- & Auszahlungsdaten wurden sicher verschlüsselt gespeichert!');
+        } catch (\Throwable $e) {
+            $this->logCreatorError($e, 'influencer:save_payout_settings_failed', $influencer, [
+                'country' => $this->country,
+                'tax_status' => $this->taxStatus,
+                'payout_method' => $this->payoutMethod,
+            ]);
+            session()->flash('creator_error', 'Deine Steuer- & Auszahlungsdaten konnten nicht gespeichert werden: ' . $e->getMessage());
+        }
     }
 
     public function requestPayoutNow(string $chosenMethod, InfluencerService $service): void
@@ -409,7 +445,30 @@ class InfluencerDashboard extends Component
                 "Gutschrift {$payout->credit_note_number} über " . number_format($payout->gross_amount_cents / 100, 2, ',', '.') . " € wurde erstellt und zur Auszahlung eingereicht!"
             );
         } catch (\Throwable $e) {
+            $this->logCreatorError($e, 'influencer:request_payout_failed', $influencer, [
+                'chosen_method' => $chosenMethod,
+            ]);
             session()->flash('creator_error', $e->getMessage());
+        }
+    }
+
+    protected function logCreatorError(\Throwable $e, string $actionId, MarketingInfluencer $influencer, array $extra = []): void
+    {
+        if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+            \App\Services\System\SystemErrorLogger::recordException(
+                $e,
+                'marketing',
+                $actionId,
+                'Creator-Cockpit Fehler',
+                array_merge([
+                    'subpage_path' => '/employee/influencer/dashboard',
+                    'subpage_label' => 'Creator Cockpit · Influencer Portal',
+                    'influencer_id' => $influencer->id,
+                    'influencer_handle' => $influencer->handle,
+                    'employee_id' => $influencer->employee_id,
+                    'active_tab' => $this->activeTab,
+                ], $extra)
+            );
         }
     }
 

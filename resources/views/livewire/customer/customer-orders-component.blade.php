@@ -324,7 +324,7 @@
                                                         @endif
                                                         @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
                                                             <span class="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 font-bold">
-                                                                ✉️ Per Post im Umschlag (+ {{ number_format(((int) ($item->configuration['post_shipping_cents'] ?? shop_setting('shipping_cost_voucher', 350))) / 100, 2, ',', '.') }} € Versand)
+                                                                ✉️ Per Post im Umschlag (+ {{ number_format(((int) ($item->configuration['post_shipping_cents'] ?? shop_setting('shipping_cost_voucher', 450))) / 100, 2, ',', '.') }} € Versand)
                                                             </span>
                                                         @else
                                                             <span class="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 font-bold">
@@ -796,34 +796,49 @@
                                     <span class="p-2 rounded-lg bg-primary/10 border border-primary/20 shadow-inner">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                                     </span>
-                                    DHL Tracking
+                                    {{ $selectedOrder->shipments->contains(fn($s) => $s->carrier === 'deutsche_post_brief') ? 'Post & Tracking' : 'DHL Tracking' }}
                                 </h4>
 
                                 <div class="space-y-4">
                                     @foreach($selectedOrder->shipments as $index => $shipment)
+                                        @php
+                                            $isBriefShipment = ($shipment->carrier ?? '') === 'deutsche_post_brief';
+                                            $isTrackableNumber = !str_starts_with((string) $shipment->tracking_number, 'BRIEF-')
+                                                && !str_starts_with((string) $shipment->tracking_number, '#PORTO-');
+                                            $trackHref = $isBriefShipment
+                                                ? ('https://www.deutschepost.de/de/s/sendungsverfolgung.html?piececode=' . urlencode((string) $shipment->tracking_number))
+                                                : ('https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=' . urlencode((string) $shipment->tracking_number));
+                                        @endphp
                                         <div>
                                             @if($selectedOrder->shipments->count() > 1)
                                                 <div class="flex items-center gap-2 mb-1.5 ml-1">
-                                                    <label class="text-[9px] font-black text-amber-800 dark:text-primary uppercase tracking-[0.2em] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">Paket {{ $index + 1 }}</label>
+                                                    <label class="text-[9px] font-black text-amber-800 dark:text-primary uppercase tracking-[0.2em] drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">{{ $isBriefShipment ? 'Großbrief' : 'Paket ' . ($index + 1) }}</label>
                                                 </div>
                                             @endif
-                                            <div class="relative flex items-center" x-data="{ copySuccess: false }">
-                                                <input type="text" readonly value="{{ $shipment->tracking_number }}"
-                                                       class="w-full rounded-2xl bg-white/90 dark:bg-gray-950/80 border border-primary/30 py-4 pl-5 pr-24 font-mono tracking-[0.1em] text-sm text-primary shadow-inner outline-none uppercase truncate transition-colors focus:border-primary/60">
-
-                                                <div class="absolute right-2 flex gap-1 items-center">
-                                                    <button @click="window.sfCopyText('{{ $shipment->tracking_number }}'); copySuccess = true; setTimeout(() => copySuccess = false, 2000); $dispatch('notify', { message: 'Sendungsnummer {{ $shipment->tracking_number }} kopiert!', type: 'success' })"
-                                                            class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Nummer kopieren">
-                                                        <svg x-show="!copySuccess" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                                        <svg x-show="copySuccess" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                                    </button>
-                                                    <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}"
-                                                       target="_blank"
-                                                       class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Auf DHL.de verfolgen">
-                                                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                                                    </a>
+                                            @if($isBriefShipment && !$isTrackableNumber)
+                                                <div class="w-full rounded-2xl bg-white/90 dark:bg-gray-950/80 border border-primary/30 py-4 px-5 text-sm font-bold text-amber-900 dark:text-primary shadow-inner flex items-center justify-between">
+                                                    <span>✉️ Versand per Deutsche Post Großbrief</span>
+                                                    <span class="text-xs font-mono text-gray-500">Direkt in Briefkasten</span>
                                                 </div>
-                                            </div>
+                                            @else
+                                                <div class="relative flex items-center" x-data="{ copySuccess: false }">
+                                                    <input type="text" readonly value="{{ $shipment->tracking_number }}"
+                                                           class="w-full rounded-2xl bg-white/90 dark:bg-gray-950/80 border border-primary/30 py-4 pl-5 pr-24 font-mono tracking-[0.1em] text-sm text-primary shadow-inner outline-none uppercase truncate transition-colors focus:border-primary/60">
+
+                                                    <div class="absolute right-2 flex gap-1 items-center">
+                                                        <button @click="window.sfCopyText('{{ $shipment->tracking_number }}'); copySuccess = true; setTimeout(() => copySuccess = false, 2000); $dispatch('notify', { message: 'Sendungsnummer {{ $shipment->tracking_number }} kopiert!', type: 'success' })"
+                                                                class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Nummer kopieren">
+                                                            <svg x-show="!copySuccess" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                                            <svg x-show="copySuccess" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                        </button>
+                                                        <a href="{{ $trackHref }}"
+                                                           target="_blank"
+                                                           class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Sendung verfolgen">
+                                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            @endif
                                         </div>
                                     @endforeach
                                 </div>
@@ -1304,36 +1319,51 @@
                                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                                             </span>
                                             <div>
-                                                <h4 class="text-sm font-black text-amber-800 dark:text-primary uppercase tracking-widest drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">DHL Tracking</h4>
+                                                <h4 class="text-sm font-black text-amber-800 dark:text-primary uppercase tracking-widest drop-shadow-none dark:drop-shadow-[0_0_8px_currentColor]">{{ $o->shipments->contains(fn($s) => $s->carrier === 'deutsche_post_brief') ? 'Post & Tracking' : 'DHL Tracking' }}</h4>
                                                 @if($o->shipments->count() > 1)
-                                                    <p class="text-[10px] uppercase font-black text-primary/70 tracking-[0.2em] mt-1">Split-Versand ({{ $o->shipments->count() }} Pakete)</p>
+                                                    <p class="text-[10px] uppercase font-black text-primary/70 tracking-[0.2em] mt-1">Split-Versand ({{ $o->shipments->count() }} Sendungen)</p>
                                                 @endif
                                             </div>
                                         </div>
 
                                         <div class="flex-1 lg:max-w-xl grid gap-3 w-full">
                                             @foreach($o->shipments as $index => $shipment)
-                                                <div class="relative flex items-center">
-                                                    @if($o->shipments->count() > 1)
-                                                        <span class="absolute left-4 text-[10px] font-black text-primary/70 uppercase pointer-events-none tracking-widest">Paket {{ $index + 1 }}:</span>
-                                                    @endif
-                                                    <input type="text" readonly value="{{ $shipment->tracking_number }}"
-                                                           class="w-full rounded-2xl bg-white/90 dark:bg-gray-950/80 border border-primary/30 py-3.5 {{ $o->shipments->count() > 1 ? 'pl-[90px]' : 'pl-5' }} pr-24 font-mono tracking-[0.1em] text-sm md:text-base text-primary shadow-inner outline-none uppercase truncate">
-
-                                                    <div class="absolute right-2 flex gap-1 items-center">
-                                                        <button @click.stop="window.sfCopyText('{{ $shipment->tracking_number }}'); copySuccessIds.push('{{ $shipment->id }}'); setTimeout(() => copySuccessIds = copySuccessIds.filter(id => id !== '{{ $shipment->id }}'), 2000); $dispatch('notify', { message: 'Sendungsnummer {{ $shipment->tracking_number }} kopiert!', type: 'success' })"
-                                                                class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Kopieren">
-                                                            <svg x-show="!copySuccessIds.includes('{{ $shipment->id }}')" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                                                            <svg x-show="copySuccessIds.includes('{{ $shipment->id }}')" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                                        </button>
-                                                        <a href="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={{ $shipment->tracking_number }}"
-                                                           target="_blank"
-                                                           @click.stop
-                                                           class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Auf DHL.de verfogen">
-                                                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                                                        </a>
+                                                @php
+                                                    $isBriefShipment = ($shipment->carrier ?? '') === 'deutsche_post_brief';
+                                                    $isTrackableNumber = !str_starts_with((string) $shipment->tracking_number, 'BRIEF-')
+                                                        && !str_starts_with((string) $shipment->tracking_number, '#PORTO-');
+                                                    $trackHref = $isBriefShipment
+                                                        ? ('https://www.deutschepost.de/de/s/sendungsverfolgung.html?piececode=' . urlencode((string) $shipment->tracking_number))
+                                                        : ('https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode=' . urlencode((string) $shipment->tracking_number));
+                                                @endphp
+                                                @if($isBriefShipment && !$isTrackableNumber)
+                                                    <div class="w-full rounded-2xl bg-white/90 dark:bg-gray-950/80 border border-primary/30 py-3.5 px-5 text-sm font-bold text-amber-900 dark:text-primary shadow-inner flex items-center justify-between">
+                                                        <span>✉️ Deutsche Post Großbrief</span>
+                                                        <span class="text-xs font-mono text-gray-500">Direktzustellung</span>
                                                     </div>
-                                                </div>
+                                                @else
+                                                    <div class="relative flex items-center">
+                                                        @if($o->shipments->count() > 1)
+                                                            <span class="absolute left-4 text-[10px] font-black text-primary/70 uppercase pointer-events-none tracking-widest">{{ $isBriefShipment ? 'Großbrief:' : 'Paket ' . ($index + 1) . ':' }}</span>
+                                                        @endif
+                                                        <input type="text" readonly value="{{ $shipment->tracking_number }}"
+                                                               class="w-full rounded-2xl bg-white/90 dark:bg-gray-950/80 border border-primary/30 py-3.5 {{ $o->shipments->count() > 1 ? 'pl-[90px]' : 'pl-5' }} pr-24 font-mono tracking-[0.1em] text-sm md:text-base text-primary shadow-inner outline-none uppercase truncate">
+
+                                                        <div class="absolute right-2 flex gap-1 items-center">
+                                                            <button @click.stop="window.sfCopyText('{{ $shipment->tracking_number }}'); copySuccessIds.push('{{ $shipment->id }}'); setTimeout(() => copySuccessIds = copySuccessIds.filter(id => id !== '{{ $shipment->id }}'), 2000); $dispatch('notify', { message: 'Sendungsnummer {{ $shipment->tracking_number }} kopiert!', type: 'success' })"
+                                                                    class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Kopieren">
+                                                                <svg x-show="!copySuccessIds.includes('{{ $shipment->id }}')" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                                                <svg x-show="copySuccessIds.includes('{{ $shipment->id }}')" x-cloak class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                            </button>
+                                                            <a href="{{ $trackHref }}"
+                                                               target="_blank"
+                                                               @click.stop
+                                                               class="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-xl transition-all" title="Sendung verfolgen">
+                                                                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                @endif
                                             @endforeach
 
                                             @if($o->status === 'shipped')

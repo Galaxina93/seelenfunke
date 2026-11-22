@@ -628,8 +628,14 @@ namespace FunkenwerkFtp
             {
                 if (fullPath.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
                 {
-                    string fwPdf = @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk PDF\FunkenwerkPdf.exe";
-                    if (File.Exists(fwPdf))
+                    string[] pdfCandidates =
+                    {
+                        Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Funkenwerk PDF", "FunkenwerkPdf.exe")),
+                        @"C:\Users\konta\Desktop\Funkenwerk Collection\Module\Funkenwerk PDF\FunkenwerkPdf.exe",
+                        @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk PDF\FunkenwerkPdf.exe"
+                    };
+                    string? fwPdf = pdfCandidates.FirstOrDefault(File.Exists);
+                    if (!string.IsNullOrEmpty(fwPdf))
                     {
                         var pdfPsi = new ProcessStartInfo { FileName = fwPdf, UseShellExecute = false };
                         pdfPsi.ArgumentList.Add(fullPath);
@@ -1292,6 +1298,7 @@ namespace FunkenwerkFtp
                 string[] candidatePaths =
                 {
                     Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Funkenwerk SSH", "FunkenwerkSsh.exe")),
+                    @"C:\Users\konta\Desktop\Funkenwerk Collection\Module\Funkenwerk SSH\FunkenwerkSsh.exe",
                     @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk SSH\FunkenwerkSsh.exe"
                 };
 

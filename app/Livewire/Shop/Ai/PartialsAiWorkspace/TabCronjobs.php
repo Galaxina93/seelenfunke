@@ -15,18 +15,21 @@ class TabCronjobs extends Component
     public $editingJobId = null;
     public $editingSchedule = '';
 
-    public function boot(): void
+    protected function assertAdminAccess(): void
     {
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
+    public function boot(): void
+    {
+        $this->assertAdminAccess();
+    }
+
     public function mount()
     {
-        if (!Auth::guard('admin')->check()) {
-            abort(403);
-        }
+        $this->assertAdminAccess();
 
         if (class_exists(\Database\Seeders\SystemCronjobSeeder::class)) {
             \Database\Seeders\SystemCronjobSeeder::ensureDefaultCronjobsExist();
@@ -41,6 +44,7 @@ class TabCronjobs extends Component
 
     public function editSchedule($id)
     {
+        $this->assertAdminAccess();
         $job = SystemCronjob::find($id);
         if ($job) {
             $this->editingJobId = $job->id;
@@ -56,9 +60,7 @@ class TabCronjobs extends Component
 
     public function saveSchedule()
     {
-        if (!Auth::guard('admin')->check()) {
-            abort(403);
-        }
+        $this->assertAdminAccess();
         if (!$this->editingJobId) return;
 
         $schedule = trim((string) $this->editingSchedule);
@@ -96,9 +98,7 @@ class TabCronjobs extends Component
 
     public function toggleCronjob($id)
     {
-        if (!Auth::guard('admin')->check()) {
-            abort(403);
-        }
+        $this->assertAdminAccess();
         $job = SystemCronjob::find($id);
         if ($job) {
             $job->is_active = !$job->is_active;
@@ -113,9 +113,7 @@ class TabCronjobs extends Component
 
     public function runNow($id)
     {
-        if (!Auth::guard('admin')->check()) {
-            abort(403);
-        }
+        $this->assertAdminAccess();
         $job = SystemCronjob::find($id);
         if ($job) {
             $commandClean = trim((string) $job->command);

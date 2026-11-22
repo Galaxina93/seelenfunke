@@ -96,7 +96,13 @@ class FetchMailsCommand extends Command
                     ]
                 ]);
 
-                $client->connect();
+                try {
+                    $client->connect();
+                } catch (\Throwable $firstConnEx) {
+                    // Einmaliger Retry nach 800ms bei kurzzeitigem DNS-/Socket-Jitter
+                    usleep(800000);
+                    $client->connect();
+                }
 
                 // Get Posteingang/INBOX
                 $folder = $client->getFolder('INBOX');
@@ -279,10 +285,29 @@ class FetchMailsCommand extends Command
                 }
 
             } catch (\Throwable $e) {
-                $errMsg = $e->getMessage();
+                $chainParts = [];
+                $chainClasses = [];
+                $cursor = $e;
+                $depth = 0;
+                while ($cursor !== null && $depth < 4) {
+                    $cMsg = trim($cursor->getMessage());
+                    $cClass = class_basename($cursor);
+                    $chainClasses[] = $cClass;
+                    if ($cMsg !== '' && !in_array($cMsg, $chainParts, true)) {
+                        $chainParts[] = $cMsg;
+                    }
+                    $cursor = $cursor->getPrevious();
+                    $depth++;
+                }
+
+                $errMsg = implode(' -> ', $chainParts) ?: $e->getMessage();
+                $classChainStr = implode(' -> ', $chainClasses);
+
                 $isAuthFailure = stripos($errMsg, 'AUTHENTICATIONFAILED') !== false
                     || stripos($errMsg, 'Invalid credentials') !== false
-                    || stripos($errMsg, 'LOGIN failed') !== false;
+                    || stripos($errMsg, 'LOGIN failed') !== false
+                    || stripos($errMsg, 'AuthFailedException') !== false
+                    || stripos($classChainStr, 'AuthFailedException') !== false;
 
                 if ($isAuthFailure) {
                     $backoffHours = $isStageOrDev ? 24 : 6;
@@ -303,13 +328,18 @@ class FetchMailsCommand extends Command
                     continue;
                 }
 
+                $detailSummary = "Postfach {$account->email} ({$account->imap_host}:{$account->imap_port}, {$classChainStr}): {$errMsg}";
+                if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                    \App\Services\System\SystemErrorLogger::rememberCommandFailureDetail('crm:fetch-mails', $detailSummary);
+                }
+
                 $failedAccounts++;
                 $throttleKey = 'imap_fetch_error_logged_' . $account->id;
                 if (!\Illuminate\Support\Facades\Cache::has($throttleKey)) {
                     \Illuminate\Support\Facades\Cache::put($throttleKey, true, now()->addHours($isAuthFailure ? 6 : 1));
-                    Log::error("IMAP Fetch failed for {$account->email}: " . $errMsg, ['exception' => $e]);
+                    Log::error("IMAP Fetch failed for {$account->email}: " . $detailSummary, ['exception' => $e]);
                 }
-                $this->error("FEHLER beim Abruf von {$account->email}: " . $errMsg);
+                $this->error("FEHLER beim Abruf von {$account->email}: " . $detailSummary);
             }
         }
 

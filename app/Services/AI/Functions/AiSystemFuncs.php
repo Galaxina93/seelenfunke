@@ -897,6 +897,62 @@ trait AiSystemFuncs
                 'callable' => [self::class, 'executeResolvePendingAgBlockade']
             ],
             [
+                'name' => 'ag_send_to_antigravity',
+                'description' => 'Sendet genau wie Falcone ein technisches Problem, einen Bug-Bericht, eine Systemdiagnose oder einen konkreten Entwicklungs-/Konzept-Auftrag direkt in das Antigravity-Entwickler-Postfach (inkl. Abteilungs-Kanal und optionalem Chat-/Kamera-Screenshot).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => [
+                            'type' => 'string',
+                            'description' => 'Kurzer, präziser Haupttitel des Problems, Bugs oder Auftrags.'
+                        ],
+                        'body' => [
+                            'type' => 'string',
+                            'description' => 'Detaillierte Beschreibung (Ursache, Fehlermeldung, betroffene Datei/Route oder gewünschtes Verhalten).'
+                        ],
+                        'checklist' => [
+                            'type' => 'array',
+                            'items' => ['type' => 'string'],
+                            'description' => 'Optionale Liste konkreter Prüfpunkte oder Arbeitsschritte.'
+                        ],
+                        'execution_mode' => [
+                            'type' => 'string',
+                            'description' => 'Modus: concept (Erst Konzept vor einem Go) oder direct (Direkt umsetzen bei klaren Bugs/Fehlern oder nach explizitem Go).',
+                            'enum' => ['concept', 'direct']
+                        ],
+                        'channel' => [
+                            'type' => 'string',
+                            'description' => 'Ziel-Kanal im Antigravity-Orchester: leitung (Standard), shop (Laravel/Produkte/Konfigurator), android (Android-App/Widgets), minipc (Mini-PC/Funkenwerk/Laser), buchhaltung (Buchhaltung/Belege/Marketing) oder new.',
+                            'enum' => ['leitung', 'shop', 'android', 'minipc', 'buchhaltung', 'new']
+                        ],
+                        'attachment_path' => [
+                            'type' => 'string',
+                            'description' => 'Optionaler relativer Workspace-Pfad eines Screenshots/Kamerabildes (z. B. agenten/workspace/chat-medien/... oder agenten/workspace/Dokumente/Snapshots/...).'
+                        ],
+                        'attach_latest_upload' => [
+                            'type' => 'boolean',
+                            'description' => 'True, wenn automatisch das zuletzt im aktuellen Chat hochgeladene Bild angehängt werden soll.'
+                        ]
+                    ],
+                    'required' => ['title']
+                ],
+                'callable' => [self::class, 'executeSendToAntigravity']
+            ],
+            [
+                'name' => 'ag_check_antigravity_status',
+                'description' => 'Prüft analog zu Falcone den aktuellen Live-Status der letzten Aufträge und Problemmeldungen im Antigravity-Postfach inklusive Antworten und wartender Go-Freigaben.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'limit' => [
+                            'type' => 'integer',
+                            'description' => 'Maximale Anzahl der zurückgegebenen letzten Einträge (Standard: 5, max. 25).'
+                        ]
+                    ],
+                ],
+                'callable' => [self::class, 'executeCheckAntigravityStatus']
+            ],
+            [
                 'name' => 'system_analyze_neural_error',
                 'description' => 'Führt eine tiefgreifende neurale Fehleranalyse für eine defekte Datei (ausgewählt im 3D Projekt Gehirn) aus und generiert einen Markdown Bericht. Nutze dieses Tool, wenn der User im 3D-Gehirn einen Fehler anklickt und analysiert haben möchte.',
                 'parameters' => [
@@ -4691,6 +4747,245 @@ trait AiSystemFuncs
                 'message' => 'Fehler beim Auflösen der Antigravity-Blockade: ' . $e->getMessage(),
             ];
         }
+    }
+
+    public static function executeSendToAntigravity(array $args)
+    {
+        if ($denied = self::assertSystemAdminAccess()) {
+            return array_merge(['error' => true], $denied);
+        }
+
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Die direkte Übermittlung an Antigravity ist ausschließlich Administratoren vorbehalten.',
+            ];
+        }
+
+        try {
+            /** @var \App\Services\System\AntigravityDirectInboxService $inbox */
+            $inbox = app(\App\Services\System\AntigravityDirectInboxService::class);
+
+            $rawTitle = trim((string) ($args['title'] ?? ''));
+            $rawBody = trim((string) ($args['body'] ?? ''));
+            if ($rawTitle === '' && $rawBody !== '') {
+                $firstLine = trim((string) strtok($rawBody, "\r\n"));
+                $rawTitle = mb_substr($firstLine, 0, 160);
+            }
+            if ($rawTitle === '') {
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => 'Bitte gib einen klaren Titel (title) für die Nachricht an Antigravity an.',
+                ];
+            }
+
+            $safeTitle = \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($rawTitle);
+            $safeBody = $rawBody !== '' ? \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($rawBody) : '';
+
+            $rawChannel = strtolower(trim((string) ($args['channel'] ?? 'leitung')));
+            $mappedChannel = match ($rawChannel) {
+                'shop', 'laravel', 'konfigurator', 'produkte' => 'shop',
+                'android', 'app', 'mobile', 'widget', 'widgets' => 'android',
+                'minipc', 'mini-pc', 'mini_pc', 'funkenwerk', 'laser', 'werkstatt' => 'minipc',
+                'buchhaltung', 'accounting', 'finanzen', 'belege', 'marketing' => 'buchhaltung',
+                'new', 'neu' => 'new',
+                default => 'leitung',
+            };
+            $channel = $inbox->normalizeChannel($mappedChannel);
+
+            $rawMode = strtolower(trim((string) ($args['execution_mode'] ?? 'direct')));
+            $mode = in_array($rawMode, \App\Services\System\AntigravityDirectInboxService::ALLOWED_EXECUTION_MODES, true)
+                ? $rawMode
+                : 'direct';
+
+            $rawChecklist = $args['checklist'] ?? [];
+            $sanitizedChecklist = [];
+            if (is_array($rawChecklist)) {
+                foreach ($rawChecklist as $entry) {
+                    if (is_scalar($entry)) {
+                        $line = trim(\App\Services\System\SystemErrorLogger::sanitizeSensitiveText((string) $entry));
+                        if ($line !== '') {
+                            $sanitizedChecklist[] = mb_substr($line, 0, 300);
+                        }
+                    }
+                }
+            }
+
+            $validatedAttachment = self::resolveOptionalAgWorkspaceAttachment(
+                $inbox,
+                isset($args['attachment_path']) ? (string) $args['attachment_path'] : null,
+                !empty($args['attach_latest_upload'])
+            );
+
+            $sessionScope = (string) (config('ai.current_session_id') ?: (session()->isStarted() ? session()->getId() : 'cli'));
+            $clientUuid = isset($args['client_uuid']) && trim((string) $args['client_uuid']) !== ''
+                ? mb_substr(preg_replace('/[^A-Za-z0-9_-]/', '', trim((string) $args['client_uuid'])), 0, 64)
+                : ('funkira_' . substr(sha1($sessionScope . '|' . $channel . '|' . $safeTitle . '|' . $safeBody . '|' . floor(time() / 60)), 0, 28));
+
+            $enqueued = $inbox->enqueueMessage([
+                'client_uuid' => $clientUuid,
+                'channel' => $channel,
+                'title' => $safeTitle,
+                'body' => $safeBody,
+                'checklist' => array_slice($sanitizedChecklist, 0, 25),
+                'execution_mode' => $mode,
+                'source' => 'funkira_portal',
+            ], $validatedAttachment);
+
+            $item = $enqueued['item'];
+            $isReplay = (bool) ($enqueued['idempotent_replay'] ?? false);
+
+            return [
+                'status' => 'success',
+                'sent_live' => true,
+                'idempotent_replay' => $isReplay,
+                'item_id' => $item['id'] ?? null,
+                'channel' => $channel,
+                'execution_mode' => $mode,
+                'has_attachment' => (bool) ($item['has_attachment'] ?? false),
+                'attachment_name' => $item['attachment_name'] ?? null,
+                'auto_resolved_ids' => $enqueued['auto_resolved_ids'] ?? [],
+                'message' => "Nachricht '{$safeTitle}' wurde erfolgreich direkt an Antigravity (Kanal '{$channel}', Modus '{$mode}') übermittelt.",
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Nachricht an Antigravity konnte nicht übermittelt werden: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    public static function executeCheckAntigravityStatus(array $args = [])
+    {
+        if ($denied = self::assertSystemAdminAccess()) {
+            return array_merge(['error' => true], $denied);
+        }
+
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Der Antigravity-Status ist ausschließlich Administratoren vorbehalten.',
+            ];
+        }
+
+        try {
+            /** @var \App\Services\System\AntigravityDirectInboxService $inbox */
+            $inbox = app(\App\Services\System\AntigravityDirectInboxService::class);
+            $limit = max(1, min(25, (int) ($args['limit'] ?? 5)));
+            $snapshot = $inbox->listInbox($limit);
+            $blockades = $inbox->getPendingBlockades();
+
+            $compactItems = [];
+            foreach ($snapshot['items'] ?? [] as $item) {
+                $compactItems[] = [
+                    'id' => $item['id'] ?? '',
+                    'title' => $item['title'] ?? '',
+                    'status' => $item['status'] ?? 'pending',
+                    'execution_mode' => $item['execution_mode'] ?? 'concept',
+                    'channel' => $item['channel'] ?? 'leitung',
+                    'source' => $item['source'] ?? 'unknown',
+                    'has_attachment' => (bool) ($item['has_attachment'] ?? false),
+                    'pending_question' => $item['pending_question'] ?? null,
+                    'ag_response_summary' => $item['ag_response_summary'] ?? null,
+                    'created_at' => $item['created_at'] ?? null,
+                    'completed_at' => $item['completed_at'] ?? null,
+                ];
+            }
+
+            return [
+                'status' => 'success',
+                'counts' => $snapshot['counts'] ?? [],
+                'pending_blockades_count' => count($blockades),
+                'pending_blockades' => $blockades,
+                'items' => $compactItems,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Antigravity-Status konnte nicht abgerufen werden: ' . $e->getMessage(),
+            ];
+        }
+    }
+
+    private static function resolveOptionalAgWorkspaceAttachment(
+        \App\Services\System\AntigravityDirectInboxService $inbox,
+        ?string $explicitRelPath,
+        bool $attachLatestUpload
+    ): ?array {
+        $candidateRel = $explicitRelPath !== null ? ltrim(str_replace('\\', '/', trim($explicitRelPath)), '/') : '';
+
+        if ($candidateRel === '' && $attachLatestUpload && class_exists(\App\Models\Ai\AiChatMemory::class)) {
+            $sessionId = config('ai.current_session_id') ?: (session()->isStarted() ? session()->getId() : null);
+            if ($sessionId) {
+                $recentUserMsg = \App\Models\Ai\AiChatMemory::where('session_id', $sessionId)
+                    ->where('role', 'user')
+                    ->where('created_at', '>=', now()->subMinutes(15))
+                    ->orderByDesc('id')
+                    ->first();
+                $uploads = is_array($recentUserMsg?->context_data['local_uploads'] ?? null)
+                    ? $recentUserMsg->context_data['local_uploads']
+                    : [];
+                if (!empty($uploads) && is_array($uploads[0]) && !empty($uploads[0]['path'])) {
+                    $candidateRel = ltrim(str_replace('\\', '/', trim((string) $uploads[0]['path'])), '/');
+                }
+            }
+        }
+
+        if ($candidateRel === '' || str_contains($candidateRel, '..') || str_contains($candidateRel, "\0")) {
+            return null;
+        }
+
+        $allowedPrefixes = [
+            'agenten/workspace/chat-medien/',
+            'agenten/workspace/Dokumente/Snapshots/',
+        ];
+        $prefixAllowed = false;
+        foreach ($allowedPrefixes as $prefix) {
+            if (str_starts_with($candidateRel, $prefix)) {
+                $prefixAllowed = true;
+                break;
+            }
+        }
+        if (!$prefixAllowed) {
+            return null;
+        }
+
+        $storageAppReal = realpath(storage_path('app'));
+        if (!$storageAppReal) {
+            return null;
+        }
+
+        $candidatePaths = [
+            storage_path('app/public/' . $candidateRel),
+            storage_path('app/private/' . $candidateRel),
+            storage_path('app/' . $candidateRel),
+        ];
+
+        foreach ($candidatePaths as $fullPath) {
+            if (!is_file($fullPath) || is_link($fullPath)) {
+                continue;
+            }
+            $real = realpath($fullPath);
+            if (!$real || !str_starts_with($real, $storageAppReal . DIRECTORY_SEPARATOR)) {
+                continue;
+            }
+            $bytes = @file_get_contents($real);
+            if (!is_string($bytes) || $bytes === '' || strlen($bytes) > \App\Services\System\AntigravityDirectInboxService::MAX_ATTACHMENT_BYTES) {
+                continue;
+            }
+            try {
+                return $inbox->validateAndNormalizeAttachmentBytes($bytes, basename($real), null);
+            } catch (\Throwable) {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     public static function executeReadClipboard(array $args)

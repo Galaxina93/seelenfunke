@@ -484,13 +484,13 @@ namespace FunkenwerkCraft
                 });
 
                 // T12: Trusted FFmpeg/FFprobe Discovery & Bounded Peak Envelope (-t 90)
-                await CheckAsync("T12", "Vertrauenswuerdige FFmpeg/FFprobe-Pfade & Peak-Erkennung (-t 90 + Timeout)", () =>
+                await CheckAsync("T12", "Vertrauenswuerdige FFmpeg-Pfade & Peak-Erkennung (-t 90 + Timeout)", () =>
                 {
                     string ffmpeg = CraftEngine.FindTrustedFfmpegExe();
-                    string ffprobe = CraftEngine.FindTrustedFfprobeExe();
+                    string? ffprobe = CraftEngine.TryFindTrustedFfprobeExe();
                     if (!Path.IsPathRooted(ffmpeg) || !File.Exists(ffmpeg))
                         throw new InvalidOperationException($"Ungueltiger FFmpeg-Pfad: {ffmpeg}");
-                    if (!Path.IsPathRooted(ffprobe) || !File.Exists(ffprobe))
+                    if (ffprobe != null && (!Path.IsPathRooted(ffprobe) || !File.Exists(ffprobe)))
                         throw new InvalidOperationException($"Ungueltiger FFprobe-Pfad: {ffprobe}");
 
                     string projDir = CraftEngine.GetProjectDirectory(testProjName);
@@ -765,61 +765,42 @@ namespace FunkenwerkCraft
                     return $"ftyp@{ftypPos}, moov@{moovPos} < mdat@{mdatPos}";
                 });
 
-                // T19: FFprobe Stream Specification Verification (1080x1920 H.264 yuv420p + 48000 Hz Stereo AAC)
-                await CheckAsync("T19", "FFprobe verifiziert H.264 1080x1920 yuv420p & 48000 Hz Stereo AAC", async () =>
+                // T19: Stream Specification Verification (1080x1920 H.264 yuv420p + 48000 Hz Stereo AAC)
+                await CheckAsync("T19", "Stream-Pruefung verifiziert H.264 1080x1920 yuv420p & 48000 Hz Stereo AAC", async () =>
                 {
-                    string ffprobe = CraftEngine.FindTrustedFfprobeExe();
+                    string ffmpeg = CraftEngine.FindTrustedFfmpegExe();
                     var psi = new ProcessStartInfo
                     {
-                        FileName = ffprobe,
+                        FileName = ffmpeg,
                         UseShellExecute = false,
                         RedirectStandardOutput = true,
                         RedirectStandardError = true,
                         CreateNoWindow = true
                     };
-                    psi.ArgumentList.Add("-v");
-                    psi.ArgumentList.Add("quiet");
-                    psi.ArgumentList.Add("-print_format");
-                    psi.ArgumentList.Add("json");
-                    psi.ArgumentList.Add("-show_streams");
-                    psi.ArgumentList.Add("-show_format");
+                    psi.ArgumentList.Add("-hide_banner");
+                    psi.ArgumentList.Add("-i");
                     psi.ArgumentList.Add(renderedMasterMp4);
 
                     using var proc = Process.Start(psi)!;
                     Task<string> outT = proc.StandardOutput.ReadToEndAsync();
                     Task<string> errT = proc.StandardError.ReadToEndAsync();
                     await proc.WaitForExitAsync();
-                    string json = await outT;
-                    _ = await errT;
+                    _ = await outT;
+                    string banner = await errT;
 
-                    using var doc = JsonDocument.Parse(json);
-                    string vCodec = "", pixFmt = "", aCodec = "", sampleRate = "";
-                    int w = 0, h = 0, channels = 0;
+                    bool hasH264 = banner.Contains("Video: h264", StringComparison.OrdinalIgnoreCase);
+                    bool hasRes = banner.Contains("1080x1920", StringComparison.OrdinalIgnoreCase);
+                    bool hasPix = banner.Contains("yuv420p", StringComparison.OrdinalIgnoreCase);
+                    bool hasAac = banner.Contains("Audio: aac", StringComparison.OrdinalIgnoreCase);
+                    bool hasSr = banner.Contains("48000 Hz", StringComparison.OrdinalIgnoreCase);
+                    bool hasStereo = banner.Contains("stereo", StringComparison.OrdinalIgnoreCase);
 
-                    foreach (var st in doc.RootElement.GetProperty("streams").EnumerateArray())
-                    {
-                        string ct = st.GetProperty("codec_type").GetString() ?? "";
-                        if (ct == "video")
-                        {
-                            vCodec = st.GetProperty("codec_name").GetString() ?? "";
-                            w = st.GetProperty("width").GetInt32();
-                            h = st.GetProperty("height").GetInt32();
-                            pixFmt = st.GetProperty("pix_fmt").GetString() ?? "";
-                        }
-                        else if (ct == "audio")
-                        {
-                            aCodec = st.GetProperty("codec_name").GetString() ?? "";
-                            sampleRate = st.GetProperty("sample_rate").GetString() ?? "";
-                            channels = st.GetProperty("channels").GetInt32();
-                        }
-                    }
+                    if (!hasH264 || !hasRes || !hasPix)
+                        throw new InvalidOperationException($"Ungueltiger Video-Stream: {banner}");
+                    if (!hasAac || !hasSr || !hasStereo)
+                        throw new InvalidOperationException($"Ungueltiger Audio-Stream: {banner}");
 
-                    if (vCodec != "h264" || w != 1080 || h != 1920 || pixFmt != "yuv420p")
-                        throw new InvalidOperationException($"Ungueltiger Video-Stream: {vCodec} {w}x{h} {pixFmt}");
-                    if (aCodec != "aac" || sampleRate != "48000" || channels != 2)
-                        throw new InvalidOperationException($"Ungueltiger Audio-Stream: {aCodec} {sampleRate}Hz {channels}ch");
-
-                    return $"Video={vCodec} {w}x{h} ({pixFmt}) | Audio={aCodec} {sampleRate}Hz {channels}ch";
+                    return "Video=h264 1080x1920 (yuv420p) | Audio=aac 48000Hz stereo";
                 });
 
                 // T20: STA MainWindow Light/Dark Theme, Scene ComboBoxes, Selected-Scene SFX & Auto-Save
@@ -866,7 +847,122 @@ namespace FunkenwerkCraft
                         win.Close();
                     }
 
-                    return Task.FromResult("Light/Dark Switch + 9 Szenen-ComboBoxen + Szene #2 Effekt-Zuweisung OK");
+                    return Task.FromResult("Light/Dark Switch + Szenen-ComboBoxen + Szene #2 Effekt-Zuweisung OK");
+                });
+
+                // T20b: SFX-Only Render (Zero Background Music) + Curated Studio Transition SFX + Suno Custom Music Import
+                await CheckAsync("T20b", "SFX-Only Render ohne Hintergrundmusik + Studio-Transition-SFX + Suno-Import", async () =>
+                {
+                    CraftEngine.EnsureCuratedStudioTransitionSfxPack();
+                    foreach (var st in CraftEngine.CuratedStudioTransitions)
+                    {
+                        string? resolved = CraftEngine.ResolveSafeAudioPath(st.RelPath, null, requireExists: true);
+                        if (string.IsNullOrWhiteSpace(resolved) || !File.Exists(resolved))
+                            throw new FileNotFoundException($"Studio-Transition-SFX fehlt: {st.RelPath}");
+                    }
+
+                    var freshDefault = CraftEngine.LoadOrCreateProject("Selftest Fresh SfxOnly");
+                    if (!string.IsNullOrEmpty(freshDefault.BackgroundMusic) || Math.Abs(freshDefault.MusicVolume - 0.18) > 0.01)
+                        throw new InvalidOperationException($"Neues Projekt muss standardmaessig ohne Musik starten (BackgroundMusic='{freshDefault.BackgroundMusic}', MusicVol={freshDefault.MusicVolume}).");
+
+                    var sfxOnlyProj = new CraftProjectModel
+                    {
+                        Name = testProjName,
+                        AspectRatio = "9:16",
+                        Fps = 30,
+                        BackgroundMusic = "", // Ohne Musik! Nur Übergangs-SFX!
+                        SfxVolume = 0.85,
+                        IntroAccentSfx = @"Uebergaenge_Studio\Dark_Luxury_Pulse_Cut_04.wav",
+                        OutroAccentSfx = @"Uebergaenge_Studio\Warm_Outro_Velvet_Bloom_06.wav",
+                        OutputFileName = "Social_Media_Ready_SfxOnly_Test.mp4",
+                        Scenes = new List<CraftSceneItem>
+                        {
+                            new()
+                            {
+                                FileName = "valid_still.png",
+                                MediaType = "image",
+                                DurationSec = 1.3,
+                                FitMode = "fill",
+                                SpeedMode = "linear",
+                                Transition = "velvet_dissolve",
+                                TransitionSfx = @"Uebergaenge_Studio\Silk_Air_Cut_Soft_01.wav"
+                            },
+                            new()
+                            {
+                                FileName = "synth_clip.mp4",
+                                MediaType = "video",
+                                DurationSec = 1.4,
+                                FitMode = "fill",
+                                SpeedMode = "linear",
+                                Transition = "smoothleft"
+                            }
+                        }
+                    };
+                    CraftEngine.SaveProject(sfxOnlyProj);
+                    string sfxOnlyMp4 = await CraftEngine.RenderProjectSocialVideoAsync(sfxOnlyProj);
+                    await CraftEngine.ValidateMp4PlayabilityAsync(sfxOnlyMp4);
+
+                    string sunoDummyWav = Path.Combine(outsideRogueDir, "suno_background_ambient.wav");
+                    SynthesizeImpulseAndChordWav(sunoDummyWav, durationSec: 2.0, impulseAtSec: 0.5);
+                    string importedLeaf = CraftEngine.ImportCustomMusicToProject(testProjName, sunoDummyWav);
+                    if (importedLeaf != "suno_background_ambient.wav")
+                        throw new InvalidOperationException($"Suno-Import lieferte unerwarteten Dateinamen: {importedLeaf}");
+
+                    return $"10 Studio-SFX aktiv + SFX-Only Render ({new FileInfo(sfxOnlyMp4).Length / 1024} KB) + Suno-Import OK";
+                });
+
+                // T20c: Anti-Monotony Transition-SFX Diversifier (Reproduces 10x identical Cinema_Whoosh_Deep_Impact_01 -> 9 unique cuts, 0 consecutive repeats)
+                await CheckAsync("T20c", "Automatische Uebergangs-Sound-Variation verhindert monotone Wiederholungen", () =>
+                {
+                    var monotonousProj = new CraftProjectModel
+                    {
+                        Name = testProjName,
+                        AspectRatio = "9:16",
+                        Fps = 30,
+                        BackgroundMusic = ""
+                    };
+
+                    for (int i = 0; i < 10; i++)
+                    {
+                        monotonousProj.Scenes.Add(new CraftSceneItem
+                        {
+                            FileName = "valid_still.png",
+                            MediaType = "image",
+                            DurationSec = 1.5,
+                            Transition = (i % 3 == 0) ? "whip_zoom" : (i % 3 == 1 ? "smoothleft" : "velvet_dissolve"),
+                            TransitionSfx = i == 4 ? "" : @"Uebergaenge_Studio\Silk_Air_Cut_Soft_01.wav" // Cut #5 explicitly silent, all others identical!
+                        });
+                    }
+
+                    int changed = CraftEngine.DiversifyProjectTransitionSfxIfMonotonous(monotonousProj, rng: new Random(42));
+                    if (changed < 7)
+                        throw new InvalidOperationException($"Zu wenige monotone Schnitte diversifiziert: changed={changed}");
+
+                    // Cut #5 (index 4) was explicitly silent ("") and MUST stay silent
+                    if (!string.IsNullOrEmpty(monotonousProj.Scenes[4].TransitionSfx))
+                        throw new InvalidOperationException("Explizit stummer Schnitt ('') wurde unbeabsichtigt ueberschrieben.");
+
+                    var activeCuts = new List<string>();
+                    string? prev = null;
+                    for (int i = 0; i < 9; i++)
+                    {
+                        string sfx = monotonousProj.Scenes[i].TransitionSfx;
+                        if (string.IsNullOrEmpty(sfx))
+                        {
+                            prev = null;
+                            continue;
+                        }
+                        if (prev != null && string.Equals(prev, sfx, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidOperationException($"Aufeinanderfolgende Schnitte #{i} und #{i + 1} nutzen denselben Sound: {sfx}");
+                        prev = sfx;
+                        activeCuts.Add(sfx);
+                    }
+
+                    int distinctCount = activeCuts.Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                    if (distinctCount < 8)
+                        throw new InvalidOperationException($"Zu wenig verschiedene Uebergangs-Sounds bei 8 aktiven Schnitten: distinct={distinctCount} ({string.Join(", ", activeCuts)})");
+
+                    return Task.FromResult($"{distinctCount}/8 aktive Schnitte komplett unterschiedlich · 0 direkte Wiederholungen · Stille respektiert");
                 });
             }
             finally

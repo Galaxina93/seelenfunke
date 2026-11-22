@@ -72,15 +72,19 @@ class OrderOverview extends Component
     public $photoIssueSetPending = true;
     public $photoIssueSendMail = true;
 
-    // DHL MODAL STATE
+    // DHL & GROSSBRIEF MODAL STATE
     #[\Livewire\Attributes\Locked]
     public $dhlModalOrderId = null;
+    public string $shippingLabelMode = 'dhl';
     public $dhlPackageCount = 1;
     public $dhlWeightPerPackage = 1.0;
     public $dhlError = null;
     public array $dhlWeightDetails = [];
     public ?float $dhlRecommendedWeight = null;
     public string $dhlPackagingType = 'box';
+    public string $briefPortoCode = '';
+    public string $briefTrackingNumber = '';
+    public array $briefRecipientPreview = [];
 
     // DRUCK-FEEDBACK STATE
     public ?string $lastPrintedOrderId = null;
@@ -105,7 +109,8 @@ class OrderOverview extends Component
     public int $laserWorkflowStep = 1;
     public int $laserCameraRefreshToken = 0;
     public ?string $laserLastActionStatus = null;
-    public string $laserCameraLightMode = 'anti_glare';
+    public string $laserCameraLightMode = 'normal';
+    public string $laserFramingMode = 'contour';
 
     // LASER-FOTO-STUDIO MODAL STATE
     public bool $isLaserPhotoStudioOpen = false;
@@ -517,11 +522,28 @@ class OrderOverview extends Component
         }
     }
 
+    public static function itemHasConfiguredBackSide(?OrderOrderItem $item): bool
+    {
+        if (!$item) {
+            return false;
+        }
+
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $isCustomFields = (($conf['personalization_mode'] ?? null) === 'custom_fields') || !empty($conf['custom_fields_data']);
+        if ($isCustomFields) {
+            return false;
+        }
+
+        $backTexts = array_filter($conf['texts_back'] ?? [], fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
+
+        return !empty($backTexts) || !empty($conf['logos_back']);
+    }
+
     /**
      * Markiert die aktuell im Laser-Cockpit geöffnete Position als vollständig gefertigt
      * und schaltet automatisch zum nächsten offenen Artikel der Bestellung (oder in Schritt 2: Verpackung & Versand).
      */
-    public function completeCurrentItemAndAdvance(?string $itemId = null): void
+    public function completeCurrentItemAndAdvance(?string $itemId = null, bool $forceSkipBackGuard = false): void
     {
         if (!$this->selectedOrder) {
             return;
@@ -531,6 +553,26 @@ class OrderOverview extends Component
         $item = $targetId ? OrderOrderItem::with('product')->find($targetId) : null;
 
         if ($item && (string) $item->order_id === (string) $this->selectedOrder->id) {
+            $itemConf = is_array($item->configuration) ? $item->configuration : [];
+            $backDone = !empty($itemConf['laser_engraved_sides']['back']);
+            if (
+                !$forceSkipBackGuard
+                && self::itemHasConfiguredBackSide($item)
+                && !$backDone
+                && $this->laserCockpitSide !== 'back'
+            ) {
+                $this->selectedOrderItemId = $item->id;
+                $this->switchLaserCockpitSide('back');
+                $this->laserLastActionStatus = 'Rückseite offen · Bitte Rohling wenden & Seite 2/2 lasern';
+                $this->notifyOrderFeedback(
+                    'warning',
+                    'Rückseite (Seite 2/2) noch offen',
+                    'Der Kunde hat eine Rückseite konfiguriert. Das Cockpit hat auf die Rückseite gewechselt.'
+                );
+
+                return;
+            }
+
             $item->markAllChecklistTasks(true);
             if (!empty($item->product_id) && ($item->product?->type ?? 'physical') !== 'digital') {
                 $this->rememberActiveBatchProduct((string) $item->product_id);
@@ -586,10 +628,36 @@ class OrderOverview extends Component
     /**
      * Schließt Schritt 1 (Fertigung & Konfigurator-Extras) komplett ab und wechselt autonom zu Schritt 2 (Versand).
      */
-    public function completeStepOneAndProceedToShipping(): void
+    public function completeStepOneAndProceedToShipping(bool $forceSkipBackGuard = false): void
     {
         if (!$this->selectedOrder) {
             return;
+        }
+
+        if (!$forceSkipBackGuard) {
+            foreach ($this->selectedOrder->items as $checkItem) {
+                if ($checkItem->is_completed) {
+                    continue;
+                }
+                $cConf = is_array($checkItem->configuration) ? $checkItem->configuration : [];
+                $cBackDone = !empty($cConf['laser_engraved_sides']['back']);
+                $isCurrentOnBack = $this->previewItem
+                    && (string) $this->previewItem->id === (string) $checkItem->id
+                    && $this->laserCockpitSide === 'back';
+
+                if (self::itemHasConfiguredBackSide($checkItem) && !$cBackDone && !$isCurrentOnBack) {
+                    $this->selectedOrderItemId = $checkItem->id;
+                    $this->switchLaserCockpitSide('back');
+                    $this->laserLastActionStatus = 'Rückseite offen · Bitte Rohling wenden & Seite 2/2 lasern';
+                    $this->notifyOrderFeedback(
+                        'warning',
+                        'Rückseite (Seite 2/2) noch offen',
+                        "Für „{$checkItem->product_name}“ wurde eine Rückseite konfiguriert. Das Cockpit wurde automatisch auf die Rückseite umgeschaltet."
+                    );
+
+                    return;
+                }
+            }
         }
 
         foreach ($this->selectedOrder->items as $item) {
@@ -1454,20 +1522,62 @@ class OrderOverview extends Component
         $this->dhlModalOrderId = $orderId;
         $this->dhlPackageCount = 1;
         $this->dhlError = null;
+        $this->briefPortoCode = '';
+        $this->briefTrackingNumber = '';
 
-        // Verpackungsart & Paketanzahl smart vorwählen: Falls Leichtware -> envelope, falls Großbestellung (> 25 kg) -> automatischer Mehrpaket-Split
+        // Verpackungsart & Paketanzahl smart vorwählen: Post-Gutschein -> Großbrief, Leichtware -> envelope, Großbestellung -> Mehrpaket-Split
         $order = OrderOrder::with('items.product')->find($orderId);
-        if ($order) {
-            $initialDetails = $order->getDhlWeightDetails(1, 'box');
-            $this->dhlPackagingType = $initialDetails['suggested_packaging_type'] ?? 'box';
+        if ($order && !$order->isOnlyDigital()) {
+            $postalVoucherOnly = $order->isPostalVoucherOnly();
+            $this->shippingLabelMode = $postalVoucherOnly ? 'brief' : 'dhl';
+            $initialPackaging = $postalVoucherOnly ? 'envelope' : 'box';
+            $initialDetails = $order->getDhlWeightDetails(1, $initialPackaging);
+            $this->dhlPackagingType = $postalVoucherOnly
+                ? 'envelope'
+                : ($initialDetails['suggested_packaging_type'] ?? 'box');
             if (($initialDetails['recommended_package_count'] ?? 1) > 1) {
                 $this->dhlPackageCount = (int) $initialDetails['recommended_package_count'];
             }
+            $this->briefRecipientPreview = $this->resolveBriefPreviewAddress($order);
         } else {
+            $this->shippingLabelMode = 'dhl';
             $this->dhlPackagingType = 'box';
+            $this->briefRecipientPreview = [];
         }
-        
+
         $this->calculateDhlWeight();
+    }
+
+    public function setShippingLabelMode(string $mode): void
+    {
+        $this->shippingLabelMode = in_array($mode, ['dhl', 'brief'], true) ? $mode : 'dhl';
+        if ($this->shippingLabelMode === 'brief') {
+            $this->dhlPackagingType = 'envelope';
+        } elseif ($this->dhlModalOrderId) {
+            $order = OrderOrder::with('items.product')->find($this->dhlModalOrderId);
+            if ($order) {
+                $details = $order->getDhlWeightDetails(1, 'box');
+                $this->dhlPackagingType = $details['suggested_packaging_type'] ?? 'box';
+            }
+        }
+        $this->calculateDhlWeight();
+    }
+
+    private function resolveBriefPreviewAddress(OrderOrder $order): array
+    {
+        $shipping = $order->shipping_address;
+        $hasShipping = is_array($shipping)
+            && trim((string) (($shipping['street'] ?? $shipping['address'] ?? '') . ($shipping['first_name'] ?? ''))) !== '';
+        $addr = $hasShipping ? $shipping : ($order->billing_address ?? []);
+
+        return [
+            'name' => trim((string) (($addr['first_name'] ?? '') . ' ' . ($addr['last_name'] ?? ''))) ?: ($order->customer_name ?: 'Kunde'),
+            'company' => trim((string) ($addr['company'] ?? '')),
+            'street' => trim((string) (($addr['street'] ?? $addr['address'] ?? '') . ' ' . ($addr['house_number'] ?? ''))),
+            'postal_code' => trim((string) ($addr['postal_code'] ?? $addr['zip'] ?? '')),
+            'city' => trim((string) ($addr['city'] ?? '')),
+            'country' => strtoupper(trim((string) ($addr['country'] ?? 'DE'))),
+        ];
     }
 
     public function updatedDhlPackageCount()
@@ -1486,7 +1596,7 @@ class OrderOverview extends Component
         $this->calculateDhlWeight();
     }
 
-    private function calculateDhlWeight()
+    public function calculateDhlWeight()
     {
         if (!$this->dhlModalOrderId) return;
         
@@ -1511,9 +1621,73 @@ class OrderOverview extends Component
     public function closeDhlModal()
     {
         $this->dhlModalOrderId = null;
+        $this->shippingLabelMode = 'dhl';
         $this->dhlWeightDetails = [];
         $this->dhlRecommendedWeight = null;
         $this->dhlPackagingType = 'box';
+        $this->briefPortoCode = '';
+        $this->briefTrackingNumber = '';
+        $this->briefRecipientPreview = [];
+    }
+
+    public function generateGrossbriefLabel(): void
+    {
+        $this->dhlError = null;
+        if (!$this->dhlModalOrderId) {
+            return;
+        }
+
+        $order = OrderOrder::with('items.product')->find($this->dhlModalOrderId);
+        if (!$order) {
+            return;
+        }
+
+        if ($order->isOnlyDigital()) {
+            $this->dhlError = 'Für rein digitale Bestellungen können keine Großbrief-Labels erstellt werden.';
+            return;
+        }
+
+        $this->validate([
+            'briefPortoCode' => 'nullable|string|max:32',
+            'briefTrackingNumber' => 'nullable|string|max:64',
+        ]);
+
+        try {
+            $shipment = app(\App\Services\Shipping\GrossbriefLabelService::class)->createLabel(
+                $order,
+                $this->briefPortoCode,
+                $this->briefTrackingNumber
+            );
+
+            $order->update(['status' => 'shipped']);
+            $order->syncAutonomousWorkshopSummary();
+            $this->invalidateSmartQueueCache();
+
+            if ($this->selectedOrder && $this->selectedOrder->id == $this->dhlModalOrderId) {
+                $this->status = 'shipped';
+                $this->activeOrderStep = 3;
+                $this->selectedOrder->refresh();
+                $this->workshopNote = (string) ($this->selectedOrder->workshop_note ?? '');
+            }
+
+            try {
+                app(\App\Services\System\FunkenwerkPrintService::class)->enqueueShipmentLabel($shipment);
+                $this->lastPrintedShipmentId = (string) $shipment->id;
+                $this->lastPrintedOrderId = (string) $order->id;
+            } catch (\Throwable $printErr) {
+                // Kein harter Abbruch falls Queue nicht schreibbar
+            }
+
+            $this->notifyOrderFeedback(
+                'success',
+                'Großbrief-Label erstellt & an Funkenwerk gesendet 🖨️',
+                "Für Bestellung #{$order->order_number} wurde das 4×6\" Großbrief-Adressetikett erstellt und an den MUNBYN ITPP941AP übergeben."
+            );
+            $this->closeDhlModal();
+        } catch (\Throwable $e) {
+            $this->dhlError = $e->getMessage();
+            $this->logAdminOrderError('generate_grossbrief_label', $e, ['order_id' => $this->dhlModalOrderId]);
+        }
     }
 
     public function generateDhlLabels()
@@ -1576,7 +1750,9 @@ class OrderOverview extends Component
         $shipment = \App\Models\Order\OrderShipment::find($shipmentId);
         if ($shipment && is_string($shipment->shipping_label_path) && $shipment->shipping_label_path !== '' && !str_contains($shipment->shipping_label_path, '..') && !str_contains($shipment->shipping_label_path, "\0")) {
             $normalizedPath = ltrim(str_replace('\\', '/', $shipment->shipping_label_path), '/');
-            $isAllowedPath = (str_starts_with($normalizedPath, 'bestellungen/dhl_labels/') || str_starts_with($normalizedPath, 'dhl_labels/'))
+            $isAllowedPath = (str_starts_with($normalizedPath, 'bestellungen/dhl_labels/')
+                    || str_starts_with($normalizedPath, 'bestellungen/brief_labels/')
+                    || str_starts_with($normalizedPath, 'dhl_labels/'))
                 && strtolower(pathinfo($normalizedPath, PATHINFO_EXTENSION)) === 'pdf';
 
             if ($isAllowedPath) {
@@ -1620,10 +1796,11 @@ class OrderOverview extends Component
             if ($shipment->order_id) {
                 $this->lastPrintedOrderId = (string) $shipment->order_id;
             }
+            $labelPrefix = ($shipment->carrier === 'deutsche_post_brief') ? 'Großbrief-Etikett' : 'DHL-Label';
             $this->notifyOrderFeedback(
                 'success',
                 'Druckauftrag an Funkenwerk gesendet 🖨️',
-                "DHL-Label ({$shipment->tracking_number}) wurde in die Warteschlange für den MUNBYN ITPP941AP (192.168.188.149) eingereiht."
+                "{$labelPrefix} ({$shipment->tracking_number}) wurde in die Warteschlange für den MUNBYN ITPP941AP (192.168.188.149) eingereiht."
             );
         } catch (\Throwable $e) {
             $this->notifyOrderFeedback('error', 'Druck nicht möglich', $e->getMessage());
@@ -1743,7 +1920,9 @@ class OrderOverview extends Component
             foreach ($order->shipments as $shipment) {
                 if (is_string($shipment->shipping_label_path) && $shipment->shipping_label_path !== '' && !str_contains($shipment->shipping_label_path, '..') && !str_contains($shipment->shipping_label_path, "\0")) {
                     $normalizedPath = ltrim(str_replace('\\', '/', $shipment->shipping_label_path), '/');
-                    $isAllowedPath = (str_starts_with($normalizedPath, 'bestellungen/dhl_labels/') || str_starts_with($normalizedPath, 'dhl_labels/'))
+                    $isAllowedPath = (str_starts_with($normalizedPath, 'bestellungen/dhl_labels/')
+                            || str_starts_with($normalizedPath, 'bestellungen/brief_labels/')
+                            || str_starts_with($normalizedPath, 'dhl_labels/'))
                         && strtolower(pathinfo($normalizedPath, PATHINFO_EXTENSION)) === 'pdf';
                     if (!$isAllowedPath) {
                         continue;
@@ -1913,7 +2092,11 @@ class OrderOverview extends Component
         $effective = $cockpit->saveOrderItemLaserParameterOverrides($item, $effectiveSide, $inlineParams, true);
         $this->syncOrderItemConfigInMemory($item);
 
-        $this->dispatch('laser-params-sync', params: $effective);
+        $this->dispatch(
+            'laser-params-sync',
+            params: $effective,
+            active_profile_id: (string) ($effective['active_profile_id'] ?? '')
+        );
 
         return $effective;
     }
@@ -1935,6 +2118,7 @@ class OrderOverview extends Component
             'laser-params-sync',
             params: $effective,
             profiles: $item->product?->getLaserProfiles() ?? [],
+            active_profile_id: (string) ($effective['active_profile_id'] ?? ''),
             seq: $clientSeq
         );
     }
@@ -2102,7 +2286,7 @@ class OrderOverview extends Component
     {
         $clean = strtolower(trim((string) $mode));
 
-        return in_array($clean, ['anti_glare', 'dim', 'normal'], true) ? $clean : 'anti_glare';
+        return in_array($clean, ['anti_glare', 'dim', 'normal'], true) ? $clean : 'normal';
     }
 
     public function setLaserCameraLightMode(string $mode, ?string $itemId = null): void
@@ -2128,6 +2312,20 @@ class OrderOverview extends Component
     public function captureLaserCameraSnapshot(?string $side = null, ?array $inlineParams = null): void
     {
         $this->refreshLaserCameraAndAlign($side, $inlineParams);
+    }
+
+    protected function normalizeLaserAngleDeg(float $angleDeg): float
+    {
+        $wrapped = fmod($angleDeg + 180.0, 360.0);
+        if ($wrapped < 0.0) {
+            $wrapped += 360.0;
+        }
+        $normalized = $wrapped - 180.0;
+        if ($normalized <= -180.0 && $angleDeg > 0.0) {
+            $normalized = 180.0;
+        }
+
+        return round($normalized, 2);
     }
 
     protected function persistLaserCoordinatesOnItem(
@@ -2180,8 +2378,13 @@ class OrderOverview extends Component
 
         $effectiveSide = $this->laserCockpitSide === 'back' ? 'back' : 'front';
         $conf = is_array($item->configuration) ? $item->configuration : [];
-        $this->laserCameraLightMode = $this->normalizeCameraLightMode($conf['laser_camera_light_mode'] ?? 'anti_glare');
+        $this->laserCameraLightMode = $this->normalizeCameraLightMode($conf['laser_camera_light_mode'] ?? 'normal');
+        $this->laserFramingMode = \App\Services\Laser\XtoolLaserCockpitService::normalizeFramingMode(
+            $conf['laser_framing_mode'] ?? null,
+            $conf
+        );
         $conf['laser_camera_light_mode'] = $this->laserCameraLightMode;
+        $conf['laser_framing_mode'] = $this->laserFramingMode;
         $savedSide = $conf['laser_cockpit_coordinates'][$effectiveSide] ?? null;
 
         try {
@@ -2206,7 +2409,7 @@ class OrderOverview extends Component
                 $this->laserCenterXMm = round(max(5.0, min(195.0, (float) $savedSide['x_mm'])), 2);
                 $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $savedSide['y_mm'])), 2);
                 $this->laserAngleDeg = isset($savedSide['angle_deg']) && is_numeric($savedSide['angle_deg'])
-                    ? round(max(-45.0, min(45.0, (float) $savedSide['angle_deg'])), 2)
+                    ? $this->normalizeLaserAngleDeg((float) $savedSide['angle_deg'])
                     : 0.0;
                 $this->laserWidthMm = isset($savedSide['w_mm']) && is_numeric($savedSide['w_mm']) && (float) $savedSide['w_mm'] > 0.5
                     ? round(max(2.5, min(195.0, (float) $savedSide['w_mm'])), 2)
@@ -2390,7 +2593,7 @@ class OrderOverview extends Component
             $this->laserCenterYMm = round(max(5.0, min(195.0, (float) $rawY)), 2);
         }
         if ($rawAngle !== null && is_numeric($rawAngle)) {
-            $this->laserAngleDeg = round(max(-45.0, min(45.0, (float) $rawAngle)), 2);
+            $this->laserAngleDeg = $this->normalizeLaserAngleDeg((float) $rawAngle);
         }
 
         if (($rawW !== null && is_numeric($rawW)) || ($rawH !== null && is_numeric($rawH))) {
@@ -2473,7 +2676,7 @@ class OrderOverview extends Component
     {
         $this->laserCenterXMm = round(max(5.0, min(195.0, $this->laserCenterXMm + $dxMm)), 2);
         $this->laserCenterYMm = round(max(5.0, min(195.0, $this->laserCenterYMm + $dyMm)), 2);
-        $this->laserAngleDeg = round(max(-45.0, min(45.0, $this->laserAngleDeg + $dAngleDeg)), 2);
+        $this->laserAngleDeg = $this->normalizeLaserAngleDeg($this->laserAngleDeg + $dAngleDeg);
 
         $this->persistLaserCoordinatesOnItem(
             $this->previewItem,
@@ -2495,13 +2698,102 @@ class OrderOverview extends Component
         );
     }
 
-    public function triggerLaserFraming(?string $itemId = null, ?string $side = null, ?array $inlineParams = null)
+    public function setLaserFramingMode(string $mode, ?string $itemId = null, bool $updateLiveIfFraming = false): array
     {
+        $normalized = \App\Services\Laser\XtoolLaserCockpitService::normalizeFramingMode($mode);
+        $this->laserFramingMode = $normalized;
+
+        $targetId = $itemId ?: ($this->previewItem->id ?? null);
+        $targetItem = null;
+        if ($targetId && $this->selectedOrderId) {
+            $targetItem = OrderOrderItem::where('order_id', $this->selectedOrderId)
+                ->with('product')
+                ->find($targetId);
+        } elseif ($this->previewItem) {
+            $targetItem = $this->previewItem;
+        }
+
+        if ($targetItem) {
+            $conf = is_array($targetItem->configuration) ? $targetItem->configuration : [];
+            $conf['laser_framing_mode'] = $normalized;
+            $targetItem->configuration = $conf;
+            $targetItem->save();
+
+            if ($this->selectedOrder && $this->selectedOrder->relationLoaded('items')) {
+                $loaded = $this->selectedOrder->items->firstWhere('id', $targetItem->id);
+                if ($loaded && $loaded !== $targetItem) {
+                    $loaded->configuration = $conf;
+                }
+            }
+        }
+
+        $replaced = false;
+        if ($updateLiveIfFraming && $targetItem) {
+            $rep = $this->replaceLiveLaserFraming((string) $targetItem->id, $this->laserCockpitSide, $normalized);
+            $replaced = !empty($rep['ok']);
+        }
+
+        return [
+            'ok'            => true,
+            'framing_mode'  => $normalized,
+            'live_replaced' => $replaced,
+        ];
+    }
+
+    #[\Livewire\Attributes\Renderless]
+    public function replaceLiveLaserFraming(?string $itemId = null, ?string $side = null, ?string $framingMode = null): array
+    {
+        $targetItemId = $itemId ?: ($this->previewItem->id ?? null);
+        $targetSide = $side ?: $this->laserCockpitSide;
+        if (!$targetItemId) {
+            return ['ok' => false, 'error' => 'Keine Bestellposition ausgewählt.'];
+        }
+
+        try {
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            $mode = \App\Services\Laser\XtoolLaserCockpitService::normalizeFramingMode($framingMode ?: $this->laserFramingMode);
+            $built = $cockpit->buildItemFramingGcode(
+                $targetItemId,
+                (string) $targetSide,
+                $this->laserCenterXMm,
+                $this->laserCenterYMm,
+                $this->laserAngleDeg,
+                $this->laserWidthMm > 0.5 ? $this->laserWidthMm : null,
+                $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null,
+                $mode
+            );
+
+            $res = $cockpit->replaceActiveFramingGcode(
+                $built['gcode'],
+                \App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP
+            );
+
+            return [
+                'ok'           => !empty($res['ok']),
+                'framing_mode' => $built['framing_mode'],
+                'error'        => $res['error'] ?? null,
+            ];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function triggerLaserFraming(
+        ?string $itemId = null,
+        ?string $side = null,
+        ?array $inlineParams = null,
+        ?string $framingMode = null
+    ) {
         $targetItemId = $itemId ?: ($this->previewItem->id ?? null);
         $targetSide = $side ?: $this->laserCockpitSide;
         if (!$targetItemId) {
             return;
         }
+
+        if ($framingMode !== null && trim($framingMode) !== '') {
+            $this->setLaserFramingMode($framingMode, (string) $targetItemId, false);
+        }
+        $effectiveFramingMode = \App\Services\Laser\XtoolLaserCockpitService::normalizeFramingMode($this->laserFramingMode);
 
         if (is_array($inlineParams) && !empty($inlineParams)) {
             $this->persistInlineLaserParametersOnItem((string) $targetItemId, (string) $targetSide, $inlineParams);
@@ -2518,28 +2810,30 @@ class OrderOverview extends Component
                 $this->laserAngleDeg,
                 \App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP,
                 $this->laserWidthMm > 0.5 ? $this->laserWidthMm : null,
-                $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null
+                $this->laserHeightMm > 0.5 ? $this->laserHeightMm : null,
+                $effectiveFramingMode
             );
 
             $xFmt = number_format((float) $job['center_x_mm'], 2, ',', '.');
             $yFmt = number_format((float) $job['center_y_mm'], 2, ',', '.');
             $sentDirect = !empty($job['sent_direct']);
             $this->laserWorkflowStep = max(2, $this->laserWorkflowStep);
+            $modeTitle = $effectiveFramingMode === 'contour' ? 'Kontur-Vorschau' : 'Rechteck-Vorschau';
 
             if ($sentDirect) {
-                $this->laserLastActionStatus = "Rahmen-Vorschau läuft am Laser ({$xFmt} / {$yFmt} mm)";
+                $this->laserLastActionStatus = "{$modeTitle} läuft am Laser ({$xFmt} / {$yFmt} mm)";
                 $this->notifyOrderFeedback(
                     'success',
-                    'Rahmen-Vorschau läuft am Laser',
-                    "Blauer Laser-Rahmen auf X = {$xFmt} mm, Y = {$yFmt} mm am Gerät aktiv."
+                    "{$modeTitle} läuft am Laser",
+                    "Laser-Leuchtrahmen auf X = {$xFmt} mm, Y = {$yFmt} mm aktiv (Verschieben zieht live nach)."
                 );
             } else {
                 $errDetail = (string) ($job['delivery_error'] ?? 'Laser nicht im WLAN erreichbar.');
-                $this->laserLastActionStatus = "Rahmen-Vorschau vorbereitet ({$job['laser_ip']} offline)";
+                $this->laserLastActionStatus = "{$modeTitle} vorbereitet ({$job['laser_ip']} offline)";
                 $this->notifyOrderFeedback(
                     'warning',
                     'Laser im WLAN nicht erreichbar',
-                    "Rahmen-Vorschau konnte nicht direkt an {$job['laser_ip']} gesendet werden ({$errDetail})."
+                    "{$modeTitle} konnte nicht direkt an {$job['laser_ip']} gesendet werden ({$errDetail})."
                 );
             }
         } catch (\Throwable $e) {
@@ -2605,6 +2899,216 @@ class OrderOverview extends Component
         return $this->sendJobDirectlyToLaser($itemId, $side, $inlineParams);
     }
 
+    public function autoMeasureLaserFocus(?string $itemId = null, ?string $side = null): array
+    {
+        $targetItemId = $itemId ?: ($this->previewItem->id ?? null);
+        $targetSide = $side ?: $this->laserCockpitSide;
+
+        try {
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            $res = $cockpit->autoMeasureFocus(\App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP);
+
+            if (!empty($res['ok']) && isset($res['focus_mm']) && is_numeric($res['focus_mm'])) {
+                $measured = round((float) $res['focus_mm'], 1);
+                if ($targetItemId) {
+                    $this->persistInlineLaserParametersOnItem((string) $targetItemId, (string) $targetSide, [
+                        'focus_mm' => $measured,
+                    ]);
+                }
+
+                $fmt = number_format($measured, 1, ',', '.');
+                $this->laserLastActionStatus = "Fokus automatisch eingemessen: {$fmt} mm";
+                $this->notifyOrderFeedback(
+                    'success',
+                    'Fokus erfolgreich eingemessen',
+                    "Abstand am xTool F2 Ultra UV gemessen: {$fmt} mm."
+                );
+
+                return [
+                    'ok'       => true,
+                    'focus_mm' => $measured,
+                    'error'    => null,
+                ];
+            }
+
+            $err = (string) ($res['error'] ?? 'Automatische Fokus-Messung fehlgeschlagen.');
+            $this->notifyOrderFeedback('warning', 'Fokus-Messung nicht möglich', $err);
+
+            return [
+                'ok'       => false,
+                'focus_mm' => null,
+                'error'    => $err,
+            ];
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'Fokus-Messung fehlgeschlagen', $e->getMessage());
+
+            return [
+                'ok'       => false,
+                'focus_mm' => null,
+                'error'    => $e->getMessage(),
+            ];
+        }
+    }
+
+    public function stopLaserImmediately(): array
+    {
+        try {
+            $cockpit = app(\App\Services\Laser\XtoolLaserCockpitService::class);
+            $res = $cockpit->stopLaserProcess(\App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP);
+
+            if (!empty($res['ok'])) {
+                $this->laserLastActionStatus = 'STOP ausgeführt · Laser angehalten';
+                $this->notifyOrderFeedback(
+                    'warning',
+                    'Laser sofort gestoppt',
+                    'Der aktive Vorgang am xTool F2 Ultra UV wurde sofort abgebrochen.'
+                );
+
+                return ['ok' => true, 'error' => null];
+            }
+
+            $err = (string) ($res['error'] ?? 'STOP-Befehl konnte nicht zugestellt werden.');
+            $this->notifyOrderFeedback('error', 'STOP fehlgeschlagen', $err);
+
+            return ['ok' => false, 'error' => $err];
+        } catch (\Throwable $e) {
+            $this->notifyOrderFeedback('error', 'STOP fehlgeschlagen', $e->getMessage());
+
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    #[\Livewire\Attributes\Renderless]
+    public function pollLaserLiveWorkStatus(?string $equipmentKey = null): array
+    {
+        $equip = ($equipmentKey !== null && trim($equipmentKey) !== '') ? trim($equipmentKey) : 'flatbed_standard';
+
+        try {
+            return app(\App\Services\Laser\XtoolLaserCockpitService::class)->queryLiveLaserWorkStatus(
+                \App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP,
+                $equip
+            );
+        } catch (\Throwable) {
+            $offline = \App\Services\Laser\XtoolLaserCockpitService::mapGs009WorkTelemetry(false);
+            $offline['preflight'] = \App\Services\Laser\XtoolLaserCockpitService::mapGs009PreflightStatus(false, [], $equip);
+
+            return $offline;
+        }
+    }
+
+    /**
+     * Intelligenter Auftrags-Taktgeber nach abgeschlossener Laser-Gravur (oder per 1-Klick-Quittierung):
+     * 1) Bei beidseitigem Artikel nach Vorderseite -> automatischer Wechsel auf Rückseite + passendes Rückseiten-Laserprofil.
+     * 2) Nach letzter Seite -> Gravur abhaken & automatisch weiter zur nächsten Position bzw. Schritt 2 (Versand),
+     *    sofern keine unbestätigten Sonder-Vorgaben (z. B. Kundenwunsch) offen sind.
+     */
+    public function handleLaserSideEngravingCompleted(?string $itemId = null, ?string $completedSide = null): array
+    {
+        if (!$this->selectedOrder) {
+            return ['ok' => false, 'next_action' => 'none'];
+        }
+
+        $targetId = $itemId ?: ($this->previewItem->id ?? $this->selectedOrderItemId);
+        $item = $targetId
+            ? OrderOrderItem::with('product')->where('order_id', $this->selectedOrder->id)->find($targetId)
+            : null;
+
+        if (!$item) {
+            return ['ok' => false, 'next_action' => 'none'];
+        }
+
+        $side = ($completedSide ?: $this->laserCockpitSide) === 'back' ? 'back' : 'front';
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+
+        $isCustomFields = (($conf['personalization_mode'] ?? null) === 'custom_fields') || !empty($conf['custom_fields_data']);
+        $backTexts = array_filter($conf['texts_back'] ?? [], fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
+        $hasBack = !$isCustomFields && (!empty($backTexts) || !empty($conf['logos_back']));
+
+        $engravedSides = is_array($conf['laser_engraved_sides'] ?? null) ? $conf['laser_engraved_sides'] : [];
+        $engravedSides[$side] = now()->timezone('Europe/Berlin')->toIso8601String();
+        $conf['laser_engraved_sides'] = $engravedSides;
+        $item->configuration = $conf;
+        $item->save();
+
+        if ($this->selectedOrder->relationLoaded('items')) {
+            $loaded = $this->selectedOrder->items->firstWhere('id', $item->id);
+            if ($loaded && $loaded !== $item) {
+                $loaded->configuration = $conf;
+            }
+        }
+
+        // Fall 1: Vorderseite fertig, aber Rückseite ist belegt und noch nicht graviert -> Auto-Wechsel auf Rückseite
+        if ($side === 'front' && $hasBack && empty($engravedSides['back'])) {
+            $this->laserCockpitSide = 'back';
+            $this->laserWorkflowStep = 1;
+
+            // Falls für die Rückseite noch kein explizites Override existiert, automatisch passendes Rückseiten-Profil wählen
+            if ($item->product && empty($conf['laser_parameter_overrides']['back'])) {
+                $profiles = $item->product->getLaserProfiles();
+                $backProfile = collect($profiles)->first(static function (array $p): bool {
+                    $t = mb_strtolower((string) ($p['title'] ?? ''));
+
+                    return str_contains($t, 'rückseite') || str_contains($t, 'rueckseite') || str_contains($t, 'widmung');
+                });
+                if (is_array($backProfile) && !empty($backProfile['id'])) {
+                    try {
+                        app(\App\Services\Laser\XtoolLaserCockpitService::class)
+                            ->applyProductLaserProfileToOrderItem($item, 'back', (string) $backProfile['id']);
+                        $item->refresh();
+                    } catch (\Throwable) {
+                    }
+                }
+            }
+
+            $this->initializeLaserCockpitForPreviewItem(false);
+            $this->laserLastActionStatus = 'Vorderseite fertig ✓ · Rohling wenden & Rückseite ausrichten';
+            $this->notifyOrderFeedback(
+                'success',
+                'Vorderseite fertig graviert',
+                'Bitte Rohling im Laser umdrehen, Schritt 1 (Kamera & KI-Ausrichten) starten und die Rückseite senden.'
+            );
+
+            return [
+                'ok'          => true,
+                'next_action' => 'switched_to_back',
+                'side'        => 'back',
+            ];
+        }
+
+        // Fall 2: Alle Seiten dieses Artikels sind graviert -> Gravur-Aufgabe abhaken
+        $checklist = $item->toggleChecklistTask('engraving', true);
+        $hasOpenManualSpecials = (!empty($checklist['notes']['required']) && empty($checklist['notes']['checked']))
+            || (!empty($checklist['gift_wrap']['required']) && empty($checklist['gift_wrap']['checked']))
+            || (!empty($checklist['gift_box']['required']) && empty($checklist['gift_box']['checked']));
+
+        if (!$hasOpenManualSpecials) {
+            $this->completeCurrentItemAndAdvance((string) $item->id);
+
+            return [
+                'ok'          => true,
+                'next_action' => $this->activeOrderStep === 2 ? 'advanced_to_shipping' : 'next_item',
+                'side'        => $this->laserCockpitSide,
+            ];
+        }
+
+        $this->selectedOrder->refresh();
+        $this->selectedOrder->load(['items.product.supplier', 'invoices', 'shipments']);
+        $this->workshopNote = $this->selectedOrder->syncAutonomousWorkshopSummary();
+        $this->invalidateSmartQueueCache();
+        $this->laserLastActionStatus = 'Gravur fertig ✓ · Bitte offene Konfigurator-Vorgaben abhaken';
+        $this->notifyOrderFeedback(
+            'success',
+            'Gravur abgeschlossen',
+            'Bitte noch die offenen Konfigurator-Vorgaben (z. B. Kundenwunsch / Geschenkbox) bestätigen, dann geht es automatisch weiter.'
+        );
+
+        return [
+            'ok'          => true,
+            'next_action' => 'awaiting_checklist',
+            'side'        => $side,
+        ];
+    }
+
     public function getLaserCockpitDataProperty(): ?array
     {
         $item = $this->previewItem;
@@ -2643,7 +3147,9 @@ class OrderOverview extends Component
                 $confForCache['manufacturing_checklist'],
                 $confForCache['laser_parameter_overrides'],
                 $confForCache['laser_cockpit_parameters'],
-                $confForCache['laser_camera_light_mode']
+                $confForCache['laser_camera_light_mode'],
+                $confForCache['laser_framing_mode'],
+                $confForCache['laser_engraved_sides']
             );
 
             // Schneller Disk-Cache für das hochauflösende WYSIWYG-Gravur-Overlay (spart ~800ms GD-Render + MB-große Base64-Strings bei jedem Klick)
@@ -2750,6 +3256,15 @@ class OrderOverview extends Component
                 'preview_data_url'  => $previewUrl,
                 'last_status'       => $this->laserLastActionStatus,
                 'camera_light_mode' => $this->normalizeCameraLightMode($conf['laser_camera_light_mode'] ?? $this->laserCameraLightMode),
+                'framing_mode'      => \App\Services\Laser\XtoolLaserCockpitService::normalizeFramingMode(
+                    $conf['laser_framing_mode'] ?? $this->laserFramingMode,
+                    $conf
+                ),
+                'engraved_sides'    => is_array($conf['laser_engraved_sides'] ?? null) ? $conf['laser_engraved_sides'] : [],
+                'preflight'         => $cockpit->readLocalCachedPreflightStatus(
+                    (string) ($camInfo['laser_ip'] ?? \App\Services\Laser\XtoolLaserCockpitService::DEFAULT_LASER_IP),
+                    (string) ($laserGuide['equipment_key'] ?? 'flatbed_standard')
+                ),
             ];
         } catch (\Throwable) {
             return null;

@@ -125,48 +125,94 @@ Route::post('/funki/financials/quick-entry', function (Request $request) {
         $amount = -$amount;
     }
 
+    $amountCents = (int) round($amount * 100);
+    $cleanAmount = round($amountCents / 100, 2);
+    $execDateStr = !empty($data['date'])
+        ? \Carbon\Carbon::parse((string) $data['date'])->format('Y-m-d')
+        : now()->format('Y-m-d');
+    $cleanTitle = str_replace([' – ', ' — '], ' - ', (string) $data['title']);
+    $location = (string) ($data['location'] ?? 'App QuickEntry');
+    $isBusiness = filter_var($data['is_business'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $allowOverride = filter_var($request->input('allow_duplicate_override', false), FILTER_VALIDATE_BOOLEAN);
+
+    $uploadedFiles = [];
+    if ($request->hasFile('file')) {
+        $rawFiles = is_array($request->file('file')) ? array_slice($request->file('file'), 0, 10) : [$request->file('file')];
+        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'xml'];
+        $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'text/xml', 'application/xml'];
+
+        foreach ($rawFiles as $f) {
+            if (!$f || !$f->isValid() || $f->getSize() > 20 * 1024 * 1024) {
+                continue;
+            }
+            $ext = strtolower($f->getClientOriginalExtension());
+            $mime = strtolower((string) $f->getMimeType());
+            if (in_array($ext, $allowedExts, true) && in_array($mime, $allowedMimes, true)) {
+                $uploadedFiles[] = $f;
+            }
+        }
+    }
+
+    if (!$allowOverride) {
+        $dup = \App\Services\AI\BuchiReceiptPipelineService::checkDuplicate(
+            adminId: $request->user()->id,
+            title: $cleanTitle,
+            merchant: $location,
+            date: $execDateStr,
+            amountCents: $amountCents,
+            invoiceNumber: (string) $request->input('invoice_number', ''),
+            file: $uploadedFiles[0] ?? null
+        );
+        if (!empty($dup['is_duplicate'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dubletten-Schutz: ' . ($dup['reason'] ?? 'Beleg existiert bereits.'),
+            ], 200);
+        }
+    }
+
+    $paths = [];
+    foreach ($uploadedFiles as $idx => $validFile) {
+        $storedPath = \App\Services\AI\BuchiReceiptPipelineService::storeReceiptFile(
+            file: $validFile,
+            date: $execDateStr,
+            merchant: $location,
+            title: $cleanTitle,
+            invoiceNumber: (string) $request->input('invoice_number', ''),
+            fileIndex: (int) $idx
+        );
+        if ($storedPath) {
+            $paths[] = $storedPath;
+        }
+    }
+
+    $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
+    $defaultTax = $isSmallBusiness ? 0 : (int) round((float) shop_setting('default_tax_rate', 19));
+
     $issue = AccountingSpecialIssue::create([
         'id' => Str::uuid(),
         'admin_id' => $request->user()->id,
-        'title' => $data['title'],
-        'amount' => $amount,
+        'title' => $cleanTitle,
+        'amount' => $cleanAmount,
         'category' => $data['category'] ?? 'Sonstiges',
-        'execution_date' => $data['date'] ?? now(),
-        'is_business' => $data['is_business'] ?? false,
-        'location' => $data['location'] ?? 'App QuickEntry',
-        'file_paths' => []
+        'execution_date' => $execDateStr,
+        'is_business' => $isBusiness,
+        'tax_rate' => $isBusiness ? (int) $request->input('tax_rate', $defaultTax) : null,
+        'invoice_number' => $isBusiness ? ($request->input('invoice_number') ?: null) : null,
+        'location' => $location,
+        'file_paths' => $paths,
+        'note' => \App\Services\AI\BuchiReceiptPipelineService::withLiveMarker('Android QuickEntry'),
     ]);
 
-    // Mehrere Dateien verarbeiten (Array Key 'file')
-    if ($request->hasFile('file')) {
-        $paths = [];
-        $files = is_array($request->file('file')) ? array_slice($request->file('file'), 0, 10) : [$request->file('file')];
-        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
-        $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
-
-        foreach ($files as $file) {
-            if (!$file || !$file->isValid() || $file->getSize() > 20 * 1024 * 1024) {
-                continue;
-            }
-            $ext = strtolower($file->getClientOriginalExtension());
-            $mime = strtolower((string) $file->getMimeType());
-            if (!in_array($ext, $allowedExts, true) || !in_array($mime, $allowedMimes, true)) {
-                continue;
-            }
-            $path = $file->store('buchhaltung/receipts', 'local');
-            $paths[] = $path;
-        }
-        $issue->update(['file_paths' => $paths]);
-        Log::info('Files stored', ['paths' => $paths]);
+    if (!empty($paths)) {
+        Log::info('Files stored via BuchiReceiptPipelineService', ['paths' => $paths]);
     }
 
-    if (!empty($data['category'])) {
-        $cat = AccountingCategory::firstOrCreate(
-            ['admin_id' => $request->user()->id, 'name' => $data['category']],
-            ['usage_count' => 0]
-        );
-        $cat->increment('usage_count');
-    }
+    \App\Services\AI\BuchiReceiptPipelineService::trackCategoryUsage(
+        $request->user()->id,
+        (string) ($data['category'] ?? 'Sonstiges'),
+        $isBusiness
+    );
 
     return response()->json(['success' => true, 'entry' => $issue]);
 });
@@ -180,18 +226,23 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
     }
 
     $request->validate([
-        'file' => 'file|mimes:pdf,jpg,jpeg,png,webp,heic,heif|max:20480',
+        'file' => 'file|mimes:pdf,jpg,jpeg,png,webp,heic,heif,xml|max:20480',
     ]);
 
     $file = $request->file('file');
     $autoSave = filter_var($request->input('auto_save', false), FILTER_VALIDATE_BOOLEAN);
+    $allowOverride = filter_var($request->input('allow_duplicate_override', false), FILTER_VALIDATE_BOOLEAN);
 
     $categories = AccountingCategory::where('admin_id', $request->user()->id)
         ->orderBy('usage_count', 'desc')
         ->pluck('name')
         ->toArray();
 
-    $aiResult = \App\Services\AI\ReceiptAiScannerService::analyze($file, $categories);
+    $aiResult = \App\Services\AI\BuchiReceiptPipelineService::analyzeAndVerify(
+        $file,
+        $categories,
+        $request->user()->id
+    );
 
     if (!$aiResult) {
         return response()->json([
@@ -200,59 +251,66 @@ Route::post('/funki/financials/scan-receipt', function (Request $request) {
         ], 200);
     }
 
+    $dup = $aiResult['duplicate_check'] ?? ['is_duplicate' => false];
+
     if ($autoSave) {
-        $path = $file->store('buchhaltung/receipts', 'local');
-
-        $amount = (float)$aiResult['amount_formatted'];
-        if ($amount > 0) {
-            $amount = -$amount;
+        if (!empty($dup['is_duplicate']) && !$allowOverride) {
+            return response()->json([
+                'success' => false,
+                'auto_saved' => false,
+                'data' => $aiResult,
+                'message' => 'Dubletten-Schutz: ' . ($dup['reason'] ?? 'Beleg wurde bereits erfasst.'),
+            ], 200);
         }
 
-        $execDate = now()->format('Y-m-d');
-        if (!empty($aiResult['date'])) {
-            try {
-                $execDate = \Carbon\Carbon::parse((string) $aiResult['date'])->format('Y-m-d');
-            } catch (\Throwable $dateErr) {
-                $execDate = now()->format('Y-m-d');
-            }
-        }
+        $execDate = (string) ($aiResult['date'] ?: now()->format('Y-m-d'));
+        $storedPath = \App\Services\AI\BuchiReceiptPipelineService::storeReceiptFile(
+            file: $file,
+            date: $execDate,
+            merchant: (string) ($aiResult['merchant'] ?: $aiResult['location'] ?: 'App-Scan'),
+            title: (string) $aiResult['title'],
+            invoiceNumber: !empty($aiResult['is_business']) ? (string) ($aiResult['invoice_number'] ?? '') : ''
+        );
 
         $issue = AccountingSpecialIssue::create([
             'id' => Str::uuid(),
             'admin_id' => $request->user()->id,
             'title' => $aiResult['title'],
-            'amount' => $amount,
+            'amount' => $aiResult['amount'],
             'category' => $aiResult['category'] ?: 'Sonstiges',
             'execution_date' => $execDate,
             'is_business' => $aiResult['is_business'],
-            'location' => $aiResult['location'] ?: 'App Beleg-Scan',
+            'location' => $aiResult['location'] ?: ($aiResult['merchant'] ?: 'App Beleg-Scan'),
             'tax_rate' => $aiResult['is_business'] ? $aiResult['tax_rate'] : null,
-            'invoice_number' => $aiResult['is_business'] ? $aiResult['invoice_number'] : null,
-            'file_paths' => [$path]
+            'invoice_number' => $aiResult['is_business'] ? ($aiResult['invoice_number'] ?: null) : null,
+            'file_paths' => $storedPath ? [$storedPath] : [],
+            'note' => \App\Services\AI\BuchiReceiptPipelineService::withLiveMarker('Android Beleg-Scan'),
         ]);
 
-        if (!empty($aiResult['category'])) {
-            $cat = AccountingCategory::firstOrCreate(
-                ['admin_id' => $request->user()->id, 'name' => $aiResult['category']],
-                ['usage_count' => 0]
-            );
-            $cat->increment('usage_count');
-        }
+        \App\Services\AI\BuchiReceiptPipelineService::trackCategoryUsage(
+            $request->user()->id,
+            (string) ($aiResult['category'] ?: 'Sonstiges'),
+            (bool) $aiResult['is_business']
+        );
 
         return response()->json([
             'success' => true,
             'auto_saved' => true,
             'data' => $aiResult,
             'entry' => $issue,
-            'message' => "Beleg '{$aiResult['title']}' ({$aiResult['amount_formatted']} €) wurde automatisch erfasst und gebucht."
+            'message' => "Beleg '{$aiResult['title']}' ({$aiResult['amount_formatted']} €) wurde automatisch erfasst und seed-sicher gebucht."
         ]);
     }
+
+    $msg = !empty($dup['is_duplicate'])
+        ? ("Hinweis (Möglicher Doppelbeleg): " . ($dup['reason'] ?? 'Bereits vorhanden.'))
+        : "Beleg '{$aiResult['title']}' erkannt.";
 
     return response()->json([
         'success' => true,
         'auto_saved' => false,
         'data' => $aiResult,
-        'message' => "Beleg '{$aiResult['title']}' erkannt."
+        'message' => $msg,
     ]);
 });
 
@@ -316,7 +374,11 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
 
         $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'heic'];
         $allowedMimes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
-        foreach ($files as $file) {
+        $execDateForPath = $issue->execution_date instanceof \Carbon\Carbon
+            ? $issue->execution_date->format('Y-m-d')
+            : (string) $issue->execution_date;
+
+        foreach ($files as $idx => $file) {
             if (!$file || !$file->isValid() || $file->getSize() > 20 * 1024 * 1024) {
                 continue;
             }
@@ -325,7 +387,17 @@ Route::put('/funki/financials/variable/{id}', function (Request $request, $id) {
             if (!in_array($ext, $allowedExts, true) || !in_array($mime, $allowedMimes, true)) {
                 continue;
             }
-            $existingPaths[] = $file->store('buchhaltung/receipts', 'local');
+            $storedPath = \App\Services\AI\BuchiReceiptPipelineService::storeReceiptFile(
+                file: $file,
+                date: $execDateForPath,
+                merchant: (string) ($issue->location ?: $issue->title),
+                title: (string) $issue->title,
+                invoiceNumber: (string) ($issue->invoice_number ?? ''),
+                fileIndex: count($existingPaths) + (int) $idx
+            );
+            if ($storedPath) {
+                $existingPaths[] = $storedPath;
+            }
         }
 
         $issue->update(['file_paths' => array_slice($existingPaths, 0, 25)]);

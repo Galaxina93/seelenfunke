@@ -51,7 +51,7 @@
                         $shopName = shop_setting('company_name', shop_setting('owner_name', 'Mein-Seelenfunke'));
                         $shippingCost = (int) shop_setting('shipping_cost', 490);
                         $freeThreshold = (int) shop_setting('shipping_free_threshold', 5000);
-                        $voucherShippingCost = (int) shop_setting('shipping_cost_voucher', 350);
+                        $voucherShippingCost = (int) shop_setting('shipping_cost_voucher', 450);
                         $expressPercent = (float) shop_setting('express_surcharge_percent', 20);
                         $expressPercentFormatted = rtrim(rtrim(number_format($expressPercent, 2, ',', '.'), '0'), ',');
                         $expressMin = (int) shop_setting('express_surcharge_min', 500);

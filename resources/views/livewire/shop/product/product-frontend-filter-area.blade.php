@@ -2180,6 +2180,80 @@
             }
             .sf-lobby-gear-btn:hover { border-color: #C5A059; background: #FFFFFF; transform: translateY(-1px); }
             .sf-lobby-gear-btn.is-active { background: #C5A059; color: #FFFFFF; border-color: #C5A059; }
+            .sf-lobby-char-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+                margin-top: 2px;
+            }
+            .sf-lobby-char-card {
+                position: relative;
+                appearance: none;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 16px 12px 14px;
+                border-radius: 16px;
+                border: 1.5px solid rgba(197, 160, 89, 0.42);
+                background: #FAF8F5;
+                color: #111827;
+                cursor: pointer;
+                transition: transform 0.14s ease, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+            }
+            .sf-lobby-char-card:hover {
+                border-color: #C5A059;
+                background: #FFFFFF;
+                transform: translateY(-2px);
+            }
+            .sf-lobby-char-card.is-selected {
+                border-color: #C5A059;
+                background: #FFFFFF;
+                box-shadow: 0 8px 20px rgba(197, 160, 89, 0.16);
+            }
+            .sf-lobby-char-check {
+                position: absolute;
+                top: 8px;
+                right: 8px;
+                width: 20px;
+                height: 20px;
+                border-radius: 999px;
+                background: #C5A059;
+                color: #FFFFFF;
+                font-size: 11px;
+                font-weight: 900;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .sf-lobby-char-emblem {
+                width: 64px;
+                height: 64px;
+                border-radius: 999px;
+                background: #FFFFFF;
+                border: 1.5px solid rgba(197, 160, 89, 0.50);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 4px 10px rgba(17, 24, 39, 0.06);
+            }
+            .sf-lobby-char-name {
+                font-size: 14px;
+                font-weight: 900;
+                color: #111827;
+                letter-spacing: 0.01em;
+            }
+            .sf-lobby-char-tag {
+                display: inline-flex;
+                align-items: center;
+                padding: 2px 9px;
+                border-radius: 999px;
+                background: rgba(197, 160, 89, 0.14);
+                color: #8C6A2E;
+                font-size: 10.5px;
+                font-weight: 800;
+            }
             @media (max-width: 900px), (pointer: coarse) {
                 .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
                 .sf-lobby-actions { margin-right: 0; }
@@ -2246,6 +2320,22 @@
                             <span class="sf-lobby-zone-badge"
                                   data-testid="lobby-current-zone-badge"
                                   x-text="currentZoneLabel()">🛍️ Kollektion</span>
+                            <button type="button"
+                                    data-testid="lobby-char-switch-btn"
+                                    @click="openCharacterPicker()"
+                                    class="sf-lobby-stages-btn">
+                                <span x-text="userSettings.characterGender === 'female' ? '✦ Weiblich' : '✦ Männlich'"></span>
+                            </button>
+                            <button type="button"
+                                    x-show="equippedArmory && equippedArmory.weapon"
+                                    x-cloak
+                                    data-testid="lobby-weapon-swing-btn"
+                                    @click="triggerLobbyWeaponSwing()"
+                                    class="sf-lobby-stages-btn"
+                                    style="border-color:#C5A059;background:#FFFFFF;">
+                                <span style="color:#C5A059;">⚔️</span>
+                                <span>Waffe nutzen [Q]</span>
+                            </button>
                             <button type="button"
                                     x-show="currentZone === 'heroes' && isCustomerAuthenticated()"
                                     data-testid="lobby-stages-preview-btn"
@@ -2509,6 +2599,46 @@
                             <span>✨</span>
                             <span>Tor zur Außenwelt · Fantastische Welt &amp; Abenteuer in Planung</span>
                         </button>
+                    </div>
+
+                    {{-- Schwebende Light-Mode Ausruestungs-Karte am Ruestungsstaender & Wand-Waffenhalter (Clean-Design, 0 Subtexte) --}}
+                    <div x-ref="floatingArmoryCard"
+                         data-testid="lobby-armory-prompt-card"
+                         style="opacity: 0; visibility: hidden; pointer-events: none; transform: translate3d(-9999px, -9999px, 0);"
+                         class="sf-lobby-floating-anchor">
+                        <div @pointerdown.stop
+                             @mousedown.stop
+                             @click.stop
+                             style="pointer-events:auto;background:rgba(255,255,255,0.97);border:1px solid rgba(197,160,89,0.58);border-radius:16px;padding:10px 12px;box-shadow:0 12px 28px rgba(17,24,39,0.11);display:flex;flex-direction:column;gap:8px;min-width:236px;max-width:292px;">
+                            <button type="button"
+                                    data-testid="armory-primary-action-btn"
+                                    @click="interactFocusedArmoryItem()"
+                                    style="appearance:none;width:100%;padding:8px 12px;border-radius:11px;border:1px solid #C5A059;background:#FAF8F5;color:#111827;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                                <span style="display:inline-flex;align-items:center;gap:6px;">
+                                    <span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 5px;border-radius:6px;background:#C5A059;color:#FFFFFF;font-size:11px;font-weight:900;">E</span>
+                                    <span x-text="armoryPrompt.focusedLabel || 'Kristall-Brustpanzer'"></span>
+                                </span>
+                                <span style="color:#C5A059;font-size:11px;font-weight:800;"
+                                      x-text="armoryPrompt.isEquipped ? 'Ablegen' : 'Anziehen'"></span>
+                            </button>
+
+                            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;">
+                                <template x-for="slotItem in armorySlotChips()" :key="slotItem.key">
+                                    <button type="button"
+                                            :data-testid="'armory-chip-' + slotItem.key"
+                                            @click="toggleArmoryKey(slotItem.key)"
+                                            :style="slotItem.active
+                                                ? 'appearance:none;padding:5px 6px;border-radius:8px;border:1px solid #C5A059;background:#FAF8F5;color:#111827;font-size:10.5px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;'
+                                                : (armoryPrompt.focusedKey === slotItem.key
+                                                    ? 'appearance:none;padding:5px 6px;border-radius:8px;border:1px solid rgba(197,160,89,0.75);background:#FFFFFF;color:#111827;font-size:10.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;'
+                                                    : 'appearance:none;padding:5px 6px;border-radius:8px;border:1px solid rgba(17,24,39,0.12);background:#FFFFFF;color:#374151;font-size:10.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;')">
+                                        <span x-show="slotItem.active" style="color:#C5A059;font-weight:900;">&#10003;</span>
+                                        <span x-text="slotItem.short"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                        <div class="sf-lobby-floating-arrow"></div>
                     </div>
 
                     {{-- 1-Klick Light-Mode Bewertungs-Kaertchen an der 3D-Sternebewertungs-Station neben dem Ehrenportal --}}
@@ -2811,6 +2941,80 @@
                         </div>
                     </div>
 
+                    {{-- Clean Light-Mode Starter-Charakterauswahl (Universelle Vorlage Maennlich & Weiblich, 0 Subtexte) --}}
+                    <div x-show="characterPickerOpen && !isLoading && loadError === ''"
+                         x-cloak
+                         @pointerdown.stop
+                         @mousedown.stop
+                         @click.self="closeCharacterPicker()"
+                         data-testid="lobby-character-picker-modal"
+                         class="sf-lobby-settings-backdrop">
+                        <div class="sf-lobby-settings-card"
+                             @pointerdown.stop
+                             @mousedown.stop
+                             @click.stop
+                             role="dialog"
+                             aria-label="Charakter wählen"
+                             style="max-width:360px;">
+                            <div class="sf-lobby-settings-head">
+                                <h3 class="sf-lobby-settings-title">
+                                    <span style="color:#C5A059;">✦</span>
+                                    <span>Charakter wählen</span>
+                                </h3>
+                                <button type="button"
+                                        @click="closeCharacterPicker()"
+                                        style="appearance:none;width:28px;height:28px;border-radius:9px;border:1px solid rgba(197,160,89,0.35);background:#FAF8F5;color:#111827;font-size:15px;font-weight:800;cursor:pointer;"
+                                        aria-label="Schließen">&times;</button>
+                            </div>
+
+                            <div class="sf-lobby-char-grid">
+                                <button type="button"
+                                        data-testid="lobby-char-select-male"
+                                        @click="chooseCharacter('male')"
+                                        class="sf-lobby-char-card"
+                                        :class="{ 'is-selected': (userSettings.characterGender || 'male') !== 'female' }">
+                                    <span x-show="(userSettings.characterGender || 'male') !== 'female'"
+                                          class="sf-lobby-char-check">&#10003;</span>
+                                    <span class="sf-lobby-char-emblem" aria-hidden="true">
+                                        <svg width="42" height="42" viewBox="0 0 48 48" fill="none">
+                                            <circle cx="24" cy="18.5" r="9.5" fill="#F3D2BA" stroke="#C5A059" stroke-width="1.8"/>
+                                            <path d="M14.8 16.5C15.5 10.5 19.5 8 24 8C28.5 8 32.5 10.5 33.2 16.5C30.2 14.2 27.2 13.4 24 13.4C20.8 13.4 17.8 14.2 14.8 16.5Z" fill="#6B442A"/>
+                                            <circle cx="20.6" cy="19.2" r="1.35" fill="#3B2314"/>
+                                            <circle cx="27.4" cy="19.2" r="1.35" fill="#3B2314"/>
+                                            <path d="M21.4 22.8Q24 24.6 26.6 22.8" stroke="#9C5A44" stroke-width="1.5" stroke-linecap="round"/>
+                                            <path d="M12.5 40C13.5 32.5 18 29.5 24 29.5C30 29.5 34.5 32.5 35.5 40Z" fill="#C9B38C" stroke="#C5A059" stroke-width="1.6"/>
+                                        </svg>
+                                    </span>
+                                    <span class="sf-lobby-char-name">Männlich</span>
+                                    <span class="sf-lobby-char-tag">Starter · Barfuß</span>
+                                </button>
+
+                                <button type="button"
+                                        data-testid="lobby-char-select-female"
+                                        @click="chooseCharacter('female')"
+                                        class="sf-lobby-char-card"
+                                        :class="{ 'is-selected': userSettings.characterGender === 'female' }">
+                                    <span x-show="userSettings.characterGender === 'female'"
+                                          class="sf-lobby-char-check">&#10003;</span>
+                                    <span class="sf-lobby-char-emblem" aria-hidden="true">
+                                        <svg width="42" height="42" viewBox="0 0 48 48" fill="none">
+                                            <path d="M31.5 17C35.8 18.5 37.5 23.5 35.2 28.5C33.8 25.5 32.5 23.2 30.8 21.5Z" fill="#6B442A"/>
+                                            <circle cx="24" cy="18.5" r="9.2" fill="#F6D8C2" stroke="#C5A059" stroke-width="1.8"/>
+                                            <path d="M14.8 17.5C15.4 10.6 19.4 8 24 8C28.6 8 32.6 10.6 33.2 17.5C30.4 14.6 27.3 13.5 24 13.5C20.7 13.5 17.6 14.6 14.8 17.5Z" fill="#7A4E31"/>
+                                            <circle cx="20.6" cy="19.2" r="1.4" fill="#3B2314"/>
+                                            <circle cx="27.4" cy="19.2" r="1.4" fill="#3B2314"/>
+                                            <path d="M18.9 18.1L17.7 17.2M29.1 18.1L30.3 17.2" stroke="#3B2314" stroke-width="1.2" stroke-linecap="round"/>
+                                            <path d="M21.4 22.8Q24 24.8 26.6 22.8" stroke="#B65E53" stroke-width="1.5" stroke-linecap="round"/>
+                                            <path d="M13.2 40C14.2 32.8 18.4 29.8 24 29.8C29.6 29.8 33.8 32.8 34.8 40Z" fill="#CEB994" stroke="#C5A059" stroke-width="1.6"/>
+                                        </svg>
+                                    </span>
+                                    <span class="sf-lobby-char-name">Weiblich</span>
+                                    <span class="sf-lobby-char-tag">Starter · Barfuß</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     {{-- Kompaktes Light-Mode ESC-Einstellungsmenü (⚙️ Gamification Clean-Design, 0 Subtexte) --}}
                     <div x-show="settingsOpen"
                          x-cloak
@@ -2889,6 +3093,57 @@
                                        data-testid="lobby-camera-sensitivity-slider"
                                        class="sf-lobby-slider"
                                        aria-label="Kamera-Tempo">
+                            </div>
+
+                            <div class="sf-lobby-settings-section">
+                                <div class="sf-lobby-settings-row">
+                                    <span class="sf-lobby-settings-label">Charakter</span>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <button type="button"
+                                                data-testid="lobby-settings-char-male"
+                                                @click="selectCharacterGender('male')"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': (userSettings.characterGender || 'male') !== 'female' }">
+                                            Männlich
+                                        </button>
+                                        <button type="button"
+                                                data-testid="lobby-settings-char-female"
+                                                @click="selectCharacterGender('female')"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': userSettings.characterGender === 'female' }">
+                                            Weiblich
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="sf-lobby-settings-section">
+                                <div class="sf-lobby-settings-row">
+                                    <span class="sf-lobby-settings-label">Himmel</span>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <button type="button"
+                                                data-testid="lobby-settings-sky-auto"
+                                                @click="setSkyTimeMode('auto')"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': !userSettings.skyTimeMode || userSettings.skyTimeMode === 'auto' }">
+                                            Auto
+                                        </button>
+                                        <button type="button"
+                                                data-testid="lobby-settings-sky-day"
+                                                @click="setSkyTimeMode('day')"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': userSettings.skyTimeMode === 'day' }">
+                                            Tag
+                                        </button>
+                                        <button type="button"
+                                                data-testid="lobby-settings-sky-night"
+                                                @click="setSkyTimeMode('night')"
+                                                class="sf-lobby-step-btn"
+                                                :class="{ 'is-active': userSettings.skyTimeMode === 'night' }">
+                                            Nacht
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="sf-lobby-settings-section">
@@ -3332,6 +3587,7 @@
                     chatExpanded: false,
                     chatTab: 'chat',
                     friendsList: [],
+                    characterPickerOpen: false,
                     settingsOpen: false,
                     keybindingsExpanded: false,
                     listeningKeyAction: '',
@@ -3340,6 +3596,8 @@
                         cameraSensitivity: 100,
                         useRealName: false,
                         graphicsQuality: 'high',
+                        characterGender: 'male',
+                        skyTimeMode: 'auto',
                     },
                     keybindings: {
                         jump: 'Space',
@@ -3391,6 +3649,19 @@
                     atelierStarStationFocused: false,
                     _loginOpenedFromStarStation: false,
                     outerGateModalOpen: false,
+                    armoryPrompt: {
+                        visible: false,
+                        focusedKey: 'chest',
+                        focusedLabel: 'Kristall-Brustpanzer',
+                        isEquipped: false,
+                    },
+                    equippedArmory: {
+                        head: false,
+                        chest: false,
+                        hands: false,
+                        feet: false,
+                        weapon: null,
+                    },
                     sanctumGateOpen: false,
                     sanctumGateZone: 'heroes',
                     sanctumExpandedStep: '',
@@ -3482,7 +3753,34 @@
                         return code || '?';
                     },
 
+                    openCharacterPicker() {
+                        const facade = getFacade();
+                        if (facade && typeof facade.releasePointerLock === 'function') {
+                            facade.releasePointerLock();
+                        }
+                        this.settingsOpen = false;
+                        this.sanctumGateOpen = false;
+                        this.outerGateModalOpen = false;
+                        this.characterPickerOpen = true;
+                        if (privateAudio) {
+                            privateAudio.playUiClick();
+                        }
+                    },
+
+                    closeCharacterPicker() {
+                        this.characterPickerOpen = false;
+                        if (privateAudio) {
+                            privateAudio.playUiClick();
+                        }
+                    },
+
+                    chooseCharacter(gender) {
+                        this.selectCharacterGender(gender);
+                        this.characterPickerOpen = false;
+                    },
+
                     toggleSettingsModal() {
+                        this.characterPickerOpen = false;
                         this.settingsOpen = !this.settingsOpen;
                         if (!this.settingsOpen) {
                             this.listeningKeyAction = '';
@@ -3594,12 +3892,44 @@
                         if (privateAudio) privateAudio.playUiSwitch();
                     },
 
+                    selectCharacterGender(gender) {
+                        const clean = gender === 'female' ? 'female' : 'male';
+                        this.userSettings = Object.assign({}, this.userSettings, { characterGender: clean });
+                        const facade = getFacade();
+                        if (facade && typeof facade.setCharacterGender === 'function') {
+                            facade.setCharacterGender(clean);
+                        } else if (privateMod && typeof privateMod.saveLobbyUserSettings === 'function') {
+                            privateMod.saveLobbyUserSettings({ characterGender: clean });
+                        }
+                        if (this.isOpen && this.currentZone === 'heroes' && !this.soloMode && !this.multiplayerDisabled) {
+                            this._sendWsStateNow(true);
+                            this.requestImmediateMultiplayerSync();
+                        }
+                        if (privateAudio) privateAudio.playUiSwitch();
+                    },
+
+                    setSkyTimeMode(mode) {
+                        const clean = (mode === 'day' || mode === 'night') ? mode : 'auto';
+                        this.userSettings = Object.assign({}, this.userSettings, { skyTimeMode: clean });
+                        const facade = getFacade();
+                        if (facade && typeof facade.updateSettings === 'function') {
+                            facade.updateSettings({ skyTimeMode: clean });
+                            if (typeof facade.getEnvironment === 'function') {
+                                this.environmentInfo = Object.assign({}, this.environmentInfo, facade.getEnvironment());
+                            }
+                        } else if (privateMod && typeof privateMod.saveLobbyUserSettings === 'function') {
+                            privateMod.saveLobbyUserSettings({ skyTimeMode: clean });
+                        }
+                        if (privateAudio) privateAudio.playUiSwitch();
+                    },
+
                     minimapTooltip() {
                         const season = this.environmentInfo.season_label || 'Herbst';
+                        const skySuffix = this.environmentInfo.is_night ? ' · Sternenhimmel' : '';
                         if (this.environmentInfo.holiday_label) {
-                            return season + ' · ' + this.environmentInfo.holiday_label;
+                            return season + ' · ' + this.environmentInfo.holiday_label + skySuffix;
                         }
-                        return season;
+                        return season + skySuffix;
                     },
 
                     _nowPerfMs() {
@@ -3807,6 +4137,7 @@
                         }
                         this.sanctumGateOpen = false;
                         this.settingsOpen = false;
+                        this.characterPickerOpen = false;
                         this.outerGateModalOpen = true;
                         if (privateAudio) privateAudio.playUiClick();
                     },
@@ -3814,6 +4145,39 @@
                     closeOuterGateModal() {
                         this.outerGateModalOpen = false;
                         if (privateAudio) privateAudio.playUiClick();
+                    },
+
+                    armorySlotChips() {
+                        const eq = this.equippedArmory || {};
+                        return [
+                            { key: 'helm', short: 'Helm', active: Boolean(eq.head) },
+                            { key: 'chest', short: 'Brust', active: Boolean(eq.chest) },
+                            { key: 'gauntlets', short: 'Hände', active: Boolean(eq.hands) },
+                            { key: 'boots', short: 'Stiefel', active: Boolean(eq.feet) },
+                            { key: 'lance', short: 'Lanze', active: eq.weapon === 'lance' },
+                            { key: 'spear', short: 'Speer', active: eq.weapon === 'spear' },
+                        ];
+                    },
+
+                    toggleArmoryKey(itemKey) {
+                        const facade = getFacade();
+                        if (facade && typeof facade.toggleArmoryItem === 'function') {
+                            facade.toggleArmoryItem(itemKey);
+                        }
+                    },
+
+                    interactFocusedArmoryItem() {
+                        const facade = getFacade();
+                        if (facade && typeof facade.toggleArmoryItem === 'function') {
+                            facade.toggleArmoryItem(this.armoryPrompt.focusedKey || null);
+                        }
+                    },
+
+                    triggerLobbyWeaponSwing() {
+                        const facade = getFacade();
+                        if (facade && typeof facade.triggerWeaponSwing === 'function') {
+                            facade.triggerWeaponSwing();
+                        }
                     },
 
                     enterFunkenreichMmorpg() {
@@ -3856,6 +4220,7 @@
                             facade.releasePointerLock();
                         }
                         this.outerGateModalOpen = false;
+                        this.characterPickerOpen = false;
                         this.sanctumGateZone = 'heroes';
                         this.inlineAuthError = '';
                         const resolved = incomingState
@@ -4518,6 +4883,9 @@
                         this.startLobbyMusicFromGesture(requestedZone);
                         if (this.isOpen) {
                             this.switchZone(requestedZone);
+                            if (requestedZone === 'gallery') {
+                                this.characterPickerOpen = true;
+                            }
                             return;
                         }
 
@@ -4542,6 +4910,7 @@
                         this.instanceMenuOpen = false;
                         this.pingTooltipOpen = false;
                         this.settingsOpen = false;
+                        this.characterPickerOpen = (requestedZone === 'gallery');
                         this.sanctumGateOpen = false;
                         this.outerGateModalOpen = false;
                         this.listeningKeyAction = '';
@@ -4616,7 +4985,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261119v11');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261120v36');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -4734,6 +5103,7 @@
                                         floatingHeroCardEl: this.$refs.floatingHeroCard || null,
                                         floatingPortalCardEl: this.$refs.floatingPortalCard || null,
                                         floatingOuterGateEl: this.$refs.floatingOuterGateCard || null,
+                                        floatingArmoryEl: this.$refs.floatingArmoryCard || null,
                                         floatingStarStationEl: this.$refs.floatingAtelierStarCard || null,
                                         products: this.products,
                                         environment: payload.environment || null,
@@ -4747,6 +5117,7 @@
                                         isAuthenticatedCustomer: isAuth,
                                         initialZone: requestedZone,
                                         soloMode: this.soloMode,
+                                        characterGender: (this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male',
                                         onFocusProductChange: (prod, idx) => {
                                             this.focusedProduct = prod || null;
                                             const f = getFacade();
@@ -4776,6 +5147,18 @@
                                         onOuterGateModalOpen: (mmorpgState) => {
                                             this.openOuterGateModal(mmorpgState);
                                         },
+                                        onArmoryStateChange: (st) => {
+                                            if (!st || typeof st !== 'object') return;
+                                            if (st.equipped) {
+                                                this.equippedArmory = Object.assign({}, this.equippedArmory, st.equipped);
+                                            }
+                                            this.armoryPrompt = {
+                                                visible: Boolean(st.visible),
+                                                focusedKey: st.focusedKey || 'chest',
+                                                focusedLabel: st.focusedLabel || 'Kristall-Brustpanzer',
+                                                isEquipped: Boolean(st.isEquipped),
+                                            };
+                                        },
                                         onAtelierStarStationFocusChange: (focused) => {
                                             this.atelierStarStationFocused = Boolean(focused);
                                             if (!focused) {
@@ -4803,6 +5186,9 @@
                                     setFacade(createdFacade);
                                     if (typeof createdFacade.getPlayerHudState === 'function') {
                                         this.playerHud = Object.assign({}, this.playerHud, createdFacade.getPlayerHudState());
+                                    }
+                                    if (typeof createdFacade.getEnvironment === 'function') {
+                                        this.environmentInfo = Object.assign({}, this.environmentInfo, createdFacade.getEnvironment());
                                     }
                                     if (typeof createdFacade.getSanctumAccessState === 'function') {
                                         const stAccess = createdFacade.getSanctumAccessState();
@@ -4869,6 +5255,9 @@
                             somersault_dir: st.somersault_dir || 0,
                             somersault_prog: st.somersault_prog || 0,
                             emote: st.emote || null,
+                            avatar_gender: st.avatar_gender === 'female'
+                                ? 'female'
+                                : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                         };
                     },
 
@@ -4890,6 +5279,7 @@
                         if ((st.somersault_seq || 0) !== (prev.somersault_seq || 0)) return true;
                         if ((st.somersault_dir || 0) !== (prev.somersault_dir || 0)) return true;
                         if ((st.emote || null) !== (prev.emote || null)) return true;
+                        if ((st.avatar_gender || 'male') !== (prev.avatar_gender || 'male')) return true;
                         return false;
                     },
 
@@ -5288,6 +5678,9 @@
                                     somersault_prog: st.somersault_prog || 0,
                                     zone: z,
                                     emote: st.emote || null,
+                                    avatar_gender: st.avatar_gender === 'female'
+                                        ? 'female'
+                                        : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                                     ability_slot: st.ability_slot || 0,
                                     weapon_seq: st.weapon_seq || 0,
                                     combo_seq: st.combo_seq,
@@ -5362,6 +5755,9 @@
                                 somersault_prog: st.somersault_prog || 0,
                                 zone: 'heroes',
                                 emote: st.emote || null,
+                                avatar_gender: st.avatar_gender === 'female'
+                                    ? 'female'
+                                    : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                                 ability_slot: st.ability_slot || 0,
                                 weapon_seq: st.weapon_seq || 0,
                                 combo_seq: st.combo_seq,
@@ -5648,6 +6044,9 @@
                                 somersault_prog: st.somersault_prog || 0,
                                 zone: 'heroes',
                                 emote: st.emote || null,
+                                avatar_gender: st.avatar_gender === 'female'
+                                    ? 'female'
+                                    : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                                 ability_slot: st.ability_slot || 0,
                                 weapon_seq: st.weapon_seq || 0,
                                 combo_seq: st.combo_seq,
@@ -5779,6 +6178,9 @@
                                 somersault_seq: st.somersault_seq || 0,
                                 somersault_dir: st.somersault_dir || 0,
                                 somersault_prog: st.somersault_prog || 0,
+                                avatar_gender: st.avatar_gender === 'female'
+                                    ? 'female'
+                                    : ((this.userSettings && this.userSettings.characterGender === 'female') ? 'female' : 'male'),
                                 zone: 'heroes'
                             })
                         })
@@ -6444,6 +6846,7 @@
                         }
                         this.instanceMenuOpen = false;
                         this.settingsOpen = false;
+                        this.characterPickerOpen = false;
                         this.sanctumGateOpen = false;
                         this.outerGateModalOpen = false;
                         this.listeningKeyAction = '';
@@ -6510,6 +6913,10 @@
                         }
                         if (this.sanctumGateOpen) {
                             this.closeSanctumGateModal();
+                            return;
+                        }
+                        if (this.characterPickerOpen) {
+                            this.closeCharacterPicker();
                             return;
                         }
                         if (this.settingsOpen) {

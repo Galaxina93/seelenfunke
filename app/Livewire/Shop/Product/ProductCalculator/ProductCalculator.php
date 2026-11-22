@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Shop\Product\ProductCalculator;
 
+use App\Livewire\Shop\Product\Traits\ManagesConfiguratorStartSelection;
 use App\Mail\NewCalcMailToAdmin;
 use App\Mail\NewCalcMailToCustomer;
 use App\Models\Customer\Customer;
@@ -23,7 +24,7 @@ use Livewire\WithPagination;
 
 class ProductCalculator extends Component
 {
-    use WithFileUploads, WithPagination;
+    use WithFileUploads, WithPagination, ManagesConfiguratorStartSelection;
 
     // --- SORTIMENT FILTER, ANSICHT & PAGINIERUNG ---
     public string $search = '';
@@ -42,15 +43,7 @@ class ProductCalculator extends Component
     // --- STATE ---
     public $editingIndex = -1;
     public $cartItems = [];
-    public $currentConfig = [];
     public $currentProduct = null;
-
-    // --- VORLAGEN (NEU) ---
-    public $showTemplateSelection = false;
-    public $showTemplatesList = false;
-    public $productTemplates = [];
-    public bool $showAllSeasonalTemplates = false;
-    public int $hiddenSeasonalTemplatesCount = 0;
 
     // --- PREISE & GEWICHT ---
     public $gesamtKosten = 0;
@@ -248,7 +241,8 @@ class ProductCalculator extends Component
                 'is_ai_generated' => (bool) ($mainMediaMeta['is_ai_generated'] ?? false),
                 'preview_image' => $previewPath ? 'storage/'.$previewPath : null,
                 'allow_logo' => $p->configurator_settings['allow_logo'] ?? true,
-                'is_personalizable' => (bool) $p->is_personalizable, // NEU
+                'is_personalizable' => (bool) $p->is_personalizable,
+                'uses_studio_configurator' => $p->usesStudioConfigurator(),
             ];
         })->keyBy('id')->toArray();
     }
@@ -269,7 +263,23 @@ class ProductCalculator extends Component
         ProductTrackingService::trackCalculatorStarted();
     }
 
-    // --- NEU: Vorlagen Logik Start ---
+    protected function resolveStartSelectionProductId(): ?string
+    {
+        return isset($this->currentProduct['id']) ? (string) $this->currentProduct['id'] : null;
+    }
+
+    protected function canProceedWithStartSelectionAction(): bool
+    {
+        $this->assertPublicCalculatorEnabled();
+        return !$this->blockIfMaintenanceActive();
+    }
+
+    protected function afterStartModeTransition(string $mode, ?ProductTemplate $selectedTemplate = null): void
+    {
+        $this->step = 2;
+        $this->dispatch('scroll-top');
+    }
+
     public function openConfig($productId, $templateId = null)
     {
         $this->assertPublicCalculatorEnabled();
@@ -279,7 +289,9 @@ class ProductCalculator extends Component
 
         $this->editingIndex = -1;
         $this->currentProduct = $this->dbProducts[$productId] ?? null;
-        if(!$this->currentProduct) return;
+        if (!$this->currentProduct) {
+            return;
+        }
 
         ProductTrackingService::trackCalculatorProductOpened($productId);
 
@@ -297,123 +309,42 @@ class ProductCalculator extends Component
             return;
         }
 
-        if ($templateId) {
-            $this->selectTemplate($templateId);
-            $this->dispatch('scroll-top');
-            return;
-        }
-
-        // Prüfen, ob es aktive Vorlagen für dieses Produkt gibt (nur im Studio-Modus relevant)
-        $personalizationMode = $this->currentProduct['configurator_settings']['personalization_mode'] ?? 'studio';
-        if ($personalizationMode === 'custom_fields') {
-            $this->startCustomConfig();
-            $this->dispatch('scroll-top');
-            return;
-        }
-
-        $templates = ProductTemplate::where('product_id', $productId)
-            ->where('is_active', true)
-            ->get();
-
-        if ($templates->isNotEmpty()) {
-            $this->refreshCalculatorTemplates((string) $productId, $templates);
-            $this->showTemplateSelection = true;
+        // Reine Schnell-Personalisierungs-Produkte (ohne Studio-2D/3D) direkt im Eingabe-Modus öffnen
+        $usesStudio = (bool) ($this->currentProduct['uses_studio_configurator'] ?? (($this->currentProduct['configurator_settings']['personalization_mode'] ?? 'studio') === 'studio'));
+        if (!$usesStudio) {
+            $this->currentConfig = ['personalization_mode' => 'custom_fields'];
+            $this->showTemplateSelection = false;
             $this->showTemplatesList = false;
             $this->step = 2;
-        } else {
-            // Keine Vorlagen -> Direkt in den nackten Konfigurator
-            $this->startCustomConfig();
+            $this->dispatch('scroll-top');
+            return;
         }
 
+        // Zentrale Startauswahl ("Neuling -> Anfänger -> Profi") identisch zur Produktdetailseite initialisieren
+        $this->initStartSelectionForStudioProduct(
+            $templateId !== null && $templateId !== '' ? (string) $templateId : null
+        );
+        $this->step = 2;
         $this->dispatch('scroll-top');
     }
 
-    protected function refreshCalculatorTemplates(string $productId, ?iterable $allActiveTemplates = null): void
+    public function returnToCalculatorStartSelection(): void
     {
-        $templates = $allActiveTemplates !== null
-            ? collect($allActiveTemplates)
-            : ProductTemplate::where('product_id', $productId)->where('is_active', true)->get();
-
-        if ($templates->isEmpty()) {
-            $this->productTemplates = [];
-            $this->hiddenSeasonalTemplatesCount = 0;
-            $this->showAllSeasonalTemplates = false;
+        if (!$this->canProceedWithStartSelectionAction()) {
             return;
         }
 
-        $allAsArrays = $templates->map(fn ($t) => $t instanceof ProductTemplate ? $t->toArray() : (array) $t)->values()->all();
-        $totalActive = count($allAsArrays);
-        $curated = ProductTemplate::filterAndSortForStorefront($allAsArrays, false);
-
-        if (empty($curated) || count($curated) === $totalActive) {
-            $this->productTemplates = empty($curated)
-                ? ProductTemplate::filterAndSortForStorefront($allAsArrays, true)
-                : $curated;
-            $this->hiddenSeasonalTemplatesCount = 0;
-            $this->showAllSeasonalTemplates = false;
-            return;
-        }
-
-        if ($this->showAllSeasonalTemplates) {
-            $this->productTemplates = ProductTemplate::filterAndSortForStorefront($allAsArrays, true);
-            $this->hiddenSeasonalTemplatesCount = 0;
-            return;
-        }
-
-        $this->productTemplates = $curated;
-        $this->hiddenSeasonalTemplatesCount = max(0, $totalActive - count($curated));
-    }
-
-    public function toggleShowAllTemplates(): void
-    {
-        if (method_exists($this, 'assertPublicCalculatorEnabled')) {
-            $this->assertPublicCalculatorEnabled();
-        }
-        if (method_exists($this, 'blockIfMaintenanceActive') && $this->blockIfMaintenanceActive()) {
-            return;
-        }
-
-        $productId = $this->currentProduct['id'] ?? null;
-        if (!$productId) {
-            return;
-        }
-
-        $this->showAllSeasonalTemplates = !$this->showAllSeasonalTemplates;
-        $this->refreshCalculatorTemplates((string) $productId);
-    }
-
-    public function openTemplatesList()
-    {
-        $this->showTemplateSelection = false;
-        $this->showTemplatesList = true;
-    }
-
-    public function startCustomConfig()
-    {
-        $this->showTemplateSelection = false;
-        $this->showTemplatesList = false;
-        $this->currentConfig = [];
-        $this->step = 2;
-    }
-
-    public function selectTemplate($templateId)
-    {
-        $currentProductId = $this->currentProduct['id'] ?? null;
-        $template = $currentProductId
-            ? ProductTemplate::where('product_id', $currentProductId)->where('is_active', true)->find($templateId)
-            : null;
-
-        if ($template) {
-            $this->currentConfig = $template->configuration ?? [];
-        } else {
+        $usesStudio = (bool) ($this->currentProduct['uses_studio_configurator'] ?? (($this->currentProduct['configurator_settings']['personalization_mode'] ?? 'studio') === 'studio'));
+        if ($this->editingIndex < 0 && $usesStudio) {
             $this->currentConfig = [];
+            $this->showTemplatesList = false;
+            $this->showTemplateSelection = true;
+            $this->dispatch('scroll-top');
+            return;
         }
 
-        $this->showTemplateSelection = false;
-        $this->showTemplatesList = false;
-        $this->step = 2;
+        $this->cancelConfig();
     }
-    // --- Vorlagen Logik Ende ---
 
     public function editItem($index)
     {

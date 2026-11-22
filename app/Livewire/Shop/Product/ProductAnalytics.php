@@ -33,8 +33,8 @@ class ProductAnalytics extends Component
     #[Url]
     public string $activeTab = 'configurator';
 
-    public $dateFrom;
-    public $dateTo;
+    protected ?Carbon $dateFrom = null;
+    protected ?Carbon $dateTo = null;
 
     // Analytics State (Wirtschaftlichkeit)
     public array $lossData = [];
@@ -128,7 +128,7 @@ class ProductAnalytics extends Component
         $groupByFormat = in_array($this->dateRange, ['365', 'all']) ? 'Y-m' : 'Y-m-d';
 
         // 1. Schadensmeldungen Historie (Bar Chart - grouped by date)
-        $losses = ProductLoss::whereBetween('created_at', [$this->dateFrom, $this->dateTo])->get();
+        $losses = ProductLoss::with('product:id,name')->whereBetween('created_at', [$this->dateFrom, $this->dateTo])->get();
             
         $lossGrouped = $losses->groupBy(fn($l) => $l->created_at->format($groupByFormat));
         $lossLabels = [];
@@ -313,17 +313,25 @@ class ProductAnalytics extends Component
             return !empty($e->meta_data['is_express']);
         })->count();
 
-        $expressRevenueCents = ProductAnalyticsEvent::where('source', 'configurator')
-            ->where('event_name', 'express_toggled')
-            ->where('item_identifier', 'enabled')
-            ->whereBetween('created_at', [$this->dateFrom, $this->dateTo])
-            ->sum('value_cents');
+        $bookedExpressOrders = \App\Models\Order\OrderOrder::whereBetween('created_at', [$this->dateFrom, $this->dateTo])
+            ->where('is_express', true)
+            ->whereNotIn('status', ['cancelled', 'refunded', 'failed']);
+
+        $bookedExpressCount = (clone $bookedExpressOrders)->count();
+        $bookedExpressRevenueCents = (int) (clone $bookedExpressOrders)->sum('express_price');
+
+        $savedExpressRevenueCents = (int) $expressSavedEvents->filter(function ($e) {
+            return !empty($e->meta_data['is_express']);
+        })->sum(fn ($e) => (int) ($e->meta_data['express_price_cents'] ?? $e->value_cents ?? 0));
+
+        $expressRevenueCents = $bookedExpressRevenueCents > 0 ? $bookedExpressRevenueCents : $savedExpressRevenueCents;
+        $effectiveExpressCompleted = $bookedExpressCount > 0 ? $bookedExpressCount : $expressSavedCount;
 
         $expressAttachRate = $totalConfigsSaved > 0 ? round(($expressSavedCount / $totalConfigsSaved) * 100, 1) : 0;
 
         $this->expressStats = [
             'enabled_clicks' => $expressToggledCount,
-            'completed_with_express' => $expressSavedCount,
+            'completed_with_express' => $effectiveExpressCompleted,
             'total_completed' => $totalConfigsSaved,
             'attach_rate' => $expressAttachRate,
             'revenue_euros' => round($expressRevenueCents / 100, 2),
@@ -998,6 +1006,7 @@ class ProductAnalytics extends Component
 
     public function render()
     {
+        $this->updateDateRange();
         $this->computeAnalytics();
         $this->computeConfiguratorAnalytics();
         $this->computeCalculatorAnalytics();

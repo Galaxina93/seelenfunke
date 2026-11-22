@@ -17,6 +17,7 @@ class GeminiAgent implements AiProviderInterface
     protected \App\Models\Ai\AiAgent $agent;
     public string $dynamicSystemPrompt = '';
     protected array $ephemeralEquippedPools = [];
+    protected static $sharedCurlHandle = null;
 
     public function getEphemeralEquippedPools(): array
     {
@@ -174,19 +175,24 @@ class GeminiAgent implements AiProviderInterface
                                      "- Sprungbrett: {$v['intermediate_hub']}\n" .
                                      "- Aktuelle Phase: " . ($cp['name'] ?? '') . "\n" .
                                      "- Phasen-Fokus: " . ($cp['description'] ?? '') . "\n" .
-                                     "- Nächster strategischer Schritt: " . ($cp['next_step'] ?? '') . "\n" .
-                                     "\n🔥 FÜHRUNGS-DIREKTIVE BEI 'WAS MUSS ICH JETZT TUN?':\n" .
-                                     "Wenn Alina dich fragt 'Was muss ich jetzt tun?', 'Was steht an?' oder nach Aufgaben fragt, antworte IMMER als strategische CEO-KI in diesem 3-Säulen-Prinzip:\n" .
-                                     "1. OPERATIV ANPACKEN (Hands-on Chefin): Nenne ihr sofort und glasklar die konkrete operative Prio 1 für heute. WICHTIG: Wenn Bestellungen zur Fertigung anstehen, nenne AUSSCHLIESSLICH die realen Bestellnummern und echten Produkte aus der Datenbank (z.B. Seelen Kristall, Seelenanhänger). Erfinde NIEMALS Phantasieprodukte oder ausgedachte Musteraufträge! Wenn keine Bestellungen offen sind, nenne die nächste reale Aufgabe aus ManagementTask.\n" .
-                                     "2. STRATEGISCHE EINORDNUNG INS 10-JAHRES-ZIEL: Verknüpfe diese Tagesaufgabe mit dem großen Bild: Zeige ihr auf, wie die heutige Arbeit direkt auf die Garagenhof-Expansion (nach dem 20k-Tore-Umbau) und das 15-Mio.-Firmengebäude bis Alter 43 einzahlt.\n" .
-                                     "3. ECHTE SYSTEM-FINANZEN: Nutze die oben vorberechneten Finanz- und Kostenzahlen transparent. Keine erfundenen Pauschalvermögen, das System fängt bei 0 an und bildet die reale Kosten- und Einnahmensituation ab.\n";
+                                     "- Nächster strategischer Schritt: " . ($cp['next_step'] ?? '') . "\n";
+
+                if (!$isFunkiraInternal) {
+                    $systemPromptText .= "\n🔥 FÜHRUNGS-DIREKTIVE BEI 'WAS MUSS ICH JETZT TUN?':\n" .
+                                         "Wenn Alina dich fragt 'Was muss ich jetzt tun?', 'Was steht an?' oder nach Aufgaben fragt, antworte IMMER als strategische CEO-KI in diesem 3-Säulen-Prinzip:\n" .
+                                         "1. OPERATIV ANPACKEN (Hands-on Chefin): Nenne ihr sofort und glasklar die konkrete operative Prio 1 für heute. WICHTIG: Wenn Bestellungen zur Fertigung anstehen, nenne AUSSCHLIESSLICH die realen Bestellnummern und echten Produkte aus der Datenbank (z.B. Seelen Kristall, Seelenanhänger). Erfinde NIEMALS Phantasieprodukte oder ausgedachte Musteraufträge! Wenn keine Bestellungen offen sind, nenne die nächste reale Aufgabe aus ManagementTask.\n" .
+                                         "2. STRATEGISCHE EINORDNUNG INS 10-JAHRES-ZIEL: Verknüpfe diese Tagesaufgabe mit dem großen Bild: Zeige ihr auf, wie die heutige Arbeit direkt auf die Garagenhof-Expansion (nach dem 20k-Tore-Umbau) und das 15-Mio.-Firmengebäude bis Alter 43 einzahlt.\n" .
+                                         "3. ECHTE SYSTEM-FINANZEN: Nutze die oben vorberechneten Finanz- und Kostenzahlen transparent. Keine erfundenen Pauschalvermögen, das System fängt bei 0 an und bildet die reale Kosten- und Einnahmensituation ab.\n";
+                }
             }
         }
 
         $systemPromptText .= 'EPHEMERAL CONTEXT: ' . session()->get('ai_ephemeral_state', 'Der User hat aktuell keine Dateien oder speziellen UI-Elemente fokussiert.') . "\n";
 
         if ($isAdmin && class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
-            $latestDocs = \App\Models\Ai\AiWorkspaceDocument::orderBy('created_at', 'desc')->take(3)->get();
+            $latestDocs = \Illuminate\Support\Facades\Cache::remember('ai_workspace_latest_3_docs', 30, function () {
+                return \App\Models\Ai\AiWorkspaceDocument::orderBy('created_at', 'desc')->take(3)->get();
+            });
             if ($latestDocs->isNotEmpty()) {
                 $systemPromptText .= "\n[WORKSPACE LIVE-STATUS: ZULETZT HOCHGELADENE DATEIEN]\n";
                 foreach ($latestDocs as $idx => $d) {
@@ -202,20 +208,21 @@ class GeminiAgent implements AiProviderInterface
         if ($isPublicSupportChat) {
             $systemPromptText .= "Reasoning: low\n\n" .
                                  "[ANTWORT- & TOKEN-DISZIPLIN IM KUNDENSUPPORT]\n" .
-                                 "Antworte präzise, herzlich und kompakt (ideal 2–6 Sätze oder kurze Aufzählungspunkte). Wenn du ein Support-Werkzeug aufrufst, präsentiere dem Kunden die relevanten Ergebnisse (z. B. Funken-Guthaben, Level, Bestellstatus oder Links) klar und übersichtlich im Chat und nenne immer den genauen Ort bzw. Klickpfad im Shop.";
+                                 "Antworte präzise, herzlich und kompakt (ideal 2 bis 6 Sätze oder kurze Aufzählungspunkte). Wenn du ein Support-Werkzeug aufrufst, präsentiere dem Kunden die relevanten Ergebnisse (z. B. Funken-Guthaben, Level, Bestellstatus oder Links) klar und übersichtlich im Chat und nenne immer den genauen Ort bzw. Klickpfad im Shop.";
         } else {
-            $systemPromptText .= "Reasoning: high\n\n" .
+            $reasoningMode = $isFunkiraInternal ? 'low' : 'high';
+            $systemPromptText .= "Reasoning: {$reasoningMode}\n\n" .
                                  "[UI DATEN-VISUALISIERUNG & WERKZEUGE]\n" .
                                  "Wenn du ein System-Werkzeug ausführst, das strukturierte Arrays, Tabellen oder Objekt-Listen (Metriken, Gutscheine, Aufgaben etc.) zurückgibt, geht das System davon aus, dass diese den Nutzerin bereits visuell und grafisch formatiert in der UI angezeigt werden.\n" .
                                  "REGEL: Du darfst diese geladenen Datenpunkte NIEMALS in deiner eigenen Chat-Antwort auflisten oder im Detail vorlesen. Fasse stattdessen den Erfolg der Aktion in 1-2 lockeren Sätzen völlig abstrakt zusammen (z.B. 'Ich habe die Ansicht für dich geöffnet.' oder 'Alles klar, hier ist die Übersicht.').";
         }
 
-        if ($isAdmin && file_exists(base_path('ai_map.md'))) {
+        if ($isAdmin && !$isFunkiraInternal && file_exists(base_path('ai_map.md'))) {
             $systemPromptText .= "\n\n[ARCHITEKTUR-KARTE / INDEX]\n" .
                                  "Es existiert eine Map-Datei unter `" . base_path('ai_map.md') . "`. LIES DIESE DATEI ZUERST (als Werkzeugaufruf), wenn du Code-Strukturen, Models oder Controller suchst. Das erspart dir mühsames Suchen im Dateisystem!";
         }
 
-        if ($isAdmin) {
+        if ($isAdmin && !$isFunkiraInternal) {
             $systemPromptText .= "\n\n<planning_mode>\n" .
                                  "You are an advanced agentic AI coding assistant built by Antigravity.\n" .
                                  "You are in Planning Mode. Exercise judgement on whether a user's request warrants a plan before taking action.\n\n" .
@@ -472,6 +479,13 @@ class GeminiAgent implements AiProviderInterface
             $payload['max_tokens'] = 600;
         }
 
+        $isFunkiraLoop = method_exists(FunkiraSkillPoolService::class, 'isFunkira')
+            && FunkiraSkillPoolService::isFunkira($this->agent);
+        if ($isPublicCustomerSupport || $isFunkiraLoop) {
+            // Minimale Denk-Latenz (TTFT < 0.8s statt 3-8s dynamischer Chain-of-Thought-Pause) auf Gemini 2.5/3.x Flash
+            $payload['reasoning_effort'] = 'low';
+        }
+
         if (!empty($filteredSchema)) {
             // BUGFIX: Google's OpenAI API wrapper silently dies with HTTP 503 Service Unavailable
             // when passing large JSON schemas (> ~80KB). We MUST compress the tools array to prevent timeouts.
@@ -528,9 +542,19 @@ class GeminiAgent implements AiProviderInterface
             while ($retryCount <= $maxRetries) {
                 $url = rtrim($this->baseUrl, '/') . '/chat/completions';
 
-                $ch = curl_init($url);
+                if (self::$sharedCurlHandle === null) {
+                    self::$sharedCurlHandle = curl_init();
+                } else {
+                    curl_reset(self::$sharedCurlHandle);
+                }
+                $ch = self::$sharedCurlHandle;
+                curl_setopt($ch, CURLOPT_URL, $url);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+                curl_setopt($ch, CURLOPT_TCP_KEEPALIVE, 1);
+                curl_setopt($ch, CURLOPT_TCP_KEEPIDLE, 30);
+                curl_setopt($ch, CURLOPT_TCP_KEEPINTVL, 15);
                 curl_setopt($ch, CURLOPT_REFERER, request()->headers->get('referer') ?? config('app.url'));
 
                 // WICHTIG: Kein Laravel Guzzle (Http::) nutzen und Expect: explizit leeren, um cURL Timeout 28
@@ -557,9 +581,11 @@ class GeminiAgent implements AiProviderInterface
                 $toolCallAccumulators = [];
                 $streamUsage = null;
                 $sseBuffer = '';
+                $isFirstTextChunkInAttempt = true;
+                $shouldReplaceStreamOnFirstChunk = ($depth > 0 || $retryCount > 0 || $fallbackUsed);
                 $abortKey = 'abort_ai_agent_' . $this->agent->id;
 
-                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) use ($streamCallback, &$rawResponseString, &$streamedTextAccumulator, &$toolCallAccumulators, &$sseBuffer, $abortKey, &$isAborted, &$streamUsage) {
+                curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $data) use ($streamCallback, &$rawResponseString, &$streamedTextAccumulator, &$toolCallAccumulators, &$sseBuffer, $abortKey, &$isAborted, &$streamUsage, &$isFirstTextChunkInAttempt, $shouldReplaceStreamOnFirstChunk) {
                     try {
                         if (\Illuminate\Support\Facades\Cache::pull($abortKey)) {
                             $isAborted = true;
@@ -597,8 +623,14 @@ class GeminiAgent implements AiProviderInterface
                                 if (isset($delta['content'])) {
                                     $content = $delta['content'];
                                     $streamedTextAccumulator .= $content;
-                                    if ($streamCallback) {
-                                        $streamCallback(['type' => 'text_chunk', 'chunk' => $content]);
+                                    if ($streamCallback && $content !== '') {
+                                        $replaceStream = $isFirstTextChunkInAttempt && $shouldReplaceStreamOnFirstChunk;
+                                        $isFirstTextChunkInAttempt = false;
+                                        $streamCallback([
+                                            'type' => 'text_chunk',
+                                            'chunk' => $content,
+                                            'replace' => $replaceStream,
+                                        ]);
                                         // Removed ob_flush(); flush(); to prevent PHP output buffer exception locks
                                     }
                                 }
@@ -677,7 +709,10 @@ class GeminiAgent implements AiProviderInterface
                 curl_exec($ch);
                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 $curlError = curl_error($ch);
-                curl_close($ch);
+                if ($curlError && self::$sharedCurlHandle !== null) {
+                    curl_close(self::$sharedCurlHandle);
+                    self::$sharedCurlHandle = null;
+                }
 
                 if ($isAborted) {
                     break;
@@ -834,21 +869,8 @@ class GeminiAgent implements AiProviderInterface
 
             // Did the AI decide to call a tool?
             if (isset($message['tool_calls']) && !empty($message['tool_calls'])) {
-                
-                // ANTIGRAVITY FIX: Speichere auch den Zwischen-Text (Gedanken/Erklärungen vor dem Tool Call) in der DB!
-                if (!empty($streamedTextAccumulator) && class_exists(AiChatMemory::class)) {
-                    AiChatMemory::create([
-                        'session_id' => config('ai.current_session_id') ?: session()->getId(),
-                        'role' => 'assistant',
-                        'content' => $streamedTextAccumulator,
-                        'context_data' => [
-                            'name' => $this->agent->name,
-                            'color' => $this->agent->color,
-                            'icon' => $this->agent->icon,
-                            'profile_picture' => $this->agent->profile_picture,
-                        ]
-                    ]);
-                }
+                // Kein separates Speichern des Vorab-Zwischentextes in AiChatMemory vor dem Tool-Call,
+                // da sonst zusammen mit der finalen Antwort doppelte KI-Blasen und doppeltes Vorlesen entstehen.
 
                 // Execute every tool the AI asked for (now safely max 1)
                 $fastTrackResponses = [];
@@ -1077,8 +1099,12 @@ class GeminiAgent implements AiProviderInterface
                     ], 60);
                 } catch (\Exception $e) {}
 
-                $prefix = isset($message['content']) && trim($message['content']) !== '' ? trim($message['content']) . "\n\n" : '';
-                return $prefix . $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
+                $nextTurnResponse = $this->chatLoop($messages, $contextData, $usageData, $eventsData, $depth + 1, $calledTools, $streamCallback);
+                if (trim($nextTurnResponse) !== '') {
+                    return $nextTurnResponse;
+                }
+
+                return isset($message['content']) ? trim((string) $message['content']) : '';
             }
 
             // Provide final answer

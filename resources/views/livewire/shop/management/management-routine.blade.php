@@ -39,6 +39,12 @@
                     <x-heroicon-m-clock class="w-4 h-4 shrink-0" />
                     <span>Tagesroutine</span>
                 </button>
+                @if(\App\Services\AI\AiAuthHelper::isAdmin())
+                <button wire:click="$set('viewMode', 'health')" class="px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 {{ $viewMode === 'health' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 font-bold shadow-xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                    <x-heroicon-m-heart class="w-4 h-4 shrink-0" />
+                    <span>Gesundheit</span>
+                </button>
+                @endif
             </div>
 
             <div class="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 text-xs font-semibold shrink-0">
@@ -69,6 +75,7 @@
         </div>
     </div>
 
+    @if($viewMode !== 'health')
     {{-- ===================================================================== --}}
     {{-- 0. FUNKENWERK ANDROID WECKER-SYNC & DYNAMISCHE AUFSTEH-TAKTUNG         --}}
     {{-- ===================================================================== --}}
@@ -1080,6 +1087,13 @@
                     </div>
                 </div>
             @endif
+        </div>
+    @endif
+    @endif
+
+    @if($viewMode === 'health' && \App\Services\AI\AiAuthHelper::isAdmin())
+        <div x-data="{ activeTab: 'health' }" class="min-h-[540px]">
+            @include('livewire.shop.ai.partials-ai-workspace.tab-health')
         </div>
     @endif
 

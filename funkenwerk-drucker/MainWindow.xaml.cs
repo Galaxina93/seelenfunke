@@ -121,6 +121,15 @@ namespace FunkenwerkDrucker
 
             try
             {
+                string desktopModularExe = IOPath.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                    "Funkenwerk Collection",
+                    "Module",
+                    "Funkenwerk PDF",
+                    "FunkenwerkPdf.exe");
+                if (File.Exists(desktopModularExe))
+                    return desktopModularExe;
+
                 string desktopCollectionExe = IOPath.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
                     "Funkenwerk Collection",

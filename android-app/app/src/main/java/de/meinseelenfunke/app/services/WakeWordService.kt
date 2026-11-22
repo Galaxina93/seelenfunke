@@ -85,13 +85,14 @@ class WakeWordService : Service() {
         )
 
         private val FALCONE_VARIANTS = setOf(
+            "funkira", "funkiera", "funkera", "funkirah", "funkia", "funki",
             "falcone", "falkone", "falcon", "falkon", "falco", "falko",
             "falken", "falke", "falconi", "falkoni", "falcones", "falkons",
             "velcon", "felcon", "valcon"
         )
 
-        private val SPLIT_FIRST_PART = setOf("fal", "falk", "fall", "fahl")
-        private val SPLIT_SECOND_PART = setOf("cone", "kone", "kon", "con", "kohne", "ohne")
+        private val SPLIT_FIRST_PART = setOf("fun", "funk", "fal", "falk", "fall", "fahl")
+        private val SPLIT_SECOND_PART = setOf("kira", "kiera", "era", "cone", "kone", "kon", "con", "kohne", "ohne")
 
         fun matchesHeyFalconePhrase(
             rawTranscript: String?,
@@ -134,7 +135,7 @@ class WakeWordService : Service() {
             }
 
             if (allowStandaloneAfterWake && tokens.size <= 3) {
-                if (tokens.first() in setOf("falcone", "falkone", "falcon", "falkon")) {
+                if (tokens.first() in setOf("funkira", "funkiera", "funkera", "falcone", "falkone", "falcon", "falkon")) {
                     return true
                 }
                 if (tokens.size >= 2 && tokens[0] in SPLIT_FIRST_PART && tokens[1] in SPLIT_SECOND_PART) {
@@ -648,7 +649,7 @@ class WakeWordService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 triggerChannelId,
-                "Falcone Aktivierung",
+                "Funkira Aktivierung",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 lockscreenVisibility = Notification.VISIBILITY_PRIVATE
@@ -658,7 +659,7 @@ class WakeWordService : Service() {
         }
 
         val notification = NotificationCompat.Builder(context, triggerChannelId)
-            .setContentTitle("Falcone gerufen")
+            .setContentTitle("Funkira gerufen")
             .setContentText("Live-Gespräch startet")
             .setSmallIcon(R.drawable.ic_stat_funkenwerk)
             .setColor(0xFFC5A059.toInt())
@@ -706,8 +707,8 @@ class WakeWordService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Falcone Assistent")
-            .setContentText("Hört auf 'Hey Falcone'")
+            .setContentTitle("Funkira Assistent")
+            .setContentText("Hört auf 'Hey Funkira'")
             .setSmallIcon(R.drawable.ic_stat_funkenwerk)
             .setColor(0xFFC5A059.toInt())
             .setContentIntent(pendingIntent)
@@ -719,10 +720,10 @@ class WakeWordService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Hey Falcone Sprachaktivierung",
+                "Hey Funkira Sprachaktivierung",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Hintergrunddienst für Hey Falcone"
+                description = "Hintergrunddienst für Hey Funkira"
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)

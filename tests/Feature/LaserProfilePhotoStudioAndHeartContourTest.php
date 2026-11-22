@@ -72,7 +72,7 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
 
         $catalog = XtoolLaserCockpitService::getDefaultProductLaserProfilesCatalog();
         $anhaengerProfiles = $catalog['seelen-anhaenger'] ?? [];
-        $this->assertCount(3, $anhaengerProfiles);
+        $this->assertCount(1, $anhaengerProfiles);
 
         $expectedStudio = [
             'grayscale'     => true,
@@ -87,12 +87,17 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
         ];
 
         $lamellenProfile = collect($anhaengerProfiles)->firstWhere('id', 'prof_silber_kontrast_lamellenrost');
-        $bodenProfile = collect($anhaengerProfiles)->firstWhere('id', 'prof_flachbett_ohne_rost_1_8');
 
         $this->assertNotNull($lamellenProfile);
-        $this->assertNotNull($bodenProfile);
+        $this->assertSame('100% Getestet · Perfekt', $lamellenProfile['title']);
         $this->assertEquals($expectedStudio, $lamellenProfile['photo_studio'] ?? null);
-        $this->assertEquals($expectedStudio, $bodenProfile['photo_studio'] ?? null);
+
+        $kristallProfiles = $catalog['seelen-kristall'] ?? [];
+        $this->assertCount(2, $kristallProfiles);
+        $this->assertSame('K9 Tiefen-Frost im Glas · Lamellenrost (31,2 mm)', $kristallProfiles[0]['title']);
+        $this->assertEqualsWithDelta(31.2, (float) $kristallProfiles[0]['focus_mm'], 0.01);
+        $this->assertTrue($kristallProfiles[0]['photo_studio']['invert'] ?? false);
+        $this->assertSame('K9 Außen-Seidenmatt · Lamellenrost (32,5 mm)', $kristallProfiles[1]['title']);
     }
 
     #[Test]
@@ -149,7 +154,7 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
         // Auch beim späteren Aktualisieren von Maschinenparametern via saveLaserProfileToProduct bleibt photo_studio erhalten
         $afterParamSave = $service->saveLaserProfileToProduct(
             $fresh,
-            'Weiß / Silber-Kontrast · Lamellenrost',
+            '100% Getestet · Perfekt',
             ['power_percent' => 82, 'bitmap_mode' => 'Stucki'],
             true
         );
@@ -195,12 +200,12 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
         $service = app(XtoolLaserCockpitService::class);
 
         $beforeCount = count($product->configurator_settings['xtool_profiles']);
-        $this->assertSame(3, $beforeCount);
+        $this->assertSame(1, $beforeCount);
 
         $createdResult = $service->createProductLaserProfileFromPhotoStudio(
             $product,
             'Porträt Gegenlicht · Bodenplatte Spezial',
-            'prof_flachbett_ohne_rost_1_8',
+            'prof_silber_kontrast_lamellenrost',
             [
                 'enabled'       => true,
                 'grayscale'     => true,
@@ -216,7 +221,7 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
             false
         );
 
-        $this->assertCount(4, $createdResult['profiles']);
+        $this->assertCount(2, $createdResult['profiles']);
         $newProf = $createdResult['created_profile'];
 
         $this->assertStringStartsWith('prof_', $newProf['id']);
@@ -224,8 +229,8 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
         $this->assertSame('Porträt Gegenlicht · Bodenplatte Spezial', $newProf['title']);
         $this->assertFalse($newProf['is_default']);
 
-        // Geklonte Maschinenwerte von prof_flachbett_ohne_rost_1_8 prüfen
-        $this->assertEqualsWithDelta(1.8, (float) $newProf['focus_mm'], 0.001);
+        // Geklonte Maschinenwerte von prof_silber_kontrast_lamellenrost prüfen
+        $this->assertEqualsWithDelta(19.9, (float) $newProf['focus_mm'], 0.001);
         $this->assertSame(85, $newProf['power_percent']);
         $this->assertSame(280, $newProf['dot_duration_us']);
         $this->assertSame(450, $newProf['speed_mms']);
@@ -234,8 +239,8 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
         $this->assertSame(1, $newProf['passes']);
         $this->assertSame('Bild', $newProf['element_type']);
         $this->assertSame('Gravieren', $newProf['engrave_tab']);
-        $this->assertSame('Benutzerdefiniert', $newProf['preset_mode']);
-        $this->assertSame('Bidirektional', $newProf['engrave_mode']);
+        $this->assertSame('Referenz', $newProf['preset_mode']);
+        $this->assertSame('Zweidirektional', $newProf['engrave_mode']);
         $this->assertSame('Gravieren · 70 % · 450 mm/s · 300 Linien/cm · 40 kHz', $newProf['vector_note']);
 
         // Synchronisierter Bitmap-Modus + 9 Foto-Studio-Werte
@@ -248,9 +253,9 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
         $this->assertSame('threshold', $newProf['photo_studio']['dither_mode']);
         $this->assertSame(135, $newProf['photo_studio']['threshold']);
 
-        // Bestehende 3 Profile sind unverändert in der DB vorhanden
+        // Bestehendes Master-Profil + neu angelegtes Profil sind in der DB vorhanden
         $freshProfiles = $product->fresh()->configurator_settings['xtool_profiles'];
-        $this->assertCount(4, $freshProfiles);
+        $this->assertCount(2, $freshProfiles);
         $origDefault = collect($freshProfiles)->firstWhere('id', 'prof_silber_kontrast_lamellenrost');
         $this->assertNotNull($origDefault);
         $this->assertTrue($origDefault['is_default']);
@@ -327,8 +332,8 @@ class LaserProfilePhotoStudioAndHeartContourTest extends TestCase
         $merged = XtoolLaserCockpitService::applySeededMultiLaserProfilesToSettings('seelen-anhaenger', $initialSettings);
         $profiles = $merged['xtool_profiles'] ?? [];
 
-        // 3 Katalog-Profile + 1 eigenes Admin-Zusatzprofil = 4 Profile
-        $this->assertCount(4, $profiles);
+        // 1 Katalog-Profil + 1 eigenes Admin-Zusatzprofil = 2 Profile
+        $this->assertCount(2, $profiles);
 
         $customAdmin = collect($profiles)->firstWhere('id', 'prof_admin_haustier_fell');
         $this->assertNotNull($customAdmin, 'Eigenes Admin-Zusatzprofil darf beim Seeding nicht gelöscht werden');

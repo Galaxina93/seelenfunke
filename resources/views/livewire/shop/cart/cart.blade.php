@@ -237,7 +237,7 @@
                                                     @endif
                                                     @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
                                                         <span class="text-amber-800 inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg font-bold">
-                                                            <span>✉️ Per Post im Umschlag (+&nbsp;{{ number_format(((int) ($item->configuration['post_shipping_cents'] ?? shop_setting('shipping_cost_voucher', 350))) / 100, 2, ',', '.') }}&nbsp;€ Versand)</span>
+                                                            <span>✉️ Per Post im Umschlag (+&nbsp;{{ number_format(((int) ($item->configuration['post_shipping_cents'] ?? shop_setting('shipping_cost_voucher', 450))) / 100, 2, ',', '.') }}&nbsp;€ Versand)</span>
                                                         </span>
                                                         <span class="text-blue-600 inline-flex items-center gap-1 bg-blue-50/80 border border-blue-100 px-2 py-1 rounded-lg">
                                                             <span>+&nbsp;Sofort-PDF</span>
@@ -451,7 +451,7 @@
                         @elseif(!$hasPhysical && $hasPostalVoucher)
                             <div class="mb-6 flex items-center gap-2.5 text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-200 shadow-sm">
                                 <span class="text-base shrink-0">✉️</span>
-                                <span class="text-xs font-bold">Gutschein per Post im Umschlag (+&nbsp;{{ number_format(((int) shop_setting('shipping_cost_voucher', 350)) / 100, 2, ',', '.') }}&nbsp;€)</span>
+                                <span class="text-xs font-bold">Gutschein per Post im Umschlag (+&nbsp;{{ number_format(((int) shop_setting('shipping_cost_voucher', 450)) / 100, 2, ',', '.') }}&nbsp;€)</span>
                             </div>
                         @elseif(!$hasPhysical)
                             <div class="mb-6 flex items-center gap-2 text-blue-600 bg-blue-50 p-3 rounded-xl border border-blue-100 shadow-sm">

@@ -1543,9 +1543,23 @@ class FileDownloadService
     {
         $isDark = $isDarkSurface ?? $this->isFrostedLightEngravingSurface($product, $productConfig);
         $rawPolarity = trim((string) ($productConfig['xtool_photo_substrate_polarity'] ?? ''));
-        // Materialwechsel im Cockpit (z. B. Edelstahl -> Schiefer) hat Vorrang vor dem Produktstandard
-        if (trim((string) ($productConfig['xtool_material_override'] ?? '')) !== '') {
-            $rawPolarity = '';
+        $overrideMat = mb_strtolower(trim((string) ($productConfig['xtool_material_override'] ?? '')));
+        // Materialwechsel im Cockpit (z. B. Edelstahl -> Schiefer / Glas) hat Vorrang vor dem Produktstandard
+        if ($overrideMat !== '') {
+            $rawPolarity = preg_match('/(glas|kristall|k9)/u', $overrideMat) ? 'frost_on_glass' : '';
+        } elseif ($rawPolarity === '' || $rawPolarity === 'white_on_dark') {
+            $matType = strtolower(trim((string) ($productConfig['material_type'] ?? '')));
+            $slug = strtolower(trim((string) ($product->slug ?? '')));
+            $pkg = strtolower(trim((string) ($productConfig['template_package'] ?? '')));
+            if (
+                in_array($matType, ['glass', 'crystal'], true)
+                || str_starts_with($slug, 'seelen-kristall')
+                || str_starts_with($pkg, 'seelen-kristall')
+                || str_starts_with($slug, 'weizenglas')
+                || str_starts_with($pkg, 'weizenglas')
+            ) {
+                $rawPolarity = 'frost_on_glass';
+            }
         }
 
         $rawDpi = $productConfig['xtool_bitmap_dpi'] ?? ($productConfig['xtool_dpi'] ?? 600);
@@ -2294,7 +2308,7 @@ class FileDownloadService
     ): array {
         $minDimMm = max(1.0, min($widthMm, $heightMm));
         $maxDimMm = max(1.0, max($widthMm, $heightMm));
-        $pxPerMm = min(32.0, max(10.0, max(1000.0 / $maxDimMm, 140.0 / $minDimMm)));
+        $pxPerMm = min(32.0, max(12.5, max(1680.0 / $maxDimMm, 140.0 / $minDimMm)));
         $stageW = max(32, (int) round($widthMm * $pxPerMm));
         $stageH = max(32, (int) round($heightMm * $pxPerMm));
 
@@ -3024,6 +3038,39 @@ class FileDownloadService
         if (!$isSvgCandidate) {
             $activeAdj = \App\Services\Laser\LaserPhotoPreprocessor::findActivePhotoAdjustment($logo, $itemConfig);
             if ($activeAdj !== null && !empty($activeAdj['resolved_edited_rel_path'])) {
+                $adjDither = strtolower(trim((string) ($activeAdj['dither_mode'] ?? 'jarvis')));
+                if (in_array($adjDither, ['jarvis', 'stucki'], true)) {
+                    $origRelCand = !empty($activeAdj['original_path']) && is_string($activeAdj['original_path'])
+                        ? \App\Services\Laser\LaserPhotoPreprocessor::normalizePublicRelPath($activeAdj['original_path'])
+                        : '';
+                    if ($origRelCand === '' || !Storage::disk('public')->exists($origRelCand)) {
+                        $lookupKey = $rawVal !== '' ? $rawVal : $url;
+                        if ($lookupKey !== '' && !str_starts_with($lookupKey, 'data:')) {
+                            $origRelCand = \App\Services\Laser\LaserPhotoPreprocessor::normalizePublicRelPath(
+                                \App\Services\Laser\LaserPhotoPreprocessor::resolveOriginalPhotoRelPath($lookupKey, $itemConfig)
+                            );
+                        }
+                    }
+                    if ($origRelCand !== '' && Storage::disk('public')->exists($origRelCand)) {
+                        $origAbsForStudio = Storage::disk('public')->path($origRelCand);
+                        if (@is_file($origAbsForStudio)) {
+                            $continuousBytes = \App\Services\Laser\LaserPhotoPreprocessor::renderStudioContinuousTonePngBytes(
+                                $origAbsForStudio,
+                                $activeAdj,
+                                2200
+                            );
+                            if ($continuousBytes !== '') {
+                                return [
+                                    'bytes'       => $continuousBytes,
+                                    'ext'         => 'png',
+                                    'is_adjusted' => true,
+                                    'adjustment'  => $activeAdj,
+                                ];
+                            }
+                        }
+                    }
+                }
+
                 $editedAbsPath = Storage::disk('public')->path((string) $activeAdj['resolved_edited_rel_path']);
                 if (@is_file($editedAbsPath)) {
                     $editedBytes = @file_get_contents($editedAbsPath);

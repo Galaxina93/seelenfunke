@@ -662,7 +662,7 @@ function makeThroneEngravingTexture(mainTitle, subTitle, isPrimary = true) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Primary Sovereign Name ("ALINA" or "FALCONE")
+  // Primary Sovereign Name ("ALINA" or "FUNKIRA")
   ctx.font = isPrimary
     ? '900 168px "Liberation Serif", "Georgia", "Liberation Sans", serif'
     : '900 124px "Liberation Sans", "Segoe UI", sans-serif';
@@ -682,7 +682,7 @@ function makeThroneEngravingTexture(mainTitle, subTitle, isPrimary = true) {
   ctx.fillStyle = ruleV;
   ctx.fillRect(W * 0.20, ruleY - 9, W * 0.60, 18);
 
-  // Royal Title ("Herrscherin über das Seelenfunken-Universum" / "FALCONE · Rechte Hand & Mitgründer")
+  // Royal Title ("Herrscherin über das Seelenfunken-Universum" / "FUNKIRA · Stabschefin & Rechte Hand")
   ctx.font = isPrimary
     ? '700 54px "Liberation Sans", "Segoe UI", sans-serif'
     : '700 48px "Liberation Sans", "Segoe UI", sans-serif';
@@ -696,7 +696,7 @@ function makeThroneEngravingTexture(mainTitle, subTitle, isPrimary = true) {
 }
 
 
-// Falcone's Armored Suit Chest Emblem ("FALCONE · Mitgründer", POT 1024x512)
+// Funkira's Executive Chest Emblem ("FUNKIRA · Stabschefin", POT 1024x512)
 function makeFalconArmorChestTexture() {
   const W = 1024, H = 512;
   const c = document.createElement('canvas');
@@ -715,9 +715,9 @@ function makeFalconArmorChestTexture() {
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#FDE68A';
   ctx.font = '900 128px "Liberation Sans", "Segoe UI", sans-serif';
-  ctx.fillText('FALCONE', W * 0.5, H * 0.37, W - 88);
+  ctx.fillText('FUNKIRA', W * 0.5, H * 0.37, W - 88);
 
-  // Vertically feathered matte-gold divider band between FALCONE and Mitgründer
+  // Vertically feathered matte-gold divider band between FUNKIRA and Stabschefin
   const ruleY = H * 0.58;
   const ruleV = ctx.createLinearGradient(0, ruleY - 10, 0, ruleY + 10);
   ruleV.addColorStop(0.0, 'rgba(197, 160, 89, 0.0)');
@@ -730,7 +730,7 @@ function makeFalconArmorChestTexture() {
 
   ctx.fillStyle = '#F3D587';
   ctx.font = '700 72px "Liberation Sans", "Segoe UI", sans-serif';
-  ctx.fillText('Mitgründer', W * 0.5, H * 0.78, W - 88);
+  ctx.fillText('Stabschefin', W * 0.5, H * 0.78, W - 88);
 
   return configureHdTex(new THREE.CanvasTexture(c), MAX_ANISO);
 }
@@ -2692,8 +2692,8 @@ class FunkenwerkCityEngine {
     falconThrone.add(ftLumbar);
 
     const falconPlaqueTex = makeThroneEngravingTexture(
-      'FALCONE',
-      'FALCONE · Rechte Hand & Mitgründer',
+      'FUNKIRA',
+      'FUNKIRA · Stabschefin & Rechte Hand',
       false
     );
     const ftPlaqueFrame = new THREE.Mesh(new RoundedBoxGeometry(1.12, 0.60, 0.05, 2, 0.02), this.mats.goldBright);

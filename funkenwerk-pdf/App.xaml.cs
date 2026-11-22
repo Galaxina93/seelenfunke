@@ -60,12 +60,29 @@ namespace FunkenwerkPdf
                 const string progId = "FunkenwerkPdf.Document";
                 using (var cls = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{progId}"))
                 {
-                    cls?.SetValue("", "Funkenwerk PDF Dokument");
-                    cls?.SetValue("FriendlyTypeName", "Funkenwerk PDF Dokument");
+                    cls?.SetValue("", "PDF-Dokument (Funkenwerk PDF)");
+                    cls?.SetValue("FriendlyTypeName", "PDF-Dokument (Funkenwerk PDF)");
+                    cls?.SetValue("FriendlyAppName", "Funkenwerk PDF");
                     using var iconKey = cls?.CreateSubKey("DefaultIcon");
                     iconKey?.SetValue("", iconSpec);
                     using var cmdKey = cls?.CreateSubKey(@"shell\open\command");
                     cmdKey?.SetValue("", $"\"{exePath}\" \"%1\"");
+                }
+
+                using (var appEntry = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Applications\FunkenwerkPdf.exe"))
+                {
+                    appEntry?.SetValue("FriendlyAppName", "Funkenwerk PDF");
+                    using var iconKey = appEntry?.CreateSubKey("DefaultIcon");
+                    iconKey?.SetValue("", iconSpec);
+                    using var cmdKey = appEntry?.CreateSubKey(@"shell\open\command");
+                    cmdKey?.SetValue("", $"\"{exePath}\" \"%1\"");
+                    using var stKey = appEntry?.CreateSubKey("SupportedTypes");
+                    stKey?.SetValue(".pdf", "");
+                }
+
+                using (var extRoot = Registry.CurrentUser.CreateSubKey(@"Software\Classes\.pdf"))
+                {
+                    extRoot?.SetValue("", progId);
                 }
 
                 using (var extKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\.pdf\OpenWithProgids"))

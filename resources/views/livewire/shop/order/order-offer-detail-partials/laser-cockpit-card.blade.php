@@ -1,6 +1,7 @@
 @php
-    $cockpitData = ($previewItem && $previewItem->product && $previewItem->product->isPhysical() && empty($isDigitalItem) && empty($isService) && method_exists($this, 'getLaserCockpitDataProperty'))
-        ? $this->laserCockpitData
+    $_lwCockpit = $__livewire ?? ((isset($this) && is_object($this)) ? $this : null);
+    $cockpitData = (($previewItem ?? null) && $previewItem->product && $previewItem->product->isPhysical() && empty($isDigitalItem) && empty($isService) && $_lwCockpit && method_exists($_lwCockpit, 'getLaserCockpitDataProperty'))
+        ? $_lwCockpit->laserCockpitData
         : null;
 @endphp
 
@@ -52,10 +53,15 @@
         foreach ($equipModes as $eqK => $eqM) {
             $equipmentDefaultProcessModes[$eqK] = (string) ($eqM['process_mode'] ?? '');
         }
-        $handbookPresets = \App\Services\Laser\XtoolLaserCockpitService::getStepOnePresetOptions($previewItem->product);
+        $handbookPresets = [];
         $productProfiles = is_array($cockpitData['product_profiles'] ?? null)
             ? $cockpitData['product_profiles']
             : $previewItem->product->getLaserProfiles();
+        $initActiveProfileId = (string) ($lp['active_profile_id'] ?? '');
+        if ($initActiveProfileId === '' && !empty($productProfiles) && empty($lp['has_overrides'])) {
+            $defProdProf = collect($productProfiles)->first(fn ($p) => !empty($p['is_default'])) ?? ($productProfiles[0] ?? null);
+            $initActiveProfileId = is_array($defProdProf) ? (string) ($defProdProf['id'] ?? '') : '';
+        }
 
         $calcServerPct = static function ($val, float $min, float $max): string {
             if ($max <= $min) {
@@ -68,12 +74,12 @@
         $initDotUs = max(1, min(3000, (int) ($lp['dot_duration_us'] ?? 120)));
         $initPowerPctVal = max(1, min(100, (int) ($lp['power_percent'] ?? 70)));
         $initDpiVal = max(50, min(2540, (int) ($lp['dpi'] ?? 500)));
-        $initFreqVal = max(1, min(200, (int) ($lp['frequency_khz'] ?? 60)));
+        $initFreqVal = max(40, min(200, (int) ($lp['frequency_khz'] ?? 60)));
 
         $initDotBarPct = $calcServerPct($initDotUs, 1, 3000);
         $initPowerBarPct = $calcServerPct($initPowerPctVal, 1, 100);
         $initDpiBarPct = $calcServerPct($initDpiVal, 50, 2540);
-        $initFreqBarPct = $calcServerPct($initFreqVal, 1, 200);
+        $initFreqBarPct = $calcServerPct($initFreqVal, 40, 200);
 
         $initFrameLeftPct = number_format(((float) $cockpitData['center_x_mm'] / 200.0) * 100.0, 4, '.', '');
         $initFrameTopPct = number_format(((float) $cockpitData['center_y_mm'] / 200.0) * 100.0, 4, '.', '');
@@ -89,7 +95,10 @@
             'hMm'                   => (float) $cockpitData['height_mm'],
             'defaultWMm'            => (float) $cockpitData['width_mm'],
             'defaultHMm'            => (float) $cockpitData['height_mm'],
+            'framingMode'           => (string) ($cockpitData['framing_mode'] ?? 'contour'),
+            'preflight'             => is_array($cockpitData['preflight'] ?? null) ? $cockpitData['preflight'] : [],
             'hasLaserOverrides'     => (bool) ($lp['has_overrides'] ?? false),
+            'activeProfileId'       => $initActiveProfileId,
             'equipmentDefaultModes' => $equipmentDefaultProcessModes,
             'handbookPresets'       => $handbookPresets,
             'productProfiles'       => array_values($productProfiles),
@@ -170,6 +179,40 @@
             handbookPresetKey: '',
             showNewProfileForm: false,
             newProfileTitle: '',
+            applyFeedbackSaved: false,
+            _applyFeedbackTimer: null,
+            measuringFocus: false,
+            stoppingLaser: false,
+            framingMode: '{{ $cockpitData['framing_mode'] ?? 'contour' }}',
+            _liveFrameReplaceTimer: null,
+            _engravingObservedForCurrentJob: false,
+            _completionDispatchedForScope: false,
+            completingSideFlow: false,
+            _bootObserver: null,
+            _lastBootRaw: '',
+            _statusPollTimer: null,
+            _statusPollBusy: false,
+            laserWork: {
+                online: {{ !empty($cockpitData['laser_online']) ? 'true' : 'false' }},
+                is_working: false,
+                is_ready_wait: false,
+                phase: 'idle',
+                phase_label: 'Bereit',
+                progress_pct: 0,
+                worktime_sec: 0
+            },
+            preflight: {
+                checked: false,
+                all_ready: false,
+                uv_ready: null,
+                lid_closed: null,
+                exhaust_ready: null,
+                lens_ok: null,
+                lens_type: 'unknown',
+                safety_ok: null,
+                warnings: [],
+                blockers: []
+            },
             laserParams: {
                 equipment_key: 'flatbed_standard',
                 process_mode: 'Prozess auf flacher Oberfläche',
@@ -193,29 +236,52 @@
                 this.$nextTick(() => {
                     this.refreshAllRangeFills();
                 });
-                if (typeof MutationObserver !== 'undefined') {
+                if (typeof MutationObserver !== 'undefined' && this.$refs.cockpitBootPayload) {
+                    if (this._bootObserver) {
+                        this._bootObserver.disconnect();
+                    }
                     const obs = new MutationObserver(() => {
-                        if (this.$refs.cockpitBootPayload) {
-                            const raw = this.$refs.cockpitBootPayload.getAttribute('data-boot');
-                            if (raw && raw.startsWith('{')) {
-                                const parsed = JSON.parse(raw);
-                                if (Array.isArray(parsed.productProfiles)) {
-                                    this.productProfiles = parsed.productProfiles;
-                                }
-                            }
+                        if (!this.$refs.cockpitBootPayload) return;
+                        const raw = this.$refs.cockpitBootPayload.getAttribute('data-boot') || '';
+                        if (!raw || raw === this._lastBootRaw || !raw.startsWith('{')) return;
+                        this._lastBootRaw = raw;
+                        const parsed = JSON.parse(raw);
+                        if (Array.isArray(parsed.productProfiles)) {
+                            this.productProfiles = parsed.productProfiles;
+                        }
+                        if (parsed.activeProfileId !== undefined && this._activeSliderKey === null) {
+                            this.handbookPresetKey = parsed.activeProfileId ? ('profile:' + String(parsed.activeProfileId)) : '';
+                        }
+                        if (parsed.preflight && typeof parsed.preflight === 'object') {
+                            this.applyPreflightObject(parsed.preflight);
                         }
                         if (this._activeSliderKey === null) {
-                            this.refreshAllRangeFills();
+                            this.$nextTick(() => this.refreshAllRangeFills());
                         }
                     });
-                    obs.observe(this.$el, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-boot'] });
+                    obs.observe(this.$refs.cockpitBootPayload, { attributes: true, attributeFilter: ['data-boot'] });
+                    this._bootObserver = obs;
                 }
+            },
+            applyPreflightObject(pf) {
+                if (!pf || typeof pf !== 'object') return;
+                this.preflight.checked = Boolean(pf.checked);
+                this.preflight.all_ready = Boolean(pf.all_ready);
+                this.preflight.uv_ready = pf.uv_ready ?? null;
+                this.preflight.lid_closed = pf.lid_closed ?? null;
+                this.preflight.exhaust_ready = pf.exhaust_ready ?? null;
+                this.preflight.lens_ok = pf.lens_ok ?? null;
+                this.preflight.lens_type = String(pf.lens_type || 'unknown');
+                this.preflight.safety_ok = pf.safety_ok ?? null;
+                this.preflight.warnings = Array.isArray(pf.warnings) ? pf.warnings : [];
+                this.preflight.blockers = Array.isArray(pf.blockers) ? pf.blockers : [];
             },
             bootFromDataset() {
                 const el = this.$refs.cockpitBootPayload;
                 if (!el) return;
                 const raw = el.getAttribute('data-boot');
                 if (!raw || !raw.startsWith('{')) return;
+                this._lastBootRaw = raw;
                 const d = JSON.parse(raw);
                 this.equipmentDefaultModes = d.equipmentDefaultModes || {};
                 this.handbookPresets = Array.isArray(d.handbookPresets) ? d.handbookPresets : [];
@@ -234,7 +300,14 @@
                 this._rawAngleDeg = this.angleDeg;
                 this._rawWMm = this.wMm;
                 this._rawHMm = this.hMm;
+                if (d.framingMode) {
+                    this.framingMode = d.framingMode === 'rect' ? 'rect' : 'contour';
+                }
+                if (d.preflight && typeof d.preflight === 'object') {
+                    this.applyPreflightObject(d.preflight);
+                }
                 this.hasLaserOverrides = Boolean(d.hasLaserOverrides);
+                this.handbookPresetKey = d.activeProfileId ? ('profile:' + String(d.activeProfileId)) : '';
                 if (d.laserParams && typeof d.laserParams === 'object') {
                     this.applyParamObjectLocally(d.laserParams);
                 }
@@ -264,7 +337,7 @@
                     this.laserParams.passes = Math.max(1, Math.min(20, Math.round(Number(next.passes) || 1)));
                 }
                 if (next.frequency_khz !== undefined) {
-                    this.laserParams.frequency_khz = Math.max(1, Math.min(200, Math.round(Number(next.frequency_khz) || 60)));
+                    this.laserParams.frequency_khz = Math.max(40, Math.min(200, Math.round(Number(next.frequency_khz) || 60)));
                 }
                 if (next.bitmap_mode !== undefined) this.laserParams.bitmap_mode = String(next.bitmap_mode);
                 if (next.engrave_mode !== undefined) this.laserParams.engrave_mode = String(next.engrave_mode);
@@ -491,6 +564,7 @@
                         this.hasLaserOverrides = true;
                         const seq = ++this._paramSeq;
                         this.$nextTick(() => this.refreshAllRangeFills());
+                        this.flashApplySavedFeedback();
                         const res = $wire.applyProductLaserProfile(this.itemId, this.sideKey, profId, seq);
                         if (res && typeof res.then === 'function') {
                             res.then(() => this.$nextTick(() => this.refreshAllRangeFills()));
@@ -511,7 +585,7 @@
                 }
                 this.laserParams.focus_mm = Math.max(0.1, Number(main.focus_mm) || 0.1);
                 this.laserParams.power_percent = Math.max(1, Math.min(100, Number(main.power_percent) || 1));
-                this.laserParams.frequency_khz = Math.max(1, Math.min(200, Number(main.frequency_khz) || 40));
+                this.laserParams.frequency_khz = Math.max(40, Math.min(200, Number(main.frequency_khz) || 40));
                 this.laserParams.passes = Math.max(1, Math.min(20, Number(main.passes) || 1));
                 this.laserParams.dpi = Math.max(50, Math.min(2540, Number(main.dpi) || 500));
                 if (bmp) {
@@ -549,14 +623,179 @@
                 }
                 this.persistLaserParams();
             },
-            persistLaserParams() {
+            persistLaserParams(withButtonFeedback = false) {
                 this.hasLaserOverrides = true;
                 const seq = ++this._paramSeq;
                 this.refreshAllRangeFills();
                 const res = $wire.updateLaserParameters(this.itemId, this.sideKey, { ...this.laserParams }, seq);
                 if (res && typeof res.then === 'function') {
-                    res.then(() => this.$nextTick(() => this.refreshAllRangeFills()));
+                    res.then(() => {
+                        this.$nextTick(() => this.refreshAllRangeFills());
+                        if (withButtonFeedback) {
+                            this.flashApplySavedFeedback();
+                        }
+                    });
+                } else if (withButtonFeedback) {
+                    this.flashApplySavedFeedback();
                 }
+            },
+            flashApplySavedFeedback() {
+                this.applyFeedbackSaved = true;
+                if (this._applyFeedbackTimer) {
+                    clearTimeout(this._applyFeedbackTimer);
+                }
+                this._applyFeedbackTimer = setTimeout(() => {
+                    this.applyFeedbackSaved = false;
+                }, 2400);
+            },
+            stopLiveWorkStatusPolling() {
+                if (this._statusPollTimer) {
+                    clearInterval(this._statusPollTimer);
+                    this._statusPollTimer = null;
+                }
+            },
+            startLiveWorkStatusPolling() {
+                this.stopLiveWorkStatusPolling();
+                this.pollLiveWorkStatusOnce();
+                this._statusPollTimer = setInterval(() => {
+                    if (document.visibilityState !== 'visible') return;
+                    if (!this.$el || !this.$el.isConnected) {
+                        this.stopLiveWorkStatusPolling();
+                        return;
+                    }
+                    if (this.$el.offsetParent === null) return;
+                    this.pollLiveWorkStatusOnce();
+                }, 4000);
+            },
+            pollLiveWorkStatusOnce() {
+                if (this._statusPollBusy || this.measuringFocus) return;
+                this._statusPollBusy = true;
+                const p = $wire.pollLaserLiveWorkStatus(this.laserParams.equipment_key);
+                if (p && typeof p.then === 'function') {
+                    p.then((st) => {
+                        if (st && typeof st === 'object') {
+                            const nextPhase = String(st.phase || 'idle');
+                            const nextWorking = Boolean(st.is_working);
+                            const nextReadyWait = Boolean(st.is_ready_wait);
+
+                            if (nextPhase === 'engraving') {
+                                this._engravingObservedForCurrentJob = true;
+                            }
+
+                            this.laserWork = {
+                                online: Boolean(st.online),
+                                is_working: nextWorking,
+                                is_ready_wait: nextReadyWait,
+                                phase: nextPhase,
+                                phase_label: String(st.phase_label || 'Bereit'),
+                                progress_pct: Math.max(0, Math.min(100, Number(st.progress_pct) || 0)),
+                                worktime_sec: Math.max(0, Number(st.worktime_sec) || 0)
+                            };
+
+                            if (st.preflight && typeof st.preflight === 'object') {
+                                this.applyPreflightObject(st.preflight);
+                            }
+
+                            if (st.silent_telemetry_supported === false) {
+                                this.stopLiveWorkStatusPolling();
+                                return;
+                            }
+
+                            if (
+                                this._engravingObservedForCurrentJob
+                                && !this.stoppingLaser
+                                && !this._completionDispatchedForScope
+                                && !nextWorking
+                                && !nextReadyWait
+                                && nextPhase === 'idle'
+                            ) {
+                                this._engravingObservedForCurrentJob = false;
+                                this._completionDispatchedForScope = true;
+                                this.stopLiveWorkStatusPolling();
+                                this.confirmCurrentSideEngraved();
+                            }
+                        }
+                    }).finally(() => {
+                        this._statusPollBusy = false;
+                    });
+                } else {
+                    this._statusPollBusy = false;
+                }
+            },
+            selectFramingMode(mode) {
+                const next = mode === 'rect' ? 'rect' : 'contour';
+                this.framingMode = next;
+                $wire.setLaserFramingMode(next, this.itemId, this.laserWork.phase === 'framing');
+            },
+            scheduleLiveFramingReplace(delayMs = 160) {
+                if (this.laserWork.phase !== 'framing') return;
+                if (this._liveFrameReplaceTimer) {
+                    clearTimeout(this._liveFrameReplaceTimer);
+                }
+                this._liveFrameReplaceTimer = setTimeout(() => {
+                    this._liveFrameReplaceTimer = null;
+                    if (this.laserWork.phase === 'framing') {
+                        $wire.replaceLiveLaserFraming(this.itemId, this.sideKey, this.framingMode);
+                    }
+                }, delayMs);
+            },
+            confirmCurrentSideEngraved() {
+                if (this.completingSideFlow) return;
+                this.completingSideFlow = true;
+                const p = $wire.handleLaserSideEngravingCompleted(this.itemId, this.sideKey);
+                if (p && typeof p.then === 'function') {
+                    p.finally(() => {
+                        this.completingSideFlow = false;
+                    });
+                } else {
+                    this.completingSideFlow = false;
+                }
+            },
+            triggerAutoFocusMeasure() {
+                if (this.measuringFocus) return;
+                this.measuringFocus = true;
+                this.laserWork.is_working = true;
+                this.laserWork.phase = 'autofocus';
+                this.laserWork.phase_label = 'Laser misst Fokus-Abstand ein...';
+                const p = $wire.autoMeasureLaserFocus(this.itemId, this.sideKey);
+                if (p && typeof p.then === 'function') {
+                    p.then((res) => {
+                        if (res && res.ok && Number.isFinite(Number(res.focus_mm))) {
+                            this.laserParams.focus_mm = Number(res.focus_mm);
+                            this.hasLaserOverrides = true;
+                        }
+                    }).finally(() => {
+                        this.measuringFocus = false;
+                        this.pollLiveWorkStatusOnce();
+                    });
+                } else {
+                    this.measuringFocus = false;
+                }
+            },
+            triggerEmergencyStop() {
+                if (this.stoppingLaser) return;
+                this.stoppingLaser = true;
+                this._engravingObservedForCurrentJob = false;
+                const p = $wire.stopLaserImmediately();
+                if (p && typeof p.then === 'function') {
+                    p.finally(() => {
+                        this.stoppingLaser = false;
+                        this.measuringFocus = false;
+                        this.laserWork.is_working = false;
+                        this.laserWork.is_ready_wait = false;
+                        this.laserWork.phase = 'idle';
+                        this.laserWork.phase_label = 'Gestoppt';
+                        setTimeout(() => this.pollLiveWorkStatusOnce(), 600);
+                    });
+                } else {
+                    this.stoppingLaser = false;
+                }
+            },
+            formatWorkTime(sec) {
+                const s = Math.max(0, Math.floor(Number(sec) || 0));
+                const mins = Math.floor(s / 60);
+                const rem = s % 60;
+                return String(mins).padStart(2, '0') + ':' + String(rem).padStart(2, '0');
             },
             syncLaserParamsFromServer(detail) {
                 const p = Array.isArray(detail) ? (detail[0] || {}) : (detail || {});
@@ -643,6 +882,7 @@
                     this._lockedCoords.h,
                     seq
                 );
+                this.scheduleLiveFramingReplace(160);
             },
             debouncedPersistCoords(delayMs = 250) {
                 if (this._keyPersistTimer) {
@@ -653,11 +893,20 @@
                     this.persistCoords();
                 }, delayMs);
             },
+            normalizeAngleDeg(deg) {
+                const n = Number(deg);
+                if (!Number.isFinite(n)) return 0;
+                let wrapped = ((n + 180) % 360 + 360) % 360 - 180;
+                if (wrapped <= -180 && n > 0) {
+                    wrapped = 180;
+                }
+                return wrapped;
+            },
             nudge(dx, dy, da, fineMode = false) {
                 const scale = fineMode ? 0.04 : 1.0;
                 this._rawXMm = Math.max(5, Math.min(195, (Number(this.xMm) || 100) + dx * scale));
                 this._rawYMm = Math.max(5, Math.min(195, (Number(this.yMm) || 100) + dy * scale));
-                this._rawAngleDeg = Math.max(-45, Math.min(45, (Number(this.angleDeg) || 0) + da * scale));
+                this._rawAngleDeg = this.normalizeAngleDeg((Number(this.angleDeg) || 0) + da * scale);
                 this.xMm = Math.round(this._rawXMm * 100) / 100;
                 this.yMm = Math.round(this._rawYMm * 100) / 100;
                 this.angleDeg = Math.round(this._rawAngleDeg * 100) / 100;
@@ -790,7 +1039,8 @@
                     let deltaAngle = a1 - a0;
                     while (deltaAngle > 180) deltaAngle -= 360;
                     while (deltaAngle < -180) deltaAngle += 360;
-                    this._rawAngleDeg = Math.max(-45, Math.min(45, this._rawAngleDeg + (deltaAngle * gear)));
+                    const rotateGear = fineMode ? 0.08 : 1.0;
+                    this._rawAngleDeg = this.normalizeAngleDeg(this._rawAngleDeg + (deltaAngle * rotateGear));
                     this.angleDeg = Math.round(this._rawAngleDeg * 100) / 100;
                     this.lockCurrentCoords();
                     return;
@@ -949,48 +1199,42 @@
             }
         </style>
 
+        @php
+            $frontDone = !empty($cockpitData['engraved_sides']['front']);
+            $backDone = !empty($cockpitData['engraved_sides']['back']);
+            $doneSidesCount = ($frontDone ? 1 : 0) + ($backDone ? 1 : 0);
+        @endphp
+
         <div x-cloak
              x-show="showLaserDetails || {{ $cockpitData['has_back'] ? 'true' : 'false' }}"
              @if(!$cockpitData['has_back']) style="display: none;" @endif
-             class="bg-gray-50 dark:bg-gray-950 px-5 sm:px-6 py-3 rounded-t-[1.5rem] sm:rounded-t-[2rem] border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2 relative z-30">
-            <div x-show="showLaserDetails" class="flex flex-wrap items-center gap-2">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider {{ $cockpitData['laser_online'] ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700' }}">
-                    <span class="w-1.5 h-1.5 rounded-full {{ $cockpitData['laser_online'] ? 'bg-emerald-500' : 'bg-amber-500' }}"></span>
-                    <span>{{ $cockpitData['laser_ip'] }}</span>
-                </span>
-                <span class="px-2 py-0.5 rounded-lg bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30 text-[9px] font-black uppercase tracking-wider">
-                    KI {{ $cockpitData['confidence'] }} %
-                </span>
-                <div class="relative group/cockpitinfo inline-flex items-center">
-                    <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] flex items-center justify-center text-[9px] font-black cursor-help transition-colors">!</span>
-                    <div class="pointer-events-none opacity-0 group-hover/cockpitinfo:opacity-100 group-hover/cockpitinfo:pointer-events-auto transition-opacity duration-150 absolute top-full left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 z-[90] w-72 sm:w-80 p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl text-[11px] leading-relaxed text-gray-700 dark:text-gray-300 space-y-2">
-                        <div class="font-black uppercase tracking-wider text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-1.5">
-                            xTool F2 Ultra UV ({{ $cockpitData['device_sn'] }})
+             class="bg-gray-50 dark:bg-gray-950 px-4 sm:px-6 py-3 rounded-t-[1.5rem] sm:rounded-t-[2rem] border-b border-gray-200 dark:border-gray-800 flex flex-col gap-2.5 relative z-30">
+            <div x-show="showLaserDetails" class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider {{ $cockpitData['laser_online'] ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700' }}">
+                        <span class="w-1.5 h-1.5 rounded-full {{ $cockpitData['laser_online'] ? 'bg-emerald-500' : 'bg-amber-500' }}"></span>
+                        <span>{{ $cockpitData['laser_ip'] }}</span>
+                    </span>
+                    <span class="px-2 py-0.5 rounded-lg bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/30 text-[9px] font-black uppercase tracking-wider">
+                        KI {{ $cockpitData['confidence'] }} %
+                    </span>
+                    <div class="relative group/cockpitinfo inline-flex items-center">
+                        <span class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:text-[var(--theme-color)] hover:border-[var(--theme-color)] flex items-center justify-center text-[9px] font-black cursor-help transition-colors">!</span>
+                        <div class="pointer-events-none opacity-0 group-hover/cockpitinfo:opacity-100 group-hover/cockpitinfo:pointer-events-auto transition-opacity duration-150 absolute top-full left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 mt-2 z-[90] w-72 sm:w-80 p-4 rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl text-[11px] leading-relaxed text-gray-700 dark:text-gray-300 space-y-2">
+                            <div class="font-black uppercase tracking-wider text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-1.5">
+                                xTool F2 Ultra UV ({{ $cockpitData['device_sn'] }})
+                            </div>
+                            <p>200 × 200 mm entzerrtes Live-Kamerabild (10 px = 1,0 mm). Die cyanfarbene 1:1 Kontur umschließt bündig die Gravurfläche und lässt sich per Maus verschieben, drehen und skalieren.</p>
                         </div>
-                        <p>200 × 200 mm entzerrtes Live-Kamerabild (10 px = 1,0 mm). Die cyanfarbene 1:1 Kontur umschließt bündig die Gravurfläche und lässt sich per Maus verschieben, drehen und skalieren.</p>
                     </div>
                 </div>
-            </div>
 
-            <div class="flex flex-wrap items-center gap-1.5 ml-auto">
-                @if($cockpitData['has_back'])
-                    <button type="button"
-                            wire:click="switchLaserCockpitSide('front')"
-                            class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'front' ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
-                        Vorderseite
-                    </button>
-                    <button type="button"
-                            wire:click="switchLaserCockpitSide('back')"
-                            class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'back' ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
-                        Rückseite
-                    </button>
-                @endif
-
-                <div x-show="showLaserDetails" class="flex flex-wrap items-center gap-1.5">
+                <div class="flex flex-wrap items-center gap-1.5 ml-auto">
                     <button type="button"
                             @mousedown.stop
                             @touchstart.stop
-                            wire:click="triggerLaserFraming('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
+                            @click="laserWork.is_working = true; laserWork.phase = 'framing'; laserWork.phase_label = 'Laser aktiv · Rahmen-Vorschau läuft'"
+                            wire:click="triggerLaserFraming('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams, framingMode)"
                             wire:loading.attr="disabled"
                             wire:target="triggerLaserFraming"
                             title="Blauen Laser-Rahmen zur Kontrolle auf dem Rohling projizieren"
@@ -1011,14 +1255,97 @@
                     </span>
                 </div>
             </div>
+
+            @if($cockpitData['has_back'])
+                <div data-cockpit-two-sided-stepper
+                     class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
+                    <span class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider shrink-0 {{ $backDone
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                        : 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-40)]' }}">
+                        <span>Beidseitig ({{ $doneSidesCount }}/2{{ $doneSidesCount >= 2 ? ' ✓' : '' }})</span>
+                    </span>
+
+                    <div class="grid grid-cols-2 gap-1.5 flex-1">
+                        <button type="button"
+                                data-cockpit-side-btn="front"
+                                wire:click="switchLaserCockpitSide('front')"
+                                class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'front'
+                                    ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-2xs'
+                                    : ($frontDone
+                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:border-[var(--theme-color)]'
+                                        : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]') }}">
+                            <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 {{ $cockpitData['side'] === 'front' ? 'bg-gray-950 text-[var(--theme-color)]' : ($frontDone ? 'bg-emerald-500 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300') }}">
+                                {{ $frontDone ? '✓' : '1' }}
+                            </span>
+                            <span>Vorderseite</span>
+                        </button>
+
+                        <button type="button"
+                                data-cockpit-side-btn="back"
+                                wire:click="switchLaserCockpitSide('back')"
+                                class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $cockpitData['side'] === 'back'
+                                    ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-2xs'
+                                    : ($backDone
+                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:border-[var(--theme-color)]'
+                                        : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white border-[var(--theme-color-50)] hover:border-[var(--theme-color)]') }}">
+                            <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 {{ $cockpitData['side'] === 'back' ? 'bg-gray-950 text-[var(--theme-color)]' : ($backDone ? 'bg-emerald-500 text-white' : 'bg-[var(--theme-color-20)] text-[var(--theme-color)]') }}">
+                                {{ $backDone ? '✓' : '2' }}
+                            </span>
+                            <span>Rückseite{{ $backDone ? '' : ' · Offen' }}</span>
+                            @if(!$backDone && $cockpitData['side'] !== 'back')
+                                <span class="relative flex h-2 w-2 shrink-0">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--theme-color)] opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-[var(--theme-color)]"></span>
+                                </span>
+                            @endif
+                        </button>
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="p-4 sm:p-6 space-y-3 sm:space-y-4">
+            {{-- Automatischer "Laser arbeitet"-Modus (Echtzeit-Status, Fortschritt & Laufzeit wie in xTool Studio) --}}
+            <div x-cloak
+                 x-show="laserWork.is_working || laserWork.is_ready_wait"
+                 style="display: none;"
+                 data-cockpit-working-banner
+                 :class="laserWork.is_working
+                    ? 'bg-red-500/10 dark:bg-red-950/50 border-red-500/50 text-red-900 dark:text-red-100'
+                    : 'bg-amber-500/10 dark:bg-amber-950/40 border-amber-500/50 text-amber-900 dark:text-amber-100'"
+                 class="w-full max-w-[680px] mx-auto px-4 py-3 rounded-2xl border transition-all space-y-2">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="inline-flex items-center gap-2.5 min-w-0">
+                        <span class="relative flex h-3 w-3 shrink-0">
+                            <span :class="laserWork.is_working ? 'bg-red-500 animate-ping' : 'bg-amber-500 animate-ping'" class="absolute inline-flex h-full w-full rounded-full opacity-75"></span>
+                            <span :class="laserWork.is_working ? 'bg-red-600' : 'bg-amber-500'" class="relative inline-flex rounded-full h-3 w-3"></span>
+                        </span>
+                        <span class="text-xs font-black uppercase tracking-wider truncate" x-text="laserWork.phase_label">Laser arbeitet</span>
+                    </div>
+
+                    <div class="inline-flex items-center gap-2 text-[10px] font-mono font-black">
+                        <span x-show="laserWork.phase === 'engraving'"
+                              class="px-2 py-0.5 rounded-md bg-white/80 dark:bg-gray-900/80 border border-red-500/30"
+                              x-text="laserWork.progress_pct + ' %'">0 %</span>
+                        <span x-show="laserWork.worktime_sec > 0"
+                              class="px-2 py-0.5 rounded-md bg-white/80 dark:bg-gray-900/80 border border-gray-300 dark:border-gray-700"
+                              x-text="formatWorkTime(laserWork.worktime_sec)">00:00</span>
+                        <span class="px-2 py-0.5 rounded-md bg-white/80 dark:bg-gray-900/80 border border-gray-300 dark:border-gray-700"
+                              x-text="fmtMm(laserParams.focus_mm) + ' mm · ' + laserParams.power_percent + ' % · ' + laserParams.dot_duration_us + ' µs'"></span>
+                    </div>
+                </div>
+
+                <div x-show="laserWork.phase === 'engraving'" class="w-full h-2 rounded-full bg-red-950/15 dark:bg-gray-900 overflow-hidden">
+                    <div class="h-full bg-red-600 transition-all duration-500 rounded-full"
+                         :style="`width: ${Math.max(3, Math.min(100, Number(laserWork.progress_pct) || 0))}%;`"></div>
+                </div>
+            </div>
+
             {{-- Schlanke Zoom-Steuerleiste (100 % bis 400 %) + 0 ms Anti-Blend-Sichtbarkeitshilfe --}}
             <div data-cockpit-zoom-bar
                  @mousedown.stop
                  @touchstart.stop
-                 class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-xl border w-full max-w-[460px] mx-auto bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
+                 class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-xl border w-full max-w-[680px] mx-auto bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
                 <div class="flex items-center gap-1.5 flex-1 min-w-[160px]">
                     <button type="button"
                             data-cockpit-zoom-out
@@ -1105,7 +1432,7 @@
                  @touchmove.window.passive="moveDrag($event)"
                  @touchend.window="stopDrag()"
                  :class="[dragging || isDraggingMinimap ? 'cursor-grabbing ring-2 ring-cyan-400/60' : 'cursor-grab', cockpitZoom > 1.01 ? 'touch-none' : '']"
-                 class="relative w-full max-w-[460px] mx-auto aspect-square rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-700 bg-gray-950 select-none shadow-inner transition-shadow focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-50)]">
+                 class="relative w-full max-w-[680px] mx-auto aspect-square rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-700 bg-gray-950 select-none shadow-inner transition-shadow focus:outline-none focus:ring-2 focus:ring-[var(--theme-color-50)]">
 
                 {{-- Gezoomter & gepannter 200x200 mm Kamera-Stage-Layer --}}
                 <div x-ref="bedStage"
@@ -1244,7 +1571,7 @@
                               style="display: none;"
                               data-cockpit-shift-badge
                               class="px-2.5 py-1 rounded-lg bg-[var(--theme-color)] text-gray-950 font-mono text-[10px] font-black uppercase tracking-wider shadow-md">
-                            SHIFT · FEIN-MODUS (0,01 MM)
+                            SHIFT · FEIN-MODUS (0,01 MM / 0,01°)
                         </span>
                         <span x-cloak
                               x-show="showLaserDetails"
@@ -1332,10 +1659,10 @@
                     <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">Winkel</span>
                     <input type="number"
                            step="0.01"
-                           min="-45"
-                           max="45"
+                           min="-180"
+                           max="180"
                            x-model.number="angleDeg"
-                           @change="persistCoords()"
+                           @change="angleDeg = Math.round(normalizeAngleDeg(angleDeg) * 100) / 100; _rawAngleDeg = angleDeg; persistCoords()"
                            class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
                 </div>
                 <div class="flex items-center justify-center gap-1">
@@ -1348,10 +1675,12 @@
                 </div>
             </div>
 
-            {{-- Direkte Laserparameter-Leiste & Clean-Design Parameter-Editor (Schritt 1: In Bearbeitung) --}}
-            <div class="space-y-2">
+            {{-- Direkte Laserparameter-Kachel: klappt in derselben Kachel nahtlos nach unten auf --}}
+            <div data-sf-laser-params-card
+                 :class="showLaserParams ? 'border-[var(--theme-color-40)]' : 'border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)]'"
+                 class="bg-gray-50 dark:bg-gray-950 rounded-xl border transition-colors overflow-hidden">
                 <div @click="toggleLaserParams()"
-                     class="bg-gray-50 dark:bg-gray-950 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-[var(--theme-color)] flex flex-wrap items-center justify-between gap-2 transition-colors cursor-pointer select-none">
+                     class="px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 cursor-pointer select-none">
                     <div class="flex flex-wrap items-center gap-1.5 text-[10px] font-mono font-bold text-gray-700 dark:text-gray-300 min-w-0">
                         <span x-cloak
                               x-show="hasLaserOverrides"
@@ -1381,6 +1710,11 @@
                                 :class="showLaserParams ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]'"
                                 class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
                             <span>&#9881;&#65039; Laserparameter anpassen</span>
+                            <svg class="w-3 h-3 transition-transform duration-150"
+                                 :class="showLaserParams ? 'rotate-180' : ''"
+                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -1388,11 +1722,19 @@
                 <div x-cloak
                      x-show="showLaserParams"
                      style="display: none;"
-                     class="bg-gray-50 dark:bg-gray-950 p-3 rounded-xl border border-gray-200 dark:border-gray-800 space-y-2.5">
-                    {{-- Zeile 0: Produkt-Profile (ganz oben) + validierte xTool F2 Ultra UV Handbuch-Presets + direkt als Profil speichern --}}
+                     class="px-3 pb-3 pt-2.5 border-t border-gray-200 dark:border-gray-800 space-y-2.5">
+                    {{-- Zeile 0: Ein klares Produkt-Profil pro Produkt + direkt als Profil speichern --}}
                     <div class="bg-white dark:bg-gray-900 px-3 py-2 rounded-lg border border-[var(--theme-color-30)] space-y-2">
                         <div class="flex flex-wrap items-center justify-between gap-2">
-                            <label class="block text-[9px] font-black uppercase tracking-wider text-[var(--theme-color)]">Produkt-Profile &amp; Handbuch-Preset</label>
+                            <div class="inline-flex items-center gap-2">
+                                <label class="block text-[9px] font-black uppercase tracking-wider text-[var(--theme-color)]">Produkt-Profil</label>
+                                <span x-cloak
+                                      x-show="applyFeedbackSaved"
+                                      style="display: none;"
+                                      class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 text-[9px] font-black uppercase tracking-wider">
+                                    ✓ Übernommen
+                                </span>
+                            </div>
                             <button type="button"
                                     data-sf-toggle-new-profile
                                     @click.stop="showNewProfileForm = !showNewProfileForm"
@@ -1402,28 +1744,14 @@
                         </div>
                         <select x-model="handbookPresetKey"
                                 @change="applyHandbookPreset()"
-                                data-sf-handbook-presets="{{ count($handbookPresets) }}"
                                 data-sf-product-profiles="{{ count($productProfiles) }}"
                                 class="w-full text-xs font-bold bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none cursor-pointer">
-                            <option value="">Profil / Preset wählen</option>
-                            @if(!empty($productProfiles))
-                                <optgroup label="Produkt-Profile">
-                                    @foreach($productProfiles as $prodProf)
-                                        <option value="profile:{{ $prodProf['id'] }}">
-                                            {{ $prodProf['title'] }}{{ !empty($prodProf['is_default']) ? ' (Standard)' : '' }} · {{ $fmtDim((float) ($prodProf['focus_mm'] ?? 0)) }} mm · {{ (int) ($prodProf['power_percent'] ?? 0) }} % · {{ (int) ($prodProf['dot_duration_us'] ?? 0) }} µs
-                                        </option>
-                                    @endforeach
-                                </optgroup>
-                            @endif
-                            @if(!empty($handbookPresets))
-                                @foreach(collect($handbookPresets)->groupBy('group') as $presetGroup => $presetsInGroup)
-                                    <optgroup label="{{ $presetGroup }}">
-                                        @foreach($presetsInGroup as $hbPreset)
-                                            <option value="{{ $hbPreset['key'] }}">{{ $hbPreset['label'] }}</option>
-                                        @endforeach
-                                    </optgroup>
-                                @endforeach
-                            @endif
+                            <option value="">Produkt-Profil wählen</option>
+                            @foreach($productProfiles as $prodProf)
+                                <option value="profile:{{ $prodProf['id'] }}"{{ ($initActiveProfileId !== '' && $initActiveProfileId === (string) ($prodProf['id'] ?? '')) ? ' selected' : '' }}>
+                                    {{ $prodProf['title'] }} · {{ $fmtDim((float) ($prodProf['focus_mm'] ?? 0)) }} mm · {{ (int) ($prodProf['power_percent'] ?? 0) }} % · {{ (int) ($prodProf['dot_duration_us'] ?? 0) }} µs
+                                </option>
+                            @endforeach
                         </select>
 
                         <div x-cloak
@@ -1496,15 +1824,44 @@
                             </datalist>
                         </div>
 
-                        <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
-                            <label class="text-[9px] font-black uppercase tracking-wider text-gray-400">Fokus (mm)</label>
-                            <input type="number"
-                                   step="0.1"
-                                   min="0.1"
-                                   max="150"
-                                   x-model="laserParams.focus_mm"
-                                   @change="persistLaserParams()"
-                                   class="w-20 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                        <div class="bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                            <label class="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-gray-400">
+                                {{-- Kleines Lineal-Icon beim Fokus-Feld --}}
+                                <svg class="w-3 h-3 text-[var(--theme-color)] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z"/>
+                                    <path d="m14.5 12.5 2-2"/><path d="m11.5 9.5 2-2"/><path d="m8.5 6.5 2-2"/><path d="m17.5 15.5 2-2"/>
+                                </svg>
+                                <span>Fokus (mm)</span>
+                            </label>
+                            <div class="mt-0.5 flex items-center justify-between gap-1.5 rounded-md bg-gray-100/90 dark:bg-gray-950 px-2 py-1 border border-gray-200/80 dark:border-gray-800">
+                                <input type="number"
+                                       step="0.1"
+                                       min="0.1"
+                                       max="150"
+                                       x-model="laserParams.focus_mm"
+                                       @change="persistLaserParams()"
+                                       class="w-full min-w-0 font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                                <span class="text-[10px] font-mono font-bold text-gray-500 dark:text-gray-400 shrink-0">mm</span>
+                                <span class="h-3.5 w-px bg-gray-300 dark:bg-gray-700 shrink-0"></span>
+                                {{-- xTool Lineal-A Button zum automatischen Einmessen der Fokus-Entfernung --}}
+                                <button type="button"
+                                        data-sf-autofocus-btn
+                                        @click.stop="triggerAutoFocusMeasure()"
+                                        :disabled="measuringFocus"
+                                        title="Entfernung automatisch einmessen (wie in xTool Studio · bei K9-Glas dunkles Papier auflegen)"
+                                        class="inline-flex items-center justify-center p-0.5 rounded hover:bg-[var(--theme-color-20)] text-gray-700 dark:text-gray-200 hover:text-[var(--theme-color)] transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-wait shrink-0">
+                                    <svg x-show="!measuringFocus" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M16 3.5 4.5 15a1.8 1.8 0 0 0 0 2.5l2 2a1.8 1.8 0 0 0 2.5 0L20.5 8a1.8 1.8 0 0 0 0-2.5l-2-2a1.8 1.8 0 0 0-2.5 0Z"/>
+                                        <path d="m13.5 6 2 2"/><path d="m10 9.5 2 2"/><path d="m6.5 13 2 2"/>
+                                        <rect x="14.5" y="13.5" width="7" height="7" rx="1.4" fill="currentColor" stroke="none" opacity="0.14"/>
+                                        <path d="M16.3 19.2 18 14.8l1.7 4.4M16.8 18h2.4" stroke-width="1.75"/>
+                                    </svg>
+                                    <svg x-cloak x-show="measuringFocus" style="display: none;" class="w-4 h-4 sf-laser-btn-spin text-[var(--theme-color)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                                        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -1655,17 +2012,17 @@
                                 <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-color-10)] border border-[var(--theme-color-30)]">
                                     <input type="number"
                                            step="1"
-                                           min="1"
+                                           min="40"
                                            max="200"
                                            x-model.number="laserParams.frequency_khz"
-                                           @change="onNumericParamChange('frequency_khz', 1, 200)"
+                                           @change="onNumericParamChange('frequency_khz', 40, 200)"
                                            class="w-12 text-right font-mono text-xs font-black bg-transparent text-[var(--theme-color)] focus:outline-none">
                                     <span class="text-[9px] font-mono font-bold text-[var(--theme-color)]">kHz</span>
                                 </div>
                             </div>
                             <input type="range"
                                    data-sf-param-range="frequency_khz"
-                                   min="1"
+                                   min="40"
                                    max="200"
                                    step="1"
                                    value="{{ $initFreqVal }}"
@@ -1673,10 +2030,10 @@
                                    @pointerdown.stop="beginSliderDrag('frequency_khz')"
                                    @mousedown.stop="beginSliderDrag('frequency_khz')"
                                    @touchstart.stop.passive="beginSliderDrag('frequency_khz')"
-                                   @input="onSliderInput('frequency_khz', $event.target.value, 1, 200, $event.target)"
-                                   @change="onSliderCommit('frequency_khz', $event.target.value, 1, 200, $event.target)"
+                                   @input="onSliderInput('frequency_khz', $event.target.value, 40, 200, $event.target)"
+                                   @change="onSliderCommit('frequency_khz', $event.target.value, 40, 200, $event.target)"
                                    style="--val-pct: {{ $initFreqBarPct }}%;"
-                                   :style="rangeFillStyle(laserParams.frequency_khz, 1, 200)"
+                                   :style="rangeFillStyle(laserParams.frequency_khz, 40, 200)"
                                    class="sf-laser-range">
                         </div>
                     </div>
@@ -1758,9 +2115,16 @@
 
                             <button type="button"
                                     data-sf-laser-apply-btn
-                                    @click.stop="persistLaserParams()"
-                                    class="flex-1 basis-full sm:basis-auto min-w-0 whitespace-normal text-center inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--theme-color)] text-gray-950 border border-[var(--theme-color)] text-[9px] font-black uppercase tracking-wider hover:brightness-95 transition-all cursor-pointer">
-                                <span>Übernehmen</span>
+                                    @click.stop="persistLaserParams(true)"
+                                    :class="applyFeedbackSaved
+                                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/50'
+                                        : 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] hover:brightness-95'"
+                                    class="flex-1 basis-full sm:basis-auto min-w-0 whitespace-normal text-center inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer">
+                                <span x-show="!applyFeedbackSaved">Übernehmen</span>
+                                <span x-cloak x-show="applyFeedbackSaved" style="display: none;" class="inline-flex items-center gap-1">
+                                    <span>✓</span>
+                                    <span>Übernommen</span>
+                                </span>
                             </button>
                         </div>
                     </div>
@@ -1777,7 +2141,7 @@
 
             {{-- Blendfreie Kameraaufnahme: kompakter 3-Wege-Umschalter direkt beim Kamera-Button --}}
             @php
-                $activeCamLight = $cockpitData['camera_light_mode'] ?? ($this->laserCameraLightMode ?? 'anti_glare');
+                $activeCamLight = $cockpitData['camera_light_mode'] ?? ($_lwCockpit->laserCameraLightMode ?? 'normal');
             @endphp
             <div data-cockpit-light-mode
                  class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
@@ -1814,6 +2178,107 @@
                 </div>
             </div>
 
+            {{-- Pre-Flight Hardware-Check (UV-Quelle, Haube, IF2-Abluft, Feldlinse, Sicherheit) --}}
+            <div x-cloak
+                 x-show="preflight.checked || showLaserDetails"
+                 style="display: none;"
+                 data-cockpit-preflight-bar
+                 class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                <span class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-gray-400">
+                    <span class="w-2 h-2 rounded-full shrink-0"
+                          :class="!preflight.checked ? 'bg-gray-400' : (preflight.blockers.length > 0 ? 'bg-red-500' : (preflight.all_ready ? 'bg-emerald-500' : 'bg-amber-500'))"></span>
+                    <span>Pre-Flight</span>
+                </span>
+
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span :title="preflight.uv_ready === false ? '5W-UV-Kristall wärmt noch vor' : '5W-UV-Laserquelle betriebsbereit'"
+                          :class="!preflight.checked ? 'bg-white dark:bg-gray-900 text-gray-400 border-gray-200 dark:border-gray-800' : (preflight.uv_ready ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30')"
+                          class="px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider cursor-help">
+                        <span x-text="preflight.uv_ready === false ? 'UV wärmt' : 'UV bereit'">UV bereit</span>
+                    </span>
+
+                    <span :title="preflight.lid_closed === false ? 'Schutzhaube geöffnet (vor dem Startknopf schließen)' : 'Laserschutzhaube geschlossen'"
+                          :class="!preflight.checked ? 'bg-white dark:bg-gray-900 text-gray-400 border-gray-200 dark:border-gray-800' : (preflight.lid_closed ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30')"
+                          class="px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider cursor-help">
+                        <span x-text="preflight.lid_closed === false ? 'Haube offen' : 'Haube zu'">Haube zu</span>
+                    </span>
+
+                    <span :title="preflight.exhaust_ready === false ? 'SafetyPro IF2 2.0 nicht als verbunden gemeldet' : 'SafetyPro IF2 2.0 Abluft bereit'"
+                          :class="!preflight.checked || preflight.exhaust_ready === null ? 'bg-white dark:bg-gray-900 text-gray-400 border-gray-200 dark:border-gray-800' : (preflight.exhaust_ready ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30')"
+                          class="px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider cursor-help">
+                        <span x-text="preflight.exhaust_ready === false ? 'IF2 prüfen' : 'IF2 Abluft'">IF2 Abluft</span>
+                    </span>
+
+                    <span :title="preflight.lens_ok === false ? 'Feldlinse passt nicht zum gewählten Bearbeitungsmodus' : 'Passende Feldlinse erkannt'"
+                          :class="!preflight.checked ? 'bg-white dark:bg-gray-900 text-gray-400 border-gray-200 dark:border-gray-800' : (preflight.lens_ok ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30')"
+                          class="px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider cursor-help">
+                        <span x-text="preflight.lens_ok === false ? 'Linse wechseln' : 'Linse OK'">Linse OK</span>
+                    </span>
+
+                    <span :title="preflight.safety_ok === false ? (preflight.blockers[0] || 'USB-Schlüssel oder Hardware-Alarm prüfen') : 'USB-Sicherheitsschlüssel aktiv & keine Alarme'"
+                          :class="!preflight.checked ? 'bg-white dark:bg-gray-900 text-gray-400 border-gray-200 dark:border-gray-800' : (preflight.safety_ok ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/40')"
+                          class="px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-wider cursor-help">
+                        <span x-text="preflight.safety_ok === false ? 'Alarm / Key' : 'Freigabe OK'">Freigabe OK</span>
+                    </span>
+                </div>
+            </div>
+
+            {{-- Kontur-Framing (Herz / Pfote / Kreis vs. Rechteck) + Echtzeit-Nachziehen (replaceWalkBorder) --}}
+            <div data-cockpit-framing-bar
+                 class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                <div class="inline-flex items-center gap-2">
+                    <span class="text-[10px] font-black uppercase tracking-wider text-gray-600 dark:text-gray-400">
+                        Vorschau-Rahmen
+                    </span>
+                    <span x-cloak
+                          x-show="laserWork.phase === 'framing'"
+                          style="display: none;"
+                          title="Verschieben, Drehen oder Shift+Pfeiltasten zieht den Lichtrahmen live am Laser nach"
+                          class="px-2 py-0.5 rounded-md bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 text-[9px] font-black uppercase tracking-wider cursor-help">
+                        Live-Sync aktiv
+                    </span>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end">
+                    <div class="inline-flex items-center gap-1 p-0.5 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                        <button type="button"
+                                data-framing-mode-btn="contour"
+                                @click.stop="selectFramingMode('contour')"
+                                title="Exakte 1:1 Produktkontur (z. B. Herz, Pfote, Kreis) auf den Rohling projizieren"
+                                :class="framingMode === 'contour'
+                                    ? 'bg-[var(--theme-color)] text-gray-950 shadow-2xs'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
+                                class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                            1:1 Kontur
+                        </button>
+                        <button type="button"
+                                data-framing-mode-btn="rect"
+                                @click.stop="selectFramingMode('rect')"
+                                title="Klassisches 4-Punkt Außenrechteck projizieren"
+                                :class="framingMode === 'rect'
+                                    ? 'bg-[var(--theme-color)] text-gray-950 shadow-2xs'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
+                                class="px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                            Rechteck
+                        </button>
+                    </div>
+
+                    <button type="button"
+                            data-cockpit-start-framing-btn
+                            @mousedown.stop
+                            @touchstart.stop
+                            @click="laserWork.is_working = true; laserWork.phase = 'framing'; laserWork.phase_label = 'Laser aktiv · Rahmen-Vorschau läuft'"
+                            wire:click="triggerLaserFraming('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams, framingMode)"
+                            wire:loading.attr="disabled"
+                            wire:target="triggerLaserFraming"
+                            title="Laser-Vorschaurahmen starten (zieht beim Verschieben live am Rohling nach)"
+                            class="sf-laser-action-btn relative inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 text-[9px] font-black uppercase tracking-wider whitespace-nowrap transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-wait">
+                        <span wire:loading.class="invisible" wire:target="triggerLaserFraming" class="inline-flex items-center justify-center gap-1.5">Rahmen leuchten</span>
+                        <span wire:loading.flex wire:target="triggerLaserFraming" style="display: none;" class="absolute inset-0 items-center justify-center">Starte...</span>
+                    </button>
+                </div>
+            </div>
+
             {{-- Schlanker 2-Schritte-Laser-Ablauf: 1. Kamera & KI-Ausrichten -> 2. An Laser senden --}}
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {{-- SCHRITT 1 --}}
@@ -1821,51 +2286,86 @@
                         wire:click="refreshLaserCameraAndAlign('{{ $cockpitData['side'] }}', laserParams)"
                         wire:loading.attr="disabled"
                         wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"
-                        class="sf-laser-action-btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 1
+                        class="sf-laser-action-btn relative min-h-[48px] flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 1
                             ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
                             : 'bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-800' }}">
-                    <span wire:loading.remove wire:target="refreshLaserCameraAndAlign" class="inline-flex items-center justify-center gap-2">
+                    <span wire:loading.class="invisible" wire:target="refreshLaserCameraAndAlign" class="inline-flex items-center justify-center gap-2">
                         <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep > 1 ? 'bg-[var(--theme-color)] text-gray-950' : ($wfStep === 1 ? 'bg-gray-950 text-[var(--theme-color)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
                             {{ $wfStep > 1 ? '✓' : '1' }}
                         </span>
                         <span>Kamera &amp; KI-Ausrichten</span>
                     </span>
-                    <span wire:loading wire:target="refreshLaserCameraAndAlign">
-                        <span class="inline-flex items-center gap-2">
-                            <svg class="w-5 h-5 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
-                                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
-                            </svg>
-                            <span>Richte aus...</span>
-                        </span>
+                    <span wire:loading.flex wire:target="refreshLaserCameraAndAlign" style="display: none;" class="absolute inset-0 items-center justify-center gap-2">
+                        <svg class="w-5 h-5 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                        </svg>
+                        <span>Richte aus...</span>
                     </span>
                 </button>
 
                 {{-- SCHRITT 2 --}}
                 <button type="button"
+                        @click="_completionDispatchedForScope = false; _engravingObservedForCurrentJob = false; setTimeout(() => startLiveWorkStatusPolling(), 1500)"
                         wire:click="sendJobDirectlyToLaser('{{ $previewItem->id }}', '{{ $cockpitData['side'] }}', laserParams)"
                         wire:loading.attr="disabled"
                         wire:target="refreshLaserCameraAndAlign,sendJobDirectlyToLaser"
-                        class="sf-laser-action-btn flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 2
+                        class="sf-laser-action-btn relative min-h-[48px] flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] sm:text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-colors cursor-pointer disabled:opacity-70 disabled:cursor-wait {{ $wfStep === 2
                             ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)] shadow-sm'
                             : ($wfStep >= 3
                                 ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border-[var(--theme-color-40)]'
                                 : 'bg-white dark:bg-gray-900 hover:border-[var(--theme-color)] text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-800') }}">
-                    <span wire:loading.remove wire:target="sendJobDirectlyToLaser" class="inline-flex items-center justify-center gap-2">
+                    <span wire:loading.class="invisible" wire:target="sendJobDirectlyToLaser" class="inline-flex items-center justify-center gap-2">
                         <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 {{ $wfStep >= 3 ? 'bg-[var(--theme-color)] text-gray-950' : ($wfStep === 2 ? 'bg-gray-950 text-[var(--theme-color)]' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300') }}">
                             {{ $wfStep >= 3 ? '✓' : '2' }}
                         </span>
                         <span>An Laser senden</span>
                     </span>
-                    <span wire:loading wire:target="sendJobDirectlyToLaser">
-                        <span class="inline-flex items-center gap-2">
-                            <svg class="w-5 h-5 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
-                                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
-                            </svg>
-                            <span>Sende an Laser...</span>
-                        </span>
+                    <span wire:loading.flex wire:target="sendJobDirectlyToLaser" style="display: none;" class="absolute inset-0 items-center justify-center gap-2">
+                        <svg class="w-5 h-5 shrink-0 sf-laser-btn-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2.75" opacity="0.25"></circle>
+                            <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"></path>
+                        </svg>
+                        <span>Sende an Laser...</span>
                     </span>
+                </button>
+            </div>
+
+            {{-- Auftrags-Taktgeber: Schaltet bei Laser-DONE automatisch weiter + 1-Klick-Button für Vorderseite -> Rückseite -> Versand --}}
+            @if($wfStep >= 3)
+                @php
+                    $needsBackTurn = !empty($cockpitData['has_back'])
+                        && ($cockpitData['side'] ?? 'front') === 'front'
+                        && empty($cockpitData['engraved_sides']['back']);
+                @endphp
+                <div x-cloak
+                     x-show="!laserWork.is_working"
+                     data-cockpit-side-flow
+                     class="pt-0.5">
+                    <button type="button"
+                            data-cockpit-complete-side-btn
+                            @click.stop="confirmCurrentSideEngraved()"
+                            :disabled="completingSideFlow"
+                            title="Schaltet automatisch bei Fertigmeldung des Lasers weiter oder hier manuell bestätigen"
+                            class="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all cursor-pointer disabled:opacity-60">
+                        <span>✓</span>
+                        <span>{{ $needsBackTurn ? 'Vorderseite fertig · Rohling wenden & Rückseite laden' : 'Gravur abgeschlossen · Weiter zur Verpackung' }}</span>
+                    </button>
+                </div>
+            @endif
+
+            {{-- Fetter roter STOP-Button direkt unterhalb, sobald der Laser arbeitet, rahmt, einmisst oder im Arbeitsmodus bereitsteht --}}
+            <div x-cloak
+                 x-show="laserWork.is_working || laserWork.is_ready_wait || measuringFocus"
+                 style="display: none;"
+                 class="pt-0.5">
+                <button type="button"
+                        data-sf-laser-stop-btn
+                        @click.stop="triggerEmergencyStop()"
+                        :disabled="stoppingLaser"
+                        class="w-full flex items-center justify-center gap-2.5 px-6 py-4 rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white border-2 border-red-500 shadow-lg text-sm sm:text-base font-black uppercase tracking-[0.22em] transition-all cursor-pointer disabled:opacity-70 disabled:cursor-wait">
+                    <span class="w-3.5 h-3.5 rounded-xs bg-white shrink-0"></span>
+                    <span x-text="stoppingLaser ? 'STOPPE LASER...' : 'STOP'">STOP</span>
                 </button>
             </div>
         </div>

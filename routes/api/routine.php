@@ -176,6 +176,13 @@ Route::prefix('funki/routine')->group(function () {
                 'auto_print_shop_jobs' => true,
                 'preferred_protocol' => 'IPP',
             ],
+            'connexoon_gateway' => [
+                'model' => 'Connexoon Window',
+                'ip' => '192.168.188.29',
+                'pin' => '0813-5321-9574',
+            ],
+            'shutters' => [],
+            'groups' => [],
         ];
     };
 
@@ -322,6 +329,77 @@ Route::prefix('funki/routine')->group(function () {
             ]);
         }
 
+        $shuttersInput = $request->input('shutters', $request->input('smart_shutters'));
+        if (is_string($shuttersInput)) {
+            $shuttersInput = json_decode($shuttersInput, true);
+        }
+        if (is_array($shuttersInput)) {
+            $sanitizedShutters = [];
+            foreach ($shuttersInput as $s) {
+                if (!is_array($s)) {
+                    continue;
+                }
+                $label = substr(trim((string) ($s['label'] ?? $s['Label'] ?? '')), 0, 120);
+                $deviceUrl = substr(trim((string) ($s['device_url'] ?? $s['DeviceUrl'] ?? $s['deviceURL'] ?? '')), 0, 180);
+                if ($label === '' && $deviceUrl === '') {
+                    continue;
+                }
+                $sanitizedShutters[] = [
+                    'device_url' => $deviceUrl,
+                    'label' => $label !== '' ? $label : 'Rollladen',
+                    'controllable_name' => substr(trim((string) ($s['controllable_name'] ?? $s['ControllableName'] ?? '')), 0, 120),
+                    'closure_percent' => max(0, min(100, (int) ($s['closure_percent'] ?? $s['ClosurePercent'] ?? 0))),
+                    'supports_position' => (bool) ($s['supports_position'] ?? $s['SupportsPosition'] ?? true),
+                    'is_available' => (bool) ($s['is_available'] ?? $s['IsAvailable'] ?? true),
+                ];
+            }
+            $cfg['shutters'] = $sanitizedShutters;
+        }
+
+        $groupsInput = $request->input('groups', $request->input('smart_groups'));
+        if (is_string($groupsInput)) {
+            $groupsInput = json_decode($groupsInput, true);
+        }
+        if (is_array($groupsInput)) {
+            $sanitizedGroups = [];
+            foreach ($groupsInput as $g) {
+                if (!is_array($g)) {
+                    continue;
+                }
+                $gName = substr(trim((string) ($g['name'] ?? $g['Name'] ?? '')), 0, 100);
+                if ($gName === '') {
+                    continue;
+                }
+                $rawShutterTargets = $g['shutter_targets'] ?? $g['ShutterTargets'] ?? [];
+                $rawPlugTargets = $g['plug_targets'] ?? $g['PlugTargets'] ?? [];
+                $shutterTargets = is_array($rawShutterTargets)
+                    ? array_values(array_filter(array_map(static fn($v) => substr(trim((string) $v), 0, 180), $rawShutterTargets), static fn($v) => $v !== ''))
+                    : [];
+                $plugTargets = is_array($rawPlugTargets)
+                    ? array_values(array_filter(array_map(static fn($v) => substr(trim((string) $v), 0, 140), $rawPlugTargets), static fn($v) => $v !== ''))
+                    : [];
+                if (empty($shutterTargets) && empty($plugTargets)) {
+                    continue;
+                }
+                $sanitizedGroups[] = [
+                    'id' => substr(trim((string) ($g['id'] ?? $g['Id'] ?? Str::uuid()->getHex())), 0, 64),
+                    'name' => $gName,
+                    'shutter_targets' => array_slice($shutterTargets, 0, 30),
+                    'plug_targets' => array_slice($plugTargets, 0, 30),
+                ];
+            }
+            $cfg['groups'] = array_slice($sanitizedGroups, 0, 40);
+        }
+
+        if (is_array($request->input('connexoon_gateway'))) {
+            $gw = $request->input('connexoon_gateway');
+            $cfg['connexoon_gateway'] = [
+                'model' => substr(trim((string) ($gw['model'] ?? 'Connexoon Window')), 0, 80),
+                'ip' => substr(trim((string) ($gw['ip'] ?? '192.168.188.29')), 0, 45),
+                'pin' => substr(trim((string) ($gw['pin'] ?? '0813-5321-9574')), 0, 32),
+            ];
+        }
+
         if ($request->filled('tapo_email')) {
             $cfg['tapo_email_encrypted'] = Crypt::encryptString(substr(trim((string) $request->input('tapo_email')), 0, 120));
         }
@@ -336,11 +414,13 @@ Route::prefix('funki/routine')->group(function () {
             ['value' => json_encode($cfg, JSON_UNESCAPED_UNICODE)]
         );
 
-        // Keep funki_alarm_sync_package.smart_plugs and tapo credentials synchronized automatically
+        // Keep funki_alarm_sync_package.smart_plugs, smart_shutters, smart_groups and tapo credentials synchronized automatically
         $rawAlarm = SystemSetting::where('key', 'funki_alarm_sync_package')->value('value');
         $existingAlarm = is_string($rawAlarm) ? json_decode($rawAlarm, true) : null;
         $alarmPkg = is_array($existingAlarm) ? array_merge($defaultAlarmPackage(), $existingAlarm) : $defaultAlarmPackage();
         $alarmPkg['smart_plugs'] = $cfg['plugs'];
+        $alarmPkg['smart_shutters'] = $cfg['shutters'] ?? [];
+        $alarmPkg['smart_groups'] = $cfg['groups'] ?? [];
         if (!empty($cfg['tapo_email_encrypted'])) {
             $alarmPkg['tapo_email_encrypted'] = $cfg['tapo_email_encrypted'];
         }
@@ -360,6 +440,43 @@ Route::prefix('funki/routine')->group(function () {
         return response()->json([
             'success' => true,
             'data' => $cfg,
+        ]);
+    });
+
+    Route::post('/smarthome-command', function (Request $request) {
+        $action = strtolower(trim((string) $request->input('action', '')));
+        $target = trim((string) $request->input('target', $request->input('device_name', 'alle')));
+        $position = $request->has('position') && $request->input('position') !== null && $request->input('position') !== ''
+            ? max(0, min(100, (int) $request->input('position')))
+            : null;
+
+        $result = \App\Services\AI\AIFunctionsRegistry::enqueueOrExecuteSmartHomeCommand(
+            $action,
+            $target,
+            $position,
+            'api_relay'
+        );
+
+        return response()->json($result, ($result['status'] ?? '') === 'error' ? 422 : 200);
+    });
+
+    Route::get('/smarthome-commands/pending', function () {
+        $pending = \App\Services\AI\AIFunctionsRegistry::getPendingRelayCommands();
+        return response()->json([
+            'success' => true,
+            'commands' => $pending,
+        ]);
+    });
+
+    Route::post('/smarthome-commands/ack', function (Request $request) {
+        $cmdId = trim((string) $request->input('command_id', ''));
+        $ok = (bool) $request->input('ok', true);
+        $summary = substr(trim((string) $request->input('summary', '')), 0, 300);
+
+        $acked = \App\Services\AI\AIFunctionsRegistry::acknowledgeRelayCommand($cmdId, $ok, $summary);
+        return response()->json([
+            'success' => $acked,
+            'command_id' => $cmdId,
         ]);
     });
 
@@ -401,6 +518,21 @@ Route::prefix('funki/routine')->group(function () {
         unset($pkg['tapo_email_encrypted'], $pkg['tapo_password_encrypted']);
         $pkg['tapo_email'] = $tapoEmail;
         $pkg['tapo_password'] = $tapoPassword;
+
+        if (empty($pkg['smart_shutters']) || empty($pkg['smart_groups'])) {
+            $rawSh = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
+            $decSh = is_string($rawSh) ? json_decode($rawSh, true) : null;
+            if (is_array($decSh)) {
+                if (empty($pkg['smart_shutters']) && !empty($decSh['shutters'])) {
+                    $pkg['smart_shutters'] = $decSh['shutters'];
+                }
+                if (empty($pkg['smart_groups']) && !empty($decSh['groups'])) {
+                    $pkg['smart_groups'] = $decSh['groups'];
+                }
+            }
+        }
+        $pkg['smart_shutters'] = $pkg['smart_shutters'] ?? [];
+        $pkg['smart_groups'] = $pkg['smart_groups'] ?? [];
 
         return response()->json([
             'success' => true,
@@ -683,6 +815,21 @@ Route::prefix('funki/routine')->group(function () {
         unset($pkg['tapo_email_encrypted'], $pkg['tapo_password_encrypted']);
         $pkg['tapo_email'] = $tapoEmail;
         $pkg['tapo_password'] = $tapoPassword;
+
+        if (empty($pkg['smart_shutters']) || empty($pkg['smart_groups'])) {
+            $rawSh = SystemSetting::where('key', 'funki_smarthome_config')->value('value');
+            $decSh = is_string($rawSh) ? json_decode($rawSh, true) : null;
+            if (is_array($decSh)) {
+                if (empty($pkg['smart_shutters']) && !empty($decSh['shutters'])) {
+                    $pkg['smart_shutters'] = $decSh['shutters'];
+                }
+                if (empty($pkg['smart_groups']) && !empty($decSh['groups'])) {
+                    $pkg['smart_groups'] = $decSh['groups'];
+                }
+            }
+        }
+        $pkg['smart_shutters'] = $pkg['smart_shutters'] ?? [];
+        $pkg['smart_groups'] = $pkg['smart_groups'] ?? [];
 
         return response()->json([
             'success' => true,

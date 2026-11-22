@@ -283,15 +283,30 @@ class SeasonalProductTemplatesTest extends TestCase
             ->assertSet('filterHoliday', 'Ostern');
         $this->assertArrayHasKey('Ostern', $explicitFilterComp->viewData('availableHolidays'));
 
-        // 2) Angebots-Kalkulator nutzt identische Kuratierung & Toggle-Link
+        // 2) Angebots-Kalkulator nutzt exakt denselben Trait & dasselbe Start-Partial (Neuling -> Anfänger -> Profi)
         $calcComp = Livewire::test(ProductCalculator::class)
             ->set('agb_accepted', true)
             ->call('startCalculator')
             ->call('openConfig', $product->id)
+            ->assertSet('showTemplateSelection', true)
+            ->assertSee('Wie möchtest du starten?')
+            ->assertDontSee('Wie möchten Sie starten?')
+            ->assertSee('Neuling')
+            ->assertSee('Einfache Variante')
+            ->assertSee('Anfänger')
+            ->assertSee('Vorlage nutzen')
+            ->assertSee('Profi')
+            ->assertSee('Selber Konfigurieren')
+            ->call('startBeginnerConfig')
+            ->assertSet('showTemplateSelection', false)
+            ->assertSet('currentConfig.personalization_mode', 'custom_fields')
+            ->call('returnToCalculatorStartSelection')
+            ->assertSet('showTemplateSelection', true)
             ->call('openTemplatesList')
             ->assertSet('hiddenSeasonalTemplatesCount', 5)
             ->assertSee('Alle Vorlagen anzeigen (8)')
             ->assertSee('Frohe Weihnachten')
+            ->assertSee('Ausschluss vom Widerrufsrecht')
             ->assertDontSee('Frohes Osterfest');
 
         $this->assertCount(3, $calcComp->get('productTemplates'));
@@ -324,9 +339,11 @@ class SeasonalProductTemplatesTest extends TestCase
         // 4) Strikte Prüfung auf 0 KI-Gedankenstriche in allen bearbeiteten Dateien
         $checkedFiles = [
             app_path('Models/Product/ProductTemplate.php'),
+            app_path('Livewire/Shop/Product/Traits/ManagesConfiguratorStartSelection.php'),
             app_path('Livewire/Shop/Product/ProductShow.php'),
             app_path('Livewire/Shop/Product/ProductCalculator/ProductCalculator.php'),
             app_path('Livewire/Shop/Product/ProductFrontendFilterArea.php'),
+            resource_path('views/livewire/shop/product/partials/configurator-start-selection.blade.php'),
             resource_path('views/livewire/shop/product/partials/product-show/right.blade.php'),
             resource_path('views/livewire/shop/product/product-calculator/product-calculator.blade.php'),
             resource_path('views/livewire/shop/product/product-templates.blade.php'),

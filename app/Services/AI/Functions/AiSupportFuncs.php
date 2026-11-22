@@ -1072,9 +1072,13 @@ trait AiSupportFuncs
                     elseif ($name === 'contact' || $uri === 'kontakt') $actionName = 'Kontakt & Support';
                     elseif ($name === 'marketing/blog' || $uri === 'marketing/blog' || $name === 'blog' || $uri === 'blog') $actionName = 'Magazin / Blog';
                     elseif ($name === 'manufacture' || $uri === 'manufaktur') $actionName = 'Unsere Manufaktur';
-                    elseif ($uri === 'dashboard' || $name === 'customer.dashboard') $actionName = 'Kunden-Dashboard (Funki öffnen, Seelenfunken & Prämien, Level 1–10, Rabatte, Titel & Halle der Helden)';
-                    elseif ($uri === 'profile' || $name === 'customer.profile') $actionName = 'Kundenprofil & Einstellungen (Persönliche Daten, Geburtsdatum für +50 ✨ Geburtstags-Bonus, Adressen, Datenschutz)';
-                    elseif ($uri === 'orders' || $name === 'customer.orders') $actionName = 'Meine Bestellungen & Rechnungen';
+                    elseif ($uri === 'dashboard' || $name === 'customer.dashboard') $actionName = 'Kunden-Dashboard (Übersicht, Geschenkgutscheine, Empfehlungs-Code, Seelenfunken & Funki-Schnellstart)';
+                    elseif ($uri === 'profile' || $name === 'customer.profile') $actionName = 'Kundenprofil & Einstellungen (Persönliche Daten, Geburtsdatum für +50 ✨ Geburtstags-Bonus, Adressen, Passwort, DSGVO & KI-Einwilligung)';
+                    elseif ($uri === 'orders' || $name === 'customer.orders') $actionName = 'Meine Bestellungen, DHL-Tracking & Gravur-Vorschau (Blueprint)';
+                    elseif ($uri === 'invoices' || $name === 'customer.invoices') $actionName = 'Rechnungs-Archiv (PDF-Rechnungen & Gutschriften herunterladen)';
+                    elseif ($uri === 'funki' || $name === 'customer.funki') $actionName = 'Dein Funki & Prämien (Rabatte 5 %/10 %/15 %, Level 1 bis 10, Titel & Ränge, Halle der Helden, Musiksteuerung)';
+                    elseif ($uri === 'reviews' || $name === 'customer.reviews') $actionName = 'Meine Bewertungen (+15 ✨ Produktbewertungen & Erlebnis-Feedback)';
+                    elseif ($uri === 'support' || $name === 'customer.support') $actionName = 'Support & Tickets (Offene & gelöste Kunden-Tickets einsehen)';
                     elseif ($uri === 'widerruf') $actionName = 'Widerrufsformular / Stornierung';
                     elseif (str_contains($name, 'customer.')) $actionName = 'Kundenportal - ' . ucfirst(str_replace('customer.', '', $name));
 

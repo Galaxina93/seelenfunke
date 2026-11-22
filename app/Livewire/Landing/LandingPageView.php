@@ -136,8 +136,21 @@ class LandingPageView extends Component
 
         $activeTemplates = $product->templates->where('is_active', true)->values();
 
+        $isStaff = auth()->guard('admin')->check()
+            || \App\Services\AI\AiAuthHelper::isEmployee()
+            || \App\Services\AI\AiAuthHelper::isAdmin();
+
+        $effectiveRequestedHoliday = $this->requestedHoliday;
+        if (!$isStaff && $effectiveRequestedHoliday !== null && $effectiveRequestedHoliday !== '') {
+            $normReq = Product::normalizeSeasonalSlotKey($effectiveRequestedHoliday);
+            $activeSlot = Product::resolveActivePrimarySeasonalSlot()['slot'] ?? null;
+            if (mb_strtolower((string) $normReq) !== 'standard' && $normReq !== $activeSlot) {
+                $effectiveRequestedHoliday = null;
+            }
+        }
+
         // 0. Aktives Jahreszeiten-/Feiertags-Vorlagenprofil der EINEN Landingpage auflösen (inkl. Post-Holiday-Guard)
-        $resolvedProfile = $this->landingPage->resolveActiveProfile($this->requestedHoliday, $this->isAdTraffic);
+        $resolvedProfile = $this->landingPage->resolveActiveProfile($effectiveRequestedHoliday, $this->isAdTraffic);
         $mediaHolidayHint = $resolvedProfile['media_holiday_hint'] ?? null;
         $allowSeasonalForHero = ($resolvedProfile['slot_key'] ?? 'standard') !== 'standard';
 

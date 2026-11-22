@@ -124,7 +124,8 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
                         agent_id = agentId,
                         chat_session_id = chatSessionId,
                         client_message_id = clientMessageId,
-                        skip_tts = skipTts
+                        skip_tts = skipTts,
+                        channel = "android_app"
                     )
                 )
                 if (response.status == "error") {
@@ -306,6 +307,7 @@ class AiRepository(private val serviceLocator: ServiceLocator) {
                     agentId = agentId,
                     chatSessionId = chatSessionId,
                     client = client,
+                    channel = "android_live_call",
                     fallback = fallback
                 )
                 response.vertex_ephemeral?.let { bundle ->

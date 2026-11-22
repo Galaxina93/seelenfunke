@@ -12,7 +12,6 @@
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Standard Versand</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'shipping_cost'])
                 </div>
                 <div class="relative">
                     <input type="number" step="0.01" wire:model="settings.shipping_cost" class="{{ $inputClass }} !text-lg !font-bold !pr-10">
@@ -36,7 +35,6 @@
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
                     <label class="{{ $labelClass }} !mb-0 !ml-0">Versandkostenfrei ab</label>
-                    @include('components.alerts.info-tooltip', ['key' => 'shipping_free_threshold'])
                 </div>
                 <div class="relative">
                     <input type="number" step="0.01" wire:model="settings.shipping_free_threshold" class="{{ $inputClass }} !text-lg !font-bold !pr-10 !text-emerald-400 !border-emerald-500/30 focus:!ring-emerald-500/20 focus:!border-emerald-400">
@@ -47,9 +45,7 @@
 
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0 inline-flex items-center gap-1">
-                        <x-shop.express-info label="Express-Zuschlag (%)" iconClass="w-3.5 h-3.5" />
-                    </label>
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Express-Zuschlag (%)</label>
                     @include('components.alerts.info-tooltip', ['key' => 'express_surcharge_percent'])
                 </div>
                 <div class="relative">
@@ -61,9 +57,7 @@
 
             <div>
                 <div class="flex items-center gap-2 mb-2 ml-1">
-                    <label class="{{ $labelClass }} !mb-0 !ml-0 inline-flex items-center gap-1">
-                        <x-shop.express-info label="Express Mindestwert (€)" iconClass="w-3.5 h-3.5" />
-                    </label>
+                    <label class="{{ $labelClass }} !mb-0 !ml-0">Express Mindestwert (€)</label>
                     @include('components.alerts.info-tooltip', ['key' => 'express_surcharge_min'])
                 </div>
                 <div class="relative">

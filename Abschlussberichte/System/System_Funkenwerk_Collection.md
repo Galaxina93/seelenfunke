@@ -1,43 +1,51 @@
-# Funkenwerk Collection - Desktop-Ökosystem, Icons, Sicherheit & Architektur
+# Funkenwerk Collection - Modulare Desktop-Architektur v2.2, Icons & Sicherheit
 
-**Stand:** 16.11.2026  
-**Desktop-Ordner:** `C:\Users\konta\Desktop\Funkenwerk Collection`  
+**Stand:** 20.11.2026  
+**Desktop-Ordner:** `C:\Users\konta\Desktop\Funkenwerk Collection` (KI-Agenten-Referenz: `FUNKENWERK_ARCHITEKTUR.md`)  
 **Quellverzeichnisse (WSL & Mirror):**
-- [`funkenwerk/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk) - Funkenwerk Haupt-Suite (Mail, Aufgaben, Kalender, Kontakte, Musik mit GPU-Fokus-Modus, Smart-Home, Kamera-Studio, Dateiverwaltung & integrierter PC-KI-Agent **Funkira**)
+- [`funkenwerk/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk) - Funkenwerk Haupt-Kontrollmodul v2.2 (Login + 2FA-Verifizierung, 100 % Offline-Modus, Clean-Design Kachel-Launcher mit fehlertoleranter Suche, E-Mail, Kontakte, Kalender, Aufgaben, Bestellungen/MUNBYN-Labeldrucker, Dateiverwaltung & KI-Agent **Funkira**)
+- [`funkenwerk-smarthome/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-smarthome) - Funkenwerk SmartHome (Eigenstaendiges Modul fuer **Somfy TaHoma Switch Rolllaeden** lokal ueber Port `8443`, Tapo-Steckdosen & RTSP/ONVIF IP-Kameras inkl. `Funkenwerk_SmartHomePipe_v1`)
+- [`funkenwerk-player/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-player) - Funkenwerk Player (Verschmolzenes Modul aus Manufaktur-Musikplayer mit Offline-Cache & GPU-Fokus-Modus sowie lokalem VLC-Ersatz-Mediaplayer inkl. `Funkenwerk_PlayerPipe_v1`)
+- [`funkenwerk-kamera/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-kamera) - Funkenwerk Kamera (Eigenstaendiges 1080p Virtuelles Kamera- & Streaming-Studio mit Chroma-Key, Teleprompter & Deep-Live-Cam-Bridge)
+- [`funkenwerk-marketing/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-marketing) - Funkenwerk Marketing (Eigenstaendiger Social-Media Content-Planer, Skript-Generator & 9:16 Kurzvideo-Renderer)
+- [`funkenwerk-3d/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-3d) - Funkenwerk 3D (Hardware-3D-Viewer & Inspektor fuer `.glb`, `.gltf`, `.stl`, `.obj`)
 - [`funkenwerk-os/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-os) - Funkenwerk OS v3.0 Windows (Vollwertiges Desktop-Betriebssystem auf dem Entwickler-Notebook)
-- [`funkenwerk-os-linux/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-os-linux) - Funkenwerk OS Linux (Natives `.NET 9` `linux-x64` Betriebssystem auf Ubuntu 24.04.5 LTS HWE für den Manufaktur Mini-PC `NiPoGi GK3 Plus` ohne Windows-Overhead)
-- [`funkenwerk-browser/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-browser) - Funkenwerk Browser (Gehärteter Zero-Trust Whitelist- & Schleusen-Browser mit Netzwerk-Ad-/Tracker-Blocker, Multi-Tabs, striktem HTTPS-Passwort-Tresor & `F12` DevTools)
-- [`funkenwerk-tresor/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-tresor) - Funkenwerk Tresor (`Tresor` im OS: 100 % KeePass-kompatibler `.kdbx`/`.keyx` Passwort-, 2FA-, API-Token- & Schlüssel-Tresor mit Argon2id, ChaCha20, Anti-Screen-Capture & Einzel-Opt-in Zero-Secret KI-Broker-Export)
+- [`funkenwerk-os-linux/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-os-linux) - Funkenwerk OS Linux (Natives `.NET 9` `linux-x64` Betriebssystem auf Ubuntu 24.04.5 LTS HWE fuer den Manufaktur Mini-PC `NiPoGi GK3 Plus` ohne Windows-Overhead)
+- [`funkenwerk-browser/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-browser) - Funkenwerk Browser (Gehaerteter Zero-Trust Whitelist- & Schleusen-Browser mit Netzwerk-Ad-/Tracker-Blocker, Multi-Tabs, striktem HTTPS-Passwort-Tresor & `F12` DevTools)
+- [`funkenwerk-tresor/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-tresor) - Funkenwerk Tresor (`Tresor` im OS: 100 % KeePass-kompatibler `.kdbx`/`.keyx` Passwort-, 2FA-, API-Token- & Schluessel-Tresor mit Argon2id, ChaCha20, Anti-Screen-Capture & Einzel-Opt-in Zero-Secret KI-Broker-Export)
 - [`funkenwerk-ftp/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-ftp) - Funkenwerk FTP (Hochsicherer SFTP/FTPS/FTP-Client mit 6-Wege Drag & Drop & integriertem Editor als WinSCP-Ersatz)
-- [`funkenwerk-ssh/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-ssh) - Funkenwerk SSH (Gehärteter, schneller SSHv2-Terminal-Client als PuTTY-Ersatz)
-- [`funkenwerk-pdf/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-pdf) - Funkenwerk PDF (Cleanes PDF-Studio zum Öffnen, Ausfüllen, Unterschreiben, Ändern & Speichern als Adobe-Acrobat-Ersatz)
+- [`funkenwerk-ssh/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-ssh) - Funkenwerk SSH (Gehaerteter, schneller SSHv2-Terminal-Client als PuTTY-Ersatz)
+- [`funkenwerk-pdf/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-pdf) - Funkenwerk PDF (Cleanes PDF-Studio zum Oeffnen, Ausfuellen, Unterschreiben, Aendern & Speichern als Adobe-Acrobat-Ersatz)
 - [`funkenwerk-drucker/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-drucker) - Funkenwerk Drucker (100 % lokales Druck-, Mehrseiten-Scan- & Kopier-Studio ohne Konto- oder Abo-Zwang als HP-Smart-Ersatz)
-- [`funkenwerk-player/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-player) - Funkenwerk Player (Globaler Windows-Mediaplayer als VLC-Ersatz)
 - [`funkenwerk-video/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-video) - Funkenwerk Video (KI-Viral-Videograph auf Basis von EffectCraft/FFmpeg)
 - [`funkenwerk-craft/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-craft) - Funkenwerk Craft (Lokales Kreativ-, Animations-, Film- & Social-Media-Studio auf Basis von Storytold ArtCraft, FilmCraft & SoundCraft inkl. 39 gewerblichen CC0-Sounds)
-- [`funkenwerk-mcp/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-mcp) - Funkenwerk MCP v1.6 (Gehärteter lokaler Zero-Secret `stdio` Model Context Protocol Server & CLI mit 25 Tools inkl. Zero-Secret KI-Tresor-Broker, blindem CDP-Browser-Login mit 2FA-TOTP, Mittwald mStudio API v2 Broker, Musik/Smart-Home-IPC & Funkenwerk Craft)
-- [`android-app/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app) - Funkenwerk Android App & Widgets (Kotlin/Jetpack Compose Suite inkl. 6 verschlüsselten Homescreen-Widgets, KLAP-v2-Wecker & Smartphone-Sekretärin)
+- [`funkenwerk-mcp/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-mcp) - Funkenwerk MCP v1.8 (Gehaerteter lokaler Zero-Secret `stdio` Model Context Protocol Server & CLI mit 25 Tools inkl. Zero-Secret KI-Tresor-Broker, blindem CDP-Browser-Login mit 2FA-TOTP, Mittwald mStudio API v2 Broker, Musik/Smart-Home/TaHoma-IPC & Funkenwerk Craft)
+- [`android-app/`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/android-app) - Funkenwerk Android App & Widgets (Kotlin/Jetpack Compose Suite inkl. 6 verschluesselten Homescreen-Widgets, KLAP-v2-Wecker & Smartphone-Sekretaerin)
 
 ---
 
 ## 1. Zentrale Desktop-Struktur (`Funkenwerk Collection`) & Marken-Icons
 
-Alle Desktop-Applikationen, der lokale MCP-Server sowie alle 11 direkten `.lnk`-Schnellstarter liegen gebündelt in `C:\Users\konta\Desktop\Funkenwerk Collection`:
+Im Wurzelordner `C:\Users\konta\Desktop\Funkenwerk Collection` liegen aufgeraeumt nur das Haupt-Kontrollmodul `Funkenwerk\`, der Starter `Funkenwerk.lnk`, die KI-Agenten-Dokumentation `FUNKENWERK_ARCHITEKTUR.md` sowie der Sammelordner `Module\` mit allen 15 eigenstaendigen Modulen:
 
-| Anwendung | Ausführbare Datei | Multi-Resolutions-Icon (`.ico` / `.png`) | Motiv (Schwarz-Gold `#C5A059` 3D-Badge) |
+| Anwendung | Ausfuehrbare Datei | Multi-Resolutions-Icon (`.ico` / `.png`) | Motiv (Schwarz-Gold `#C5A059` Badge) |
 | :--- | :--- | :--- | :--- |
-| **Funkenwerk** | `Funkenwerk\Funkenwerk.exe` | `funkenwerk.ico` | Original Funkenwerk-Funke |
-| **Funkenwerk OS** | `Funkenwerk OS\FunkenwerkOS.exe` | `funkenwerk_os.ico` | 3D-Gold-Festungsschild mit Prozessorkern & Seelenfunke |
-| **Funkenwerk Browser** | `Funkenwerk Browser\FunkenwerkBrowser.exe` | `funkenwerk_browser.ico` | 3D-Gold-Globus mit Kompass-Funke |
-| **Funkenwerk Tresor** | `Funkenwerk Tresor\FunkenwerkTresor.exe` | `funkenwerk_tresor.ico` | 3D-Gold-Tresorschloss mit Schlüssel-Funke |
-| **Funkenwerk Player** | `Funkenwerk Player\FunkenwerkPlayer.exe` | `funkenwerk_player.ico` | 3D-Gold-Musiknote (`♫`) mit Funken |
-| **Funkenwerk Video** | `Funkenwerk Video\FunkenwerkVideo.exe` | `funkenwerk_video.ico` | 3D-Gold-Filmklappe mit Play-Dreieck & Funke |
-| **Funkenwerk Craft** | `Funkenwerk Craft\FunkenwerkCraft.exe` | `funkenwerk_craft.ico` | 3D-Gold-Kreativprisma mit Film-/Animations-Funke |
-| **Funkenwerk FTP** | `Funkenwerk FTP\FunkenwerkFtp.exe` | `funkenwerk_ftp.ico` | 3D-Gold-Server-Blades mit Transfer-Pfeilen (`⇄`) & Funke |
-| **Funkenwerk SSH** | `Funkenwerk SSH\FunkenwerkSsh.exe` | `funkenwerk_ssh.ico` | 3D-Gold-Sicherheitsschild mit Terminal-Prompt (`>_`) & Funke |
-| **Funkenwerk PDF** | `Funkenwerk PDF\FunkenwerkPdf.exe` | `funkenwerk_pdf.ico` | 3D-Gold-Dokument mit Füllfederhalter, Unterschrift & Funke |
-| **Funkenwerk Drucker** | `Funkenwerk Drucker\FunkenwerkDrucker.exe` | `funkenwerk_drucker.ico` | 3D-Gold-Drucker & Scanner mit Scan-Lichtbalken, Blatt & Funken |
-| **Funkenwerk MCP** | `Funkenwerk MCP\FunkenwerkMcp.exe` | Headless `stdio` Dienst | Lokale Zero-Secret KI-Brücke (`mcp_config.json`) |
+| **Funkenwerk** *(Hub)* | `Funkenwerk\Funkenwerk.exe` | `funkenwerk.ico` | Original Funkenwerk-Funke (Login, 2FA, Offline-Tresor & Kachel-Deck) |
+| **Funkenwerk 3D** | `Module\Funkenwerk 3D\Funkenwerk3D.exe` | `funkenwerk_3d.ico` | 3D-Gold-Wuerfel & Mesh-Prisma |
+| **Funkenwerk Browser** | `Module\Funkenwerk Browser\FunkenwerkBrowser.exe` | `funkenwerk_browser.ico` | 3D-Gold-Globus mit Kompass-Funke |
+| **Funkenwerk Craft** | `Module\Funkenwerk Craft\FunkenwerkCraft.exe` | `funkenwerk_craft.ico` | 3D-Gold-Kreativprisma mit Film-/Animations-Funke |
+| **Funkenwerk Drucker** | `Module\Funkenwerk Drucker\FunkenwerkDrucker.exe` | `funkenwerk_drucker.ico` | 3D-Gold-Drucker & Scanner mit Scan-Lichtbalken |
+| **Funkenwerk FTP** | `Module\Funkenwerk FTP\FunkenwerkFtp.exe` | `funkenwerk_ftp.ico` | 3D-Gold-Server-Blades mit Transfer-Pfeilen |
+| **Funkenwerk Kamera** | `Module\Funkenwerk Kamera\FunkenwerkKamera.exe` | `funkenwerk_kamera.ico` | Schwarz-Gold Studio-Kamera & Objektiv |
+| **Funkenwerk Marketing** | `Module\Funkenwerk Marketing\FunkenwerkMarketing.exe` | `funkenwerk_marketing.ico` | Schwarz-Gold Wachstums-Balken & Trendlinie |
+| **Funkenwerk MCP** | `Module\Funkenwerk MCP\FunkenwerkMcp.exe` | Headless `stdio` Dienst | Lokale Zero-Secret KI-Bruecke (`mcp_config.json`) |
+| **Funkenwerk OS** | `Module\Funkenwerk OS\FunkenwerkOS.exe` | `funkenwerk_os.ico` | 3D-Gold-Festungsschild mit Prozessorkern |
+| **Funkenwerk PDF** | `Module\Funkenwerk PDF\FunkenwerkPdf.exe` | `funkenwerk_pdf.ico` | 3D-Gold-Dokument mit Fuellfederhalter & Unterschrift |
+| **Funkenwerk Player** | `Module\Funkenwerk Player\FunkenwerkPlayer.exe` | `funkenwerk_player.ico` | 3D-Gold-Musiknote (Playlists + Mediaplayer + GPU-Fokus) |
+| **Funkenwerk SmartHome** | `Module\Funkenwerk SmartHome\FunkenwerkSmartHome.exe` | `funkenwerk_smarthome.ico` | Schwarz-Gold Hausdach mit Rollladen-Lamellen |
+| **Funkenwerk SSH** | `Module\Funkenwerk SSH\FunkenwerkSsh.exe` | `funkenwerk_ssh.ico` | 3D-Gold-Sicherheitsschild mit Terminal-Prompt |
+| **Funkenwerk Tresor** | `Module\Funkenwerk Tresor\FunkenwerkTresor.exe` | `funkenwerk_tresor.ico` | 3D-Gold-Tresorschloss mit Schluessel-Funke |
+| **Funkenwerk Video** | `Module\Funkenwerk Video\FunkenwerkVideo.exe` | `funkenwerk_video.ico` | 3D-Gold-Filmklappe mit Play-Dreieck |
 
 ---
 
@@ -403,7 +411,22 @@ Beim ersten Start liest [`FunkenwerkFtpSecurity.cs`](file://wsl.localhost/Ubuntu
 
 ---
 
-## 15. Ganzheitliches Security-Audit, Härtung & 100 % Automatisierte Test-Matrix (Stand 16.11.2026)
+## 14b. Funkenwerk 3D (`funkenwerk-3d/`) · Windows Standard-3D-Viewer & Exoskelett Auto-Rigging Studio
+
+- **Code & Deployment**:
+  - [`Funkenwerk3D.csproj`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-3d/Funkenwerk3D.csproj), [`MainWindow.xaml`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-3d/MainWindow.xaml), [`MainWindow.xaml.cs`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-3d/MainWindow.xaml.cs), [`ModelSecurityAndRegistrar.cs`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-3d/ModelSecurityAndRegistrar.cs), [`wwwroot/viewer.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-3d/wwwroot/viewer.js), [`wwwroot/rigging-engine.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-3d/wwwroot/rigging-engine.js) & [`ThreeDSelfTestRunner.cs`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/funkenwerk-3d/ThreeDSelfTestRunner.cs).
+  - Produktiv-Binary: [`Funkenwerk3D.exe`](file:///C:/Users/konta/Desktop/Funkenwerk%20Collection/Funkenwerk%203D/Funkenwerk3D.exe) + Schnellstarter `Funkenwerk 3D.lnk`.
+- **Windows Standard-App für 3D-Modelle (`WindowsDefault3DRegistrar`)**:
+  - Registriert `Funkenwerk3D.Model` primär für **`.glb`**, **`.gltf`**, **`.obj`**, **`.ply`** und **`.fbx`** (inkl. Bereinigung verwaister Windows-3D-Viewer-`UserChoice`-Einträge), während **`.stl`** und **`.3mf`** respektvoll bei Bambu Studio verbleiben und `Funkenwerk 3D` im Rechtsklickmenü `Öffnen mit` bereitstellen.
+  - **100 % Offline Air-Gapped PBR-Studio:** Gebündelte Three.js + Draco WASM + Meshopt Engine über `https://app.funkenwerk3d.internal` und Session-Token-geschützter Modell-Stream `https://model.funkenwerk3d.internal/<token>/<file>` ohne offene Datei-Handles (`MemoryStream`-Pufferung), exakte Millimeter-Bemaßung (`📐 Maße`), Kamera-Presets, Drehteller, Bauteil-Sichtbarkeit, Studio-/Freisteller-PNG-Export (`📸 PNG`) und 100 % konsistenter Light- & Dark-Mode.
+- **Integriertes Exoskelett / Auto-Rigging, Live-Posing & `.glb`-Export (`0,00 €` lokal statt Tripo-Paywall)**:
+  - **1-Klick & CLI Auto-Rigging (`🦴 Exoskelett` / `--rig-glb`):** Verwandelt statische 3D-Modelle vollautomatisch (inkl. automatischer `+Z`-Blickrichtungs-Korrektur, optionaler Sockel-Entfernung und Profilen `Auto`, `Funki / Chibi`, `Humanoid` sowie Stilvarianten `Original`, `Funki Schwarz-Gold`, `Funkira + Diadem`) in ein Khronos-konformes **22-Knochen `THREE.SkinnedMesh`** (`root`, `pelvis`, `spine`, `chest`, `head`, `shoulderL/foreArmL/handL/fingersL`, `shoulderR/foreArmR/handR/fingersR`, `hipL/kneeL/footL`, `hipR/kneeR/footR`, `capeUpper/capeMid/capeLower`) mit **4 Ausrüstungs-Sockets** (`rightHandWeaponSocket`, `leftHandShieldSocket`, `headSocket`, `backCapeSocket`) und **0 % Gesichtsverzerrung**.
+  - **8 Eingebettete Animationen & Interaktives Gelenk-Posing:** Erzeugt direkt `Idle`, `Walk`, `Sprint`, `Jump`, `WallSalto`, `Wave`, `Cheer` und `Dance`, blendet `SkeletonHelper`-Knochen ein, erlaubt direktes Drehen jedes einzelnen Gelenks per 3D-Rotations-Gizmo (`TransformControls`) und speichert fertige Charaktere inkl. offizieller `© Mein-Seelenfunke (Alina Steinhauer)` Urheberrechts-Signatur als binäre `.glb`-Datei (`💾 .glb`).
+  - **Echte HD-Spielcharaktere in `"3D Shoppen"` live verdrahtet:** Aus dem lächelnden 45-MB-Master `funki_lvl_4_novice.glb` wurden lokal mit `50.000` HD-Dreiecken und `2048px`-Texturen [`funki_male_rigged.glb`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/shop/customer/gamification/models/funki_male_rigged.glb) und [`funkira_female_rigged.glb`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/shop/customer/gamification/models/funkira_female_rigged.glb) (inkl. `FunkiraStarDiadem` in 14K-Gold) erzeugt und in [`seelenfunke-louvre-showroom-3d.js`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/public/js/seelenfunke-louvre-showroom-3d.js) eingebunden.
+
+---
+
+## 15. Ganzheitliches Security-Audit, Härtung & 100 % Automatisierte Test-Matrix (Stand 20.11.2026)
 
 Sämtliche **14 Funkenwerk-Anwendungen**, die beiden lokalen Python-Brücken, der **Synology-NAS-Watchtower** sowie die **Laravel Funkenwerk REST-API** wurden vollständig auf Sicherheitslücken, Kryptographie, Prozess-/Pfad-Isolation, Speicherbereinigung (`ZeroMemory`), Light-/Dark-Mode-Konsistenz und Randfälle geprüft, gehärtet und mit isolierten End-to-End-Selbsttests (`0` Eingriffe in echte Benutzerdaten, `0` verwundbare NuGet-Pakete über `13/13` `.csproj`-Projekte) abgesichert:
 
@@ -425,3 +448,4 @@ Sämtliche **14 Funkenwerk-Anwendungen**, die beiden lokalen Python-Brücken, de
 | 14 | **Python-Daemons** (`dlc_bridge` & `local_sense`) | Blockade von UNC-/Device-Pfaden (`\\`), Symlinks & Traversal in `funkenwerk_dlc_bridge.py`; `FW_SENSE_TOKEN`-HMAC-Prüfung & `realpath`-Jail in `funkira_local_sense.py` | `--self-test` (**8/8**) & `py_compile` | **100 % GRÜN** |
 | 15 | **Funkenwerk Android App & Widgets** (`android-app/`) | Debug-Only-Cleartext in `network_security_config.xml`, HTTPS-Pflicht für Bearer-Tokens & Single-Env-Sync, nicht-destruktives KeyStore-Handling + `AES-256-GCM` Widget-/Wecker-Cache-Verschlüsselung, vollständiger Logout-Wipe, Lockscreen-Mutationssperre auf allen Widgets, `BIOMETRIC_STRONG`, E-Mail-HTML-Sanitizer ohne JS/Tracker-Pixel, `goAsync()` im `SmartAlarmReceiver` & **nativer 24/7 `ShopWatchtowerJobService` mit Internet-Gegenprüfung** | `./gradlew testDebugUnitTest` (**53/53**) | **100 % GRÜN** |
 | 16 | **Laravel Funkenwerk REST-API & Watchtower** (`routes/api*`, [`SystemHealthPulseService`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/Abschlussberichte/System/System_Health_Pulse_und_Watchtower.md)) | Gehärtetes `isTrustedBridgeRequest` (Proxy-Header-Abwehr + `X-Bridge-Secret`), DNS-Rebinding-SSRF-Abwehr in `isSafeMailHost`, lückenlose `expires_at`-Prüfung auf allen manuellen Token-Endpunkten, strikte `Funkira`-Admin-Isolation, Least-Privilege `monitor:pulse` Watchtower-Endpunkte (4-Säulen Health-Puls, 90-Tage-Uptime-Ledger & `[AUTO-GEHEILT]` `SystemLog`-Sync), private `workspace`-Disk für Kamera-Snapshots & Symlink-Schutz | `php artisan test tests/Feature/Api tests/Feature/System/SystemHealthPulseWatchtowerTest.php` (**52/52**, 621 Assertions) | **100 % GRÜN** |
+| 17 | **Funkenwerk 3D & Exoskelett-Studio** (`Funkenwerk3D.exe`) | Air-Gapped Offline-WebView2 (`DenyCors`, 100 % WAN/`file://`-Blockade), zeitkonstanter 128-Bit-Session-Token (`FixedTimeEqualsAscii`), Verzeichnis- & NTFS-Junction-Sandbox für Texturen/`.bin`, Binärheader-/Polyglot-/ADS-/DOS-Namensprüfung, `CurrentUser`-NTFS-ACL, 0 offene File-Handles, Windows-Standard-App-Registrierung (`.glb/.gltf/.obj/.ply/.fbx`), 100 % Light-/Dark-Mode sowie **22-Bone Auto-Rigging, 8 AnimationClips, Live-Posing & signierter `.glb`-Export** | `Funkenwerk3D.exe --self-test` (**25/25**) | **100 % GRÜN** |

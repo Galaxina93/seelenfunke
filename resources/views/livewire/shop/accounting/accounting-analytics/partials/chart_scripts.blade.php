@@ -4,28 +4,37 @@
             let barChart = null;
 
             const initCharts = () => {
-                // Bar Chart
                 const barCtx = document.getElementById('yearlyBarChart');
-                if (barCtx) {
+                const barBridge = document.getElementById('yearly-bar-data-bridge');
+                if (barCtx && barBridge) {
                     if (barChart) barChart.destroy();
                     const isDark = document.documentElement.classList.contains('dark');
                     const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.06)';
                     const tickColor = isDark ? '#9ca3af' : '#6b7280';
 
+                    let labels = [];
+                    let income = [];
+                    let expense = [];
+                    try {
+                        labels = JSON.parse(barBridge.dataset.labels || '[]');
+                        income = JSON.parse(barBridge.dataset.income || '[]');
+                        expense = JSON.parse(barBridge.dataset.expense || '[]');
+                    } catch (e) {}
+
                     barChart = new Chart(barCtx, {
                         type: 'bar',
                         data: {
-                            labels: @json($barData['labels']),
+                            labels: labels,
                             datasets: [
                                 {
                                     label: 'Einnahmen',
-                                    data: @json($barData['income']),
+                                    data: income,
                                     backgroundColor: '#34d399',
                                     borderRadius: 4
                                 },
                                 {
                                     label: 'Ausgaben',
-                                    data: @json($barData['expense']),
+                                    data: expense,
                                     backgroundColor: '#f87171',
                                     borderRadius: 4
                                 }
@@ -50,20 +59,17 @@
                 }
             };
 
-            // Expose current initCharts globally
             window.initAccountingAnalyticsCharts = initCharts;
-
-            // Init on load
             initCharts();
 
-            // Re-init on Livewire update (only for this specific component to avoid global polls triggering it)
             if (!window.hasAccountingAnalyticsHook) {
                 window.hasAccountingAnalyticsHook = true;
                 Livewire.hook('commit', ({ component, succeed }) => {
                     succeed(() => {
-                        // Check if the component that just updated is the Evaluation Component
-                        if (component.name === 'shop.accounting.accounting-evaluation') {
-                            // Give DOM a tick to replace elements
+                        if (
+                            component.name === 'shop.accounting.accounting-analytics' ||
+                            component.name === 'shop.accounting.accounting-evaluation'
+                        ) {
                             setTimeout(() => {
                                 if (typeof window.initAccountingAnalyticsCharts === 'function') {
                                     window.initAccountingAnalyticsCharts();

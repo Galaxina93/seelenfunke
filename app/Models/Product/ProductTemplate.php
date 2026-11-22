@@ -428,6 +428,45 @@ use HasFactory, HasUuids, SoftDeletes;
         return $hidden;
     }
 
+    public const PRIVATE_SEASONAL_PREFIX = 'produkte/products-secure/seasonal/';
+
+    /**
+     * Erzeugt einen unratbaren HMAC-Token fuer geschuetzte saisonale Produktmedien.
+     */
+    public static function makeSeasonalMediaToken(string $slug, string $path): string
+    {
+        $clean = ltrim(str_replace('\\', '/', (string) preg_replace('/\?.*$/', '', $path)), '/');
+        return substr(hash_hmac('sha256', trim($slug) . '|' . $clean, (string) config('app.key')), 0, 24);
+    }
+
+    /**
+     * Normiert einen der 12 Saison-/Anlass-Slots auf einen sicheren ASCII-Dateinamen-Slug.
+     */
+    public static function resolveSeasonalSlotFileSlug(string $holidayKey): string
+    {
+        $normalized = Product::normalizeSeasonalSlotKey($holidayKey) ?? $holidayKey;
+        $map = [
+            'Winter'       => 'winter',
+            'Sommer'       => 'sommer',
+            'Herbst'       => 'herbst',
+            'Frühling'     => 'fruehling',
+            'Weihnachten'  => 'weihnachten',
+            'Ostern'       => 'ostern',
+            'Valentinstag' => 'valentinstag',
+            'Muttertag'    => 'muttertag',
+            'Vatertag'     => 'vatertag',
+            'Halloween'    => 'halloween',
+            'Hochzeit'     => 'hochzeit',
+            'Geburtstag'   => 'geburtstag',
+        ];
+        if (isset($map[$normalized])) {
+            return $map[$normalized];
+        }
+
+        $ascii = str_replace(['ü', 'ä', 'ö', 'ß', 'Ü', 'Ä', 'Ö'], ['ue', 'ae', 'oe', 'ss', 'ue', 'ae', 'oe'], trim($holidayKey));
+        return \Illuminate\Support\Str::slug($ascii) ?: 'seasonal';
+    }
+
     /**
      * Löst einen relativen Storage-Pfad eines Vorlagenbildes in eine Cache-sichere URL (mit ?v=filemtime) auf.
      */
@@ -447,9 +486,20 @@ use HasFactory, HasUuids, SoftDeletes;
             return asset($path) . '?v=' . $ver;
         }
 
-        $clean = ltrim(preg_replace('/\?.*$/', '', $path), '/');
+        $clean = ltrim(str_replace('\\', '/', (string) preg_replace('/\?.*$/', '', $path)), '/');
         if (\Illuminate\Support\Str::startsWith($clean, 'storage/')) {
             $clean = substr($clean, strlen('storage/'));
+        }
+
+        if (\Illuminate\Support\Str::startsWith($clean, self::PRIVATE_SEASONAL_PREFIX)) {
+            if (preg_match('#^produkte/products-secure/seasonal/([a-z0-9\-]+)/[a-z0-9\-]+\.(jpg|jpeg|png|webp)$#i', $clean, $matches)) {
+                $slug = $matches[1];
+                $abs = \Illuminate\Support\Facades\Storage::disk('local')->path($clean);
+                $ver = is_file($abs) ? (int) @filemtime($abs) : 1;
+                $token = self::makeSeasonalMediaToken($slug, $clean);
+                return route('product.seasonal-media', ['product' => $slug, 'token' => $token]) . '?v=' . $ver;
+            }
+            return null;
         }
 
         $abs = storage_path('app/public/' . $clean);

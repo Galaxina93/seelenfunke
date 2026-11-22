@@ -160,6 +160,11 @@ namespace FunkenwerkMcp
                 ? Path.GetFullPath(TestDevToolsActivePortFileOverride!)
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "User Data", "DevToolsActivePort");
 
+        public static string IsolatedTresorBrowserProfileDir =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FunkenwerkTresor", "IsolatedBrowserProfile");
+
+        public const int IsolatedTresorCdpPort = 9239;
+
         // =====================================================================
         // 1. ZERO-SECRET BROKER VAULT READER (DPAPI + AES-256-GCM + ZEROMEMORY)
         // =====================================================================
@@ -1309,70 +1314,145 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
             int defaultPort = TestDefaultCdpPortOverride ?? 9222;
             if (!candidatePorts.Contains(defaultPort))
                 candidatePorts.Add(defaultPort);
+            if (!cdpPortOverride.HasValue && !TestDefaultCdpPortOverride.HasValue && !candidatePorts.Contains(IsolatedTresorCdpPort))
+                candidatePorts.Add(IsolatedTresorCdpPort);
 
             using var http = McpSecurityGuard.CreateHardenedApiClient(TimeSpan.FromSeconds(3));
-            foreach (int port in candidatePorts)
+            for (int pass = 0; pass < 2; pass++)
             {
-                if (port < 1 || port > 65535) continue;
-                try
+                foreach (int port in candidatePorts)
                 {
-                    using var resp = await http.GetAsync($"http://127.0.0.1:{port}/json/list", ct);
-                    if (!resp.IsSuccessStatusCode)
-                    {
-                        connectionErrors.Add($"127.0.0.1:{port}/json/list -> HTTP {(int)resp.StatusCode}");
-                        continue;
-                    }
-
-                    string body = await resp.Content.ReadAsStringAsync(ct);
-                    using var doc = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 12 });
-                    if (doc.RootElement.ValueKind != JsonValueKind.Array)
-                        continue;
-
-                    var targets = new List<CdpTargetCandidate>();
-                    foreach (var el in doc.RootElement.EnumerateArray())
-                    {
-                        targets.Add(new CdpTargetCandidate
-                        {
-                            TargetId = el.TryGetProperty("id", out var idP) ? (idP.GetString() ?? "") : "",
-                            Type = el.TryGetProperty("type", out var tP) ? (tP.GetString() ?? "") : "",
-                            Url = el.TryGetProperty("url", out var uP) ? (uP.GetString() ?? "") : "",
-                            WebSocketDebuggerUrl = el.TryGetProperty("webSocketDebuggerUrl", out var wsP) ? (wsP.GetString() ?? "") : ""
-                        });
-                    }
-
-                    var chosen = ChoosePageTargetOrFailClosed(targets, configuredEntryUrl);
-                    if (string.IsNullOrWhiteSpace(chosen.WebSocketDebuggerUrl))
-                        throw new InvalidOperationException("Ziel-Tab in /json/list besitzt keine webSocketDebuggerUrl (evtl. DevTools bereits verbunden).");
-
-                    Uri pageWsUri = ValidateLoopbackWebSocketUri(chosen.WebSocketDebuggerUrl);
-                    var ws = new ClientWebSocket();
-                    ws.Options.UseDefaultCredentials = false;
-                    ws.Options.Proxy = null;
-
+                    if (port < 1 || port > 65535) continue;
                     try
                     {
-                        await ws.ConnectAsync(pageWsUri, ct);
-                        return new CdpLoopbackConnection(ws);
+                        using var resp = await http.GetAsync($"http://127.0.0.1:{port}/json/list", ct);
+                        if (!resp.IsSuccessStatusCode)
+                        {
+                            connectionErrors.Add($"127.0.0.1:{port}/json/list -> HTTP {(int)resp.StatusCode}");
+                            continue;
+                        }
+
+                        string body = await resp.Content.ReadAsStringAsync(ct);
+                        using var doc = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 12 });
+                        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                            continue;
+
+                        var targets = new List<CdpTargetCandidate>();
+                        foreach (var el in doc.RootElement.EnumerateArray())
+                        {
+                            targets.Add(new CdpTargetCandidate
+                            {
+                                TargetId = el.TryGetProperty("id", out var idP) ? (idP.GetString() ?? "") : "",
+                                Type = el.TryGetProperty("type", out var tP) ? (tP.GetString() ?? "") : "",
+                                Url = el.TryGetProperty("url", out var uP) ? (uP.GetString() ?? "") : "",
+                                WebSocketDebuggerUrl = el.TryGetProperty("webSocketDebuggerUrl", out var wsP) ? (wsP.GetString() ?? "") : ""
+                            });
+                        }
+
+                        var chosen = ChoosePageTargetOrFailClosed(targets, configuredEntryUrl);
+                        if (string.IsNullOrWhiteSpace(chosen.WebSocketDebuggerUrl))
+                            throw new InvalidOperationException("Ziel-Tab in /json/list besitzt keine webSocketDebuggerUrl (evtl. DevTools bereits verbunden).");
+
+                        Uri pageWsUri = ValidateLoopbackWebSocketUri(chosen.WebSocketDebuggerUrl);
+                        var ws = new ClientWebSocket();
+                        ws.Options.UseDefaultCredentials = false;
+                        ws.Options.Proxy = null;
+
+                        try
+                        {
+                            await ws.ConnectAsync(pageWsUri, ct);
+                            return new CdpLoopbackConnection(ws);
+                        }
+                        catch
+                        {
+                            ws.Dispose();
+                            throw;
+                        }
                     }
-                    catch
+                    catch (UnauthorizedAccessException)
                     {
-                        ws.Dispose();
-                        throw;
+                        throw; // Anti-Phishing block must never fall through!
+                    }
+                    catch (Exception ex)
+                    {
+                        connectionErrors.Add($"127.0.0.1:{port}: {ex.Message}");
                     }
                 }
-                catch (UnauthorizedAccessException)
+
+                // Auto-spawn isolated Tresor browser profile on pass 0 when not running under unit-test overrides
+                bool canAutoLaunchIsolated = pass == 0
+                    && !cdpPortOverride.HasValue
+                    && !TestDefaultCdpPortOverride.HasValue
+                    && string.IsNullOrWhiteSpace(TestDevToolsActivePortFileOverride);
+
+                if (!canAutoLaunchIsolated || !await TryLaunchIsolatedTresorBrowserAsync(configuredEntryUrl, IsolatedTresorCdpPort, ct))
                 {
-                    throw; // Anti-Phishing block must never fall through!
-                }
-                catch (Exception ex)
-                {
-                    connectionErrors.Add($"127.0.0.1:{port}: {ex.Message}");
+                    break;
                 }
             }
 
             throw new InvalidOperationException(
-                "Lokaler Chrome-Debugging-Endpunkt auf 127.0.0.1 nicht erreichbar. Bitte in Chrome 'chrome://inspect/#remote-debugging' aktivieren (oder Chrome mit --remote-debugging-port=9222 starten). Details: " +
+                "Lokaler Tresor-Browser-Endpunkt auf 127.0.0.1 nicht erreichbar. Isoliertes Funkenwerk-Tresor-Profil konnte nicht gestartet werden. Details: " +
                 string.Join(" | ", connectionErrors));
+        }
+
+        private static async Task<bool> TryLaunchIsolatedTresorBrowserAsync(string configuredEntryUrl, int cdpPort, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(configuredEntryUrl) || !Uri.TryCreate(configuredEntryUrl, UriKind.Absolute, out var targetUri) || targetUri.Scheme != Uri.UriSchemeHttps)
+                return false;
+
+            string[] browserCandidates =
+            {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google", "Chrome", "Application", "chrome.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google", "Chrome", "Application", "chrome.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "Application", "chrome.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe")
+            };
+
+            string? exe = browserCandidates.FirstOrDefault(File.Exists);
+            if (string.IsNullOrWhiteSpace(exe))
+                return false;
+
+            try
+            {
+                string profileDir = IsolatedTresorBrowserProfileDir;
+                Directory.CreateDirectory(profileDir);
+
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = exe,
+                    UseShellExecute = false,
+                    CreateNoWindow = false
+                };
+                psi.ArgumentList.Add($"--user-data-dir={profileDir}");
+                psi.ArgumentList.Add($"--remote-debugging-port={cdpPort}");
+                psi.ArgumentList.Add("--remote-debugging-address=127.0.0.1");
+                psi.ArgumentList.Add("--no-first-run");
+                psi.ArgumentList.Add("--no-default-browser-check");
+                psi.ArgumentList.Add(targetUri.AbsoluteUri);
+
+                System.Diagnostics.Process.Start(psi);
+
+                using var probeHttp = McpSecurityGuard.CreateHardenedApiClient(TimeSpan.FromSeconds(1));
+                for (int i = 0; i < 12; i++)
+                {
+                    await Task.Delay(350, ct);
+                    try
+                    {
+                        using var probe = await probeHttp.GetAsync($"http://127.0.0.1:{cdpPort}/json/list", ct);
+                        if (probe.IsSuccessStatusCode)
+                        {
+                            await Task.Delay(500, ct); // Allow initial HTTPS navigation to settle
+                            return true;
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
+            return false;
         }
 
         private static async Task<string> VerifyLiveWindowLocationAsync(CdpLoopbackConnection cdp, string configuredEntryUrl, CancellationToken ct)

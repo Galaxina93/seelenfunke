@@ -14,6 +14,8 @@ use Livewire\Attributes\On;
 trait ManagesAiChat
 {
     public $currentChatSessionId = null;
+    public string $newTaskPrompt = '';
+    public string $newTaskAgentId = '';
 
     protected function getAiSessionId()
     {
@@ -155,13 +157,14 @@ trait ManagesAiChat
 
     public function assignAgent($taskId, $agentId)
     {
-        if (!AiAuthHelper::isAdmin()) {
+        if (!AiAuthHelper::isAdmin() || empty($agentId)) {
             return;
         }
         $task = AiWorkspaceTask::find($taskId);
-        if ($task && $task->status === 'pending') {
+        $agent = AiAgent::where('is_active', true)->find($agentId);
+        if ($task && $agent && $task->status === 'pending') {
             $task->update([
-                'assigned_agent_id' => $agentId,
+                'assigned_agent_id' => $agent->id,
                 'status' => 'assigned'
             ]);
             
@@ -299,14 +302,14 @@ trait ManagesAiChat
     public function toggleAgent($agentId)
     {
         $agent = AiAgent::find($agentId);
-        if (!$agent || in_array($agent->name, ['Funki', 'Falcon', 'Falcone'], true)) {
+        if (!$agent || strtolower($agent->name) !== 'funkira') {
             return;
         }
 
         if (AiAuthHelper::isAdmin()) {
-            $agent->is_in_chat = !$agent->is_in_chat;
+            $agent->is_in_chat = true;
             $agent->save();
-            $this->activeAgentIds = AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->pluck('id')->toArray();
+            $this->activeAgentIds = [$agent->id];
         } else {
             if (in_array($agent->id, $this->activeAgentIds, true)) {
                 $this->activeAgentIds = array_values(array_diff($this->activeAgentIds, [$agent->id]));
@@ -766,6 +769,14 @@ trait ManagesAiChat
             $this->activeAgentIds = AiAgent::where('is_in_chat', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->pluck('id')->toArray();
         }
 
+        // Single-Executive-Guard: Ist Funkira unter den aktiven Agenten (ohne explizite Mehrfach-Erzwingung), antwortet ausschließlich Funkira einmalig
+        if (count($this->activeAgentIds) > 1 && count($this->forcedAgentIds) <= 1) {
+            $funkiraInSelection = AiAgent::whereIn('id', $this->activeAgentIds)->where('name', 'Funkira')->first();
+            if ($funkiraInSelection) {
+                $this->activeAgentIds = [$funkiraInSelection->id];
+            }
+        }
+
         // Fallback to Teamleiter (Funkira) if no agent is selected
         if (empty($this->activeAgentIds)) {
             $teamLeader = AiAgent::where('is_active', true)->whereNotIn('name', ['Funki', 'Falcon', 'Falcone'])->whereHas('role', function($q) {
@@ -1068,11 +1079,27 @@ trait ManagesAiChat
 
         try {
             config(['ai.current_session_id' => $this->getAiSessionId()]);
-            $apiService = \App\Services\AI\AiAgentFactory::make($agent);
+            $widgetPresence = \App\Services\AI\FunkiraPresenceContext::build([
+                'channel' => 'live_widget',
+                'active_route' => request()->headers->get('referer')
+                    ? (parse_url((string) request()->headers->get('referer'), PHP_URL_PATH) ?: request()->path())
+                    : request()->path(),
+            ]);
 
-            $response = $apiService->ask($apiHistory, function($event) use ($agentId) {
+            $apiService = \App\Services\AI\AiAgentFactory::make($agent);
+            if (method_exists($apiService, 'setDynamicSystemPrompt')) {
+                $apiService->setDynamicSystemPrompt(
+                    \App\Services\AI\FunkiraPresenceContext::toPromptHeader($widgetPresence)
+                    . "\n\n"
+                    . \App\Services\AI\FunkiraTicketRouter::loadFlatDepartmentKnowledge($agent->ai_department_id)
+                );
+            }
+
+            $executedWidgetTools = [];
+            $response = $apiService->ask($apiHistory, function($event) use ($agentId, &$executedWidgetTools) {
                 if (($event['type'] ?? '') === 'tool_call') {
                     $toolName = $event['tool'] ?? 'System';
+                    $executedWidgetTools[] = (string) $toolName;
                     $html = '<div class="text-[10px] text-[var(--theme-color)] font-mono opacity-80 mt-1 flex items-center gap-1.5 animate-pulse"><svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Führe aus: ' . htmlspecialchars($toolName) . '</div>';
                     $this->stream('thought_' . $agentId, $html, false);
                     
@@ -1090,10 +1117,59 @@ trait ManagesAiChat
                 } elseif (($event['type'] ?? '') === 'thought_html') {
                     $this->stream('thought_' . $agentId, $event['html'], false);
                 } elseif (($event['type'] ?? '') === 'text_chunk') {
-                    $this->stream('answer_' . $agentId, $event['chunk'], false);
+                    $this->stream('answer_' . $agentId, $event['chunk'], !empty($event['replace']));
                 }
             });
-            $replyText = (string) ($response['response'] ?? '');
+            $gate = \App\Services\AI\AiOutputQualityGate::inspectAndClean((string) ($response['response'] ?? ''), $executedWidgetTools);
+            $replyText = $gate['text'];
+
+            // Spiegele echte Aufgaben aus dem Seiten-Widget chronologisch in das zentrale Universum-Ticketsystem
+            if ($lastUserMsg && trim($replyText) !== '' && \Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')) {
+                $userPrompt = trim((string) $lastUserMsg->content);
+                if ($userPrompt !== '' && !in_array(mb_strtolower($userPrompt), ['funkira', 'funkira?', 'hallo', 'hi'], true)) {
+                    $triage = \App\Services\AI\FunkiraTicketRouter::classifyIntent($userPrompt);
+                    $deptId = \App\Models\Ai\AiDepartment::where('name', $triage['department_name'])->value('id') ?? $agent->ai_department_id;
+                    $targetAgent = \App\Models\Ai\AiAgent::where('name', $triage['agent_name'])->first() ?? $agent;
+                    $status = !empty($gate['suggest_antigravity_handoff']) || str_ends_with(trim($replyText), '?')
+                        ? \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA
+                        : \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED;
+
+                    $widgetTicket = \App\Models\Ai\AiUniverseTicket::create([
+                        'ticket_number' => \App\Models\Ai\AiUniverseTicket::generateNextTicketNumber(),
+                        'title' => \Illuminate\Support\Str::limit($userPrompt, 140),
+                        'status' => $status,
+                        'priority' => $triage['priority'],
+                        'ticket_type' => !empty($gate['suggest_antigravity_handoff']) ? 'capability_gap' : $triage['ticket_type'],
+                        'ai_department_id' => $deptId,
+                        'assigned_agent_id' => $targetAgent->id,
+                        'assigned_to_antigravity' => false,
+                        'source_channel' => 'live_widget',
+                        'environment_tier' => $widgetPresence['environment_tier'],
+                        'messages_count' => 2,
+                        'action_payload' => !empty($gate['suggest_antigravity_handoff']) ? ['type' => 'antigravity_handoff'] : null,
+                        'presence_snapshot' => $widgetPresence,
+                        'last_activity_at' => now(),
+                        'completed_at' => $status === \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED ? now() : null,
+                    ]);
+
+                    \App\Models\Ai\AiUniverseTicketMessage::create([
+                        'ticket_id' => $widgetTicket->id,
+                        'sender_role' => 'alina',
+                        'sender_name' => 'Alina',
+                        'channel' => 'live_widget',
+                        'content' => $userPrompt,
+                    ]);
+                    \App\Models\Ai\AiUniverseTicketMessage::create([
+                        'ticket_id' => $widgetTicket->id,
+                        'sender_role' => 'agent',
+                        'sender_name' => $agent->name,
+                        'ai_agent_id' => $agent->id,
+                        'channel' => 'live_widget',
+                        'content' => $replyText,
+                        'executed_tools' => array_values(array_unique($executedWidgetTools)),
+                    ]);
+                }
+            }
 
             if (trim($replyText) !== '') {
                 $ctx = [
@@ -1510,5 +1586,37 @@ trait ManagesAiChat
         $this->input = '';
         $this->attachments = [];
         $this->uploadedFiles = [];
+    }
+
+    public function createWorkspaceTask()
+    {
+        if (!AiAuthHelper::isAdmin()) {
+            return;
+        }
+        $prompt = trim((string) $this->newTaskPrompt);
+        if ($prompt === '') {
+            return;
+        }
+
+        $agent = !empty($this->newTaskAgentId)
+            ? AiAgent::where('is_active', true)->find($this->newTaskAgentId)
+            : null;
+
+        $task = \App\Models\Ai\AiWorkspaceTask::create([
+            'prompt' => $prompt,
+            'assigned_agent_id' => $agent?->id,
+            'status' => $agent ? 'assigned' : 'pending',
+            'ui_metadata' => [
+                'session_id' => $this->getAiSessionId(),
+            ],
+        ]);
+
+        if ($agent) {
+            \App\Events\TaskUpdated::dispatch($task);
+            ProcessAiWorkspaceTask::dispatch($task);
+        }
+
+        $this->newTaskPrompt = '';
+        $this->newTaskAgentId = '';
     }
 }

@@ -123,7 +123,7 @@ namespace FunkenwerkMcp
         }
 
         public static string CraftRootDir =>
-            Path.Combine(McpSecurityGuard.CollectionRootDir, "Funkenwerk Craft");
+            McpSecurityGuard.ResolveCollectionSubDir("Funkenwerk Craft");
 
         public static string CraftExePath =>
             Path.Combine(CraftRootDir, "FunkenwerkCraft.exe");

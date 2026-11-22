@@ -32,12 +32,18 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                             </svg>
                         </div>
-                        <div>
+                        <div class="relative" x-data="{ tip: false }">
                             <h4 class="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 justify-center sm:justify-start">
                                 <span>Foto-Scan mit KI</span>
                                 <span class="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] rounded-md border border-[var(--theme-color-20)]">Auto-Erkennung</span>
+                                <button type="button" @mouseenter="tip = true" @mouseleave="tip = false" @click.stop="tip = !tip"
+                                        class="w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-[10px] font-black text-gray-600 dark:text-gray-300 flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">
+                                    !
+                                </button>
                             </h4>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Fotografiere einen Beleg oder lade ein Foto hoch – Händler, Betrag, Datum & Kategorie werden automatisch erfasst.</p>
+                            <div x-show="tip" x-cloak class="absolute left-0 top-full mt-2 w-72 p-3 rounded-xl bg-white dark:bg-gray-950 border border-[var(--theme-color-40)] shadow-xl z-50 text-[11px] font-medium text-gray-700 dark:text-gray-300 text-left">
+                                Fotografiere einen Beleg oder lade ein PDF/Foto hoch. Händler, Betrag, Datum, Kategorie, Lieferanten-Steuersatz und eventuelle Dubletten werden automatisch geprüft.
+                            </div>
                         </div>
                     </div>
 
@@ -72,12 +78,24 @@
                     </div>
                     <div>
                         <p class="font-bold flex items-center gap-2">
-                            <span>🤖 KI analysiert Belegfoto...</span>
-                            <span class="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">Gemini Vision</span>
+                            <span>KI analysiert Beleg</span>
+                            <span class="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[var(--theme-color-20)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">Buchi Vision</span>
                         </p>
-                        <p class="text-[11px] font-normal text-gray-600 dark:text-gray-300 mt-0.5">Händler, Gesamtsumme, Belegdatum, MwSt. und Kategorie werden automatisch ausgelesen.</p>
                     </div>
                 </div>
+
+                @if($duplicateWarning !== '')
+                    <div class="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-gray-900 dark:text-white text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="flex items-center gap-2.5">
+                            <span class="w-6 h-6 rounded-lg bg-red-500/20 text-red-600 dark:text-red-400 font-black flex items-center justify-center shrink-0">!</span>
+                            <span class="font-semibold text-red-700 dark:text-red-300">{{ $duplicateWarning }}</span>
+                        </div>
+                        <label class="inline-flex items-center gap-2 cursor-pointer text-[11px] font-bold text-gray-700 dark:text-gray-300 shrink-0">
+                            <input type="checkbox" wire:model.live="allowDuplicateOverride" class="w-4 h-4 rounded border-gray-300 dark:border-gray-700">
+                            <span>Trotzdem buchen</span>
+                        </label>
+                    </div>
+                @endif
 
                 {{-- Erfolgs-Meldung & Vorschau (in Theme Color & sicherer PDF-Check ohne Exception) --}}
                 @if($isAutoFilled)
@@ -153,9 +171,15 @@
             {{-- Business Toggle Kachel --}}
             <div x-data="{ open: @entangle('specialIsBusiness') }" class="bg-[var(--theme-color-5)] dark:bg-gray-950/60 rounded-[1.5rem] border border-[var(--theme-color-15)] dark:border-gray-800/80 p-5 shadow-inner">
                 <div class="flex items-center justify-between">
-                    <div>
+                    <div class="relative flex items-center gap-2" x-data="{ btip: false }">
                         <span class="text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">Geschäftliche Ausgabe?</span>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Aktivieren für Vorsteuerabzug und geschäftliche Rechnungsnummer.</p>
+                        <button type="button" @mouseenter="btip = true" @mouseleave="btip = false" @click.stop="btip = !btip"
+                                class="w-4 h-4 rounded-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-[10px] font-black text-gray-600 dark:text-gray-300 flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">
+                            !
+                        </button>
+                        <div x-show="btip" x-cloak class="absolute left-0 bottom-full mb-2 w-64 p-3 rounded-xl bg-white dark:bg-gray-950 border border-[var(--theme-color-40)] shadow-xl z-50 text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                            Aktivieren für betriebliche Ausgaben mit Vorsteuerabzug und geschäftlicher Rechnungsnummer.
+                        </div>
                     </div>
                     <button type="button"
                             x-on:click="open = !open; $wire.set('specialIsBusiness', open)"

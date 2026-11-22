@@ -326,22 +326,52 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Active Music & Brand Header Strip -->
+                    <!-- Active Audio, Transition-SFX & Optional Suno Background Music Strip -->
                     <Border Grid.Row="1" Background="{DynamicResource BgCardBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="10" Padding="12,9" Margin="0,0,0,12">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="150"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="🎵" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="ActiveMusicLabelTxt" Text="Emotion_Romantic_Inspiration_CC0.mp3" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="310"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                <TextBlock Text="Musik" Foreground="{DynamicResource TextMutedBrush}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <Slider x:Name="MusicVolSlider" Width="82" Minimum="0" Maximum="100" Value="38" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="MusicVolSlider_ValueChanged" VerticalAlignment="Center"/>
-                            </StackPanel>
-                        </Grid>
+                        <StackPanel>
+                            <Grid Margin="0,0,0,7">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock x:Name="ActiveMusicIconTxt" Text="🔊" FontSize="13" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ActiveMusicLabelTxt" Text="Nur Übergangs-SFX (Ohne Musik)" Foreground="{DynamicResource TextPrimaryBrush}" FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button x:Name="SfxOnlyModeBtn" Click="MuteBackgroundMusic_Click" Background="{DynamicResource GoldTintBgBrush}" Foreground="{DynamicResource GoldBrush}" BorderBrush="{DynamicResource GoldBrush}" BorderThickness="1"
+                                            Padding="8,3" Margin="0,0,5,0" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="🔇 Ohne Musik" ToolTip="Hintergrundmusik deaktivieren · Fokus nur auf Übergangs-Soundeffekte">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button Click="ImportSunoMusic_Click" Background="{DynamicResource BgInputBrush}" Foreground="{DynamicResource TextPrimaryBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                            Padding="8,3" Margin="0,0,5,0" Cursor="Hand" FontSize="10.5" FontWeight="SemiBold" Content="🎵 Suno / MP3…" ToolTip="Eigene Musikdatei (z. B. von suno.com) dezent im Hintergrund hinterlegen">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                    </Button>
+                                    <Button Click="AutoCurateSfx_Click" Background="{DynamicResource BgInputBrush}" Foreground="{DynamicResource GoldBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                                            Padding="8,3" Cursor="Hand" FontSize="10.5" FontWeight="Bold" Content="✨ Auto-SFX" ToolTip="Abwechslungsreiche Studio-Übergangssounds &amp; saubere Cinema-Übergänge auf alle Szenen setzen">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="14"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Übergangs-SFX" Foreground="{DynamicResource TextMutedBrush}" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <Slider x:Name="SfxVolSlider" Width="88" Minimum="0" Maximum="100" Value="85" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="SfxVolSlider_ValueChanged" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="SfxVolLabelTxt" Text="85 %" Foreground="{DynamicResource GoldBrush}" FontSize="10.5" FontWeight="Bold" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="Musik (dezent)" Foreground="{DynamicResource TextMutedBrush}" FontSize="10.5" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <Slider x:Name="MusicVolSlider" Width="82" Minimum="0" Maximum="100" Value="18" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="MusicVolSlider_ValueChanged" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="MusicVolLabelTxt" Text="18 %" Foreground="{DynamicResource TextMutedBrush}" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
                     </Border>
 
                     <!-- Scenes Stack -->

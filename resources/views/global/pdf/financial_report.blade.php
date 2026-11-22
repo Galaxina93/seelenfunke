@@ -39,10 +39,15 @@
 </head>
 <body>
 
+@php
+    $effectivePeriodTitle = $periodTitle ?? (\Carbon\Carbon::createFromDate($year, $month, 1)->locale('de')->monthName . ' ' . $year);
+    $annualAfaEur = (float) ($assetSchedule['annual_afa'] ?? 0);
+    $monthlyAfaEur = (float) ($assetSchedule['monthly_afa'] ?? 0);
+@endphp
 <div class="header">
     <div class="header-left">
-        <h1>Management Report</h1>
-        <div class="subtitle">{{ \Carbon\Carbon::createFromDate($year, $month, 1)->locale('de')->monthName }} {{ $year }}</div>
+        <h1>Finanz- &amp; Betriebsbericht</h1>
+        <div class="subtitle">{{ $effectivePeriodTitle }} @if(($scope ?? 'business') === 'business') &bull; Gewerbe @endif</div>
     </div>
     <div class="header-right">
         <div class="subtitle">Erstellt am: {{ date('d.m.Y') }}</div>
@@ -55,29 +60,34 @@
     <tr>
         <td>
             <div class="kpi-label">Umsatz (Netto)</div>
-            <div class="kpi-value text-green">{{ number_format($shopStats['net'], 2, ',', '.') }}</div>
+            <div class="kpi-value text-green">{{ number_format($shopStats['net'], 2, ',', '.') }} €</div>
         </td>
         <td>
             <div class="kpi-label">Umsatz (Brutto)</div>
-            <div class="kpi-value">{{ number_format($shopStats['gross'], 2, ',', '.') }}</div>
+            <div class="kpi-value">{{ number_format($shopStats['gross'], 2, ',', '.') }} €</div>
         </td>
         <td>
-            <div class="kpi-label">Betriebsausgaben (Netto)</div>
+            <div class="kpi-label">Ausgaben Cashflow (Netto)</div>
             <div class="kpi-value text-red">
                 @php
                     $netExpenses = abs($statsNetto['fixed_expenses'] + $statsNetto['special_expenses']);
                 @endphp
-                {{ number_format($netExpenses, 2, ',', '.') }}
+                {{ number_format($netExpenses, 2, ',', '.') }} €
             </div>
         </td>
         <td>
             <div class="kpi-label">Liquiditätssaldo (Netto)</div>
             <div class="kpi-value {{ $statsNetto['available'] >= 0 ? 'text-green' : 'text-red' }}">
-                {{ number_format($statsNetto['available'], 2, ',', '.') }}
+                {{ number_format($statsNetto['available'], 2, ',', '.') }} €
             </div>
         </td>
     </tr>
 </table>
+@if(!empty($assetSchedule['assets']))
+<div class="summary-box" style="margin-top: -15px; margin-bottom: 20px; border-left-color: #C5A059;">
+    <p><span class="bold">Hinweis Anlagevermögen (AfA):</span> Aktive Anlagegüter (&gt; 800 € Netto, SKR03 0440) werden linear über 5 Jahre abgeschrieben (Monats-AfA: {{ number_format($monthlyAfaEur, 2, ',', '.') }} € | Jahres-AfA {{ $year }}: {{ number_format($annualAfaEur, 2, ',', '.') }} € | Restbuchwert: {{ number_format($assetSchedule['total_book_value'] ?? 0, 2, ',', '.') }} €). Details siehe <span class="bold">Anlagenspiegel_und_AfA_{{ $year }}.csv</span>.</p>
+</div>
+@endif
 
 <div class="section-title">2. E-Commerce Performance</div>
 <div class="summary-box">
@@ -130,7 +140,7 @@
     </div>
 </div>
 
-<div class="section-title">4. Fixkosten ({{ \Carbon\Carbon::createFromDate($year, $month, 1)->locale('de')->monthName }})</div>
+<div class="section-title">4. Fixkosten ({{ $effectivePeriodTitle }})</div>
 <table class="data-table">
     <thead>
         <tr>
@@ -147,8 +157,9 @@
         @php $fNet = 0; $fTax = 0; $fGross = 0; @endphp
         @forelse($fixedCosts as $f)
             @php
-                $gross = $f->amount;
-                $net = $gross / (1 + ($f->tax_rate / 100));
+                $gross = (float) $f->amount;
+                $fRate = \App\Services\FinancialService::isEligibleGermanInputVatRate($f->tax_rate ?? 0) ? (int) round((float) $f->tax_rate) : 0;
+                $net = $fRate > 0 ? ($gross / (1 + ($fRate / 100))) : $gross;
                 $tax = $gross - $net;
                 $fGross += $gross; $fNet += $net; $fTax += $tax;
             @endphp
@@ -156,7 +167,7 @@
                 <td>{{ $f->name }}</td>
                 <td>{{ $f->category }}</td>
                 <td class="text-center">{{ $f->is_business ? 'Gewerbe' : 'Privat' }}</td>
-                <td class="text-right">{{ $f->tax_rate }} %</td>
+                <td class="text-right">{{ $fRate }} %</td>
                 <td class="text-right">{{ number_format($tax, 2, ',', '.') }} €</td>
                 <td class="text-right">{{ number_format($net, 2, ',', '.') }} €</td>
                 <td class="text-right">{{ number_format($gross, 2, ',', '.') }} €</td>
@@ -195,11 +206,10 @@
         @php $sNet = 0; $sTax = 0; $sGross = 0; @endphp
         @forelse($specials as $s)
             @php
-                $gross = $s->amount;
-                // Positive Beträge sind Einnahmen/Rückerstattungen
-                $sign = $gross < 0 ? -1 : 1; 
-                $taxStr = $s->tax_rate ?? 0;
-                $net = $gross / (1 + ($taxStr / 100));
+                $gross = (float) $s->amount;
+                $sign = $gross < 0 ? -1 : 1;
+                $sRate = \App\Services\FinancialService::isEligibleGermanInputVatRate($s->tax_rate ?? 0) ? (int) round((float) $s->tax_rate) : 0;
+                $net = $sRate > 0 ? ($gross / (1 + ($sRate / 100))) : $gross;
                 $tax = $gross - $net;
                 $sGross += $gross; $sNet += $net; $sTax += $tax;
             @endphp
@@ -208,13 +218,13 @@
                 <td>{{ $s->title }} <br><span style="font-size: 7px; color: #888;">{{ $s->invoice_number }}</span></td>
                 <td>{{ $s->category }}</td>
                 <td class="text-center">{{ $s->is_business ? 'Gewerbe' : 'Privat' }}</td>
-                <td class="text-right">{{ $taxStr }} %</td>
+                <td class="text-right">{{ $sRate }} %</td>
                 <td class="text-right">{{ number_format($tax, 2, ',', '.') }} €</td>
                 <td class="text-right {{ $sign > 0 ? 'text-green' : '' }}">{{ number_format($net, 2, ',', '.') }} €</td>
                 <td class="text-right {{ $sign > 0 ? 'text-green' : '' }}">{{ number_format($gross, 2, ',', '.') }} €</td>
             </tr>
         @empty
-            <tr><td colspan="8" class="text-center">Keine variablen Sonderausgaben in diesem Monat gebucht.</td></tr>
+            <tr><td colspan="8" class="text-center">Keine variablen Sonderausgaben in diesem Zeitraum gebucht.</td></tr>
         @endforelse
     </tbody>
     @if($specials->count() > 0)

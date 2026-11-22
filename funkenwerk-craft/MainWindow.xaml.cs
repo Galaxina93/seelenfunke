@@ -26,19 +26,19 @@ namespace FunkenwerkCraft
 
         private static readonly (string Value, string Label)[] SpeedModeOptions =
         [
+            ("linear", "Nativ Scharf"),
             ("speed_ramp", "Speed-Ramp"),
-            ("slow_motion", "Slow-Motion"),
-            ("linear", "Linear")
+            ("slow_motion", "Slow-Motion")
         ];
 
         private static readonly (string Value, string Label)[] TransitionOptions =
         [
-            ("whip_zoom", "Whip Zoom"),
-            ("whip_pan", "Whip Pan"),
             ("velvet_dissolve", "Velvet Dissolve"),
-            ("dark_cut", "Dark Cut"),
             ("flash_cut", "Flash Cut"),
-            ("smoothleft", "Smooth Slide")
+            ("dark_cut", "Dark Cut"),
+            ("smoothleft", "Smooth Slide"),
+            ("smoothup", "Smooth Up"),
+            ("circleopen", "Iris Reveal")
         ];
 
         private CraftSettingsModel _settings;
@@ -64,6 +64,8 @@ namespace FunkenwerkCraft
         public MainWindow(string? initialProject = null, bool startIpcServer = true)
         {
             InitializeComponent();
+            Funkenwerk.FunkenwerkVersioning.EnsureAttached(this);
+            CraftEngine.EnsureCuratedStudioTransitionSfxPack();
 
             _autoSaveTimer = new DispatcherTimer
             {
@@ -85,6 +87,11 @@ namespace FunkenwerkCraft
             catch
             {
                 _currentProject = CraftEngine.LoadOrCreateProject("Projekt 1");
+            }
+
+            if (startIpcServer)
+            {
+                _ = CraftEngine.DiversifyProjectTransitionSfxIfMonotonous(_currentProject);
             }
 
             RefreshAllUi();
@@ -125,6 +132,7 @@ namespace FunkenwerkCraft
             _currentProject.Scenes[targetIdx].TransitionSfx = sound.RelativePath;
             CraftEngine.SaveProject(_currentProject);
             _hasPendingAutoSave = false;
+            RenderScenesList();
             StatusBannerTxt.Text = $"Effekt fuer Szene #{targetIdx + 1} gesetzt: {sound.FileName}";
         }
 
@@ -230,10 +238,19 @@ namespace FunkenwerkCraft
             try
             {
                 ActiveProjectTitleTxt.Text = _currentProject.Name;
-                ActiveMusicLabelTxt.Text = string.IsNullOrWhiteSpace(_currentProject.BackgroundMusic)
-                    ? "Kein Musikbett gewaehlt"
-                    : Path.GetFileName(_currentProject.BackgroundMusic);
-                MusicVolSlider.Value = Math.Round(_currentProject.MusicVolume * 100.0);
+                bool hasMusic = !string.IsNullOrWhiteSpace(_currentProject.BackgroundMusic) && _currentProject.MusicVolume > 0.005;
+                ActiveMusicIconTxt.Text = hasMusic ? "🎵" : "🔊";
+                ActiveMusicLabelTxt.Text = hasMusic
+                    ? Path.GetFileName(_currentProject.BackgroundMusic)
+                    : "Nur Übergangs-SFX (Ohne Musik)";
+                SetPillActive(SfxOnlyModeBtn, !hasMusic);
+
+                int sfxPct = (int)Math.Round(Math.Clamp(_currentProject.SfxVolume, 0.0, 1.0) * 100.0);
+                int musPct = (int)Math.Round(Math.Clamp(_currentProject.MusicVolume, 0.0, 1.0) * 100.0);
+                SfxVolSlider.Value = sfxPct;
+                SfxVolLabelTxt.Text = $"{sfxPct} %";
+                MusicVolSlider.Value = musPct;
+                MusicVolLabelTxt.Text = $"{musPct} %";
 
                 UpdateAspectButtonsUi();
                 RenderProjectsList();
@@ -330,6 +347,7 @@ namespace FunkenwerkCraft
             ReleasePreviewMediaLock();
             _selectedSceneIndex = 0;
             _currentProject = CraftEngine.LoadOrCreateProject(projectName);
+            _ = CraftEngine.DiversifyProjectTransitionSfxIfMonotonous(_currentProject);
             _settings.LastProjectName = _currentProject.Name;
             CraftEngine.SaveSettings(_settings);
             RefreshAllUi();
@@ -631,7 +649,7 @@ namespace FunkenwerkCraft
                 outer.Children.Add(timingGrid);
 
                 // Row 3: Overlay Title & Subtitle
-                var textGrid = new Grid();
+                var textGrid = new Grid { Margin = new Thickness(0, 0, 0, isOutroScene ? 0 : 7) };
                 textGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 textGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
                 textGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -652,6 +670,87 @@ namespace FunkenwerkCraft
                 textGrid.Children.Add(titleBox);
                 textGrid.Children.Add(subBox);
                 outer.Children.Add(textGrid);
+
+                // Row 4: Per-Cut Transition Sound Effect Selector + Audition Play Button
+                if (!isOutroScene)
+                {
+                    var sfxOptions = new List<(string Value, string Label)>
+                    {
+                        (CraftEngine.AutoVariedTransitionSfxToken, "🎲 Automatisch variieren (Kein Sound doppelt)"),
+                        ("", "Kein Übergangs-Sound")
+                    };
+                    foreach (var st in CraftEngine.CuratedStudioTransitions)
+                    {
+                        sfxOptions.Add((st.RelPath, "★ " + st.DisplayLabel));
+                    }
+                    foreach (var poolSfx in CraftEngine.ListSoundPool("Uebergaenge"))
+                    {
+                        if (!sfxOptions.Any(o => string.Equals(o.Value, poolSfx.RelativePath, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            sfxOptions.Add((poolSfx.RelativePath, Path.GetFileNameWithoutExtension(poolSfx.FileName).Replace('_', ' ')));
+                        }
+                    }
+                    foreach (var accentRel in new[] { @"Effekte_Akzente\Sub_Bass_Hit_Tight_07.wav", @"Effekte_Akzente\Glas_Resonanz_Echt.wav" })
+                    {
+                        if (!sfxOptions.Any(o => string.Equals(o.Value, accentRel, StringComparison.OrdinalIgnoreCase)) &&
+                            CraftEngine.ResolveSafeAudioPath(accentRel, null, requireExists: true) != null)
+                        {
+                            sfxOptions.Add((accentRel, Path.GetFileNameWithoutExtension(accentRel).Replace('_', ' ')));
+                        }
+                    }
+
+                    var sfxRow = new Grid();
+                    sfxRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    sfxRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(6) });
+                    sfxRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    var sfxCombo = CreateLabeledCombo("Übergangs-Sound zum nächsten Schnitt", sfxOptions, scene.TransitionSfx ?? "", val =>
+                    {
+                        scene.TransitionSfx = val;
+                        if (string.IsNullOrWhiteSpace(val))
+                        {
+                            scene.ImpactSfx = "";
+                            scene.RiserSfx = "";
+                        }
+                        ScheduleAutoSave();
+                    });
+
+                    var playCutSfxBtn = CreateMiniButton("▶ Sound", false);
+                    playCutSfxBtn.VerticalAlignment = VerticalAlignment.Bottom;
+                    playCutSfxBtn.Height = 27;
+                    playCutSfxBtn.Click += (_, _) =>
+                    {
+                        try
+                        {
+                            if (string.IsNullOrWhiteSpace(scene.TransitionSfx))
+                            {
+                                StatusBannerTxt.Text = "Für diesen Schnitt ist kein Übergangs-Sound gewählt.";
+                                return;
+                            }
+                            string targetSfx = string.Equals(scene.TransitionSfx, CraftEngine.AutoVariedTransitionSfxToken, StringComparison.OrdinalIgnoreCase)
+                                ? CraftEngine.CuratedStudioTransitions[idx % CraftEngine.CuratedStudioTransitions.Length].RelPath
+                                : scene.TransitionSfx;
+                            string projDir = CraftEngine.GetProjectDirectory(_currentProject.Name);
+                            string? safeFull = CraftEngine.ResolveSafeAudioPath(targetSfx, projDir, requireExists: true);
+                            if (string.IsNullOrWhiteSpace(safeFull)) return;
+                            _sfxPreviewPlayer.Stop();
+                            _sfxPreviewPlayer.Open(new Uri(safeFull));
+                            _sfxPreviewPlayer.Volume = Math.Clamp(_currentProject.SfxVolume, 0.1, 1.0);
+                            _sfxPreviewPlayer.Play();
+                            StatusBannerTxt.Text = $"Übergangs-Sound: {Path.GetFileName(safeFull)}";
+                        }
+                        catch (Exception ex)
+                        {
+                            StatusBannerTxt.Text = ex.Message;
+                        }
+                    };
+
+                    Grid.SetColumn(sfxCombo, 0);
+                    Grid.SetColumn(playCutSfxBtn, 2);
+                    sfxRow.Children.Add(sfxCombo);
+                    sfxRow.Children.Add(playCutSfxBtn);
+                    outer.Children.Add(sfxRow);
+                }
 
                 card.Child = outer;
                 ScenesListPanel.Children.Add(card);
@@ -947,6 +1046,7 @@ namespace FunkenwerkCraft
                     string dest = CraftEngine.ImportMediaToProject(_currentProject.Name, f);
                     string ext = Path.GetExtension(dest);
                     bool isImg = CraftEngine.ImageExts.Contains(ext);
+                    var curated = CraftEngine.CuratedStudioTransitions[_currentProject.Scenes.Count % CraftEngine.CuratedStudioTransitions.Length];
                     _currentProject.Scenes.Add(new CraftSceneItem
                     {
                         FileName = Path.GetFileName(dest),
@@ -954,9 +1054,10 @@ namespace FunkenwerkCraft
                         StartSec = 0,
                         DurationSec = isImg ? 2.8 : 2.2,
                         FitMode = "fill",
-                        SpeedMode = isImg ? "linear" : "speed_ramp",
-                        SlowMoFactor = 0.42,
-                        Transition = "whip_zoom"
+                        SpeedMode = "linear",
+                        SlowMoFactor = 0.50,
+                        Transition = curated.BestTransition,
+                        TransitionSfx = curated.RelPath
                     });
                     added++;
                 }
@@ -997,7 +1098,72 @@ namespace FunkenwerkCraft
         {
             if (_suppressUiEvents || _currentProject == null) return;
             _currentProject.MusicVolume = Math.Round(e.NewValue / 100.0, 2);
+            if (MusicVolLabelTxt != null) MusicVolLabelTxt.Text = $"{(int)Math.Round(e.NewValue)} %";
+            bool hasMusic = !string.IsNullOrWhiteSpace(_currentProject.BackgroundMusic) && _currentProject.MusicVolume > 0.005;
+            if (SfxOnlyModeBtn != null) SetPillActive(SfxOnlyModeBtn, !hasMusic);
             ScheduleAutoSave();
+        }
+
+        private void SfxVolSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_suppressUiEvents || _currentProject == null) return;
+            _currentProject.SfxVolume = Math.Round(e.NewValue / 100.0, 2);
+            if (SfxVolLabelTxt != null) SfxVolLabelTxt.Text = $"{(int)Math.Round(e.NewValue)} %";
+            ScheduleAutoSave();
+        }
+
+        private void MuteBackgroundMusic_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentProject == null) return;
+            _currentProject.BackgroundMusic = "";
+            CraftEngine.SaveProject(_currentProject);
+            _hasPendingAutoSave = false;
+            RefreshAllUi();
+            StatusBannerTxt.Text = "Hintergrundmusik deaktiviert · Video nutzt nur saubere Übergangs-Soundeffekte";
+        }
+
+        private void ImportSunoMusic_Click(object sender, RoutedEventArgs e)
+        {
+            string downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Eigene Hintergrundmusik (z. B. von suno.com) auswaehlen",
+                Multiselect = false,
+                InitialDirectory = Directory.Exists(downloads) ? downloads : CraftEngine.SoundsRoot,
+                Filter = "Audio-Dateien (*.mp3;*.wav;*.m4a;*.flac;*.ogg)|*.mp3;*.wav;*.m4a;*.flac;*.ogg"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                try
+                {
+                    string importedLeaf = CraftEngine.ImportCustomMusicToProject(_currentProject.Name, dlg.FileName);
+                    _currentProject.BackgroundMusic = importedLeaf;
+                    if (_currentProject.MusicVolume <= 0.01 || _currentProject.MusicVolume > 0.30)
+                        _currentProject.MusicVolume = 0.18; // Dezent im Hintergrund
+                    CraftEngine.SaveProject(_currentProject);
+                    _hasPendingAutoSave = false;
+                    RefreshAllUi();
+                    StatusBannerTxt.Text = $"Eigene Musik dezent (18 %) hinterlegt: {importedLeaf}";
+                }
+                catch (Exception ex)
+                {
+                    StatusBannerTxt.Text = ex.Message;
+                }
+            }
+        }
+
+        private void AutoCurateSfx_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentProject == null || _currentProject.Scenes.Count == 0)
+            {
+                StatusBannerTxt.Text = "Noch keine Szenen im Projekt vorhanden.";
+                return;
+            }
+            CraftEngine.AutoCurateSceneTransitionsAndSfx(_currentProject, overwriteExistingTransitions: true);
+            CraftEngine.SaveProject(_currentProject);
+            _hasPendingAutoSave = false;
+            RefreshAllUi();
+            StatusBannerTxt.Text = $"Studio-Übergangs-SFX & schlierenfreie Übergänge für {_currentProject.Scenes.Count} Szenen gesetzt";
         }
 
         private void AddSceneFromProjectMedia_Click(object sender, RoutedEventArgs e) => ImportMedia_Click(sender, e);
@@ -1075,7 +1241,12 @@ namespace FunkenwerkCraft
 
             try
             {
+                int varied = CraftEngine.DiversifyProjectTransitionSfxIfMonotonous(_currentProject);
                 CraftEngine.SaveProject(_currentProject);
+                if (varied > 0)
+                {
+                    RenderScenesList();
+                }
                 var prog = new Progress<(double Pct, string Step)>(p =>
                 {
                     RenderProgressBar.Value = p.Pct;

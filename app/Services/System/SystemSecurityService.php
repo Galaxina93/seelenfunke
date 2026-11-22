@@ -43,9 +43,13 @@ class SystemSecurityService
             $ip = $context['ip_address'] ?? ($context['ip'] ?? ($request ? $request->ip() : null));
 
             $category = $context['category'] ?? self::inferCategory($actionId);
+            $subpagePath = $context['subpage_path']
+                ?? $context['request_uri']
+                ?? ($request ? ('/' . ltrim((string) $request->path(), '/')) : 'CLI');
 
             $payload = array_merge([
                 'category' => $category,
+                'subpage_path' => $subpagePath,
                 'ip_address' => $ip,
                 'user_agent' => $request ? substr((string) $request->userAgent(), 0, 255) : 'CLI',
                 'url' => $request ? $request->fullUrl() : null,

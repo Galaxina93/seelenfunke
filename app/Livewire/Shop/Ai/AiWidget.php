@@ -47,13 +47,24 @@ class AiWidget extends Component
             ->whereNotIn('name', $excludedNames)
             ->pluck('id')
             ->toArray();
+        if (count($this->activeAgentIds) > 1) {
+            $funkiraOnly = \App\Models\Ai\AiAgent::whereIn('id', $this->activeAgentIds)
+                ->where('name', 'Funkira')
+                ->first();
+            if ($funkiraOnly) {
+                $this->activeAgentIds = [$funkiraOnly->id];
+            }
+        }
         $this->forcedAgentIds = $this->activeAgentIds;
 
         // Ensure we have at least one fallback agent initialized if none are in chat yet
         if (empty($this->activeAgentIds)) {
-            $fallbackAgent = \App\Models\Ai\AiAgent::where('is_active', true)
-                ->whereNotIn('name', $excludedNames)
-                ->first();
+            $fallbackAgent = ($isAdmin
+                ? \App\Models\Ai\AiAgent::where('is_active', true)->where('name', 'Funkira')->first()
+                : null)
+                ?? \App\Models\Ai\AiAgent::where('is_active', true)
+                    ->whereNotIn('name', $excludedNames)
+                    ->first();
             if ($fallbackAgent) {
                 if ($isAdmin) {
                     $fallbackAgent->update(['is_in_chat' => true]);
@@ -127,8 +138,29 @@ class AiWidget extends Component
         ];
     }
 
+    protected array $recentEchoSignatures = [];
+
+    protected function isDuplicateEchoPayload(string $type, array $payload): bool
+    {
+        $sig = $type . ':' . md5(json_encode($payload));
+        $now = microtime(true);
+        foreach ($this->recentEchoSignatures as $key => $ts) {
+            if (($now - $ts) > 2.5) {
+                unset($this->recentEchoSignatures[$key]);
+            }
+        }
+        if (isset($this->recentEchoSignatures[$sig])) {
+            return true;
+        }
+        $this->recentEchoSignatures[$sig] = $now;
+        return false;
+    }
+
     public function handleSpeechEvent($payload)
     {
+        if (!is_array($payload) || $this->isDuplicateEchoPayload('speech', $payload)) {
+            return;
+        }
         if (isset($payload['text'])) {
             $this->dispatch('ai-speech-feedback', text: $payload['text']);
         }
@@ -136,6 +168,9 @@ class AiWidget extends Component
 
     public function handleFrontendEvent($payload)
     {
+        if (!is_array($payload) || $this->isDuplicateEchoPayload('frontend', $payload)) {
+            return;
+        }
         if (isset($payload['name'])) {
             $this->dispatch($payload['name'], payload: $payload['detail'] ?? []);
         }
@@ -143,6 +178,9 @@ class AiWidget extends Component
 
     public function handleTaskUpdated($payload)
     {
+        if (!is_array($payload) || $this->isDuplicateEchoPayload('task', $payload)) {
+            return;
+        }
         if (isset($payload['task_id'])) {
             $status = $payload['status'] ?? '';
             if (in_array($status, ['completed', 'failed'])) {

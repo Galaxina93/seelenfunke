@@ -61,6 +61,8 @@ class InfluencerInvitationAccept extends Component
     public string $slug = '';
     public string $customVoucherCode = '';
     public string $profileUrl = '';
+    public bool $slugManuallyEdited = false;
+    public bool $voucherManuallyEdited = false;
 
     // Schritt 3: Anschrift, Steuerstatus & Auszahlungsweg (für § 14 UStG Gutschriften)
     public string $street = '';
@@ -112,15 +114,25 @@ class InfluencerInvitationAccept extends Component
     public function updatedHandle(string $value): void
     {
         $clean = ltrim(trim($value), '@');
-        if ($this->slug === '') {
-            $this->slug = Str::slug($clean);
+        if (!$this->slugManuallyEdited || $this->slug === '') {
+            $this->slug = Str::slug(str_replace(['.', '_'], '-', $clean));
         }
-        if ($this->customVoucherCode === '' && $clean !== '') {
+        if ((!$this->voucherManuallyEdited || $this->customVoucherCode === '') && $clean !== '') {
             $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $clean));
             if ($prefix !== '') {
                 $this->customVoucherCode = substr($prefix, 0, 12) . $this->followerDiscountPercent;
             }
         }
+    }
+
+    public function updatedSlug(string $value): void
+    {
+        $this->slugManuallyEdited = trim($value) !== '';
+    }
+
+    public function updatedCustomVoucherCode(string $value): void
+    {
+        $this->voucherManuallyEdited = trim($value) !== '';
     }
 
     public function verifyCode(InfluencerService $service): void
@@ -167,9 +179,11 @@ class InfluencerInvitationAccept extends Component
         }
         if ($influencer->slug) {
             $this->slug = (string) $influencer->slug;
+            $this->slugManuallyEdited = true;
         }
         if ($influencer->defaultVoucher) {
             $this->customVoucherCode = (string) $influencer->defaultVoucher->code;
+            $this->voucherManuallyEdited = true;
         }
 
         $this->isCodeVerified = true;
@@ -214,6 +228,9 @@ class InfluencerInvitationAccept extends Component
         $this->email = mb_strtolower(trim($this->email));
 
         $neutralEmailError = 'Diese E-Mail-Adresse kann für die Creator-Registrierung nicht verwendet werden. Bitte nutze eine andere geschäftliche E-Mail-Adresse.';
+        $existingVoucherId = $this->influencerId
+            ? MarketingInfluencer::where('id', $this->influencerId)->value('default_voucher_id')
+            : null;
 
         $this->validate([
             'firstName' => 'required|string|max:100',
@@ -237,14 +254,28 @@ class InfluencerInvitationAccept extends Component
                 'string',
                 'max:80',
                 Rule::unique('marketing_influencers', 'slug')->ignore($this->influencerId),
+                function ($attribute, $value, $fail) {
+                    $s = Str::slug((string) $value);
+                    if ($s === '') {
+                        $fail('Bitte wähle einen gültigen Wunsch-Kurzlink.');
+                        return;
+                    }
+                    $takenInTracking = \App\Models\Marketing\MarketingTrackingLink::query()
+                        ->where('slug', $s)
+                        ->when($this->influencerId, fn ($q) => $q->where('influencer_id', '!=', $this->influencerId))
+                        ->exists();
+                    if ($takenInTracking) {
+                        $fail('Dieser Kurzlink ist bereits vergeben. Bitte wähle eine andere Variante.');
+                    }
+                },
             ],
             'customVoucherCode' => [
                 'nullable',
                 'string',
                 'max:40',
-                function ($attribute, $value, $fail) {
+                function ($attribute, $value, $fail) use ($existingVoucherId) {
                     $clean = strtoupper(preg_replace('/[^A-Za-z0-9\-]/', '', trim((string) $value)));
-                    if ($clean !== '' && app(InfluencerService::class)->isReservedOrCollidingVoucherCode($clean)) {
+                    if ($clean !== '' && app(InfluencerService::class)->isReservedOrCollidingVoucherCode($clean, $existingVoucherId ? (string) $existingVoucherId : null)) {
                         $fail('Dieser Gutscheincode ist bereits vergeben oder verwendet ein reserviertes System-Präfix.');
                     }
                 },
@@ -261,6 +292,7 @@ class InfluencerInvitationAccept extends Component
             'handle.required' => 'Bitte gib deinen Social-Media-Handle an (z. B. @lara.living).',
             'slug.required' => 'Bitte wähle deinen Wunsch-Kurzlink.',
             'slug.unique' => 'Dieser Kurzlink ist bereits vergeben. Bitte wähle eine andere Variante.',
+            'profileUrl.url' => 'Bitte gib eine gültige Profil-URL mit https:// ein (oder lasse das Feld leer).',
         ]);
     }
 
@@ -333,30 +365,53 @@ class InfluencerInvitationAccept extends Component
             ]);
         }
 
-        $influencer = $service->completeSelfRegistration($this->token, $this->verificationCode, [
-            'first_name' => $this->firstName,
-            'last_name' => $this->lastName,
-            'email' => $this->email,
-            'password' => $this->password,
-            'primary_channel' => $this->primaryChannel,
-            'handle' => $this->handle,
-            'slug' => $this->slug,
-            'custom_voucher_code' => $this->customVoucherCode,
-            'profile_url' => $this->profileUrl,
-            'street' => $this->street,
-            'house_number' => $this->houseNumber,
-            'postal' => $this->postal,
-            'city' => $this->city,
-            'country' => $this->country,
-            'tax_status' => $this->taxStatus,
-            'tax_number' => $this->taxNumber,
-            'payout_method' => $this->payoutMethod,
-            'account_holder' => $this->accountHolder,
-            'iban' => $this->iban,
-            'bic' => $this->bic,
-            'paypal_email' => $this->paypalEmail,
-            'self_employed_confirmed' => $this->selfEmployedConfirmed,
-        ]);
+        try {
+            $influencer = $service->completeSelfRegistration($this->token, $this->verificationCode, [
+                'first_name' => $this->firstName,
+                'last_name' => $this->lastName,
+                'email' => $this->email,
+                'password' => $this->password,
+                'primary_channel' => $this->primaryChannel,
+                'handle' => $this->handle,
+                'slug' => $this->slug,
+                'custom_voucher_code' => $this->customVoucherCode,
+                'profile_url' => $this->profileUrl,
+                'street' => $this->street,
+                'house_number' => $this->houseNumber,
+                'postal' => $this->postal,
+                'city' => $this->city,
+                'country' => $this->country,
+                'tax_status' => $this->taxStatus,
+                'tax_number' => $this->taxNumber,
+                'payout_method' => $this->payoutMethod,
+                'account_holder' => $this->accountHolder,
+                'iban' => $this->iban,
+                'bic' => $this->bic,
+                'paypal_email' => $this->paypalEmail,
+                'self_employed_confirmed' => $this->selfEmployedConfirmed,
+            ]);
+        } catch (ValidationException $ve) {
+            throw $ve;
+        } catch (\Throwable $e) {
+            if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                \App\Services\System\SystemErrorLogger::recordException(
+                    $e,
+                    'marketing',
+                    'influencer:onboarding_failed',
+                    'Creator-Onboarding Fehler',
+                    [
+                        'subpage_path' => '/influencer/einladung',
+                        'influencer_id' => $this->influencerId,
+                        'influencer_handle' => $this->handle,
+                        'email' => $this->email,
+                        'slug' => $this->slug,
+                    ]
+                );
+            }
+            throw ValidationException::withMessages([
+                'taxNumber' => 'Die Registrierung konnte aufgrund eines technischen Fehlers nicht abgeschlossen werden. Bitte prüfe deine Angaben.',
+            ]);
+        }
 
         if (!$influencer || !$influencer->employee) {
             $this->isValidToken = false;

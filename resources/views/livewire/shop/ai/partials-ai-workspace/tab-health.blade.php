@@ -9,7 +9,7 @@
                         <h2 class="text-xl font-black text-[var(--theme-color)] uppercase tracking-widest flex items-center gap-2">
                             <x-heroicon-o-beaker class="w-6 h-6" /> Aktive Medikamente
                         </h2>
-                        <button wire:click="editMedication()" class="bg-[var(--theme-color)] hover:brightness-110 text-black px-3 py-1.5 rounded text-xs font-bold transition-all shadow-lg">
+                        <button wire:click="editMedication()" class="bg-[var(--theme-color)] hover:opacity-90 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm">
                             <x-heroicon-o-plus class="w-4 h-4 inline-block -mt-0.5" /> Neu
                         </button>
                     </div>
@@ -31,9 +31,9 @@
                                             @if($med->frequency)<span class="bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-2 py-1 rounded border border-gray-300 dark:border-gray-700">Frequenz: <span class="font-bold text-gray-900 dark:text-gray-100">{{ $med->frequency }}</span></span>@endif
                                         </div>
                                     </div>
-                                    <div class="flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button wire:click="editMedication({{ $med->id }})" class="p-1.5 bg-gray-200 hover:bg-indigo-600 dark:bg-gray-800 text-gray-600 hover:text-white dark:text-gray-400 rounded transition-colors" title="Bearbeiten"><x-heroicon-s-pencil class="w-4 h-4" /></button>
-                                        <button wire:click="deleteMedication({{ $med->id }})" wire:confirm="Dieses Medikament wirklich löschen?" class="p-1.5 bg-gray-200 hover:bg-red-600 dark:bg-gray-800 text-gray-600 hover:text-white dark:text-gray-400 rounded transition-colors" title="Löschen"><x-heroicon-s-trash class="w-4 h-4" /></button>
+                                    <div class="flex flex-col gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                        <button type="button" wire:click="editMedication('{{ $med->id }}')" class="p-1.5 bg-gray-200 hover:bg-indigo-600 dark:bg-gray-800 text-gray-600 hover:text-white dark:text-gray-400 rounded transition-colors" title="Bearbeiten"><x-heroicon-s-pencil class="w-4 h-4" /></button>
+                                        <button type="button" wire:click="deleteMedication('{{ $med->id }}')" wire:confirm="Dieses Medikament wirklich löschen?" class="p-1.5 bg-gray-200 hover:bg-red-600 dark:bg-gray-800 text-gray-600 hover:text-white dark:text-gray-400 rounded transition-colors" title="Löschen"><x-heroicon-s-trash class="w-4 h-4" /></button>
                                     </div>
                                 </div>
                             @endforeach
@@ -105,7 +105,7 @@
                  x-transition.scale.95 
                  class="relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl p-6 max-w-lg w-full flex flex-col gap-4 text-gray-900 dark:text-gray-100">
                  
-                <h3 class="text-xl font-black text-[var(--theme-color)] uppercase tracking-widest border-b border-gray-200 dark:border-gray-800 pb-3">Medikament {{ $medicationForm['id'] ? 'bearbeiten' : 'hinzufügen' }}</h3>
+                <h3 class="text-xl font-black text-[var(--theme-color)] uppercase tracking-widest border-b border-gray-200 dark:border-gray-800 pb-3">Medikament {{ $editingMedicationId ? 'bearbeiten' : 'hinzufügen' }}</h3>
                 
                 <div class="space-y-4">
                     <div>
@@ -142,8 +142,8 @@
                 </div>
                 
                 <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800 mt-2">
-                    <button @click="show = false" class="px-4 py-2 rounded text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white font-bold transition-colors">Abbrechen</button>
-                    <button wire:click="saveMedication" class="px-6 py-2 rounded bg-[var(--theme-color)] hover:brightness-110 text-black font-black tracking-widest transition-all shadow-lg shadow-[var(--theme-color-20)]">Speichern</button>
+                    <button type="button" @click="show = false" class="px-4 py-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white font-bold transition-colors">Abbrechen</button>
+                    <button type="button" wire:click="saveMedication" class="px-6 py-2 rounded-lg bg-[var(--theme-color)] hover:opacity-90 text-white font-black tracking-widest transition-all shadow-sm">Speichern</button>
                 </div>
             </div>
         </div>

@@ -1549,8 +1549,7 @@ namespace Funkenwerk
         private void MktOpenCameraStudio_Click(object sender, RoutedEventArgs e)
         {
             PlaySoundNav();
-            SwitchSpaceUI("camera");
-            SaveSettingsToFile();
+            CollectionModuleRegistry.LaunchOrFocusModule("kamera");
         }
 
         private async void MktAddDailyToTodo_Click(object sender, RoutedEventArgs e)
@@ -2988,15 +2987,7 @@ namespace Funkenwerk
 
             try
             {
-                // Pause main music player if it is playing so the user hears the marketing track cleanly
-                if (_isMusicPlaying)
-                {
-                    _mediaPlayer.Pause();
-                    _isMusicPlaying = false;
-                    _musicTimer.Stop();
-                    if (MusicPlayPauseBtn != null) MusicPlayPauseBtn.Content = "▶";
-                }
-
+                PauseExternalPlayerIfRunning();
                 _mktMusicPreviewPlayer.Stop();
                 _mktMusicPreviewPlayer.Open(new Uri(path, UriKind.Absolute));
                 _mktMusicPreviewPlayer.Volume = Math.Clamp(_layoutSettings.SoundVolume / 100.0, 0.25, 1.0);

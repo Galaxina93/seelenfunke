@@ -24,6 +24,13 @@ class BackendNavigationService
                         'icon' => 'squares-2x2'
                     ],
                     [
+                        'id' => 'universe-tickets',
+                        'type' => 'single',
+                        'title' => 'Tickets',
+                        'route' => '/admin/tickets',
+                        'icon' => 'ticket'
+                    ],
+                    [
                         'id' => 'ceo',
                         'type' => 'group',
                         'title' => 'Leitung',
@@ -129,18 +136,6 @@ class BackendNavigationService
             [
                 'section' => 'Systemsteuerung',
                 'items' => [
-                    [
-                        'id' => 'system_ai',
-                        'type' => 'group',
-                        'title' => 'Agenten',
-                        'icon' => 'cpu-chip',
-                        'ai_department_id' => '019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-                        'children' => [
-                            ['id' => 'ai-analytics', 'title' => 'Analyse', 'route' => '/admin/ai/analytics', 'icon' => 'chart-pie'],
-                            ['id' => 'war-room', 'title' => 'Zentrale', 'route' => '/admin/ai/workspace', 'icon' => 'rectangle-group'],
-                            ['id' => 'organigramm', 'title' => 'Organigramm', 'route' => '/admin/organigramm', 'icon' => 'building-office-2']
-                        ]
-                    ],
                     [
                         'id' => 'system',
                         'type' => 'group',

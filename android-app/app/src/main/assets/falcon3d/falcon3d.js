@@ -229,7 +229,7 @@
         drawFacetStar(228, 226, 8, 3.2);
         drawFacetStar(540, 226, 8, 3.2);
 
-        // 3. Typografie FALCONE
+        // 3. Typografie FUNKIRA
         ctx.save();
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -239,20 +239,20 @@
 
         ctx.fillStyle = goldGrad;
         ctx.font = '900 68px sans-serif';
-        ctx.fillText('FALCONE', 384, 140);
+        ctx.fillText('FUNKIRA', 384, 140);
 
         ctx.strokeStyle = 'rgba(255, 248, 220, 0.58)';
         ctx.lineWidth = 2.2;
-        ctx.strokeText('FALCONE', 384, 140);
+        ctx.strokeText('FUNKIRA', 384, 140);
 
-        // 4. Typografie Mitgründer
+        // 4. Typografie Stabschefin
         ctx.font = '700 42px Georgia, serif';
         ctx.fillStyle = '#F3D587';
-        ctx.fillText('Mitgründer', 384, 226);
+        ctx.fillText('Stabschefin', 384, 226);
 
         ctx.strokeStyle = 'rgba(255, 244, 206, 0.48)';
         ctx.lineWidth = 1.8;
-        ctx.strokeText('Mitgründer', 384, 226);
+        ctx.strokeText('Stabschefin', 384, 226);
         ctx.restore();
 
         // 5. Flimmerfreie, vertikal weichgezeichnete Matte-Gold-Trennlinie (kein harter 1px-Kontrast bei Atembewegung!)
@@ -518,16 +518,16 @@
     var camera = new THREE.PerspectiveCamera(38, 9 / 20, 0.12, 18);
     var userZoom = 1.0;
 
-    // Materials with strong warm golden rim reflection so Falcon stands out against #080A10
+    // Rose-Gold, 24K Gold & Obsidian Materials matching Mini-PC Funkira 1:1 (without 3D house world)
     var mats = {
-        gold24k:      new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#D4A843', '#FFFFFF', '#FFF3CC', 36, 0.62) }),
-        goldBright:   new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#F3D587', '#FFFFFF', '#FFFBE8', 40, 0.68) }),
-        suitArmor:    new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#12151D', '#5A6278', '#D8B257', 28, 0.52) }),
-        obsidian:     new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#0A0C12', '#3D4456', '#C5A059', 26, 0.38) }),
-        hairObsidian: new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#1E1813', '#80684D', '#E2BC6B', 26, 0.44) }),
-        jointDark:    new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#0D1017', '#434859', '#9B7E45', 14, 0.24) }),
-        earGlow:      new THREE.MeshBasicMaterial({ color: 0xECC56E }),
-        monocleLens:  new THREE.MeshBasicMaterial({ map: makeMonocleLensTexture(), transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide })
+        gold24k:      new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#E698A8', '#FFFFFF', '#FFE6EE', 34, 0.58) }),
+        goldBright:   new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#D9B15F', '#FFFFFF', '#FFF7DA', 40, 0.66) }),
+        suitArmor:    new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#15131B', '#685970', '#E698A8', 28, 0.48) }),
+        obsidian:     new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#121018', '#4E4359', '#D9B15F', 26, 0.38) }),
+        scarfRed:     new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#C83750', '#FF9CB0', '#FFD8E2', 20, 0.34) }),
+        jointDark:    new THREE.MeshMatcapMaterial({ matcap: makeStudioMatcap('#0D1017', '#434859', '#B88496', 14, 0.24) }),
+        earGlow:      new THREE.MeshBasicMaterial({ color: 0xE8829B }),
+        sirenCrystal: new THREE.MeshBasicMaterial({ color: 0xFFE4EE, transparent: true, opacity: 0.34, depthWrite: false })
     };
 
     var floorDisc = new THREE.Mesh(
@@ -645,11 +645,11 @@
         ictx.fill();
 
         var ig = ictx.createRadialGradient(48, 58, 5, 48, 48, 42);
-        ig.addColorStop(0.0, '#FFF6CA');
-        ig.addColorStop(0.28, '#F0B643');
-        ig.addColorStop(0.62, '#A86E18');
-        ig.addColorStop(0.88, '#4E2E07');
-        ig.addColorStop(1.0, '#241403');
+        ig.addColorStop(0.0, '#FFEBF2');
+        ig.addColorStop(0.28, '#F07E9C');
+        ig.addColorStop(0.62, '#A8385B');
+        ig.addColorStop(0.88, '#4A1528');
+        ig.addColorStop(1.0, '#220913');
         ictx.fillStyle = ig;
         ictx.beginPath();
         ictx.ellipse(48, 48, 39.2, 40.6, 0, 0, Math.PI * 2);
@@ -660,8 +660,8 @@
             var rIn = 18.8 + (f % 2) * 2.0;
             var rOut = 36.8 - (f % 3) * 1.8;
             ictx.strokeStyle = (f % 3 === 0)
-                ? 'rgba(255, 246, 205, 0.42)'
-                : 'rgba(240, 184, 78, 0.34)';
+                ? 'rgba(255, 228, 238, 0.45)'
+                : 'rgba(238, 130, 162, 0.36)';
             ictx.lineWidth = (f % 2 === 0) ? 1.45 : 0.95;
             ictx.beginPath();
             ictx.moveTo(48 + Math.cos(ang) * rIn, 47 + Math.sin(ang) * rIn);
@@ -1186,89 +1186,39 @@
     rig.earGlowL = buildEarModule(-1);
     rig.earGlowR = buildEarModule(1);
 
-    // Sculpted Silky Gentleman Hairstyle (Continuous Custom-Tapered Tube Locks, Zero Z-Fighting!)
-    var hairGroup = new THREE.Group();
-    hairGroup.position.set(0, 0.315, 0.01);
-    headPivot.add(hairGroup);
+    // Funkira Signature Crystal Siren Dome & Cozy Scarf (exact Mini-PC funkira3d.js rig, zero house world)
+    var sirenGroup = new THREE.Group();
+    sirenGroup.position.set(0, 0.315, 0.0);
+    headPivot.add(sirenGroup);
 
-    function addSilkyHairLock(pts, maxRadius, isGold) {
-        var curve = new THREE.CatmullRomCurve3(pts.map(function (p) {
-            return new THREE.Vector3(p[0], p[1], p[2]);
-        }));
-        var mat = isGold ? mats.goldBright : mats.hairObsidian;
-        var tubularSegs = 36;
-        var radialSegs = 16;
-        var geo = new THREE.TubeGeometry(curve, tubularSegs, maxRadius, radialSegs, false);
+    var sirenBase = new THREE.Mesh(new THREE.CylinderGeometry(0.116, 0.140, 0.046, 24), mats.gold24k);
+    sirenBase.position.set(0, 0.015, 0);
+    var sirenGoldCollar = new THREE.Mesh(new THREE.TorusGeometry(0.118, 0.010, 10, 24), mats.goldBright);
+    sirenGoldCollar.rotation.x = Math.PI / 2;
+    sirenGoldCollar.position.set(0, 0.038, 0);
+    var sirenDome = new THREE.Mesh(new THREE.CylinderGeometry(0.084, 0.102, 0.112, 24), mats.earGlow);
+    sirenDome.position.set(0, 0.086, 0);
+    var sirenCrystalBell = new THREE.Mesh(new THREE.CylinderGeometry(0.098, 0.116, 0.120, 24), mats.sirenCrystal);
+    sirenCrystalBell.position.set(0, 0.088, 0);
+    var sirenCap = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.094, 0.020, 24), mats.goldBright);
+    sirenCap.position.set(0, 0.152, 0);
+    var sirenStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.020, 0), mats.goldBright);
+    sirenStar.position.set(0, 0.174, 0);
+    sirenGroup.add(sirenBase, sirenGoldCollar, sirenDome, sirenCrystalBell, sirenCap, sirenStar);
 
-        // Smoothly taper both root and tip of the TubeGeometry vertices for organic hair lock silhouette!
-        var pos = geo.attributes.position;
-        var centerPt = new THREE.Vector3();
-        var vtx = new THREE.Vector3();
-        for (var ti = 0; ti <= tubularSegs; ti++) {
-            var u = ti / tubularSegs;
-            curve.getPointAt(u, centerPt);
-            var taper = Math.sin(Math.pow(u, 0.72) * Math.PI * 0.96);
-            var scale = 0.22 + 0.85 * taper;
-            for (var ri = 0; ri <= radialSegs; ri++) {
-                var idx = ti * (radialSegs + 1) + ri;
-                if (idx < pos.count) {
-                    vtx.fromBufferAttribute(pos, idx);
-                    vtx.sub(centerPt);
-                    vtx.x *= scale * 1.15;
-                    vtx.y *= scale * 0.78;
-                    vtx.z *= scale;
-                    vtx.add(centerPt);
-                    pos.setXYZ(idx, vtx.x, vtx.y, vtx.z);
-                }
-            }
-        }
-        geo.computeVertexNormals();
-        hairGroup.add(new THREE.Mesh(geo, mat));
-    }
-
-    var crownBase = new THREE.Mesh(new THREE.SphereGeometry(0.23, 24, 16), mats.hairObsidian);
-    crownBase.scale.set(1.32, 0.48, 0.85);
-    crownBase.position.set(-0.02, 0.03, -0.01);
-    hairGroup.add(crownBase);
-
-    // Cleanly separated Z-layers: silky obsidian pompadour waves + 24K gold highlight locks
-    addSilkyHairLock([[-0.28, 0.00, 0.07], [-0.13, 0.12, 0.09], [0.06, 0.165, 0.075], [0.27, 0.095, 0.035]], 0.064, false);
-    addSilkyHairLock([[-0.30, 0.00, -0.01], [-0.11, 0.145, 0.00], [0.10, 0.185, -0.01], [0.31, 0.115, -0.02]], 0.070, false);
-    addSilkyHairLock([[-0.26, 0.00, -0.09], [-0.08, 0.115, -0.085], [0.11, 0.145, -0.08], [0.26, 0.075, -0.06]], 0.060, false);
-    addSilkyHairLock([[0.05, 0.07, 0.06], [0.17, 0.115, 0.05], [0.30, 0.095, 0.025], [0.38, 0.135, 0.01]], 0.038, false);
-    // Distinct non-intersecting 24K Gold highlight strands
-    addSilkyHairLock([[-0.22, 0.045, 0.142], [-0.06, 0.152, 0.152], [0.11, 0.172, 0.130], [0.26, 0.112, 0.082]], 0.024, true);
-    addSilkyHairLock([[-0.16, 0.082, 0.042], [0.00, 0.212, 0.042], [0.17, 0.210, 0.028], [0.32, 0.148, 0.002]], 0.024, true);
-
-    // 3D Gold Monocle centered cleanly over Viewer's Right Eye:
-    // Canvas eye center (ex=274, eyeY=104) on (384x240) mapped onto 0.84x0.52 plane:
-    // X = ((274 - 192) / 384) * 0.84 = +0.1794, Y = ((120 - 104) / 240) * 0.52 = +0.0347, Z = +0.220
-    var monocleGroup = new THREE.Group();
-    monocleGroup.position.set(0.179, 0.035, 0.220);
-    headPivot.add(monocleGroup);
-    rig.monocle = monocleGroup;
-
-    var monocleRim = new THREE.Mesh(new THREE.TorusGeometry(0.122, 0.0125, 16, 48), mats.gold24k);
-    var monocleInnerRim = new THREE.Mesh(new THREE.TorusGeometry(0.111, 0.0045, 10, 40), mats.goldBright);
-    monocleInnerRim.position.z = 0.005;
-    var monocleGlass = new THREE.Mesh(new THREE.CircleGeometry(0.110, 40), mats.monocleLens);
-    monocleGlass.position.z = 0.002;
-    var monocleLug = new THREE.Mesh(new THREE.TorusGeometry(0.017, 0.005, 10, 20), mats.goldBright);
-    monocleLug.position.set(0.132, -0.015, 0.0);
-    monocleGroup.add(monocleRim, monocleInnerRim, monocleGlass, monocleLug);
-
-    var monocleChainAnchor = new THREE.Group();
-    monocleChainAnchor.position.set(0.136, -0.022, 0.0);
-    monocleGroup.add(monocleChainAnchor);
-
-    // 14-Link 3D Gold Monocle Chain
-    var CHAIN_LINKS = 14;
-    var chainMeshes = [];
-    var linkGeo = new THREE.TorusGeometry(0.014, 0.0044, 8, 16);
-    for (var ci = 0; ci < CHAIN_LINKS; ci++) {
-        var lm = new THREE.Mesh(linkGeo, (ci % 2 === 0) ? mats.goldBright : mats.gold24k);
-        scene.add(lm);
-        chainMeshes.push(lm);
+    if (rig.torso) {
+        var scarfGroup = new THREE.Group();
+        var scarfRing = new THREE.Mesh(new THREE.TorusGeometry(0.205, 0.046, 14, 30), mats.scarfRed);
+        scarfRing.rotation.x = Math.PI / 2;
+        scarfRing.position.y = 0.43;
+        var scarfTail = new THREE.Mesh(new THREE.BoxGeometry(0.088, 0.24, 0.034), mats.scarfRed);
+        scarfTail.position.set(0.11, 0.30, 0.215);
+        scarfTail.rotation.z = 0.14;
+        var scarfGoldTip = new THREE.Mesh(new THREE.BoxGeometry(0.092, 0.022, 0.036), mats.goldBright);
+        scarfGoldTip.position.set(0.093, 0.18, 0.216);
+        scarfGoldTip.rotation.z = 0.14;
+        scarfGroup.add(scarfRing, scarfTail, scarfGoldTip);
+        rig.torso.add(scarfGroup);
     }
 
     // ========================================================================
@@ -1445,76 +1395,73 @@
             }
             visorCtx.restore();
 
-            visorCtx.strokeStyle = '#E5C07B';
-            visorCtx.lineWidth = 3.8;
+            visorCtx.strokeStyle = '#E88DA3';
+            visorCtx.lineWidth = 4.2;
             visorCtx.lineCap = 'round';
             visorCtx.beginPath();
             visorCtx.ellipse(ex, eyeY, rx + 0.5, ry * Math.max(0.08, 1 - lidTop * 1.08), 0, Math.PI * 1.10, Math.PI * 1.90);
             visorCtx.stroke();
 
-            visorCtx.strokeStyle = 'rgba(229, 180, 82, 0.50)';
-            visorCtx.lineWidth = 2.2;
-            for (var cs = -1; cs <= 1; cs++) {
-                var sx = ex + side * 12 + cs * 7;
-                var sy = eyeY + 51;
-                visorCtx.beginPath();
-                visorCtx.moveTo(sx - 2.5, sy + 3.5);
-                visorCtx.lineTo(sx + 2.5, sy - 3.5);
-                visorCtx.stroke();
+            // 3 feminine curved eyelashes (matching Mini-PC funkira3d.js)
+            if (lidTop < 0.82) {
+                var archY = eyeY - ry * (1 - lidTop * 1.45);
+                visorCtx.strokeStyle = '#DF8299';
+                visorCtx.lineWidth = 3.8;
+                for (var l = 0; l < 3; l++) {
+                    var lx0 = ex + side * (rx - 4.5 - l * 5.2);
+                    var ly0 = archY + 10.5 + l * 4.5;
+                    visorCtx.beginPath();
+                    visorCtx.moveTo(lx0, ly0);
+                    visorCtx.quadraticCurveTo(lx0 + side * 9, ly0 - 4.5, lx0 + side * (14 - l * 1.5), ly0 - (10.5 - l * 2.2));
+                    visorCtx.stroke();
+                }
             }
+
+            // Soft Rose Blush Cheeks
+            var blushGrad = visorCtx.createRadialGradient(ex + side * 10, eyeY + 52, 2, ex + side * 10, eyeY + 52, 28);
+            blushGrad.addColorStop(0.0, 'rgba(244, 118, 152, 0.42)');
+            blushGrad.addColorStop(1.0, 'rgba(244, 118, 152, 0.0)');
+            visorCtx.fillStyle = blushGrad;
+            visorCtx.beginPath();
+            visorCtx.ellipse(ex + side * 10, eyeY + 52, 28, 16, 0, 0, Math.PI * 2);
+            visorCtx.fill();
 
             var by = 46 + gy * 0.40 + faceCur.browY;
             var bTilt = faceCur.browTilt * side;
             visorCtx.save();
             visorCtx.translate(ex, by);
             visorCtx.rotate(bTilt);
-            visorCtx.strokeStyle = '#523E29';
-            visorCtx.lineWidth = 8.0;
+            visorCtx.strokeStyle = '#E78CA2';
+            visorCtx.lineWidth = 4.6;
             visorCtx.lineCap = 'round';
             visorCtx.beginPath();
-            visorCtx.moveTo(-28, 5.0);
-            visorCtx.quadraticCurveTo(0, -8.5, 28, 4.0);
-            visorCtx.stroke();
-
-            visorCtx.strokeStyle = 'rgba(238, 202, 126, 0.85)';
-            visorCtx.lineWidth = 2.6;
-            visorCtx.beginPath();
-            visorCtx.moveTo(-24, 3.0);
-            visorCtx.quadraticCurveTo(0, -9.2, 24, 2.2);
+            visorCtx.moveTo(-24, 4.5);
+            visorCtx.quadraticCurveTo(0, -7.5, 24, 4.5);
             visorCtx.stroke();
             visorCtx.restore();
         }
 
-        // Lip-Sync Mouth
+        // Lip-Sync Mouth (Funkira Rose-Pink Lip Glow, no mustache!)
         var mx = 192 + gx * 0.45;
-        var my = 179 + gy * 0.45;
-        var mw = 23 + openAmt * 14 + Math.max(0, faceCur.mouthCurve) * 8;
-        var mh = 4.5 + openAmt * 24;
+        var my = 172 + gy * 0.45;
+        var mw = 24 + openAmt * 12 + Math.max(0, faceCur.mouthCurve) * 8;
+        var mh = 4.5 + openAmt * 26;
 
         visorCtx.save();
         visorCtx.beginPath();
         visorCtx.moveTo(mx - mw, my - 2);
-        visorCtx.quadraticCurveTo(mx, my - 2 + faceCur.mouthCurve * 6, mx + mw, my - 2);
-        visorCtx.quadraticCurveTo(mx + mw * 0.78, my + mh, mx, my + mh);
-        visorCtx.quadraticCurveTo(mx - mw * 0.78, my + mh, mx - mw, my - 2);
+        visorCtx.quadraticCurveTo(mx, my - 2 + faceCur.mouthCurve * 7, mx + mw, my - 2);
+        visorCtx.quadraticCurveTo(mx + mw * 0.82, my + mh, mx, my + mh);
+        visorCtx.quadraticCurveTo(mx - mw * 0.82, my + mh, mx - mw, my - 2);
         visorCtx.closePath();
 
         var mouthGrad = visorCtx.createLinearGradient(mx, my - 2, mx, my + mh);
-        mouthGrad.addColorStop(0, '#FFF7DB');
-        mouthGrad.addColorStop(0.55, '#E8C57B');
-        mouthGrad.addColorStop(1, '#946825');
+        mouthGrad.addColorStop(0, '#FFEBF0');
+        mouthGrad.addColorStop(0.55, '#F08CA5');
+        mouthGrad.addColorStop(1, '#58162A');
         visorCtx.fillStyle = mouthGrad;
         visorCtx.fill();
         visorCtx.restore();
-
-        // Gentleman Mustache right above mouth
-        drawGentlemanMustache(
-            visorCtx,
-            192 + gx * 0.48,
-            165 + gy * 0.45 - openAmt * 2.5,
-            faceCur.mustacheLift + (isSpeakingNow ? amp * 0.18 : 0),
-            isSpeakingNow ? openAmt * 0.65 : 0
-        );
 
         if (state.cameraActive) {
             var pulse = 0.55 + 0.35 * Math.sin(nowMs * 0.005);
@@ -1640,52 +1587,10 @@
     }, { passive: true });
 
     // ========================================================================
-    // SPRING-PHYSICS MONOCLE CHAIN + FLOATING SPARKS + 60 FPS ANIMATION LOOP
+    // FLOATING SPARKS + 60 FPS ANIMATION LOOP (FUNKIRA STANDALONE 3D)
     // ========================================================================
-    var chainSwingX = 0.0, chainVelX = 0.0;
-    var chainSwingZ = 0.0, chainVelZ = 0.0;
-    var prevHeadWorldX = 0.0, prevHeadWorldZ = 0.0;
-    var tmpStart = new THREE.Vector3();
-    var tmpEnd = new THREE.Vector3();
-    var tmpCur = new THREE.Vector3();
-    var tmpNext = new THREE.Vector3();
-
-    function updateMonocleChain(dt) {
-        monocleChainAnchor.getWorldPosition(tmpStart);
-        lapelChainAnchor.getWorldPosition(tmpEnd);
-
-        var vx = (tmpStart.x - prevHeadWorldX) / Math.max(0.004, dt);
-        var vz = (tmpStart.z - prevHeadWorldZ) / Math.max(0.004, dt);
-        prevHeadWorldX = tmpStart.x;
-        prevHeadWorldZ = tmpStart.z;
-
-        chainVelX += (-vx * 0.14 - chainSwingX * 26.0 - chainVelX * 5.2) * dt;
-        chainVelZ += (-vz * 0.14 - chainSwingZ * 26.0 - chainVelZ * 5.2) * dt;
-        chainSwingX = clamp(chainSwingX + chainVelX * dt, -0.09, 0.09);
-        chainSwingZ = clamp(chainSwingZ + chainVelZ * dt, -0.08, 0.08);
-
-        for (var i = 0; i < CHAIN_LINKS; i++) {
-            var t = (i + 0.5) / CHAIN_LINKS;
-            var sag = Math.sin(t * Math.PI);
-            tmpCur.set(
-                lerp(tmpStart.x, tmpEnd.x, t) + sag * (0.042 + chainSwingX),
-                lerp(tmpStart.y, tmpEnd.y, t) - sag * 0.082,
-                lerp(tmpStart.z, tmpEnd.z, t) + sag * (0.036 + chainSwingZ)
-            );
-            var t2 = Math.min(1.0, (i + 1.5) / CHAIN_LINKS);
-            var sag2 = Math.sin(t2 * Math.PI);
-            tmpNext.set(
-                lerp(tmpStart.x, tmpEnd.x, t2) + sag2 * (0.042 + chainSwingX),
-                lerp(tmpStart.y, tmpEnd.y, t2) - sag2 * 0.082,
-                lerp(tmpStart.z, tmpEnd.z, t2) + sag2 * (0.036 + chainSwingZ)
-            );
-            var mesh = chainMeshes[i];
-            mesh.position.copy(tmpCur);
-            mesh.lookAt(tmpNext);
-            if (i % 2 === 1) {
-                mesh.rotateZ(Math.PI * 0.5);
-            }
-        }
+    function updateMonocleChain() {
+        // Monocle removed: pure Funkira 3D character without monocle/house world
     }
 
     function updateSparks(dt, tSec) {
@@ -1895,6 +1800,8 @@
             };
         }
     };
+
+    window.FunkiraScene = window.FalconScene;
 
     renderVisorFace(performance.now(), 0.016);
     requestAnimationFrame(animate);

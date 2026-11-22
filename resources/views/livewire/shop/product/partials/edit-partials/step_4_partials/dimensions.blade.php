@@ -702,7 +702,7 @@
                                     <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 block">Frequenz *</label>
                                     <div class="relative">
                                         <input type="number"
-                                               min="1"
+                                               min="40"
                                                max="200"
                                                step="1"
                                                x-model.number="prof.frequency_khz"

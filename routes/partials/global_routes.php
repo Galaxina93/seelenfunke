@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Frontend\ProductMediaController;
 use App\Http\Controllers\GoogleAuthController;
 use App\Http\Controllers\NewsletterController;
 use App\Http\Controllers\SeoController;
@@ -89,6 +90,9 @@ Route::post('/wunschliste/toggle', [\App\Http\Controllers\Frontend\WishlistContr
 
 // Wichtig: {product:slug} sagt Laravel, es soll in der Spalte 'slug' suchen, nicht 'id'
 Route::get('/produkt/{product:slug}', ProductShow::class)->name('product.show');
+Route::get('/produkt-medien/{product:slug}/{token}', [ProductMediaController::class, 'showSeasonal'])
+    ->where('token', '[a-f0-9]{24}')
+    ->name('product.seasonal-media');
 
 // Die dedizierte Seite
 Route::get('/newsletter', MarketingNewsletterPage::class)->name('newsletter.page');

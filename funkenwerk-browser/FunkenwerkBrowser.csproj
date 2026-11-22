@@ -9,10 +9,17 @@
     <ApplicationIcon>funkenwerk_browser.ico</ApplicationIcon>
     <AssemblyName>FunkenwerkBrowser</AssemblyName>
     <RootNamespace>FunkenwerkBrowser</RootNamespace>
+    <Product>Funkenwerk Browser</Product>
+    <Company>Mein-Seelenfunke</Company>
+    <Version>1.3.0</Version>
+    <AssemblyVersion>1.3.0.11</AssemblyVersion>
+    <FileVersion>1.3.0.11</FileVersion>
+    <InformationalVersion>1.3.0+b11</InformationalVersion>
     <NoWarn>NU1701;CA1416</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
     <Resource Include="funkenwerk_browser.ico" />
     <Resource Include="funkenwerk_browser.png" />
   </ItemGroup>

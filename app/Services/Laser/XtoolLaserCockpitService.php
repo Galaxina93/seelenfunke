@@ -29,6 +29,9 @@ class XtoolLaserCockpitService
 
     public const MIN_DOT_DURATION_US = 1;
     public const MAX_DOT_DURATION_US = 3000;
+    public const MIN_UV_FREQUENCY_KHZ = 40;
+    public const MAX_UV_FREQUENCY_KHZ = 200;
+    public const MAX_MOTION_SAMPLE_DIM = 3200;
     public const Z_AXIS_FOCUS_OFFSET_MM = 6.0;
 
     private const QUEUE_FILE = 'system/xtool_queue/jobs.json';
@@ -135,21 +138,22 @@ class XtoolLaserCockpitService
 
     /**
      * Normalisiert den Kamera-Beleuchtungsmodus für blendfreie Aufnahmen auf spiegelnden Metall-/Glas-Rohlingen:
+     * - 'normal':     Arbeitslicht Standard („Licht an“)
      * - 'anti_glare': Arbeits-LEDs während des Snapshots komplett aus (front = 0, back = 0)
      * - 'dim':        Indirekt gedimmt ~10 % (front = 0, back = 20)
-     * - 'normal':     Arbeitslicht unverändert lassen
      */
     public static function normalizeCameraLightMode(?string $lightMode, array $configuration = []): string
     {
         $raw = ($lightMode !== null && trim($lightMode) !== '')
             ? $lightMode
-            : (string) ($configuration['laser_camera_light_mode'] ?? 'anti_glare');
+            : (string) ($configuration['laser_camera_light_mode'] ?? 'normal');
         $k = mb_strtolower(trim($raw));
 
         return match ($k) {
+            'anti_glare', 'off', 'aus', 'led_off'     => 'anti_glare',
             'dim', 'dimmed', 'low', '10%'             => 'dim',
             'normal', 'on', 'standard', 'unchanged'   => 'normal',
-            default                                   => 'anti_glare',
+            default                                   => 'normal',
         };
     }
 
@@ -442,12 +446,20 @@ class XtoolLaserCockpitService
         }
 
         $reachable = false;
-        $errno = 0;
-        $errstr = '';
-        $fp = @fsockopen($safeIp, self::DEFAULT_V2_PORT, $errno, $errstr, 0.22);
-        if (is_resource($fp)) {
-            fclose($fp);
-            $reachable = true;
+        $probeTimeout = $force ? 0.85 : 0.35;
+        $attempts = $force ? 2 : 1;
+        for ($try = 0; $try < $attempts; $try++) {
+            $errno = 0;
+            $errstr = '';
+            $fp = @fsockopen($safeIp, self::DEFAULT_V2_PORT, $errno, $errstr, $probeTimeout);
+            if (is_resource($fp)) {
+                fclose($fp);
+                $reachable = true;
+                break;
+            }
+            if ($try + 1 < $attempts) {
+                usleep(120000);
+            }
         }
 
         \Illuminate\Support\Facades\Cache::put($cacheKey, $reachable, 15);
@@ -539,6 +551,7 @@ class XtoolLaserCockpitService
             if ($sessionToken === '') {
                 return false;
             }
+            $this->cacheV2SessionToken($safeIp, $sessionToken);
 
             $fileWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=file_stream");
             if (!is_resource($fileWs)) {
@@ -656,6 +669,12 @@ class XtoolLaserCockpitService
 
             // Raw-Capture (4000x3000) atomar & shared-writable sichern
             $this->writeFileAtomicallyShared($hostAppdataDir . '/capture.jpg', $rawJpegBytes);
+
+            // Im selben bereits offenen WebSocket ohne Zusatz-Piepton den Pre-Flight-Status aktualisieren
+            try {
+                $this->readCachedGs009PreflightOverV2($mainWs, $txId, $sessionToken, $safeIp, 'flatbed_standard', false, true);
+            } catch (\Throwable) {
+            }
 
             // 7. Mit 21x21 Werkskalibrierung (global_calib.json) in das 2000x2000 px Arbeitsflächenbild (10 px = 1 mm) entzerren
             $warpedOk = $this->warpRawCameraImageWithCalib($rawJpegBytes, $targetBackgroundPath, $calibPath);
@@ -1023,6 +1042,12 @@ class XtoolLaserCockpitService
                     'error'       => 'Authentifizierung am xTool F2 Ultra UV fehlgeschlagen (kein Session-Token).',
                 ];
             }
+            $this->cacheV2SessionToken($safeIp, $sessionToken);
+
+            try {
+                $this->readCachedGs009PreflightOverV2($mainWs, $txId, $sessionToken, $safeIp, $equipmentKey, false, true);
+            } catch (\Throwable) {
+            }
 
             $fileWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=file_stream");
             if (!is_resource($fileWs)) {
@@ -1165,13 +1190,17 @@ class XtoolLaserCockpitService
             return false;
         }
 
-        $negotiatedMax = max(16384, min(131072, (int) ($upInit['data']['packetsize'] ?? 131072)));
+        $negotiatedMax = max(16384, min(65536, (int) ($upInit['data']['packetsize'] ?? 65536)));
+        @stream_set_timeout($fileWs, 6);
+        @stream_set_timeout($mainWs, 25);
         $rawStream = '';
         $sentTotal = 0;
-        $deadline = microtime(true) + 12.0;
+        $maxByteEndSent = 0;
+        $deadline = microtime(true) + max(25.0, min(120.0, 15.0 + ($fileSize / 262144.0)));
 
         while (microtime(true) < $deadline) {
-            $wsPayload = $this->v2WsReadFrame($fileWs);
+            $readDeadline = ($maxByteEndSent >= $fileSize) ? null : $deadline;
+            $wsPayload = $this->v2WsReadFrame($fileWs, $readDeadline);
             if ($wsPayload === null) {
                 break;
             }
@@ -1193,6 +1222,7 @@ class XtoolLaserCockpitService
 
                 // 1) Binary FILE_REQUEST vom Laser: cmd = 1, 1-Byte channel, 5-Byte BE offset, 3-Byte BE windowSize
                 if ($proto === 33 && strlen($body) >= 10 && ord($body[0]) === 1 && ord($body[1]) === $channel) {
+                    $deadline = max($deadline, microtime(true) + 25.0);
                     $offset = (ord($body[2]) << 32) | (ord($body[3]) << 24) | (ord($body[4]) << 16) | (ord($body[5]) << 8) | ord($body[6]);
                     $windowSize = (ord($body[7]) << 16) | (ord($body[8]) << 8) | ord($body[9]);
                     if ($windowSize <= 0 || $offset >= $fileSize) {
@@ -1202,7 +1232,8 @@ class XtoolLaserCockpitService
                     $endOffset = min($fileSize, $offset + $windowSize);
                     $cursor = $offset;
                     while ($cursor < $endOffset) {
-                        $chunkLen = min($negotiatedMax, 65536, $endOffset - $cursor);
+                        // 32-KB-Pakete bleiben inkl. 0xBABE-Header <= 65535 Bytes (16-Bit WS-Frame) und vermeiden TLS-Puffer-Überläufe
+                        $chunkLen = min($negotiatedMax, 32768, $endOffset - $cursor);
                         $chunk = substr($fileBytes, $cursor, $chunkLen);
                         // FILE_DATA: cmd = 129 (0x81), 1-Byte channel, 5-Byte BE offset, chunk bytes
                         $dataPkt = chr(129)
@@ -1213,9 +1244,19 @@ class XtoolLaserCockpitService
                             . chr(($cursor >> 8) & 0xFF)
                             . chr($cursor & 0xFF)
                             . $chunk;
-                        $this->v2WsSendBinary($fileWs, $this->v2EncodeFrame($dataPkt, 33, false));
+                        if (!$this->v2WsSendBinary($fileWs, $this->v2EncodeFrame($dataPkt, 33, false))) {
+                            return false;
+                        }
                         $cursor += $chunkLen;
                         $sentTotal += $chunkLen;
+                    }
+                    if ($endOffset > $maxByteEndSent) {
+                        $maxByteEndSent = $endOffset;
+                    }
+                    if ($maxByteEndSent >= $fileSize) {
+                        // Alle Dateibytes gesendet: kurzes Nachlesefenster (2 s) für evtl. Retransmit-Wunsch oder JSON-Quittung
+                        @stream_set_timeout($fileWs, 2);
+                        $deadline = min($deadline, microtime(true) + 2.5);
                     }
                 } elseif ($proto === 4) {
                     // 2) JSON-Abschlussquittung auf file_stream: {"channel": 62, "code": 0, "message": "success"}
@@ -1227,7 +1268,7 @@ class XtoolLaserCockpitService
             }
         }
 
-        return $sentTotal >= $fileSize;
+        return $maxByteEndSent >= $fileSize || $sentTotal >= $fileSize;
     }
 
     private function v2Crc16Arc(string $data): int
@@ -1270,12 +1311,12 @@ class XtoolLaserCockpitService
         ]);
         $errno = 0;
         $errstr = '';
-        $fp = @stream_socket_client("tls://{$ip}:{$port}", $errno, $errstr, 0.90, STREAM_CLIENT_CONNECT, $ctx);
+        $fp = @stream_socket_client("tls://{$ip}:{$port}", $errno, $errstr, 2.50, STREAM_CLIENT_CONNECT, $ctx);
         if (!is_resource($fp)) {
             return null;
         }
 
-        stream_set_timeout($fp, 8);
+        stream_set_timeout($fp, 15);
         $key = base64_encode(random_bytes(16));
         $req = "GET {$path} HTTP/1.1\r\n"
             . "Host: {$ip}:{$port}\r\n"
@@ -1283,7 +1324,7 @@ class XtoolLaserCockpitService
             . "Connection: Upgrade\r\n"
             . "Sec-WebSocket-Key: {$key}\r\n"
             . "Sec-WebSocket-Version: 13\r\n\r\n";
-        @fwrite($fp, $req);
+        $this->writeAllToStream($fp, $req);
 
         $resp = '';
         while (($line = @fgets($fp)) !== false) {
@@ -1300,10 +1341,54 @@ class XtoolLaserCockpitService
         return $fp;
     }
 
-    private function v2WsSendBinary($fp, string $data): void
+    /**
+     * Schreibt garantiert alle Bytes vollständig über einen TLS-Stream (verhindert Partial-Writes > 16 KB OpenSSL-Recordgröße).
+     */
+    private function writeAllToStream($fp, string $bytes): bool
     {
+        if (!is_resource($fp)) {
+            return false;
+        }
+
+        $total = strlen($bytes);
+        $written = 0;
+        $zeroCount = 0;
+
+        while ($written < $total) {
+            if (!is_resource($fp)) {
+                return false;
+            }
+            $slice = ($written === 0) ? $bytes : substr($bytes, $written);
+            $n = @fwrite($fp, $slice);
+            if ($n === false) {
+                return false;
+            }
+            if ($n === 0) {
+                if (@feof($fp)) {
+                    return false;
+                }
+                $zeroCount++;
+                if ($zeroCount > 400) {
+                    return false;
+                }
+                usleep(5000);
+                continue;
+            }
+            $zeroCount = 0;
+            $written += $n;
+        }
+
+        return true;
+    }
+
+    private function v2WsSendBinary($fp, string $data, int $opcode = 0x02): bool
+    {
+        if (!is_resource($fp)) {
+            return false;
+        }
+
         $len = strlen($data);
-        $head = chr(0x82);
+        $head = chr(0x80 | ($opcode & 0x0F));
         if ($len <= 125) {
             $head .= chr(0x80 | $len);
         } elseif ($len <= 65535) {
@@ -1314,69 +1399,94 @@ class XtoolLaserCockpitService
         $mask = random_bytes(4);
         $head .= $mask;
         $masked = $len > 0 ? substr($data ^ str_repeat($mask, (int) ceil($len / 4)), 0, $len) : '';
-        @fwrite($fp, $head . $masked);
+
+        return $this->writeAllToStream($fp, $head . $masked);
     }
 
-    private function v2WsReadFrame($fp): ?string
+    private function readExactFromStream($fp, int $needed, ?float $overallDeadline = null): ?string
     {
-        $b12 = '';
-        while (strlen($b12) < 2) {
-            $c = @fread($fp, 2 - strlen($b12));
-            if ($c === false || $c === '') {
-                return null;
-            }
-            $b12 .= $c;
-        }
-        $opcode = ord($b12[0]) & 0x0F;
-        $masked = (ord($b12[1]) & 0x80) !== 0;
-        $len = ord($b12[1]) & 0x7F;
-        if ($len === 126) {
-            $ext = '';
-            while (strlen($ext) < 2) {
-                $c = @fread($fp, 2 - strlen($ext));
-                if ($c === false || $c === '') {
-                    return null;
-                }
-                $ext .= $c;
-            }
-            $len = unpack('n', $ext)[1];
-        } elseif ($len === 127) {
-            $ext = '';
-            while (strlen($ext) < 8) {
-                $c = @fread($fp, 8 - strlen($ext));
-                if ($c === false || $c === '') {
-                    return null;
-                }
-                $ext .= $c;
-            }
-            $len = unpack('J', $ext)[1];
-        }
-        $mask = '';
-        if ($masked) {
-            while (strlen($mask) < 4) {
-                $c = @fread($fp, 4 - strlen($mask));
-                if ($c === false || $c === '') {
-                    return null;
-                }
-                $mask .= $c;
-            }
-        }
-        $payload = '';
-        while (strlen($payload) < $len) {
-            $chunk = @fread($fp, $len - strlen($payload));
-            if ($chunk === false || $chunk === '') {
-                break;
-            }
-            $payload .= $chunk;
-        }
-        if ($masked && $len > 0) {
-            $payload = substr($payload ^ str_repeat($mask, (int) ceil($len / 4)), 0, $len);
-        }
-        if ($opcode === 0x08) {
+        if (!is_resource($fp)) {
             return null;
         }
 
-        return $payload;
+        $buf = '';
+        while (strlen($buf) < $needed) {
+            if (!is_resource($fp)) {
+                return null;
+            }
+            $chunk = @fread($fp, $needed - strlen($buf));
+            if ($chunk !== false && $chunk !== '') {
+                $buf .= $chunk;
+                continue;
+            }
+            if (@feof($fp)) {
+                return null;
+            }
+            $meta = @stream_get_meta_data($fp);
+            if (!empty($meta['timed_out']) && $overallDeadline !== null && microtime(true) < $overallDeadline && strlen($buf) === 0) {
+                continue;
+            }
+            return null;
+        }
+
+        return $buf;
+    }
+
+    private function v2WsReadFrame($fp, ?float $overallDeadline = null): ?string
+    {
+        if (!is_resource($fp)) {
+            return null;
+        }
+
+        while (true) {
+            $b12 = $this->readExactFromStream($fp, 2, $overallDeadline);
+            if ($b12 === null) {
+                return null;
+            }
+            $opcode = ord($b12[0]) & 0x0F;
+            $masked = (ord($b12[1]) & 0x80) !== 0;
+            $len = ord($b12[1]) & 0x7F;
+            if ($len === 126) {
+                $ext = $this->readExactFromStream($fp, 2, $overallDeadline);
+                if ($ext === null) {
+                    return null;
+                }
+                $len = unpack('n', $ext)[1];
+            } elseif ($len === 127) {
+                $ext = $this->readExactFromStream($fp, 8, $overallDeadline);
+                if ($ext === null) {
+                    return null;
+                }
+                $len = unpack('J', $ext)[1];
+            }
+            $mask = '';
+            if ($masked) {
+                $mask = $this->readExactFromStream($fp, 4, $overallDeadline);
+                if ($mask === null) {
+                    return null;
+                }
+            }
+            $payload = $len > 0 ? $this->readExactFromStream($fp, $len, $overallDeadline) : '';
+            if ($payload === null) {
+                return null;
+            }
+            if ($masked && $len > 0) {
+                $payload = substr($payload ^ str_repeat($mask, (int) ceil($len / 4)), 0, $len);
+            }
+            if ($opcode === 0x08) {
+                return null;
+            }
+            if ($opcode === 0x09) {
+                // WebSocket Ping sofort mit Pong (0x0A) beantworten, damit lange Datei-Uploads aktiv bleiben
+                $this->v2WsSendBinary($fp, $payload, 0x0A);
+                continue;
+            }
+            if ($opcode === 0x0A) {
+                continue;
+            }
+
+            return $payload;
+        }
     }
 
     protected function v2SendJsonCmd($ws, int &$txId, string $sessionToken, string $method, string $url, array $params = [], array $data = []): ?array
@@ -1398,9 +1508,9 @@ class XtoolLaserCockpitService
         $jsonBytes = (string) json_encode($cmd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $this->v2WsSendBinary($ws, $this->v2EncodeFrame($jsonBytes, 4, true));
 
-        $deadline = microtime(true) + 8.0;
+        $deadline = microtime(true) + 20.0;
         while (microtime(true) < $deadline) {
-            $frame = $this->v2WsReadFrame($ws);
+            $frame = $this->v2WsReadFrame($ws, $deadline);
             if ($frame === null) {
                 return null;
             }
@@ -1778,15 +1888,26 @@ class XtoolLaserCockpitService
         }
 
         $angleDeg = 0.0;
-        // Bei länglichen Rohlingen (Seitenverhältnis >= 1.2) liefert der Trägheitstensor den exakten Drehwinkel
+        // Bei länglichen Rohlingen (Seitenverhältnis >= 1.2) liefert der Trägheitstensor den Drehwinkel nur
+        // bei aktivem Kamera-Abgleich (nicht auf gecachtem Vorprodukt-Bild) und klarem Hauptachsen-Verhältnis.
         $aspect = max($blankWidthMm, $blankHeightMm) / max(1.0, min($blankWidthMm, $blankHeightMm));
-        if ($aspect >= 1.18 && (abs($mu20 - $mu02) > 1.0 || abs($mu11) > 1.0)) {
-            $rawTheta = 0.5 * rad2deg(atan2(2.0 * $mu11, $mu20 - $mu02));
-            if ($blankHeightMm > $blankWidthMm) {
-                $rawTheta -= ($rawTheta > 0 ? 90.0 : -90.0);
-            }
-            if (abs($rawTheta) <= 28.0) {
-                $angleDeg = round($rawTheta, 1);
+        $canEstimateAngle = ($forceCameraSync || ($camInfo['source'] ?? 'cached') !== 'cached')
+            && $bestRatio >= 0.22
+            && $wSum >= max(24.0, ($blankWidthMm * $blankHeightMm) * 0.8);
+
+        if ($canEstimateAngle && $aspect >= 1.18 && (abs($mu20 - $mu02) > 1.0 || abs($mu11) > 1.0)) {
+            $axisMatchesBlank = $blankHeightMm > ($blankWidthMm * 1.15)
+                ? ($mu02 > ($mu20 * 1.35))
+                : ($mu20 > ($mu02 * 1.35));
+
+            if ($axisMatchesBlank) {
+                $rawTheta = 0.5 * rad2deg(atan2(2.0 * $mu11, $mu20 - $mu02));
+                if ($blankHeightMm > $blankWidthMm) {
+                    $rawTheta -= ($rawTheta > 0 ? 90.0 : -90.0);
+                }
+                if (abs($rawTheta) >= 1.2 && abs($rawTheta) <= 28.0) {
+                    $angleDeg = round($rawTheta, 1);
+                }
             }
         }
 
@@ -2072,9 +2193,9 @@ class XtoolLaserCockpitService
                     'lamellenrost_schwarz_100khz' => [
                         'label'  => 'Schwarz (Anlass-Gravur 100 kHz · Lamellenrost)',
                         'source' => 'PDF 1',
-                        'focus_offset_mm' => 2.0,
-                        'vector' => $v(21.5, 95, 25, 100, 1000, 1),
-                        'bitmap' => $b(21.5, 95, 1100, 100, 1270, 1, 'Schwellenwert'),
+                        'focus_offset_mm' => 0.0,
+                        'vector' => $v(19.5, 95, 25, 100, 1000, 1),
+                        'bitmap' => $b(19.5, 95, 1100, 100, 1270, 1, 'Schwellenwert'),
                     ],
                     'pdf2_sweetspot' => [
                         'label'  => 'Schritt-1 Katalog (PDF 2)',
@@ -2198,31 +2319,31 @@ class XtoolLaserCockpitService
             'seelen-kristall' => [
                 'label'         => 'Der Seelen Kristall',
                 'blank'         => 'Ø 161,5 × 40 mm · K9-Kristall MSF-KRISTALL-3D-001',
-                'polarity'      => 'white_on_dark',
+                'polarity'      => 'frost_on_glass',
                 'equipment_key' => 'flatbed_standard',
                 'material'      => 'K9 Kristalltrophäe',
-                'setup_note'    => 'Schwarzes Lamellenrost nutzen, Standfuß frei über Vorderkante schweben lassen. Shop-SVG nicht invertieren.',
+                'setup_note'    => 'Schwarzes Lamellenrost nutzen, Standfuß frei über Vorderkante schweben lassen. Fokus 31,2 mm legt die UV-Taille in das massive K9-Glas (außen spiegelglatt, schneeweißer Tiefen-Frost).',
                 'presets'       => [
+                    'k9_tiefen_frost_lamellenrost' => [
+                        'label'  => 'K9 Tiefen-Frost im Glas · Lamellenrost (31,2 mm)',
+                        'source' => 'Werkstatt-Kalibrierung',
+                        'focus_offset_mm' => -1.5,
+                        'vector' => $v(31.2, 100, 40, 40, 300, 2),
+                        'bitmap' => $b(31.2, 100, 650, 40, 600, 1),
+                    ],
                     'pdf2_seidenmatt_frost' => [
-                        'label'  => 'Außen Seidenmatt-Frost (PDF 2)',
+                        'label'  => 'K9 Außen-Seidenmatt · Lamellenrost (32,5 mm)',
                         'source' => 'PDF 2',
-                        'focus_offset_mm' => 0.0,
-                        'vector' => $v(33.1, 60, 80, 40, 300, 1),
-                        'bitmap' => $b(33.1, 100, 450, 40, 500, 1),
+                        'focus_offset_mm' => -0.2,
+                        'vector' => $v(32.5, 100, 40, 40, 300, 2),
+                        'bitmap' => $b(32.5, 100, 650, 40, 600, 1),
                     ],
                     'pdf1_frost_600dpi' => [
                         'label'  => 'Frost 600 DPI (PDF 1)',
                         'source' => 'PDF 1',
                         'focus_offset_mm' => 0.0,
-                        'vector' => $v(33.1, 60, 80, 40, 300, 1),
-                        'bitmap' => $b(33.1, 100, 500, 40, 600, 1),
-                    ],
-                    'master_referenz_32_8' => [
-                        'label'  => 'Master-Referenz 32,8 mm (Brennpunkt-Doku)',
-                        'source' => 'Brennpunkt_Masse.md',
-                        'focus_offset_mm' => -0.3,
-                        'vector' => $v(32.8, 60, 80, 40, 300, 1),
-                        'bitmap' => $b(32.8, 85, 500, 40, 600, 1),
+                        'vector' => $v(32.9, 60, 80, 40, 300, 1),
+                        'bitmap' => $b(32.9, 100, 500, 40, 600, 1),
                     ],
                     'inner_3d_subsurface' => [
                         'label'         => 'Innengravur 3D/2D Subsurface (PDF 1 Pos. 09)',
@@ -2564,7 +2685,7 @@ class XtoolLaserCockpitService
                 : (float) (is_numeric($settings['xtool_vector_focus_mm'] ?? null) ? $settings['xtool_vector_focus_mm'] : $effective['focus_mm']),
             'power_percent' => $pick($noteValues['power_percent'], $settings['xtool_vector_power_percent'] ?? null, (int) $effective['power_percent'], $hasOverrides),
             'speed_mms'     => $pick($noteValues['speed_mms'], $settings['xtool_vector_speed_mms'] ?? null, (int) $effective['speed_mms'], $hasOverrides),
-            'frequency_khz' => $pick($noteValues['frequency_khz'], $settings['xtool_vector_frequency_khz'] ?? null, (int) $effective['frequency_khz'], $hasOverrides),
+            'frequency_khz' => max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, $pick($noteValues['frequency_khz'], $settings['xtool_vector_frequency_khz'] ?? null, (int) $effective['frequency_khz'], $hasOverrides))),
             'lpc'           => $vectorLpc,
             'dpi'           => max(50, min(2540, (int) round($vectorLpc * 2.54))),
             'passes'        => $pick($noteValues['passes'], $settings['xtool_vector_passes'] ?? null, (int) $effective['passes'], $hasOverrides),
@@ -2884,7 +3005,7 @@ class XtoolLaserCockpitService
             ? max(self::MIN_DOT_DURATION_US, min(self::MAX_DOT_DURATION_US, (int) $baseSummary['dot_duration_us']))
             : 120;
         $defaultFreqKhz = ((int) ($baseSummary['frequency_khz'] ?? 0)) > 0
-            ? max(1, min(200, (int) $baseSummary['frequency_khz']))
+            ? max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, (int) $baseSummary['frequency_khz']))
             : 60;
         $defaultPasses = ((int) ($baseSummary['passes'] ?? 0)) > 0
             ? max(1, min(20, (int) $baseSummary['passes']))
@@ -2989,12 +3110,52 @@ class XtoolLaserCockpitService
             $copyLines[] = 'Vektor: ' . $vectorNote;
         }
 
+        $profiles = $product ? $product->getLaserProfiles() : [];
+        $activeProfileId = '';
+        $explicitProfileId = trim((string) ($rawOverrides['active_profile_id'] ?? $rawOverrides['profile_id'] ?? ''));
+        if ($explicitProfileId !== '') {
+            foreach ($profiles as $profCandidate) {
+                if ((string) ($profCandidate['id'] ?? '') === $explicitProfileId) {
+                    $activeProfileId = $explicitProfileId;
+                    break;
+                }
+            }
+        }
+        if ($activeProfileId === '' && !empty($profiles)) {
+            foreach ($profiles as $profCandidate) {
+                $pFocus = isset($profCandidate['focus_mm']) ? (float) $profCandidate['focus_mm'] : null;
+                $pPower = isset($profCandidate['power_percent']) ? (int) $profCandidate['power_percent'] : null;
+                $pDot = isset($profCandidate['dot_duration_us']) ? (int) $profCandidate['dot_duration_us'] : null;
+                $pDpi = isset($profCandidate['dpi']) ? (int) $profCandidate['dpi'] : null;
+                $pFreq = isset($profCandidate['frequency_khz']) ? (int) $profCandidate['frequency_khz'] : null;
+                $pSpeed = isset($profCandidate['speed_mms']) ? (int) $profCandidate['speed_mms'] : null;
+                $pPasses = isset($profCandidate['passes']) ? (int) $profCandidate['passes'] : null;
+                if (
+                    $pFocus !== null && abs($pFocus - (float) $sanitized['focus_mm']) < 0.05
+                    && $pPower === (int) $sanitized['power_percent']
+                    && $pDot === (int) $sanitized['dot_duration_us']
+                    && $pDpi === (int) $sanitized['dpi']
+                    && $pFreq === (int) $sanitized['frequency_khz']
+                    && $pSpeed === (int) $sanitized['speed_mms']
+                    && $pPasses === (int) $sanitized['passes']
+                ) {
+                    $activeProfileId = (string) ($profCandidate['id'] ?? '');
+                    break;
+                }
+            }
+            if ($activeProfileId === '' && !$hasOverrides) {
+                $defProf = collect($profiles)->first(fn ($p) => !empty($p['is_default'])) ?? ($profiles[0] ?? null);
+                $activeProfileId = is_array($defProf) ? (string) ($defProf['id'] ?? '') : '';
+            }
+        }
+
         return [
-            'is_complete'     => (bool) (($baseSummary['is_complete'] ?? false) || $hasOverrides),
-            'has_geometry'    => (bool) ($baseSummary['has_geometry'] ?? true),
-            'missing_labels'  => $hasOverrides ? [] : ($baseSummary['missing_labels'] ?? []),
-            'has_overrides'   => $hasOverrides,
-            'is_customized'   => $hasOverrides,
+            'is_complete'       => (bool) (($baseSummary['is_complete'] ?? false) || $hasOverrides),
+            'has_geometry'      => (bool) ($baseSummary['has_geometry'] ?? true),
+            'missing_labels'    => $hasOverrides ? [] : ($baseSummary['missing_labels'] ?? []),
+            'has_overrides'     => $hasOverrides,
+            'is_customized'     => $hasOverrides,
+            'active_profile_id' => $activeProfileId,
             'equipment_key'   => $equipKey,
             'equipment_label' => $modeMeta['label'],
             'equipment_title' => $prodEquipMeta['title'] ?? $modeMeta['title'],
@@ -3257,7 +3418,7 @@ class XtoolLaserCockpitService
         $speedMms = max(1, min(4000, $parseInt($rawSpeedVal, (int) ($defaults['speed_mms'] ?? 200))));
         $dpi = max(50, min(2540, $parseInt($raw['dpi'] ?? null, (int) $defaults['dpi'])));
         $dotDurationUs = max(self::MIN_DOT_DURATION_US, min(self::MAX_DOT_DURATION_US, $parseInt($raw['dot_duration_us'] ?? null, (int) $defaults['dot_duration_us'])));
-        $frequencyKhz = max(1, min(200, $parseInt($raw['frequency_khz'] ?? null, (int) $defaults['frequency_khz'])));
+        $frequencyKhz = max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, $parseInt($raw['frequency_khz'] ?? null, (int) $defaults['frequency_khz'])));
         $passes = max(1, min(20, $parseInt($raw['passes'] ?? null, (int) $defaults['passes'])));
 
         $elementType = array_key_exists('element_type', $raw)
@@ -3316,7 +3477,8 @@ class XtoolLaserCockpitService
         OrderOrderItem $item,
         string $side,
         array $rawParams,
-        bool $onlyIfChangedFromCurrent = false
+        bool $onlyIfChangedFromCurrent = false,
+        ?string $activeProfileId = null
     ): array {
         $effectiveSide = ($side === 'back') ? 'back' : 'front';
         $item->loadMissing('product');
@@ -3376,6 +3538,9 @@ class XtoolLaserCockpitService
         $storedPayload = array_merge($sanitized, [
             'updated_at' => now()->toIso8601String(),
         ]);
+        if ($activeProfileId !== null && trim($activeProfileId) !== '') {
+            $storedPayload['active_profile_id'] = trim($activeProfileId);
+        }
 
         $conf['laser_cockpit_parameters'][$effectiveSide] = $storedPayload;
         $conf['laser_parameter_overrides'][$effectiveSide] = $storedPayload;
@@ -3508,7 +3673,7 @@ class XtoolLaserCockpitService
      * @param  array<string, mixed>  $syncedSettings
      * @return array<string, mixed>
      */
-    protected static function restorePhotoStudioIntoSyncedSettings(array $sourceProfiles, array $syncedSettings): array
+    public static function restorePhotoStudioIntoSyncedSettings(array $sourceProfiles, array $syncedSettings): array
     {
         if (empty($syncedSettings['xtool_profiles']) || !is_array($syncedSettings['xtool_profiles'])) {
             return $syncedSettings;
@@ -4069,7 +4234,13 @@ class XtoolLaserCockpitService
             }
         }
 
-        return $this->saveOrderItemLaserParameterOverrides($item, $side, $payload, false);
+        return $this->saveOrderItemLaserParameterOverrides(
+            $item,
+            $side,
+            $payload,
+            false,
+            (string) ($found['id'] ?? '')
+        );
     }
 
     /**
@@ -4100,100 +4271,12 @@ class XtoolLaserCockpitService
                 'engrave_mode'    => 'Bidirektional',
                 'vector_note'     => 'Gravieren · 95 % · 25 mm/s · 1000 Linien/cm · 100 kHz',
             ],
-            [
-                'id'              => 'prof_cockpit_sweetspot_65khz',
-                'title'           => 'Cockpit-Sweetspot 65 kHz',
-                'is_default'      => false,
-                'focus_mm'        => 20.9,
-                'element_type'    => 'Bild',
-                'engrave_tab'     => 'Gravieren',
-                'preset_mode'     => 'Benutzerdefiniert',
-                'dot_duration_us' => 210,
-                'power_percent'   => 45,
-                'dpi'             => 800,
-                'frequency_khz'   => 65,
-                'speed_mms'       => 110,
-                'passes'          => 1,
-                'bitmap_mode'     => 'Jarvis',
-                'engrave_mode'    => 'Bidirektional',
-                'vector_note'     => 'Gravieren · 42 % · 110 mm/s · 330 Linien/cm · 65 kHz',
-            ],
-            [
-                'id'              => 'prof_weiss_silber_kontrast',
-                'title'           => 'Weiß / Silber-Kontrast',
-                'is_default'      => false,
-                'focus_mm'        => 19.5,
-                'element_type'    => 'Bild',
-                'engrave_tab'     => 'Gravieren',
-                'preset_mode'     => 'Benutzerdefiniert',
-                'dot_duration_us' => 210,
-                'power_percent'   => 45,
-                'dpi'             => 600,
-                'frequency_khz'   => 40,
-                'speed_mms'       => 550,
-                'passes'          => 1,
-                'bitmap_mode'     => 'Jarvis',
-                'engrave_mode'    => 'Bidirektional',
-                'vector_note'     => 'Gravieren · 28 % · 550 mm/s · 300 Linien/cm · 40 kHz',
-            ],
         ];
 
-        $pawProfiles = array_merge($goldSteelProfiles, [[
-            'id'              => 'prof_schwarz_bodenplatte_3_8',
-            'title'           => 'Schwarz · Bodenplatte ohne Lamellenrost (3,8 mm)',
-            'is_default'      => false,
-            'focus_mm'        => 3.8,
-            'element_type'    => 'Bild',
-            'engrave_tab'     => 'Gravieren',
-            'preset_mode'     => 'Benutzerdefiniert',
-            'dot_duration_us' => 1100,
-            'power_percent'   => 95,
-            'dpi'             => 1270,
-            'frequency_khz'   => 100,
-            'speed_mms'       => 25,
-            'passes'          => 1,
-            'bitmap_mode'     => 'Schwellenwert',
-            'engrave_mode'    => 'Bidirektional',
-            'vector_note'     => 'Gravieren · 95 % · 25 mm/s · 1000 Linien/cm · 100 kHz',
-        ]]);
-
-        $heartProfiles = array_merge($goldSteelProfiles, [[
-            'id'              => 'prof_massiv_4mm_lamellenrost',
-            'title'           => 'Schwarz · Massiv 4 mm Lamellenrost (+2,0 mm Defokus)',
-            'is_default'      => false,
-            'focus_mm'        => 23.7,
-            'element_type'    => 'Bild',
-            'engrave_tab'     => 'Gravieren',
-            'preset_mode'     => 'Benutzerdefiniert',
-            'dot_duration_us' => 1100,
-            'power_percent'   => 95,
-            'dpi'             => 1270,
-            'frequency_khz'   => 100,
-            'speed_mms'       => 20,
-            'passes'          => 1,
-            'bitmap_mode'     => 'Schwellenwert',
-            'engrave_mode'    => 'Bidirektional',
-            'vector_note'     => 'Gravieren · 98 % · 20 mm/s · 1000 Linien/cm · 100 kHz',
-        ]]);
-
-        $talismanProfiles = array_merge($goldSteelProfiles, [[
-            'id'              => 'prof_schwarz_bodenplatte_4_2',
-            'title'           => 'Schwarz · Bodenplatte ohne Lamellenrost (4,2 mm)',
-            'is_default'      => false,
-            'focus_mm'        => 4.2,
-            'element_type'    => 'Bild',
-            'engrave_tab'     => 'Gravieren',
-            'preset_mode'     => 'Benutzerdefiniert',
-            'dot_duration_us' => 1100,
-            'power_percent'   => 95,
-            'dpi'             => 1270,
-            'frequency_khz'   => 100,
-            'speed_mms'       => 25,
-            'passes'          => 1,
-            'bitmap_mode'     => 'Schwellenwert',
-            'engrave_mode'    => 'Bidirektional',
-            'vector_note'     => 'Gravieren · 95 % · 25 mm/s · 1000 Linien/cm · 100 kHz',
-        ]]);
+        $pawProfiles = $goldSteelProfiles;
+        $heartProfiles = $goldSteelProfiles;
+        $talismanProfiles = $goldSteelProfiles;
+        $talismanProfiles[0]['focus_mm'] = 19.5;
 
         return [
             'seelen-pfote-hundemarke' => $pawProfiles,
@@ -4202,7 +4285,7 @@ class XtoolLaserCockpitService
             'seelen-anhaenger'        => [
                 [
                     'id'              => 'prof_silber_kontrast_lamellenrost',
-                    'title'           => 'Weiß / Silber-Kontrast · Lamellenrost',
+                    'title'           => '100% Getestet · Perfekt',
                     'is_default'      => true,
                     'focus_mm'        => 19.9,
                     'element_type'    => 'Bild',
@@ -4229,110 +4312,65 @@ class XtoolLaserCockpitService
                         'threshold'     => 128,
                     ],
                 ],
+            ],
+            'seelen-kristall' => [
                 [
-                    'id'              => 'prof_rueckseite_widmung_feintext',
-                    'title'           => 'Rückseite Widmung & Feintext · Lamellenrost',
-                    'is_default'      => false,
-                    'focus_mm'        => 19.9,
-                    'element_type'    => 'Vektor',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 300,
-                    'power_percent'   => 55,
-                    'dpi'             => 500,
-                    'frequency_khz'   => 40,
-                    'speed_mms'       => 700,
-                    'passes'          => 1,
-                    'bitmap_mode'     => 'Schwellenwert',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 55 % · 700 mm/s · 450 Linien/cm · 40 kHz',
-                ],
-                [
-                    'id'              => 'prof_flachbett_ohne_rost_1_8',
-                    'title'           => 'Weiß / Silber-Kontrast · Bodenplatte (1,8 mm)',
-                    'is_default'      => false,
-                    'focus_mm'        => 1.8,
+                    'id'              => 'prof_kristall_tiefenfrost_31_2',
+                    'title'           => 'K9 Tiefen-Frost im Glas · Lamellenrost (31,2 mm)',
+                    'is_default'      => true,
+                    'focus_mm'        => 31.2,
                     'element_type'    => 'Bild',
                     'engrave_tab'     => 'Gravieren',
                     'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 280,
-                    'power_percent'   => 85,
+                    'dot_duration_us' => 650,
+                    'power_percent'   => 100,
                     'dpi'             => 600,
                     'frequency_khz'   => 40,
-                    'speed_mms'       => 450,
+                    'speed_mms'       => 40,
                     'passes'          => 1,
                     'bitmap_mode'     => 'Jarvis',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 70 % · 450 mm/s · 300 Linien/cm · 40 kHz',
+                    'engrave_mode'    => 'Zweidirektional',
+                    'vector_note'     => 'Gravieren · 100 % · 40 mm/s · 300 Linien/cm · 40 kHz · 2x',
                     'photo_studio'    => [
                         'grayscale'     => true,
                         'invert'        => true,
-                        'contrast'      => 20,
-                        'brightness'    => 0,
-                        'gamma'         => 1.00,
-                        'highlight_cap' => 58,
-                        'sharpness'     => 85,
+                        'contrast'      => 36,
+                        'brightness'    => 8,
+                        'gamma'         => 0.88,
+                        'highlight_cap' => 92,
+                        'sharpness'     => 95,
                         'dither_mode'   => 'jarvis',
                         'threshold'     => 128,
                     ],
                 ],
-            ],
-            'seelen-kristall' => [
                 [
-                    'id'              => 'prof_kristall_seidenmatt_33_1',
-                    'title'           => 'Außen Seidenmatt-Frost (33,1 mm)',
-                    'is_default'      => true,
-                    'focus_mm'        => 33.1,
+                    'id'              => 'prof_kristall_aussenfrost_32_5',
+                    'title'           => 'K9 Außen-Seidenmatt · Lamellenrost (32,5 mm)',
+                    'is_default'      => false,
+                    'focus_mm'        => 32.5,
                     'element_type'    => 'Bild',
                     'engrave_tab'     => 'Gravieren',
                     'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 450,
+                    'dot_duration_us' => 650,
                     'power_percent'   => 100,
-                    'dpi'             => 500,
+                    'dpi'             => 600,
                     'frequency_khz'   => 40,
-                    'speed_mms'       => 80,
+                    'speed_mms'       => 40,
                     'passes'          => 1,
                     'bitmap_mode'     => 'Jarvis',
                     'engrave_mode'    => 'Zweidirektional',
-                    'vector_note'     => 'Gravieren · 60 % · 80 mm/s · 300 Linien/cm · 40 kHz',
-                ],
-                [
-                    'id'              => 'prof_kristall_master_32_8',
-                    'title'           => 'Master-Referenz Brennpunkt-Doku (32,8 mm)',
-                    'is_default'      => false,
-                    'focus_mm'        => 32.8,
-                    'element_type'    => 'Bild',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 500,
-                    'power_percent'   => 85,
-                    'dpi'             => 600,
-                    'frequency_khz'   => 40,
-                    'speed_mms'       => 80,
-                    'passes'          => 1,
-                    'bitmap_mode'     => 'Jarvis',
-                    'engrave_mode'    => 'Zweidirektional',
-                    'vector_note'     => 'Gravieren · 60 % · 80 mm/s · 300 Linien/cm · 40 kHz',
-                ],
-                [
-                    'id'              => 'prof_kristall_innengravur_3d',
-                    'title'           => 'Innengravur 3D Subsurface (15,6 mm)',
-                    'is_default'      => false,
-                    'equipment_key'   => 'inner_3d',
-                    'process_mode'    => 'Innengravur - 3D-Miniatur',
-                    'focus_mm'        => 15.6,
-                    'element_type'    => 'Bild',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 220,
-                    'power_percent'   => 80,
-                    'dpi'             => 600,
-                    'frequency_khz'   => 40,
-                    'speed_mms'       => 80,
-                    'passes'          => 1,
-                    'bitmap_mode'     => 'Jarvis',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Innengravur · 80 % · 220 µs · 600 DPI · 40 kHz',
+                    'vector_note'     => 'Gravieren · 100 % · 40 mm/s · 300 Linien/cm · 40 kHz · 2x',
+                    'photo_studio'    => [
+                        'grayscale'     => true,
+                        'invert'        => true,
+                        'contrast'      => 36,
+                        'brightness'    => 8,
+                        'gamma'         => 0.88,
+                        'highlight_cap' => 92,
+                        'sharpness'     => 95,
+                        'dither_mode'   => 'jarvis',
+                        'threshold'     => 128,
+                    ],
                 ],
             ],
             'id-armband-silber-herz' => [
@@ -4354,42 +4392,6 @@ class XtoolLaserCockpitService
                     'engrave_mode'    => 'Bidirektional',
                     'vector_note'     => 'Gravieren · 75 % · 180 mm/s · 400 Linien/cm · 50 kHz · 2x',
                 ],
-                [
-                    'id'              => 'prof_silber_lamellenrost',
-                    'title'           => '925er Silber · Lamellenrost (+1,0 mm Defokus)',
-                    'is_default'      => false,
-                    'focus_mm'        => 20.5,
-                    'element_type'    => 'Bild',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 240,
-                    'power_percent'   => 75,
-                    'dpi'             => 1000,
-                    'frequency_khz'   => 50,
-                    'speed_mms'       => 180,
-                    'passes'          => 2,
-                    'bitmap_mode'     => 'Jarvis',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 75 % · 180 mm/s · 400 Linien/cm · 50 kHz · 2x',
-                ],
-                [
-                    'id'              => 'prof_silber_kreuzschraffur',
-                    'title'           => '925er Silber · Tiefkontrast 80 kHz',
-                    'is_default'      => false,
-                    'focus_mm'        => 2.0,
-                    'element_type'    => 'Vektor',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 240,
-                    'power_percent'   => 85,
-                    'dpi'             => 1000,
-                    'frequency_khz'   => 80,
-                    'speed_mms'       => 40,
-                    'passes'          => 2,
-                    'bitmap_mode'     => 'Schwellenwert',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 85 % · 40 mm/s · 1000 Linien/cm · 80 kHz · 2x',
-                ],
             ],
             'id-armband-gold-herz' => [
                 [
@@ -4409,42 +4411,6 @@ class XtoolLaserCockpitService
                     'bitmap_mode'     => 'Jarvis',
                     'engrave_mode'    => 'Bidirektional',
                     'vector_note'     => 'Gravieren · 34 % · 130 mm/s · 400 Linien/cm · 70 kHz',
-                ],
-                [
-                    'id'              => 'prof_vermeil_lamellenrost',
-                    'title'           => 'Gold-Vermeil · Lamellenrost (+1,3 mm Defokus)',
-                    'is_default'      => false,
-                    'focus_mm'        => 20.8,
-                    'element_type'    => 'Bild',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 180,
-                    'power_percent'   => 34,
-                    'dpi'             => 1000,
-                    'frequency_khz'   => 70,
-                    'speed_mms'       => 130,
-                    'passes'          => 1,
-                    'bitmap_mode'     => 'Jarvis',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 34 % · 130 mm/s · 400 Linien/cm · 70 kHz',
-                ],
-                [
-                    'id'              => 'prof_vermeil_kontrast_90khz',
-                    'title'           => 'Gold-Vermeil · Dunkelkontrast 90 kHz',
-                    'is_default'      => false,
-                    'focus_mm'        => 2.4,
-                    'element_type'    => 'Vektor',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 180,
-                    'power_percent'   => 55,
-                    'dpi'             => 1000,
-                    'frequency_khz'   => 90,
-                    'speed_mms'       => 60,
-                    'passes'          => 1,
-                    'bitmap_mode'     => 'Schwellenwert',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 55 % · 60 mm/s · 1000 Linien/cm · 90 kHz',
                 ],
             ],
             'weizenglas-personalisiert' => [
@@ -4468,26 +4434,6 @@ class XtoolLaserCockpitService
                     'engrave_mode'    => 'Bidirektional',
                     'vector_note'     => 'Gravieren · 55 % · 380 mm/s · 300 Linien/cm · 40 kHz',
                 ],
-                [
-                    'id'              => 'prof_ra3_kraeftig_frost',
-                    'title'           => 'RA3 Walze · Kräftig-Frost',
-                    'is_default'      => false,
-                    'equipment_key'   => 'rotary_ra3',
-                    'process_mode'    => 'Walze - Rotationsaufsatz',
-                    'focus_mm'        => 74.0,
-                    'element_type'    => 'Bild',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 650,
-                    'power_percent'   => 92,
-                    'dpi'             => 500,
-                    'frequency_khz'   => 40,
-                    'speed_mms'       => 125,
-                    'passes'          => 1,
-                    'bitmap_mode'     => 'Jarvis',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 80 % · 125 mm/s · 300 Linien/cm · 40 kHz',
-                ],
             ],
             'geschenkgutschein' => [
                 [
@@ -4508,45 +4454,29 @@ class XtoolLaserCockpitService
                     'engrave_mode'    => 'Bidirektional',
                     'vector_note'     => 'Gravieren · 45 % · 850 mm/s · 450 Linien/cm · 55 kHz',
                 ],
-                [
-                    'id'              => 'prof_gutschein_gold_rost',
-                    'title'           => 'Gutscheinkarte Gold · Lamellenrost (20,3 mm)',
-                    'is_default'      => false,
-                    'focus_mm'        => 20.3,
-                    'element_type'    => 'Bild',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 220,
-                    'power_percent'   => 52,
-                    'dpi'             => 800,
-                    'frequency_khz'   => 50,
-                    'speed_mms'       => 450,
-                    'passes'          => 1,
-                    'bitmap_mode'     => 'Jarvis',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 52 % · 450 mm/s · 300 Linien/cm · 50 kHz',
-                ],
-                [
-                    'id'              => 'prof_gutschein_schwarz_bodenplatte',
-                    'title'           => 'Gutscheinkarte Schwarz · Bodenplatte (0,8 mm)',
-                    'is_default'      => false,
-                    'focus_mm'        => 0.8,
-                    'element_type'    => 'Bild',
-                    'engrave_tab'     => 'Gravieren',
-                    'preset_mode'     => 'Benutzerdefiniert',
-                    'dot_duration_us' => 220,
-                    'power_percent'   => 45,
-                    'dpi'             => 500,
-                    'frequency_khz'   => 55,
-                    'speed_mms'       => 850,
-                    'passes'          => 1,
-                    'bitmap_mode'     => 'Schwellenwert',
-                    'engrave_mode'    => 'Bidirektional',
-                    'vector_note'     => 'Gravieren · 45 % · 850 mm/s · 450 Linien/cm · 55 kHz',
-                ],
             ],
         ];
     }
+
+    private const RETIRED_SEED_PROFILE_IDS = [
+        'prof_cockpit_sweetspot_65khz',
+        'prof_weiss_silber_kontrast',
+        'prof_schwarz_bodenplatte_3_8',
+        'prof_massiv_4mm_lamellenrost',
+        'prof_schwarz_bodenplatte_4_2',
+        'prof_rueckseite_widmung_feintext',
+        'prof_flachbett_ohne_rost_1_8',
+        'prof_kristall_seidenmatt_33_1',
+        'prof_kristall_master_32_8',
+        'prof_kristall_innengravur_3d',
+        'prof_silber_lamellenrost',
+        'prof_silber_kreuzschraffur',
+        'prof_vermeil_lamellenrost',
+        'prof_vermeil_kontrast_90khz',
+        'prof_ra3_kraeftig_frost',
+        'prof_gutschein_gold_rost',
+        'prof_gutschein_schwarz_bodenplatte',
+    ];
 
     /**
      * Synchronisiert die kanonischen Multi-Laserprofile für ein Produkt-Settings-Array (für Seeder & Migration)
@@ -4606,12 +4536,20 @@ class XtoolLaserCockpitService
                 $mergedProfiles[] = $catProf;
             }
 
-            // Vom Admin selbst angelegte Zusatzprofile (eigene id und eigener title) inkl. photo_studio bewahren
+            // Vom Admin selbst angelegte Zusatzprofile (eigene id und eigener title) inkl. photo_studio bewahren,
+            // aber veraltete Seeder-Nebenprofile (RETIRED_SEED_PROFILE_IDS) konsequent entfernen.
             foreach ($existingProfiles as $ep) {
                 $epId = trim((string) ($ep['id'] ?? ''));
                 $epTitle = mb_strtolower(trim((string) ($ep['title'] ?? '')));
                 $isCatalogEntry = ($epId !== '' && isset($catalogIds[$epId]))
-                    || ($epTitle !== '' && isset($catalogTitles[$epTitle]));
+                    || ($epTitle !== '' && isset($catalogTitles[$epTitle]))
+                    || in_array($epId, self::RETIRED_SEED_PROFILE_IDS, true)
+                    || in_array($epTitle, [
+                        'weiß / silber-kontrast · lamellenrost',
+                        'außen seidenmatt-frost (überarbeitet)',
+                        'außen seidenmatt-frost (33,1 mm)',
+                        'außen seidenmatt-frost (32,9 mm)',
+                    ], true);
                 if ($isCatalogEntry) {
                     continue;
                 }
@@ -4635,8 +4573,9 @@ class XtoolLaserCockpitService
 
             // Vektor-Begleitfelder bei den 3 Gold-Edelstahl-Marken synchron zum 100 kHz Standard-Profil halten
             if (in_array($slug, ['seelen-pfote-hundemarke', 'goldenes-seelen-herz', 'seelen-talisman'], true)) {
+                $focusVal = ($slug === 'seelen-talisman') ? 19.5 : 21.5;
                 $settings['xtool_handbook_preset']      = 'lamellenrost_schwarz_100khz';
-                $settings['xtool_vector_focus_mm']      = 21.5;
+                $settings['xtool_vector_focus_mm']      = $focusVal;
                 $settings['xtool_vector_power_percent'] = 95;
                 $settings['xtool_vector_speed_mms']     = 25;
                 $settings['xtool_vector_frequency_khz'] = 100;
@@ -4644,6 +4583,22 @@ class XtoolLaserCockpitService
                 $settings['xtool_vector_dpi']           = 2540;
                 $settings['xtool_vector_passes']        = 1;
                 $settings['xtool_lpc']                  = 1000;
+            } elseif ($slug === 'seelen-kristall') {
+                $settings['xtool_handbook_preset']          = 'k9_tiefen_frost_lamellenrost';
+                $settings['xtool_photo_substrate_polarity'] = 'frost_on_glass';
+                $settings['xtool_focus_mm']                 = 31.2;
+                $settings['xtool_bitmap_focus_mm']          = 31.2;
+                $settings['xtool_bitmap_dot_duration_us']   = 650;
+                $settings['xtool_bitmap_power_percent']     = 100;
+                $settings['xtool_bitmap_dpi']               = 600;
+                $settings['xtool_vector_focus_mm']          = 31.2;
+                $settings['xtool_vector_power_percent']     = 100;
+                $settings['xtool_vector_speed_mms']         = 40;
+                $settings['xtool_vector_frequency_khz']     = 40;
+                $settings['xtool_vector_lpc']               = 300;
+                $settings['xtool_vector_dpi']               = 762;
+                $settings['xtool_vector_passes']            = 2;
+                $settings['xtool_lpc']                      = 300;
             }
         } else {
             $settings = Product::syncLaserProfilesAndPrimarySettings($settings, false);
@@ -4728,25 +4683,127 @@ class XtoolLaserCockpitService
     }
 
     /**
-     * Erzeugt den rotierbaren 4-Punkt-Rahmen-GCode (border.gcode) für die blaue Laser-Rahmen-Vorschau (Framing) am xTool F2 Ultra UV.
+     * Normalisiert den Framing-Modus ('contour' = 1:1 Produktkontur wie Herz/Pfote/Kreis, 'rect' = 4-Punkt-Außenrechteck).
      */
-    public function generateBorderGcode(float $centerXMm, float $centerYMm, float $widthMm, float $heightMm, float $angleDeg = 0.0): string
+    public static function normalizeFramingMode(?string $mode, array $configuration = []): string
     {
-        $halfW = max(1.0, $widthMm / 2.0);
-        $halfH = max(1.0, $heightMm / 2.0);
+        $raw = ($mode !== null && trim($mode) !== '')
+            ? $mode
+            : (string) ($configuration['laser_framing_mode'] ?? 'contour');
+        $norm = mb_strtolower(trim($raw));
+
+        return in_array($norm, ['rect', 'rectangle', 'box', 'rechteck'], true) ? 'rect' : 'contour';
+    }
+
+    /**
+     * Extrahiert normierte Kontur-Stützpunkte ([0..1, 0..1]) aus einem Millimeter-SVG-Pfad ("M x y L x y ... Z")
+     * und reduziert zu eng liegende Nachbarpunkte (< 0,12 mm) für ruckelfreies Galvo-Kontur-Framing.
+     *
+     * @return array<int, array{0: float, 1: float}>
+     */
+    public function parseLocalContourPointsFromDPath(?string $ghostDPath, float $baseWidthMm, float $baseHeightMm): array
+    {
+        $d = trim((string) $ghostDPath);
+        if ($d === '' || $baseWidthMm <= 0.05 || $baseHeightMm <= 0.05) {
+            return [];
+        }
+
+        if (!preg_match_all('/[ML]\s*([-+]?\d+(?:\.\d+)?)\s+([-+]?\d+(?:\.\d+)?)/i', $d, $matches, PREG_SET_ORDER)) {
+            return [];
+        }
+
+        $rawMm = [];
+        foreach ($matches as $m) {
+            $mx = (float) $m[1];
+            $my = (float) $m[2];
+            if (!empty($rawMm)) {
+                [$prevX, $prevY] = $rawMm[count($rawMm) - 1];
+                if (hypot($mx - $prevX, $my - $prevY) < 0.12) {
+                    continue;
+                }
+            }
+            $rawMm[] = [$mx, $my];
+        }
+
+        if (count($rawMm) >= 2) {
+            [$firstX, $firstY] = $rawMm[0];
+            [$lastX, $lastY] = $rawMm[count($rawMm) - 1];
+            if (hypot($lastX - $firstX, $lastY - $firstY) < 0.12) {
+                array_pop($rawMm);
+            }
+        }
+
+        if (count($rawMm) < 3) {
+            return [];
+        }
+
+        if (count($rawMm) > 96) {
+            $sampled = [];
+            $total = count($rawMm);
+            for ($i = 0; $i < 96; $i++) {
+                $idx = (int) floor(($i / 96) * $total);
+                $sampled[] = $rawMm[$idx];
+            }
+            $rawMm = $sampled;
+        }
+
+        return array_map(static fn (array $pt): array => [
+            max(0.0, min(1.0, $pt[0] / $baseWidthMm)),
+            max(0.0, min(1.0, $pt[1] / $baseHeightMm)),
+        ], $rawMm);
+    }
+
+    /**
+     * Erzeugt den rotierbaren Rahmen-GCode (tmpFrame.gcode / tmpFrameNew.gcode) für die blaue Laser-Vorschau am xTool F2 Ultra UV.
+     * Unterstützt sowohl das klassische 4-Punkt-Rechteck ('rect') als auch echtes 1:1 Polygon-Kontur-Framing ('contour', z. B. Herz, Pfote, Kreis).
+     */
+    public function generateBorderGcode(
+        float $centerXMm,
+        float $centerYMm,
+        float $widthMm,
+        float $heightMm,
+        float $angleDeg = 0.0,
+        ?string $ghostDPath = null,
+        ?float $baseWidthMm = null,
+        ?float $baseHeightMm = null,
+        string $framingMode = 'rect'
+    ): string {
+        $effW = max(2.0, $widthMm);
+        $effH = max(2.0, $heightMm);
+        $halfW = $effW / 2.0;
+        $halfH = $effH / 2.0;
         $rad = deg2rad($angleDeg);
         $cos = cos($rad);
         $sin = sin($rad);
 
-        $localCorners = [
-            [-$halfW, -$halfH],
-            [$halfW, -$halfH],
-            [$halfW, $halfH],
-            [-$halfW, $halfH],
-        ];
+        $localPoints = [];
+        if ($framingMode === 'contour' && $ghostDPath !== null && trim($ghostDPath) !== '') {
+            $normPts = $this->parseLocalContourPointsFromDPath(
+                $ghostDPath,
+                $baseWidthMm !== null && $baseWidthMm > 0.05 ? $baseWidthMm : $effW,
+                $baseHeightMm !== null && $baseHeightMm > 0.05 ? $baseHeightMm : $effH
+            );
+            if (count($normPts) >= 3) {
+                foreach ($normPts as [$nx, $ny]) {
+                    $localPoints[] = [
+                        ($nx - 0.5) * $effW,
+                        ($ny - 0.5) * $effH,
+                    ];
+                }
+            }
+        }
+
+        if (count($localPoints) < 3) {
+            $localPoints = [
+                [-$halfW, -$halfH],
+                [$halfW, -$halfH],
+                [$halfW, $halfH],
+                [-$halfW, $halfH],
+            ];
+        }
 
         $pts = [];
-        foreach ($localCorners as [$lx, $ly]) {
+        foreach ($localPoints as [$lx, $ly]) {
             $rx = $centerXMm + ($lx * $cos) - ($ly * $sin);
             $ry = $centerYMm + ($lx * $sin) + ($ly * $cos);
             $pts[] = [
@@ -4755,37 +4812,255 @@ class XtoolLaserCockpitService
             ];
         }
 
-        $lines = [
-            '# GS009-4 HEAD',
-            'G0 F180000',
-            'M4 S0',
-            'G1 F180000',
-            'M114 S1',
-            '',
-            '# GS009-4 VECTOR HEAD',
-            '# motion_start',
-            'G21',
-            'G90',
-            '# blockConfig={"powerFactor":0.133,"isVector":true,"crossDot":false}',
+        $motionLines = [
             "G0X{$pts[0]['x']}Y{$pts[0]['y']}F1440000",
             "G1X{$pts[1]['x']}Y{$pts[1]['y']}S133F1440000",
-            "G1X{$pts[2]['x']}Y{$pts[2]['y']}",
-            "G1X{$pts[3]['x']}Y{$pts[3]['y']}",
-            "G1X{$pts[0]['x']}Y{$pts[0]['y']}",
-            '# GS009-4 VECTOR TAIL',
-            '# motion_end',
-            '# END',
-            '# GS009-4 TAIL',
-            'G90',
-            'G0 S0',
-            'G0 F180000',
-            'G1 F180000',
-            'M536 U0',
-            'M6 P1',
-            '',
         ];
+        $ptCount = count($pts);
+        for ($i = 2; $i < $ptCount; $i++) {
+            $motionLines[] = "G1X{$pts[$i]['x']}Y{$pts[$i]['y']}";
+        }
+        $motionLines[] = "G1X{$pts[0]['x']}Y{$pts[0]['y']}";
+
+        $lines = array_merge(
+            [
+                '# GS009-4 HEAD',
+                'G0 F180000',
+                'M4 S0',
+                'G1 F180000',
+                'M114 S1',
+                '',
+                '# GS009-4 VECTOR HEAD',
+                '# motion_start',
+                'G21',
+                'G90',
+                '# blockConfig={"powerFactor":0.133,"isVector":true,"crossDot":false}',
+            ],
+            $motionLines,
+            [
+                '# GS009-4 VECTOR TAIL',
+                '# motion_end',
+                '# END',
+                '# GS009-4 TAIL',
+                'G90',
+                'G0 S0',
+                'G0 F180000',
+                'G1 F180000',
+                'M536 U0',
+                'M6 P1',
+                '',
+            ]
+        );
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * Ultraschneller Geometrie-Pfad (< 5 ms, ohne 600-DPI-Bitmap-Rendering) für das Echtzeit-Nachziehen
+     * des laufenden Laser-Leuchtrahmens (replaceWalkBorder) beim Verschieben oder Drehen im Cockpit.
+     *
+     * @return array{gcode: string, framing_mode: string, contour_shape: string, center_x_mm: float, center_y_mm: float, width_mm: float, height_mm: float, angle_deg: float}
+     */
+    public function buildItemFramingGcode(
+        $itemId,
+        string $side = 'front',
+        ?float $centerXMm = null,
+        ?float $centerYMm = null,
+        float $angleDeg = 0.0,
+        ?float $widthMm = null,
+        ?float $heightMm = null,
+        ?string $framingMode = null
+    ): array {
+        $exportService = app(FileDownloadService::class);
+        $item = ($itemId instanceof OrderOrderItem || $itemId instanceof OrderQuoteRequestItem)
+            ? $itemId
+            : OrderOrderItem::with('product')->find($itemId);
+
+        if (!$item || !$item->product) {
+            $w = max(2.0, (float) ($widthMm ?: 40.0));
+            $h = max(2.0, (float) ($heightMm ?: 40.0));
+            $cx = (float) ($centerXMm ?? 100.0);
+            $cy = (float) ($centerYMm ?? 100.0);
+            $mode = self::normalizeFramingMode($framingMode);
+
+            return [
+                'gcode'         => $this->generateBorderGcode($cx, $cy, $w, $h, $angleDeg, null, $w, $h, 'rect'),
+                'framing_mode'  => $mode,
+                'contour_shape' => 'rect',
+                'center_x_mm'   => $cx,
+                'center_y_mm'   => $cy,
+                'width_mm'      => $w,
+                'height_mm'     => $h,
+                'angle_deg'     => $angleDeg,
+            ];
+        }
+
+        $conf = is_array($item->configuration ?? null) ? $item->configuration : [];
+        $productCfg = is_string($item->product->configurator_settings)
+            ? (json_decode($item->product->configurator_settings, true) ?: [])
+            : ($item->product->configurator_settings ?? []);
+
+        $cal = $exportService->resolveEngravingWorkingAreaCalibration($item->product, $productCfg, $conf, false);
+        $baseW = max(2.0, (float) ($cal['engraveWidthMm'] ?? 40.0));
+        $baseH = max(2.0, (float) ($cal['engraveHeightMm'] ?? 40.0));
+        $contourShape = (string) ($cal['contourShape'] ?? 'rect');
+
+        $polygonPct = $exportService->buildWorkingAreaPolygonPercent($productCfg);
+        if (!empty($cal['plateBoxPct'])) {
+            [$polygonPct] = $exportService->mapShopConfigOntoPhysicalBlank($cal['plateBoxPct'], $polygonPct, [], []);
+        }
+        if (!empty($cal['areaBoxInBlankPct'])) {
+            [$polygonPct] = $exportService->mapShopConfigOntoPhysicalBlank($cal['areaBoxInBlankPct'], $polygonPct, [], []);
+        }
+        $hasExplicitCustomPoints = !empty($productCfg['custom_points']) && is_array($productCfg['custom_points']) && count($productCfg['custom_points']) >= 3;
+        if ($contourShape === 'custom_polygon' && (!$hasExplicitCustomPoints || count($polygonPct) < 3) && !empty($cal['blankContourShape']) && $cal['blankContourShape'] !== 'rect') {
+            $contourShape = (string) $cal['blankContourShape'];
+        }
+
+        $ghostDPath = $exportService->buildSingleOuterBlankContourDPath(
+            $contourShape,
+            $baseW,
+            $baseH,
+            $polygonPct,
+            $productCfg
+        );
+
+        $savedSide = is_array($conf['laser_cockpit_coordinates'][$side] ?? null)
+            ? $conf['laser_cockpit_coordinates'][$side]
+            : [];
+        $cx = $centerXMm ?? (isset($savedSide['x_mm']) && is_numeric($savedSide['x_mm']) ? (float) $savedSide['x_mm'] : 100.0);
+        $cy = $centerYMm ?? (isset($savedSide['y_mm']) && is_numeric($savedSide['y_mm']) ? (float) $savedSide['y_mm'] : 100.0);
+        if (abs($angleDeg) < 0.01 && isset($savedSide['angle_deg']) && is_numeric($savedSide['angle_deg'])) {
+            $angleDeg = (float) $savedSide['angle_deg'];
+        }
+
+        [$effW, $effH] = $this->resolveEffectiveJobDimensionsMm($item, $side, $baseW, $baseH, $widthMm, $heightMm);
+        $mode = self::normalizeFramingMode($framingMode, $conf);
+
+        $gcode = $this->generateBorderGcode(
+            $cx,
+            $cy,
+            $effW,
+            $effH,
+            $angleDeg,
+            $ghostDPath,
+            $baseW,
+            $baseH,
+            $mode
+        );
+
+        return [
+            'gcode'         => $gcode,
+            'framing_mode'  => $mode,
+            'contour_shape' => $contourShape,
+            'center_x_mm'   => $cx,
+            'center_y_mm'   => $cy,
+            'width_mm'      => $effW,
+            'height_mm'     => $effH,
+            'angle_deg'     => $angleDeg,
+        ];
+    }
+
+    /**
+     * Aktualisiert den laufenden Vorschau-Lichtrahmen am xTool F2 Ultra UV im Flug (xTool Studio replaceWalkBorder:
+     * Upload von tmpFrameNew.gcode auf Kanal 61 + PUT /v1/processing/frame/replace {loopPrint: 1}).
+     *
+     * @return array{ok: bool, error: ?string}
+     */
+    public function replaceActiveFramingGcode(string $gcodeBytes, string $ip = self::DEFAULT_LASER_IP): array
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+
+        if (trim($gcodeBytes) === '') {
+            return ['ok' => false, 'error' => 'Leerer Framing-GCode.'];
+        }
+
+        $publicDisk = Storage::disk('public');
+        $this->writeFileAtomicallyShared($publicDisk->path('bestellungen/xtool/latest_border.gcode'), $gcodeBytes);
+
+        if (app()->runningUnitTests() && !$this->allowRelayInTests && !$this->allowV2SocketInTests) {
+            return ['ok' => false, 'error' => 'Unit-Test-Modus aktiv.'];
+        }
+
+        $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($ip, self::DEFAULT_LASER_IP);
+
+        if (!$this->isCloudEnvironment() && (!app()->runningUnitTests() || $this->allowV2SocketInTests)) {
+            if ($this->probeDirectLaserSocket($safeIp, false)) {
+                $uuid = (string) Str::uuid();
+                $mainWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=instruction");
+                if (is_resource($mainWs)) {
+                    $fileWs = null;
+                    try {
+                        $txId = 0;
+                        $parityToken = (string) env('XTOOL_PARITY_TOKEN', self::DEFAULT_PARITY_TOKEN);
+                        $parity = $this->v2SendJsonCmd($mainWs, $txId, '', 'GET', '/v1/user/parity', [], [
+                            'userID'   => self::DEFAULT_USER_ID,
+                            'userKey'  => self::DEFAULT_USER_KEY,
+                            'timezone' => 'Europe/Berlin',
+                            'token'    => $parityToken,
+                        ]);
+                        $sessionToken = (string) ($parity['data']['sessionToken'] ?? '');
+                        if ($sessionToken !== '') {
+                            $fileWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=file_stream");
+                            if (is_resource($fileWs)) {
+                                $uploaded = $this->v2UploadFileToLaser(
+                                    $mainWs,
+                                    $fileWs,
+                                    $txId,
+                                    $sessionToken,
+                                    'tmpFrameNew.gcode',
+                                    $gcodeBytes,
+                                    1,
+                                    61
+                                );
+                                if ($uploaded) {
+                                    $repResp = $this->v2SendJsonCmd(
+                                        $mainWs,
+                                        $txId,
+                                        $sessionToken,
+                                        'PUT',
+                                        '/v1/processing/frame/replace',
+                                        ['loopPrint' => 1],
+                                        ['loopPrint' => 1]
+                                    );
+                                    $repCode = isset($repResp['code']) ? (int) $repResp['code'] : 0;
+                                    if ($repResp !== null && $repCode === 0) {
+                                        return ['ok' => true, 'error' => null];
+                                    }
+                                }
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        return ['ok' => false, 'error' => $e->getMessage()];
+                    } finally {
+                        if (is_resource($fileWs)) {
+                            @fwrite($fileWs, chr(0x88) . chr(0x80) . random_bytes(4));
+                            @fclose($fileWs);
+                        }
+                        if (is_resource($mainWs)) {
+                            @fwrite($mainWs, chr(0x88) . chr(0x80) . random_bytes(4));
+                            @fclose($mainWs);
+                        }
+                    }
+                }
+            }
+        }
+
+        $hb = $this->getMiniPcRelayHeartbeat();
+        if ($hb !== null && $hb['age_seconds'] <= 20.0 && $hb['laser_online']) {
+            $relayJob = $this->enqueueRelayJob('frame_border', [
+                'laser_ip' => $safeIp,
+                'gcode'    => $gcodeBytes,
+            ]);
+            $relayRes = $this->waitForRelayJobCompletion($relayJob['job_id'], min(5.0, $this->relayJobWaitSeconds));
+            if (is_array($relayRes) && ($relayRes['ok'] ?? false) === true) {
+                return ['ok' => true, 'error' => null];
+            }
+        }
+
+        return ['ok' => false, 'error' => 'Laufender Framing-Rahmen konnte nicht aktualisiert werden.'];
     }
 
     /**
@@ -4881,7 +5156,7 @@ class XtoolLaserCockpitService
         $speedMms = max(1, min(4000, (int) ($laserSummary['speed_mms'] ?: 200)));
         $dpi = max(50, min(2540, (int) ($laserSummary['dpi'] ?: 500)));
         $passes = max(1, min(20, (int) ($laserSummary['passes'] ?: 1)));
-        $frequencyKhz = max(1, min(200, (int) ($laserSummary['frequency_khz'] ?: 60)));
+        $frequencyKhz = max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, (int) ($laserSummary['frequency_khz'] ?: 60)));
         $bitmapMode = self::resolveXtoolBitmapMode((string) ($laserSummary['bitmap_mode'] ?? 'Graustufen'));
         $scanMode = self::resolveXtoolScanMode((string) ($laserSummary['engrave_mode'] ?? 'Bidirektional'));
 
@@ -4911,7 +5186,7 @@ class XtoolLaserCockpitService
             $vec = $layerParams['vector'];
             $powerPercent = max(1, min(100, (int) $vec['power_percent']));
             $speedMms = max(1, min(4000, (int) $vec['speed_mms']));
-            $frequencyKhz = max(1, min(200, (int) $vec['frequency_khz']));
+            $frequencyKhz = max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, (int) $vec['frequency_khz']));
             $dpi = max(50, min(2540, (int) $vec['dpi']));
             $passes = max(1, min(20, (int) $vec['passes']));
             $dotDurationUs = self::equivalentDotDurationUs($dpi, $speedMms);
@@ -5257,7 +5532,7 @@ class XtoolLaserCockpitService
                 'density'               => (int) $vec['lpc'],
                 'linesPerCm'            => (int) $vec['lpc'],
                 'repeat'                => max(1, min(20, (int) $vec['passes'])),
-                'frequency'             => max(1, min(200, (int) $vec['frequency_khz'])),
+                'frequency'             => max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, (int) $vec['frequency_khz'])),
                 'bitmapMode'            => 'threshold',
                 'bitmapScanMode'        => self::resolveXtoolScanMode((string) $vec['engrave_mode']),
                 'elementType'           => 'Vektor',
@@ -5456,7 +5731,8 @@ class XtoolLaserCockpitService
     }
 
     /**
-     * Erzeugt das auf Ziel-DPI abgetastete 1-Bit Error-Diffusion-Punktraster ('jarvis' | 'stucki') des Foto-Layers.
+     * Erzeugt das auf echte Ziel-DPI abgetastete 1-Bit Error-Diffusion-Punktraster ('jarvis' | 'stucki') des Foto-Layers
+     * speicherschonend in-place (ohne zweite Vollbild-GD-Kopie) inkl. Kurzzeit-Cache für parallelen .xf/.xcs-Export.
      */
     public function buildDitheredPreviewPng(
         string $photoLayerPngBytes,
@@ -5465,33 +5741,172 @@ class XtoolLaserCockpitService
         int $dpi,
         string $mode = 'jarvis'
     ): ?string {
+        static $lastCacheKey = null;
+        static $lastCacheBytes = null;
+
+        if ($photoLayerPngBytes === '') {
+            return null;
+        }
+
+        $effectiveDpi = max(100, min(1270, $dpi));
+        $sampleW = max(64, min(self::MAX_MOTION_SAMPLE_DIM, (int) round(($widthMm / 25.4) * $effectiveDpi)));
+        $sampleH = max(64, min(self::MAX_MOTION_SAMPLE_DIM, (int) round(($heightMm / 25.4) * $effectiveDpi)));
+        $normMode = strtolower($mode) === 'stucki' ? 'stucki' : 'jarvis';
+
+        $cacheKey = sha1($photoLayerPngBytes) . "|{$sampleW}|{$sampleH}|{$normMode}";
+        if ($lastCacheKey === $cacheKey && is_string($lastCacheBytes) && $lastCacheBytes !== '') {
+            return $lastCacheBytes;
+        }
+
         $src = @imagecreatefromstring($photoLayerPngBytes);
         if (!$src) {
             return null;
         }
-        $effectiveDpi = max(100, min(1000, $dpi));
-        // Identisches Abtastraster wie buildLaserMotionStream() (1:1 Punkt-Übernahme in motion.gcode)
-        $sampleW = max(64, min(800, (int) round(($widthMm / 25.4) * $effectiveDpi)));
-        $sampleH = max(64, min(800, (int) round(($heightMm / 25.4) * $effectiveDpi)));
+
         $small = imagecreatetruecolor($sampleW, $sampleH);
+        if (!$small) {
+            imagedestroy($src);
+            return null;
+        }
         imagealphablending($small, false);
         imagesavealpha($small, true);
-        imagefill($small, 0, 0, imagecolorallocatealpha($small, 255, 255, 255, 127));
-        imagecopyresampled($small, $src, 0, 0, 0, 0, $sampleW, $sampleH, imagesx($src), imagesy($src));
+        $trans = imagecolorallocatealpha($small, 255, 255, 255, 127);
+        imagefill($small, 0, 0, $trans);
+        if (imagesx($src) === $sampleW && imagesy($src) === $sampleH) {
+            imagecopy($small, $src, 0, 0, 0, 0, $sampleW, $sampleH);
+        } else {
+            imagecopyresampled($small, $src, 0, 0, 0, 0, $sampleW, $sampleH, imagesx($src), imagesy($src));
+        }
         imagedestroy($src);
+        unset($src);
 
-        $preproc = app(LaserPhotoPreprocessor::class);
-        $dithered = strtolower($mode) === 'stucki'
-            ? $preproc->stuckiDither($small)
-            : $preproc->jarvisDither($small);
-        imagedestroy($small);
+        // In-place 12-Nachbarn Error-Diffusion (Jarvis / Stucki) mit Serpentine-Scan ohne zweites GD-Vollbild
+        $alphaBlackLut = [imagecolorallocatealpha($small, 0, 0, 0, 0)];
+        $alphaWhiteLut = [imagecolorallocatealpha($small, 255, 255, 255, 0)];
+        for ($a = 1; $a <= 127; $a++) {
+            $alphaBlackLut[$a] = imagecolorallocatealpha($small, 0, 0, 0, $a);
+            $alphaWhiteLut[$a] = imagecolorallocatealpha($small, 255, 255, 255, $a);
+        }
+
+        $isStucki = ($normMode === 'stucki');
+        $invDiv = $isStucki ? (1.0 / 42.0) : (1.0 / 48.0);
+        $jitScaleFloat = 52.0 / (127.5 * 512.0);
+        static $ignLut = null;
+        if ($ignLut === null) {
+            $ignLut = [];
+            for ($k = 0; $k < 4096; $k++) {
+                $f = 52.9829189 * ($k / 4096.0);
+                $ignLut[$k] = (int) round((($f - floor($f)) - 0.5) * 512.0);
+            }
+        }
+
+        $zeroRow = array_fill(0, $sampleW + 4, 0.0);
+        $err0 = $zeroRow;
+        $err1 = $zeroRow;
+        $err2 = $zeroRow;
+
+        for ($y = 0; $y < $sampleH; $y++) {
+            $yIgn = $y * 383;
+            $evenRow = (($y & 1) === 0);
+            $xStart = $evenRow ? 0 : ($sampleW - 1);
+            $xEnd = $evenRow ? $sampleW : -1;
+            $xStep = $evenRow ? 1 : -1;
+            $hOff1 = $evenRow ? 1 : -1;
+            $hOff2 = $evenRow ? 2 : -2;
+
+            for ($x = $xStart; $x !== $xEnd; $x += $xStep) {
+                $c = imagecolorat($small, $x, $y);
+                $a = ($c >> 24) & 0x7F;
+                if ($a >= 120) {
+                    continue;
+                }
+                $g8 = $c & 0xFF;
+                $ix = $x + 2;
+                $old = (float) $g8 + $err0[$ix];
+                $distEdge = min($g8, 255 - $g8);
+                $jitter = ($ignLut[((($x * 4399) + $yIgn) >> 4) & 4095] * $distEdge) * $jitScaleFloat;
+                if (($old + $jitter) < 128.0) {
+                    $new = 0.0;
+                    imagesetpixel($small, $x, $y, $alphaBlackLut[$a]);
+                } else {
+                    $new = 255.0;
+                    imagesetpixel($small, $x, $y, $alphaWhiteLut[$a]);
+                }
+                $err = ($old - $new) * $invDiv;
+                if ($err == 0.0) {
+                    continue;
+                }
+                if ($isStucki) {
+                    $e2 = $err * 2.0;
+                    $e4 = $err * 4.0;
+                    $e8 = $err * 8.0;
+                    $err0[$ix + $hOff1] += $e8;
+                    $err0[$ix + $hOff2] += $e4;
+                    $err1[$ix - 2] += $e2;
+                    $err1[$ix - 1] += $e4;
+                    $err1[$ix]     += $e8;
+                    $err1[$ix + 1] += $e4;
+                    $err1[$ix + 2] += $e2;
+                    $err2[$ix - 2] += $err;
+                    $err2[$ix - 1] += $e2;
+                    $err2[$ix]     += $e4;
+                    $err2[$ix + 1] += $e2;
+                    $err2[$ix + 2] += $err;
+                } else {
+                    $e3 = $err * 3.0;
+                    $e5 = $err * 5.0;
+                    $e7 = $err * 7.0;
+                    $err0[$ix + $hOff1] += $e7;
+                    $err0[$ix + $hOff2] += $e5;
+                    $err1[$ix - 2] += $e3;
+                    $err1[$ix - 1] += $e5;
+                    $err1[$ix]     += $e7;
+                    $err1[$ix + 1] += $e5;
+                    $err1[$ix + 2] += $e3;
+                    $err2[$ix - 2] += $err;
+                    $err2[$ix - 1] += $e3;
+                    $err2[$ix]     += $e5;
+                    $err2[$ix + 1] += $e3;
+                    $err2[$ix + 2] += $err;
+                }
+            }
+            $err0 = $err1;
+            $err1 = $err2;
+            $err2 = $zeroRow;
+        }
+        unset($zeroRow, $err0, $err1, $err2);
 
         ob_start();
-        imagepng($dithered, null, 9);
+        imagepng($small, null, 1, PNG_FILTER_NONE);
         $bytes = (string) ob_get_clean();
-        imagedestroy($dithered);
+        imagedestroy($small);
 
-        return $bytes !== '' ? $bytes : null;
+        if ($bytes !== '') {
+            $lastCacheKey = $cacheKey;
+            $lastCacheBytes = $bytes;
+            return $bytes;
+        }
+
+        return null;
+    }
+
+    protected function ensureHighDpiExportMemoryHeadroom(): void
+    {
+        $rawLimit = trim((string) @ini_get('memory_limit'));
+        if ($rawLimit === '' || $rawLimit === '-1') {
+            return;
+        }
+        $unit = strtolower(substr($rawLimit, -1));
+        $num = (int) $rawLimit;
+        $bytes = match ($unit) {
+            'g'     => $num * 1073741824,
+            'm'     => $num * 1048576,
+            'k'     => $num * 1024,
+            default => $num,
+        };
+        if ($bytes > 0 && $bytes < 536870912) {
+            @ini_set('memory_limit', '512M');
+        }
     }
 
     /**
@@ -5507,18 +5922,19 @@ class XtoolLaserCockpitService
         ?float $centerYMm = null,
         float $angleDeg = 0.0,
         ?float $widthMm = null,
-        ?float $heightMm = null
+        ?float $heightMm = null,
+        ?string $framingMode = null
     ): array {
+        $this->ensureHighDpiExportMemoryHeadroom();
         $exportService = app(FileDownloadService::class);
         $payload = $exportService->buildLaserDesignPayload($itemId, $side, true);
 
         $item = $payload['item'];
         $product = $payload['product'];
         $laserSummary = $this->resolveEffectiveLaserParameters($item, $side);
+        $itemConfig = (is_object($item) && is_array($item->configuration ?? null)) ? $item->configuration : [];
 
-        $savedCoords = (is_object($item) && is_array($item->configuration ?? null))
-            ? ($item->configuration['laser_cockpit_coordinates'][$side] ?? [])
-            : [];
+        $savedCoords = $itemConfig['laser_cockpit_coordinates'][$side] ?? [];
         if ($centerXMm === null && isset($savedCoords['x_mm']) && is_numeric($savedCoords['x_mm'])) {
             $centerXMm = (float) $savedCoords['x_mm'];
         }
@@ -5530,7 +5946,7 @@ class XtoolLaserCockpitService
         }
 
         if ($centerXMm === null || $centerYMm === null) {
-            $detected = $this->detectBlankPositionOnBed($product, $item->configuration ?? [], $side);
+            $detected = $this->detectBlankPositionOnBed($product, $itemConfig, $side);
             $centerXMm = $centerXMm ?? $detected['center_x_mm'];
             $centerYMm = $centerYMm ?? $detected['center_y_mm'];
             if (abs($angleDeg) < 0.01) {
@@ -5546,7 +5962,18 @@ class XtoolLaserCockpitService
             $widthMm,
             $heightMm
         );
-        $borderGcode = $this->generateBorderGcode($centerXMm, $centerYMm, $widthMm, $heightMm, $angleDeg);
+        $effectiveFramingMode = self::normalizeFramingMode($framingMode, $itemConfig);
+        $borderGcode = $this->generateBorderGcode(
+            $centerXMm,
+            $centerYMm,
+            $widthMm,
+            $heightMm,
+            $angleDeg,
+            (string) ($payload['ghostContourDPath'] ?? ''),
+            (float) $payload['widthMm'],
+            (float) $payload['heightMm'],
+            $effectiveFramingMode
+        );
 
         $activeMode = self::resolveXtoolActiveMode(
             (string) ($laserSummary['equipment_key'] ?? 'flatbed_standard'),
@@ -5564,7 +5991,7 @@ class XtoolLaserCockpitService
         $speedMms = max(1, min(4000, (int) ($laserSummary['speed_mms'] ?: 200)));
         $dpi = max(50, min(2540, (int) ($laserSummary['dpi'] ?: 500)));
         $passes = max(1, min(20, (int) ($laserSummary['passes'] ?: 1)));
-        $frequencyKhz = max(1, min(200, (int) ($laserSummary['frequency_khz'] ?: 60)));
+        $frequencyKhz = max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, (int) ($laserSummary['frequency_khz'] ?: 60)));
         $bitmapMode = self::resolveXtoolBitmapMode((string) ($laserSummary['bitmap_mode'] ?? 'Graustufen'));
         $scanMode = self::resolveXtoolScanMode((string) ($laserSummary['engrave_mode'] ?? 'Bidirektional'));
 
@@ -5584,7 +6011,7 @@ class XtoolLaserCockpitService
             $vec = $layerParams['vector'];
             $powerPercent = max(1, min(100, (int) $vec['power_percent']));
             $speedMms = max(1, min(4000, (int) $vec['speed_mms']));
-            $frequencyKhz = max(1, min(200, (int) $vec['frequency_khz']));
+            $frequencyKhz = max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, (int) $vec['frequency_khz']));
             $dpi = max(50, min(2540, (int) $vec['dpi']));
             $passes = max(1, min(20, (int) $vec['passes']));
             $dotDurationUs = self::equivalentDotDurationUs($dpi, $speedMms);
@@ -5601,6 +6028,8 @@ class XtoolLaserCockpitService
                 $bitmapMode = 'jarvis';
             }
         }
+
+        $effectivePolarity = (string) ($photoLayerInfo['polarity'] ?? ($layerParams['polarity'] ?? ''));
 
         if ($isMultiLayer || $isPhotoOnly) {
             $isHalftonePhoto = ($photoLayerInfo['class'] ?? '') === 'halftone';
@@ -5633,13 +6062,15 @@ class XtoolLaserCockpitService
                 $dpi,
                 $scanMode,
                 $speedMms,
-                $photoBlockMode
+                $photoBlockMode,
+                $effectivePolarity
             );
 
             if ($isMultiLayer) {
                 $vec = $layerParams['vector'];
                 $vecDpi = max(50, min(2540, (int) $vec['dpi']));
                 $vecSpeed = max(1, min(4000, (int) $vec['speed_mms']));
+                $vecFreq = max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, (int) $vec['frequency_khz']));
                 $vecScan = self::resolveXtoolScanMode((string) $vec['engrave_mode']);
                 $vectorMotion = $this->buildLaserMotionStream(
                     $vectorLayerSource,
@@ -5650,12 +6081,13 @@ class XtoolLaserCockpitService
                     $angleDeg,
                     max(1, min(100, (int) $vec['power_percent'])),
                     self::equivalentDotDurationUs($vecDpi, $vecSpeed),
-                    max(1, min(200, (int) $vec['frequency_khz'])),
+                    $vecFreq,
                     max(1, min(20, (int) $vec['passes'])),
                     $vecDpi,
                     $vecScan,
                     $vecSpeed,
-                    'threshold'
+                    'threshold',
+                    $effectivePolarity
                 );
                 $motionGcodeBytes = self::mergeMotionBlocks($motionGcodeBytes, $vectorMotion);
 
@@ -5672,7 +6104,7 @@ class XtoolLaserCockpitService
                     'linesPerCm'     => (int) $vec['lpc'],
                     'power'          => max(1, min(100, (int) $vec['power_percent'])),
                     'speed'          => $vecSpeed,
-                    'frequency'      => max(1, min(200, (int) $vec['frequency_khz'])),
+                    'frequency'      => $vecFreq,
                     'repeat'         => max(1, min(20, (int) $vec['passes'])),
                     'vectorNote'     => $vectorNote,
                     'layer'          => 'text_vector',
@@ -5694,7 +6126,8 @@ class XtoolLaserCockpitService
                 $dpi,
                 $scanMode,
                 $speedMms,
-                $fallbackBlockMode
+                $fallbackBlockMode,
+                $effectivePolarity
             );
         }
 
@@ -5806,11 +6239,12 @@ class XtoolLaserCockpitService
         float $angleDeg = 0.0,
         string $laserIp = self::DEFAULT_LASER_IP,
         ?float $widthMm = null,
-        ?float $heightMm = null
+        ?float $heightMm = null,
+        ?string $framingMode = null
     ): array {
         $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($laserIp, self::DEFAULT_LASER_IP);
         $effectiveType = in_array($jobType, ['framing', 'engrave'], true) ? $jobType : 'engrave';
-        $xfData = $this->generateXfPackageBytes($itemId, $side, $centerXMm, $centerYMm, $angleDeg, $widthMm, $heightMm);
+        $xfData = $this->generateXfPackageBytes($itemId, $side, $centerXMm, $centerYMm, $angleDeg, $widthMm, $heightMm, $framingMode);
         $xcsData = $this->generateXcsProjectBytes(
             $itemId,
             $side,
@@ -6247,7 +6681,12 @@ class XtoolLaserCockpitService
     }
 
     /**
-     * Erzeugt den nativen GS009-4 UV-Galvo Bewegungsstrom (motion.gcode) für die direkte Gravur am xTool F2 Ultra UV.
+     * Erzeugt den nativen GS009-4 UV-Galvo Bewegungsstrom (motion.gcode) für die direkte Gravur am xTool F2 Ultra UV:
+     * - Echte Ziel-DPI bis 3200 Scanzeilen (statt altem 800-px-Deckel), speicherschonend per 64-KB-Chunk-Streaming
+     * - Hardware-Schutz: UV-Frequenz strikt >= 40 kHz (MIN_UV_FREQUENCY_KHZ .. MAX_UV_FREQUENCY_KHZ)
+     * - Exakte xTool Studio Konstantgeschwindigkeits-Scanzeilen (G1...S0 Leerfahrt + G1...S{power} Brennstrecke ohne G0-Puls-Clipping)
+     *   für K9-Kristall / Glas ('frost_on_glass'), Vektor-Text/Symbole ('threshold') und Graustufen
+     * - Unveränderter diskreter Mikroporen-Modus für schwarz eloxiertes Aluminium ('white_on_dark', Seelenanhänger).
      */
     private function buildLaserMotionStream(
         string $pngBytes,
@@ -6263,23 +6702,34 @@ class XtoolLaserCockpitService
         int $dpi = 500,
         string $scanMode = 'zMode',
         int $speedMms = 200,
-        string $blockBitmapMode = 'grayscale'
+        string $blockBitmapMode = 'grayscale',
+        string $substratePolarity = ''
     ): string {
-        $effectiveDpi = max(100, min(1000, $dpi));
-        $sampleW = max(64, min(800, (int) round(($widthMm / 25.4) * $effectiveDpi)));
-        $sampleH = max(64, min(800, (int) round(($heightMm / 25.4) * $effectiveDpi)));
+        $effectiveDpi = max(100, min(1270, $dpi));
+        $sampleW = max(64, min(self::MAX_MOTION_SAMPLE_DIM, (int) round(($widthMm / 25.4) * $effectiveDpi)));
+        $sampleH = max(64, min(self::MAX_MOTION_SAMPLE_DIM, (int) round(($heightMm / 25.4) * $effectiveDpi)));
         $densityLinesPerMm = round($sampleH / max(1.0, $heightMm), 4);
         $pixelPitchMm = $widthMm / max(1, $sampleW);
-        $speedScale = max(0.05, min(20.0, max(1, $speedMms) / 200.0));
-        $dotFeedMmPerMin = (($pixelPitchMm * 1000000.0) / max(10, $dotDurationUs)) * 60.0;
-        $feedMmPerMin = max(
-            600,
-            min(240000, (int) round($dotFeedMmPerMin * $speedScale))
-        );
+
+        $modeLower = strtolower($blockBitmapMode);
+        $isHalftoneDither = in_array($modeLower, ['jarvis', 'stucki'], true);
+        $isGlassFrost = ($substratePolarity === LaserPhotoPreprocessor::POLARITY_FROST_ON_GLASS);
+        $isDiscreteDotMode = $isHalftoneDither && !$isGlassFrost;
+
+        if ($modeLower === 'threshold') {
+            $feedMmPerMin = max(180, min(240000, (int) round(max(1, $speedMms) * 60.0)));
+        } elseif ($isDiscreteDotMode) {
+            $speedScale = max(0.05, min(20.0, max(1, $speedMms) / 200.0));
+            $dotFeedMmPerMin = (($pixelPitchMm * 1000000.0) / max(10, $dotDurationUs)) * 60.0;
+            $feedMmPerMin = max(600, min(240000, (int) round($dotFeedMmPerMin * $speedScale)));
+        } else {
+            $dotFeedMmPerMin = (($pixelPitchMm * 1000000.0) / max(10, $dotDurationUs)) * 60.0;
+            $feedMmPerMin = max(180, min(240000, (int) round($dotFeedMmPerMin)));
+        }
 
         $powerFactor = round(max(0.01, min(1.0, $powerPercent / 100.0)), 3);
         $sMax = max(10, min(1000, $powerPercent * 10));
-        $freqClamped = max(20, min(200, $frequencyKhz));
+        $freqClamped = max(self::MIN_UV_FREQUENCY_KHZ, min(self::MAX_UV_FREQUENCY_KHZ, $frequencyKhz));
 
         $blockConfigJson = json_encode([
             'powerFactor' => $powerFactor,
@@ -6294,7 +6744,7 @@ class XtoolLaserCockpitService
             'isVector'    => false,
         ], JSON_UNESCAPED_SLASHES);
 
-        $lines = [
+        $headerLines = [
             '# date=' . date('Y_m_d_H_i_s'),
             '# version=1.10.15',
             '# algorithmVersion=',
@@ -6333,23 +6783,28 @@ class XtoolLaserCockpitService
         ];
 
         if ($passes > 1) {
-            $lines[] = '# MUST';
-            $lines[] = 'G104 P' . $passes;
+            $headerLines[] = '# MUST';
+            $headerLines[] = 'G104 P' . $passes;
         }
+
+        $gcodeChunks = [];
+        $chunkBuf = implode("\n", $headerLines) . "\n";
+        unset($headerLines);
 
         $src = @imagecreatefromstring($pngBytes);
         if ($src) {
-            $small = imagecreatetruecolor($sampleW, $sampleH);
-            imagealphablending($small, false);
-            imagesavealpha($small, true);
-            $trans = imagecolorallocatealpha($small, 255, 255, 255, 127);
-            imagefill($small, 0, 0, $trans);
             if (imagesx($src) === $sampleW && imagesy($src) === $sampleH) {
-                imagecopy($small, $src, 0, 0, 0, 0, $sampleW, $sampleH);
+                $small = $src;
             } else {
+                $small = imagecreatetruecolor($sampleW, $sampleH);
+                imagealphablending($small, false);
+                imagesavealpha($small, true);
+                $trans = imagecolorallocatealpha($small, 255, 255, 255, 127);
+                imagefill($small, 0, 0, $trans);
                 imagecopyresampled($small, $src, 0, 0, 0, 0, $sampleW, $sampleH, imagesx($src), imagesy($src));
+                imagedestroy($src);
             }
-            imagedestroy($src);
+            unset($src);
 
             $rad = deg2rad($angleDeg);
             $cos = cos($rad);
@@ -6358,122 +6813,202 @@ class XtoolLaserCockpitService
             $halfH = $heightMm / 2.0;
             $denomW = (float) max(1, $sampleW - 1);
             $denomH = (float) max(1, $sampleH - 1);
-            $isDotPulseMode = in_array(strtolower($blockBitmapMode), ['jarvis', 'stucki'], true);
             $pulseSpanMm = max(0.008, min(0.032, $pixelPitchMm * 0.52));
+            $halfPixelMm = min(0.12, $pixelPitchMm * 0.48);
+            $leadInMm = min(0.04, max(0.012, $pixelPitchMm));
+            $maxGlideGapMm = 4.0;
+            $isThresholdBlock = ($modeLower === 'threshold');
 
             for ($y = 0; $y < $sampleH; $y++) {
                 $ly = -$halfH + (($y / $denomH) * $heightMm);
                 $reverse = ($scanMode === 'zMode') && (($y & 1) === 1);
                 $dirSign = $reverse ? -1.0 : 1.0;
 
+                if ($isDiscreteDotMode) {
+                    $halfPulse = $pulseSpanMm * 0.5 * $dirSign;
+                    for ($step = 0; $step < $sampleW; $step++) {
+                        $x = $reverse ? ($sampleW - 1 - $step) : $step;
+                        $c = imagecolorat($small, $x, $y);
+                        $alpha = ($c >> 24) & 0x7F;
+                        if ($alpha >= 112) {
+                            continue;
+                        }
+                        $r = ($c >> 16) & 0xFF;
+                        $g = ($c >> 8) & 0xFF;
+                        $b = $c & 0xFF;
+                        $gray = (int) (($r * 77 + $g * 150 + $b * 29) >> 8);
+                        if ($gray >= 128) {
+                            continue;
+                        }
+
+                        $lx = -$halfW + (($x / $denomW) * $widthMm);
+                        $gx = max(0.0, min(self::BED_WIDTH_MM, $centerXMm + ($lx * $cos) - ($ly * $sin)));
+                        $gy = max(0.0, min(self::BED_HEIGHT_MM, $centerYMm + ($lx * $sin) + ($ly * $cos)));
+                        $p0x = max(0.0, min(self::BED_WIDTH_MM, $gx - ($halfPulse * $cos)));
+                        $p0y = max(0.0, min(self::BED_HEIGHT_MM, $gy - ($halfPulse * $sin)));
+                        $p1x = max(0.0, min(self::BED_WIDTH_MM, $gx + ($halfPulse * $cos)));
+                        $p1y = max(0.0, min(self::BED_HEIGHT_MM, $gy + ($halfPulse * $sin)));
+                        $chunkBuf .= sprintf("G0X%.3fY%.3f\nG1X%.3fY%.3fS%d\n", $p0x, $p0y, $p1x, $p1y, $sMax);
+                        if (strlen($chunkBuf) >= 65536) {
+                            $gcodeChunks[] = $chunkBuf;
+                            $chunkBuf = '';
+                        }
+                    }
+                    continue;
+                }
+
+                // Konstantgeschwindigkeits-Scanzeile (1:1 xTool Studio GS009-4):
+                // Kurze Lücken (<= 4,0 mm) innerhalb der Zeile werden ohne G0-Sprung mit G1...S0 durchfahren.
+                // Bei unrotierten Zeilen (sin == 0) entfällt wie in xTool Studio das redundante Y auf G1-Zeilenbewegungen.
+                $isAxisAlignedRow = abs($sin) < 1e-7;
                 $inRun = false;
                 $runPower = 0;
-                $runStartX = 0.0;
-                $runStartY = 0.0;
-                $runEndX = 0.0;
-                $runEndY = 0.0;
+                $runStartLx = 0.0;
+                $runEndLx = 0.0;
+                $hasHeadOnRow = false;
+                $lastBurnEndLx = 0.0;
+
+                $emitRowRun = function (float $rStartLx, float $rEndLx, int $rPower) use (
+                    &$chunkBuf,
+                    &$hasHeadOnRow,
+                    &$lastBurnEndLx,
+                    $maxGlideGapMm,
+                    $halfW,
+                    $leadInMm,
+                    $dirSign,
+                    $centerXMm,
+                    $centerYMm,
+                    $ly,
+                    $cos,
+                    $sin,
+                    $isAxisAlignedRow
+                ): void {
+                    if (!$hasHeadOnRow || abs($rStartLx - $lastBurnEndLx) > $maxGlideGapMm) {
+                        $leadLx = max(-$halfW, min($halfW, $rStartLx - ($leadInMm * $dirSign)));
+                        $lgx = max(0.0, min(self::BED_WIDTH_MM, $centerXMm + ($leadLx * $cos) - ($ly * $sin)));
+                        $lgy = max(0.0, min(self::BED_HEIGHT_MM, $centerYMm + ($leadLx * $sin) + ($ly * $cos)));
+                        $chunkBuf .= sprintf("G0X%.3fY%.3f\n", $lgx, $lgy);
+                        if (abs($rStartLx - $leadLx) >= 0.002) {
+                            $sgx = max(0.0, min(self::BED_WIDTH_MM, $centerXMm + ($rStartLx * $cos) - ($ly * $sin)));
+                            if ($isAxisAlignedRow) {
+                                $chunkBuf .= sprintf("G1X%.3fS0\n", $sgx);
+                            } else {
+                                $sgy = max(0.0, min(self::BED_HEIGHT_MM, $centerYMm + ($rStartLx * $sin) + ($ly * $cos)));
+                                $chunkBuf .= sprintf("G1X%.3fY%.3fS0\n", $sgx, $sgy);
+                            }
+                        }
+                    } elseif (abs($rStartLx - $lastBurnEndLx) >= 0.002) {
+                        $sgx = max(0.0, min(self::BED_WIDTH_MM, $centerXMm + ($rStartLx * $cos) - ($ly * $sin)));
+                        if ($isAxisAlignedRow) {
+                            $chunkBuf .= sprintf("G1X%.3fS0\n", $sgx);
+                        } else {
+                            $sgy = max(0.0, min(self::BED_HEIGHT_MM, $centerYMm + ($rStartLx * $sin) + ($ly * $cos)));
+                            $chunkBuf .= sprintf("G1X%.3fY%.3fS0\n", $sgx, $sgy);
+                        }
+                    }
+
+                    $egx = max(0.0, min(self::BED_WIDTH_MM, $centerXMm + ($rEndLx * $cos) - ($ly * $sin)));
+                    if ($isAxisAlignedRow) {
+                        $chunkBuf .= sprintf("G1X%.3fS%d\n", $egx, $rPower);
+                    } else {
+                        $egy = max(0.0, min(self::BED_HEIGHT_MM, $centerYMm + ($rEndLx * $sin) + ($ly * $cos)));
+                        $chunkBuf .= sprintf("G1X%.3fY%.3fS%d\n", $egx, $egy, $rPower);
+                    }
+                    $hasHeadOnRow = true;
+                    $lastBurnEndLx = $rEndLx;
+                };
 
                 for ($step = 0; $step < $sampleW; $step++) {
                     $x = $reverse ? ($sampleW - 1 - $step) : $step;
                     $c = imagecolorat($small, $x, $y);
                     $alpha = ($c >> 24) & 0x7F;
-                    $r = ($c >> 16) & 0xFF;
-                    $g = ($c >> 8) & 0xFF;
-                    $b = $c & 0xFF;
-                    $gray = (int) (($r * 77 + $g * 150 + $b * 29) >> 8);
-
                     $pixelS = 0;
-                    if ($isDotPulseMode) {
-                        if ($alpha < 112 && $gray < 128) {
-                            $pixelS = $sMax;
+
+                    if ($alpha < 112) {
+                        $r = ($c >> 16) & 0xFF;
+                        $g = ($c >> 8) & 0xFF;
+                        $b = $c & 0xFF;
+                        $gray = (int) (($r * 77 + $g * 150 + $b * 29) >> 8);
+
+                        if ($isHalftoneDither || $isThresholdBlock) {
+                            if ($gray < 160) {
+                                $pixelS = $sMax;
+                            }
+                        } elseif ($gray < 242) {
+                            $opacityFactor = (127 - $alpha) / 127.0;
+                            $darkFactor = (255 - $gray) / 255.0;
+                            $intensity = min(1.0, max(0.12, $darkFactor * $opacityFactor));
+                            $quantized = max(1, (int) round($intensity * 20.0)) / 20.0;
+                            $pixelS = max(15, min($sMax, (int) round($sMax * $quantized)));
                         }
-                    } elseif ($alpha < 112 && $gray < 242) {
-                        $opacityFactor = (127 - $alpha) / 127.0;
-                        $darkFactor = (255 - $gray) / 255.0;
-                        $intensity = min(1.0, max(0.12, $darkFactor * $opacityFactor));
-                        // Quantisierung in 20 Stufen hält die GCode-Datei kompakt und flüssig
-                        $quantized = max(1, (int) round($intensity * 20.0)) / 20.0;
-                        $pixelS = max(15, min($sMax, (int) round($sMax * $quantized)));
                     }
 
                     if ($pixelS > 0) {
                         $lx = -$halfW + (($x / $denomW) * $widthMm);
-                        $gx = max(0.0, min(self::BED_WIDTH_MM, $centerXMm + ($lx * $cos) - ($ly * $sin)));
-                        $gy = max(0.0, min(self::BED_HEIGHT_MM, $centerYMm + ($lx * $sin) + ($ly * $cos)));
+                        $pxStartLx = max(-$halfW, min($halfW, $lx - ($halfPixelMm * $dirSign)));
+                        $pxEndLx = max(-$halfW, min($halfW, $lx + ($halfPixelMm * $dirSign)));
 
-                        if ($isDotPulseMode) {
-                            // Diskreter Punkt-Puls ohne Verschmelzen benachbarter Halbton-Dither-Punkte zu 100-%-Brennstrichen
-                            $halfPulse = $pulseSpanMm * 0.5 * $dirSign;
-                            $p0x = max(0.0, min(self::BED_WIDTH_MM, $gx - ($halfPulse * $cos)));
-                            $p0y = max(0.0, min(self::BED_HEIGHT_MM, $gy - ($halfPulse * $sin)));
-                            $p1x = max(0.0, min(self::BED_WIDTH_MM, $gx + ($halfPulse * $cos)));
-                            $p1y = max(0.0, min(self::BED_HEIGHT_MM, $gy + ($halfPulse * $sin)));
-                            $lines[] = sprintf('G0X%.3fY%.3f', $p0x, $p0y);
-                            $lines[] = sprintf('G1X%.3fY%.3fS%d', $p1x, $p1y, $pixelS);
-                        } elseif (!$inRun) {
-                            $lines[] = sprintf('G0X%.3fY%.3f', $gx, $gy);
+                        if (!$inRun) {
                             $inRun = true;
                             $runPower = $pixelS;
-                            $runStartX = $gx;
-                            $runStartY = $gy;
-                            $runEndX = $gx;
-                            $runEndY = $gy;
+                            $runStartLx = $pxStartLx;
+                            $runEndLx = $pxEndLx;
                         } elseif ($pixelS === $runPower) {
-                            $runEndX = $gx;
-                            $runEndY = $gy;
+                            $runEndLx = $pxEndLx;
                         } else {
-                            if (hypot($runEndX - $runStartX, $runEndY - $runStartY) < 0.002) {
-                                $runEndX = max(0.0, min(self::BED_WIDTH_MM, $runStartX + ($pulseSpanMm * $dirSign * $cos)));
-                                $runEndY = max(0.0, min(self::BED_HEIGHT_MM, $runStartY + ($pulseSpanMm * $dirSign * $sin)));
-                            }
-                            $lines[] = sprintf('G1X%.3fY%.3fS%d', $runEndX, $runEndY, $runPower);
-                            $lines[] = sprintf('G0X%.3fY%.3f', $gx, $gy);
+                            $emitRowRun($runStartLx, $runEndLx, $runPower);
                             $runPower = $pixelS;
-                            $runStartX = $gx;
-                            $runStartY = $gy;
-                            $runEndX = $gx;
-                            $runEndY = $gy;
+                            $runStartLx = $runEndLx;
+                            $runEndLx = $pxEndLx;
                         }
                     } elseif ($inRun) {
-                        if (hypot($runEndX - $runStartX, $runEndY - $runStartY) < 0.002) {
-                            $runEndX = max(0.0, min(self::BED_WIDTH_MM, $runStartX + ($pulseSpanMm * $dirSign * $cos)));
-                            $runEndY = max(0.0, min(self::BED_HEIGHT_MM, $runStartY + ($pulseSpanMm * $dirSign * $sin)));
-                        }
-                        $lines[] = sprintf('G1X%.3fY%.3fS%d', $runEndX, $runEndY, $runPower);
+                        $emitRowRun($runStartLx, $runEndLx, $runPower);
                         $inRun = false;
                         $runPower = 0;
+
+                        if (strlen($chunkBuf) >= 65536) {
+                            $gcodeChunks[] = $chunkBuf;
+                            $chunkBuf = '';
+                        }
                     }
                 }
 
                 if ($inRun) {
-                    if (hypot($runEndX - $runStartX, $runEndY - $runStartY) < 0.002) {
-                        $runEndX = max(0.0, min(self::BED_WIDTH_MM, $runStartX + ($pulseSpanMm * $dirSign * $cos)));
-                        $runEndY = max(0.0, min(self::BED_HEIGHT_MM, $runStartY + ($pulseSpanMm * $dirSign * $sin)));
-                    }
-                    $lines[] = sprintf('G1X%.3fY%.3fS%d', $runEndX, $runEndY, $runPower);
+                    $emitRowRun($runStartLx, $runEndLx, $runPower);
+                }
+
+                if (strlen($chunkBuf) >= 65536) {
+                    $gcodeChunks[] = $chunkBuf;
+                    $chunkBuf = '';
                 }
             }
             imagedestroy($small);
         }
 
+        $tailLines = [];
         if ($passes > 1) {
-            $lines[] = '# MUST';
-            $lines[] = 'G105';
+            $tailLines[] = '# MUST';
+            $tailLines[] = 'G105';
         }
 
-        $lines[] = '# GS009-4 BITMAP TAIL';
-        $lines[] = '# motion_end';
-        $lines[] = '# END';
-        $lines[] = '# GS009-4 TAIL';
-        $lines[] = 'G90';
-        $lines[] = 'G0 S0';
-        $lines[] = 'G0 F180000';
-        $lines[] = 'G1 F180000';
-        $lines[] = 'M536 U0';
-        $lines[] = 'M6 P1';
-        $lines[] = '';
+        $tailLines[] = '# GS009-4 BITMAP TAIL';
+        $tailLines[] = '# motion_end';
+        $tailLines[] = '# END';
+        $tailLines[] = '# GS009-4 TAIL';
+        $tailLines[] = 'G90';
+        $tailLines[] = 'G0 S0';
+        $tailLines[] = 'G0 F180000';
+        $tailLines[] = 'G1 F180000';
+        $tailLines[] = 'M536 U0';
+        $tailLines[] = 'M6 P1';
+        $tailLines[] = '';
 
-        return implode("\n", $lines);
+        $chunkBuf .= implode("\n", $tailLines);
+        if ($chunkBuf !== '') {
+            $gcodeChunks[] = $chunkBuf;
+        }
+
+        return implode('', $gcodeChunks);
     }
 
     /**
@@ -6671,15 +7206,21 @@ class XtoolLaserCockpitService
         return (bool) preg_match('/^[A-Za-z0-9_-]{6,80}$/', $jobId);
     }
 
-    public function recordMiniPcRelayHeartbeat(?bool $laserOnline = null, ?string $laserIp = null): array
+    public function recordMiniPcRelayHeartbeat(?bool $laserOnline = null, ?string $laserIp = null, ?array $workTelemetry = null): array
     {
         $hbPath = $this->relayHeartbeatPath();
         $resolvedOnline = $laserOnline;
+        $existingTelemetry = null;
 
-        if ($resolvedOnline === null && @is_file($hbPath)) {
+        if (@is_file($hbPath)) {
             $existing = json_decode((string) @file_get_contents($hbPath), true);
-            if (is_array($existing) && isset($existing['laser_online'])) {
-                $resolvedOnline = (bool) $existing['laser_online'];
+            if (is_array($existing)) {
+                if ($resolvedOnline === null && isset($existing['laser_online'])) {
+                    $resolvedOnline = (bool) $existing['laser_online'];
+                }
+                if ($workTelemetry === null && isset($existing['work_telemetry']) && is_array($existing['work_telemetry'])) {
+                    $existingTelemetry = $existing['work_telemetry'];
+                }
             }
         }
 
@@ -6692,6 +7233,7 @@ class XtoolLaserCockpitService
             'last_seen_epoch' => $nowEpoch,
             'laser_online'    => (bool) ($resolvedOnline ?? false),
             'laser_ip'        => $safeIp,
+            'work_telemetry'  => $workTelemetry ?? $existingTelemetry,
         ];
 
         $this->atomicWriteJsonFile($hbPath, $data);
@@ -6700,7 +7242,7 @@ class XtoolLaserCockpitService
     }
 
     /**
-     * @return array{age_seconds: float, laser_online: bool, last_seen_at: string, laser_ip: string}|null
+     * @return array{age_seconds: float, laser_online: bool, last_seen_at: string, laser_ip: string, work_telemetry: ?array<string, mixed>}|null
      */
     public function getMiniPcRelayHeartbeat(): ?array
     {
@@ -6738,10 +7280,11 @@ class XtoolLaserCockpitService
         }
 
         return [
-            'age_seconds'  => max(0.0, microtime(true) - $epoch),
-            'laser_online' => (bool) ($decoded['laser_online'] ?? false),
-            'last_seen_at' => (string) ($decoded['last_seen_at'] ?? ''),
-            'laser_ip'     => (string) ($decoded['laser_ip'] ?? self::DEFAULT_LASER_IP),
+            'age_seconds'    => max(0.0, microtime(true) - $epoch),
+            'laser_online'   => (bool) ($decoded['laser_online'] ?? false),
+            'last_seen_at'   => (string) ($decoded['last_seen_at'] ?? ''),
+            'laser_ip'       => (string) ($decoded['laser_ip'] ?? self::DEFAULT_LASER_IP),
+            'work_telemetry' => is_array($decoded['work_telemetry'] ?? null) ? $decoded['work_telemetry'] : null,
         ];
     }
 
@@ -6751,7 +7294,7 @@ class XtoolLaserCockpitService
      */
     public function enqueueRelayJob(string $action, array $params = []): array
     {
-        if (!in_array($action, ['capture_camera', 'send_xf', 'frame_border'], true)) {
+        if (!in_array($action, ['capture_camera', 'send_xf', 'frame_border', 'auto_focus', 'stop_laser'], true)) {
             throw new \InvalidArgumentException('Ungültige Relay-Aktion: ' . $action);
         }
 
@@ -6819,9 +7362,9 @@ class XtoolLaserCockpitService
      *
      * @return array<string, mixed>|null
      */
-    public function claimNextPendingRelayJob(?bool $laserOnline = null, ?string $laserIp = null): ?array
+    public function claimNextPendingRelayJob(?bool $laserOnline = null, ?string $laserIp = null, ?array $workTelemetry = null): ?array
     {
-        $this->recordMiniPcRelayHeartbeat($laserOnline, $laserIp);
+        $this->recordMiniPcRelayHeartbeat($laserOnline, $laserIp, $workTelemetry);
 
         $claimedWireJob = null;
 
@@ -6959,6 +7502,12 @@ class XtoolLaserCockpitService
                     ? mb_substr(trim((string) $payload['error']), 0, 500)
                     : null,
                 'camera_saved' => $cameraSaved,
+                'focus_mm'     => isset($payload['focus_mm']) && is_numeric($payload['focus_mm'])
+                    ? round((float) $payload['focus_mm'], 2)
+                    : null,
+                'raw_z_mm'     => isset($payload['raw_z_mm']) && is_numeric($payload['raw_z_mm'])
+                    ? round((float) $payload['raw_z_mm'], 2)
+                    : null,
             ];
 
             $this->atomicWriteJsonFile($jobPath, $decoded);
@@ -7074,5 +7623,620 @@ class XtoolLaserCockpitService
             @flock($fp, LOCK_UN);
             @fclose($fp);
         }
+    }
+
+    // =========================================================================
+    // LIVE AUTO-FOKUS (LINEAL-A), NOT-STOPP & ECHTZEIT-ARBEITSSTATUS (GS009-CLASS-4)
+    // =========================================================================
+
+    /**
+     * Übersetzt den rohen GS009-CLASS-4 Laufzeitstatus (curMode, progress, worktime) in ein einheitliches UI-Status-Objekt.
+     *
+     * @return array{online: bool, is_working: bool, is_ready_wait: bool, phase: string, phase_label: string, progress_pct: int, worktime_sec: int}
+     */
+    public static function mapGs009WorkTelemetry(
+        bool $online,
+        string $mode = '',
+        string $subMode = '',
+        string $desc = '',
+        int $progressPct = 0,
+        int $worktimeSec = 0
+    ): array {
+        if (!$online) {
+            return [
+                'online'        => false,
+                'is_working'    => false,
+                'is_ready_wait' => false,
+                'phase'         => 'offline',
+                'phase_label'   => 'Offline',
+                'progress_pct'  => 0,
+                'worktime_sec'  => 0,
+            ];
+        }
+
+        $m = trim($mode);
+        $sub = trim($subMode);
+        $d = trim($desc);
+        $pct = max(0, min(100, $progressPct));
+        $sec = max(0, $worktimeSec);
+
+        if (in_array($m, ['P_AUTOFOCUS', 'P_MEASURE'], true)) {
+            return [
+                'online'        => true,
+                'is_working'    => true,
+                'is_ready_wait' => false,
+                'phase'         => 'autofocus',
+                'phase_label'   => 'Laser misst Fokus-Abstand ein...',
+                'progress_pct'  => $pct,
+                'worktime_sec'  => $sec,
+            ];
+        }
+
+        if ($m === 'Work') {
+            if (in_array($d, ['frame', 'frameExt'], true)) {
+                return [
+                    'online'        => true,
+                    'is_working'    => true,
+                    'is_ready_wait' => false,
+                    'phase'         => 'framing',
+                    'phase_label'   => 'Laser aktiv · Rahmen-Vorschau läuft',
+                    'progress_pct'  => $pct,
+                    'worktime_sec'  => $sec,
+                ];
+            }
+            if ($sub === 'workReady') {
+                return [
+                    'online'        => true,
+                    'is_working'    => false,
+                    'is_ready_wait' => true,
+                    'phase'         => 'work_ready',
+                    'phase_label'   => 'Auftrag bereit im Laser · Start-Knopf am Gerät drücken',
+                    'progress_pct'  => 0,
+                    'worktime_sec'  => 0,
+                ];
+            }
+            if ($sub === 'workPause') {
+                return [
+                    'online'        => true,
+                    'is_working'    => true,
+                    'is_ready_wait' => false,
+                    'phase'         => 'paused',
+                    'phase_label'   => 'Laser pausiert',
+                    'progress_pct'  => $pct,
+                    'worktime_sec'  => $sec,
+                ];
+            }
+
+            return [
+                'online'        => true,
+                'is_working'    => true,
+                'is_ready_wait' => false,
+                'phase'         => 'engraving',
+                'phase_label'   => 'Laser arbeitet · Gravur läuft',
+                'progress_pct'  => $pct,
+                'worktime_sec'  => $sec,
+            ];
+        }
+
+        return [
+            'online'        => true,
+            'is_working'    => false,
+            'is_ready_wait' => false,
+            'phase'         => 'idle',
+            'phase_label'   => 'Bereit',
+            'progress_pct'  => 0,
+            'worktime_sec'  => 0,
+        ];
+    }
+
+    /**
+     * Normiert die 5 internen Hardware-Sensoren des xTool F2 Ultra UV (GS009-CLASS-4):
+     * 1) /v1/device/uv-laser (uv_ready === '1')
+     * 2) /v1/peripheral/param?type=gap (stateRK3562 === 'off' && stateMCU === 'off' => Schutzhaube zu)
+     * 3) /v1/peripheral/param?type=smoking_fan (state === 'install' / purifierExist => IF2 Abluft bereit)
+     * 4) /v1/peripheral/param?type=cj_check (fieldLensType: 'big' für Oberfläche, 'small' für 3D-Innengravur)
+     * 5) /v1/peripheral/param?type=machine_lock & /v1/device/alarms (Sicherheitsschlüssel & 0 aktive Alarme)
+     */
+    public static function mapGs009PreflightStatus(
+        bool $online,
+        array $raw = [],
+        string $equipmentKey = 'flatbed_standard'
+    ): array {
+        $expectedLens = self::normalizeEquipmentKey($equipmentKey) === 'inner_3d' ? 'small' : 'big';
+
+        if (!$online || empty($raw)) {
+            return [
+                'checked'       => false,
+                'all_ready'     => false,
+                'uv_ready'      => null,
+                'lid_closed'    => null,
+                'exhaust_ready' => null,
+                'lens_ok'       => null,
+                'lens_type'     => 'unknown',
+                'expected_lens' => $expectedLens,
+                'safety_ok'     => null,
+                'warnings'      => [],
+                'blockers'      => [],
+            ];
+        }
+
+        $uvVal = $raw['uv_ready'] ?? null;
+        $uvReady = ($uvVal === null)
+            ? true
+            : in_array((string) $uvVal, ['1', 'true', 'on', 'ready'], true);
+
+        $gapRk = isset($raw['gap_rk3562']) ? mb_strtolower(trim((string) $raw['gap_rk3562'])) : null;
+        $gapMcu = isset($raw['gap_mcu']) ? mb_strtolower(trim((string) $raw['gap_mcu'])) : null;
+        $lidClosed = ($gapRk === null && $gapMcu === null)
+            ? true
+            : (($gapRk === null || $gapRk === 'off' || $gapRk === '0') && ($gapMcu === null || $gapMcu === 'off' || $gapMcu === '0'));
+
+        $fanState = isset($raw['smoking_fan']) ? mb_strtolower(trim((string) $raw['smoking_fan'])) : null;
+        $purifierExist = isset($raw['purifier_exist']) ? (bool) $raw['purifier_exist'] : false;
+        $exhaustReady = ($fanState === null && !array_key_exists('purifier_exist', $raw))
+            ? null
+            : ($fanState === 'install' || $fanState === 'on' || $purifierExist);
+
+        $rawLens = mb_strtolower(trim((string) ($raw['lens_type'] ?? '')));
+        $lensKnown = in_array($rawLens, ['big', 'small'], true);
+        $lensOk = $lensKnown ? ($rawLens === $expectedLens) : true;
+
+        $lockState = isset($raw['machine_lock']) ? mb_strtolower(trim((string) $raw['machine_lock'])) : null;
+        $usbKeyUnlocked = ($lockState === null) ? true : in_array($lockState, ['on', '1', 'true'], true);
+
+        $alarmsRaw = $raw['alarms'] ?? [];
+        $activeAlarms = [];
+        if (is_array($alarmsRaw)) {
+            foreach ($alarmsRaw as $al) {
+                if (is_string($al) && trim($al) !== '') {
+                    $activeAlarms[] = trim($al);
+                } elseif (is_array($al) && !empty($al['code'])) {
+                    $activeAlarms[] = (string) $al['code'];
+                }
+            }
+        }
+        $safetyOk = $usbKeyUnlocked && empty($activeAlarms);
+
+        $warnings = [];
+        $blockers = [];
+
+        if (!$safetyOk) {
+            if (!$usbKeyUnlocked) {
+                $blockers[] = 'USB-Sicherheitsschlüssel am Laser gesperrt oder abgezogen.';
+            }
+            if (!empty($activeAlarms)) {
+                $blockers[] = 'Hardware-Alarm am Laser aktiv (' . implode(', ', array_slice($activeAlarms, 0, 3)) . ').';
+            }
+        }
+        if (!$lensOk) {
+            $warnings[] = $expectedLens === 'small'
+                ? 'Für 3D-Innengravur bitte die S-Linse einsetzen (aktuell Flachbett-Linse erkannt).'
+                : 'Für Oberflächengravur bitte die Standard-Flachbett-Linse einsetzen (aktuell S-Linse erkannt).';
+        }
+        if (!$uvReady) {
+            $warnings[] = '5W-UV-Quelle wärmt noch vor (bitte kurz warten).';
+        }
+        if (!$lidClosed) {
+            $warnings[] = 'Schutzhaube geöffnet (vor dem Startknopf schließen).';
+        }
+        if ($exhaustReady === false) {
+            $warnings[] = 'IF2 Abluftventilator nicht als verbunden gemeldet.';
+        }
+
+        return [
+            'checked'       => true,
+            'all_ready'     => empty($blockers) && $uvReady && $lidClosed && $lensOk && ($exhaustReady !== false),
+            'uv_ready'      => $uvReady,
+            'lid_closed'    => $lidClosed,
+            'exhaust_ready' => $exhaustReady,
+            'lens_ok'       => $lensOk,
+            'lens_type'     => $lensKnown ? $rawLens : 'unknown',
+            'expected_lens' => $expectedLens,
+            'safety_ok'     => $safetyOk,
+            'warnings'      => $warnings,
+            'blockers'      => $blockers,
+        ];
+    }
+
+    protected function cacheV2SessionToken(string $safeIp, string $sessionToken): void
+    {
+        if (trim($sessionToken) === '') {
+            return;
+        }
+        $sessionFile = Storage::disk('local')->path('system/xtool_queue/v2_session_' . md5($safeIp) . '.json');
+        $this->writeFileAtomicallyShared($sessionFile, (string) json_encode([
+            'token'      => $sessionToken,
+            'updated_at' => microtime(true),
+        ], JSON_UNESCAPED_SLASHES));
+    }
+
+    protected function readCachedV2SessionToken(string $safeIp, float $maxAgeSeconds = 7200.0): ?string
+    {
+        $sessionFile = Storage::disk('local')->path('system/xtool_queue/v2_session_' . md5($safeIp) . '.json');
+        if (!@is_file($sessionFile)) {
+            return null;
+        }
+        $age = microtime(true) - (float) (@filemtime($sessionFile) ?: 0);
+        if ($age < 0.0 || $age > $maxAgeSeconds) {
+            return null;
+        }
+        $decoded = json_decode((string) @file_get_contents($sessionFile), true);
+        $tok = is_array($decoded) ? trim((string) ($decoded['token'] ?? '')) : '';
+
+        return $tok !== '' ? $tok : null;
+    }
+
+    /**
+     * Liest den zuletzt gespeicherten Pre-Flight-Sensorstand komplett netzwerkfrei von der Platte (0 Verbindungen, 0 Pieptöne).
+     */
+    public function readLocalCachedPreflightStatus(
+        string $laserIp = self::DEFAULT_LASER_IP,
+        string $equipmentKey = 'flatbed_standard',
+        float $maxAgeSeconds = 1800.0
+    ): array {
+        $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($laserIp, self::DEFAULT_LASER_IP);
+        $cacheFile = Storage::disk('local')->path('system/xtool_queue/preflight_' . md5($safeIp) . '.json');
+        if (@is_file($cacheFile)) {
+            $age = microtime(true) - (float) (@filemtime($cacheFile) ?: 0);
+            if ($age >= 0.0 && $age <= $maxAgeSeconds) {
+                $cachedRaw = json_decode((string) @file_get_contents($cacheFile), true);
+                if (is_array($cachedRaw) && !empty($cachedRaw)) {
+                    return self::mapGs009PreflightStatus(true, $cachedRaw, $equipmentKey);
+                }
+            }
+        }
+
+        return self::mapGs009PreflightStatus(false, [], $equipmentKey);
+    }
+
+    /**
+     * Liest die 5 Pre-Flight-Sensoren schonend über eine bereits geöffnete V2-WebSocket-Sitzung
+     * mit Kurzzeit-Cache im Shared-Storage, damit kein zusätzlicher Verbindungs-Piepton entsteht.
+     *
+     * @param resource $mainWs
+     */
+    protected function readCachedGs009PreflightOverV2(
+        $mainWs,
+        int &$txId,
+        string $sessionToken,
+        string $safeIp,
+        string $equipmentKey = 'flatbed_standard',
+        bool $isActivelyWorking = false,
+        bool $forceRefresh = false
+    ): array {
+        $cacheFile = Storage::disk('local')->path('system/xtool_queue/preflight_' . md5($safeIp) . '.json');
+        if (!$forceRefresh && @is_file($cacheFile)) {
+            $age = microtime(true) - (float) (@filemtime($cacheFile) ?: 0);
+            $ttl = $isActivelyWorking ? 30.0 : 8.0;
+            if ($age >= 0.0 && $age <= $ttl) {
+                $cachedRaw = json_decode((string) @file_get_contents($cacheFile), true);
+                if (is_array($cachedRaw)) {
+                    return self::mapGs009PreflightStatus(true, $cachedRaw, $equipmentKey);
+                }
+            }
+        }
+
+        if ($isActivelyWorking) {
+            return $this->readLocalCachedPreflightStatus($safeIp, $equipmentKey);
+        }
+
+        $uvResp = $this->v2SendJsonCmd($mainWs, $txId, $sessionToken, 'GET', '/v1/device/uv-laser', [], []);
+        $gapResp = $this->v2SendJsonCmd($mainWs, $txId, $sessionToken, 'GET', '/v1/peripheral/param', ['type' => 'gap'], []);
+        $lockResp = $this->v2SendJsonCmd($mainWs, $txId, $sessionToken, 'GET', '/v1/peripheral/param', ['type' => 'machine_lock'], []);
+        $fanResp = $this->v2SendJsonCmd($mainWs, $txId, $sessionToken, 'GET', '/v1/peripheral/param', ['type' => 'smoking_fan'], []);
+        $lensResp = $this->v2SendJsonCmd($mainWs, $txId, $sessionToken, 'GET', '/v1/peripheral/param', ['type' => 'cj_check'], ['action' => 'get']);
+        $alarmResp = $this->v2SendJsonCmd($mainWs, $txId, $sessionToken, 'GET', '/v1/device/alarms', [], []);
+
+        $raw = [
+            'uv_ready'     => $uvResp['data']['uv_ready'] ?? $uvResp['uv_ready'] ?? null,
+            'gap_rk3562'   => $gapResp['data']['stateRK3562'] ?? null,
+            'gap_mcu'      => $gapResp['data']['stateMCU'] ?? null,
+            'machine_lock' => $lockResp['data']['state'] ?? null,
+            'smoking_fan'  => $fanResp['data']['state'] ?? null,
+            'lens_type'    => $lensResp['data']['fieldLensType'] ?? null,
+            'alarms'       => $alarmResp['data']['alarms'] ?? $alarmResp['data']['list'] ?? (is_array($alarmResp['data'] ?? null) && array_is_list($alarmResp['data']) ? $alarmResp['data'] : []),
+        ];
+
+        $this->writeFileAtomicallyShared($cacheFile, (string) json_encode($raw, JSON_UNESCAPED_SLASHES));
+
+        return self::mapGs009PreflightStatus(true, $raw, $equipmentKey);
+    }
+
+    /**
+     * Liest den Echtzeit-Arbeitsstatus des xTool F2 Ultra UV strikt GERÄUSCHLOS (NIEMALS GET /v1/user/parity,
+     * da /v1/user/parity am Gerät jedes Mal einen Verbindungs-Piepton auslöst!).
+     *
+     * @return array{online: bool, is_working: bool, is_ready_wait: bool, phase: string, phase_label: string, progress_pct: int, worktime_sec: int, preflight: array, silent_telemetry_supported?: bool}
+     */
+    public function queryLiveLaserWorkStatus(
+        string $laserIp = self::DEFAULT_LASER_IP,
+        string $equipmentKey = 'flatbed_standard'
+    ): array {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+
+        if (app()->runningUnitTests() && !$this->allowRelayInTests && !$this->allowV2SocketInTests) {
+            $offline = self::mapGs009WorkTelemetry(false);
+            $offline['preflight'] = self::mapGs009PreflightStatus(false, [], $equipmentKey);
+            $offline['silent_telemetry_supported'] = false;
+
+            return $offline;
+        }
+
+        $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($laserIp, self::DEFAULT_LASER_IP);
+        $cachedPreflight = $this->readLocalCachedPreflightStatus($safeIp, $equipmentKey);
+
+        if (!$this->isCloudEnvironment() && (!app()->runningUnitTests() || $this->allowV2SocketInTests)) {
+            if ($this->probeDirectLaserSocket($safeIp, false)) {
+                $cachedToken = $this->readCachedV2SessionToken($safeIp);
+                if ($cachedToken !== null) {
+                    $uuid = (string) Str::uuid();
+                    $mainWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=instruction");
+                    if (is_resource($mainWs)) {
+                        try {
+                            $txId = 1;
+                            // WICHTIG: KEIN GET /v1/user/parity aufrufen (verhindert den Verbindungs-Piepton am Laser!)
+                            $rt = $this->v2SendJsonCmd($mainWs, $txId, $cachedToken, 'GET', '/v1/device/runtime-infos', [], []);
+                            if (is_array($rt['data']['curMode'] ?? null)) {
+                                $cur = $rt['data']['curMode'];
+                                $mode = (string) ($cur['mode'] ?? 'P_IDLE');
+                                $subMode = (string) ($cur['subMode'] ?? '');
+                                $desc = (string) ($cur['desc'] ?? '');
+                                $pct = 0;
+                                $sec = 0;
+
+                                if ($mode === 'Work') {
+                                    $pr = $this->v2SendJsonCmd($mainWs, $txId, $cachedToken, 'GET', '/v1/processing/progress', [], []);
+                                    $wt = $this->v2SendJsonCmd($mainWs, $txId, $cachedToken, 'GET', '/v1/processing/worktime', [], []);
+                                    $pct = (int) round((float) ($pr['data']['progress'] ?? 0));
+                                    $sec = (int) round((float) ($wt['data']['time'] ?? $pr['data']['time'] ?? 0));
+                                }
+
+                                $mapped = self::mapGs009WorkTelemetry(true, $mode, $subMode, $desc, $pct, $sec);
+                                $mapped['preflight'] = $cachedPreflight;
+                                $mapped['silent_telemetry_supported'] = true;
+
+                                return $mapped;
+                            }
+                        } catch (\Throwable) {
+                        } finally {
+                            @fclose($mainWs);
+                        }
+                    }
+                }
+
+                // Gerät ist per TCP erreichbar, aber stumme Abfrage ohne /v1/user/parity wird nicht akzeptiert -> kein Piep-Loop!
+                $passive = self::mapGs009WorkTelemetry(true, 'P_IDLE', '', '', 0, 0);
+                $passive['preflight'] = $cachedPreflight;
+                $passive['silent_telemetry_supported'] = false;
+
+                return $passive;
+            }
+        }
+
+        $hb = $this->getMiniPcRelayHeartbeat();
+        if ($hb !== null && $hb['age_seconds'] <= 15.0 && $hb['laser_online']) {
+            $wt = is_array($hb['work_telemetry'] ?? null) ? $hb['work_telemetry'] : [];
+            $mapped = self::mapGs009WorkTelemetry(
+                true,
+                (string) ($wt['mode'] ?? 'P_IDLE'),
+                (string) ($wt['sub_mode'] ?? ''),
+                (string) ($wt['desc'] ?? ''),
+                (int) ($wt['progress_pct'] ?? 0),
+                (int) ($wt['worktime_sec'] ?? 0)
+            );
+            $rawPreflight = is_array($hb['preflight'] ?? null) ? $hb['preflight'] : [];
+            $mapped['preflight'] = !empty($rawPreflight)
+                ? self::mapGs009PreflightStatus(true, $rawPreflight, $equipmentKey)
+                : $cachedPreflight;
+            $mapped['silent_telemetry_supported'] = !empty($wt);
+
+            return $mapped;
+        }
+
+        $offline = self::mapGs009WorkTelemetry(false);
+        $offline['preflight'] = self::mapGs009PreflightStatus(false, [], $equipmentKey);
+        $offline['silent_telemetry_supported'] = false;
+
+        return $offline;
+    }
+
+    /**
+     * Führt die offizielle xTool F2 Ultra UV (GS009-CLASS-4) Auto-Fokus-Abstandsmessung (Lineal-A) aus
+     * und liefert focus_mm = max(0.1, z - 6.0 mm).
+     *
+     * @return array{ok: bool, focus_mm: ?float, raw_z_mm: ?float, error: ?string}
+     */
+    public function autoMeasureFocus(string $laserIp = self::DEFAULT_LASER_IP): array
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+
+        $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($laserIp, self::DEFAULT_LASER_IP);
+
+        if (!$this->isCloudEnvironment() && (!app()->runningUnitTests() || $this->allowV2SocketInTests)) {
+            if ($this->probeDirectLaserSocket($safeIp, true)) {
+                $uuid = (string) Str::uuid();
+                $mainWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=instruction");
+                if (is_resource($mainWs)) {
+                    try {
+                        $txId = 0;
+                        $parityToken = (string) env('XTOOL_PARITY_TOKEN', self::DEFAULT_PARITY_TOKEN);
+                        $parity = $this->v2SendJsonCmd($mainWs, $txId, '', 'GET', '/v1/user/parity', [], [
+                            'userID'   => self::DEFAULT_USER_ID,
+                            'userKey'  => self::DEFAULT_USER_KEY,
+                            'timezone' => 'Europe/Berlin',
+                            'token'    => $parityToken,
+                        ]);
+                        $tok = (string) ($parity['data']['sessionToken'] ?? '');
+                        if ($tok === '') {
+                            return ['ok' => false, 'focus_mm' => null, 'raw_z_mm' => null, 'error' => 'Authentifizierung am Laser fehlgeschlagen.'];
+                        }
+
+                        $this->v2SendJsonCmd($mainWs, $txId, $tok, 'PUT', '/v1/device/mode', [], ['mode' => 'P_AUTOFOCUS']);
+                        usleep(200000);
+                        $startResp = $this->v2SendJsonCmd($mainWs, $txId, $tok, 'POST', '/v1/laser-head/focus/control', [], ['action' => 'auto_start']);
+                        if (isset($startResp['code']) && (int) $startResp['code'] !== 0) {
+                            return [
+                                'ok'       => false,
+                                'focus_mm' => null,
+                                'raw_z_mm' => null,
+                                'error'    => 'Auto-Fokus konnte vom Laser nicht gestartet werden (Deckel schließen / Gerät prüfen).',
+                            ];
+                        }
+
+                        $deadline = microtime(true) + 22.0;
+                        $finished = false;
+                        $stopped = false;
+                        $lastPoll = microtime(true);
+
+                        while (microtime(true) < $deadline) {
+                            $frame = $this->v2WsReadFrame($mainWs, 0.35);
+                            if (is_string($frame) && $frame !== '') {
+                                if (str_contains($frame, 'FOCUS_FINISHED')) {
+                                    $finished = true;
+                                    break;
+                                }
+                                if (str_contains($frame, 'FOCUS_STOPED')) {
+                                    $stopped = true;
+                                    break;
+                                }
+                            }
+
+                            if ((microtime(true) - $lastPoll) >= 0.85) {
+                                $lastPoll = microtime(true);
+                                $rt = $this->v2SendJsonCmd($mainWs, $txId, $tok, 'GET', '/v1/device/runtime-infos', [], []);
+                                $curMode = (string) ($rt['data']['curMode']['mode'] ?? '');
+                                if ($curMode !== '' && $curMode !== 'P_AUTOFOCUS') {
+                                    $finished = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if ($stopped) {
+                            return ['ok' => false, 'focus_mm' => null, 'raw_z_mm' => null, 'error' => 'Auto-Fokus wurde abgebrochen.'];
+                        }
+                        if (!$finished) {
+                            $this->v2SendJsonCmd($mainWs, $txId, $tok, 'POST', '/v1/laser-head/focus/control', [], ['action' => 'auto_stop']);
+                            return ['ok' => false, 'focus_mm' => null, 'raw_z_mm' => null, 'error' => 'Zeitüberschreitung beim automatischen Einmessen.'];
+                        }
+
+                        usleep(180000);
+                        $coordResp = $this->v2SendJsonCmd($mainWs, $txId, $tok, 'POST', '/v1/laser-head/focus/control', [], ['action' => 'coord']);
+                        $rawZ = (float) ($coordResp['data']['value'] ?? $coordResp['value'] ?? 0.0);
+                        if ($rawZ <= 0.0) {
+                            return ['ok' => false, 'focus_mm' => null, 'raw_z_mm' => null, 'error' => 'Gemessene Z-Höhe konnte nicht ausgelesen werden.'];
+                        }
+
+                        $focusMm = round(max(0.1, $rawZ - self::Z_AXIS_FOCUS_OFFSET_MM), 1);
+
+                        return [
+                            'ok'       => true,
+                            'focus_mm' => $focusMm,
+                            'raw_z_mm' => round($rawZ, 2),
+                            'error'    => null,
+                        ];
+                    } catch (\Throwable $e) {
+                        return ['ok' => false, 'focus_mm' => null, 'raw_z_mm' => null, 'error' => $e->getMessage()];
+                    } finally {
+                        @fclose($mainWs);
+                    }
+                }
+            }
+        }
+
+        $hb = $this->getMiniPcRelayHeartbeat();
+        if ($hb !== null && $hb['age_seconds'] <= 20.0) {
+            $relayJob = $this->enqueueRelayJob('auto_focus', ['laser_ip' => $safeIp]);
+            $res = $this->waitForRelayJobCompletion($relayJob['job_id'], 25.0);
+            if (($res['ok'] ?? false) === true && isset($res['focus_mm']) && is_numeric($res['focus_mm'])) {
+                return [
+                    'ok'       => true,
+                    'focus_mm' => round((float) $res['focus_mm'], 1),
+                    'raw_z_mm' => isset($res['raw_z_mm']) && is_numeric($res['raw_z_mm']) ? round((float) $res['raw_z_mm'], 2) : null,
+                    'error'    => null,
+                ];
+            }
+
+            return [
+                'ok'       => false,
+                'focus_mm' => null,
+                'raw_z_mm' => null,
+                'error'    => (string) ($res['error'] ?? 'Auto-Fokus über Laser-Brücke (Notebook) fehlgeschlagen.'),
+            ];
+        }
+
+        return [
+            'ok'       => false,
+            'focus_mm' => null,
+            'raw_z_mm' => null,
+            'error'    => $this->isCloudEnvironment()
+                ? 'Laser-Brücke (Notebook) nicht verbunden oder Laser (' . $safeIp . ') ausgeschaltet.'
+                : 'xTool F2 Ultra UV (' . $safeIp . ':' . self::DEFAULT_V2_PORT . ') ist aktuell nicht erreichbar.',
+        ];
+    }
+
+    /**
+     * Sofortiger Not-Stopp / Abbruch eines laufenden Gravur-, Rahmen- oder Auto-Fokus-Vorgangs am xTool F2 Ultra UV.
+     *
+     * @return array{ok: bool, error: ?string}
+     */
+    public function stopLaserProcess(string $laserIp = self::DEFAULT_LASER_IP): array
+    {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+
+        $safeIp = FunkenwerkPrintService::sanitizePrivateLanIp($laserIp, self::DEFAULT_LASER_IP);
+
+        if (!$this->isCloudEnvironment() && (!app()->runningUnitTests() || $this->allowV2SocketInTests)) {
+            if ($this->probeDirectLaserSocket($safeIp, true)) {
+                $uuid = (string) Str::uuid();
+                $mainWs = $this->v2WsConnect($safeIp, self::DEFAULT_V2_PORT, "/websocket?id={$uuid}&function=instruction");
+                if (is_resource($mainWs)) {
+                    try {
+                        $txId = 0;
+                        $parityToken = (string) env('XTOOL_PARITY_TOKEN', self::DEFAULT_PARITY_TOKEN);
+                        $parity = $this->v2SendJsonCmd($mainWs, $txId, '', 'GET', '/v1/user/parity', [], [
+                            'userID'   => self::DEFAULT_USER_ID,
+                            'userKey'  => self::DEFAULT_USER_KEY,
+                            'timezone' => 'Europe/Berlin',
+                            'token'    => $parityToken,
+                        ]);
+                        $tok = (string) ($parity['data']['sessionToken'] ?? '');
+                        if ($tok !== '') {
+                            $this->v2SendJsonCmd($mainWs, $txId, $tok, 'PUT', '/v1/processing/state', ['action' => 'stop'], ['action' => 'stop']);
+                            $this->v2SendJsonCmd($mainWs, $txId, $tok, 'POST', '/v1/laser-head/focus/control', [], ['action' => 'auto_stop']);
+                            return ['ok' => true, 'error' => null];
+                        }
+                    } catch (\Throwable $e) {
+                        return ['ok' => false, 'error' => $e->getMessage()];
+                    } finally {
+                        @fclose($mainWs);
+                    }
+                }
+            }
+        }
+
+        $hb = $this->getMiniPcRelayHeartbeat();
+        if ($hb !== null && $hb['age_seconds'] <= 20.0) {
+            $relayJob = $this->enqueueRelayJob('stop_laser', ['laser_ip' => $safeIp]);
+            $res = $this->waitForRelayJobCompletion($relayJob['job_id'], 6.0);
+            if (($res['ok'] ?? false) === true) {
+                return ['ok' => true, 'error' => null];
+            }
+
+            return ['ok' => false, 'error' => (string) ($res['error'] ?? 'STOP-Befehl über Laser-Brücke fehlgeschlagen.')];
+        }
+
+        return [
+            'ok'    => false,
+            'error' => $this->isCloudEnvironment()
+                ? 'Laser-Brücke (Notebook) nicht verbunden.'
+                : 'xTool F2 Ultra UV (' . $safeIp . ':' . self::DEFAULT_V2_PORT . ') antwortet nicht.',
+        ];
     }
 }

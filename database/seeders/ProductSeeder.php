@@ -61,9 +61,12 @@ class ProductSeeder extends Seeder
             ]);
         }
 
-        // Bestehende nicht-leere Produktgalerien aus der DB bewahren (niemals mit [] überschreiben)
+        // Bestehende nicht-leere Produktgalerien aus der DB bewahren, sofern kein 12er-Saison-Bildersatz aktiv ist
         $existingGalleries = Product::withTrashed()->pluck('media_gallery', 'slug')->all();
-        $resolveGallery = static function (string $slug, array $defaultGallery = []) use ($existingGalleries): array {
+        $resolveGallery = static function (string $slug, array $defaultGallery = [], bool $replaceWithDefault = false) use ($existingGalleries): array {
+            if ($replaceWithDefault) {
+                return $defaultGallery;
+            }
             $existing = $existingGalleries[$slug] ?? null;
             if (is_string($existing)) {
                 $existing = json_decode($existing, true);
@@ -72,6 +75,31 @@ class ProductSeeder extends Seeder
                 return $existing;
             }
             return $defaultGallery;
+        };
+
+        $existingConfigs = Product::withTrashed()->pluck('configurator_settings', 'slug')->all();
+        $resolveSeasonalImages = static function (string $slug, bool $defaultAiGenerated = false, bool $forceAiFlag = false) use ($existingConfigs): array {
+            $cfg = $existingConfigs[$slug] ?? null;
+            if (is_string($cfg)) {
+                $cfg = json_decode($cfg, true);
+            }
+            $result = is_array($cfg['seasonal_images'] ?? null) ? $cfg['seasonal_images'] : [];
+            $prefix = trim(\App\Models\Product\ProductTemplate::PRIVATE_SEASONAL_PREFIX, '/') . '/' . $slug . '/';
+            foreach (array_keys(Product::getAllSeasonalAndHolidaySlots()) as $holidayKey) {
+                $slotSlug = \App\Models\Product\ProductTemplate::resolveSeasonalSlotFileSlug($holidayKey);
+                $relPath = $prefix . $slotSlug . '.jpg';
+                if (\Illuminate\Support\Facades\Storage::disk('local')->exists($relPath)) {
+                    $existingAi = is_array($result[$holidayKey] ?? null) && array_key_exists('is_ai_generated', $result[$holidayKey])
+                        ? (bool) $result[$holidayKey]['is_ai_generated']
+                        : $defaultAiGenerated;
+                    $result[$holidayKey] = [
+                        'path' => $relPath,
+                        'is_ai_generated' => $forceAiFlag ? $defaultAiGenerated : $existingAi,
+                        'updated_at' => now()->toDateTimeString(),
+                    ];
+                }
+            }
+            return $result;
         };
 
         // --- PRODUKT 1: Der Seelen Kristall (Physisch) ---
@@ -108,14 +136,13 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/seelen-kristall/t_seelenk.glb',
             'three_d_background_path' => 'produkte/products/seelen-kristall/header_bg.png',
             'media_gallery' => $resolveGallery('seelen-kristall', [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall_b.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Personalisierter K9 Kristall mit Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Funkelndes K9-Kristallglas als emotionales Geschenk in den Händen'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen Kristall: Technisches Maßblatt & Abmessungen (180 x 200 x 40 mm)'],
+                ['type' => 'image', 'path' => 'produkte/products/seelen-kristall/seelen-kristall-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Der Seelen Kristall: Maßblatt & Abmessungen (180 x 200 x 40 mm)'],
             ]),
             'configurator_settings' => [
                 'template_package' => 'seelen-kristall',
                 'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
+                'seasonal_images' => $resolveSeasonalImages('seelen-kristall', false, true),
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
@@ -128,35 +155,35 @@ class ProductSeeder extends Seeder
                 'xtool_setup_note' => 'Schwarzes Lamellenrost nutzen, Standfuß frei über Vorderkante schweben lassen. Shop-SVG nicht invertieren.',
                 'xtool_process_mode' => 'Prozess auf flacher Oberfläche',
                 'xtool_material' => 'K9 Kristalltrophäe',
-                // Validierte xTool F2 Ultra UV Handbuchwerte (PDF 2 Laserwerte-Datenbank 11/2026): Außen Seidenmatt-Frost
-                'xtool_handbook_preset' => 'pdf2_seidenmatt_frost',
-                'xtool_photo_substrate_polarity' => 'white_on_dark',
-                'xtool_focus_mm' => 33.1,
+                // Validierte xTool F2 Ultra UV Werkstattwerte (11/2026): K9 Tiefen-Frost im Glas auf Lamellenrost (31,2 mm)
+                'xtool_handbook_preset' => 'k9_tiefen_frost_lamellenrost',
+                'xtool_photo_substrate_polarity' => 'frost_on_glass',
+                'xtool_focus_mm' => 31.2,
                 'xtool_element_type' => 'Bild',
                 'xtool_engrave_tab' => 'Gravieren',
                 'xtool_preset_mode' => 'Benutzerdefiniert',
-                'xtool_dot_duration_us' => 450,
+                'xtool_dot_duration_us' => 650,
                 'xtool_power_percent' => 100,
-                'xtool_dpi' => 500,
+                'xtool_dpi' => 600,
                 'xtool_passes' => 1,
                 'xtool_frequency_khz' => 40,
                 'xtool_bitmap_mode' => 'Jarvis',
                 'xtool_engrave_mode' => 'Zweidirektional',
-                'xtool_speed_mms' => 80,
+                'xtool_speed_mms' => 40,
                 'xtool_lpc' => 300,
-                'xtool_vector_note' => 'Gravieren · 60 % · 80 mm/s · 300 Linien/cm · 40 kHz',
-                'xtool_vector_focus_mm' => 33.1,
-                'xtool_vector_power_percent' => 60,
-                'xtool_vector_speed_mms' => 80,
+                'xtool_vector_note' => 'Gravieren · 100 % · 40 mm/s · 300 Linien/cm · 40 kHz · 2x',
+                'xtool_vector_focus_mm' => 31.2,
+                'xtool_vector_power_percent' => 100,
+                'xtool_vector_speed_mms' => 40,
                 'xtool_vector_frequency_khz' => 40,
                 'xtool_vector_lpc' => 300,
                 'xtool_vector_dpi' => 762,
-                'xtool_vector_passes' => 1,
-                'xtool_bitmap_focus_mm' => 33.1,
+                'xtool_vector_passes' => 2,
+                'xtool_bitmap_focus_mm' => 31.2,
                 'xtool_bitmap_power_percent' => 100,
-                'xtool_bitmap_dot_duration_us' => 450,
+                'xtool_bitmap_dot_duration_us' => 650,
                 'xtool_bitmap_frequency_khz' => 40,
-                'xtool_bitmap_dpi' => 500,
+                'xtool_bitmap_dpi' => 600,
                 'xtool_bitmap_passes' => 1,
                 'area_shape' => 'circle',
                 'area_top' => 11.6,
@@ -216,56 +243,16 @@ class ProductSeeder extends Seeder
             ['material_type' => 'plastic', 'weight_grams' => 20],
         ]);
 
-        $seelenAnhaengerDefaultGallery = [];
-        if (is_file(storage_path('app/public/produkte/products/seelen-anhaenger/medien/1794922657_der-seelenanhaenger-2.jpg'))) {
-            $seelenAnhaengerDefaultGallery[] = [
+        $seelenAnhaengerDefaultGallery = [
+            [
                 'type' => 'image',
-                'path' => 'produkte/products/seelen-anhaenger/medien/1794922657_der-seelenanhaenger-2.jpg',
-                'is_main' => true,
+                'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg',
+                'is_main' => false,
                 'is_hover' => false,
-                'is_beginner' => true,
-                'is_ai_generated' => false,
-                'alt' => 'Der Seelenanhänger: Echtes Manufaktur-Foto mit Lasergravur am Schlüsselbund',
-            ];
-        }
-        if (is_file(storage_path('app/public/produkte/products/seelen-anhaenger/medien/1794922622_der-seelenanhaenger.jpg'))) {
-            $seelenAnhaengerDefaultGallery[] = [
-                'type' => 'image',
-                'path' => 'produkte/products/seelen-anhaenger/medien/1794922622_der-seelenanhaenger.jpg',
-                'is_main' => empty($seelenAnhaengerDefaultGallery),
-                'is_hover' => !empty($seelenAnhaengerDefaultGallery),
                 'is_beginner' => false,
                 'is_ai_generated' => false,
-                'alt' => 'Der Seelenanhänger: Graviertes Aluminium-Herz am Autoschlüssel',
-            ];
-        }
-        $hasRealAnhaengerPhotos = !empty($seelenAnhaengerDefaultGallery);
-        $seelenAnhaengerDefaultGallery[] = [
-            'type' => 'image',
-            'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-back.jpg',
-            'is_main' => !$hasRealAnhaengerPhotos,
-            'is_hover' => false,
-            'is_beginner' => !$hasRealAnhaengerPhotos,
-            'is_ai_generated' => true,
-            'alt' => 'Der Seelenanhänger: Massives Alu-Herz mit beidseitiger Lasergravur',
-        ];
-        $seelenAnhaengerDefaultGallery[] = [
-            'type' => 'image',
-            'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-lifestyle.jpg',
-            'is_main' => false,
-            'is_hover' => !$hasRealAnhaengerPhotos,
-            'is_beginner' => false,
-            'is_ai_generated' => true,
-            'alt' => 'Der Seelenanhänger: Graviertes Alu-Herz als treuer Begleiter am Rucksack',
-        ];
-        $seelenAnhaengerDefaultGallery[] = [
-            'type' => 'image',
-            'path' => 'produkte/products/seelen-anhaenger/seelen-anhaenger-dimensions.jpg',
-            'is_main' => false,
-            'is_hover' => false,
-            'is_beginner' => false,
-            'is_ai_generated' => true,
-            'alt' => 'Der Seelenanhänger: Technisches Maßblatt & Abmessungen (45 x 40 x 2,3 mm)',
+                'alt' => 'Der Seelenanhänger: Maßblatt & Abmessungen (45 x 40 x 2,3 mm)',
+            ],
         ];
 
         // --- PRODUKT 2: Der Seelenanhänger (Physisch) ---
@@ -306,6 +293,7 @@ class ProductSeeder extends Seeder
                 'template_package' => 'seelen-anhaenger',
                 'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
+                'seasonal_images' => $resolveSeasonalImages('seelen-anhaenger', false, true),
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
@@ -508,9 +496,9 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/weizenglas-personalisiert/beer_glas_3d.glb',
             'three_d_background_path' => 'produkte/products/weizenglas-personalisiert/header_bg.png',
             'media_gallery' => $resolveGallery('weizenglas-personalisiert', [
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Personalisiertes Weizenbierglas'],
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Frisch gezapftes Weizenglas mit Lasergravur im Biergarten'],
-                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Feierabend-Funke: Technisches Maßblatt & Abmessungen (218 x Ø 74 mm)'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/beer_glas_main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => false, 'alt' => 'Der Feierabend-Funke: Personalisiertes Weizenbierglas'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Der Feierabend-Funke: Frisch gezapftes Weizenglas mit Lasergravur im Biergarten'],
+                ['type' => 'image', 'path' => 'produkte/products/weizenglas-personalisiert/weizenglas-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Der Feierabend-Funke: Maßblatt & Abmessungen (218 x Ø 74 mm)'],
             ]),
             'configurator_settings' => [
                 'template_package' => 'weizenglas-personalisiert',
@@ -642,15 +630,13 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/seelen-talisman/seelen_talisman_3d.glb',
             'three_d_background_path' => 'produkte/products/seelen-talisman/header_bg.png',
             'media_gallery' => $resolveGallery('seelen-talisman', [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Spiegelpolierter Gold-Edelstahl-Schlüsselanhänger mit Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Beidseitige Gravur mit Wunschkoordinaten'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Gold-Schlüsselanhänger am Haustür-Schlüsselbund beim Aufschließen'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Der Seelen-Talisman: Technisches Maßblatt & Abmessungen (50 x 28 x 2,2 mm)'],
-            ]),
+                ['type' => 'image', 'path' => 'produkte/products/seelen-talisman/seelen-talisman-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Der Seelen-Talisman: Maßblatt & Abmessungen (50 x 28 x 2,2 mm)'],
+            ], true),
             'configurator_settings' => [
                 'template_package' => 'seelen-talisman',
                 'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
+                'seasonal_images' => $resolveSeasonalImages('seelen-talisman', false, true),
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
@@ -660,14 +646,14 @@ class ProductSeeder extends Seeder
                 'xtool_plane_height' => 50.0,
                 'xtool_plate_box_pct' => ['left' => 33.875, 'top' => 40.25, 'width' => 32.25, 'height' => 54.75],
                 'xtool_contour_shape' => 'dogtag_talisman',
-                // Validierte xTool F2 Ultra UV Lamellenrost-Standardwerte (Schwarz Anlass-Gravur 100 kHz, +2,0 mm Defokus = 21,5 mm)
+                // Validierte xTool F2 Ultra UV Lamellenrost-Standardwerte (Schwarz Anlass-Gravur 100 kHz, 19,5 mm Fokus auf schwarzem Lamellenrost)
                 'xtool_handbook_preset' => 'pdf1_tiefschwarz_100khz',
                 'xtool_photo_substrate_polarity' => 'dark_on_light',
                 'xtool_equipment_key' => 'flatbed_standard',
                 'xtool_process_mode' => 'Prozess auf flacher Oberfläche',
                 'xtool_setup_note' => 'Schlüsselring frei über die Lamellenkante hängen lassen.',
                 'xtool_material' => 'Edelstahl Gold-Finish',
-                'xtool_focus_mm' => 21.5,
+                'xtool_focus_mm' => 19.5,
                 'xtool_element_type' => 'Bild',
                 'xtool_engrave_tab' => 'Gravieren',
                 'xtool_preset_mode' => 'Benutzerdefiniert',
@@ -681,14 +667,14 @@ class ProductSeeder extends Seeder
                 'xtool_speed_mms' => 25,
                 'xtool_lpc' => 1000,
                 'xtool_vector_note' => 'Gravieren · 95 % · 25 mm/s · 1000 Linien/cm · 100 kHz',
-                'xtool_vector_focus_mm' => 21.5,
+                'xtool_vector_focus_mm' => 19.5,
                 'xtool_vector_power_percent' => 95,
                 'xtool_vector_speed_mms' => 25,
                 'xtool_vector_frequency_khz' => 100,
                 'xtool_vector_lpc' => 1000,
                 'xtool_vector_dpi' => 2540,
                 'xtool_vector_passes' => 1,
-                'xtool_bitmap_focus_mm' => 21.5,
+                'xtool_bitmap_focus_mm' => 19.5,
                 'xtool_bitmap_power_percent' => 95,
                 'xtool_bitmap_dot_duration_us' => 1100,
                 'xtool_bitmap_frequency_khz' => 100,
@@ -846,15 +832,13 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/seelen-pfote-hundemarke/seelen_pfote_3d.glb',
             'three_d_background_path' => 'produkte/products/seelen-pfote-hundemarke/header_bg.png',
             'media_gallery' => $resolveGallery('seelen-pfote-hundemarke', [
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Goldfarbene Edelstahl-Hundemarke Knochenform mit Pfoten-Durchbruch & Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Goldene Rückseite mit Notfall-Telefonnummer & TASSO-Hinweis'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote Gold-Hundemarke am Lederhalsband eines Golden Retrievers'],
-                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Die Seelen-Pfote: Technisches Maßblatt & Abmessungen (40 x 22 x 1,8 mm)'],
-            ]),
+                ['type' => 'image', 'path' => 'produkte/products/seelen-pfote-hundemarke/seelen-pfote-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Die Seelen-Pfote: Maßblatt & Abmessungen (40 x 22 x 1,8 mm)'],
+            ], true),
             'configurator_settings' => [
                 'template_package' => 'seelen-pfote-hundemarke',
                 'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
+                'seasonal_images' => $resolveSeasonalImages('seelen-pfote-hundemarke', false, true),
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
@@ -1075,15 +1059,13 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/goldenes-seelen-herz/goldenes_seelen_herz_3d.glb',
             'three_d_background_path' => 'produkte/products/goldenes-seelen-herz/header_bg.png',
             'media_gallery' => $resolveGallery('goldenes-seelen-herz', [
-                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Vergoldeter Edelstahl-Herzanhänger inklusive Gold-Ankerkette (44 bis 50 cm) & Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Rückseite mit Wunschdatum & Koordinaten-Gravur inklusive Halskette'],
-                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz Komplett-Set an der mitgelieferten 44 bis 50 cm Gold-Ankerkette getragen'],
-                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelen-Herz: Technisches Maßblatt & Abmessungen (25 x 22 x 4 mm inkl. 44 bis 50 cm Ankerkette)'],
-            ]),
+                ['type' => 'image', 'path' => 'produkte/products/goldenes-seelen-herz/goldenes-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Das Goldene Seelen-Herz: Maßblatt & Abmessungen (25 x 22 x 4 mm inkl. 44 bis 50 cm Ankerkette)'],
+            ], true),
             'configurator_settings' => [
                 'template_package' => 'goldenes-seelen-herz',
                 'origin_badge' => 'handcrafted_in_germany',
                 'auto_seasonal_main_image' => true,
+                'seasonal_images' => $resolveSeasonalImages('goldenes-seelen-herz', false, true),
                 'enable_background_video' => true,
                 'default_background_theme' => 'standard',
                 'allow_text_pos' => true,
@@ -1295,10 +1277,10 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/echtgold-seelen-herz/echtgold_seelen_herz_3d.glb',
             'three_d_background_path' => 'produkte/products/echtgold-seelen-herz/header_bg.png',
             'media_gallery' => [
-                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtgold Seelen-Herz: 585er Echtgold-Herzanhänger inklusive 333er Echtgold-Panzerkette & Gravur'],
-                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtgold Seelen-Herz: Beidseitige Präzisions-Gravur auf 585er Gelbgold'],
-                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Das Echtgold Seelen-Herz Komplett-Set an der 333er Echtgold-Panzerkette getragen'],
-                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtgold Seelen-Herz: Technisches Maßblatt & Abmessungen (13 x 14 mm 585er Gold-Herz + 0,8 mm 333er Goldkette)'],
+                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => false, 'alt' => 'Das Echtgold Seelen-Herz: 585er Echtgold-Herzanhänger inklusive 333er Echtgold-Panzerkette & Gravur'],
+                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'alt' => 'Das Echtgold Seelen-Herz: Beidseitige Präzisions-Gravur auf 585er Gelbgold'],
+                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => false, 'alt' => 'Das Echtgold Seelen-Herz Komplett-Set an der 333er Echtgold-Panzerkette getragen'],
+                ['type' => 'image', 'path' => 'produkte/products/echtgold-seelen-herz/echtgold-seelen-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'alt' => 'Das Echtgold Seelen-Herz: Maßblatt & Abmessungen (13 x 14 mm 585er Gold-Herz + 0,8 mm 333er Goldkette)'],
             ],
             'configurator_settings' => [
                 'template_package' => 'echtgold-seelen-herz',
@@ -1441,10 +1423,10 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/id-armband-silber-herz/id_armband_silber_herz_3d.glb',
             'three_d_background_path' => 'produkte/products/id-armband-silber-herz/header_bg.png',
             'media_gallery' => $resolveGallery('id-armband-silber-herz', [
-                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelenarmband: Massives 925er Sterlingsilber Figaro-Armband mit Herz-Durchbruch & Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelenarmband: Beidseitige Präzisions-UV-Lasergravur auf 925er Sterlingsilber'],
-                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelenarmband (18,5 cm, 2,1 mm Figaro diamantiert) mit Federringverschluss und 925er Punze'],
-                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Echtsilber Seelenarmband: Technisches Maßblatt & Abmessungen (18,5 cm Länge, 24 x 5,5 mm Gravurplatte)'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => false, 'alt' => 'Das Echtsilber Seelenarmband: Massives 925er Sterlingsilber Figaro-Armband mit Herz-Durchbruch & Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Das Echtsilber Seelenarmband: Beidseitige Präzisions-UV-Lasergravur auf 925er Sterlingsilber'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Das Echtsilber Seelenarmband (18,5 cm, 2,1 mm Figaro diamantiert) mit Federringverschluss und 925er Punze'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-silber-herz/id-armband-silber-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Das Echtsilber Seelenarmband: Maßblatt & Abmessungen (18,5 cm Länge, 24 x 5,5 mm Gravurplatte)'],
             ]),
             'configurator_settings' => [
                 'template_package' => 'id-armband-silber-herz',
@@ -1604,10 +1586,10 @@ class ProductSeeder extends Seeder
             'three_d_model_path' => 'produkte/products/id-armband-gold-herz/id_armband_gold_herz_3d.glb',
             'three_d_background_path' => 'produkte/products/id-armband-gold-herz/header_bg.png',
             'media_gallery' => $resolveGallery('id-armband-gold-herz', [
-                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelenarmband: Massives 925er Sterlingsilber mit echter Gelbgold-Vergoldung, Figaro-Kette & Lasergravur'],
-                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelenarmband: Beidseitige Präzisions-UV-Lasergravur auf 925er Sterlingsilber mit Gelbgold-Vergoldung'],
-                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelenarmband (18,5 cm, 2,1 mm Figaro diamantiert) mit Federringverschluss und 925er Punze'],
-                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => true, 'alt' => 'Das Goldene Seelenarmband: Technisches Maßblatt & Abmessungen (18,5 cm Länge, 24 x 5,5 mm Gravurplatte)'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_beginner' => true, 'is_ai_generated' => false, 'alt' => 'Das Goldene Seelenarmband: Massives 925er Sterlingsilber mit echter Gelbgold-Vergoldung, Figaro-Kette & Lasergravur'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-back.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Das Goldene Seelenarmband: Beidseitige Präzisions-UV-Lasergravur auf 925er Sterlingsilber mit Gelbgold-Vergoldung'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Das Goldene Seelenarmband (18,5 cm, 2,1 mm Figaro diamantiert) mit Federringverschluss und 925er Punze'],
+                ['type' => 'image', 'path' => 'produkte/products/id-armband-gold-herz/id-armband-gold-herz-dimensions.jpg', 'is_main' => false, 'is_hover' => false, 'is_beginner' => false, 'is_ai_generated' => false, 'alt' => 'Das Goldene Seelenarmband: Maßblatt & Abmessungen (18,5 cm Länge, 24 x 5,5 mm Gravurplatte)'],
             ]),
             'configurator_settings' => [
                 'template_package' => 'id-armband-gold-herz',
@@ -1754,12 +1736,12 @@ class ProductSeeder extends Seeder
             'weight' => 25, 'packaging_weight' => 15, 'height' => 2, 'width' => 114, 'length' => 162, 'shipping_class' => 'brief',
             'preview_image_path' => 'produkte/products/geschenkgutschein/envelope.png',
             'media_gallery' => $resolveGallery('geschenkgutschein', [
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Standard', 'alt' => 'Seelenfunke Geschenkgutschein im schwarz-goldenen Umschlag mit Wachssiegel'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => true, 'alt' => 'Seelenfunke Geschenkgutschein: Persönliche Übergabe im Schwarz-Gold-Umschlag mit Wachssiegel'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-halloween.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Halloween', 'alt' => 'Seelenfunke Geschenkgutschein: Herbst & Lichter Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-weihnachten.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Weihnachten', 'alt' => 'Seelenfunke Geschenkgutschein: Weihnachts-Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-valentinstag.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Valentinstag', 'alt' => 'Seelenfunke Geschenkgutschein: Romantik & Valentinstag Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-ostern.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => true, 'holiday' => 'Ostern', 'alt' => 'Seelenfunke Geschenkgutschein: Frühlings- & Oster-Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Standard', 'alt' => 'Seelenfunke Geschenkgutschein im schwarz-goldenen Umschlag mit Wachssiegel'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => false, 'alt' => 'Seelenfunke Geschenkgutschein: Persönliche Übergabe im Schwarz-Gold-Umschlag mit Wachssiegel'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-halloween.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Halloween', 'alt' => 'Seelenfunke Geschenkgutschein: Herbst & Lichter Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-weihnachten.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Weihnachten', 'alt' => 'Seelenfunke Geschenkgutschein: Weihnachts-Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-valentinstag.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Valentinstag', 'alt' => 'Seelenfunke Geschenkgutschein: Romantik & Valentinstag Edition'],
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-ostern.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Ostern', 'alt' => 'Seelenfunke Geschenkgutschein: Frühlings- & Oster-Edition'],
             ]),
             'configurator_settings' => [
                 'auto_seasonal_main_image' => true,
@@ -1830,8 +1812,8 @@ class ProductSeeder extends Seeder
                 $changed = true;
             }
             foreach ($gallery as $idx => $item) {
-                if (is_array($item) && ($item['type'] ?? 'image') === 'image' && !array_key_exists('is_ai_generated', $item)) {
-                    $gallery[$idx]['is_ai_generated'] = true;
+                if (is_array($item) && ($item['type'] ?? 'image') === 'image' && ($item['is_ai_generated'] ?? null) !== false) {
+                    $gallery[$idx]['is_ai_generated'] = false;
                     $changed = true;
                 }
             }
@@ -1852,6 +1834,15 @@ class ProductSeeder extends Seeder
             }
 
             $settings = is_array($existingProduct->configurator_settings) ? $existingProduct->configurator_settings : [];
+            if (!empty($settings['seasonal_images']) && is_array($settings['seasonal_images'])) {
+                foreach ($settings['seasonal_images'] as $sKey => $sEntry) {
+                    if (is_array($sEntry) && ($sEntry['is_ai_generated'] ?? null) !== false) {
+                        $settings['seasonal_images'][$sKey]['is_ai_generated'] = false;
+                        $existingProduct->configurator_settings = $settings;
+                        $changed = true;
+                    }
+                }
+            }
             $hasLegacyWunschtext = collect($settings['custom_fields'] ?? [])->contains(function ($cf) {
                 return is_array($cf) && ($cf['id'] ?? '') === 'cf_wunschtext' && (($cf['type'] ?? 'text') !== 'textarea' || (int) ($cf['max_length'] ?? 28) < 80);
             });
@@ -1889,7 +1880,7 @@ class ProductSeeder extends Seeder
                 $existingProduct->saveQuietly();
             }
         }
-        \App\Models\Product\ProductTemplate::withTrashed()->update(['is_ai_generated' => true]);
+        \App\Models\Product\ProductTemplate::withTrashed()->update(['is_ai_generated' => false]);
 
         // --- 3D-Modelle (.glb), Saison-Overlays & Technische Maßblätter nativ synchronisieren ---
         $this->call(ProductAssetSeeder::class);

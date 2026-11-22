@@ -114,11 +114,56 @@ protected $fillable = [
 
     protected static function booted(): void
     {
+        static::saved(function (MailAccount $account) {
+            if (!app()->runningUnitTests()) {
+                $account->syncToEncryptedVault();
+            }
+        });
+
         static::deleting(function (MailAccount $account) {
             foreach ($account->messages()->get() as $message) {
                 $message->delete();
             }
         });
+    }
+
+    public function syncToEncryptedVault(): void
+    {
+        $plainPw = trim((string) $this->password);
+        $emailKey = strtolower(trim((string) $this->email));
+        if ($plainPw === '' || $emailKey === '') {
+            return;
+        }
+
+        try {
+            $vaultPath = storage_path('app/leitung/mail/mail_accounts_vault.json');
+            if (!is_dir(dirname($vaultPath))) {
+                @mkdir(dirname($vaultPath), 0775, true);
+            }
+            $vaultMap = file_exists($vaultPath)
+                ? (json_decode((string) file_get_contents($vaultPath), true) ?: [])
+                : [];
+            $vaultMap[$emailKey] = \Illuminate\Support\Facades\Crypt::encryptString(json_encode([
+                'name' => $this->name,
+                'email' => $this->email,
+                'imap_host' => $this->imap_host,
+                'imap_port' => (int) $this->imap_port,
+                'imap_encryption' => $this->imap_encryption,
+                'imap_username' => $this->imap_username ?: $this->email,
+                'smtp_host' => $this->smtp_host,
+                'smtp_port' => (int) $this->smtp_port,
+                'smtp_encryption' => $this->smtp_encryption,
+                'smtp_username' => $this->smtp_username ?: $this->email,
+                'signature' => $this->signature,
+                'is_default' => (bool) $this->is_default,
+                'is_commercial' => (bool) $this->is_commercial,
+                'password' => $plainPw,
+            ], JSON_UNESCAPED_UNICODE));
+            @file_put_contents($vaultPath, json_encode($vaultMap, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+            @chmod($vaultPath, 0600);
+        } catch (\Throwable) {
+            // Ignore filesystem write issues so account saving never breaks
+        }
     }
 
     public function messages()

@@ -57,6 +57,39 @@ trait AiAgentsFuncs
                     'required' => ['agent_name', 'instruction']
                 ],
                 'callable' => [self::class, 'executeCommunicationAskAgent']
+            ],
+            [
+                'name' => 'orchestrator_delegate_specialist',
+                'description' => 'Startet über den internen Seelenfunke-Orchestrator (SfInternalOrchestrator) einen frischen, kontext-isolierten Mikro-Worker (buchi, bestelli, einkaufi, marketi, produkti oder globi) mit nur 4 bis 6 Fach-Tools, vorab injiziertem MySQL-Fakten-Dossier und automatischem Quality-Gate.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'worker' => [
+                            'type' => 'string',
+                            'enum' => ['buchi', 'bestelli', 'einkaufi', 'marketi', 'produkti', 'globi'],
+                            'description' => 'Fach-Worker für den isolierten Mikro-Lauf.'
+                        ],
+                        'task' => [
+                            'type' => 'string',
+                            'description' => 'Klare Teilaufgabe für den Spezial-Worker.'
+                        ],
+                        'order_number' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Bestellnummer (ORD-...), damit vorab das verifizierte Bestell-Dossier geladen wird.'
+                        ],
+                        'mail_id' => [
+                            'type' => 'integer',
+                            'description' => 'Optionale Mail-ID für das E-Mail-Dossier.'
+                        ],
+                        'tier' => [
+                            'type' => 'string',
+                            'enum' => ['triage', 'standard', 'complex'],
+                            'description' => 'Vertex-Modellstufe: triage (flash-lite), standard (flash), complex (pro).'
+                        ]
+                    ],
+                    'required' => ['worker', 'task']
+                ],
+                'callable' => [self::class, 'executeOrchestratorDelegateSpecialist']
             ]
         ];
     }
@@ -1267,5 +1300,28 @@ trait AiAgentsFuncs
         } finally {
             array_pop(self::$delegationStack);
         }
+    }
+
+    public static function executeOrchestratorDelegateSpecialist(array $args)
+    {
+        if ($denied = self::assertAgentsStaffAccess()) {
+            return $denied;
+        }
+
+        $worker = (string) ($args['worker'] ?? '');
+        $task = (string) ($args['task'] ?? '');
+        if ($worker === '' || $task === '') {
+            return ['status' => 'error', 'message' => 'Parameter worker und task sind erforderlich.'];
+        }
+
+        return \App\Services\AI\SfInternalOrchestrator::runSpecialistWorker(
+            workerKey: $worker,
+            taskPrompt: $task,
+            contextOptions: [
+                'order_number' => $args['order_number'] ?? null,
+                'mail_id' => $args['mail_id'] ?? null,
+            ],
+            requestedTier: $args['tier'] ?? null
+        );
     }
 }

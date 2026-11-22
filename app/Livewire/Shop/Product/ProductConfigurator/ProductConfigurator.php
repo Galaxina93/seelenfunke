@@ -77,6 +77,7 @@ class ProductConfigurator extends Component
     public array $selectedAddons = [];
     public string $giftWrapMode = 'wrapped'; // 'wrapped' = Fertig verpackt | 'loose' = Papier nur mitliefern
     public array $customFieldValues = [];
+    public array $customFieldSides = [];
     #[Locked]
     public array $savedCustomFieldsSnapshot = [];
     public string $effectivePersonalizationMode = 'studio';
@@ -166,6 +167,7 @@ class ProductConfigurator extends Component
             'area_shape' => 'rect',
             'custom_points' => [['x'=>10,'y'=>10], ['x'=>90,'y'=>10], ['x'=>90,'y'=>90], ['x'=>10,'y'=>90]]
         ], $dbSettings ?? []);
+        unset($this->configSettings['seasonal_images']);
 
         if ($this->isDigital) {
             $this->configSettings['allow_logo'] = false;
@@ -211,8 +213,12 @@ class ProductConfigurator extends Component
 
         // Dynamische Eingabefelder (Schnell-Personalisierung) initialisieren
         $this->customFieldValues = [];
+        $this->customFieldSides = [];
         $this->savedCustomFieldsSnapshot = isset($source['custom_fields_data']) && is_array($source['custom_fields_data'])
             ? array_values($source['custom_fields_data'])
+            : [];
+        $savedFieldSides = isset($source['custom_field_sides']) && is_array($source['custom_field_sides'])
+            ? $source['custom_field_sides']
             : [];
 
         $hasStudioPayload = !empty($source['texts']) || !empty($source['logos']) || !empty($source['texts_back']) || !empty($source['logos_back']) || !empty($source['snapshot_path']);
@@ -260,6 +266,18 @@ class ProductConfigurator extends Component
             }
 
             $this->customFieldValues[$cfId] = $val;
+
+            $hasBackCfg = !empty($this->configSettings['has_back_side']);
+            if (!$hasBackCfg || $cfType === 'font') {
+                $this->customFieldSides[$cfId] = 'front';
+            } elseif (($cfDef['target_side'] ?? 'front') === 'choice') {
+                $savedRowForSide = $savedCustomFieldsById->get($cfId)
+                    ?? ($cfLabelKey !== '' ? $savedCustomFieldsByLabel->get($cfLabelKey) : null);
+                $rawSavedSide = strtolower(trim((string) ($savedRowForSide['side'] ?? ($savedFieldSides[$cfId] ?? ($cfDef['default_side'] ?? 'back')))));
+                $this->customFieldSides[$cfId] = ($rawSavedSide === 'front') ? 'front' : 'back';
+            } else {
+                $this->customFieldSides[$cfId] = (($cfDef['target_side'] ?? 'front') === 'back') ? 'back' : 'front';
+            }
         }
 
         if (isset($source['selected_addons']) && is_array($source['selected_addons'])) {
@@ -515,6 +533,38 @@ class ProductConfigurator extends Component
         return $this->product->getCustomFieldsDefinition($this->isUsingCustomFieldsMode());
     }
 
+    public function resolveEffectiveCustomFieldSide(array $cfDef): string
+    {
+        if (empty($this->configSettings['has_back_side']) || ($cfDef['type'] ?? 'text') === 'font') {
+            return 'front';
+        }
+
+        $targetSide = (string) ($cfDef['target_side'] ?? 'front');
+        if ($targetSide === 'choice') {
+            $cfId = (string) ($cfDef['id'] ?? '');
+            $chosen = strtolower(trim((string) ($this->customFieldSides[$cfId] ?? ($cfDef['default_side'] ?? 'back'))));
+            return ($chosen === 'front') ? 'front' : 'back';
+        }
+
+        return ($targetSide === 'back') ? 'back' : 'front';
+    }
+
+    public function setCustomFieldSide(string $cfId, string $side): void
+    {
+        $cleanId = trim($cfId);
+        if ($cleanId === '') {
+            return;
+        }
+
+        $cleanSide = ($side === 'back' && !empty($this->configSettings['has_back_side'])) ? 'back' : 'front';
+        $this->customFieldSides[$cleanId] = $cleanSide;
+        $this->activeSide = $cleanSide;
+
+        if ($this->isUsingCustomFieldsMode() && $this->product->usesStudioConfigurator()) {
+            $this->syncBeginnerPositionToCanvas();
+        }
+    }
+
     protected function buildCustomFieldsData(bool $validateRequired = true): array
     {
         $definitions = $this->product->getCustomFieldsDefinition($this->isUsingCustomFieldsMode());
@@ -604,6 +654,8 @@ class ProductConfigurator extends Component
                 'type'            => $fieldType,
                 'value'           => $cleanVal,
                 'surcharge_cents' => $effectiveSurcharge,
+                'side'            => $this->resolveEffectiveCustomFieldSide($cfDef),
+                'target_side'     => (string) ($cfDef['target_side'] ?? 'front'),
             ];
         }
 
@@ -800,7 +852,7 @@ class ProductConfigurator extends Component
             $this->calculatePrice();
         }
 
-        if (str_starts_with((string) $propertyName, 'customFieldValues')) {
+        if (str_starts_with((string) $propertyName, 'customFieldValues') || str_starts_with((string) $propertyName, 'customFieldSides')) {
             $this->resetErrorBag($propertyName);
             if ($this->isUsingCustomFieldsMode() && $this->product->usesStudioConfigurator()) {
                 $this->syncBeginnerPositionToCanvas();
@@ -1797,13 +1849,30 @@ class ProductConfigurator extends Component
                         }
                     }
 
-                    $customLaserTexts = [];
+                    $customLaserTextsFront = [];
+                    $customLaserTextsBack = [];
+                    $hasBackCfgForSummary = !empty($this->configSettings['has_back_side']);
                     foreach ($customFieldsData as $cfd) {
                         $cfdVal = trim((string) ($cfd['value'] ?? ''));
                         if ($cfdVal !== '') {
-                            $summaryParts[] = $cfd['label'] . ': ' . $cfdVal;
-                            if (($cfd['type'] ?? 'text') !== 'font' && !in_array(mb_strtolower($cfdVal), ['kein symbol', 'keine', 'nein', '-'], true)) {
-                                $customLaserTexts[] = $cfdVal;
+                            $cfdSide = ($hasBackCfgForSummary && ($cfd['side'] ?? 'front') === 'back') ? 'back' : 'front';
+                            $cfdType = (string) ($cfd['type'] ?? 'text');
+                            $labelForSummary = (string) ($cfd['label'] ?? '');
+                            $labelLowerSummary = mb_strtolower($labelForSummary);
+                            if ($hasBackCfgForSummary && $cfdType !== 'font') {
+                                if ($cfdSide === 'back' && !str_contains($labelLowerSummary, 'rückseite')) {
+                                    $labelForSummary .= ' (Rückseite)';
+                                } elseif ($cfdSide === 'front' && ($cfd['target_side'] ?? 'front') === 'choice' && !str_contains($labelLowerSummary, 'vorderseite')) {
+                                    $labelForSummary .= ' (Vorderseite)';
+                                }
+                            }
+                            $summaryParts[] = $labelForSummary . ': ' . $cfdVal;
+                            if ($cfdType !== 'font' && !in_array(mb_strtolower($cfdVal), ['kein symbol', 'keine', 'nein', '-'], true)) {
+                                if ($cfdSide === 'back') {
+                                    $customLaserTextsBack[] = $cfdVal;
+                                } else {
+                                    $customLaserTextsFront[] = $cfdVal;
+                                }
                             }
                         }
                     }
@@ -1811,19 +1880,33 @@ class ProductConfigurator extends Component
 
                     if ($this->product->usesStudioConfigurator()) {
                         // Im Neulings-Modus auf Studio-Produkten hat syncBeginnerPositionToCanvas(true) bereits
-                        // die exakte Neulings-Position (Symbol oben mittig in $this->logos, Wunschtext unten mittig in $cleanTexts) gesetzt.
-                        $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : null;
-                    } elseif (!empty($customLaserTexts)) {
-                        $cleanTexts = [[
-                            'id' => Str::uuid()->toString(),
-                            'text' => implode("\n", $customLaserTexts),
-                            'font' => $chosenCustomFont,
-                            'align' => 'center',
-                            'x' => 50,
-                            'y' => 50,
-                            'size' => 1.0,
-                            'rotation' => 0,
-                        ]];
+                        // die exakte Smart-Fit-Position für Vorder- und Rückseite gesetzt.
+                        $mainLogo = !empty($this->logos) ? $this->logos[0]['value'] : (!empty($this->logos_back) ? $this->logos_back[0]['value'] : null);
+                    } else {
+                        if (!empty($customLaserTextsFront)) {
+                            $cleanTexts = [[
+                                'id' => Str::uuid()->toString(),
+                                'text' => implode("\n", $customLaserTextsFront),
+                                'font' => $chosenCustomFont,
+                                'align' => 'center',
+                                'x' => 50,
+                                'y' => 50,
+                                'size' => 1.0,
+                                'rotation' => 0,
+                            ]];
+                        }
+                        if (!empty($customLaserTextsBack)) {
+                            $cleanTextsBack = [[
+                                'id' => Str::uuid()->toString(),
+                                'text' => implode("\n", $customLaserTextsBack),
+                                'font' => $chosenCustomFont,
+                                'align' => 'center',
+                                'x' => 50,
+                                'y' => 50,
+                                'size' => 1.0,
+                                'rotation' => 0,
+                            ]];
+                        }
                     }
                 }
 
@@ -1888,6 +1971,7 @@ class ProductConfigurator extends Component
                 $configData = [
                     'personalization_mode' => $this->isUsingCustomFieldsMode() ? 'custom_fields' : $this->product->getPersonalizationMode(),
                     'custom_fields_data' => $customFieldsData,
+                    'custom_field_sides' => $this->customFieldSides,
                     'texts' => $cleanTexts,
                     'logos' => $this->logos,
                     'texts_back' => $cleanTextsBack,

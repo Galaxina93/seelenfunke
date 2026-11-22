@@ -307,6 +307,19 @@
             @if($currentOrderStep === 1)
                 <div class="bg-white dark:bg-gray-900/95 border border-gray-200 dark:border-gray-800 rounded-[2rem] sm:rounded-[2.5rem] p-5 sm:p-7 shadow-xl space-y-5">
 
+                    @php
+                        $previewHasBack = \App\Livewire\Shop\Order\OrderOverview::itemHasConfiguredBackSide($previewItem);
+                        $previewEngravedSides = is_array($previewItem->configuration['laser_engraved_sides'] ?? null)
+                            ? $previewItem->configuration['laser_engraved_sides']
+                            : [];
+                        $previewFrontDone = !empty($previewEngravedSides['front']);
+                        $previewBackDone = !empty($previewEngravedSides['back']);
+                        $previewDoneSidesCount = ($previewFrontDone ? 1 : 0) + ($previewBackDone ? 1 : 0);
+                        $previewNeedsBackSwitch = $previewHasBack
+                            && !$previewBackDone
+                            && ($this->laserCockpitSide ?? 'front') !== 'back';
+                    @endphp
+
                     {{-- Kopfzeile + rechts oben schlichter Text-Toggle "Details anzeigen" ohne Hintergrund --}}
                     <div class="flex flex-col gap-3.5 pb-4 border-b border-gray-200 dark:border-gray-800">
                         <div class="flex flex-wrap items-start justify-between gap-3">
@@ -322,6 +335,17 @@
                                         @if($totalOrderItems > 1)
                                             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
                                                 Artikel {{ $activeItemIndex }} von {{ $totalOrderItems }}
+                                            </span>
+                                        @endif
+                                        @if($previewHasBack)
+                                            <span data-step1-two-sided-badge
+                                                  class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider {{ $previewBackDone
+                                                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                                                      : 'bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-40)]' }}">
+                                                @if(!$previewBackDone)
+                                                    <span class="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)]"></span>
+                                                @endif
+                                                <span>2 Seiten ({{ $previewDoneSidesCount }}/2{{ $previewBackDone ? ' ✓' : '' }})</span>
                                             </span>
                                         @endif
                                     </div>
@@ -693,9 +717,24 @@
                         </div>
                     @endif
 
-                    {{-- Haupt-Weiter-Button für Schritt 1 --}}
+                    {{-- Haupt-Weiter-Button für Schritt 1 (2-Seiten-Schutznetz: führt auf Vorderseite zuerst zur Rückseite 2/2) --}}
                     <div class="pt-3 border-t border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                        @if($previewItem && $openOrderItemsCount > 1)
+                        @if($previewItem && $previewNeedsBackSwitch)
+                            <button type="button"
+                                    data-step1-switch-to-back-cta
+                                    @click="switchStepOneTab('cockpit')"
+                                    wire:click="switchLaserCockpitSide('back')"
+                                    class="flex-1 flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-xs sm:text-sm font-black uppercase tracking-widest shadow-md transition-all cursor-pointer">
+                                <span>Zur Rückseite wechseln (Seite 2/2)</span>
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                            </button>
+                            <button type="button"
+                                    data-step1-skip-back-guard-btn
+                                    x-on:click="if (confirm('Achtung: Für diesen Artikel wurde eine Rückseite konfiguriert. Ist die Rückseite wirklich schon fertig gelasert?')) { $wire.{{ $openOrderItemsCount > 1 ? "completeCurrentItemAndAdvance('{$previewItem->id}', true)" : 'completeStepOneAndProceedToShipping(true)' }} }"
+                                    class="px-4 py-4 rounded-2xl bg-gray-100 dark:bg-gray-800 hover:border-[var(--theme-color)] text-gray-600 dark:text-gray-300 text-[10px] font-black uppercase tracking-wider border border-gray-200 dark:border-gray-700 transition-all cursor-pointer shrink-0">
+                                {{ $openOrderItemsCount > 1 ? 'Nächster Artikel' : 'Direkt zur Verpackung' }}
+                            </button>
+                        @elseif($previewItem && $openOrderItemsCount > 1)
                             <button type="button"
                                     wire:click="completeCurrentItemAndAdvance('{{ $previewItem->id }}')"
                                     class="flex-1 flex items-center justify-center gap-2.5 px-5 py-4 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-xs font-black uppercase tracking-widest shadow-md transition-all cursor-pointer">
@@ -820,20 +859,23 @@
                         </div>
                     @endif
 
-                    {{-- Bereits erzeugte DHL-Labels zum direkten 1-Klick-Nachdrucken --}}
+                    {{-- Bereits erzeugte Versandlabels (DHL & Großbrief) zum direkten 1-Klick-Nachdrucken --}}
                     @if($model->shipments->isNotEmpty())
                         <div class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-800">
                             <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)]">
-                                Erstellte DHL-Versandlabels ({{ $model->shipments->count() }})
+                                Erstellte Versandlabels ({{ $model->shipments->count() }})
                             </div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                 @foreach($model->shipments as $shipment)
                                     @php
                                         $hasLabelPdf = !empty($shipment->shipping_label_path);
+                                        $isBrief = ($shipment->carrier ?? '') === 'deutsche_post_brief';
                                     @endphp
                                     <div class="flex items-center justify-between gap-2 p-3 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
                                         <div class="min-w-0">
-                                            <div class="text-[9px] font-black uppercase tracking-wider text-gray-400">Paket {{ $loop->iteration }}</div>
+                                            <div class="text-[9px] font-black uppercase tracking-wider text-gray-400">
+                                                {{ $isBrief ? 'Deutsche Post Großbrief' : 'DHL Paket ' . $loop->iteration }}
+                                            </div>
                                             <div class="text-xs font-mono font-bold text-[var(--theme-color)] truncate">{{ $shipment->tracking_number }}</div>
                                         </div>
                                         <div class="flex items-center gap-1.5 shrink-0">
@@ -863,7 +905,7 @@
                                     wire:click="openDhlModal('{{ $model->id }}')"
                                     class="flex items-center justify-center gap-2.5 px-5 py-4 rounded-2xl bg-[var(--theme-color)] hover:brightness-95 text-gray-950 text-xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer">
                                 <span class="w-5 h-5 rounded-full bg-gray-950 text-[var(--theme-color)] flex items-center justify-center text-[10px] font-black">1</span>
-                                <span>DHL Label erstellen &amp; drucken</span>
+                                <span>{{ $model->isPostalVoucherOnly() ? 'Großbrief-Label erstellen & drucken' : 'Versandlabel erstellen & drucken' }}</span>
                             </button>
                         @endif
                         <button type="button"

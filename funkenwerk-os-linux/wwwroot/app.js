@@ -588,6 +588,17 @@
   let fkCamInterval = null;
   let fkPingInterval = null;
   let fkFaceCheckInterval = null;
+  let fkFaceTrackInterval = null;
+  let fkLatestTrackJpegB64 = '';
+  let fkLatestTrackJpegAtMs = 0;
+  let fkCachedVidEl = null;
+  let fkCachedPipEl = null;
+  let fkCachedTargetDotEl = null;
+  let fkCachedPipW = 248;
+  let fkCachedPipH = 140;
+  let fkLastPipMeasureMs = 0;
+  let fkLastDotW = 0;
+  let fkLastDotH = 0;
   let fkIdleMonitorInterval = null;
   let fkWakePollInterval = null;
 
@@ -954,12 +965,22 @@
   }
 
   function projectRawVideoBoxToPip(vidEl, pipEl, rawUnmirroredCx, rawCy, relW, relH) {
+    const nowMs = performance.now();
+    if (pipEl && (nowMs - fkLastPipMeasureMs) > 900) {
+      fkLastPipMeasureMs = nowMs;
+      const cw = pipEl.clientWidth;
+      const ch = pipEl.clientHeight;
+      if (cw > 0 && ch > 0) {
+        fkCachedPipW = cw;
+        fkCachedPipH = ch;
+      }
+    }
     const vidW = (vidEl && vidEl.videoWidth > 0) ? vidEl.videoWidth : 640;
     const vidH = (vidEl && vidEl.videoHeight > 0) ? vidEl.videoHeight : 360;
-    const pipW = (pipEl && pipEl.clientWidth > 0) ? pipEl.clientWidth : 248;
-    const pipH = (pipEl && pipEl.clientHeight > 0) ? pipEl.clientHeight : 140;
+    const pipW = fkCachedPipW;
+    const pipH = fkCachedPipH;
 
-    // Exact CSS object-fit: cover + transform: scaleX(-1) geometry
+    // Exact CSS object-fit: cover + transform: scaleX(-1) geometry (Zero per-frame DOM reflow!)
     const scale = Math.max(pipW / vidW, pipH / vidH);
     const dispW = vidW * scale;
     const dispH = vidH * scale;
@@ -1002,11 +1023,67 @@
     fkPersonLastSeenMs = now;
   }
 
+  // Off-RAF Idle Face Tracker: runs outside requestAnimationFrame at 320x180 (YuNet native resolution!)
+  // so <video> GPU->CPU readback NEVER stalls the 60-FPS Three.js render loop!
+  function scheduleIdleFaceTrackCapture() {
+    if (fkFaceTrackBusy || !funkiraStageOpen || !fkCamEnabled || fkIdleAtelierMode || fkTikTokLiveMode || fkPhoneCallActive) return;
+    const vidEl = fkCachedVidEl || (fkCachedVidEl = document.getElementById('funkira-cam-video'));
+    if (!vidEl || vidEl.readyState < 2 || vidEl.videoWidth <= 0 || vidEl.videoHeight <= 0) return;
+
+    fkFaceTrackBusy = true;
+    const runCapture = async () => {
+      try {
+        if (!funkiraStageOpen || !fkCamEnabled || vidEl.videoWidth <= 0) return;
+        const tw = Math.min(320, vidEl.videoWidth);
+        const th = Math.max(32, Math.round(vidEl.videoHeight * (tw / vidEl.videoWidth)));
+        if (fkFaceTrackCanvas.width !== tw || fkFaceTrackCanvas.height !== th) {
+          fkFaceTrackCanvas.width = tw;
+          fkFaceTrackCanvas.height = th;
+        }
+        fkFaceTrackCtx.drawImage(vidEl, 0, 0, tw, th);
+        const b64 = await encodeTrackCanvasJpegAsync(fkFaceTrackCanvas, 0.66);
+        if (!b64 || !funkiraStageOpen || !fkCamEnabled) return;
+        fkLatestTrackJpegB64 = b64;
+        fkLatestTrackJpegAtMs = Date.now();
+
+        const res = await fetch('/api/funkira/face-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: b64 })
+        });
+        if (!res.ok) return;
+        const out = await res.json();
+        if (out && out.faceDetected && typeof out.cx === 'number' && typeof out.cy === 'number') {
+          applyDetectedYuNetFace(out.cx, out.cy, out.relWidth || 0.14, out.relHeight || 0.24);
+        } else if (out && out.faceReady === false && fkNativeFaceDetector) {
+          const faces = await fkNativeFaceDetector.detect(fkFaceTrackCanvas);
+          if (faces && faces.length > 0) {
+            const bb = faces[0].boundingBox;
+            applyDetectedYuNetFace(
+              (bb.x + bb.width * 0.5) / tw,
+              (bb.y + bb.height * 0.5) / th,
+              bb.width / tw,
+              bb.height / th
+            );
+          }
+        }
+      } catch { } finally {
+        fkFaceTrackBusy = false;
+      }
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(() => { runCapture(); }, { timeout: 140 });
+    } else {
+      setTimeout(runCapture, 0);
+    }
+  }
+
   function updateFunkiraPersonTracker(dt) {
     const now = Date.now();
-    const vidEl = document.getElementById('funkira-cam-video');
-    const pipEl = document.getElementById('funkira-eye-pip');
-    const targetDot = document.getElementById('funkira-eye-target');
+    const vidEl = fkCachedVidEl || (fkCachedVidEl = document.getElementById('funkira-cam-video'));
+    const pipEl = fkCachedPipEl || (fkCachedPipEl = document.getElementById('funkira-eye-pip'));
+    const targetDot = fkCachedTargetDotEl || (fkCachedTargetDotEl = document.getElementById('funkira-eye-target'));
 
     if (fkExpressUntilMs > 0 && now > fkExpressUntilMs) {
       fkExpressUntilMs = 0;
@@ -1018,49 +1095,8 @@
     }
 
     const canTrack = funkiraStageOpen && fkCamEnabled && !fkIdleAtelierMode && !fkTikTokLiveMode && vidEl && vidEl.readyState >= 2 && vidEl.videoWidth > 0 && vidEl.videoHeight > 0;
-    if (canTrack && !fkFaceTrackBusy && (now - fkLastFaceTrackReqMs) >= 180) {
-      fkLastFaceTrackReqMs = now;
-      fkFaceTrackBusy = true;
-      (async () => {
-        try {
-          const tw = Math.min(480, vidEl.videoWidth);
-          const th = Math.max(32, Math.round(vidEl.videoHeight * (tw / vidEl.videoWidth)));
-          if (fkFaceTrackCanvas.width !== tw || fkFaceTrackCanvas.height !== th) {
-            fkFaceTrackCanvas.width = tw;
-            fkFaceTrackCanvas.height = th;
-          }
-          fkFaceTrackCtx.drawImage(vidEl, 0, 0, tw, th);
-          const b64 = await encodeTrackCanvasJpegAsync(fkFaceTrackCanvas, 0.70);
-          if (!b64 || !funkiraStageOpen || !fkCamEnabled) return;
 
-          const res = await fetch('/api/funkira/face-track', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: b64 })
-          });
-          if (!res.ok) return;
-          const out = await res.json();
-          if (out && out.faceDetected && typeof out.cx === 'number' && typeof out.cy === 'number') {
-            applyDetectedYuNetFace(out.cx, out.cy, out.relWidth || 0.14, out.relHeight || 0.24);
-          } else if (out && out.faceReady === false && fkNativeFaceDetector) {
-            const faces = await fkNativeFaceDetector.detect(fkFaceTrackCanvas);
-            if (faces && faces.length > 0) {
-              const bb = faces[0].boundingBox;
-              applyDetectedYuNetFace(
-                (bb.x + bb.width * 0.5) / tw,
-                (bb.y + bb.height * 0.5) / th,
-                bb.width / tw,
-                bb.height / th
-              );
-            }
-          }
-        } catch { } finally {
-          fkFaceTrackBusy = false;
-        }
-      })();
-    }
-
-    const faceFresh = canTrack && fkYuNetBox.valid && (now - fkYuNetBox.updatedAt) <= 1400;
+    const faceFresh = canTrack && fkYuNetBox.valid && (now - fkYuNetBox.updatedAt) <= 1500;
     if (faceFresh) {
       if (!fkReticleSmooth.initialized) {
         fkReticleSmooth.initialized = true;
@@ -1069,7 +1105,7 @@
         fkReticleSmooth.relW = fkYuNetBox.relW;
         fkReticleSmooth.relH = fkYuNetBox.relH;
       } else {
-        const alpha = 1.0 - Math.exp(-Math.max(0.001, dt) * 18.0);
+        const alpha = 1.0 - Math.exp(-Math.max(0.001, dt) * 16.0);
         fkReticleSmooth.cx += (fkYuNetBox.cx - fkReticleSmooth.cx) * alpha;
         fkReticleSmooth.cy += (fkYuNetBox.cy - fkReticleSmooth.cy) * alpha;
         fkReticleSmooth.relW += (fkYuNetBox.relW - fkReticleSmooth.relW) * alpha;
@@ -1089,14 +1125,23 @@
       fkPersonRawY = proj.normY;
 
       if (targetDot) {
-        targetDot.style.left = `${proj.pxX.toFixed(1)}px`;
-        targetDot.style.top = `${proj.pxY.toFixed(1)}px`;
-        targetDot.style.width = `${proj.pxW.toFixed(1)}px`;
-        targetDot.style.height = `${proj.pxH.toFixed(1)}px`;
-        targetDot.classList.remove('hidden');
+        if (Math.abs(proj.pxW - fkLastDotW) >= 2.0 || Math.abs(proj.pxH - fkLastDotH) >= 2.0) {
+          fkLastDotW = proj.pxW;
+          fkLastDotH = proj.pxH;
+          targetDot.style.width = `${proj.pxW.toFixed(0)}px`;
+          targetDot.style.height = `${proj.pxH.toFixed(0)}px`;
+        }
+        const tx = proj.pxX - fkLastDotW * 0.5;
+        const ty = proj.pxY - fkLastDotH * 0.5;
+        targetDot.style.transform = `translate3d(${tx.toFixed(1)}px, ${ty.toFixed(1)}px, 0)`;
+        if (targetDot.classList.contains('hidden')) {
+          targetDot.classList.remove('hidden');
+        }
       }
     } else {
-      if (targetDot) targetDot.classList.add('hidden');
+      if (targetDot && !targetDot.classList.contains('hidden')) {
+        targetDot.classList.add('hidden');
+      }
       fkReticleSmooth.initialized = false;
       fkPersonConfidence = Math.max(0, fkPersonConfidence - dt * 0.85);
       fkPersonConsecHits = 0;
@@ -2732,65 +2777,61 @@
     if (fkPlayCtx.state === 'suspended') await fkPlayCtx.resume().catch(() => {});
 
     fkMicSource = fkPlayCtx.createMediaStreamSource(fkMediaStream);
-    fkMicProcessor = fkPlayCtx.createScriptProcessor(4096, 1, 1);
 
-    fkMicProcessor.onaudioprocess = (e) => {
-      if (e.outputBuffer) {
-        for (let ch = 0; ch < e.outputBuffer.numberOfChannels; ch++) {
-          e.outputBuffer.getChannelData(ch).fill(0);
-        }
+    const bytesToBase64Fast = (bytes) => {
+      const parts = [];
+      for (let i = 0; i < bytes.byteLength; i += 4096) {
+        parts.push(String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + 4096, bytes.byteLength))));
       }
+      return window.btoa(parts.join(''));
+    };
+
+    const resampleFloatToPcm16Bytes = (floatSamples) => {
+      let samples = floatSamples;
+      if (fkPlayCtx && fkPlayCtx.sampleRate !== 16000) {
+        const ratio = fkPlayCtx.sampleRate / 16000;
+        const outLen = Math.round(samples.length / ratio);
+        const resampled = new Float32Array(outLen);
+        for (let i = 0; i < outLen; i++) {
+          const pos = i * ratio;
+          const idx = Math.floor(pos);
+          const frac = pos - idx;
+          resampled[i] = (idx + 1 < samples.length) ? samples[idx] * (1 - frac) + samples[idx + 1] * frac : samples[idx];
+        }
+        samples = resampled;
+      }
+      const pcm16 = new Int16Array(samples.length);
+      for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      }
+      return new Uint8Array(pcm16.buffer);
+    };
+
+    const silentFrameLen = Math.max(256, Math.round(2048 * (16000 / (fkPlayCtx.sampleRate || 48000))));
+    const fkSilentPcm16B64 = bytesToBase64Fast(new Uint8Array(silentFrameLen * 2));
+
+    const handleMicPcmFrame = (pcmBytes, rms) => {
       if (!fkPlayCtx || !fkWs || fkWs.readyState !== WebSocket.OPEN || !fkSetupComplete) return;
       if (fkMicMuted || fkToolRunning || fkIdleAtelierMode) {
         fkUserRms = 0;
         fkBargeConsecHits = 0;
         return;
       }
-
-      const rawInput = e.inputBuffer.getChannelData(0);
-      let sumSq = 0;
-      for (let i = 0; i < rawInput.length; i++) sumSq += rawInput[i] * rawInput[i];
-      const rms = Math.sqrt(sumSq / rawInput.length);
       fkUserRms = rms;
 
-      // Encode 16 kHz PCM frame once (used both for live stream & pre-barge buffer)
-      const encodeFrameToBase64 = (floatSamples) => {
-        let samples = floatSamples;
-        if (fkPlayCtx.sampleRate !== 16000) {
-          const ratio = fkPlayCtx.sampleRate / 16000;
-          const outLen = Math.round(samples.length / ratio);
-          const resampled = new Float32Array(outLen);
-          for (let i = 0; i < outLen; i++) {
-            const pos = i * ratio;
-            const idx = Math.floor(pos);
-            const frac = pos - idx;
-            resampled[i] = (idx + 1 < samples.length) ? samples[idx] * (1 - frac) + samples[idx + 1] * frac : samples[idx];
-          }
-          samples = resampled;
-        }
-        const pcm16 = new Int16Array(samples.length);
-        for (let i = 0; i < samples.length; i++) {
-          const s = Math.max(-1, Math.min(1, samples[i]));
-          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-        }
-        const bytes = new Uint8Array(pcm16.buffer);
-        let bin = '';
-        for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
-        return window.btoa(bin);
-      };
-
       // BLUETOOTH-A2DP SAFE BARGE-IN: Block delayed (~250ms) Teufel stereo echo from self-interrupting Funkira,
-      // while allowing sustained close-range human interruption (~340ms loud speech right at C920 mic).
+      // while allowing sustained close-range human interruption (~300ms loud speech right at C920 mic).
       if (isFunkiraOutputProtected()) {
-        fkPostProtectQuietUntilMs = Date.now() + 380;
+        fkPostProtectQuietUntilMs = Date.now() + 340;
         const bargeThreshold = Math.max(0.155, fkEchoEnvelopeRms * 1.85 + 0.055);
-        const frameB64 = encodeFrameToBase64(rawInput);
+        const frameB64 = bytesToBase64Fast(pcmBytes);
         fkPreBargePcmQueue.push(frameB64);
-        if (fkPreBargePcmQueue.length > 1) fkPreBargePcmQueue.shift();
+        if (fkPreBargePcmQueue.length > 2) fkPreBargePcmQueue.shift();
 
         if (rms > bargeThreshold) {
           fkBargeConsecHits++;
-          if (fkBargeConsecHits >= 4) {
+          if (fkBargeConsecHits >= 7) {
             fkBargeConsecHits = 0;
             stopFunkiraAudioPlayback();
             fkLastSpeechEndMs = 0;
@@ -2821,33 +2862,33 @@
       fkBargeConsecHits = 0;
       fkPreBargePcmQueue.length = 0;
 
-      let input = rawInput;
+      let sendSilent = false;
       if (Date.now() < fkPostProtectQuietUntilMs && rms < 0.032) {
-        // Suppress any late room reverberation tail after Bluetooth playback stops
-        input = new Float32Array(rawInput.length);
+        sendSilent = true;
       } else if (rms > 0.013) {
         fkLastUserVoiceMs = Date.now();
         fkLastInteractionMs = Date.now();
         fkIdlePromptAsked = false;
         fkIdlePromptFinishMs = 0;
         fkHasSpokenInTurn = true;
-      } else if (fkHasSpokenInTurn && (Date.now() - fkLastUserVoiceMs) > 260) {
-        input = new Float32Array(rawInput.length);
+      } else if (fkHasSpokenInTurn && (Date.now() - fkLastUserVoiceMs) > 120) {
+        sendSilent = true;
+      } else if (!fkHasSpokenInTurn && rms < 0.010) {
+        sendSilent = true;
       }
 
-      const b64Payload = encodeFrameToBase64(input);
-      if (rms > 0.015 && !fkPhoneCallActive) {
+      const b64Payload = sendSilent ? fkSilentPcm16B64 : bytesToBase64Fast(pcmBytes);
+      if (!sendSilent && rms > 0.015 && !fkPhoneCallActive) {
         const nowMs = Date.now();
-        // Separate utterances cleanly: if > 750ms silence elapsed since previous voice frame, start a fresh speaker buffer!
         if ((nowMs - fkLastVoiceChunkAtMs) > 750) {
           fkRecentVoicePcmChunks = [];
           fkVoiceCheckedInUtterance = false;
         }
         fkLastVoiceChunkAtMs = nowMs;
         fkRecentVoicePcmChunks.push(b64Payload);
-        if (fkRecentVoicePcmChunks.length > 24) fkRecentVoicePcmChunks.shift();
+        if (fkRecentVoicePcmChunks.length > 38) fkRecentVoicePcmChunks.shift();
 
-        if (fkOwnerVoiceEnrolled && !fkVoiceCheckBusy && fkRecentVoicePcmChunks.length >= 11 &&
+        if (fkOwnerVoiceEnrolled && !fkVoiceCheckBusy && fkRecentVoicePcmChunks.length >= 16 &&
             (!fkVoiceCheckedInUtterance || (nowMs - fkLastVoiceCheckMs) > 2600)) {
           fkVoiceCheckedInUtterance = true;
           fkLastVoiceCheckMs = nowMs;
@@ -2891,8 +2932,85 @@
       }));
     };
 
-    fkMicSource.connect(fkMicProcessor);
-    fkMicProcessor.connect(fkPlayCtx.destination);
+    // Prefer dedicated off-main-thread AudioWorkletNode (0.0 ms UI render-thread stall!), with graceful fallback
+    let workletMounted = false;
+    if (fkPlayCtx.audioWorklet && window.AudioWorkletNode) {
+      try {
+        const workletCode = `
+          class FkPcm16CaptureProcessor extends AudioWorkletProcessor {
+            constructor() {
+              super();
+              this._buf = new Float32Array(2048);
+              this._pos = 0;
+            }
+            process(inputs) {
+              const ch = inputs[0] && inputs[0][0];
+              if (!ch) return true;
+              let offset = 0;
+              while (offset < ch.length) {
+                const take = Math.min(2048 - this._pos, ch.length - offset);
+                this._buf.set(ch.subarray(offset, offset + take), this._pos);
+                this._pos += take;
+                offset += take;
+                if (this._pos >= 2048) {
+                  let sumSq = 0;
+                  for (let i = 0; i < 2048; i++) sumSq += this._buf[i] * this._buf[i];
+                  const rms = Math.sqrt(sumSq / 2048);
+                  const ratio = sampleRate / 16000;
+                  const outLen = Math.round(2048 / ratio);
+                  const pcm16 = new Int16Array(outLen);
+                  for (let i = 0; i < outLen; i++) {
+                    const pos = i * ratio;
+                    const idx = Math.floor(pos);
+                    const frac = pos - idx;
+                    const sRaw = (idx + 1 < 2048) ? this._buf[idx] * (1 - frac) + this._buf[idx + 1] * frac : this._buf[idx];
+                    const s = Math.max(-1, Math.min(1, sRaw));
+                    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                  }
+                  this.port.postMessage({ buf: pcm16.buffer, rms }, [pcm16.buffer]);
+                  this._pos = 0;
+                }
+              }
+              return true;
+            }
+          }
+          registerProcessor('fk-pcm16-capture', FkPcm16CaptureProcessor);
+        `;
+        const blobUrl = URL.createObjectURL(new Blob([workletCode], { type: 'application/javascript' }));
+        try {
+          await fkPlayCtx.audioWorklet.addModule(blobUrl);
+        } finally {
+          URL.revokeObjectURL(blobUrl);
+        }
+        const wn = new AudioWorkletNode(fkPlayCtx, 'fk-pcm16-capture', { numberOfInputs: 1, numberOfOutputs: 0, channelCount: 1 });
+        wn.port.onmessage = (ev) => {
+          if (ev.data && ev.data.buf) {
+            handleMicPcmFrame(new Uint8Array(ev.data.buf), ev.data.rms || 0);
+          }
+        };
+        fkMicProcessor = wn;
+        fkMicSource.connect(wn);
+        workletMounted = true;
+      } catch { }
+    }
+
+    if (!workletMounted && fkPlayCtx) {
+      fkMicProcessor = fkPlayCtx.createScriptProcessor(2048, 1, 1);
+      fkMicProcessor.onaudioprocess = (e) => {
+        if (e.outputBuffer) {
+          for (let ch = 0; ch < e.outputBuffer.numberOfChannels; ch++) {
+            e.outputBuffer.getChannelData(ch).fill(0);
+          }
+        }
+        const rawInput = e.inputBuffer.getChannelData(0);
+        let sumSq = 0;
+        for (let i = 0; i < rawInput.length; i++) sumSq += rawInput[i] * rawInput[i];
+        const rms = Math.sqrt(sumSq / rawInput.length);
+        handleMicPcmFrame(resampleFloatToPcm16Bytes(rawInput), rms);
+      };
+      fkMicSource.connect(fkMicProcessor);
+      fkMicProcessor.connect(fkPlayCtx.destination);
+    }
 
     const encodeCanvasJpegAsync = (canvas, quality) => new Promise((resolve) => {
       canvas.toBlob((blob) => {
@@ -2908,20 +3026,27 @@
       }, 'image/jpeg', quality);
     });
 
-    // 4. Async Off-Thread Vision Stream from Logitech C920 to Funkira (0.0 ms main-thread block!)
+    // 3b. Idle-Scheduled Off-RAF Face Tracking Loop (380ms @ 320x180, never blocks 60-FPS renderLoop!)
+    if (fkFaceTrackInterval) clearInterval(fkFaceTrackInterval);
+    fkFaceTrackInterval = setInterval(scheduleIdleFaceTrackCapture, 380);
+
+    // 4. Async Off-Thread Vision Stream from Logitech C920 to Funkira (defers during active speech/turn-handoff for minimum audio latency!)
     let camEncodeBusy = false;
     if (fkCamInterval) clearInterval(fkCamInterval);
     fkCamInterval = setInterval(async () => {
       if (camEncodeBusy || !funkiraStageOpen || fkIdleAtelierMode || fkTikTokLiveMode || fkPhoneCallActive || !fkCamEnabled || !fkSetupComplete || !fkWs || fkWs.readyState !== WebSocket.OPEN) return;
+      if (fkHasSpokenInTurn && (Date.now() - fkLastUserVoiceMs) < 1800) return;
       if (vidEl.videoWidth > 0 && vidEl.videoHeight > 0) {
         camEncodeBusy = true;
         try {
-          const w = Math.min(640, vidEl.videoWidth);
+          const w = Math.min(384, vidEl.videoWidth);
           const h = Math.round(vidEl.videoHeight * (w / vidEl.videoWidth));
-          fkSnapCanvas.width = w;
-          fkSnapCanvas.height = h;
+          if (fkSnapCanvas.width !== w || fkSnapCanvas.height !== h) {
+            fkSnapCanvas.width = w;
+            fkSnapCanvas.height = h;
+          }
           fkSnapCtx.drawImage(vidEl, 0, 0, w, h);
-          const b64 = await encodeCanvasJpegAsync(fkSnapCanvas, 0.58);
+          const b64 = await encodeCanvasJpegAsync(fkSnapCanvas, 0.50);
           if (b64 && fkWs && fkWs.readyState === WebSocket.OPEN) {
             fkWs.send(JSON.stringify({
               realtimeInput: {
@@ -2936,23 +3061,33 @@
           camEncodeBusy = false;
         }
       }
-    }, 3000);
+    }, 4500);
 
-    // 5. Async Off-Thread Local YuNet + SFace Owner vs. Visitor Face Check (100% Loopback RAM, 0 Cloud!)
+    // 5. Async Off-Thread Local YuNet + SFace Owner/Companion/Visitor Face Check
     let faceCheckBusy = false;
+    let lastVerifiedFaceCheckMs = 0;
     if (fkFaceCheckInterval) clearInterval(fkFaceCheckInterval);
     fkFaceCheckInterval = setInterval(async () => {
       if (faceCheckBusy || !funkiraStageOpen || fkIdleAtelierMode || fkTikTokLiveMode || fkPhoneCallActive || !fkCamEnabled) return;
+      const fastCheckNeeded = (fkFaceIdentity === 'unverified' || fkFaceIdentity === 'visitor' || fkFaceIdentity === 'none');
+      if (!fastCheckNeeded && (Date.now() - lastVerifiedFaceCheckMs) < 4600) return;
       if (!vidEl || vidEl.videoWidth <= 0 || vidEl.videoHeight <= 0) return;
       faceCheckBusy = true;
       try {
-        const w = Math.min(480, vidEl.videoWidth);
-        const h = Math.round(vidEl.videoHeight * (w / vidEl.videoWidth));
-        fkSnapCanvas.width = w;
-        fkSnapCanvas.height = h;
-        fkSnapCtx.drawImage(vidEl, 0, 0, w, h);
-        const b64 = await encodeCanvasJpegAsync(fkSnapCanvas, 0.68);
+        const wantPortraitRes = (fkFaceIdentity === 'visitor' || fkFaceIdentity === 'alina_with_companion');
+        let b64 = (!wantPortraitRes && fkLatestTrackJpegB64 && (Date.now() - fkLatestTrackJpegAtMs) < 950) ? fkLatestTrackJpegB64 : '';
+        if (!b64) {
+          const w = Math.min(wantPortraitRes ? 560 : 360, vidEl.videoWidth);
+          const h = Math.round(vidEl.videoHeight * (w / vidEl.videoWidth));
+          if (fkSnapCanvas.width !== w || fkSnapCanvas.height !== h) {
+            fkSnapCanvas.width = w;
+            fkSnapCanvas.height = h;
+          }
+          fkSnapCtx.drawImage(vidEl, 0, 0, w, h);
+          b64 = await encodeCanvasJpegAsync(fkSnapCanvas, wantPortraitRes ? 0.84 : 0.68);
+        }
         if (!b64) return;
+        lastVerifiedFaceCheckMs = Date.now();
         const res = await fetch('/api/funkira/face-check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2969,7 +3104,7 @@
       } catch { } finally {
         faceCheckBusy = false;
       }
-    }, 4500);
+    }, 1800);
   }
 
   function captureHighResVideoJpegBase64() {
@@ -3119,9 +3254,15 @@
       }
       return;
     }
+    if (data.command === 'ownerPresenceVerified') {
+      fkFaceIdentity = data.faceIdentity || 'alina';
+      if (typeof data.companionBadge === 'string') fkCompanionBadge = data.companionBadge;
+      updateFaceAndTikTokBadges();
+      return;
+    }
     if (data.command === 'companionSaved') {
       if (data.name) fkCompanionBadge = data.name;
-      fkFaceIdentity = 'alina_with_companion';
+      fkFaceIdentity = data.soloCompanion ? 'known_companion' : 'alina_with_companion';
       updateFaceAndTikTokBadges();
       return;
     }
@@ -3324,6 +3465,11 @@
       } else if (fkFaceIdentity === 'visitor') {
         faceBtn.textContent = '🛡 Besucher-Schutz';
         faceBtn.classList.add('face-visitor');
+      } else if (fkFaceIdentity === 'unverified' || fkFaceIdentity === 'none' || fkFaceIdentity === 'uncertain') {
+        faceBtn.textContent = '👁 Kurz reinschauen';
+      } else if (fkFaceIdentity === 'known_companion') {
+        faceBtn.textContent = `👋 ${fkCompanionBadge || fkSpeakerName || 'Bekannt'}`;
+        faceBtn.classList.add('face-visitor');
       } else if (fkFaceIdentity === 'alina_with_companion') {
         faceBtn.textContent = `👑 Alina + ${fkCompanionBadge || 'Begleitung'}${fkVoiceIdentity === 'companion' && fkSpeakerName ? ` (🎙 ${fkSpeakerName})` : ''}`;
         faceBtn.classList.add('face-owner');
@@ -3355,7 +3501,7 @@
     if (phBadge) phBadge.classList.toggle('hidden', !fkPhoneCallActive);
     if (phCaller) phCaller.textContent = fkPhoneCallerLabel || 'Anruf';
 
-    const cellarRestricted = fkTikTokLiveMode || fkFaceIdentity === 'visitor';
+    const cellarRestricted = fkTikTokLiveMode || fkFaceIdentity === 'visitor' || fkFaceIdentity === 'unverified' || fkFaceIdentity === 'known_companion';
     const cellarBtn = document.getElementById('btn-funkira-cellar');
     const cellarLbl = document.getElementById('funkira-cellar-btn-lbl');
     const cellarBadge = document.getElementById('funkira-cellar-badge');
@@ -3384,6 +3530,9 @@
     if (fkPingInterval) { clearInterval(fkPingInterval); fkPingInterval = null; }
     if (fkCamInterval) { clearInterval(fkCamInterval); fkCamInterval = null; }
     if (fkFaceCheckInterval) { clearInterval(fkFaceCheckInterval); fkFaceCheckInterval = null; }
+    if (fkFaceTrackInterval) { clearInterval(fkFaceTrackInterval); fkFaceTrackInterval = null; }
+    fkLatestTrackJpegB64 = '';
+    fkLatestTrackJpegAtMs = 0;
 
     if (fkWs) {
       fkWs.onclose = null;
@@ -3860,6 +4009,9 @@
   async function openFunkiraStage(initialReason = '') {
     if (initialReason && typeof initialReason === 'object') initialReason = '';
     if (funkiraStageOpen || fkMagicDissolveActive) return;
+    if (funkenwerkCityOpen) {
+      closeFunkenwerkCity();
+    }
 
     try {
       const stRes = await fetch('/api/funkira/status');
@@ -4479,6 +4631,70 @@
     setFunkiraExpress('sweet', 'wave', 3.5, false);
   });
 
+  async function refreshSavedCompanionsModalList() {
+    const box = document.getElementById('face-modal-companions');
+    if (!box) return;
+    box.innerHTML = '';
+    if (fkTikTokLiveMode || fkFaceIdentity === 'visitor' || fkFaceIdentity === 'unverified' || fkFaceIdentity === 'known_companion') {
+      return;
+    }
+    try {
+      const res = await fetch('/api/funkira/companions');
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = Array.isArray(data.companions) ? data.companions : [];
+      items.forEach((c) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(197,160,89,0.25);';
+        const left = document.createElement('div');
+        left.style.cssText = 'display:flex;align-items:center;gap:10px;min-width:0;';
+        if (c.photoDataUrl) {
+          const img = document.createElement('img');
+          img.src = c.photoDataUrl;
+          img.alt = c.name || '';
+          img.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;border:1px solid #C5A059;flex-shrink:0;';
+          left.appendChild(img);
+        } else {
+          const ph = document.createElement('div');
+          ph.textContent = '👤';
+          ph.style.cssText = 'width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(197,160,89,0.15);border:1px solid rgba(197,160,89,0.35);flex-shrink:0;';
+          left.appendChild(ph);
+        }
+        const meta = document.createElement('div');
+        meta.style.cssText = 'display:flex;flex-direction:column;min-width:0;';
+        const title = document.createElement('strong');
+        title.style.cssText = 'font-size:13px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        title.textContent = c.relationship ? `${c.name} · ${c.relationship}` : c.name;
+        const flags = document.createElement('span');
+        flags.style.cssText = 'font-size:11px;color:#C5A059;';
+        const tags = [];
+        if (c.hasPhoto) tags.push('✓ Bild');
+        if (c.hasFace) tags.push('✓ Gesicht');
+        if (c.hasVoice) tags.push('✓ Stimme');
+        flags.textContent = tags.join(' · ');
+        meta.appendChild(title);
+        meta.appendChild(flags);
+        left.appendChild(meta);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'pill-btn';
+        delBtn.style.cssText = 'padding:3px 8px;font-size:11px;';
+        delBtn.textContent = '✕';
+        delBtn.addEventListener('click', async () => {
+          await fetch('/api/funkira/companion-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: c.name })
+          });
+          refreshSavedCompanionsModalList();
+        });
+        row.appendChild(left);
+        row.appendChild(delBtn);
+        box.appendChild(row);
+      });
+    } catch { }
+  }
+
   // Offline Face & Voice Guard Modal Handlers
   document.getElementById('btn-funkira-face')?.addEventListener('click', () => {
     const st = document.getElementById('face-modal-status');
@@ -4486,9 +4702,17 @@
       ? ` · 512-Float Stimmprofil aktiv${fkSpeakerName ? ` (zuletzt: ${fkSpeakerName})` : ''}`
       : ' · Stimme noch nicht eingelernt';
     const compInfo = (fkFaceIdentity === 'alina_with_companion' && fkCompanionBadge) ? ` · Begleitung: ${fkCompanionBadge}` : '';
+    const statusLabel = fkFaceIdentity === 'visitor'
+      ? 'Besucher-Schutz aktiv (interne Daten gesperrt)'
+      : (fkFaceIdentity === 'unverified'
+        ? 'Kamera-Check ausstehend (bitte kurz in die Kamera schauen)'
+        : (fkFaceIdentity === 'known_companion'
+          ? `Bekannte Person (${fkCompanionBadge || 'Gast'}) ohne Alina`
+          : 'Alina verifiziert (AES-256-GCM lokal)'));
     st.textContent = (fkOwnerFaceEnrolled || fkOwnerVoiceEnrolled)
-      ? `Status: ${fkFaceIdentity === 'visitor' ? 'Besucher-Schutz aktiv (interne Daten gesperrt)' : 'Alina verifiziert (AES-256-GCM lokal)'}${voiceInfo}${compInfo}.`
+      ? `Status: ${statusLabel}${voiceInfo}${compInfo}.`
       : 'Noch kein Chefin-Profil gespeichert. Schau in die C920 für Gesicht einlernen oder klicke auf Stimme einlernen.';
+    refreshSavedCompanionsModalList();
     document.getElementById('face-modal-overlay')?.classList.remove('hidden');
   });
   document.getElementById('btn-close-face-modal')?.addEventListener('click', () => {
@@ -4804,6 +5028,7 @@
 
   document.getElementById('funkira-eye-pip').addEventListener('click', (e) => {
     e.currentTarget.classList.toggle('expanded');
+    fkLastPipMeasureMs = 0;
   });
 
   document.getElementById('btn-funkira-mic-toggle').addEventListener('click', (e) => {
@@ -6750,13 +6975,13 @@
       }
     },
     agents: {
-      title: '🤖 AGENTEN',
-      accent: '#6366F1',
+      title: '🎫 TICKETS & LEITUNG',
+      accent: '#C5A059',
       primaryLabel: '✦ Funkira Atelier',
-      portalRoute: '/admin/organigramm',
+      portalRoute: '/admin/tickets',
       getKpis: (pulse) => [
-        ['Funkira', 'Bereit'],
-        ['Falcone', 'Leitung'],
+        ['Funkira', 'Stabschefin'],
+        ['Antigravity', 'System'],
         ['Vertex AI', pulse.environment || 'LIVE']
       ],
       onPrimary: async () => {

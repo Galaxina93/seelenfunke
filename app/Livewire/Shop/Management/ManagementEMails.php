@@ -1048,4 +1048,105 @@ class ManagementEMails extends Component
     {
         return $exportService->downloadMailAttachment($attachmentId);
     }
+
+    /**
+     * Öffnet das Antwort-Modal mit einem faktengeprüften KI-Antwort-Entwurf (inkl. Bestell- & Tracking-Dossier).
+     */
+    public function openAiReplyDraft(int $messageId): void
+    {
+        $msg = MailMessage::with('attachments')->find($messageId);
+        if (!$msg) {
+            return;
+        }
+
+        $this->openCompose('reply', $messageId);
+
+        $tags = is_array($msg->tags) ? $msg->tags : [];
+        $draftPlain = (string) ($tags['ai_reply_draft']['draft_text'] ?? '');
+
+        if ($draftPlain === '') {
+            $dossier = \App\Services\AI\ContextDossierBuilder::buildMailDossier($msg);
+            if ($dossier) {
+                $rawDraft = \App\Services\AI\SfInternalOrchestrator::buildGroundedMailReplyDraft($dossier);
+                $draftPlain = \App\Services\AI\AiOutputQualityGate::sanitizeText($rawDraft);
+            }
+        }
+
+        if ($draftPlain !== '') {
+            $draftHtml = '<p>' . nl2br(e($draftPlain)) . '</p>';
+            $this->composeBody = $draftHtml . $this->composeBody;
+        }
+    }
+
+    /**
+     * Bucht den Rechnungs-/Beleg-Anhang einer E-Mail per 1-Klick über die zentrale Buchi-Beleg-Pipeline.
+     */
+    public function bookReceiptFromMail(int $messageId): void
+    {
+        $msg = MailMessage::with('attachments')->find($messageId);
+        if (!$msg || $msg->attachments->isEmpty()) {
+            session()->flash('error_message', 'Diese E-Mail enthält keinen auslesbaren Beleg-Anhang.');
+            return;
+        }
+
+        $adminId = \Illuminate\Support\Facades\Auth::guard('admin')->id() ?? \App\Models\Admin\Admin::value('id');
+        $scannedFile = null;
+        $analysis = null;
+
+        foreach ($msg->attachments as $att) {
+            $ext = strtolower(pathinfo((string) ($att->filename ?? $att->path), PATHINFO_EXTENSION));
+            if (!in_array($ext, ['pdf', 'xml', 'jpg', 'jpeg', 'png', 'webp'], true)) {
+                continue;
+            }
+            if (!empty($att->path) && !str_contains((string) $att->path, '..') && \Illuminate\Support\Facades\Storage::disk('local')->exists($att->path)) {
+                $candidatePath = \Illuminate\Support\Facades\Storage::disk('local')->path($att->path);
+                $analysis = \App\Services\AI\BuchiReceiptPipelineService::analyzeAndVerify($candidatePath, [], $adminId);
+                if ($analysis && !empty($analysis['amount_abs'])) {
+                    $scannedFile = $candidatePath;
+                    break;
+                }
+            }
+        }
+
+        if (!$analysis || !$scannedFile) {
+            session()->flash('error_message', 'Kein buchbarer Rechnungsbeleg in den Anhängen erkannt.');
+            return;
+        }
+
+        if (!empty($analysis['duplicate_check']['is_duplicate'])) {
+            session()->flash('error_message', 'Dubletten-Schutz: ' . ($analysis['duplicate_check']['reason'] ?? 'Beleg existiert bereits.'));
+            return;
+        }
+
+        $storedPath = \App\Services\AI\BuchiReceiptPipelineService::storeReceiptFile(
+            file: $scannedFile,
+            date: (string) $analysis['date'],
+            merchant: (string) ($analysis['merchant'] ?: $analysis['location']),
+            title: (string) $analysis['title'],
+            invoiceNumber: $analysis['is_business'] ? (string) ($analysis['invoice_number'] ?? '') : ''
+        );
+
+        $issue = \App\Models\Accounting\AccountingSpecialIssue::create([
+            'admin_id' => $adminId,
+            'title' => $analysis['title'],
+            'location' => $analysis['location'] ?: $analysis['merchant'],
+            'category' => $analysis['category'],
+            'amount' => $analysis['amount'],
+            'execution_date' => $analysis['date'],
+            'is_business' => $analysis['is_business'],
+            'tax_rate' => $analysis['is_business'] ? $analysis['tax_rate'] : null,
+            'invoice_number' => $analysis['is_business'] ? ($analysis['invoice_number'] ?: null) : null,
+            'file_paths' => $storedPath ? [$storedPath] : [],
+            'note' => \App\Services\AI\BuchiReceiptPipelineService::withLiveMarker('Buchi E-Mail-Beleg'),
+        ]);
+
+        \App\Services\AI\BuchiReceiptPipelineService::trackCategoryUsage($adminId, (string) $analysis['category'], (bool) $analysis['is_business']);
+
+        $tags = is_array($msg->tags) ? $msg->tags : [];
+        $tags['ai_receipt_booked_id'] = (string) $issue->id;
+        unset($tags['ai_receipt_draft']);
+        $msg->update(['tags' => $tags]);
+
+        session()->flash('success_message', "Beleg '{$issue->title}' ({$analysis['amount_formatted']} €) sauber als Sonderausgabe gebucht!");
+    }
 }

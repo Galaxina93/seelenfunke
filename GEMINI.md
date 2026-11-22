@@ -69,7 +69,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-18 21:32)
+> Generiert via `php artisan ai:generate-map` (2026-11-22 20:13)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -104,9 +104,9 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Root**: `AccountingSeeder, AiAgentSeeder, AiCompanyStructureSeeder, AiHealthMedicationSeeder, AiKnowledgeBaseLaserSeeder, AiKnowledgeBaseSeeder, AiTarifeSeeder, BankTransactionTestSeeder, BlogCategorySeeder, DatabaseSeeder, FinancialDataSeeder, GamificationTestSeeder, GamificationUltimatePlayerSeeder, LogisticsShippingSeeder, MailAccountSeeder, ManagementCalenderSeeder, ManagementContactSeeder, ManagementDayRoutineSeeder, ManagementMusicSeeder, ManagementShoppingListSeeder, ManagementTaskSeeder, MarketingBlogSeeder, MarketingLinktreeSeeder, MonthlyVoucherSeeder, NewsletterKampagnenSeeder, OrderShoppingCartSeeder, OrdersTableSeeder, ProductAssetSeeder, ProductAttributeSeeder, ProductCategorySeeder, ProductIdeaSeeder, ProductLandingPageSeeder, ProductPackagingSeeder, ProductReviewSeeder, ProductSeeder, ProductSupplierSeeder, ProductTemplateSeeder, Spaceship3DGlbSeeder, SystemCronjobSeeder, SystemSettingSeeder, TaxRateSeeder, UserSeeder`
 
 ## 4. Datenbank-Modelle (`app/Models/<Domain>/*.php`)
-- **Accounting**: `AccountingBankAccount, AccountingBankTransaction, AccountingCategorizationRule, AccountingCategory, AccountingCostItem, AccountingCostItemHistory, AccountingGroup, AccountingInvoice, AccountingSpecialIssue`
+- **Accounting**: `AccountingBankAccount, AccountingBankTransaction, AccountingCategorizationRule, AccountingCategory, AccountingCostItem, AccountingCostItemHistory, AccountingGroup, AccountingInvestmentPlan, AccountingInvoice, AccountingSpecialIssue`
 - **Admin**: `Admin, AdminProfile`
-- **Ai**: `AiAgent, AiAgentSetting, AiArtifact, AiCall, AiChatMemory, AiChatSession, AiContact, AiDepartment, AiHealthMedication, AiHealthProtocol, AiHealthTreatmentItem, AiHealthTreatmentPlan, AiKnowledgeBase, AiKnowledgeBaseCategory, AiKnowledgeBaseTag, AiMetric, AiRole, AiTool, AiToolUsage, AiUserWorkspaceSetting, AiWidgetConfig, AiWorkspaceDocument, AiWorkspaceTask`
+- **Ai**: `AiAgent, AiAgentSetting, AiArtifact, AiCall, AiChatMemory, AiChatSession, AiContact, AiDepartment, AiHealthMedication, AiHealthProtocol, AiHealthTreatmentItem, AiHealthTreatmentPlan, AiKnowledgeBase, AiKnowledgeBaseCategory, AiKnowledgeBaseTag, AiLearnedPreference, AiMetric, AiRole, AiTool, AiToolUsage, AiUniverseTicket, AiUniverseTicketMessage, AiUserWorkspaceSetting, AiWidgetConfig, AiWorkspaceDocument, AiWorkspaceTask`
 - **Cart**: `Cart, CartItem, WishlistItem`
 - **Customer**: `Customer, CustomerGamification, CustomerGamificationBugReport, CustomerGamificationLog, CustomerProfile, GamificationGalacticPlanet`
 - **Delivery**: `DeliveryFeedback, DeliverySetting, DeliveryTime`
@@ -138,7 +138,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Hooks**: `EmployeeRoleIsolationHook`
 - **Landing**: `LandingPageView`
 - **Shop\Accounting**: `AccountingAnalytics, AccountingBank, AccountingCredit, AccountingFixCosts, AccountingInvoice, AccountingInvoicePreview, AccountingLiquidity, AccountingQuickEntry, AccountingTax, AccountingVariableCosts`
-- **Shop\Ai**: `AiAgentEditor, AiAnalytics, AiCompanyStructure, AiKnowledgeBase, AiKnowledgeBaseCategories, AiKnowledgeBaseTags, AiMethod, AiRoleManager, AiWidget, AiWorkspace`
+- **Shop\Ai**: `AiAgentEditor, AiAnalytics, AiCompanyStructure, AiKnowledgeBase, AiKnowledgeBaseCategories, AiKnowledgeBaseTags, AiMethod, AiRoleManager, AiUniverseTickets, AiWidget, AiWorkspace`
 - **Shop\Ai\PartialsAiWorkspace**: `TabCronjobs`
 - **Shop\Ai\Traits**: `ManagesAiChat, ManagesAiWorkspaceFiles, ManagesHealthData`
 - **Shop\Cart**: `Cart, CartIcon`
@@ -152,6 +152,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Shop\Product\ProductCalculator**: `ProductCalculator`
 - **Shop\Product\ProductConfigurator**: `ProductConfigurator`
 - **Shop\Product\ProductConfigurator\Traits**: `HandlesConfiguratorLogic`
+- **Shop\Product\Traits**: `ManagesConfiguratorStartSelection`
 - **Shop\Support**: `SupportAnalytics, SupportChats, SupportContactFormComponent, SupportReviews, SupportTelephony, SupportTicket`
 - **Shop\System**: `SystemBackups, SystemDeliveryDisplay, SystemDeliveryTimes, SystemLogs, SystemShipping, SystemShopConfig, SystemUserManagement`
 - **Shop\Wishlist**: `WishlistIcon, WishlistPage`
@@ -161,13 +162,13 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Accounting**: `InvoiceDownloadController`
 - **Api**: `AgenticCommerceController, AntigravityDirectInboxController, CustomerLobbyController, FunkenwerkHeroesController, LavaParkourController, TelegramAgentController, TwilioCallController, WorkshopFocusApiController`
 - **Customer**: `CustomerVerificationController, DigitalProductDownloadController, ExperienceReviewController, GiftVoucherDownloadController`
-- **Frontend**: `FunkenreichGatewayController, ShopShowroomController, WishlistController`
+- **Frontend**: `FunkenreichGatewayController, ProductMediaController, ShopShowroomController, WishlistController`
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 
 ## 7. Services & Geschäftslogik (`app/Services/<Domain>/*.php`)
-- **AI**: `AIFunctionsRegistry, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiPromptService, AiSupportService, FunkiraSkillPoolService, GeminiAgent, GeminiTtsService, KnowledgeReportSyncService, MasterNextBestActionService, ReceiptAiScannerService, VertexAiService, WebSearchCascadeService`
+- **AI**: `AIFunctionsRegistry, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiOutputQualityGate, AiPromptService, AiSupportService, BuchiReceiptPipelineService, ContextDossierBuilder, FunkiraPresenceContext, FunkiraSkillPoolService, FunkiraTicketRouter, GeminiAgent, GeminiTtsService, KnowledgeReportSyncService, MasterNextBestActionService, ProcurementSafetyGuard, ReceiptAiScannerService, SfInternalOrchestrator, TicketAutoCompactService, VertexAiService, WebSearchCascadeService`
 - **AI\Contracts**: `AiProviderInterface`
-- **AI\Functions**: `AiAgentsFuncs, AiBrainFuncs, AiCalendarFuncs, AiContactFuncs, AiFinanceFuncs, AiHealthFuncs, AiHolidayPlannerFuncs, AiLaserFuncs, AiMailFuncs, AiMapControlFuncs, AiMapNewsFuncs, AiMarketingBlogFuncs, AiMarketingFuncs, AiMarketingNewsletterFuncs, AiMarketingVoucherFuncs, AiMasterFuncs, AiNewsFuncs, AiOrderFuncs, AiPersonaFuncs, AiProductFuncs, AiRoutineFuncs, AiScoutFuncs, AiShoppingListFuncs, AiStripeFuncs, AiSuppliersFuncs, AiSupportFuncs, AiSystemFuncs, AiTaskFuncs, AiTelefonyFuncs`
+- **AI\Functions**: `AiAgentsFuncs, AiBrainFuncs, AiCalendarFuncs, AiContactFuncs, AiFinanceFuncs, AiHealthFuncs, AiHolidayPlannerFuncs, AiLaserFuncs, AiMailFuncs, AiMapControlFuncs, AiMapNewsFuncs, AiMarketingBlogFuncs, AiMarketingFuncs, AiMarketingNewsletterFuncs, AiMarketingVoucherFuncs, AiMasterFuncs, AiNewsFuncs, AiOrderFuncs, AiPersonaFuncs, AiProductFuncs, AiRoutineFuncs, AiScoutFuncs, AiShoppingListFuncs, AiSmartHomeFuncs, AiStripeFuncs, AiSuppliersFuncs, AiSupportFuncs, AiSystemFuncs, AiTaskFuncs, AiTelefonyFuncs, AiUniverseTicketFuncs`
 - **AI\Mails**: `AiAgentMessageMail, AiHolidayPlanMail, AiMapSummaryMail`
 - **AI\Workspace**: `AbschlussberichteIndexerService, DateitrichterService`
 - **Accounting**: `ContractDocumentService`
@@ -180,8 +181,9 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Navigation**: `BackendNavigationService`
 - **Order**: `OrderProductionBatchService`
 - **Root**: `AccountingEInvoiceParserService, AccountingXmlInvoiceService, AnalyticsService, BankApiService, CartFileCleanupService, CartService, ConfiguratorService, DhlService, ElsterEricService, FinancialService, FirebaseService, GoogleReviewsService, HerzensprojektService, InvoiceService, PriceCalcService, ProductConfiguratorService, ProductTrackingService, ReferralService, ShippingCalculatorService, StealthCrawlerService, StripeAgentExecutionService, WishlistService`
+- **Shipping**: `GrossbriefLabelService`
 - **Shop**: `ShowroomChatGuardService, ShowroomMultiplayerService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory`
+- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, KdriveTrichterRelayService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory, ZeroTokenSelfHealer`
 - **Tax**: `TaxSettingService`
 <!-- AI_MAP_END -->

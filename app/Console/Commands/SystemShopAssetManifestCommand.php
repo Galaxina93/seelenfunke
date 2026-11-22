@@ -264,6 +264,16 @@ class SystemShopAssetManifestCommand extends Command
                         $addCandidate($rel, 'product_gallery:' . $product->slug);
                     }
                 }
+
+                $seasonalMap = is_array($product->configurator_settings['seasonal_images'] ?? null)
+                    ? $product->configurator_settings['seasonal_images']
+                    : [];
+                foreach ($seasonalMap as $sEntry) {
+                    $sPath = is_array($sEntry) ? ($sEntry['path'] ?? null) : (is_string($sEntry) ? $sEntry : null);
+                    if (is_string($sPath) && str_starts_with(ltrim($sPath, '/'), ProductTemplate::PRIVATE_SEASONAL_PREFIX)) {
+                        $addCandidate(ltrim($sPath, '/'), 'product_seasonal:' . $product->slug);
+                    }
+                }
             }
         }
 

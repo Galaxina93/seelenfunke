@@ -21,6 +21,7 @@ class LaserPhotoPreprocessor
 {
     public const POLARITY_WHITE_ON_DARK = 'white_on_dark';
     public const POLARITY_DARK_ON_LIGHT = 'dark_on_light';
+    public const POLARITY_FROST_ON_GLASS = 'frost_on_glass';
 
     /** white_on_dark: UV-Dot-Gain-Gammakurve & Highlight-Deckel */
     public const DOT_GAIN_GAMMA = 1.90;
@@ -29,6 +30,12 @@ class LaserPhotoPreprocessor
     public const HIGHLIGHT_CAP_DARK_600DPI = 0.58;
     public const SHADOW_FLOOR = 0.13;
     public const SHADOW_KNEE = 0.24;
+
+    /** frost_on_glass: Kräftige weiße Mikro-Mattierung auf transparentem K9-Kristall / Glas */
+    public const GLASS_FROST_GAMMA = 0.92;
+    public const GLASS_HIGHLIGHT_CAP = 0.92;
+    public const GLASS_SHADOW_FLOOR = 0.08;
+    public const GLASS_SHADOW_KNEE = 0.16;
 
     /** dark_on_light: d = k^1.40 * 0.82 mit k = 1 - Luminanz */
     public const DARK_ON_LIGHT_GAMMA = 1.40;
@@ -546,6 +553,24 @@ class LaserPhotoPreprocessor
     }
 
     /**
+     * Rendert für den mehrstufigen Laser-Export (.xf / .xcs) die kontinuierliche Tonwert-, Kontrast-, Gamma-,
+     * Schärfungs- und Highlight-Cap-Kurve des Foto-Studios OHNE vorzeitiges 1-Bit-Dithering, damit das
+     * anschließende Jarvis-/Stucki-Raster exakt einmalig im physischen Ziel-DPI-Gitter des Rohlings erfolgt
+     * (verhindert Doppel-Dithering und bilineares Verwischen bereits geditherter 1-Bit-Punkte).
+     */
+    public static function renderStudioContinuousTonePngBytes(
+        string $sourceAbsPath,
+        array $params,
+        int $maxDim = 2400
+    ): string {
+        $continuousParams = self::sanitizeStudioParams($params);
+        $continuousParams['dither_mode'] = 'grayscale';
+        $continuousParams['grayscale'] = true;
+
+        return self::renderStudioPipelinePngBytes($sourceAbsPath, $continuousParams, max(256, $maxDim), false, false);
+    }
+
+    /**
      * Validiert und normalisiert ein Studio-Parameter-Array.
      *
      * @return array{enabled: bool, grayscale: bool, invert: bool, brightness: int, contrast: int, gamma: float, highlight_cap: int, sharpness: int, dither_mode: string, threshold: int}
@@ -796,6 +821,9 @@ class LaserPhotoPreprocessor
     public static function normalizePolarity(?string $raw, bool $isDarkSurfaceFallback = false): string
     {
         $p = mb_strtolower(trim((string) $raw));
+        if (in_array($p, ['frost_on_glass', 'glass_frost', 'crystal_frost'], true)) {
+            return self::POLARITY_FROST_ON_GLASS;
+        }
         if (in_array($p, ['white_on_dark', 'light', 'frosted', 'white', 'silver_on_black'], true)) {
             return self::POLARITY_WHITE_ON_DARK;
         }
@@ -813,6 +841,19 @@ class LaserPhotoPreprocessor
     public static function densityFromLuminance(float $lum, string $polarity, ?int $dpi = null): float
     {
         $lum = max(0.0, min(1.0, $lum));
+
+        if ($polarity === self::POLARITY_FROST_ON_GLASS) {
+            if ($lum <= self::GLASS_SHADOW_FLOOR) {
+                return 0.0;
+            }
+            $knee = 1.0;
+            if ($lum < self::GLASS_SHADOW_KNEE) {
+                $t = ($lum - self::GLASS_SHADOW_FLOOR) / (self::GLASS_SHADOW_KNEE - self::GLASS_SHADOW_FLOOR);
+                $knee = $t * $t * (3.0 - (2.0 * $t));
+            }
+
+            return min(self::GLASS_HIGHLIGHT_CAP, self::GLASS_HIGHLIGHT_CAP * pow($lum, self::GLASS_FROST_GAMMA) * $knee);
+        }
 
         if ($polarity === self::POLARITY_WHITE_ON_DARK) {
             if ($lum <= self::SHADOW_FLOOR) {
@@ -930,7 +971,7 @@ class LaserPhotoPreprocessor
         if ($maxRgbChannel > 10 || $visiblePixels <= 0) {
             return 'rgb';
         }
-        if ($polarity === self::POLARITY_WHITE_ON_DARK && ($strongMaskPixels / max(1, $visiblePixels)) < 0.02) {
+        if (in_array($polarity, [self::POLARITY_WHITE_ON_DARK, self::POLARITY_FROST_ON_GLASS], true) && ($strongMaskPixels / max(1, $visiblePixels)) < 0.02) {
             return 'mask_dark';
         }
 
@@ -1019,7 +1060,8 @@ class LaserPhotoPreprocessor
         $pLow = $this->percentileFromHistogram($hist, $visible, self::STRETCH_LOW_PERCENTILE) / 255.0;
         $pHigh = $this->percentileFromHistogram($hist, $visible, self::STRETCH_HIGH_PERCENTILE) / 255.0;
         $span = $pHigh - $pLow;
-        $headroom = ($polarity === self::POLARITY_WHITE_ON_DARK && $dpi >= 600)
+        $isLightFrostPolarity = in_array($polarity, [self::POLARITY_WHITE_ON_DARK, self::POLARITY_FROST_ON_GLASS], true);
+        $headroom = ($isLightFrostPolarity && $dpi >= 600)
             ? self::STRETCH_HEADROOM_600DPI
             : self::STRETCH_HEADROOM;
 
@@ -1029,7 +1071,7 @@ class LaserPhotoPreprocessor
             $t = $span >= 0.06 ? max(0.0, min(1.0, ($l - $pLow) / $span)) : $l;
             $t = self::applySCurve($t);
             if ($span >= 0.06) {
-                $l = ($polarity === self::POLARITY_WHITE_ON_DARK)
+                $l = $isLightFrostPolarity
                     ? $t * $headroom
                     : (1.0 - self::STRETCH_HEADROOM) + ($t * self::STRETCH_HEADROOM);
             } else {

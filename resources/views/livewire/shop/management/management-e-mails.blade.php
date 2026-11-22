@@ -1,4 +1,5 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" 
+<div wire:poll.60s.visible
+     style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" 
      x-data="{ 
          mobileView: '{{ $viewMode === 'account_settings' ? 'settings' : ($selectedMessageId ? 'detail' : 'folders') }}',
          sidebarWidth: parseInt(localStorage.getItem('admin_email_sidebar_width') || '288'),
@@ -385,6 +386,16 @@
                         <x-heroicon-o-user-plus class="w-5 h-5 text-blue-500" />
                         <span class="hidden xl:inline">Kontakt anlegen</span>
                     </button>
+                    <button wire:click="openAiReplyDraft({{ $selectedMessage->id }})" class="p-2 text-gray-700 hover:text-[var(--theme-color)] hover:bg-[var(--theme-color-10)] dark:text-gray-300 dark:hover:text-[var(--theme-color)] dark:hover:bg-[var(--theme-color-10)] rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold" title="Faktengeprüften KI-Antwortentwurf öffnen">
+                        <x-heroicon-o-sparkles class="w-5 h-5 text-[var(--theme-color)]" />
+                        <span class="hidden xl:inline">KI-Antwort</span>
+                    </button>
+                    @if($selectedMessage->attachments && $selectedMessage->attachments->count() > 0)
+                        <button wire:click="bookReceiptFromMail({{ $selectedMessage->id }})" wire:loading.attr="disabled" class="p-2 text-gray-700 hover:text-emerald-600 hover:bg-emerald-50 dark:text-gray-300 dark:hover:text-emerald-400 dark:hover:bg-emerald-950/40 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold" title="Rechnungsanhang per Buchi als Sonderausgabe prüfen und buchen">
+                            <x-heroicon-o-banknotes class="w-5 h-5 text-emerald-500" />
+                            <span class="hidden xl:inline">Beleg buchen</span>
+                        </button>
+                    @endif
                 </div>
                 <div class="text-xs text-gray-500">
                     {{ $selectedMessage->received_at ? $selectedMessage->received_at->format('d.m.Y H:i') : '' }}

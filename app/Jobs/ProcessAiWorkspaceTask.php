@@ -366,7 +366,9 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                     'content' => "Alle Schritte sind abgeschlossen. Bitte bestätige den Abschluss der Aufgabe. WICHTIG: Halte dich extrem kurz (max. 1-2 Sätze). Beginne mit 'Verstanden, ich habe...' oder 'Erledigt'. Verzichte vollständig auf technische Details, Erklärungen oder Zusammenfassungen der einzelnen Schritte."
                 ];
                 $finalRespArray = $apiService->ask($history);
-                $finalResponse = $finalRespArray['response'] ?? 'Aufgabe erfolgreich abgeschlossen.';
+                $finalResponse = \App\Services\AI\AiOutputQualityGate::sanitizeText(
+                    (string) ($finalRespArray['response'] ?? 'Aufgabe erfolgreich abgeschlossen.')
+                );
 
                 $this->task->update([
                     'status' => 'completed',
@@ -374,9 +376,12 @@ class ProcessAiWorkspaceTask implements ShouldQueue
                     'completed_at' => now(),
                 ]);
             } else if ($isAllPlanStepsCompleted) {
+                $cleanFallback = \App\Services\AI\AiOutputQualityGate::sanitizeText(
+                    (string) ($this->task->response_content ?: 'Alle definierten Schritte wurden erfolgreich abgeschlossen.')
+                );
                 $this->task->update([
                     'status' => 'completed',
-                    'response_content' => $this->task->response_content ?: 'Alle definierten Schritte wurden erfolgreich abgeschlossen.',
+                    'response_content' => $cleanFallback,
                     'completed_at' => now(),
                 ]);
             }

@@ -881,7 +881,7 @@
                             return;
                         }
                         const list = this.normalizeArray(this.logos);
-                        if (list.length > 0 && this.context !== 'preview' && !this.isPerformingHistoryAction) {
+                        if (list.length > 0 && this.context !== 'preview' && !this.isPerformingHistoryAction && !this.config.isBeginnerMode) {
                             const frontTexts = this.normalizeArray(this.texts);
                             if (frontTexts.length > 0 && frontTexts.every(t => !t || !t.text || String(t.text).trim() === '')) {
                                 this.focusedTextId = null;
@@ -917,7 +917,7 @@
                             return;
                         }
                         const list = this.normalizeArray(this.logos_back);
-                        if (list.length > 0 && this.context !== 'preview' && !this.isPerformingHistoryAction) {
+                        if (list.length > 0 && this.context !== 'preview' && !this.isPerformingHistoryAction && !this.config.isBeginnerMode) {
                             const backTexts = this.normalizeArray(this.texts_back);
                             if (backTexts.length > 0 && backTexts.every(t => !t || !t.text || String(t.text).trim() === '')) {
                                 this.focusedTextId = null;
@@ -1333,7 +1333,7 @@
                 const backTexts = this.normalizeArray(this.texts_back);
                 const backLogos = this.normalizeArray(this.logos_back);
 
-                if (side === 'back' && backTexts.length === 0 && backLogos.length === 0 && this.context !== 'preview') {
+                if (side === 'back' && backTexts.length === 0 && backLogos.length === 0 && this.context !== 'preview' && !this.config.isBeginnerMode) {
                     const newId = Math.random().toString(36).substr(2, 9);
                     const newItem = {
                         id: newId,
@@ -1564,10 +1564,13 @@
                 return null;
             },
 
-            formatBeginnerTextForStage(rawText) {
+            formatBeginnerTextForStage(rawText, customWidthPct = null) {
                 const normalized = String(rawText || '').replace(/\r\n|\r/g, '\n').trim();
                 if (!normalized) return '';
-                const maxCharsPerLine = Math.max(12, Math.min(28, Math.round(this.getWorkingAreaWidthPercent() * 0.56)));
+                const widthPct = (customWidthPct !== null && Number(customWidthPct) > 0)
+                    ? Number(customWidthPct)
+                    : this.getWorkingAreaWidthPercent();
+                const maxCharsPerLine = Math.max(12, Math.min(28, Math.round(widthPct * 0.56)));
                 const rawLines = normalized.split('\n');
                 const wrapped = [];
 
@@ -1596,6 +1599,362 @@
                 return wrapped.slice(0, 5).join('\n');
             },
 
+            getBeginnerFontWidthFactor(fontName) {
+                const fLower = String(fontName || 'Arial').trim().toLowerCase();
+                if (['cinzel', 'bebas neue', 'montserrat', 'comfortaa'].includes(fLower)) return 0.62;
+                if (['dancing script', 'great vibes', 'alex brush', 'sacramento', 'pacifico', 'allura'].includes(fLower)) return 0.48;
+                return 0.55;
+            },
+
+            getEffectiveShapeGeometryForSide(side = 'front') {
+                const isMirroredBack = Boolean(side === 'back' && this.config?.has_back_side && this.config?.overlay_type !== 'cylinder');
+                const areaShape = String(this.config?.area_shape || 'rect');
+
+                if (areaShape === 'custom' && Array.isArray(this.config?.custom_points) && this.config.custom_points.length >= 3) {
+                    let pts = [];
+                    this.config.custom_points.forEach(p => {
+                        if (p && isFinite(Number(p.x)) && isFinite(Number(p.y))) {
+                            const px = Number(p.x);
+                            const py = Number(p.y);
+                            pts.push({
+                                x: isMirroredBack ? Math.round((100 - px) * 1000) / 1000 : px,
+                                y: py
+                            });
+                        }
+                    });
+                    if (isMirroredBack && pts.length >= 3) {
+                        pts = pts.slice().reverse();
+                    }
+                    if (pts.length >= 3) {
+                        const xs = pts.map(p => p.x);
+                        const ys = pts.map(p => p.y);
+                        return {
+                            shape: 'custom',
+                            is_mirrored: isMirroredBack,
+                            points: pts,
+                            min_x: Math.min(...xs),
+                            max_x: Math.max(...xs),
+                            min_y: Math.min(...ys),
+                            max_y: Math.max(...ys)
+                        };
+                    }
+                }
+
+                const rawLeft = Number(this.config?.area_left ?? 25);
+                const top = Number(this.config?.area_top ?? 25);
+                const width = Math.max(6, Number(this.config?.area_width ?? 50));
+                const height = Math.max(6, Number(this.config?.area_height ?? 50));
+                const left = isMirroredBack ? Math.max(0, Math.min(100, 100 - rawLeft - width)) : rawLeft;
+
+                return {
+                    shape: areaShape === 'circle' ? 'circle' : 'rect',
+                    is_mirrored: isMirroredBack,
+                    points: [],
+                    min_x: left,
+                    max_x: left + width,
+                    min_y: top,
+                    max_y: top + height
+                };
+            },
+
+            pickRayIntervalContaining(hits, hint) {
+                if (!Array.isArray(hits) || hits.length < 2) return null;
+                const sorted = hits.slice().sort((a, b) => a - b);
+                let bestPair = null;
+                let bestDist = Infinity;
+                for (let i = 0; i + 1 < sorted.length; i += 2) {
+                    const a = Number(sorted[i]);
+                    const b = Number(sorted[i + 1]);
+                    if ((b - a) < 1.5) continue;
+                    if (hint >= (a - 0.05) && hint <= (b + 0.05)) {
+                        return [a, b];
+                    }
+                    const dist = hint < a ? (a - hint) : (hint - b);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        bestPair = [a, b];
+                    }
+                }
+                return bestPair;
+            },
+
+            measureVerticalSafeSpanAtX(geom, anchorX, hintY) {
+                const shape = geom.shape || 'rect';
+                const sliceAtX = (px) => {
+                    if (shape === 'custom' && geom.points && geom.points.length >= 3) {
+                        const pts = geom.points;
+                        const n = pts.length;
+                        const hits = [];
+                        for (let i = 0; i < n; i++) {
+                            const p1 = pts[i];
+                            const p2 = pts[(i + 1) % n];
+                            const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+                            if (((x1 <= px && x2 > px) || (x2 <= px && x1 > px)) && Math.abs(x2 - x1) > 1e-6) {
+                                const t = (px - x1) / (x2 - x1);
+                                hits.push(y1 + t * (y2 - y1));
+                            }
+                        }
+                        return this.pickRayIntervalContaining(hits, hintY);
+                    }
+                    if (shape === 'circle') {
+                        const cx = (geom.min_x + geom.max_x) / 2;
+                        const cy = (geom.min_y + geom.max_y) / 2;
+                        const rx = Math.max(3, (geom.max_x - geom.min_x) / 2);
+                        const ry = Math.max(3, (geom.max_y - geom.min_y) / 2);
+                        const dxNorm = (px - cx) / rx;
+                        if (Math.abs(dxNorm) >= 0.98) return null;
+                        const dy = ry * Math.sqrt(Math.max(0, 1 - dxNorm * dxNorm));
+                        return [cy - dy, cy + dy];
+                    }
+                    return [geom.min_y, geom.max_y];
+                };
+
+                const tops = [];
+                const bottoms = [];
+                [-3, 0, 3].forEach(offset => {
+                    const pair = sliceAtX(anchorX + offset);
+                    if (pair) {
+                        tops.push(pair[0]);
+                        bottoms.push(pair[1]);
+                    }
+                });
+
+                let rawTop, rawBottom;
+                if (tops.length > 0 && (Math.min(...bottoms) - Math.max(...tops)) >= 6) {
+                    rawTop = Math.max(...tops);
+                    rawBottom = Math.min(...bottoms);
+                } else {
+                    const centerPair = sliceAtX(anchorX);
+                    if (centerPair && (centerPair[1] - centerPair[0]) >= 6) {
+                        rawTop = centerPair[0];
+                        rawBottom = centerPair[1];
+                    } else {
+                        rawTop = Number(geom.min_y ?? 25);
+                        rawBottom = Number(geom.max_y ?? 75);
+                    }
+                }
+
+                const span = Math.max(6, rawBottom - rawTop);
+                const padY = Math.max(1.1, Math.min(2.4, span * 0.065));
+                return {
+                    raw_top: Math.round(rawTop * 100) / 100,
+                    raw_bottom: Math.round(rawBottom * 100) / 100,
+                    safe_top: Math.round((rawTop + padY) * 100) / 100,
+                    safe_bottom: Math.round((rawBottom - padY) * 100) / 100
+                };
+            },
+
+            measureHorizontalSafeWidthInBand(geom, anchorX, yMin, yMax) {
+                const shape = geom.shape || 'rect';
+                const bTop = Math.min(yMin, yMax);
+                const bBot = Math.max(yMin, yMax);
+                const bandH = Math.max(0.5, bBot - bTop);
+
+                const sliceAtY = (py) => {
+                    if (shape === 'custom' && geom.points && geom.points.length >= 3) {
+                        const pts = geom.points;
+                        const n = pts.length;
+                        const hits = [];
+                        for (let i = 0; i < n; i++) {
+                            const p1 = pts[i];
+                            const p2 = pts[(i + 1) % n];
+                            const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+                            if (((y1 <= py && y2 > py) || (y2 <= py && y1 > py)) && Math.abs(y2 - y1) > 1e-6) {
+                                const t = (py - y1) / (y2 - y1);
+                                hits.push(x1 + t * (x2 - x1));
+                            }
+                        }
+                        return this.pickRayIntervalContaining(hits, anchorX);
+                    }
+                    if (shape === 'circle') {
+                        const cx = (geom.min_x + geom.max_x) / 2;
+                        const cy = (geom.min_y + geom.max_y) / 2;
+                        const rx = Math.max(3, (geom.max_x - geom.min_x) / 2);
+                        const ry = Math.max(3, (geom.max_y - geom.min_y) / 2);
+                        const dyNorm = (py - cy) / ry;
+                        if (Math.abs(dyNorm) >= 0.98) return null;
+                        const dx = rx * Math.sqrt(Math.max(0, 1 - dyNorm * dyNorm));
+                        return [cx - dx, cx + dx];
+                    }
+                    return [geom.min_x, geom.max_x];
+                };
+
+                const symWidths = [];
+                [0.10, 0.30, 0.50, 0.70, 0.90].forEach(ratio => {
+                    const py = bTop + bandH * ratio;
+                    const pair = sliceAtY(py);
+                    if (pair) {
+                        const leftDist = anchorX - pair[0];
+                        const rightDist = pair[1] - anchorX;
+                        if (leftDist > 2 && rightDist > 2) {
+                            symWidths.push(2 * Math.min(leftDist, rightDist));
+                        }
+                    }
+                });
+
+                const rawWidth = symWidths.length > 0
+                    ? Math.min(...symWidths)
+                    : Math.max(10, Number(geom.max_x ?? 75) - Number(geom.min_x ?? 25));
+
+                return Math.round(Math.max(8, rawWidth - 2.4) * 100) / 100;
+            },
+
+            solveSmartBeginnerSideLayout(side, symbolRelPath, rawText, fontName, coords, existingLogoId = 'beginner_symbol_1', existingTextId = 'beginner_text_1') {
+                const geom = this.getEffectiveShapeGeometryForSide(side);
+                const isMirrored = Boolean(geom.is_mirrored);
+                const round2 = (v) => Math.round(Number(v) * 100) / 100;
+                const round1 = (v) => Math.round(Number(v) * 10) / 10;
+
+                const symX = isMirrored ? round2(100 - Number(coords.symbol_x ?? 50)) : round2(Number(coords.symbol_x ?? 50));
+                const txtX = isMirrored ? round2(100 - Number(coords.text_x ?? 50)) : round2(Number(coords.text_x ?? 50));
+                const centerX = isMirrored ? round2(100 - Number(coords.center_x ?? 50)) : round2(Number(coords.center_x ?? 50));
+                const centerY = round2(Number(coords.center_y ?? 50));
+
+                const vSpan = this.measureVerticalSafeSpanAtX(geom, centerX, centerY);
+                const safeTop = Number(vSpan.safe_top);
+                const safeBottom = Number(vSpan.safe_bottom);
+                const availH = Math.max(6, safeBottom - safeTop);
+                const opticalMidY = round2((safeTop + safeBottom) / 2);
+
+                const midSafeW = this.measureHorizontalSafeWidthInBand(geom, txtX, safeTop + availH * 0.15, safeBottom - availH * 0.15);
+                const displayText = this.formatBeginnerTextForStage(rawText, midSafeW);
+                const hasSymbol = Boolean(symbolRelPath && String(symbolRelPath).trim() !== '');
+                const hasText = Boolean(displayText && displayText.length > 0);
+
+                if (!hasSymbol && !hasText) {
+                    return { logo: null, text: null };
+                }
+
+                let symSize = Number(coords.symbol_size ?? 64);
+                const baseTxtSize = Number(coords.text_size ?? 0.95);
+                const fontWidthFactor = this.getBeginnerFontWidthFactor(fontName);
+
+                const lines = hasText ? displayText.split('\n') : [];
+                const lineCount = lines.length;
+                let maxLineChars = 0;
+                lines.forEach(ln => {
+                    const charLen = Array.from(ln).length;
+                    if (charLen > maxLineChars) maxLineChars = charLen;
+                });
+
+                let txtSize = baseTxtSize;
+                if (lineCount === 2) {
+                    txtSize = baseTxtSize * 0.90;
+                } else if (lineCount >= 3) {
+                    txtSize = baseTxtSize * Math.max(0.60, 0.80 - ((lineCount - 3) * 0.07));
+                }
+
+                let finalSymY = round2(Number(coords.symbol_y ?? opticalMidY));
+                let finalTxtY = round2(Number(coords.text_y ?? opticalMidY));
+
+                if (hasSymbol && !hasText) {
+                    let symH = symSize * 0.19;
+                    if (symH > availH * 0.86) {
+                        symSize = (availH * 0.86) / 0.19;
+                        symH = symSize * 0.19;
+                    }
+                    finalSymY = opticalMidY;
+                    const symSafeW = this.measureHorizontalSafeWidthInBand(geom, symX, finalSymY - symH * 0.42, finalSymY + symH * 0.42);
+                    if (symSize * 0.19 > symSafeW * 0.92) {
+                        symSize = (symSafeW * 0.92) / 0.19;
+                    }
+                    symSize = round1(Math.max(22, symSize));
+                } else if (!hasSymbol && hasText) {
+                    let txtH = lineCount * 4.60 * txtSize;
+                    if (txtH > availH * 0.92) {
+                        txtSize *= (availH * 0.92) / txtH;
+                        txtH = lineCount * 4.60 * txtSize;
+                    }
+                    if ((centerY - txtH / 2) >= (safeTop - 0.3) && (centerY + txtH / 2) <= (safeBottom + 0.3)) {
+                        finalTxtY = centerY;
+                    } else {
+                        finalTxtY = opticalMidY;
+                    }
+                    const txtSafeW = this.measureHorizontalSafeWidthInBand(geom, txtX, finalTxtY - txtH * 0.42, finalTxtY + txtH * 0.42);
+                    const estTxtW = (maxLineChars * 4.0 * fontWidthFactor * txtSize) + 1.6;
+                    if (estTxtW > txtSafeW && estTxtW > 0.1) {
+                        txtSize *= (txtSafeW / estTxtW);
+                    }
+                    txtSize = round2(Math.max(0.42, txtSize));
+                } else {
+                    const minGap = Math.max(1.4, Math.min(2.8, availH * 0.08));
+                    let symH = symSize * 0.19;
+                    let txtH = lineCount * 4.60 * txtSize;
+
+                    if ((symH + minGap + txtH) > availH) {
+                        const availForElements = Math.max(4, availH - minGap);
+                        const vScale = availForElements / Math.max(1, symH + txtH);
+                        symSize = Math.max(22, symSize * vScale);
+                        txtSize = Math.max(0.42, txtSize * vScale);
+                        symH = symSize * 0.19;
+                        txtH = lineCount * 4.60 * txtSize;
+                    }
+
+                    const curSymY = Number(coords.symbol_y ?? opticalMidY);
+                    const curTxtY = Number(coords.text_y ?? opticalMidY);
+                    const curFitsTop = (curSymY - symH / 2) >= (safeTop - 0.3);
+                    const curFitsBottom = (curTxtY + txtH / 2) <= (safeBottom + 0.3);
+                    const curGapOk = ((curTxtY - txtH / 2) - (curSymY + symH / 2)) >= (minGap - 0.2);
+
+                    if (curFitsTop && curFitsBottom && curGapOk) {
+                        finalSymY = round2(curSymY);
+                        finalTxtY = round2(curTxtY);
+                    } else {
+                        const effGap = Math.min(minGap, Math.max(0.9, availH - symH - txtH));
+                        const totalStackH = symH + effGap + txtH;
+                        const stackTop = safeTop + Math.max(0, (availH - totalStackH) / 2);
+                        finalSymY = round2(stackTop + symH / 2);
+                        finalTxtY = round2(stackTop + symH + effGap + txtH / 2);
+                    }
+
+                    const symSafeW = this.measureHorizontalSafeWidthInBand(geom, symX, finalSymY - symH * 0.42, finalSymY + symH * 0.42);
+                    if (symSize * 0.19 > symSafeW * 0.92) {
+                        symSize = Math.max(22, (symSafeW * 0.92) / 0.19);
+                    }
+
+                    const txtSafeW = this.measureHorizontalSafeWidthInBand(geom, txtX, finalTxtY - txtH * 0.42, finalTxtY + txtH * 0.42);
+                    const estTxtW = (maxLineChars * 4.0 * fontWidthFactor * txtSize) + 1.6;
+                    if (estTxtW > txtSafeW && estTxtW > 0.1) {
+                        txtSize = Math.max(0.42, txtSize * (txtSafeW / estTxtW));
+                    }
+
+                    symSize = round1(symSize);
+                    txtSize = round2(txtSize);
+                }
+
+                let logoItem = null;
+                if (hasSymbol) {
+                    const cleanRel = String(symbolRelPath).replace(/^\/+/, '');
+                    const vectorVal = 'vectors/' + cleanRel;
+                    logoItem = {
+                        id: existingLogoId,
+                        type: 'vector',
+                        value: vectorVal,
+                        url: window.location.origin + '/storage/produkte/configurator/vectors/' + cleanRel,
+                        x: symX,
+                        y: finalSymY,
+                        size: symSize,
+                        rotation: 0
+                    };
+                }
+
+                let textItem = null;
+                if (hasText) {
+                    textItem = {
+                        id: existingTextId,
+                        text: displayText,
+                        font: fontName,
+                        align: 'center',
+                        x: txtX,
+                        y: finalTxtY,
+                        size: txtSize,
+                        rotation: 0
+                    };
+                }
+
+                return { logo: logoItem, text: textItem };
+            },
+
             syncBeginnerInputsToStage(forSave = false, explicitFont = null) {
                 if (!this.config || !this.config.isBeginnerMode || this.context === 'preview') return;
                 const containerEl = document.querySelector('[data-custom-fields-container]')
@@ -1605,24 +1964,29 @@
                 if (!inputs || inputs.length === 0) return;
 
                 const coords = this.config.beginnerCoords || {
-                    symbol_x: this.areaCenterX,
+                    symbol_x: 50,
                     symbol_y: 38,
-                    symbol_size: 80,
-                    text_x: this.areaCenterX,
+                    symbol_size: 64,
+                    text_x: 50,
                     text_y: 64,
                     text_size: 0.95,
-                    center_x: this.areaCenterX,
-                    center_y: this.areaCenterY
+                    center_x: 50,
+                    center_y: 50
                 };
+                const hasBackSide = Boolean(this.config.has_back_side);
 
                 let chosenFont = explicitFont || 'Arial';
-                let matchedSymbolRel = null;
-                let textLines = [];
+                let frontSymbolRel = null;
+                let backSymbolRel = null;
+                let frontTextLines = [];
+                let backTextLines = [];
                 let fallbackPlaceholder = 'Dein Wunschtext';
 
                 inputs.forEach(el => {
                     const fType = el.getAttribute('data-custom-field-type') || 'text';
                     const fRole = el.getAttribute('data-custom-field-role') || '';
+                    const rawSideAttr = (el.getAttribute('data-custom-field-side') || 'front').toLowerCase();
+                    const effectiveSide = (hasBackSide && rawSideAttr === 'back') ? 'back' : 'front';
                     const rawVal = String(el.value || '').replace(/\r\n|\r/g, '\n').trim();
 
                     if (fType === 'font') {
@@ -1630,7 +1994,12 @@
                         return;
                     }
                     if (fType === 'select' && fRole === 'symbol') {
-                        matchedSymbolRel = this.resolveBeginnerSymbolRelPath(rawVal);
+                        const resolvedSym = this.resolveBeginnerSymbolRelPath(rawVal);
+                        if (effectiveSide === 'back') {
+                            backSymbolRel = resolvedSym;
+                        } else {
+                            frontSymbolRel = resolvedSym;
+                        }
                         return;
                     }
 
@@ -1641,13 +2010,16 @@
                     }
 
                     if (cleanVal && !['kein symbol', 'keine', 'nein', '-'].includes(cleanVal.toLowerCase())) {
-                        const maybeSym = (fType === 'select' && !matchedSymbolRel) ? this.resolveBeginnerSymbolRelPath(cleanVal) : null;
+                        const curSideSym = effectiveSide === 'back' ? backSymbolRel : frontSymbolRel;
+                        const maybeSym = (fType === 'select' && !curSideSym) ? this.resolveBeginnerSymbolRelPath(cleanVal) : null;
                         if (maybeSym) {
-                            matchedSymbolRel = maybeSym;
+                            if (effectiveSide === 'back') backSymbolRel = maybeSym;
+                            else frontSymbolRel = maybeSym;
                         } else {
-                            textLines.push(cleanVal);
+                            if (effectiveSide === 'back') backTextLines.push(cleanVal);
+                            else frontTextLines.push(cleanVal);
                         }
-                    } else if (el.getAttribute('data-custom-field-required') === '1') {
+                    } else if (effectiveSide === 'front' && el.getAttribute('data-custom-field-required') === '1') {
                         const ph = String(el.getAttribute('data-custom-field-placeholder') || '').replace(/^z\.\s*B\.\s*/i, '').trim();
                         if (ph && fallbackPlaceholder === 'Dein Wunschtext') {
                             fallbackPlaceholder = ph;
@@ -1655,68 +2027,55 @@
                     }
                 });
 
-                if (matchedSymbolRel) {
-                    const vectorVal = 'vectors/' + matchedSymbolRel;
-                    const vectorUrl = window.location.origin + '/storage/produkte/configurator/vectors/' + matchedSymbolRel;
-                    const targetSymX = Number(coords.symbol_x ?? this.areaCenterX);
-                    const targetSymY = Number(coords.symbol_y ?? 38);
-                    const targetSymSize = Number(coords.symbol_size ?? 80);
-                    const currentLogosList = this.normalizeArray(this.logos);
-
-                    if (
-                        currentLogosList.length !== 1 ||
-                        currentLogosList[0]?.value !== vectorVal ||
-                        Number(currentLogosList[0]?.x) !== targetSymX ||
-                        Number(currentLogosList[0]?.y) !== targetSymY ||
-                        Number(currentLogosList[0]?.size) !== targetSymSize
-                    ) {
-                        this.logos = [{
-                            id: 'beginner_symbol_1',
-                            type: 'vector',
-                            value: vectorVal,
-                            url: vectorUrl,
-                            x: targetSymX,
-                            y: targetSymY,
-                            size: targetSymSize,
-                            rotation: 0
-                        }];
+                const applySideState = (logosProp, textsProp, layout) => {
+                    const curLogos = this.normalizeArray(this[logosProp]);
+                    if (layout.logo) {
+                        const l = layout.logo;
+                        if (
+                            curLogos.length !== 1 ||
+                            curLogos[0]?.value !== l.value ||
+                            Number(curLogos[0]?.x) !== l.x ||
+                            Number(curLogos[0]?.y) !== l.y ||
+                            Number(curLogos[0]?.size) !== l.size
+                        ) {
+                            this[logosProp] = [l];
+                        }
+                    } else if (curLogos.length > 0) {
+                        this[logosProp] = [];
                     }
-                } else if (this.normalizeArray(this.logos).length > 0) {
-                    this.logos = [];
-                }
 
-                const rawDisplayText = textLines.length > 0 ? textLines.join('\n') : (forSave ? '' : fallbackPlaceholder);
-                const displayText = this.formatBeginnerTextForStage(rawDisplayText);
-                if (displayText) {
-                    const lineCount = displayText.split('\n').length;
-                    const baseSize = Number(coords.text_size ?? 0.95);
-                    const effectiveSize = lineCount === 2
-                        ? Math.round(baseSize * 0.90 * 100) / 100
-                        : (lineCount >= 3 ? Math.round(baseSize * 0.80 * 100) / 100 : baseSize);
-                    const targetTextX = Number(coords.text_x ?? this.areaCenterX);
-                    const targetTextY = Number(matchedSymbolRel ? (coords.text_y ?? 64) : (coords.center_y ?? this.areaCenterY));
-                    const currentTextsList = this.normalizeArray(this.texts);
-
-                    if (currentTextsList.length === 1 && currentTextsList[0] && this.texts && this.texts[0]) {
-                        if (this.texts[0].text !== displayText) this.texts[0].text = displayText;
-                        if (this.texts[0].font !== chosenFont) this.texts[0].font = chosenFont;
-                        if (Number(this.texts[0].x) !== targetTextX) this.texts[0].x = targetTextX;
-                        if (Number(this.texts[0].y) !== targetTextY) this.texts[0].y = targetTextY;
-                        if (Number(this.texts[0].size) !== effectiveSize) this.texts[0].size = effectiveSize;
-                    } else {
-                        this.texts = [{
-                            id: 'beginner_text_1',
-                            text: displayText,
-                            font: chosenFont,
-                            align: 'center',
-                            x: targetTextX,
-                            y: targetTextY,
-                            size: effectiveSize,
-                            rotation: 0
-                        }];
+                    const curTexts = this.normalizeArray(this[textsProp]);
+                    if (layout.text) {
+                        const t = layout.text;
+                        if (curTexts.length === 1 && curTexts[0] && this[textsProp] && this[textsProp][0]) {
+                            if (this[textsProp][0].text !== t.text) this[textsProp][0].text = t.text;
+                            if (this[textsProp][0].font !== t.font) this[textsProp][0].font = t.font;
+                            if (Number(this[textsProp][0].x) !== t.x) this[textsProp][0].x = t.x;
+                            if (Number(this[textsProp][0].y) !== t.y) this[textsProp][0].y = t.y;
+                            if (Number(this[textsProp][0].size) !== t.size) this[textsProp][0].size = t.size;
+                        } else {
+                            this[textsProp] = [t];
+                        }
+                    } else if (curTexts.length > 0) {
+                        this[textsProp] = [];
                     }
-                } else if (this.normalizeArray(this.texts).length > 0) {
-                    this.texts = [];
+                };
+
+                const rawFrontText = frontTextLines.length > 0 ? frontTextLines.join('\n') : (forSave ? '' : fallbackPlaceholder);
+                const curFrontLogoId = (this.normalizeArray(this.logos)[0]?.id) || 'beginner_symbol_1';
+                const curFrontTextId = (this.normalizeArray(this.texts)[0]?.id) || 'beginner_text_1';
+                const frontLayout = this.solveSmartBeginnerSideLayout('front', frontSymbolRel, rawFrontText, chosenFont, coords, curFrontLogoId, curFrontTextId);
+                applySideState('logos', 'texts', frontLayout);
+
+                if (hasBackSide && (backSymbolRel || backTextLines.length > 0)) {
+                    const rawBackText = backTextLines.join('\n');
+                    const curBackLogoId = (this.normalizeArray(this.logos_back)[0]?.id) || 'beginner_symbol_back_1';
+                    const curBackTextId = (this.normalizeArray(this.texts_back)[0]?.id) || 'beginner_text_back_1';
+                    const backLayout = this.solveSmartBeginnerSideLayout('back', backSymbolRel, rawBackText, chosenFont, coords, curBackLogoId, curBackTextId);
+                    applySideState('logos_back', 'texts_back', backLayout);
+                } else {
+                    if (this.normalizeArray(this.logos_back).length > 0) this.logos_back = [];
+                    if (this.normalizeArray(this.texts_back).length > 0) this.texts_back = [];
                 }
 
                 this.updateTexture();
@@ -2304,6 +2663,10 @@
                             const cfId = el.getAttribute('data-custom-field-id');
                             if (cfId) {
                                 $wire.set('customFieldValues.' + cfId, el.value ?? '', false);
+                                const cfSide = el.getAttribute('data-custom-field-side');
+                                if (cfSide === 'front' || cfSide === 'back') {
+                                    $wire.set('customFieldSides.' + cfId, cfSide, false);
+                                }
                             }
                         });
                     }

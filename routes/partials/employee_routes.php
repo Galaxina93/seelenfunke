@@ -226,6 +226,10 @@ Route::middleware(['auth:employee'])->group(function () {
 
         // Steuerberater: Mitarbeiter-Arbeitsvertrag PDF
         Route::get('/employee/tax-advisor/employee-contract/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
+            $employee = auth('employee')->user();
+            if (!$employee || !$employee->isTaxAdvisor() || (method_exists($employee, 'isAccountActive') && !$employee->isAccountActive())) {
+                abort(403, 'Zugriff verweigert.');
+            }
             if ($contract->invitation_accepted_at === null) {
                 abort(404);
             }
@@ -251,6 +255,10 @@ Route::middleware(['auth:employee'])->group(function () {
 
         // Steuerberater: Mitarbeiter-Personalfragebogen (ELStAM / DEÜV) PDF
         Route::get('/employee/tax-advisor/employee-questionnaire/{contract}/pdf', function (\App\Models\Employee\EmployeeContract $contract) {
+            $employee = auth('employee')->user();
+            if (!$employee || !$employee->isTaxAdvisor() || (method_exists($employee, 'isAccountActive') && !$employee->isAccountActive())) {
+                abort(403, 'Zugriff verweigert.');
+            }
             if ($contract->invitation_accepted_at === null) {
                 abort(404);
             }
@@ -276,6 +284,10 @@ Route::middleware(['auth:employee'])->group(function () {
 
         // Steuerberater: Mitarbeiter-Stundenzettel PDF
         Route::get('/employee/tax-advisor/employee-timesheet/{contract}/{year}/{month}/pdf', function (\App\Models\Employee\EmployeeContract $contract, int $year, int $month) {
+            $employee = auth('employee')->user();
+            if (!$employee || !$employee->isTaxAdvisor() || (method_exists($employee, 'isAccountActive') && !$employee->isAccountActive())) {
+                abort(403, 'Zugriff verweigert.');
+            }
             if ($contract->invitation_accepted_at === null || $year < 2000 || $year > 2100 || $month < 1 || $month > 12) {
                 abort(404);
             }

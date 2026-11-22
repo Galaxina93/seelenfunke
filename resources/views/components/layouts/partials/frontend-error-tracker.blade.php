@@ -75,19 +75,22 @@
         let wireNavTimer = null;
         const seenErrorSignatures = new Set();
 
-        document.addEventListener('livewire:navigating', function() {
+        function markWireNavigating() {
             window.__sfWireNavigating = true;
             if (wireNavTimer) clearTimeout(wireNavTimer);
             wireNavTimer = setTimeout(function() {
                 window.__sfWireNavigating = false;
             }, 2500);
-        });
+        }
+
+        document.addEventListener('livewire:navigate', markWireNavigating);
+        document.addEventListener('livewire:navigating', markWireNavigating);
 
         document.addEventListener('livewire:navigated', function() {
             if (wireNavTimer) clearTimeout(wireNavTimer);
             wireNavTimer = setTimeout(function() {
                 window.__sfWireNavigating = false;
-            }, 450);
+            }, 600);
         });
 
         window.addEventListener('beforeunload', function() { window.__sfPageUnloading = true; });
@@ -132,15 +135,32 @@
             }
             seenErrorSignatures.add(sig);
 
+            let activeLwComponents = [];
+            try {
+                if (window.Livewire && typeof window.Livewire.all === 'function') {
+                    activeLwComponents = window.Livewire.all().map(c => c.name).filter(Boolean).slice(0, 10);
+                }
+            } catch (e) {}
+
+            let alpineExpr = '';
+            const exprMatch = msgStr.match(/Expression:\s*"([^"]+)"/i);
+            if (exprMatch && exprMatch[1]) {
+                alpineExpr = exprMatch[1];
+            }
+
             let payload = Object.assign({
                 message: msgStr,
                 source: source || window.location.pathname,
                 lineno: lineno || 0,
                 colno: colno || 0,
                 url: window.location.href,
+                subpage_path: window.location.pathname || '/',
+                referrer: document.referrer || '',
                 page_title: document.title || '',
                 viewport: (window.innerWidth || 0) + 'x' + (window.innerHeight || 0),
                 userAgent: navigator.userAgent,
+                alpine_expression: alpineExpr || undefined,
+                livewire_component: activeLwComponents.length > 0 ? activeLwComponents.join(', ') : undefined,
                 type: type
             }, extra);
 

@@ -27,6 +27,7 @@
     @if($context === 'preview')
         {{-- READ-ONLY VORSCHAU FÜR BESTELLHISTORIE / ADMIN (INKL. 1-KLICK COPY) --}}
         @php
+            $hasBackPreview = !empty($this->configSettings['has_back_side']);
             $previewRowsToRender = [];
             if (!empty($savedSnapshotRows)) {
                 foreach ($savedSnapshotRows as $snapRow) {
@@ -35,6 +36,7 @@
                         'type' => (string) ($snapRow['type'] ?? 'text'),
                         'value' => trim((string) ($snapRow['value'] ?? '')),
                         'surcharge_cents' => (int) ($snapRow['surcharge_cents'] ?? 0),
+                        'side' => (string) ($snapRow['side'] ?? ''),
                     ];
                 }
             } elseif (!empty($customFieldsDef)) {
@@ -45,6 +47,7 @@
                         'type' => (string) ($cfDef['type'] ?? 'text'),
                         'value' => trim((string) ($customFieldValues[$cfId] ?? '')),
                         'surcharge_cents' => (int) ($cfDef['surcharge_cents'] ?? 0),
+                        'side' => ($hasBackPreview && method_exists($this, 'resolveEffectiveCustomFieldSide')) ? $this->resolveEffectiveCustomFieldSide($cfDef) : 'front',
                     ];
                 }
             }
@@ -62,7 +65,7 @@
                 @if($allPreviewCopyText !== '')
                     <button type="button"
                             x-data="{ copiedAll: false }"
-                            @click="navigator.clipboard.writeText(@js($allPreviewCopyText)); copiedAll = true; setTimeout(() => copiedAll = false, 2000)"
+                            @click="const txt = @js($allPreviewCopyText); if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt); } else { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); } copiedAll = true; setTimeout(() => copiedAll = false, 2000)"
                             class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer"
                             :class="copiedAll ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-gray-950 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/40 hover:bg-emerald-600 hover:text-white'">
                         <span x-show="!copiedAll">📋 Alle Werte kopieren</span>
@@ -80,6 +83,7 @@
                             $val = $pRow['value'];
                             $pType = $pRow['type'] ?? 'text';
                             $surcharge = $pRow['surcharge_cents'];
+                            $pSide = $pRow['side'] ?? '';
                             $isNeutral = in_array(mb_strtolower($val), ['', 'kein symbol', 'keine', 'nein', '-'], true);
                             $isFontRow = ($pType === 'font' || isset($fontsMap[$val])) && $val !== '';
                         @endphp
@@ -89,6 +93,11 @@
                                     <span class="text-[10px] font-black uppercase tracking-wider {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
                                         {{ $pRow['label'] }}
                                     </span>
+                                    @if($hasBackPreview && !$isFontRow && in_array($pSide, ['front', 'back'], true))
+                                        <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-primary/15 text-primary border border-primary/25">
+                                            {{ $pSide === 'back' ? 'Rückseite' : 'Vorderseite' }}
+                                        </span>
+                                    @endif
                                     @if($isFontRow)
                                         <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-500/15 text-indigo-600 dark:text-indigo-300">
                                             𝐀 Schriftart
@@ -119,7 +128,7 @@
                             @if(!$isNeutral && !$isFontRow)
                                 <button type="button"
                                         x-data="{ copied: false }"
-                                        @click="navigator.clipboard.writeText(@js($val)); copied = true; setTimeout(() => copied = false, 1800)"
+                                        @click="const txt = @js($val); if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt); } else { const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); } copied = true; setTimeout(() => copied = false, 1800)"
                                         class="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-2xs cursor-pointer"
                                         :class="copied ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-gray-50 dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-emerald-500 hover:text-emerald-600 dark:hover:text-emerald-400'">
                                     <span x-show="!copied">Kopieren</span>
@@ -167,6 +176,9 @@
                     Gib deine Gravurwünsche einfach unten im Bemerkungsfeld an.
                 </div>
             @else
+                @php
+                    $hasBackSideFrontend = !empty($this->configSettings['has_back_side']);
+                @endphp
                 <div data-custom-fields-container="true" class="space-y-4">
                     @foreach($customFieldsDef as $cfIdx => $cfDef)
                         @php
@@ -183,6 +195,11 @@
                             }
                             $cfSurcharge = max(0, (int) ($cfDef['surcharge_cents'] ?? 0));
                             $currentVal  = (string) ($customFieldValues[$cfId] ?? '');
+                            $cfTargetSide = (string) ($cfDef['target_side'] ?? 'front');
+                            $effectiveSide = ($hasBackSideFrontend && method_exists($this, 'resolveEffectiveCustomFieldSide'))
+                                ? $this->resolveEffectiveCustomFieldSide($cfDef)
+                                : 'front';
+                            $canChooseSide = $hasBackSideFrontend && $cfType !== 'font' && $cfTargetSide === 'choice';
                             $isLockedSurchargeField = false;
                             if (($context ?? 'add') === 'order_edit' && $cfSurcharge > 0 && !auth()->guard('admin')->check()) {
                                 $savedById = collect($savedCustomFieldsSnapshot ?? [])->keyBy('id');
@@ -195,12 +212,12 @@
                         @endphp
 
                         <div wire:key="frontend-cf-{{ $cfId }}"
-                             x-data="{ showInfo: false, charCount: 0 }"
+                             x-data="{ showInfo: false, charCount: 0, fieldSide: @js($effectiveSide) }"
                              x-init="const inp = $el.querySelector('[data-custom-field-id]'); if (inp) charCount = (inp.value || '').length;"
                              class="p-4 rounded-2xl border transition-all {{ $isDark ? 'bg-gray-950/90 border-gray-800 focus-within:border-primary' : 'bg-white border-gray-200/90 focus-within:border-primary shadow-2xs' }} space-y-2">
 
-                            {{-- Label + Pflichtfeld + !-Ausrufungszeichen + Aufpreis --}}
-                            <div class="flex items-center justify-between gap-2">
+                            {{-- Label + Pflichtfeld + !-Ausrufungszeichen + Seitenwahl + Aufpreis --}}
+                            <div class="flex items-center justify-between gap-2 flex-wrap">
                                 <div class="flex items-center gap-2 min-w-0 flex-wrap">
                                     <label for="cf-input-{{ $cfId }}" class="text-xs sm:text-sm font-bold {{ $isDark ? 'text-white' : 'text-gray-900' }} cursor-pointer">
                                         {{ $cfLabel }}
@@ -225,7 +242,28 @@
                                     @endif
                                 </div>
 
-                                <div class="flex items-center gap-2 shrink-0">
+                                <div class="flex items-center gap-2 shrink-0 ml-auto">
+                                    @if($canChooseSide && !$isLockedSurchargeField)
+                                        <div class="inline-flex items-center p-0.5 rounded-xl border {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-gray-100/90 border-gray-200' }}">
+                                            <button type="button"
+                                                    @click="fieldSide = 'back'; const inp = $el.closest('[wire\\:key]')?.querySelector('[data-custom-field-id]'); if (inp) inp.setAttribute('data-custom-field-side', 'back'); if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage(); if (typeof switchSide === 'function') switchSide('back'); $wire.setCustomFieldSide(@js($cfId), 'back')"
+                                                    :class="fieldSide === 'back' ? 'bg-primary text-gray-900 shadow-2xs' : '{{ $isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900' }}'"
+                                                    class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                                                Rückseite
+                                            </button>
+                                            <button type="button"
+                                                    @click="fieldSide = 'front'; const inp = $el.closest('[wire\\:key]')?.querySelector('[data-custom-field-id]'); if (inp) inp.setAttribute('data-custom-field-side', 'front'); if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage(); if (typeof switchSide === 'function') switchSide('front'); $wire.setCustomFieldSide(@js($cfId), 'front')"
+                                                    :class="fieldSide === 'front' ? 'bg-primary text-gray-900 shadow-2xs' : '{{ $isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900' }}'"
+                                                    class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer">
+                                                Vorderseite
+                                            </button>
+                                        </div>
+                                    @elseif($hasBackSideFrontend && $cfType !== 'font' && $effectiveSide === 'back')
+                                        <span class="px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-primary/15 text-primary border border-primary/25">
+                                            Rückseite
+                                        </span>
+                                    @endif
+
                                     @if($cfSurcharge > 0)
                                         <span class="px-2 py-0.5 rounded-lg text-[11px] font-bold bg-primary/15 text-primary border border-primary/25">
                                             + {{ number_format($cfSurcharge / 100, 2, ',', '.') }}&nbsp;€
@@ -338,8 +376,11 @@
                                             data-custom-field-id="{{ $cfId }}"
                                             data-custom-field-type="select"
                                             data-custom-field-role="{{ $isSymbolSelect ? 'symbol' : 'select' }}"
+                                            data-custom-field-side="{{ $effectiveSide }}"
+                                            :data-custom-field-side="fieldSide"
                                             @disabled($isLockedSurchargeField)
-                                            @change="if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
+                                            @focus="if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide)"
+                                            @change="if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide); if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
                                             wire:model.live="customFieldValues.{{ $cfId }}"
                                             class="w-full rounded-xl border px-3.5 py-3 text-sm font-medium transition-all outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary appearance-none {{ $isLockedSurchargeField ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer' }} {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50/70 border-gray-200 text-gray-900 focus:bg-white' }}">
                                         @if(!$cfRequired)
@@ -353,16 +394,19 @@
                                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" /></svg>
                                     </div>
                                 </div>
-                            @elseif($cfType === 'textarea' || (!empty($isBeginnerStudioMode) && $cfType === 'text'))
+                            @elseif($cfType === 'textarea')
                                 <textarea id="cf-input-{{ $cfId }}"
                                           data-custom-field-id="{{ $cfId }}"
                                           data-custom-field-type="textarea"
                                           data-custom-field-placeholder="{{ $cfHolder }}"
                                           data-custom-field-required="{{ $cfRequired ? '1' : '0' }}"
+                                          data-custom-field-side="{{ $effectiveSide }}"
+                                          :data-custom-field-side="fieldSide"
                                           rows="{{ !empty($isBeginnerStudioMode) ? 2 : 3 }}"
                                           maxlength="{{ $cfMaxLen }}"
                                           @disabled($isLockedSurchargeField)
-                                          @input="charCount = $event.target.value.length; if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
+                                          @focus="if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide)"
+                                          @input="charCount = $event.target.value.length; if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide); if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
                                           @if(!empty($isBeginnerStudioMode) && $cfSurcharge === 0)
                                               wire:model.blur="customFieldValues.{{ $cfId }}"
                                           @else
@@ -376,10 +420,13 @@
                                        data-custom-field-type="date"
                                        data-custom-field-placeholder="{{ $cfHolder }}"
                                        data-custom-field-required="{{ $cfRequired ? '1' : '0' }}"
+                                       data-custom-field-side="{{ $effectiveSide }}"
+                                       :data-custom-field-side="fieldSide"
                                        type="date"
                                        @disabled($isLockedSurchargeField)
-                                       @input="if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
-                                       @change="if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
+                                       @focus="if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide)"
+                                       @input="if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide); if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
+                                       @change="if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide); if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
                                        wire:model.live="customFieldValues.{{ $cfId }}"
                                        class="w-full rounded-xl border px-3.5 py-2.5 text-sm font-medium transition-all outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary {{ $isLockedSurchargeField ? 'opacity-50 cursor-not-allowed' : '' }} {{ $isDark ? 'bg-gray-900 border-gray-800 text-white' : 'bg-gray-50/70 border-gray-200 text-gray-900 focus:bg-white' }}">
                             @else
@@ -388,10 +435,13 @@
                                        data-custom-field-type="text"
                                        data-custom-field-placeholder="{{ $cfHolder }}"
                                        data-custom-field-required="{{ $cfRequired ? '1' : '0' }}"
+                                       data-custom-field-side="{{ $effectiveSide }}"
+                                       :data-custom-field-side="fieldSide"
                                        type="text"
                                        maxlength="{{ $cfMaxLen }}"
                                        @disabled($isLockedSurchargeField)
-                                       @input="charCount = $event.target.value.length; if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
+                                       @focus="if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide)"
+                                       @input="charCount = $event.target.value.length; if (config && config.has_back_side && typeof switchSide === 'function' && activeSide !== fieldSide) switchSide(fieldSide); if (typeof syncBeginnerInputsToStage === 'function') syncBeginnerInputsToStage()"
                                        @if(!empty($isBeginnerStudioMode) && $cfSurcharge === 0)
                                            wire:model.blur="customFieldValues.{{ $cfId }}"
                                        @else

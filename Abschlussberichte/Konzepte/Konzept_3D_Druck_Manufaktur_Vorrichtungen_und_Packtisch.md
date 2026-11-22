@@ -94,6 +94,19 @@ Alle folgenden Module werden im einheitlichen **Seelenfunke Clean-Design (Mattsc
     * Einrastbare **Seitenführungs-Schienen für das xTool Förderband (Conveyor)** bei größeren Serienläufen,
     * Magnetische **Kabel- & USB-C-Halter** an der Tischkante (kein Herunterfallen der Anschlusskabel hinter den Schreibtisch).
 
+### 6. ✅ Hybrid-Batterie-Spender & Flach-Organizer für 26 × 35,5 cm Lagerregal (fertig konstruiert)
+* **Problem im Alltag:** Gemischte Batterie-Restbestände (Zink-Kohle vs. Alkaline, verschiedene Marken, lose Knopfzellen mit Kurzschlussgefahr) bei `26,0 cm` Regaltiefe und `35,5 cm` Fachhöhe möglichst schmal, übersichtlich und ohne mehrteiliges Steck-Gefummel unterbringen.
+* **Hauptlösung (Einteiliger Hybrid-Kompakt-Spender, `172,0 × 246,0 × 230,0 mm`, `181 Plätze`, `0 % Support`):**
+  * Dateien: [`Seelenfunke_Batterie_Hybrid_Spender_172x246x230_BambuA1.3mf`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/storage/app/public/manufaktur/3d-vorlagen/batterie-organizer/Seelenfunke_Batterie_Hybrid_Spender_172x246x230_BambuA1.3mf) & [`Seelenfunke_Batterie_Hybrid_Spender_172x246x230_v2.stl`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/storage/app/public/manufaktur/3d-vorlagen/batterie-organizer/Seelenfunke_Batterie_Hybrid_Spender_172x246x230_v2.stl)
+  * **Raumökonomie:** Spart über `7 cm` Regalbreite (`17,2 cm` schmal) und lässt oben volle **`12,5 cm` freie Eingreif-Höhe** im `35,5 cm` Regalfach zum bequemen Nachwerfen von `AA` und `AAA`.
+  * **4-Stufen-Aufbau aus einem Guss (ohne Schwalbenschwanz/Stecksystem):**
+    1. **Vorderkante (`Z = 12,6 mm`):** `82` kurzschlusssicher isolierte Knopfzellen-Schlitze (`40× CR2032`, `11× CR2025`, `21× LR44·AG13`, `10× AG10`), senkrecht von oben greifbar.
+    2. **Mittel-Tribüne (`Z = 25,2 mm`):** `5× D · MONO`, `2× C`, `2× 9V` komplett vor dem Spender-Turm sichtbar angeordnet (kein blindes Hintergreifen).
+    3. **Schulter-Auswurf (`Z = 57,6 mm`):** 3 Entnahme-Mulden mit Stoppkante und Daumen-Aussparung frei erreichbar über der Mittel-Tribüne.
+    4. **Rückwand-Turm (`Z = 230,0 mm`):** `2× AA-Schlangen-Schächte` (`54× AA`) und `1× AAA-Schlangen-Schacht` (`36× AAA`) mit `45°`-Umlenkkeilen (`0 % Support` beim stehenden Druck), `17 mm` Fangrand oben, Füllstand-Sichtschlitzen und erhabener Front-Beschriftung.
+* **Alternativ-Vorlage für niedrige Schubladen (`244,0 × 246,0 × 27,6 mm`, `185 Plätze`):** [`Seelenfunke_Batterie_Organizer_26cm_Regal_BambuA1.3mf`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/storage/app/public/manufaktur/3d-vorlagen/batterie-organizer/Seelenfunke_Batterie_Organizer_26cm_Regal_BambuA1.3mf) bleibt für flache Schubladen zusätzlich im Archiv erhalten.
+* **Langfristige Batterie-Standardisierung:** Umstellung auf auslaufsichere **VARTA Industrial Pro** (plastikfreie 40er Pappbox) sowie **VARTA Lithium `CR2032` / `V13GA (LR44)`**.
+
 ---
 
 ## 4. Standardisierter Umsetzungs-Workflow („Auf Zuruf druckfertig“)

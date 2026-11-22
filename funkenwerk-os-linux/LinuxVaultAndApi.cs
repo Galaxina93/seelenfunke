@@ -58,6 +58,7 @@ namespace FunkenwerkOSLinux
         public string ContactId { get; set; } = "";
         public string Name { get; set; } = "";
         public string Relationship { get; set; } = "";
+        public string PhotoFileName { get; set; } = "";
         public float[] Vector { get; set; } = Array.Empty<float>();
         public float[] VoiceVector { get; set; } = Array.Empty<float>();
         public string SavedAt { get; set; } = DateTime.Now.ToString("dd.MM.yyyy HH:mm");
@@ -207,6 +208,17 @@ namespace FunkenwerkOSLinux
             get
             {
                 string dir = Path.Combine(DataDir, "Papierkorb");
+                Directory.CreateDirectory(dir);
+                TryRestrictDirPermissions(dir);
+                return dir;
+            }
+        }
+
+        public static string PersonPortraitsDir
+        {
+            get
+            {
+                string dir = Path.Combine(DataDir, "Personen");
                 Directory.CreateDirectory(dir);
                 TryRestrictDirPermissions(dir);
                 return dir;
@@ -583,6 +595,109 @@ namespace FunkenwerkOSLinux
                 settings.EncryptedCompanionFacesJson = clean.Count == 0 ? "" : EncryptSecret(JsonSerializer.Serialize(clean));
             }
             SaveSettings(settings);
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex SafePortraitFileRegex =
+            new(@"^[a-zA-Z0-9_\-]{3,80}\.jpg\.enc$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+        public static string StoreCompanionPortrait(string? rawName, byte[]? jpegBytes)
+        {
+            if (jpegBytes == null || jpegBytes.Length < 64 || jpegBytes.Length > 2 * 1024 * 1024)
+                return "";
+            if (jpegBytes[0] != 0xFF || jpegBytes[1] != 0xD8)
+                return "";
+
+            var slugSb = new StringBuilder();
+            foreach (char ch in (rawName ?? "person").Trim().ToLowerInvariant())
+            {
+                if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9'))
+                {
+                    slugSb.Append(ch);
+                    if (slugSb.Length >= 24) break;
+                }
+            }
+            string slug = slugSb.Length > 0 ? slugSb.ToString() : "person";
+            string randHex = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4));
+            string fileName = $"person_{slug}_{randHex}.jpg.enc";
+            string fullPath = Path.Combine(PersonPortraitsDir, fileName);
+
+            string encPayload = EncryptSecret(Convert.ToBase64String(jpegBytes));
+            if (string.IsNullOrWhiteSpace(encPayload))
+                return "";
+
+            lock (s_lock)
+            {
+                WriteFileAtomically0600(fullPath, Encoding.UTF8.GetBytes(encPayload));
+            }
+            return fileName;
+        }
+
+        public static byte[]? LoadCompanionPortraitBytes(string? photoFileName)
+        {
+            if (string.IsNullOrWhiteSpace(photoFileName))
+                return null;
+            string cleanName = photoFileName.Trim();
+            if (!SafePortraitFileRegex.IsMatch(cleanName) || Path.GetFileName(cleanName) != cleanName)
+                return null;
+
+            string dirRoot = Path.GetFullPath(PersonPortraitsDir);
+            string fullPath = Path.GetFullPath(Path.Combine(dirRoot, cleanName));
+            if (!fullPath.StartsWith(dirRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                return null;
+            if (!File.Exists(fullPath))
+                return null;
+
+            try
+            {
+                string encPayload = File.ReadAllText(fullPath, Encoding.UTF8).Trim();
+                string decB64 = DecryptSecret(encPayload);
+                if (string.IsNullOrWhiteSpace(decB64))
+                    return null;
+                byte[] raw = Convert.FromBase64String(decB64);
+                if (raw.Length < 64 || raw[0] != 0xFF || raw[1] != 0xD8)
+                    return null;
+                return raw;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static string LoadCompanionPortraitDataUrl(string? photoFileName)
+        {
+            byte[]? raw = LoadCompanionPortraitBytes(photoFileName);
+            if (raw == null || raw.Length == 0)
+                return "";
+            return "data:image/jpeg;base64," + Convert.ToBase64String(raw);
+        }
+
+        public static bool DeleteCompanionPortrait(string? photoFileName)
+        {
+            if (string.IsNullOrWhiteSpace(photoFileName))
+                return false;
+            string cleanName = photoFileName.Trim();
+            if (!SafePortraitFileRegex.IsMatch(cleanName) || Path.GetFileName(cleanName) != cleanName)
+                return false;
+
+            string dirRoot = Path.GetFullPath(PersonPortraitsDir);
+            string fullPath = Path.GetFullPath(Path.Combine(dirRoot, cleanName));
+            if (!fullPath.StartsWith(dirRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                return false;
+
+            lock (s_lock)
+            {
+                try
+                {
+                    if (File.Exists(fullPath))
+                    {
+                        File.Delete(fullPath);
+                        return true;
+                    }
+                }
+                catch { }
+            }
+            return false;
         }
 
         public static string GetNasPassword(LinuxOsSettings settings)
@@ -1323,7 +1438,10 @@ namespace FunkenwerkOSLinux
 
             string baseUrl = ResolveBaseApiUrl(norm);
             string sessParam = string.IsNullOrWhiteSpace(chatSessionId) ? (settings.LastFunkiraSessionId ?? "") : chatSessionId.Trim();
-            string url = $"{baseUrl}/ai/live-credentials?client=minipc&chat_session_id={Uri.EscapeDataString(sessParam)}&t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            bool ownerEnrolled = LocalSenseBridge.HasOwnerFaceEnrolledCached();
+            bool camVerified = !ownerEnrolled || FunkiraLiveAndMcpEngine.IsOwnerClearanceVerified(LocalSenseBridge.EffectivePrivacyIdentity);
+            bool voiceVerified = camVerified || string.Equals(LocalSenseBridge.LastVoiceIdentity, "alina", StringComparison.OrdinalIgnoreCase);
+            string url = $"{baseUrl}/ai/live-credentials?client=minipc&channel=workshop_minipc&camera_alina_verified={(camVerified ? "1" : "0")}&voice_alina_verified={(voiceVerified ? "1" : "0")}&chat_session_id={Uri.EscapeDataString(sessParam)}&t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
             if (!ValidateHttpsUrl(url))
                 return new LiveCredentialsDto { Ok = false, ErrorMessage = "Ungültige Ziel-URL blockiert." };
 
@@ -1401,6 +1519,7 @@ namespace FunkenwerkOSLinux
                             });
                     }
 
+                    FunkiraLiveAndMcpEngine.TryCachePortalLiveCredentialsJson(body);
                     using var doc = JsonDocument.Parse(body);
                     var root = doc.RootElement;
                     string tok = GetStr(root, "token");
@@ -1568,6 +1687,49 @@ namespace FunkenwerkOSLinux
             }
         }
 
+        public static void SaveLiveTranscriptInBackground(
+            LinuxOsSettings settings,
+            string? chatSessionId,
+            string? agentId,
+            string role,
+            string content)
+        {
+            if (string.IsNullOrWhiteSpace(chatSessionId) || string.IsNullOrWhiteSpace(content))
+                return;
+            if (!string.IsNullOrWhiteSpace(LinuxVaultAndStorage.TestOverrideRootDir))
+                return;
+
+            string norm = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
+            string bearer = LinuxVaultAndStorage.GetToken(settings, norm);
+            if (string.IsNullOrWhiteSpace(bearer))
+                return;
+
+            string url = $"{ResolveBaseApiUrl(norm)}/ai/save-live-transcript";
+            if (!ValidateHttpsUrl(url))
+                return;
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var payload = new
+                    {
+                        chat_session_id = chatSessionId,
+                        agent_id = agentId,
+                        role,
+                        content
+                    };
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    req.Content = new StringContent(JsonSerializer.Serialize(payload), new UTF8Encoding(false), "application/json");
+                    using var _ = await Http.SendAsync(req, cts.Token).ConfigureAwait(false);
+                }
+                catch { }
+            });
+        }
+
         public static async Task<string> SendChatFallbackAsync(LinuxOsSettings settings, string promptText)
         {
             string norm = (settings.ApiEnvironment ?? "live").Trim().ToLowerInvariant() == "stage" ? "stage" : "live";
@@ -1581,8 +1743,15 @@ namespace FunkenwerkOSLinux
 
             try
             {
+                bool ownerEnrolled = LocalSenseBridge.HasOwnerFaceEnrolledCached();
+                bool camVerified = !ownerEnrolled || FunkiraLiveAndMcpEngine.IsOwnerClearanceVerified(LocalSenseBridge.EffectivePrivacyIdentity);
+                bool voiceVerified = camVerified || string.Equals(LocalSenseBridge.LastVoiceIdentity, "alina", StringComparison.OrdinalIgnoreCase);
                 var payload = new
                 {
+                    agent_name = "Funkira",
+                    channel = "workshop_minipc",
+                    camera_alina_verified = camVerified,
+                    voice_alina_verified = voiceVerified,
                     prompt = promptText,
                     history = new[] { new { role = "user", content = promptText } },
                     chat_session_id = string.IsNullOrWhiteSpace(settings.LastFunkiraSessionId) ? null : settings.LastFunkiraSessionId

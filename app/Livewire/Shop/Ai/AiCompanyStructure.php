@@ -18,8 +18,12 @@ class AiCompanyStructure extends Component
 {
     use WithDepartmentTheming;
 
-    public string $themingDepartment = 'Agenten';
+    public string $themingDepartment = 'Leitung';
+    public bool $embeddedInTickets = false;
     public $departments = [];
+    public array $agentActiveTicketCounts = [];
+    public array $agentWaitingTicketCounts = [];
+    public bool $notebookOnline = false;
     public $viewMode = 'tree'; 
     #[\Livewire\Attributes\Locked]
     public $editingId = null;
@@ -70,6 +74,30 @@ class AiCompanyStructure extends Component
     public function loadStructure()
     {
         $this->departments = AiDepartment::with(['agents.role'])->orderBy('order_index')->get();
+        $this->notebookOnline = \App\Services\AI\FunkiraPresenceContext::isAntigravityNotebookOnline();
+
+        if (\Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')) {
+            $this->agentActiveTicketCounts = \App\Models\Ai\AiUniverseTicket::query()
+                ->whereIn('status', [
+                    \App\Models\Ai\AiUniverseTicket::STATUS_NEW,
+                    \App\Models\Ai\AiUniverseTicket::STATUS_IN_PROGRESS,
+                    \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_TRESOR,
+                    \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_NOTEBOOK,
+                ])
+                ->whereNotNull('assigned_agent_id')
+                ->selectRaw('assigned_agent_id, COUNT(*) as cnt')
+                ->groupBy('assigned_agent_id')
+                ->pluck('cnt', 'assigned_agent_id')
+                ->all();
+
+            $this->agentWaitingTicketCounts = \App\Models\Ai\AiUniverseTicket::query()
+                ->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA)
+                ->whereNotNull('assigned_agent_id')
+                ->selectRaw('assigned_agent_id, COUNT(*) as cnt')
+                ->groupBy('assigned_agent_id')
+                ->pluck('cnt', 'assigned_agent_id')
+                ->all();
+        }
     }
 
     public function showSuccess()

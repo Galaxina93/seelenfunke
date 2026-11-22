@@ -11,7 +11,10 @@
     <ApplicationTitle>Funkenwerk SSH</ApplicationTitle>
     <Product>Funkenwerk SSH</Product>
     <Company>Mein-Seelenfunke</Company>
-    <Version>1.0.0</Version>
+    <Version>1.3.0</Version>
+    <AssemblyVersion>1.3.0.10</AssemblyVersion>
+    <FileVersion>1.3.0.10</FileVersion>
+    <InformationalVersion>1.3.0+b10</InformationalVersion>
     <ApplicationIcon>funkenwerk_ssh.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
@@ -21,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
     <Resource Include="funkenwerk_ssh.ico" />
     <Resource Include="funkenwerk_ssh.png" />
     <None Include="funkenwerk_ssh.ico" CopyToOutputDirectory="PreserveNewest" />

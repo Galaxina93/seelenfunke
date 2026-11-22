@@ -126,7 +126,7 @@ class ProductTemplateSeeder extends Seeder
                     'hochzeit'     => 1.25,
                     'geburtstag'   => 1.14,
                     'valentinstag' => 1.26,
-                    'halloween'    => 1.08,
+                    'halloween'    => 0.96,
                     'muttertag'    => 1.30,
                     'vatertag'     => 1.14,
                     default        => 1.18,
@@ -335,7 +335,7 @@ class ProductTemplateSeeder extends Seeder
             'name' => $name,
             'configuration' => $config,
             'is_active' => true,
-            'is_ai_generated' => true,
+            'is_ai_generated' => false,
             'holiday' => $holidayLabel,
             'preview_image' => null,
         ]);
@@ -474,14 +474,14 @@ class ProductTemplateSeeder extends Seeder
             'id-armband-gold-herz'      => 'LUNA',
             'goldenes-seelen-herz',
             'echtgold-seelen-herz'      => "Magie\nNacht",
-            'seelen-talisman'           => "Magische\nNacht",
+            'seelen-talisman'           => "Happy\nHalloween!",
             'weizenglas-personalisiert' => "Magische Nacht\nHexengebräu",
             default                     => "Magische Nacht\nSeelenzauber",
         };
 
         $this->createTemplateRecord(
             $product,
-            'Magische Nacht / Halloween',
+            $slug === 'seelen-talisman' ? 'Happy Halloween' : 'Magische Nacht / Halloween',
             'Halloween',
             'halloween',
             'herbst',

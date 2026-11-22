@@ -451,6 +451,7 @@
                         <option value="AT">Österreich</option>
                         <option value="CH">Schweiz</option>
                     </select>
+                    @error('country') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
                 </div>
             </div>
 
@@ -463,6 +464,7 @@
                         <option value="standard_tax">Regelbesteuert (zzgl. {{ $formattedTaxRate }} % USt.)</option>
                         <option value="reverse_charge">EU Reverse-Charge (0 % USt.)</option>
                     </select>
+                    @error('taxStatus') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
                 </div>
                 <div>
                     <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Steuernummer oder USt-IdNr. *</label>
@@ -478,6 +480,7 @@
                         <option value="paypal">PayPal</option>
                         <option value="shop_voucher">Seelenfunke Shop-Wertgutschein (+20 % Bonus)</option>
                     </select>
+                    @error('payoutMethod') <span class="text-red-500 text-[10px] font-bold mt-1 block">{{ $message }}</span> @enderror
                 </div>
             </div>
 

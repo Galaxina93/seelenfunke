@@ -30,9 +30,13 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
             'lineno' => 'nullable|integer|min:0|max:10000000',
             'colno' => 'nullable|integer|min:0|max:10000000',
             'url' => 'nullable|string|max:1000',
+            'subpage_path' => 'nullable|string|max:500',
+            'referrer' => 'nullable|string|max:1000',
             'page_title' => 'nullable|string|max:300',
             'viewport' => 'nullable|string|max:100',
             'userAgent' => 'nullable|string|max:500',
+            'alpine_expression' => 'nullable|string|max:500',
+            'livewire_component' => 'nullable|string|max:500',
             'type' => 'nullable|string|max:64',
             'status_code' => 'nullable|integer|min:100|max:599',
             'stack' => 'nullable|string|max:10000'
@@ -45,12 +49,20 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
             default => 'Frontend JS Error',
         };
 
+        $subpagePath = trim((string) ($data['subpage_path'] ?? ''));
+        if ($subpagePath === '' && !empty($data['url'])) {
+            $parsedPath = parse_url((string) $data['url'], PHP_URL_PATH);
+            if (is_string($parsedPath) && $parsedPath !== '') {
+                $subpagePath = '/' . ltrim($parsedPath, '/');
+            }
+        }
+
         $diagnosis = [
             'category' => 'frontend_' . $errType,
             'probable_cause' => $errType === 'livewire_request_error'
                 ? 'Livewire-Hintergrundanfrage fehlgeschlagen (HTTP ' . ($data['status_code'] ?? '?') . '). Mögliche Ursachen: abgelaufenes CSRF-Token (419), Server-Exception (500) oder Verbindungsabbruch.'
-                : 'Clientseitiger JavaScript-/Alpine.js-Laufzeitfehler im Browser auf URL ' . ($data['url'] ?? 'unbekannt') . '.',
-            'recommended_action' => 'Prüfe URL, Skript-Quelle (source/lineno) und den Browser-Stack-Trace im Payload.',
+                : 'Clientseitiger JavaScript-/Alpine.js-Laufzeitfehler im Browser auf Unterseite ' . ($subpagePath ?: ($data['url'] ?? 'unbekannt')) . '.',
+            'recommended_action' => 'Prüfe Unterseite, Skript-Quelle (source/lineno), Alpine-Ausdruck und den Browser-Stack-Trace unter Weitere Details.',
         ];
 
         $rawIp = (string) $request->ip();
@@ -61,6 +73,8 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
         $payload = array_merge($data, [
             'file' => $data['source'] ?? null,
             'line' => $data['lineno'] ?? null,
+            'subpage_path' => $subpagePath !== '' ? $subpagePath : '/',
+            'referer' => $data['referrer'] ?? null,
             'client_ip' => $anonIp,
             'diagnosis' => $diagnosis,
             'server_environment' => class_exists(\App\Services\System\SystemErrorLogger::class)

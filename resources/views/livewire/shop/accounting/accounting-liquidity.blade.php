@@ -3,14 +3,15 @@
 
         {{-- HEADER --}}
         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-2xl md:rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-4 sm:p-6 md:p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-5 md:gap-6">
-            <div class="w-full">
+            <div class="w-full flex items-center gap-2.5">
                 <h2 class="text-xl md:text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-wide flex items-center gap-3">
-                    <div class="p-2 md:p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 shrink-0">
+                    <div class="p-2 md:p-2.5 bg-[var(--theme-color-10)] border border-[var(--theme-color-20)] rounded-xl text-[var(--theme-color)] shrink-0">
                         <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     </div>
                     <span>Liquiditätsplanung (Brutto)</span>
                 </h2>
-                <p class="text-[10px] md:text-xs text-gray-600 dark:text-gray-400 mt-2 md:mt-3 max-w-2xl leading-relaxed">Plane deine Ein- und Auszahlungen. Das System berechnet automatisch, wann sich deine Firma nach Wegfall von ALG 1 und Zuschüssen selbst tragen muss.</p>
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-800 text-[11px] font-black text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-700 cursor-help select-none"
+                      title="Mehrjahres-Liquiditätsplanung für Ein- und Auszahlungen inkl. Übergang nach Auslaufen des Gründungszuschusses.">!</span>
             </div>
 
             <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 md:gap-3 w-full xl:w-auto">

@@ -381,6 +381,10 @@
                                             @php
                                                 $cfType = $cfItem['type'] ?? 'text';
                                                 $cfReq  = filter_var($cfItem['required'] ?? true, FILTER_VALIDATE_BOOLEAN);
+                                                $cfTargetSide = in_array(($cfItem['target_side'] ?? ''), ['front', 'back', 'choice'], true)
+                                                    ? $cfItem['target_side']
+                                                    : ((str_contains(mb_strtolower(($cfItem['label'] ?? '') . ' ' . ($cfItem['id'] ?? '')), 'rückseite') || str_contains(mb_strtolower(($cfItem['id'] ?? '')), 'cf_back')) ? 'back' : 'front');
+                                                $hasBackSideStep1 = !empty($this->configSettings['has_back_side']);
                                                 $selectedFontOptions = is_array($cfItem['options'] ?? null) && !empty($cfItem['options'])
                                                     ? $cfItem['options']
                                                     : array_keys($configuratorFontsMap);
@@ -403,6 +407,11 @@
                                                             <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400">Pflichtfeld *</span>
                                                         @else
                                                             <span class="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">Optional</span>
+                                                        @endif
+                                                        @if($hasBackSideStep1 && $cfType !== 'font')
+                                                            <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-[var(--theme-color-10)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                                                                {{ $cfTargetSide === 'back' ? 'Rückseite' : ($cfTargetSide === 'choice' ? 'Kundenwahl (Rück-/Vorderseite)' : 'Vorderseite') }}
+                                                            </span>
                                                         @endif
                                                         @if((float) str_replace(',', '.', (string) ($cfItem['surcharge_price'] ?? 0)) > 0)
                                                             <span class="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300">
@@ -481,6 +490,19 @@
                                                                    wire:model.blur="configSettings.custom_fields.{{ $cfIdx }}.surcharge_price"
                                                                    class="{{ $inputClassStep1 }} !py-2.5 text-sm font-mono"
                                                                    placeholder="0.00">
+                                                        </div>
+                                                    @endif
+
+                                                    {{-- Gravur-Seite (nur wenn Rückseite für dieses Produkt aktiv ist) --}}
+                                                    @if($hasBackSideStep1 && $cfType !== 'font')
+                                                        <div class="sm:col-span-4">
+                                                            <label class="{{ $labelClassStep1 }}">Gravur-Seite</label>
+                                                            <select wire:model.live="configSettings.custom_fields.{{ $cfIdx }}.target_side"
+                                                                    class="{{ $inputClassStep1 }} !py-2.5 text-sm">
+                                                                <option value="front">Vorderseite</option>
+                                                                <option value="back">Rückseite</option>
+                                                                <option value="choice">Kundenwahl (Standard: Rückseite)</option>
+                                                            </select>
                                                         </div>
                                                     @endif
                                                 </div>

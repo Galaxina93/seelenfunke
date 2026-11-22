@@ -287,4 +287,99 @@ class AiWorkspaceTest extends TestCase
         $component->set('activeTab', 'invalid-tab')
             ->assertSet('activeTab', 'chat');
     }
+
+    /** @test */
+    public function test_can_create_and_assign_workspace_tasks_directly(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $admin = Admin::first() ?? Admin::factory()->create();
+
+        $agent = AiAgent::firstOrCreate(
+            ['name' => 'Funkira'],
+            ['id' => Str::uuid()->toString(), 'provider' => 'google', 'model' => 'gemini-3.5-flash', 'is_active' => true]
+        );
+        $agent->update(['is_active' => true]);
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(AiWorkspace::class)
+            ->set('activeTab', 'workspace')
+            ->set('newTaskPrompt', 'Prüfe offene Bestellungen im Shop')
+            ->set('newTaskAgentId', '')
+            ->call('createWorkspaceTask')
+            ->assertSet('newTaskPrompt', '');
+
+        $task = \App\Models\Ai\AiWorkspaceTask::where('prompt', 'Prüfe offene Bestellungen im Shop')->latest()->first();
+        $this->assertNotNull($task);
+        $this->assertSame('pending', $task->status);
+
+        // Assign agent from Workspace select dropdown
+        $component->call('assignAgent', $task->id, $agent->id);
+
+        $task->refresh();
+        $this->assertSame('assigned', $task->status);
+        $this->assertSame($agent->id, $task->assigned_agent_id);
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\ProcessAiWorkspaceTask::class);
+    }
+
+    /** @test */
+    public function test_can_create_edit_and_delete_uuid_medications_securely(): void
+    {
+        $admin = Admin::first() ?? Admin::factory()->create();
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(AiWorkspace::class)
+            ->set('activeTab', 'health')
+            ->call('editMedication')
+            ->set('medicationForm.name', 'Magnesium Citrat')
+            ->set('medicationForm.dosage', '300mg')
+            ->set('medicationForm.frequency', '0-0-1')
+            ->set('medicationForm.is_long_term', true)
+            ->call('saveMedication')
+            ->assertSet('showMedicationModal', false);
+
+        $med = \App\Models\Ai\AiHealthMedication::where('user_id', $admin->id)
+            ->where('name', 'Magnesium Citrat')
+            ->first();
+
+        $this->assertNotNull($med);
+        $this->assertTrue(Str::isUuid((string) $med->id));
+
+        // Ensure quoted UUID wire:click renders in HTML (no JS SyntaxError)
+        $component->assertSee("editMedication('{$med->id}')", false)
+            ->call('editMedication', $med->id)
+            ->assertSet('editingMedicationId', (string) $med->id)
+            ->set('medicationForm.dosage', '400mg')
+            ->call('saveMedication');
+
+        $this->assertDatabaseHas('ai_health_medications', [
+            'id' => $med->id,
+            'dosage' => '400mg',
+        ]);
+
+        $component->call('deleteMedication', $med->id);
+        $this->assertDatabaseMissing('ai_health_medications', ['id' => $med->id]);
+    }
+
+    /** @test */
+    public function test_settings_knowledge_base_and_cronjobs_views_work_cleanly(): void
+    {
+        $admin = Admin::first() ?? Admin::factory()->create();
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(AiWorkspace::class)
+            ->set('activeWorkspaceView', 'settings')
+            ->assertStatus(200)
+            ->assertSee('Ausführungspläne automatisch freigeben')
+            ->set('activeWorkspaceView', 'knowledge-base')
+            ->assertStatus(200)
+            ->set('activeWorkspaceView', 'workspace')
+            ->set('activeTab', 'workflows')
+            ->assertDontSee('Mapi')
+            ->assertSee('Globi');
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(\App\Livewire\Shop\Ai\PartialsAiWorkspace\TabCronjobs::class)
+            ->assertStatus(200)
+            ->assertSee('Server Cronjobs');
+    }
 }

@@ -176,6 +176,10 @@ class ShowroomMultiplayerService
             $actorKey
         );
 
+        $rawAvatarGender = isset($stateInput['avatar_gender']) && is_string($stateInput['avatar_gender'])
+            ? strtolower(trim($stateInput['avatar_gender']))
+            : null;
+
         $sanitizedState = [
             'x' => round(max(-12.0, min(12.0, LobbyInstanceService::parseFiniteFloat($stateInput['x'] ?? null, 0.0))), 3),
             'y' => round(max(0.0, min(4.5, LobbyInstanceService::parseFiniteFloat($stateInput['y'] ?? null, 0.0))), 3),
@@ -186,6 +190,7 @@ class ShowroomMultiplayerService
             'jumping' => filter_var($stateInput['jumping'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'weapon_seq' => max(0, min(1000000, $rawWeaponSeq)),
             'emote' => $emote,
+            'avatar_gender' => $rawAvatarGender === 'female' ? 'female' : ($rawAvatarGender === 'male' ? 'male' : null),
             'solo_mode' => $soloMode,
             'pos_synced' => true,
             'has_explicit_x' => array_key_exists('x', $stateInput) && LobbyInstanceService::isValidFiniteNumeric($stateInput['x']),
@@ -776,6 +781,7 @@ class ShowroomMultiplayerService
                     'jumping' => (bool) ($state['jumping'] ?? ($prevEntry['jumping'] ?? false)),
                     'weapon_seq' => $cleanWeaponSeq,
                     'emote' => $state['emote'] ?? null,
+                    'avatar_gender' => ($state['avatar_gender'] ?? ($prevEntry['avatar_gender'] ?? 'male')) === 'female' ? 'female' : 'male',
                     'solo_mode' => (bool) ($state['solo_mode'] ?? false),
                     'pos_synced' => $wasPosSynced || $isSyncTick,
                     'updated_at_ms' => $nowMs,
@@ -853,6 +859,7 @@ class ShowroomMultiplayerService
                 'jumping' => (bool) $entry['jumping'],
                 'weapon_seq' => (int) $entry['weapon_seq'],
                 'emote' => in_array(($entry['emote'] ?? null), self::ALLOWED_EMOTES, true) ? $entry['emote'] : null,
+                'avatar_gender' => ($entry['avatar_gender'] ?? 'male') === 'female' ? 'female' : 'male',
                 'updated_at_ms' => (int) $entry['updated_at_ms'],
             ];
         }

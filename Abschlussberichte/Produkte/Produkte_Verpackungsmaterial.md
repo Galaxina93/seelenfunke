@@ -68,3 +68,12 @@ Das Modul Verpackungsmaterial (`/admin/product-packaging`) dient der lückenlose
 | **Die Seelen-Pfote** (`seelen-pfote-hundemarke`) | `12 g` | `15 g` | `0,14 €` (`14 ct`) | `brief` (Luftpolster-Umschlag) | `composite: 12 g`, `paper: 3 g` |
 | **Der Seelen Kristall** (`seelen-kristall`) | `920 g` | `150 g` | `0,60 €` (`60 ct`) | `null` (DHL Standard Paket) | `paper: 130 g`, `plastic: 20 g` |
 | **Der Feierabend-Funke** (`weizenglas-personalisiert`) | `450 g` | `120 g` | `0,60 €` (`60 ct`) | `null` (DHL Standard Paket) | `paper: 100 g`, `plastic: 20 g` |
+
+---
+
+## 5. Ergänzung: Verpackungskatalog & Gutschein-Postversand (20.11.2026)
+
+- **Vollpapp-Versandtasche DIN A5 (`PKG-ENV-VOUCHER` in [`ProductPackagingSeeder.php`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/database/seeders/ProductPackagingSeeder.php#L236-L261)):**
+  - Für den Postversand gravierter Gutscheinkarten im schwarzen `114 × 162 mm` Goldrand-Umschlag mit Wachssiegel (`shipping_cost_voucher = 450` / `4,50 €`) wird knickgeschützt in einer **Vollpapp-Versandtasche DIN A5** (`250 × 175 × 5 mm` Außenmaß, `167 × 240 mm` Innenmaß, Verpacking.com Art.-Nr. `3895-001`, `100` Stk.-Einheit à `0,35 €` netto / `0,42 €` brutto) als **Deutsche Post Großbrief** (`1,80 €` Porto) versendet.
+  - **LUCID-Vorteil:** `45 g` reines Papier (`primary_material_type = 'paper'`), `0 g` Kunststoff (kein unnötiger Verbundstoff-/Plastikverbrauch durch übergroße Luftpolstertaschen).
+  - [`OrderOrder::resolveRecommendedShippingBox()`](file://wsl.localhost/Ubuntu/home/ubuntuxina/meine-projekte/seelenfunke/app/Models/Order/OrderOrder.php#L1666) schlägt bei reinen Post-Gutschein-Bestellungen automatisch `Vollpapp-Versandtasche DIN A5` vor.

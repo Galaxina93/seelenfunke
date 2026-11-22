@@ -74,10 +74,7 @@
                                         <div class="flex flex-wrap gap-2 mb-2">
                                             @if(!empty($msg['attachments']))
                                                 @foreach($msg['attachments'] as $att)
-                                                    <div class="flex items-center gap-1 bg-gray-900 border border-gray-700 text-emerald-400 text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded shadow-inner">
-                                                        <button class="text-gray-500 hover:text-white transition-colors" title="Nachricht bearbeiten">
-                                                            <x-heroicon-o-pencil class="w-4 h-4" />
-                                                        </button>
+                                                    <div class="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-emerald-700 dark:text-emerald-400 text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded shadow-sm">
                                                         <x-heroicon-o-document-text class="w-3 h-3" />
                                                         <span>{{ basename($att) }}</span>
                                                     </div>
@@ -86,7 +83,7 @@
                                             @if(!empty($msg['local_uploads']))
                                                 @foreach($msg['local_uploads'] as $file)
                                                     @php $fileUrl = isset($file['path']) ? Storage::url($file['path']) : '#'; @endphp
-                                                    <a href="{{ $fileUrl }}" target="_blank" class="flex items-center gap-1 bg-gray-900 border border-gray-700 text-[var(--theme-color)] text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded shadow-inner hover:bg-[var(--theme-color-10)] transition-colors cursor-pointer">
+                                                    <a href="{{ $fileUrl }}" target="_blank" class="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[var(--theme-color)] text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded shadow-sm hover:bg-[var(--theme-color-10)] transition-colors cursor-pointer">
                                                         <x-heroicon-o-paper-clip class="w-3 h-3 shrink-0" />
                                                         <span class="truncate max-w-[150px]">{{ $file['name'] ?? 'Upload' }}</span>
                                                     </a>

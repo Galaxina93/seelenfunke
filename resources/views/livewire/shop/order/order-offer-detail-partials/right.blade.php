@@ -82,9 +82,10 @@
             {{-- XTOOL STUDIO WERKSTATTHANDBUCH & LASER-PARAMETER (DIREKT AUS SCHRITT 4.2 DES PRODUKTS + AUFTRAGS-OVERRIDES) --}}
             @if($previewItem->product && $previewItem->product->isPhysical() && $previewItem->product->isPersonalizable() && !$isDigitalItem && !$isService)
                 @php
+                    $_lwRight = $__livewire ?? ((isset($this) && is_object($this)) ? $this : null);
                     $orderLaserGuide = app(\App\Services\Laser\XtoolLaserCockpitService::class)->resolveEffectiveLaserParameters(
                         $previewItem,
-                        $this->laserCockpitSide ?? 'front'
+                        $_lwRight->laserCockpitSide ?? 'front'
                     );
                     $allOrderLaserPdfs = \App\Models\Product\Product::getLaserPdfGuides();
                     $editLaserUrl = route('admin.products', ['editProduct' => $previewItem->product->id, 'step' => 4, 'subStep' => 2]);

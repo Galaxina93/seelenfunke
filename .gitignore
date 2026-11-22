@@ -35,6 +35,8 @@ twilio.log
 /storage/framework/sentinel_audit_state.json
 /funkenwerk/bin/
 /funkenwerk/obj/
+/funkenwerk/Funkenwerk_Anhaenge/
+/Funkenwerk_Anhaenge/
 /funkenwerk-*/bin/
 /funkenwerk-*/obj/
 __pycache__/

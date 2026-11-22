@@ -277,7 +277,7 @@
                         @if(!empty($conf['is_gift_voucher']))
                             @php
                                 $voucherDelivery = $conf['delivery_method'] ?? 'email';
-                                $voucherSurchargeCents = (int) ($conf['shipping_surcharge'] ?? shop_setting('shipping_cost_voucher', 350));
+                                $voucherSurchargeCents = (int) ($conf['shipping_surcharge'] ?? shop_setting('shipping_cost_voucher', 450));
                             @endphp
                             <div style="margin-top: 4px; margin-bottom: 4px;">
                                 @if(!empty($conf['recipient_name']))

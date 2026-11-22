@@ -280,6 +280,16 @@ class MarketingInfluencer extends Component
                 'max:100',
                 'alpha_dash',
                 Rule::unique('marketing_influencers', 'slug')->ignore($this->editingInfluencerId),
+                function ($attribute, $value, $fail) {
+                    $s = Str::slug((string) $value);
+                    $takenInTracking = \App\Models\Marketing\MarketingTrackingLink::query()
+                        ->where('slug', $s)
+                        ->when($this->editingInfluencerId, fn ($q) => $q->where('influencer_id', '!=', $this->editingInfluencerId))
+                        ->exists();
+                    if ($takenInTracking) {
+                        $fail('Dieser Kurzlink-Slug wird bereits von einem anderen Tracking-Link verwendet.');
+                    }
+                },
             ];
         }
 
@@ -287,25 +297,44 @@ class MarketingInfluencer extends Component
 
         $wasEditing = (bool) $this->editingInfluencerId;
 
-        $service->createOrUpdateInfluencer([
-            'first_name' => $this->firstName,
-            'last_name' => $this->lastName,
-            'email' => $this->email,
-            'handle' => $this->handle,
-            'slug' => $this->slug,
-            'primary_channel' => $this->primaryChannel,
-            'profile_url' => $this->profileUrl,
-            'commission_type' => $this->commissionType,
-            'commission_value' => $this->commissionValue,
-            'follower_discount_percent' => $this->followerDiscountPercent,
-            'cookie_days' => $this->cookieDays,
-            'custom_voucher_code' => $this->customVoucherCode,
-            'auto_create_tracking_link' => $this->autoCreateTrackingLink,
-            'auto_create_voucher' => $this->autoCreateVoucher,
-            'sample_granted' => $this->sampleGranted,
-            'is_active' => $this->isActive,
-            'internal_notes' => $this->internalNotes,
-        ], $this->editingInfluencerId);
+        try {
+            $service->createOrUpdateInfluencer([
+                'first_name' => $this->firstName,
+                'last_name' => $this->lastName,
+                'email' => $this->email,
+                'handle' => $this->handle,
+                'slug' => $this->slug,
+                'primary_channel' => $this->primaryChannel,
+                'profile_url' => $this->profileUrl,
+                'commission_type' => $this->commissionType,
+                'commission_value' => $this->commissionValue,
+                'follower_discount_percent' => $this->followerDiscountPercent,
+                'cookie_days' => $this->cookieDays,
+                'custom_voucher_code' => $this->customVoucherCode,
+                'auto_create_tracking_link' => $this->autoCreateTrackingLink,
+                'auto_create_voucher' => $this->autoCreateVoucher,
+                'sample_granted' => $this->sampleGranted,
+                'is_active' => $this->isActive,
+                'internal_notes' => $this->internalNotes,
+            ], $this->editingInfluencerId);
+        } catch (\Throwable $e) {
+            if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                \App\Services\System\SystemErrorLogger::recordException(
+                    $e,
+                    'marketing',
+                    'influencer:admin_save_failed',
+                    'Influencer-Speicherung fehlgeschlagen',
+                    [
+                        'subpage_path' => '/admin/marketing-influencers',
+                        'influencer_id' => $this->editingInfluencerId,
+                        'influencer_handle' => $this->handle,
+                        'email' => $this->email,
+                    ]
+                );
+            }
+            session()->flash('influencer_error', 'Influencer konnte nicht gespeichert werden: ' . $e->getMessage());
+            return;
+        }
 
         $this->resetForm();
         session()->flash(
@@ -420,6 +449,19 @@ class MarketingInfluencer extends Component
             $this->openPayoutModal($payout->id, $service);
             session()->flash('influencer_saved', "Gutschrift {$payout->credit_note_number} erfolgreich erstellt!");
         } catch (\Throwable $e) {
+            if (!($e instanceof \InvalidArgumentException) && class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                \App\Services\System\SystemErrorLogger::recordException(
+                    $e,
+                    'marketing',
+                    'influencer:admin_create_payout_failed',
+                    'Influencer-Gutschrift fehlgeschlagen',
+                    [
+                        'subpage_path' => '/admin/marketing-influencers',
+                        'influencer_id' => $inf->id,
+                        'influencer_handle' => $inf->handle,
+                    ]
+                );
+            }
             session()->flash('influencer_error', $e->getMessage());
         }
     }
@@ -483,6 +525,24 @@ class MarketingInfluencer extends Component
         } catch (\InvalidArgumentException $e) {
             $this->closePayoutModal();
             session()->flash('influencer_error', $e->getMessage());
+            return;
+        } catch (\Throwable $e) {
+            if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                \App\Services\System\SystemErrorLogger::recordException(
+                    $e,
+                    'marketing',
+                    'influencer:admin_confirm_payout_failed',
+                    'Influencer-Auszahlung Verbuchung fehlgeschlagen',
+                    [
+                        'subpage_path' => '/admin/marketing-influencers',
+                        'payout_id' => $payout->id,
+                        'credit_note_number' => $payout->credit_note_number,
+                        'influencer_id' => $payout->influencer_id,
+                    ]
+                );
+            }
+            $this->closePayoutModal();
+            session()->flash('influencer_error', 'Die Auszahlung konnte nicht verbucht werden: ' . $e->getMessage());
             return;
         }
 

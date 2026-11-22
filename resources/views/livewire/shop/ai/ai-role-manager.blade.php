@@ -141,31 +141,28 @@
                     </div>
                 </section>
 
-                <div class="flex justify-between pt-6 border-t border-gray-800/80 items-center">
-                    <button type="button" wire:click="cancel" class="text-gray-400 hover:text-white transition-colors font-mono text-sm uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-gray-900">Zurück</button>
-                    <button type="submit" class="bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3.5 px-10 rounded-xl shadow-[0_0_20px_var(--theme-color-30)] hover:shadow-[0_0_30px_var(--theme-color-50)] transition-all font-mono uppercase tracking-widest flex items-center gap-2">
+                <div class="flex justify-between pt-6 border-t border-gray-200 dark:border-gray-800/80 items-center">
+                    <button type="button" wire:click="cancel" class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-mono text-sm uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900">Zurück</button>
+                    <button type="submit" class="bg-[var(--theme-color)] hover:opacity-90 text-white font-bold py-3.5 px-10 rounded-xl shadow-sm transition-all font-mono uppercase tracking-widest flex items-center gap-2">
                         <svg wire:loading.remove wire:target="save" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.739a.75.75 0 011.04-.208z" clip-rule="evenodd" /></svg>
-                        <svg wire:loading wire:target="save" class="animate-spin -ml-1 mr-2 h-5 w-5 text-gray-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        <svg wire:loading wire:target="save" class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                         Rolle Speichern
                     </button>
                 </div>
             </form>
         @else
             <!-- Standard Listen-Ansicht -->
-            <div class="mb-12 text-center mt-4 font-mono">
-                <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] tracking-widest uppercase shadow-none dark:shadow-[0_0_15px_var(--theme-color)]/20 drop-shadow-none dark:drop-shadow-md">
+            <div class="mb-10 text-center mt-4 font-mono">
+                <h1 class="text-3xl sm:text-4xl font-black text-[var(--theme-color)] tracking-widest uppercase">
                     KI Rollen
                 </h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm uppercase tracking-widest">
-                    Verwalte die grundlegenden KI-Rollen und Zuständigkeiten.
-                </p>
             </div>
             <div class="mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div></div>
                 
                 @if(count($topTools) > 0)
-                <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-2xl p-4 shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)] min-w-[300px]">
-                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-2xl p-4 shadow-sm min-w-[300px]">
+                    <h3 class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                         <i class="bi bi-cpu-fill text-[var(--theme-color)]"></i>
                         Meistgenutzte Werkzeuge
                     </h3>
@@ -179,26 +176,25 @@
                 </div>
                 @endif
                 
-                <button wire:click="create" class="whitespace-nowrap bg-[var(--theme-color)] hover:bg-[var(--theme-color)]/80 text-gray-900 font-bold py-3 px-6 rounded-xl shadow-[0_0_20px_var(--theme-color-30)] transition-all font-mono uppercase tracking-widest flex items-center justify-center gap-2">
+                <button wire:click="create" class="whitespace-nowrap bg-[var(--theme-color)] hover:opacity-90 text-white font-bold py-3 px-6 rounded-xl shadow-sm transition-all font-mono uppercase tracking-widest flex items-center justify-center gap-2">
                     <i class="bi bi-plus-lg"></i>
                     Rolle hinzufügen
                 </button>
             </div>
 
             @if (session()->has('message'))
-                <div class="bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 px-4 py-3 rounded-lg mb-6 font-mono text-sm shadow-[0_0_15px_rgba(16,185,129,0.2)] flex items-center gap-3">
+                <div class="bg-emerald-500/15 border border-emerald-500/40 text-emerald-800 dark:text-emerald-300 px-4 py-3 rounded-lg mb-6 font-mono text-sm flex items-center gap-3">
                     <i class="bi bi-check-circle-fill"></i>
                     {{ session('message') }}
                 </div>
             @endif
 
-            <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-sm dark:shadow-[0_0_20px_rgba(0,0,0,0.3)]">
+            <div class="bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800/60 rounded-3xl p-6 sm:p-8 backdrop-blur-md shadow-sm">
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm text-gray-400 font-mono">
+                    <table class="w-full text-left text-sm text-gray-600 dark:text-gray-400 font-mono">
                         <thead class="text-xs uppercase bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800/80">
                             <tr>
                                 <th scope="col" class="px-6 py-4">Rolle</th>
-                                <th scope="col" class="px-6 py-4">Beschreibung</th>
                                 <th scope="col" class="px-6 py-4">Tools</th>
                                 <th scope="col" class="px-6 py-4 text-right">Aktion</th>
                             </tr>
@@ -206,8 +202,14 @@
                         <tbody class="divide-y divide-gray-200 dark:divide-gray-800/80">
                             @forelse($roles as $role)
                                 <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                                    <td class="px-6 py-4 font-bold text-gray-900 dark:text-white">{{ $role->name }}</td>
-                                    <td class="px-6 py-4 truncate max-w-xs text-gray-600 dark:text-gray-400">{{ $role->description }}</td>
+                                    <td class="px-6 py-4 font-bold text-gray-900 dark:text-white">
+                                        <span class="inline-flex items-center gap-2">
+                                            {{ $role->name }}
+                                            @if(!empty($role->description))
+                                                <span class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500 text-[9px] font-bold inline-flex items-center justify-center cursor-help" title="{{ $role->description }}">!</span>
+                                            @endif
+                                        </span>
+                                    </td>
                                     <td class="px-6 py-4 text-[var(--theme-color)] font-bold">{{ $role->tools->count() }} aktiv</td>
                                     <td class="px-6 py-4 text-right space-x-3">
                                         <button wire:click="edit('{{ $role->id }}')" class="font-bold text-[var(--theme-color)] hover:opacity-80 uppercase tracking-widest text-[10px]">Bearbeiten</button>

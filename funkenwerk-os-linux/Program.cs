@@ -264,8 +264,10 @@ static void ConfigureKioskApp(
 
     static bool IsPrivacyRestrictedActive(LinuxOsSettings s)
     {
+        string eff = LocalSenseBridge.EffectivePrivacyIdentity;
         return s.TikTokLiveMode ||
-               string.Equals(LocalSenseBridge.EffectivePrivacyIdentity, "visitor", StringComparison.OrdinalIgnoreCase);
+               string.Equals(eff, "visitor", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(eff, "known_companion", StringComparison.OrdinalIgnoreCase);
     }
 
     // =========================================================================
@@ -1124,10 +1126,66 @@ static void ConfigureKioskApp(
         return Results.Json(new { ok = true, ownerVoiceEnrolled = false });
     });
 
+    app.MapGet("/api/funkira/companions", (HttpContext ctx) =>
+    {
+        var s = LinuxVaultAndStorage.LoadSettings();
+        if (s.TikTokLiveMode || !FunkiraLiveAndMcpEngine.IsOwnerClearanceVerified(LocalSenseBridge.EffectivePrivacyIdentity))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Results.Json(new { ok = false, error = "owner_verification_required" });
+        }
+
+        var list = LinuxVaultAndStorage.GetCompanionFaces(s);
+        var items = list.Select(c =>
+        {
+            string dataUrl = !string.IsNullOrWhiteSpace(c.PhotoFileName)
+                ? LinuxVaultAndStorage.LoadCompanionPortraitDataUrl(c.PhotoFileName)
+                : "";
+            return new
+            {
+                name = c.Name,
+                relationship = c.Relationship,
+                contactId = c.ContactId,
+                savedAt = c.SavedAt,
+                hasPhoto = !string.IsNullOrWhiteSpace(dataUrl),
+                hasFace = c.Vector != null && c.Vector.Length == 128,
+                hasVoice = c.VoiceVector != null && c.VoiceVector.Length >= 48,
+                photoDataUrl = dataUrl
+            };
+        }).ToList();
+
+        return Results.Json(new { ok = true, count = items.Count, companions = items });
+    });
+
+    app.MapPost("/api/funkira/companion-delete", async (HttpContext ctx) =>
+    {
+        var s = LinuxVaultAndStorage.LoadSettings();
+        if (s.TikTokLiveMode || !FunkiraLiveAndMcpEngine.IsOwnerClearanceVerified(LocalSenseBridge.EffectivePrivacyIdentity))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Results.Json(new { ok = false, error = "owner_verification_required" });
+        }
+
+        using var doc = await JsonDocument.ParseAsync(ctx.Request.Body).ConfigureAwait(false);
+        string targetName = doc.RootElement.TryGetProperty("name", out var nEl) ? (nEl.GetString() ?? "").Trim() : "";
+        if (string.IsNullOrWhiteSpace(targetName))
+            return Results.Json(new { ok = false, message = "Name fehlt." });
+
+        var list = LinuxVaultAndStorage.GetCompanionFaces(s);
+        foreach (var rem in list.Where(c => string.Equals(c.Name, targetName, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (!string.IsNullOrWhiteSpace(rem.PhotoFileName))
+                LinuxVaultAndStorage.DeleteCompanionPortrait(rem.PhotoFileName);
+        }
+        int removed = list.RemoveAll(c => string.Equals(c.Name, targetName, StringComparison.OrdinalIgnoreCase));
+        LinuxVaultAndStorage.StoreCompanionFaces(s, list);
+        return Results.Json(new { ok = true, removed, remaining = list.Count });
+    });
+
     app.MapPost("/api/funkira/order-checkin-check", async (HttpContext ctx) =>
     {
         var s = LinuxVaultAndStorage.LoadSettings();
-        if (IsPrivacyRestrictedActive(s))
+        if (IsPrivacyRestrictedActive(s) || !FunkiraLiveAndMcpEngine.IsOwnerClearanceVerified(LocalSenseBridge.EffectivePrivacyIdentity))
         {
             return Results.Json(new { ok = true, shouldAsk = false, blockedReason = "privacy_restricted" });
         }
@@ -3091,7 +3149,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     js3d.Contains("s.lineTo( 0.00, 4.10)", StringComparison.Ordinal) &&
                     js3d.Contains("sirenCrystalBell", StringComparison.Ordinal) &&
                     js3d.Contains("this.renderScale < 1.00", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/funkira3d.js?v=20261116v25", StringComparison.Ordinal);
+                    htmlIdx.Contains("/funkira3d.js?v=20261119v60", StringComparison.Ordinal);
 
                 return hdEngineOk;
             }).ConfigureAwait(false);
@@ -3227,7 +3285,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
                     jsApp.Contains("projectRawVideoBoxToPip", StringComparison.Ordinal) &&
                     !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/app.js?v=20261117v31", StringComparison.Ordinal);
+                    htmlIdx.Contains("/app.js?v=20261119v60", StringComparison.Ordinal);
 
                 return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
             }).ConfigureAwait(false);
@@ -3866,7 +3924,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                                        healed == 2 && remainingBytes == 0 && archiveWritten);
             }).ConfigureAwait(false);
 
-            await AssertCheckAsync(44, "Funkenwerk 3D-Wasserstadt (Orbital-Planeten-Anflug, 7 Abteilungs-Piers, MEIN SEELENFUNKE Hauptturm, ALINA & FALCONE Thronsaal, 0%-Idle-Pause, Sprach-/MCP-Steuerung & 0 KI-Gedankenstriche)", async () =>
+            await AssertCheckAsync(44, "Funkenwerk 3D-Wasserstadt (Orbital-Planeten-Anflug, 7 Abteilungs-Piers, MEIN SEELENFUNKE Hauptturm, ALINA & FUNKIRA Thronsaal, 0%-Idle-Pause, Sprach-/MCP-Steuerung & 0 KI-Gedankenstriche)", async () =>
             {
                 // 1. Static asset /funkenwerk_city_3d.js served cleanly on Kestrel loopback
                 using var assetResp = await rawHttp.GetAsync("/funkenwerk_city_3d.js").ConfigureAwait(false);
@@ -3919,9 +3977,9 @@ async Task<int> RunLinuxSelfTestsAsync()
                     cityJs.Contains("MEIN SEELENFUNKE", StringComparison.Ordinal) &&
                     cityJs.Contains("'ALINA'", StringComparison.Ordinal) &&
                     cityJs.Contains("Herrscherin über das Seelenfunken-Universum", StringComparison.Ordinal) &&
-                    cityJs.Contains("'FALCONE'", StringComparison.Ordinal) &&
-                    cityJs.Contains("FALCONE · Rechte Hand & Mitgründer", StringComparison.Ordinal) &&
-                    cityJs.Contains("FALCONE · Mitgründer", StringComparison.Ordinal) &&
+                    cityJs.Contains("'FUNKIRA'", StringComparison.Ordinal) &&
+                    cityJs.Contains("FUNKIRA · Stabschefin & Rechte Hand", StringComparison.Ordinal) &&
+                    cityJs.Contains("FUNKIRA · Stabschefin", StringComparison.Ordinal) &&
                     cityJs.Contains("#06B6D4", StringComparison.Ordinal) &&
                     cityJs.Contains("#3B82F6", StringComparison.Ordinal) &&
                     cityJs.Contains("#A855F7", StringComparison.Ordinal) &&
@@ -4217,8 +4275,8 @@ async Task<int> RunLinuxSelfTestsAsync()
 
                 bool depthGuardOk =
                     cityJs.Contains("camDist < 48.0", StringComparison.Ordinal) &&
-                    cityJs.Contains("newNear = 0.15;", StringComparison.Ordinal) &&
-                    cityJs.Contains("newFar = 4200;", StringComparison.Ordinal) &&
+                    cityJs.Contains("newNear = 0.25;", StringComparison.Ordinal) &&
+                    cityJs.Contains("newFar = 2800;", StringComparison.Ordinal) &&
                     cityJs.Contains("clamp(camDist * 0.018, 0.8, 22.0)", StringComparison.Ordinal) &&
                     cityJs.Contains("newFar = 9600;", StringComparison.Ordinal) &&
                     cityJs.Contains("clamp(camDist * 0.04, 22.0, 140.0)", StringComparison.Ordinal) &&
@@ -4644,6 +4702,253 @@ async Task<int> RunLinuxSelfTestsAsync()
                     FunkiraLiveAndMcpEngine.ResetVertexTokenCacheForSelfTest();
                     try { if (File.Exists(tempSaPath)) File.Delete(tempSaPath); } catch { }
                 }
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(52, "Mini-PC 60-FPS Funkira 3D-Engine (Static-Mesh-Batching, Atelier-Raum-Culling, Hysterese-Governor, Off-RAF 320p Face-Tracker, AudioWorklet & 0 KI-Gedankenstriche)", async () =>
+            {
+                await Task.CompletedTask.ConfigureAwait(false);
+                string js3d = File.ReadAllText(Path.Combine(resolvedWebRoot, "funkira3d.js"), Encoding.UTF8);
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+                string cssRaw = File.ReadAllText(Path.Combine(resolvedWebRoot, "styles.css"), Encoding.UTF8);
+
+                bool batchAndCullOk =
+                    js3d.Contains("function batchStaticSubtree(", StringComparison.Ordinal) &&
+                    js3d.Contains("_optimizeStaticWorldFor60Fps()", StringComparison.Ordinal) &&
+                    js3d.Contains("cameraInsideClosedAtelier", StringComparison.Ordinal) &&
+                    js3d.Contains("this.ogNorthStaticGroup", StringComparison.Ordinal) &&
+                    js3d.Contains("this._scaleLockedDown = true;", StringComparison.Ordinal) &&
+                    js3d.Contains("this.isLowPowerGpu", StringComparison.Ordinal);
+
+                bool offRafAndWorkletOk =
+                    jsApp.Contains("scheduleIdleFaceTrackCapture", StringComparison.Ordinal) &&
+                    jsApp.Contains("FkPcm16CaptureProcessor", StringComparison.Ordinal) &&
+                    jsApp.Contains("translate3d(", StringComparison.Ordinal) &&
+                    cssRaw.Contains("will-change: transform;", StringComparison.Ordinal) &&
+                    !cssRaw.Contains("will-change: left, top, width, height;", StringComparison.Ordinal);
+
+                bool zeroKiEnDashOk =
+                    !js3d.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !jsApp.Contains(" \u2013 ", StringComparison.Ordinal) &&
+                    !cssRaw.Contains(" \u2013 ", StringComparison.Ordinal);
+
+                return batchAndCullOk && offRafAndWorkletOk && zeroKiEnDashOk;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(53, "Pflicht-Kamera-Check (1x ins Bild schauen + 15-Min Stimm-Weiterführung) & Unbekannte-Personen-Onboarding (Frontal-Check, AES-256-GCM Porträtbild, Name, 128D-Gesicht & 512D-Stimme)", async () =>
+            {
+                // 1. Mandatory Visual Check-In: Even if Alina's voice matches, deep tools & order numbers stay LOCKED until she looks into camera once!
+                LocalSenseBridge.SetIdentityForSelfTest("unverified", "alina");
+                bool unverifiedEffOk = LocalSenseBridge.EffectivePrivacyIdentity == "unverified";
+                bool deepToolsBlockedBeforeVisual =
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("order_get_details", false, LocalSenseBridge.EffectivePrivacyIdentity) &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("finance_get_liquidity_status", false, LocalSenseBridge.EffectivePrivacyIdentity) &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("mail_list_messages", false, LocalSenseBridge.EffectivePrivacyIdentity) &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_document_search", false, LocalSenseBridge.EffectivePrivacyIdentity) &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_error_cellar", false, LocalSenseBridge.EffectivePrivacyIdentity);
+
+                using var verifyArgsDoc = JsonDocument.Parse("{\"action\":\"verify_camera_presence\"}");
+                bool verifyToolAllowedWhileUnverified =
+                    FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_companion_memory", false, LocalSenseBridge.EffectivePrivacyIdentity, verifyArgsDoc.RootElement);
+
+                string unverifiedPrompt = FunkiraLiveAndMcpEngine.BuildMiniPcSystemInstruction(
+                    "Basis",
+                    new PulseSnapshotDto { IsConnected = true, Environment = "LIVE", OpenOrdersCount = 7, OrdersToday = 4 },
+                    new SystemStatsDto { IpAddress = "192.168.188.151" },
+                    new AudioStateDto { ActiveDeviceName = "Teufel", Volume = 50 },
+                    new WebcamDeviceStatusDto { HasCamera = true, CameraName = "Logitech C920", VideoDevice = "/dev/video0" },
+                    new LinuxOsSettings());
+                bool promptHidesDeepInfoOk =
+                    unverifiedPrompt.Contains("PFLICHT-KAMERA-CHECK", StringComparison.Ordinal) &&
+                    !unverifiedPrompt.Contains("Offene Bestellungen im Shop: 7", StringComparison.Ordinal) &&
+                    !unverifiedPrompt.Contains("Bestellungen heute: 4", StringComparison.Ordinal);
+
+                using var unvCompResp = await authedHttp.GetAsync("/api/funkira/companions").ConfigureAwait(false);
+                bool companionsApiBlockedWhenUnverified = unvCompResp.StatusCode == System.Net.HttpStatusCode.Forbidden;
+
+                // 2. Alina looks into camera once -> unlocks immediately + 15-min sliding voice continuity at laser + expiration after 15 min
+                LocalSenseBridge.SetIdentityForSelfTest("alina", "alina");
+                bool visualUnlockedOk =
+                    LocalSenseBridge.EffectivePrivacyIdentity == "alina" &&
+                    FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("order_get_details", false, LocalSenseBridge.EffectivePrivacyIdentity);
+
+                LocalSenseBridge.SetIdentityForSelfTest("none", "alina", ownerVisuallyChecked: true);
+                LocalSenseBridge.SimulateVisualCheckTimestampForSelfTest(DateTime.UtcNow.AddMinutes(-4), DateTime.UtcNow.AddMinutes(-1));
+                bool voiceContinuityOk = LocalSenseBridge.EffectivePrivacyIdentity == "alina";
+
+                LocalSenseBridge.SimulateVisualCheckTimestampForSelfTest(DateTime.UtcNow.AddMinutes(-35), DateTime.UtcNow.AddMinutes(-16));
+                bool expiredBackToUnverifiedOk = LocalSenseBridge.EffectivePrivacyIdentity == "unverified";
+
+                // 3. Unknown Person Onboarding: Non-frontal look asks for straight gaze first; frontal look saves encrypted JPEG portrait + Name + 128D Face + 512D Voice
+                LocalSenseBridge.SetIdentityForSelfTest("visitor", "visitor_voice");
+                float[] lukasFace128 = Enumerable.Range(0, 128).Select(i => (float)Math.Sin(i * 0.11 + 0.3)).ToArray();
+                float[] lukasVoice512 = Enumerable.Range(0, 512).Select(i => (float)Math.Cos(i * 0.07 + 0.2)).ToArray();
+                byte[] validJpeg = new byte[160];
+                validJpeg[0] = 0xFF;
+                validJpeg[1] = 0xD8;
+                for (int i = 2; i < validJpeg.Length - 2; i++) validJpeg[i] = (byte)((i * 37) & 0xFF);
+                validJpeg[^2] = 0xFF;
+                validJpeg[^1] = 0xD9;
+
+                using var rememberDoc = JsonDocument.Parse("{\"action\":\"remember_current_companion\",\"name\":\"Lukas\",\"relationship\":\"Bruder\"}");
+                using var listDoc = JsonDocument.Parse("{\"action\":\"list_companions\"}");
+
+                bool visitorRememberAllowed = FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_companion_memory", false, "visitor", rememberDoc.RootElement);
+                bool visitorListBlocked = !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_companion_memory", false, "visitor", listDoc.RootElement);
+
+                LocalSenseBridge.SeedUnknownPersonCaptureForSelfTest(lukasFace128, validJpeg, isFrontal: false, voiceVec: lukasVoice512);
+                var (sideRes, _) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_companion_memory", rememberDoc.RootElement).ConfigureAwait(false);
+                bool frontalGateOk = sideRes["status"]?.GetValue<string>() == "need_frontal_look";
+
+                LocalSenseBridge.SeedUnknownPersonCaptureForSelfTest(lukasFace128, validJpeg, isFrontal: true, voiceVec: lukasVoice512);
+                var (saveRes, saveEvt) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_companion_memory", rememberDoc.RootElement).ConfigureAwait(false);
+                bool savedAll4PartsOk =
+                    saveRes["status"]?.GetValue<string>() == "success" &&
+                    saveRes["saved_photo"]?.GetValue<bool>() == true &&
+                    saveRes["saved_face"]?.GetValue<bool>() == true &&
+                    saveRes["saved_voice"]?.GetValue<bool>() == true &&
+                    saveEvt?["soloCompanion"]?.GetValue<bool>() == true;
+
+                // After solo onboarding, person is recognized as 'known_companion' ('Lukas'), while Alina's deep tools STILL remain locked!
+                bool promotedToKnownCompanionOk =
+                    LocalSenseBridge.EffectivePrivacyIdentity == "known_companion" &&
+                    LocalSenseBridge.CurrentCompanionBadgeLabel == "Lukas" &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("order_get_details", false, LocalSenseBridge.EffectivePrivacyIdentity) &&
+                    !FunkiraLiveAndMcpEngine.IsToolAllowedInPrivacyMode("minipc_document_search", false, LocalSenseBridge.EffectivePrivacyIdentity);
+
+                // Verify encrypted portrait on disk (AES-256-GCM prefix, zero raw JPEG header on disk, path traversal blocked)
+                var savedComps = LinuxVaultAndStorage.GetCompanionFaces(LinuxVaultAndStorage.LoadSettings());
+                var lukasDto = savedComps.FirstOrDefault(c => c.Name == "Lukas");
+                bool encryptedPortraitOk = false;
+                if (lukasDto != null && !string.IsNullOrWhiteSpace(lukasDto.PhotoFileName))
+                {
+                    string encDiskPath = Path.Combine(LinuxVaultAndStorage.PersonPortraitsDir, lukasDto.PhotoFileName);
+                    string rawOnDisk = File.Exists(encDiskPath) ? File.ReadAllText(encDiskPath, Encoding.UTF8) : "";
+                    byte[]? decBytes = LinuxVaultAndStorage.LoadCompanionPortraitBytes(lukasDto.PhotoFileName);
+                    byte[]? traversalBlocked = LinuxVaultAndStorage.LoadCompanionPortraitBytes("../../etc/passwd");
+                    encryptedPortraitOk =
+                        rawOnDisk.StartsWith("FWLINUXAES256GCM1:", StringComparison.Ordinal) &&
+                        decBytes != null && decBytes.SequenceEqual(validJpeg) &&
+                        traversalBlocked == null;
+                }
+
+                // Verify owner companions API + clean deletion of both entry and encrypted portrait file
+                LocalSenseBridge.SetIdentityForSelfTest("alina", "alina");
+                using var ownerCompResp = await authedHttp.GetAsync("/api/funkira/companions").ConfigureAwait(false);
+                string ownerCompJson = await ownerCompResp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                bool ownerCompApiOk = ownerCompResp.IsSuccessStatusCode &&
+                                      ownerCompJson.Contains("Lukas", StringComparison.Ordinal) &&
+                                      ownerCompJson.Contains("data:image/jpeg;base64,", StringComparison.Ordinal);
+
+                using var delResp = await authedHttp.PostAsync(
+                    "/api/funkira/companion-delete",
+                    new StringContent("{\"name\":\"Lukas\"}", Encoding.UTF8, "application/json")).ConfigureAwait(false);
+                bool deletedCleanlyOk =
+                    delResp.IsSuccessStatusCode &&
+                    lukasDto != null &&
+                    !File.Exists(Path.Combine(LinuxVaultAndStorage.PersonPortraitsDir, lukasDto.PhotoFileName)) &&
+                    LinuxVaultAndStorage.GetCompanionFaces(LinuxVaultAndStorage.LoadSettings()).Count == 0;
+
+                LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
+
+                return unverifiedEffOk &&
+                       deepToolsBlockedBeforeVisual &&
+                       verifyToolAllowedWhileUnverified &&
+                       promptHidesDeepInfoOk &&
+                       companionsApiBlockedWhenUnverified &&
+                       visualUnlockedOk &&
+                       voiceContinuityOk &&
+                       expiredBackToUnverifiedOk &&
+                       visitorRememberAllowed &&
+                       visitorListBlocked &&
+                       frontalGateOk &&
+                       savedAll4PartsOk &&
+                       promotedToKnownCompanionOk &&
+                       encryptedPortraitOk &&
+                       ownerCompApiOk &&
+                       deletedCleanlyOk;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(54, "Funkira Turbo-Antwortlatenz (thinkingBudget=0 auf 2.5-Live, 420ms High-Sensitivity VAD, 48-Tool-Cap, 2048er 42ms-AudioWorklet & Portal-Ephemeral-Bearer-Cache)", async () =>
+            {
+                await Task.CompletedTask.ConfigureAwait(false);
+
+                // 1. Verify thinkingBudget=0 on Vertex 2.5 Native Audio + 420ms VAD endpointing
+                var vertexSetup = FunkiraLiveAndMcpEngine.BuildLiveSetupPacket(
+                    useDirectVertexWs: true,
+                    vertexProjectId: "gen-lang-client-0670786367",
+                    fullInstruction: "Kurz auf Deutsch.",
+                    voiceName: "Kore",
+                    mergedTools: new JsonArray());
+                var setupNode = vertexSetup["setup"] as JsonObject;
+                int? thinkBudget = setupNode?["generationConfig"]?["thinkingConfig"]?["thinkingBudget"]?.GetValue<int>();
+                var aadNode = setupNode?["realtimeInputConfig"]?["automaticActivityDetection"] as JsonObject;
+                bool vadAndThinkingOk =
+                    thinkBudget == 0 &&
+                    aadNode?["disabled"]?.GetValue<bool>() == false &&
+                    aadNode["startOfSpeechSensitivity"]?.GetValue<string>() == "START_SENSITIVITY_HIGH" &&
+                    aadNode["endOfSpeechSensitivity"]?.GetValue<string>() == "END_SENSITIVITY_HIGH" &&
+                    aadNode["silenceDurationMs"]?.GetValue<int>() == 420;
+
+                // 2. Verify NormalizeBidiPacketForDirectVertex injects thinkingBudget=0 & 420ms VAD on raw setup
+                string? normSetupRaw = FunkiraLiveAndMcpEngine.NormalizeBidiPacketForDirectVertex(
+                    "{\"setup\":{\"model\":\"models/gemini-3.1-flash-live-preview\",\"generationConfig\":{\"responseModalities\":[\"AUDIO\"]}}}",
+                    "gen-lang-client-0670786367");
+                var normSetupObj = JsonNode.Parse(normSetupRaw ?? "{}") as JsonObject;
+                bool normSetupOk =
+                    normSetupObj?["setup"]?["generationConfig"]?["thinkingConfig"]?["thinkingBudget"]?.GetValue<int>() == 0 &&
+                    normSetupObj["setup"]?["realtimeInputConfig"]?["automaticActivityDetection"]?["silenceDurationMs"]?.GetValue<int>() == 420;
+
+                // 3. Verify Portal live-credentials access_token + project_id extraction into 0ms RAM Vertex cache
+                FunkiraLiveAndMcpEngine.ResetVertexTokenCacheForSelfTest();
+                bool cachedAccessTok = FunkiraLiveAndMcpEngine.TryCachePortalLiveCredentialsJson(
+                    "{\"token\":\"abc\",\"access_token\":\"ya29.DirectFastLaneToken_1234567890\",\"project_id\":\"gen-lang-client-0670786367\"}");
+                var fastToken = await FunkiraLiveAndMcpEngine.TryMintLocalVertexAccessTokenAsync(forceRefresh: false).ConfigureAwait(false);
+                bool fastLaneCacheOk =
+                    cachedAccessTok &&
+                    fastToken.Ok &&
+                    fastToken.AccessToken == "ya29.DirectFastLaneToken_1234567890" &&
+                    fastToken.ProjectId == "gen-lang-client-0670786367";
+                FunkiraLiveAndMcpEngine.ResetVertexTokenCacheForSelfTest();
+
+                // 4. Verify 48-tool cap & description compression on bloated server schemas
+                var bigSchemaTools = new JsonArray();
+                string longDesc = new string('A', 240);
+                for (int i = 0; i < 90; i++)
+                {
+                    bigSchemaTools.Add(new JsonObject
+                    {
+                        ["function"] = new JsonObject
+                        {
+                            ["name"] = $"order_extra_tool_{i}",
+                            ["description"] = longDesc,
+                            ["parameters"] = new JsonObject
+                            {
+                                ["type"] = "object",
+                                ["properties"] = new JsonObject
+                                {
+                                    ["id"] = new JsonObject { ["type"] = "string", ["description"] = longDesc }
+                                }
+                            }
+                        }
+                    });
+                }
+                var mergedCapped = FunkiraLiveAndMcpEngine.BuildMergedToolsNode("[]", new JsonObject { ["tools"] = bigSchemaTools }.ToJsonString());
+                var cappedDecls = mergedCapped[0]?["functionDeclarations"]?.AsArray();
+                var sampleServerTool = cappedDecls?.FirstOrDefault(n => (n?["name"]?.GetValue<string>() ?? "").StartsWith("order_extra_tool_", StringComparison.Ordinal)) as JsonObject;
+                string? trimmedDesc = sampleServerTool?["description"]?.GetValue<string>();
+                bool toolCapAndTrimOk =
+                    cappedDecls != null &&
+                    cappedDecls.Count == 48 &&
+                    trimmedDesc != null &&
+                    trimmedDesc.Length <= 170;
+
+                // 5. Verify 2048-sample (~42ms) AudioWorklet & 120ms fast silence gate in app.js
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+                bool audioWorkletFastOk =
+                    jsApp.Contains("new Float32Array(2048)", StringComparison.Ordinal) &&
+                    jsApp.Contains("(Date.now() - fkLastUserVoiceMs) > 120", StringComparison.Ordinal);
+
+                return vadAndThinkingOk && normSetupOk && fastLaneCacheOk && toolCapAndTrimOk && audioWorkletFastOk;
             }).ConfigureAwait(false);
         }
         finally

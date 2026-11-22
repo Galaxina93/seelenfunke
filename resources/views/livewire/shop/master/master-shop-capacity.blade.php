@@ -42,9 +42,9 @@
 
         <!-- DER ULTIMATIVE BALKEN (IMMER SICHTBAR) -->
         <div class="relative w-full mt-6 sm:mt-8 mb-4 sm:mb-6 px-1 lg:px-6" x-data="{
-                    t1: @entangle('threshold1'),
-                    t2: @entangle('threshold2'),
-                    t3: @entangle('threshold3'),
+                    t1: {{ (int) ($threshold1 ?? 70) }},
+                    t2: {{ (int) ($threshold2 ?? 85) }},
+                    t3: {{ (int) ($threshold3 ?? 95) }},
                     activeThumb: null,
                     trackWidth: 0,
                     trackLeft: 0,

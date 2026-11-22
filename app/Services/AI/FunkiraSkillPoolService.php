@@ -7,7 +7,7 @@ class FunkiraSkillPoolService
     public const EQUIP_TOOL_NAME = 'funkira_equip_skill_pool';
 
     /**
-     * Prüft zuverlässig, ob es sich um eine oberste Executive-Root-Instanz (Falcone, Falcon oder Funkira) handelt.
+     * Prüft zuverlässig, ob es sich um die alleinige oberste Stabschefin Funkira handelt (Falcone ist vollständig abgelöst).
      */
     public static function isExecutiveRoot($agent): bool
     {
@@ -27,7 +27,7 @@ class FunkiraSkillPoolService
 
         $trimmed = strtolower(trim($rawName));
 
-        return in_array($trimmed, ['falcone', 'falcon', 'funkira'], true);
+        return $trimmed === 'funkira';
     }
 
     /**
@@ -46,6 +46,10 @@ class FunkiraSkillPoolService
     {
         $core = [
             self::EQUIP_TOOL_NAME,
+            'orchestrator_delegate_specialist',
+            'ticket_set_status_or_ask',
+            'ticket_save_learned_preference',
+            'ticket_escalate_missing_capability',
             'system_get_current_time',
             'system_get_server_status',
             'system_get_error_sentinel',
@@ -53,20 +57,15 @@ class FunkiraSkillPoolService
             'system_read_web_url',
             'ag_list_pending_blockades',
             'ag_resolve_pending_blockade',
+            'ag_send_to_antigravity',
+            'ag_check_antigravity_status',
             'system_prepare_antigravity_handoff',
             'system_open_nav_item',
-            'system_open_zentrum',
-            'system_close_zentrum',
-            'system_close_ui',
-            'system_trigger_ui_element',
-            'system_search_chat_history',
-            'system_read_knowledge',
-            'system_write_knowledge',
-            'system_read_wiki',
         ];
 
         $coreSchemas = array_merge(
             AIFunctionsRegistry::getAiRoutineFuncsSchema(),
+            AIFunctionsRegistry::getAiSmartHomeFuncsSchema(),
             AIFunctionsRegistry::getAiTaskFuncsSchema(),
             AIFunctionsRegistry::getAiCalendarFuncsSchema(),
             AIFunctionsRegistry::getAiBrainFuncsSchema(),

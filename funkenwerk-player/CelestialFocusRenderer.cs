@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Media;
 
-namespace Funkenwerk
+namespace FunkenwerkPlayer
 {
     /// <summary>
     /// Zero-allocation, VSync-locked (60-240 FPS) GPU DrawingContext renderer for the

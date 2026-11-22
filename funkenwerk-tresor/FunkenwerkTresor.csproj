@@ -11,7 +11,10 @@
     <ApplicationTitle>Funkenwerk Tresor</ApplicationTitle>
     <Product>Funkenwerk Tresor</Product>
     <Company>Mein-Seelenfunke</Company>
-    <Version>1.0.0</Version>
+    <Version>1.5.2</Version>
+    <AssemblyVersion>1.5.2.18</AssemblyVersion>
+    <FileVersion>1.5.2.18</FileVersion>
+    <InformationalVersion>1.5.2+b18</InformationalVersion>
     <ApplicationIcon>funkenwerk_tresor.ico</ApplicationIcon>
     <NoWarn>NU1701;CA1416</NoWarn>
   </PropertyGroup>
@@ -21,6 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
     <Resource Include="funkenwerk_tresor.ico" />
     <Resource Include="funkenwerk_tresor.png" />
     <None Include="funkenwerk_tresor.ico" CopyToOutputDirectory="PreserveNewest" />

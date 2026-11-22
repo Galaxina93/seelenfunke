@@ -1304,15 +1304,17 @@ body.funkira-open #atelier-video-wrap {
 
 .funkira-eye-target {
   position: absolute;
+  left: 0;
+  top: 0;
   width: 44px;
   height: 48px;
   margin: 0;
-  transform: translate(-50%, -50%);
+  transform: translate3d(0, 0, 0);
   border: 1.8px solid rgba(253, 230, 138, 0.88);
   border-radius: 10px;
   box-shadow: 0 0 0 1px rgba(197, 160, 89, 0.32) inset;
   pointer-events: none;
-  will-change: left, top, width, height;
+  will-change: transform;
 }
 
 @keyframes funkiraBtnMagicPulse {

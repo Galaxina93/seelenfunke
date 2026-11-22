@@ -11,11 +11,13 @@ use Carbon\Carbon;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use App\Livewire\Traits\WithDepartmentTheming;
+use App\Livewire\Shop\Ai\Traits\ManagesHealthData;
 
 #[Layout('components.layouts.backend_layout')]
 class ManagementRoutine extends Component
 {
     use WithDepartmentTheming;
+    use ManagesHealthData;
 
     public string $themingDepartment = 'Leitung';
 
@@ -67,6 +69,13 @@ class ManagementRoutine extends Component
         if (in_array($period, ['week', 'month', 'year'])) {
             $this->evalPeriod = $period;
             $this->periodOffset = 0;
+        }
+    }
+
+    public function updatedViewMode(string $value): void
+    {
+        if ($value === 'health' && !\Illuminate\Support\Facades\Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+            $this->viewMode = 'combined';
         }
     }
 

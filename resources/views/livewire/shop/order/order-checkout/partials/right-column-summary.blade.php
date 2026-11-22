@@ -110,7 +110,7 @@
             @elseif(!$hasStandardPhysical && $hasPostalVoucher)
                 <div class="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200 text-amber-800 text-xs sm:text-sm flex items-center gap-2.5 shadow-2xs font-medium">
                     <span class="text-base shrink-0">✉️</span>
-                    <span>Zustellung per Post im Umschlag (+&nbsp;3,50&nbsp;€) &amp; Sofort-PDF</span>
+                    <span>Zustellung per Post im Umschlag (+&nbsp;{{ number_format(((int) shop_setting('shipping_cost_voucher', 450)) / 100, 2, ',', '.') }}&nbsp;€) &amp; Sofort-PDF</span>
                 </div>
             @elseif(!$hasPhysical)
                 <div class="mb-4 bg-blue-50 p-3 rounded-xl border border-blue-100 text-blue-800 text-xs sm:text-sm flex gap-3 shadow-2xs">
@@ -328,7 +328,7 @@
                                         @if(!empty($item->configuration['is_gift_voucher']))
                                             @if(($item->configuration['delivery_method'] ?? 'email') === 'post')
                                                 <span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
-                                                    ✉️ Per Post (+&nbsp;3,50&nbsp;€)
+                                                    ✉️ Per Post (+&nbsp;{{ number_format(((int) ($item->configuration['post_shipping_cents'] ?? $item->configuration['shipping_surcharge'] ?? shop_setting('shipping_cost_voucher', 450))) / 100, 2, ',', '.') }}&nbsp;€)
                                                 </span>
                                             @else
                                                 <span class="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">

@@ -160,10 +160,20 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             aiRepository.getAgents()
                 .onSuccess { list ->
-                    _agents.value = list
-                    if (_selectedAgent.value == null) {
-                        val defaultAgent = list.find { it.name.equals("Funkira", ignoreCase = true) } ?: list.firstOrNull()
-                        defaultAgent?.let { selectAgent(it, updateGreeting = false) }
+                    val funkiraOnly = list.filter { it.name.equals("Funkira", ignoreCase = true) }
+                    val filtered = if (funkiraOnly.isNotEmpty()) {
+                        funkiraOnly
+                    } else {
+                        list.filterNot {
+                            it.name.equals("Falcone", ignoreCase = true) ||
+                                it.name.equals("Falcon", ignoreCase = true) ||
+                                it.name.equals("Funki", ignoreCase = true)
+                        }
+                    }
+                    _agents.value = filtered
+                    val defaultAgent = filtered.find { it.name.equals("Funkira", ignoreCase = true) } ?: filtered.firstOrNull()
+                    if (defaultAgent != null) {
+                        selectAgent(defaultAgent, updateGreeting = false)
                     }
                 }
                 .onFailure { err ->

@@ -1195,7 +1195,7 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Wake Word (Hey Falcone)",
+                        text = "Wake Word (Hey Funkira)",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary

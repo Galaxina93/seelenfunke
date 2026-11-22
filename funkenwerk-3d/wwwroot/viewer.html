@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' https://model.funkenwerk3d.internal data: blob:; connect-src 'self' https://model.funkenwerk3d.internal data: blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none';" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Funkenwerk 3D Viewport</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0E121B;
+            color: #F3F4F6;
+        }
+        body.light-mode {
+            background: #F4F6F9;
+            color: #111827;
+        }
+        #canvas-wrap {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+        #empty-state {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            gap: 12px;
+            transition: opacity 0.16s ease;
+        }
+        #empty-state.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .empty-cube {
+            width: 68px;
+            height: 68px;
+            border-radius: 16px;
+            border: 1.5px solid rgba(197, 160, 89, 0.55);
+            background: rgba(197, 160, 89, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #C5A059;
+            font-size: 30px;
+            font-weight: 700;
+        }
+        .empty-title {
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+        }
+        .empty-formats {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .fmt-pill {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 5px;
+            border: 1px solid rgba(197, 160, 89, 0.4);
+            color: #C5A059;
+            background: rgba(197, 160, 89, 0.07);
+        }
+        body.light-mode .fmt-pill {
+            color: #8A6414;
+            border-color: rgba(197, 160, 89, 0.55);
+            background: rgba(197, 160, 89, 0.12);
+        }
+        #dim-labels {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .dim-tag {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            background: rgba(14, 18, 27, 0.88);
+            color: #E8CB8E;
+            border: 1px solid #C5A059;
+            white-space: nowrap;
+        }
+        body.light-mode .dim-tag {
+            background: rgba(255, 255, 255, 0.94);
+            color: #111827;
+            border-color: #C5A059;
+        }
+        #drop-shield {
+            position: absolute;
+            inset: 12px;
+            border: 2px dashed #C5A059;
+            border-radius: 12px;
+            background: rgba(197, 160, 89, 0.10);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: #C5A059;
+            pointer-events: none;
+        }
+        #drop-shield.active {
+            display: flex;
+        }
+        #loading-pill {
+            position: absolute;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 14px;
+            border-radius: 999px;
+            background: rgba(14, 18, 27, 0.92);
+            border: 1px solid #C5A059;
+            color: #E8CB8E;
+            font-size: 12px;
+            font-weight: 600;
+            display: none;
+            pointer-events: none;
+        }
+        body.light-mode #loading-pill {
+            background: rgba(255, 255, 255, 0.95);
+            color: #111827;
+        }
+        #hud-hint {
+            position: absolute;
+            bottom: 10px;
+            left: 14px;
+            font-size: 11px;
+            opacity: 0.58;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-wrap">
+        <div id="empty-state">
+            <div class="empty-cube">⬡</div>
+            <div class="empty-title">3D-Datei öffnen oder hier ablegen</div>
+            <div class="empty-formats">
+                <span class="fmt-pill">.GLB</span>
+                <span class="fmt-pill">.GLTF</span>
+                <span class="fmt-pill">.STL</span>
+                <span class="fmt-pill">.OBJ</span>
+                <span class="fmt-pill">.3MF</span>
+                <span class="fmt-pill">.PLY</span>
+                <span class="fmt-pill">.FBX</span>
+            </div>
+        </div>
+        <div id="dim-labels"></div>
+        <div id="loading-pill">Lade 3D-Modell...</div>
+        <div id="drop-shield">3D-Modell loslassen zum Öffnen</div>
+        <div id="hud-hint">Links: Drehen · Rechts: Verschieben · Mausrad: Zoom · Doppelklick: Zentrieren</div>
+    </div>
+    <script type="module" src="./viewer.js"></script>
+</body>
+</html>

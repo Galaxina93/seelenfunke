@@ -288,45 +288,18 @@
                             </div>
                         </div>
 
-                        <!-- AGENT DROPDOWN -->
-                        <div class="relative w-full">
-                            <select wire:model.live="agentId" 
-                                    @change="onAgentSelectChange($event.target.value)"
-                                    class="w-full bg-gray-50 dark:bg-black/60 border border-gray-200 dark:border-emerald-900/60 rounded text-[9px] font-semibold text-gray-800 dark:text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate transition-colors"
-                                    title="Agent auswählen">
-                                @foreach($availableAgents as $agent)
-                                    <option value="{{ $agent->id }}" class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400">{{ $agent->name }}</option>
-                                @endforeach
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-gray-500 dark:text-emerald-600">
-                                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
+                        <!-- ZENTRALE STABSCHEFIN FUNKIRA + DIREKTLINK ZUM TICKETSYSTEM -->
+                        <div class="text-center text-[9px] font-black uppercase tracking-widest text-gray-800 dark:text-emerald-400">
+                            Funkira
                         </div>
 
-                        <!-- CHAT SESSIONS DROPDOWN -->
-                        <div class="relative w-full" wire:ignore>
-                            <select x-model="currentChatSessionId" 
-                                    @change="switchChatSession($event.target.value)"
-                                    class="w-full bg-gray-50 dark:bg-black/60 border border-gray-200 dark:border-emerald-900/60 rounded text-[9px] font-semibold text-gray-800 dark:text-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 py-1 pl-1.5 pr-4 appearance-none cursor-pointer uppercase tracking-wider outline-none truncate transition-colors" 
-                                    title="Chat Referenz">
-                                <template x-for="chat in (chatSessions || [])" :key="chat.id">
-                                    <option :value="typeof chat !== 'undefined' && chat ? chat.id : ''"
-                                            :selected="typeof chat !== 'undefined' && chat && chat.id === currentChatSessionId"
-                                            class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400"
-                                            x-text="typeof chat !== 'undefined' && chat ? (chat.title && chat.title.length > 14 ? chat.title.substring(0, 14) + '...' : (chat.title || 'Chat')) : 'Chat'"></option>
-                                </template>
-                                <template x-if="!chatSessions || chatSessions.length === 0">
-                                    <option value="" class="bg-white dark:bg-gray-900 text-gray-800 dark:text-emerald-400">(Kein Chat)</option>
-                                </template>
-                            </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-gray-500 dark:text-emerald-600">
-                                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
-                        </div>
+                        <a href="/admin/tickets"
+                           wire:navigate
+                           class="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-900 dark:hover:bg-gray-800 border border-gray-200 dark:border-emerald-900/60 rounded-lg py-1.5 px-2 text-[9px] font-black uppercase tracking-wider text-gray-800 dark:text-emerald-300 flex items-center justify-center gap-1 transition-colors"
+                           title="Zentrales Ticketsystem öffnen">
+                            <x-heroicon-m-ticket class="w-3 h-3 shrink-0" />
+                            <span>Tickets</span>
+                        </a>
                     </div>
 
                     <button x-show="continuousMode" @click="fullStop()" x-cloak class="text-rose-600 dark:text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 flex items-center justify-center gap-1.5 bg-rose-50 dark:bg-rose-900/40 px-2 py-1.5 rounded-lg border border-rose-200 dark:border-rose-500/30 transition-colors w-full shadow-inner" title="Alles stoppen & Mikrofon aus">

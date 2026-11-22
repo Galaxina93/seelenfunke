@@ -12,9 +12,9 @@
         <div x-show="detailsOpen" x-collapse>
             <!-- EXECUTION PLAN -->
             @if(isset($task->ui_metadata['execution_plan']) && count($task->ui_metadata['execution_plan']) > 0)
-                <div class="mb-2 space-y-2 relative z-10 w-full bg-gray-900/40 p-3 rounded-lg border border-gray-800/80">
+                <div class="mb-2 space-y-2 relative z-10 w-full bg-gray-100/80 dark:bg-gray-900/40 p-3 rounded-lg border border-gray-200 dark:border-gray-800/80">
                     <div class="flex items-center justify-between mb-2">
-                        <h4 class="text-[10px] uppercase tracking-widest text-gray-500 font-bold flex items-center gap-2">
+                        <h4 class="text-[10px] uppercase tracking-widest text-gray-600 dark:text-gray-400 font-bold flex items-center gap-2">
                             <x-heroicon-o-clipboard-document-list class="w-3.5 h-3.5"/> KI Ausführungsplan
                         </h4>
                         @if($task->status === 'awaiting_approval')
@@ -26,8 +26,8 @@
                                     <button @click="dropOpen = !dropOpen" @click.away="dropOpen = false" class="flex items-center justify-center px-1.5 py-1 bg-[var(--theme-color-10)] hover:bg-[var(--theme-color-20)] border-y border-r border-[var(--theme-color-50)] text-[var(--theme-color)] rounded-r-md transition-colors">
                                         <x-heroicon-o-chevron-down class="w-3.5 h-3.5" />
                                     </button>
-                                    <div x-show="dropOpen" style="display:none;" class="absolute right-0 top-full mt-1 w-40 bg-gray-900 border border-[var(--theme-color-50)] rounded-md shadow-xl overflow-hidden z-30">
-                                        <button wire:click="approvePlanAlways('{{ $task->id }}')" class="w-full text-left px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-300 hover:text-white hover:bg-[var(--theme-color-20)] transition-colors">
+                                    <div x-show="dropOpen" style="display:none;" class="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-[var(--theme-color-50)] rounded-md shadow-xl overflow-hidden z-30">
+                                        <button wire:click="approvePlanAlways('{{ $task->id }}')" class="w-full text-left px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-[var(--theme-color-10)] transition-colors">
                                             Immer erlauben
                                         </button>
                                     </div>
@@ -39,9 +39,9 @@
                         <div class="flex items-start gap-2 text-xs font-sans">
                             <div class="shrink-0 mt-0.5">
                                 @if($step['status'] === 'pending')
-                                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2" stroke-dasharray="2 2" stroke-linecap="round"></circle></svg>
+                                    <svg class="w-4 h-4 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-width="2" stroke-dasharray="2 2" stroke-linecap="round"></circle></svg>
                                 @elseif($step['status'] === 'processing')
-                                    <svg class="w-4 h-4 text-emerald-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    <svg class="w-4 h-4 text-emerald-500 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                                 @elseif($step['status'] === 'completed')
                                     <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 @elseif($step['status'] === 'failed')
@@ -49,7 +49,7 @@
                                 @endif
                             </div>
                             <div class="flex-1">
-                                <div class="{{ $step['status'] === 'completed' ? 'text-gray-400 line-through' : ($step['status'] === 'processing' ? 'text-[var(--theme-color)]' : 'text-gray-400') }}">
+                                <div class="{{ $step['status'] === 'completed' ? 'text-gray-500 dark:text-gray-400 line-through' : ($step['status'] === 'processing' ? 'text-[var(--theme-color)] font-semibold' : 'text-gray-700 dark:text-gray-300') }}">
                                     <span class="font-mono text-[9px] opacity-70">SCHRITT {{ $step['id'] }}:</span> {{ $step['description'] ?: '...' }}
                                 </div>
                             </div>
@@ -90,7 +90,7 @@
             <!-- RESPONSE -->
             @if($task->status === 'completed' && $task->response_content)
                 <div class="relative z-20" x-data="{ expandedResp: false }">
-                    <div class="text-[12px] text-gray-300 bg-[var(--theme-color-10)] rounded-lg p-3 font-sans break-words bg-opacity-40 relative border border-[var(--theme-color-20)]"
+                    <div class="text-[12px] text-gray-800 dark:text-gray-200 bg-[var(--theme-color-10)] rounded-lg p-3 font-sans break-words relative border border-[var(--theme-color-20)]"
                          :class="expandedResp ? 'max-h-none pb-8' : 'max-h-[70px] overflow-hidden'">
                         @if(strlen($task->response_content) > 80)
                             <div wire:ignore class="ai-markdown-content" x-init="if (window.renderAiMarkdown) { $el.innerHTML = window.renderAiMarkdown(@js($task->response_content)); } else { $el.innerText = @js($task->response_content); }"></div>
@@ -100,7 +100,7 @@
                         @endif
                     </div>
                     @if(strlen($task->response_content) > 80)
-                        <button @click="expandedResp = !expandedResp" class="w-full text-center text-[10px] uppercase tracking-widest font-bold text-[var(--theme-color)] hover:text-white mt-1 p-1.5 flex justify-center items-center gap-1 transition-colors">
+                        <button @click="expandedResp = !expandedResp" class="w-full text-center text-[10px] uppercase tracking-widest font-bold text-[var(--theme-color)] hover:opacity-80 mt-1 p-1.5 flex justify-center items-center gap-1 transition-opacity">
                             <span x-text="expandedResp ? 'Einklappen' : 'Vollständige Antwort lesen'"></span>
                             <x-heroicon-o-chevron-down class="w-3.5 h-3.5 transition-transform" x-bind:class="expandedResp ? 'rotate-180' : ''" />
                         </button>

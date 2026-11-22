@@ -100,22 +100,26 @@ namespace FunkenwerkMcp
             var collectionApps = new (string Key, string Name, string SubFolder, string ExeName, string ProcessName)[]
             {
                 ("funkenwerk", "Funkenwerk", "Funkenwerk", "Funkenwerk.exe", "Funkenwerk"),
-                ("tresor", "Funkenwerk Tresor", "Funkenwerk Tresor", "FunkenwerkTresor.exe", "FunkenwerkTresor"),
-                ("player", "Funkenwerk Player", "Funkenwerk Player", "FunkenwerkPlayer.exe", "FunkenwerkPlayer"),
-                ("video", "Funkenwerk Video", "Funkenwerk Video", "FunkenwerkVideo.exe", "FunkenwerkVideo"),
-                ("ftp", "Funkenwerk FTP", "Funkenwerk FTP", "FunkenwerkFtp.exe", "FunkenwerkFtp"),
-                ("ssh", "Funkenwerk SSH", "Funkenwerk SSH", "FunkenwerkSsh.exe", "FunkenwerkSsh"),
-                ("pdf", "Funkenwerk PDF", "Funkenwerk PDF", "FunkenwerkPdf.exe", "FunkenwerkPdf"),
-                ("drucker", "Funkenwerk Drucker", "Funkenwerk Drucker", "FunkenwerkDrucker.exe", "FunkenwerkDrucker"),
-                ("os", "Funkenwerk OS", "Funkenwerk OS", "FunkenwerkOS.exe", "FunkenwerkOS"),
+                ("3d", "Funkenwerk 3D", "Funkenwerk 3D", "Funkenwerk3D.exe", "Funkenwerk3D"),
                 ("browser", "Funkenwerk Browser", "Funkenwerk Browser", "FunkenwerkBrowser.exe", "FunkenwerkBrowser"),
-                ("craft", "Funkenwerk Craft", "Funkenwerk Craft", "FunkenwerkCraft.exe", "FunkenwerkCraft")
+                ("craft", "Funkenwerk Craft", "Funkenwerk Craft", "FunkenwerkCraft.exe", "FunkenwerkCraft"),
+                ("drucker", "Funkenwerk Drucker", "Funkenwerk Drucker", "FunkenwerkDrucker.exe", "FunkenwerkDrucker"),
+                ("ftp", "Funkenwerk FTP", "Funkenwerk FTP", "FunkenwerkFtp.exe", "FunkenwerkFtp"),
+                ("kamera", "Funkenwerk Kamera", "Funkenwerk Kamera", "FunkenwerkKamera.exe", "FunkenwerkKamera"),
+                ("marketing", "Funkenwerk Marketing", "Funkenwerk Marketing", "FunkenwerkMarketing.exe", "FunkenwerkMarketing"),
+                ("os", "Funkenwerk OS", "Funkenwerk OS", "FunkenwerkOS.exe", "FunkenwerkOS"),
+                ("pdf", "Funkenwerk PDF", "Funkenwerk PDF", "FunkenwerkPdf.exe", "FunkenwerkPdf"),
+                ("player", "Funkenwerk Player", "Funkenwerk Player", "FunkenwerkPlayer.exe", "FunkenwerkPlayer"),
+                ("smarthome", "Funkenwerk SmartHome", "Funkenwerk SmartHome", "FunkenwerkSmartHome.exe", "FunkenwerkSmartHome"),
+                ("ssh", "Funkenwerk SSH", "Funkenwerk SSH", "FunkenwerkSsh.exe", "FunkenwerkSsh"),
+                ("tresor", "Funkenwerk Tresor", "Funkenwerk Tresor", "FunkenwerkTresor.exe", "FunkenwerkTresor"),
+                ("video", "Funkenwerk Video", "Funkenwerk Video", "FunkenwerkVideo.exe", "FunkenwerkVideo")
             };
 
             var appsReport = new List<object>();
             foreach (var app in collectionApps)
             {
-                string exePath = System.IO.Path.Combine(McpSecurityGuard.CollectionRootDir, app.SubFolder, app.ExeName);
+                string exePath = System.IO.Path.Combine(McpSecurityGuard.ResolveCollectionSubDir(app.SubFolder), app.ExeName);
                 bool installed = System.IO.File.Exists(exePath);
                 int runningInstances = 0;
                 try { runningInstances = Process.GetProcessesByName(app.ProcessName).Length; } catch { }

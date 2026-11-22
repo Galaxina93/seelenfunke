@@ -177,9 +177,9 @@ class MailAiSortService
                 $seenBackupFailure
             );
 
-            // 1. SPAM -> Create persistent Blacklist Rule + Move to Spam ('Junk') folder
+            // 1. SPAM -> Create persistent Blacklist Rule (ONLY if sender cannot spoof a trusted/customer address!) + Move to Spam ('Junk') folder
             if ($importance === 'Spam') {
-                if ($from !== '') {
+                if (self::canAutoBlacklistSpamSender($from)) {
                     MailRule::updateOrCreate(
                         [
                             'mail_account_id' => $msg->mail_account_id,
@@ -193,7 +193,7 @@ class MailAiSortService
                     );
                 }
                 $msg->update([
-                    'subject' => $subj,
+                    'subject' => \App\Services\AI\ContextDossierBuilder::sanitizeExternalUntrustedText($subj, 255),
                     'folder' => 'Junk',
                     'is_archived' => false,
                     'category' => 'Spam / Phishing',
@@ -214,19 +214,22 @@ class MailAiSortService
 
             // 2. WICHTIG (Open Action Required) -> Stay in "Verarbeitet" ('Processed')
             if ($importance === 'Wichtig') {
+                $baseTags = array_merge($existingTags, [
+                    'importance' => 'Wichtig',
+                    'category' => $category ?: 'Wichtig',
+                    'account_email' => $accEmail,
+                    'action_hint' => $actionHint,
+                    'resolved' => false,
+                ]);
+                $enrichedTags = \App\Services\AI\SfInternalOrchestrator::enrichImportantMailTags($msg, $baseTags);
+
                 $msg->update([
                     'subject' => $subj,
                     'folder' => 'Processed',
                     'is_archived' => false,
                     'category' => $category ?: 'Wichtig',
                     'priority' => 'high',
-                    'tags' => [
-                        'importance' => 'Wichtig',
-                        'category' => $category ?: 'Wichtig',
-                        'account_email' => $accEmail,
-                        'action_hint' => $actionHint,
-                        'resolved' => false,
-                    ],
+                    'tags' => $enrichedTags,
                     'ai_status' => 'processed',
                 ]);
                 $importantCount++;
@@ -488,6 +491,42 @@ class MailAiSortService
             ];
         }
 
+        // 4h. Echte Shop-Kundenanfragen (ORD-... Referenz oder registrierter Kunde) & ungebuchte Lieferanten-PDF-Rechnungen
+        $isOwnSystemSender = str_ends_with($from, '@mein-seelenfunke.de') || str_starts_with($from, 'no-reply@') || str_starts_with($from, 'noreply@');
+        if ($isRecent && !$isOwnSystemSender) {
+            $mentionsOrderNumber = preg_match('/\bord-[a-z0-9\-]{4,30}\b/iu', $subj . ' ' . $bodyLower) === 1;
+            $isKnownShopCustomer = $from !== ''
+                && class_exists(\App\Models\Customer\Customer::class)
+                && \App\Models\Customer\Customer::whereRaw('LOWER(email) = ?', [$from])->exists();
+
+            if ($mentionsOrderNumber || ($isKnownShopCustomer && preg_match('/\b(?:bestellung|frage|reklamation|widerruf|gravur|lieferung|rechnung|paket)\b/iu', $subjLower . ' ' . $bodyLower) === 1)) {
+                return [
+                    'Wichtig',
+                    'Kundenanfrage & Bestellung',
+                    'Kundenanfrage prüfen und vorbereitete KI-Antwort absenden.'
+                ];
+            }
+
+            $existingMsgTags = is_array($msg->tags) ? $msg->tags : [];
+            $isCoreSupplierInvoice = $hasPdfAttachment
+                && empty($existingMsgTags['ai_receipt_booked_id'])
+                && (
+                    str_contains($from, 'westpack.com') ||
+                    str_contains($from, 'gluecksfieber.de') ||
+                    str_contains($from, 'printequipment.') ||
+                    str_contains($from, 'karton.eu') ||
+                    str_contains($from, 'kartonfritze.de') ||
+                    str_contains($from, 'xtool.com')
+                );
+            if ($isCoreSupplierInvoice) {
+                return [
+                    'Wichtig',
+                    'Rechnung & Buchhaltung',
+                    'Lieferanten-Beleg per 1-Klick (Buchi) in die Sonderausgaben übernehmen.'
+                ];
+            }
+        }
+
         // 5. NORMAL -> Keep cleanly categorized & tagged in "Verarbeitet"
         if (str_contains($from, 'fyrst.de') || str_contains($from, 'qonto.com') || str_contains($from, 'paypal.de')) {
             return ['Normal', 'Bank & Finanzen', null];
@@ -532,5 +571,61 @@ class MailAiSortService
         }
 
         return ['Normal', 'Allgemein', null];
+    }
+
+    /**
+     * Verhindert Spoofed-From Auto-Blacklist Poisoning (Denial-of-Service gegen echte Lieferanten,
+     * Banken, Behörden, eigene Domains oder bestehende Kunden/Kontakte).
+     */
+    public static function canAutoBlacklistSpamSender(string $rawEmail): bool
+    {
+        $email = strtolower(trim($rawEmail));
+        if ($email === '' || strlen($email) > 190 || preg_match('/[\r\n\0\*\?]/', $email)) {
+            return false;
+        }
+        if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return false;
+        }
+
+        $atPos = strrpos($email, '@');
+        if ($atPos === false) {
+            return false;
+        }
+        $domain = substr($email, $atPos + 1);
+
+        $protectedDomains = [
+            'mein-seelenfunke.de', 'seelenfunke.de', 'somfy.de', 'somfy.com', 'overkiz.com',
+            'paypal.de', 'paypal.com', 'stripe.com', 'dhl.de', 'dhl.com', 'deutschepost.de',
+            't-online.de', 'telekom.de', 'westpack.com', 'printequipment.de', 'gluecksfieber.de',
+            'karton.eu', 'kartonfritze.de', 'xtool.com', 'fyrst.de', 'postbank.de', 'db.com',
+            'elster.de', 'arag.de', 'bkk-firmus.de', 'arbeitsagentur.de', 'bund.de', 'itzbund.de',
+            'stadt-gifhorn.de', 'infomaniak.com', 'ik.me', 'mittwald.de', 'amazon.de', 'amazon.com',
+            'google.com', 'gmail.com', 'apple.com', 'icloud.com', 'microsoft.com', 'outlook.com',
+            'gmx.de', 'gmx.net', 'web.de',
+        ];
+
+        foreach ($protectedDomains as $prot) {
+            if ($domain === $prot || str_ends_with($domain, '.' . $prot)) {
+                return false;
+            }
+        }
+
+        try {
+            if (\App\Models\Customer\Customer::whereRaw('LOWER(email) = ?', [$email])->exists()) {
+                return false;
+            }
+            if (\App\Models\Management\ManagementContact::whereRaw('LOWER(email) = ?', [$email])->exists()) {
+                return false;
+            }
+            if (\App\Models\Admin\Admin::whereRaw('LOWER(email) = ?', [$email])->exists()) {
+                return false;
+            }
+            if (\App\Models\Employee\Employee::whereRaw('LOWER(email) = ?', [$email])->exists()) {
+                return false;
+            }
+        } catch (\Throwable) {
+        }
+
+        return true;
     }
 }

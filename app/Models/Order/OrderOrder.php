@@ -480,6 +480,54 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
     }
 
     /**
+     * Prüft, ob diese Bestellung physisch ausschließlich aus postalisch versendeten Geschenkgutscheinen besteht.
+     */
+    public function isPostalVoucherOnly(): bool
+    {
+        if (!$this->relationLoaded('items')) {
+            $this->load('items.product');
+        }
+
+        $hasPostalVoucher = false;
+
+        foreach ($this->items as $item) {
+            $product = $item->product;
+            $conf = is_array($item->configuration) ? $item->configuration : [];
+            $isVoucherPost = !empty($conf['is_gift_voucher']) && ($conf['delivery_method'] ?? 'email') === 'post';
+
+            if ($isVoucherPost) {
+                $hasPostalVoucher = true;
+                continue;
+            }
+
+            $isDigital = !empty($conf['is_digital']) || ($product && $product->type === 'digital');
+            $isService = $product && $product->type === 'service';
+            if (!$isDigital && !$isService) {
+                return false;
+            }
+        }
+
+        return $hasPostalVoucher;
+    }
+
+    /**
+     * Prüft, ob die Bestellung als Deutsche Post Großbrief (z. B. Post-Gutschein oder leichter Flachartikel) versendet werden kann.
+     */
+    public function isBriefEligibleOrder(): bool
+    {
+        if ($this->isOnlyDigital()) {
+            return false;
+        }
+
+        if ($this->isPostalVoucherOnly()) {
+            return true;
+        }
+
+        $details = $this->getDhlWeightDetails(1, 'envelope');
+        return !empty($details['can_fit_in_envelope']);
+    }
+
+    /**
      * Get DHL weight details for the order including item breakdown and recommendation.
      */
     public function getDhlWeightDetails(int $packageCount = 1, string $packagingType = 'box'): array
@@ -553,10 +601,17 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         $suggestedPackagingType = $canFitInEnvelope ? 'envelope' : 'box';
 
         // Tara & Puffer je nach gewählter Verpackungsart
+        $postalVoucherOnly = $totalItemsCount > 0 && $this->isPostalVoucherOnly();
         if ($packagingType === 'envelope') {
-            $packagingName = 'Luftpolsterumschlag';
-            $packagingWeightGrams = (int)shop_setting('packaging_weight_envelope_grams', 30);
-            $bufferGrams = $weightToUse > 0 ? (int)shop_setting('shipping_buffer_envelope_grams', 10) : 0;
+            if ($postalVoucherOnly) {
+                $packagingName = 'Vollpapp-Versandtasche DIN A5';
+                $packagingWeightGrams = 45;
+                $bufferGrams = 5;
+            } else {
+                $packagingName = 'Luftpolsterumschlag';
+                $packagingWeightGrams = (int)shop_setting('packaging_weight_envelope_grams', 30);
+                $bufferGrams = $weightToUse > 0 ? (int)shop_setting('shipping_buffer_envelope_grams', 10) : 0;
+            }
         } else {
             $packagingName = 'Karton';
             $packagingWeightGrams = $maxTaraWeight > 0 ? $maxTaraWeight : (int)shop_setting('packaging_weight_grams', 350);
@@ -611,7 +666,9 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         }
         $isBulkOrder = $recommendedPackageCount > 1;
         if ($packagingType === 'envelope') {
-            $recommendedBoxHint = 'Luftpolstertasche (260 × 180 × 10 mm · Karton.eu Art.-Nr. 135)';
+            $recommendedBoxHint = $postalVoucherOnly
+                ? 'Vollpapp-Versandtasche DIN A5 (167 × 240 mm · Verpacking Art.-Nr. 3895-001)'
+                : 'Luftpolstertasche (260 × 180 × 10 mm · Karton.eu Art.-Nr. 135)';
         } elseif ($isBulkOrder) {
             $recommendedBoxHint = ($weightToUse / $recommendedPackageCount > 10000)
                 ? 'Großer Karton (600 × 400 × 400 mm · Karton.eu Art.-Nr. 069)'
@@ -1509,6 +1566,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         }
 
         $totalPhysicalQty = 0;
+        $voucherPostQty = 0;
         $trophyOrSlateQty = 0;
         $glassOrTallQty = 0;
         $giftBoxCount = 0;
@@ -1517,8 +1575,9 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
         foreach ($this->items as $item) {
             $product = $item->product;
             $conf = is_array($item->configuration) ? $item->configuration : [];
+            $isVoucherPost = !empty($conf['is_gift_voucher']) && ($conf['delivery_method'] ?? 'email') === 'post';
             $isDigital = !empty($conf['is_digital'])
-                || ($product && $product->type === 'digital' && !(!empty($conf['is_gift_voucher']) && ($conf['delivery_method'] ?? 'email') === 'post'));
+                || ($product && $product->type === 'digital' && !$isVoucherPost);
             $isService = $product && $product->type === 'service';
 
             if ($isDigital || $isService) {
@@ -1527,6 +1586,9 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
             $qty = max(1, (int) $item->quantity);
             $totalPhysicalQty += $qty;
+            if ($isVoucherPost) {
+                $voucherPostQty += $qty;
+            }
 
             $checklist = $item->resolveManufacturingChecklist();
             $slugLower = mb_strtolower((string) ($product->slug ?? ''));
@@ -1605,6 +1667,10 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             $sku = 'PKG-BOX-CRYSTAL';
             $fallbackName = 'Buchverpackung (Trophäe)';
             $fallbackDims = '284 × 244 × 70 mm';
+        } elseif ($voucherPostQty > 0 && $voucherPostQty === $totalPhysicalQty) {
+            $sku = 'PKG-ENV-VOUCHER';
+            $fallbackName = 'Vollpapp-Versandtasche DIN A5';
+            $fallbackDims = '250 × 175 × 5 mm';
         } else {
             $sku = 'PKG-ENV-A1';
             $fallbackName = 'Luftpolstertasche';
@@ -1687,8 +1753,24 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             $physicalProductLabels[] = $qty . '× ' . $itemLabel;
 
             $instructions = [];
-            if (!empty($checklist['gift_box']['selected'])) {
-                $instructions[] = 'Schmuckbox (86 × 86 × 17 mm)';
+            $slugLower = mb_strtolower((string) ($product->slug ?? ''));
+            $nameLower = mb_strtolower($itemLabel);
+            $isVoucherPost = !empty($conf['is_gift_voucher']) || str_contains($slugLower, 'gutschein') || str_contains($nameLower, 'gutschein');
+            $isHeavyOrBoxed = str_contains($slugLower, 'kristall')
+                || str_contains($slugLower, 'schiefer')
+                || str_contains($slugLower, 'weizenglas')
+                || str_contains($nameLower, 'kristall')
+                || str_contains($nameLower, 'schiefer')
+                || str_contains($nameLower, 'glas');
+
+            if (!empty($checklist['gift_box']['selected']) || str_contains($slugLower, 'echtgold')) {
+                $instructions[] = 'Schmuckbox (86 × 86 × 17 mm) · flach mit Goldband sichern';
+            } elseif (!$isVoucherPost && !$isHeavyOrBoxed) {
+                if (str_contains($slugLower, 'armband') || str_contains($nameLower, 'armband')) {
+                    $instructions[] = 'Schwarzer Papierflachbeutel (13 × 16,5 cm)';
+                } else {
+                    $instructions[] = 'Schwarze Kraftpapier-Schmucktüte (10 × 6 cm)';
+                }
             }
 
             if (!empty($checklist['gift_wrap']['selected'])) {

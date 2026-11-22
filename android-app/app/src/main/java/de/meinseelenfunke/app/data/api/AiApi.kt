@@ -20,7 +20,8 @@ data class ChatRequest(
     val agent_id: String? = null,
     val chat_session_id: String? = null,
     val client_message_id: String? = null,
-    val skip_tts: Boolean? = null
+    val skip_tts: Boolean? = null,
+    val channel: String? = "android_app"
 )
 
 data class ChatResponse(
@@ -167,6 +168,7 @@ interface AiApi {
         @Query("agent_id") agentId: String? = null,
         @Query("chat_session_id") chatSessionId: String? = null,
         @Query("client") client: String? = null,
+        @Query("channel") channel: String? = "android_live_call",
         @Query("fallback") fallback: String? = null
     ): LiveCredentialsResponse
 

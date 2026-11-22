@@ -324,7 +324,16 @@
                     }
                 };
 
-                window.addEventListener('toggle-mapfocus', (e) => {
+                if (Array.isArray(this._boundWindowListeners)) {
+                    this._boundWindowListeners.forEach(([ev, fn]) => window.removeEventListener(ev, fn));
+                }
+                this._boundWindowListeners = [];
+                const bindWindowEvent = (ev, fn) => {
+                    window.addEventListener(ev, fn);
+                    this._boundWindowListeners.push([ev, fn]);
+                };
+
+                bindWindowEvent('toggle-mapfocus', (e) => {
                     console.log('AI EVENT RECEIVED: toggle-mapfocus', e.detail);
                     const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     const val = detail?.active;
@@ -336,7 +345,7 @@
                     }
                 });
 
-                window.addEventListener('map-fly-to', (e) => {
+                bindWindowEvent('map-fly-to', (e) => {
                     const detail = e.detail.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     if(typeof window.flyToLocation === 'function') {
                         window.flyToLocation(detail.lng, detail.lat, detail.zoom, detail.pitch, detail.markerText);
@@ -345,7 +354,7 @@
                     this.isMapMode = true;
                 });
 
-                window.addEventListener('ai-show-news', (e) => {
+                bindWindowEvent('ai-show-news', (e) => {
                     const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     const articles = detail?.articles || [];
                     
@@ -359,11 +368,11 @@
                     }
                 });
 
-                window.addEventListener('hide-news-panel', (e) => {
+                bindWindowEvent('hide-news-panel', (e) => {
                     this.newsWidgets = [];
                 });
 
-                window.addEventListener('hide-news-widget', (e) => {
+                bindWindowEvent('hide-news-widget', (e) => {
                     const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     const idx = detail?.index;
                     if (idx !== undefined && idx !== null) {
@@ -385,7 +394,7 @@
                     if (this.mainScreenWidget && this.mainScreenWidget.type === 'news') this.clearMainScreenWidget();
                 });
 
-                window.addEventListener('ai-show-youtube', (e) => {
+                bindWindowEvent('ai-show-youtube', (e) => {
                     const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     const videos = detail?.articles || [];
                     
@@ -395,7 +404,7 @@
                     this.youtubeWidgets = [...this.youtubeWidgets, ...videos];
                 });
 
-                window.addEventListener('hide-youtube-widget', (e) => {
+                bindWindowEvent('hide-youtube-widget', (e) => {
                     const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     const idx = detail?.index;
                     if (idx !== undefined && idx !== null) {
@@ -411,7 +420,7 @@
                 });
 
 
-                window.addEventListener('toggle-livedata', (e) => {
+                bindWindowEvent('toggle-livedata', (e) => {
                     const detail = e.detail.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     const val = detail.active;
                     const active = (val === true || val === 'true' || val === 1 || val === '1');
@@ -440,6 +449,14 @@
             },
 
             destroy() {
+                if (Array.isArray(this._boundWindowListeners)) {
+                    this._boundWindowListeners.forEach(([ev, fn]) => window.removeEventListener(ev, fn));
+                    this._boundWindowListeners = [];
+                }
+                if (this._onAnalyzeCameraHandler) {
+                    window.removeEventListener('ai-analyze-camera', this._onAnalyzeCameraHandler);
+                    this._onAnalyzeCameraHandler = null;
+                }
                 if (this.recognition) {
                     // Fully detach to prevent Chrome from holding the media stream
                     this.recognition.onstart = null;

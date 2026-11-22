@@ -146,16 +146,20 @@ namespace FunkenwerkPlayer
 
             if (_initialArgs.Count > 0)
             {
+                SwitchPlayerMode("media");
                 LoadPathsIntoPlayer(_initialArgs, autoPlayFirst: true);
+                _ = InitializeManufakturEngineAsync(openPlaylistsViewByDefault: false);
             }
             else if (!_disableAutoDiscovery)
             {
                 TryPopulateDesktopMediaQueue(autoPlay: false);
+                _ = InitializeManufakturEngineAsync(openPlaylistsViewByDefault: true);
             }
         }
 
         private void MainWindow_Closed(object? sender, EventArgs e)
         {
+            ShutdownManufakturEngine();
             _playbackTimer.Stop();
             _osdTimer.Stop();
             _hudAutoHideTimer.Stop();
@@ -239,7 +243,7 @@ namespace FunkenwerkPlayer
 
         private void CaptureOriginalDarkBrushes(DependencyObject parent, HashSet<DependencyObject>? visited = null)
         {
-            if (parent == null) return;
+            if (parent == null || ReferenceEquals(parent, MusicVenomFocusOverlay)) return;
             visited ??= new HashSet<DependencyObject>();
             if (!visited.Add(parent)) return;
 
@@ -305,7 +309,9 @@ namespace FunkenwerkPlayer
             }
 
             UpdateDynamicControlBrushes();
+            UpdateModeButtonsUI();
             RenderPlaylistUI();
+            RenderManufakturLibrary();
         }
 
         private void UpdateDynamicControlBrushes()
@@ -611,6 +617,7 @@ namespace FunkenwerkPlayer
             RenderPlaylistUI();
             if (autoPlayFirst)
             {
+                SwitchPlayerMode("media");
                 PlayIndex(startIdx);
             }
         }
@@ -1335,7 +1342,12 @@ namespace FunkenwerkPlayer
                     ToggleFullscreen();
                     break;
                 case Key.Escape:
-                    if (_isFullscreen)
+                    if (_isFocusModeActive)
+                    {
+                        e.Handled = true;
+                        ExitFocusMode();
+                    }
+                    else if (_isFullscreen)
                     {
                         e.Handled = true;
                         ToggleFullscreen();

@@ -208,7 +208,7 @@ trait FormatsECommerceData
 
         $dynamicDivisor = ($isSmallBusiness || $shippingTaxRate <= 0.0) ? 1.0 : (1 + ($shippingTaxRate / 100));
 
-        // 5. Versandkosten-Logik: Persistierten Versandpreis (z.B. 3,50 € für Gutschein per Post im Umschlag oder Auslands-/Standardversand) vorrangig nutzen!
+        // 5. Versandkosten-Logik: Persistierten Versandpreis (z.B. 4,50 € für Gutschein per Post im Umschlag oder Auslands-/Standardversand) vorrangig nutzen!
         $persistedShipping = $this->shipping_price ?? $this->shipping_cost ?? null;
         $shippingGrossCents = $persistedShipping !== null ? (int) $persistedShipping : 0;
         $actualShippingGross = $shippingGrossCents;
@@ -311,7 +311,15 @@ trait FormatsECommerceData
                 ? $this->hasDigitalDocuments()
                 : collect($items)->contains(fn ($it) => !empty($it['digital_documents'])),
             'digital_documents_list' => method_exists($this, 'getDigitalDocumentsList') ? $this->getDigitalDocumentsList() : [],
-            'tracking_numbers' => method_exists($this, 'shipments') && $this->shipments ? $this->shipments->pluck('tracking_number')->filter()->toArray() : [],
+            'tracking_numbers' => method_exists($this, 'shipments') && $this->shipments
+                ? $this->shipments->filter(function ($s) {
+                    $tn = trim((string) ($s->tracking_number ?? ''));
+                    return $tn !== '' && !str_starts_with($tn, 'BRIEF-') && !str_starts_with($tn, '#PORTO-');
+                })->pluck('tracking_number')->values()->toArray()
+                : [],
+            'has_brief_shipment' => method_exists($this, 'shipments') && $this->shipments
+                ? $this->shipments->contains(fn($s) => ($s->carrier ?? '') === 'deutsche_post_brief')
+                : false,
 
             // Kontakt & Adressen
             'contact'          => $this->getMailContactData(),

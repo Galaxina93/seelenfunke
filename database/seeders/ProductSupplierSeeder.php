@@ -504,5 +504,28 @@ class ProductSupplierSeeder extends Seeder
                 ],
             ]
         );
+
+        // 16. HÄNDLER 16: Natürlich verpacken (Deutscher Fachhändler für Wende-Geschenkpapier Schwarz & Gold)
+        ProductSupplier::updateOrCreate(
+            ['name' => 'Natürlich verpacken'],
+            [
+                'company_name' => 'Natürlich verpacken',
+                'contact_person' => 'Kundenservice',
+                'country' => 'Deutschland',
+                'country_code' => 'DE',
+                'phone' => '+49 30 49879989',
+                'email' => 'service@natuerlich-verpacken.de',
+                'website' => 'https://www.natuerlich-verpacken.de/',
+                'lead_time_land_days' => 2,
+                'shipping_method' => 'land',
+                'notes' => 'Sofort lieferbarer deutscher Fachhändler für unser beidseitig bedrucktes Geschenkpapier Schwarz & Gold (0,70 × 10 m Rolle, Art.-Nr. 2821171260, Bestellnr. 22026114411-NV vom 22.11.2026).',
+                'dynamic_links' => [
+                    [
+                        'title' => 'Direkt-Nachbestellung: Geschenkpapier Schwarz & Gold wendbar (0,70 × 10 m, Art.-Nr. 2821171260)',
+                        'url' => 'https://www.natuerlich-verpacken.de/zweifarbiges-geschenkpapier-schwarz-gold-rolle-kaufen'
+                    ],
+                ],
+            ]
+        );
     }
 }

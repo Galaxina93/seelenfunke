@@ -1,8 +1,8 @@
 <div x-show="activeTab === 'system'" class="animate-fade-in space-y-8" style="display: none;">
 
     {{-- LIVE GEHEN & WARTUNGSMODUS SOFORT-SCHALTER --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 relative z-30">
+        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4 relative hover:z-40">
             <div class="flex items-center gap-2.5 min-w-0">
                 <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-sans">Live gehen</h2>
                 @if($shop_is_live)
@@ -10,12 +10,7 @@
                 @else
                     <span class="text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider border bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30">Gesperrt</span>
                 @endif
-                <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                    <button type="button" @click.prevent="open = !open" title="Zweiter Hauptschalter vor Verkaufsstart: Solange Live gehen deaktiviert ist, bleibt die gesamte Live-Domain selbst für eingeloggte Admins hinter der Wartungsseite verborgen. Sobald Live gehen aktiv ist, wird das Schaufenster öffentlich sichtbar." class="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[11px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                    <div x-show="open" x-cloak class="absolute left-0 top-7 z-30 w-72 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 p-3 text-xs text-gray-700 dark:text-gray-300 shadow-xl pointer-events-none">
-                        {{ $infoTexts['shop_is_live'] }}
-                    </div>
-                </div>
+                @include('components.alerts.info-tooltip', ['key' => 'shop_is_live'])
             </div>
 
             <button
@@ -28,7 +23,7 @@
             </button>
         </div>
 
-        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4">
+        <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-5 sm:p-6 rounded-2xl shadow-sm dark:shadow-xl border border-gray-200 dark:border-gray-800 flex items-center justify-between gap-4 relative hover:z-40">
             <div class="flex items-center gap-2.5 min-w-0">
                 <h2 class="text-base sm:text-lg font-bold text-gray-900 dark:text-white font-sans">Wartungsmodus (Schaufenster)</h2>
                 @if(!empty($settings['maintenance_mode']))
@@ -50,7 +45,7 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6 relative z-10">
         <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200 dark:border-gray-800/60 shadow-sm dark:shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] rounded-2xl p-4 font-sans relative overflow-hidden group flex justify-between items-center">
             <div>
                 <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Laravel Core</div>
@@ -111,16 +106,11 @@
     @endif
 
     {{-- FUNKENWERK ANDROID OTA TRESOR --}}
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-2xl shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)] border border-gray-200 dark:border-gray-800 relative overflow-hidden">
+    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-2xl shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)] border border-gray-200 dark:border-gray-800 relative z-20">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div class="flex items-center gap-2.5">
                 <h2 class="text-xl sm:text-2xl font-black text-[var(--theme-color)] font-sans">Funkenwerk Android App</h2>
-                <div x-data="{ open: false }" class="relative inline-flex items-center" @mouseenter="open = true" @mouseleave="open = false">
-                    <button type="button" @click="open = !open" class="w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 text-[11px] font-black flex items-center justify-center hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] transition-colors">!</button>
-                    <div x-show="open" x-cloak class="absolute left-0 top-7 z-30 w-72 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 p-3 text-xs text-gray-700 dark:text-gray-300 shadow-xl">
-                        Privater Admin-Tresor (storage/app/private/releases/android). Auslieferung erfolgt signiert, SHA-256-geprüft und ausschließlich für authentifizierte Administratoren (Browser & In-App OTA).
-                    </div>
-                </div>
+                @include('components.alerts.info-tooltip', ['text' => 'Privater Admin-Tresor (storage/app/private/releases/android): Signierte, SHA-256-geprüfte APK-Auslieferung für Administratoren.'])
             </div>
 
             @if(!empty($androidRelease) && !empty($androidDownloadUrl))

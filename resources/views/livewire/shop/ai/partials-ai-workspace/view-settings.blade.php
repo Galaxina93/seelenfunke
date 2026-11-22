@@ -11,24 +11,20 @@
                             <h2 class="text-3xl font-black text-gray-900 dark:text-white tracking-widest uppercase inline-flex items-center gap-3">
                                 <x-heroicon-o-cog-6-tooth class="w-8 h-8 text-[var(--theme-color)]" /> Einstellungen
                             </h2>
-                            <p class="text-sm font-mono text-gray-600 dark:text-gray-400 tracking-wider mt-2">Zentrale Verwaltung für deinen Workspace</p>
                         </div>
 
                         <div class="space-y-6">
                             <!-- KI Ausführungspläne Panel -->
-                            <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm dark:shadow-inner relative overflow-hidden group">
-                                <div class="absolute inset-0 bg-gradient-to-br from-[var(--theme-color-10)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
-                                
-                                <div class="flex items-start justify-between gap-6 relative z-10">
-                                    <div class="flex-1">
-                                        <h3 class="text-lg font-bold text-gray-800 dark:text-gray-200 mb-1 flex items-center gap-2">
-                                            <x-heroicon-o-clipboard-document-check class="w-5 h-5 text-[var(--theme-color)]" /> Generierte Ausführungspläne immer durchführen
+                            <div class="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
+                                <div class="flex items-center justify-between gap-6 relative z-10">
+                                    <div class="flex items-center gap-2.5">
+                                        <x-heroicon-o-clipboard-document-check class="w-5 h-5 text-[var(--theme-color)] shrink-0" />
+                                        <h3 class="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100">
+                                            Ausführungspläne automatisch freigeben
                                         </h3>
-                                        <p class="text-sm font-mono text-gray-600 dark:text-gray-400 leading-relaxed max-w-2xl">
-                                            Wenn diese Option deaktiviert ist (Sicherheitsmodus), hält die Künstliche Intelligenz nach dem Erstellen des Schlachtplans ("Todo-Liste") an und fragt dich erst um Erlaubnis. Wenn diese Option aktiviert wird, führt die KI die geplanten Schritte sofort automatisiert der Reihe nach aus.
-                                        </p>
+                                        <span class="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 text-gray-400 dark:text-gray-500 text-[9px] font-bold flex items-center justify-center cursor-help shrink-0" title="Wenn deaktiviert (Sicherheitsmodus), wartet die KI nach dem Erstellen eines Ausführungsplans auf manuelle Freigabe. Wenn aktiviert, werden alle Schritte direkt ausgeführt.">!</span>
                                     </div>
-                                    <div class="shrink-0 mt-1">
+                                    <div class="shrink-0">
                                         <label class="relative inline-flex items-center cursor-pointer">
                                             <input type="checkbox" wire:model.live="autoApprovePlan" class="sr-only peer">
                                             <div class="w-14 h-7 bg-gray-200 dark:bg-gray-800 peer-focus:outline-none rounded-full peer peer-checked:bg-[var(--theme-color)] shadow-inner transition-colors duration-300"></div>
@@ -37,14 +33,12 @@
                                     </div>
                                 </div>
                             </div>
-                            </div>
 
                             <!-- KI HOSTING TARIFE -->
-                            <div class="mt-12 mb-6 text-center">
+                            <div class="mt-10 mb-6 text-center">
                                 <h2 class="text-2xl font-black text-gray-900 dark:text-white tracking-widest uppercase inline-flex items-center gap-3">
                                     <x-heroicon-o-server-stack class="w-7 h-7 text-[var(--theme-color)]" /> KI Hosting Tarife
                                 </h2>
-                                <p class="text-xs font-mono text-gray-600 dark:text-gray-400 tracking-wider mt-2">Zentrale LLM-Zugangssteuerung & Paketverwaltung</p>
                             </div>
 
                             @if(session()->has('message'))
@@ -57,7 +51,7 @@
                                 <!-- Tarife Liste -->
                                 <div class="xl:col-span-2 space-y-6">
                                     @foreach($this->aiPlans as $plan)
-                                        <div class="bg-white dark:bg-gray-900 border {{ $plan->is_active ? 'border-[var(--theme-color-50)] shadow-sm dark:shadow-[0_0_15px_rgba(var(--theme-color-rgb),0.2)]' : 'border-gray-200 dark:border-gray-800' }} rounded-2xl p-6 relative overflow-hidden transition-all group shadow-sm dark:shadow-inner">
+                                        <div class="bg-white dark:bg-gray-900 border {{ $plan->is_active ? 'border-[var(--theme-color-50)] shadow-sm' : 'border-gray-200 dark:border-gray-800' }} rounded-2xl p-6 relative overflow-hidden transition-all group shadow-sm">
                                             @if($plan->is_active)
                                                 <div class="absolute top-0 right-0 -mt-2 -mr-2 w-16 h-16 bg-[var(--theme-color-20)] rounded-full blur-xl pointer-events-none"></div>
                                                 <div class="absolute top-4 right-4 text-[var(--theme-color)] flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest">
@@ -113,7 +107,7 @@
 
                                             <div class="mt-6 flex flex-wrap gap-2 relative z-10 pt-4 border-t border-gray-200 dark:border-gray-800/60">
                                                 @if(!$plan->is_active)
-                                                    <button wire:click="setActivePlan({{ $plan->id }})" class="bg-[var(--theme-color)] text-gray-900 border border-[var(--theme-color-50)] text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-[var(--theme-color-80)] transition-colors shadow-sm dark:shadow-lg">
+                                                    <button wire:click="setActivePlan({{ $plan->id }})" class="bg-[var(--theme-color)] text-white border border-[var(--theme-color-50)] text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-lg hover:bg-[var(--theme-color-80)] transition-colors shadow-sm">
                                                         Tarif aktivieren
                                                     </button>
                                                 @endif
@@ -185,7 +179,7 @@
                                             </div>
 
                                             <div class="pt-4 flex gap-2">
-                                                <button type="submit" class="flex-1 bg-[var(--theme-color)] text-gray-900 border border-[var(--theme-color-50)] text-xs font-bold uppercase tracking-widest px-4 py-3 rounded-xl hover:bg-[var(--theme-color-80)] transition-colors text-center shadow-sm dark:shadow-[0_0_15px_rgba(var(--theme-color-rgb),0.3)]">
+                                                <button type="submit" class="flex-1 bg-[var(--theme-color)] text-white border border-[var(--theme-color-50)] text-xs font-bold uppercase tracking-widest px-4 py-3 rounded-xl hover:bg-[var(--theme-color-80)] transition-colors text-center shadow-sm">
                                                     {{ $editingPlanId ? 'Speichern' : 'Hinzufügen' }}
                                                 </button>
                                                 @if($editingPlanId)

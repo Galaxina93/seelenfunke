@@ -19,24 +19,26 @@
                 <script>
                     function ekgMonitorComponent() {
                         return {
+                            rafId: null,
+                            resizeHandler: null,
                             initCanvas() {
                                 const canvas = this.$refs.canvas;
+                                if (!canvas) return;
                                 const ctx = canvas.getContext('2d');
                                 
-                                let width, height;
+                                let width = 0, height = 0;
                                 
                                 const resize = () => {
                                     const rect = canvas.getBoundingClientRect();
                                     const dpr = window.devicePixelRatio || 1;
-                                    canvas.width = rect.width * dpr;
-                                    canvas.height = rect.height * dpr;
-                                    width = canvas.width;
-                                    height = canvas.height;
-                                    ctx.scale(dpr, dpr);
-                                    width = rect.width;
-                                    height = rect.height;
+                                    width = Math.max(1, rect.width);
+                                    height = Math.max(1, rect.height);
+                                    canvas.width = width * dpr;
+                                    canvas.height = height * dpr;
+                                    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
                                 };
 
+                                this.resizeHandler = resize;
                                 window.addEventListener('resize', resize);
                                 resize();
 
@@ -49,7 +51,13 @@
                                 let isWorkerRunning = true;
 
                                 const animate = () => {
-                                    requestAnimationFrame(animate);
+                                    this.rafId = requestAnimationFrame(animate);
+                                    if (canvas.offsetParent === null) {
+                                        return;
+                                    }
+                                    if (width <= 1) {
+                                        resize();
+                                    }
                                     frameCount++;
                                     
                                     ctx.clearRect(0, 0, width, height);
@@ -161,6 +169,10 @@
                                 };
                                 
                                 setTimeout(animate, 100);
+                            },
+                            destroy() {
+                                if (this.rafId) cancelAnimationFrame(this.rafId);
+                                if (this.resizeHandler) window.removeEventListener('resize', this.resizeHandler);
                             }
                         }
                     }
@@ -168,29 +180,45 @@
 
                 <!-- Background Processing Info Icon -->
                 <div class="absolute top-3 right-4 z-20" x-data="{ showInfo: false }" @click.away="showInfo = false">
-                    <button type="button" @click.prevent="showInfo = !showInfo" class="w-6 h-6 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-400 hover:text-emerald-400 hover:border-emerald-500/50 cursor-pointer transition-all shadow-xl shadow-black relative z-30">
+                    <button type="button" @click.prevent="showInfo = !showInfo" class="w-6 h-6 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/50 cursor-pointer transition-all shadow-sm relative z-30" title="Hintergrund-Worker Status">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
                     </button>
                     <!-- Tooltip -->
-                    <div x-show="showInfo" x-transition style="display: none;" class="absolute top-full right-0 mt-2 w-72 bg-gray-950 border border-emerald-500/30 text-gray-300 text-[10px] p-4 rounded-xl shadow-2xl shadow-emerald-500/10 font-sans leading-relaxed pointer-events-auto z-40">
-                        <strong class="{{ $this->isWorkerRunning ? 'text-emerald-400' : 'text-red-500' }} block mb-1 uppercase tracking-widest text-[9px] cursor-help pointer-events-auto">
-                            {{ $this->isWorkerRunning ? 'Hintergrund-Herzschlag' : 'WARNUNG: WORKER OFFLINE' }}
+                    <div x-show="showInfo" x-transition style="display: none;" class="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-gray-950 border border-gray-200 dark:border-emerald-500/30 text-gray-700 dark:text-gray-300 text-[10px] p-4 rounded-xl shadow-xl font-sans leading-relaxed pointer-events-auto z-40">
+                        <strong class="{{ $this->isWorkerRunning ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-500' }} block mb-1 uppercase tracking-widest text-[9px] pointer-events-auto">
+                            {{ $this->isWorkerRunning ? 'Hintergrund-Herzschlag aktiv' : 'WARNUNG: WORKER OFFLINE' }}
                         </strong>
-                        Sobald ein Agent einer Aufgabe zugewiesen ist, arbeitet er komplett autark im Hintergrundfenster.<br><br>
-                        Der EKG Monitor zieht eine flache Linie, bis Hintergrundaktiviät (Tasks oder Chat) wahrgenommen wird.<br><br>
-                        Das System schlägt nur aus, wenn der Worker reell läuft.
-                        Damit dies lokal aktiv ist, muss der Queue Worker laufen:<br>
-                        <code class="block bg-gray-900 text-emerald-300 p-1.5 mt-1.5 rounded border border-gray-800 font-mono text-[9px] break-all">php artisan queue:work</code>
-                        <div class="mt-3 bg-gray-900 p-2 rounded text-gray-400 text-[8px] font-mono border border-gray-800 shadow-inner">
-                            <span class="text-[var(--theme-color)] font-bold">Diagnose-Pings:</span><br>
+                        Zugewiesene Aufgaben laufen asynchron über den Queue-Worker:
+                        <code class="block bg-gray-100 dark:bg-gray-900 text-emerald-700 dark:text-emerald-300 p-1.5 mt-1.5 rounded border border-gray-200 dark:border-gray-800 font-mono text-[9px] break-all">php artisan queue:work</code>
+                        <div class="mt-2.5 bg-gray-50 dark:bg-gray-900 p-2 rounded text-gray-600 dark:text-gray-400 text-[8px] font-mono border border-gray-200 dark:border-gray-800">
+                            <span class="text-[var(--theme-color)] font-bold">Diagnose:</span><br>
                             {{ $this->workerDiagnostic }}
                         </div>
                     </div>
                 </div>
 
-                <div class="w-full h-full pt-20 pb-4 px-4 lg:pt-24 lg:pb-8 lg:px-8 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col" id="war-room-canvas">
+                <div class="w-full h-full pt-16 pb-4 px-4 lg:pt-18 lg:pb-6 lg:px-8 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col gap-4" id="war-room-canvas">
                     <!-- Hidden attribute exposing worker state to JS (Must be inside polled DOM) -->
                     <div id="worker-status-node" class="hidden" data-running="{{ $this->isWorkerRunning ? 'true' : 'false' }}"></div>
+
+                    <!-- Quick Task Creator Bar -->
+                    <form wire:submit.prevent="createWorkspaceTask" class="relative z-20 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-white/95 dark:bg-gray-900/90 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-xl p-2.5 shadow-sm shrink-0">
+                        <input type="text"
+                               wire:model="newTaskPrompt"
+                               placeholder="Neue Hintergrund-Aufgabe eingeben..."
+                               class="flex-1 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3.5 py-2 text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none font-sans">
+                        <select wire:model="newTaskAgentId"
+                                class="sm:w-44 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2 text-xs text-gray-800 dark:text-gray-200 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none font-mono">
+                            <option value="">Ohne Agent (Wartet)</option>
+                            @foreach($agents as $agent)
+                                <option value="{{ $agent->id }}">{{ $agent->name }}</option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="px-4 py-2 rounded-lg bg-[var(--theme-color)] hover:opacity-90 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-sm flex items-center justify-center gap-1.5 shrink-0">
+                            <x-heroicon-m-plus class="w-4 h-4" />
+                            <span>Aufgabe</span>
+                        </button>
+                    </form>
 
                     <!-- ============================== -->
                     <!-- MOBILE: KACHEL-ANSICHT         -->
@@ -251,7 +279,7 @@
                                             </button>
                                         </div>
                                     @else
-                                        <span class="px-2 py-0.5 rounded text-[9px] font-bold {{ $task->status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-gray-800 text-gray-400 border-gray-700' }} border uppercase tracking-widest">
+                                        <span class="px-2 py-0.5 rounded text-[9px] font-bold {{ $task->status === 'failed' ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' }} border uppercase tracking-widest">
                                             {{ $task->status === 'failed' ? 'Fehlgeschlagen' : 'Wartet' }}
                                         </span>
                                         @if($task->status === 'failed' || $task->status === 'completed')
@@ -332,36 +360,31 @@
                                 @endif
                             @endif
 
-                            <div class="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800/80 lg:pointer-events-none">
+                            <div class="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800/80">
                                 @if($task->assigned_agent_id && $task->agent)
                                     <div class="flex items-center gap-2">
-                                        <div class="w-6 h-6 rounded-full bg-gray-900 border border-gray-700 overflow-hidden shrink-0">
+                                        <div class="w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 overflow-hidden shrink-0">
                                             @if($task->agent->profile_picture)
                                                 <img src="{{ \Illuminate\Support\Str::startsWith($task->agent->profile_picture, 'shop/') ? asset($task->agent->profile_picture) : Storage::url($task->agent->profile_picture) }}" class="w-full h-full object-cover">
                                             @endif
                                         </div>
-                                        <span class="text-xs text-gray-400 font-bold truncate">{{ $task->agent->name }}</span>
+                                        <span class="text-xs text-gray-700 dark:text-gray-300 font-bold truncate">{{ $task->agent->name }}</span>
                                         @if($task->agent->provider === 'openai')
-                                            <span class="ml-auto text-[9px] uppercase tracking-wider text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded shadow-inner" title="OpenAI GPT">GPT</span>
+                                            <span class="ml-auto text-[9px] uppercase tracking-wider text-green-600 dark:text-green-400 font-bold bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded" title="OpenAI GPT">GPT</span>
                                         @elseif($task->agent->provider === 'anthropic')
-                                            <span class="ml-auto text-[9px] uppercase tracking-wider text-orange-400 font-bold bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded shadow-inner" title="Anthropic Claude">CLAUDE</span>
+                                            <span class="ml-auto text-[9px] uppercase tracking-wider text-orange-600 dark:text-orange-400 font-bold bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded" title="Anthropic Claude">CLAUDE</span>
                                         @else
-                                            <span class="ml-auto text-[9px] uppercase tracking-wider text-blue-400 font-bold bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded shadow-inner" title="Google Gemini">GEMINI</span>
+                                            <span class="ml-auto text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-bold bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded" title="Google Gemini">GEMINI</span>
                                         @endif
                                     </div>
                                 @elseif($task->status === 'pending')
-                                    <div class="hidden lg:flex h-8 border border-dashed border-gray-700 rounded-lg items-center justify-center text-xs text-gray-500 bg-gray-950/20 task-dropzone transition-colors drop-target-highlight pointer-events-none">
-                                        Agent hier ablegen
-                                    </div>
-                                    <div class="lg:hidden">
-                                         <select class="w-full h-9 bg-gray-900/50 backdrop-blur-xl border border-gray-800 rounded-lg text-xs text-[var(--theme-color)] focus:ring-emerald-500 focus:border-[var(--theme-color)]"
-                                                 wire:change="assignAgent('{{ $task->id }}', $event.target.value)">
-                                             <option value="">Agent zuweisen...</option>
-                                             @foreach($agents as $agent)
-                                                 <option value="{{ $agent->id }}">{{ $agent->name }}</option>
-                                             @endforeach
-                                         </select>
-                                    </div>
+                                    <select class="w-full h-9 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 text-xs text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] outline-none font-mono"
+                                            wire:change="assignAgent('{{ $task->id }}', $event.target.value)">
+                                        <option value="">Agent zuweisen...</option>
+                                        @foreach($agents as $agent)
+                                            <option value="{{ $agent->id }}">{{ $agent->name }}</option>
+                                        @endforeach
+                                    </select>
                                 @endif
                             </div>
 
@@ -414,7 +437,7 @@
                                                         </div>
                                                     @endif
                                                 </div>
-                                                <p class="text-sm text-gray-200 leading-relaxed font-sans mb-3">{{ $task->prompt }}</p>
+                                                <p class="text-sm text-gray-800 dark:text-gray-200 leading-relaxed font-sans mb-3">{{ $task->prompt }}</p>
 
                                                 <!-- DETAILS (Plan, Log, Response) -->
                                                 @include('livewire.shop.ai.blocks.task-details', ['task' => $task, 'idPrefix' => 'desk', 'marginClass' => 'mt-2'])
@@ -424,26 +447,30 @@
                                             <td class="px-6 py-5 align-top">
                                                 @if($task->assigned_agent_id && $task->agent)
                                                     <div class="flex items-center gap-3">
-                                                        <div class="w-10 h-10 rounded-full bg-gray-900 border border-gray-700 overflow-hidden shrink-0 shadow-md">
+                                                        <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 overflow-hidden shrink-0 shadow-sm">
                                                             @if($task->agent->profile_picture)
                                                                 <img src="{{ \Illuminate\Support\Str::startsWith($task->agent->profile_picture, 'shop/') ? asset($task->agent->profile_picture) : Storage::url($task->agent->profile_picture) }}" class="w-full h-full object-cover">
                                                             @endif
                                                         </div>
                                                         <div class="flex flex-col gap-0.5">
-                                                             <span class="block text-xs text-gray-300 font-bold truncate">{{ $task->agent->name }}</span>
+                                                             <span class="block text-xs text-gray-800 dark:text-gray-200 font-bold truncate">{{ $task->agent->name }}</span>
                                                              @if($task->agent->provider === 'openai')
-                                                                 <span class="text-[9px] uppercase tracking-wider text-green-400 font-bold w-max">GPT</span>
+                                                                 <span class="text-[9px] uppercase tracking-wider text-green-600 dark:text-green-400 font-bold w-max">GPT</span>
                                                              @elseif($task->agent->provider === 'anthropic')
-                                                                 <span class="text-[9px] uppercase tracking-wider text-orange-400 font-bold w-max">CLAUDE</span>
+                                                                 <span class="text-[9px] uppercase tracking-wider text-orange-600 dark:text-orange-400 font-bold w-max">CLAUDE</span>
                                                              @else
-                                                                 <span class="text-[9px] uppercase tracking-wider text-blue-400 font-bold w-max">GEMINI</span>
+                                                                 <span class="text-[9px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-bold w-max">GEMINI</span>
                                                              @endif
                                                         </div>
                                                     </div>
                                                 @elseif($task->status === 'pending')
-                                                    <div class="h-10 px-3 border border-dashed border-gray-700 rounded-lg items-center justify-center text-xs text-gray-500 bg-gray-950/20 task-dropzone transition-colors drop-target-highlight pointer-events-none flex">
-                                                        Agent ablegen
-                                                    </div>
+                                                    <select class="w-full h-9 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 text-xs text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] outline-none font-mono"
+                                                            wire:change="assignAgent('{{ $task->id }}', $event.target.value)">
+                                                        <option value="">Agent zuweisen...</option>
+                                                        @foreach($agents as $agent)
+                                                            <option value="{{ $agent->id }}">{{ $agent->name }}</option>
+                                                        @endforeach
+                                                    </select>
                                                 @endif
                                             </td>
 
@@ -483,7 +510,7 @@
                                                         @endif
                                                     </div>
                                                 @else
-                                                    <span class="px-2.5 py-1 inline-flex w-fit rounded text-[10px] font-bold border uppercase tracking-widest shadow-sm {{ $task->status === 'failed' ? 'bg-red-500/10 text-red-400 border-red-500/30' : 'bg-gray-800 text-gray-400 border-gray-700' }}">
+                                                    <span class="px-2.5 py-1 inline-flex w-fit rounded text-[10px] font-bold border uppercase tracking-widest shadow-sm {{ $task->status === 'failed' ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}">
                                                         {{ $task->status === 'failed' ? 'Fehlgeschlagen' : 'Wartet' }}
                                                     </span>
                                                 @endif
@@ -493,27 +520,27 @@
                                             <td class="px-6 py-5 align-top text-right">
                                                 <div class="flex justify-end items-center gap-2">
                                                     @if($task->status === 'processing')
-                                                        <button type="button" wire:click="cancelTask('{{ $task->id }}')" class="text-gray-500 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition-colors shadow-sm" title="Task stoppen">
+                                                        <button type="button" wire:click="cancelTask('{{ $task->id }}')" class="text-gray-500 hover:text-red-500 p-2 rounded-lg hover:bg-red-500/10 transition-colors shadow-sm" title="Task stoppen">
                                                             <x-heroicon-s-x-mark class="w-4 h-4" />
                                                         </button>
                                                     @else
                                                         @if($task->status === 'completed' || $task->status === 'failed')
-                                                            <button wire:click="restartTask('{{ $task->id }}')" class="text-gray-500 hover:text-emerald-400 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Neu starten">
+                                                            <button wire:click="restartTask('{{ $task->id }}')" class="text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors shadow-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800/60" title="Neu starten">
                                                                 <x-heroicon-o-arrow-path class="w-4 h-4" />
                                                             </button>
-                                                            <button x-data @click="let a = prompt('Was möchtest du als Ergänzung/Fehlermeldung hinzufügen?'); if(a) { $wire.appendAndRestartTask('{{ $task->id }}', a) }" class="text-gray-500 hover:text-emerald-400 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Ergänzen & Neu starten">
+                                                            <button x-data @click="let a = prompt('Was möchtest du als Ergänzung/Fehlermeldung hinzufügen?'); if(a) { $wire.appendAndRestartTask('{{ $task->id }}', a) }" class="text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400 p-2 rounded-lg hover:bg-emerald-500/10 transition-colors shadow-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800/60" title="Ergänzen & Neu starten">
                                                                 <x-heroicon-o-pencil-square class="w-4 h-4" />
                                                             </button>
                                                         @endif
                                                         @if($task->status === 'completed')
-                                                            <button wire:click="undoTask('{{ $task->id }}')" class="text-gray-500 hover:text-[var(--theme-color)] p-2 rounded-lg hover:bg-[var(--theme-color-10)] transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Aufgabe rückgängig machen (Umkehren)">
+                                                            <button wire:click="undoTask('{{ $task->id }}')" class="text-gray-500 hover:text-[var(--theme-color)] p-2 rounded-lg hover:bg-[var(--theme-color-10)] transition-colors shadow-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800/60" title="Aufgabe rückgängig machen (Umkehren)">
                                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" /></svg>
                                                             </button>
-                                                            <button wire:click="archiveTask('{{ $task->id }}')" class="text-gray-500 hover:text-orange-400 p-2 rounded-lg hover:bg-orange-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" title="Archivieren & Ausblenden">
+                                                            <button wire:click="archiveTask('{{ $task->id }}')" class="text-gray-500 hover:text-orange-500 dark:hover:text-orange-400 p-2 rounded-lg hover:bg-orange-500/10 transition-colors shadow-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800/60" title="Archivieren & Ausblenden">
                                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 14.15v2.25c0 1.08-.896 1.95-2 1.95H5.75c-1.104 0-2-.87-2-1.95v-2.25M12 21.75V11.25m-3 3.75 3-3.75 3 3.75M9 7.5h6" /></svg>
                                                             </button>
                                                         @endif
-                                                        <button wire:click="deleteTask('{{ $task->id }}')" class="text-gray-500 hover:text-red-500 p-2 rounded-lg hover:bg-red-500/10 transition-colors shadow-sm bg-gray-900 border border-gray-800/60" wire:confirm="Aufgabe unwiderruflich löschen?" title="Aufgabe löschen">
+                                                        <button wire:click="deleteTask('{{ $task->id }}')" class="text-gray-500 hover:text-red-500 p-2 rounded-lg hover:bg-red-500/10 transition-colors shadow-sm bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800/60" wire:confirm="Aufgabe unwiderruflich löschen?" title="Aufgabe löschen">
                                                             <x-heroicon-o-trash class="w-4 h-4" />
                                                         </button>
                                                     @endif

@@ -119,6 +119,7 @@ class FunkiraLiveViewModel : ViewModel() {
     private var activeToolsJson: String? = null
     @Volatile private var pendingProactiveKickPrompt: String? = null
     @Volatile private var lastSyncedAttachmentKeyForSocket: String? = null
+    @Volatile private var hasOutputTranscriptionInTurn: Boolean = false
 
     @Volatile private var shouldEndCall = false
     @Volatile private var shouldEnterStandbyAfterTurn = false
@@ -139,13 +140,19 @@ class FunkiraLiveViewModel : ViewModel() {
         }
     }
 
-    private fun isFalconeAgentName(name: String?): Boolean {
-        return name.equals("Falcone", ignoreCase = true) || name.equals("Falcon", ignoreCase = true)
+    private fun isExecutiveRootAgentName(name: String?): Boolean {
+        return name.equals("Funkira", ignoreCase = true) ||
+            name.equals("Falcone", ignoreCase = true) ||
+            name.equals("Falcon", ignoreCase = true)
     }
 
     private fun displayAgentName(): String {
         val raw = _selectedAgent.value?.name?.trim().orEmpty()
-        return if (raw.isBlank() || raw.equals("Falcon", ignoreCase = true)) "Falcone" else raw
+        return if (raw.isBlank() || raw.equals("Falcon", ignoreCase = true) || raw.equals("Falcone", ignoreCase = true)) {
+            "Funkira"
+        } else {
+            raw
+        }
     }
 
     private fun isAiEffectivelySpeaking(): Boolean {
@@ -156,11 +163,12 @@ class FunkiraLiveViewModel : ViewModel() {
         viewModelScope.launch {
             aiRepository.getAgents()
                 .onSuccess { list ->
-                    _agents.value = list
-                    val defaultAgent = list.find { it.name.equals("Falcone", ignoreCase = true) }
-                        ?: list.find { it.name.equals("Falcon", ignoreCase = true) }
-                        ?: list.find { it.name.equals("Funkira", ignoreCase = true) }
-                        ?: list.firstOrNull()
+                    val cleaned = list.filterNot {
+                        it.name.equals("Falcone", ignoreCase = true) || it.name.equals("Falcon", ignoreCase = true)
+                    }
+                    _agents.value = cleaned.ifEmpty { list }
+                    val defaultAgent = _agents.value.find { it.name.equals("Funkira", ignoreCase = true) }
+                        ?: _agents.value.firstOrNull()
                     defaultAgent?.let { selectAgent(it, userInitiated = false) }
                 }
         }
@@ -168,7 +176,7 @@ class FunkiraLiveViewModel : ViewModel() {
 
     fun selectAgent(agent: de.meinseelenfunke.app.data.api.AiAgent, userInitiated: Boolean = true) {
         if (userInitiated) {
-            userManuallyPickedNonFalcon = !isFalconeAgentName(agent.name)
+            userManuallyPickedNonFalcon = !isExecutiveRootAgentName(agent.name)
         }
         if (_selectedAgent.value?.id == agent.id) return
         
@@ -279,11 +287,12 @@ class FunkiraLiveViewModel : ViewModel() {
         connectJob = viewModelScope.launch(Dispatchers.IO) {
             if (_selectedAgent.value == null) {
                 aiRepository.getAgents().onSuccess { list ->
-                    _agents.value = list
-                    val preferred = list.find { it.name.equals("Falcone", ignoreCase = true) }
-                        ?: list.find { it.name.equals("Falcon", ignoreCase = true) }
-                        ?: list.find { it.name.equals("Funkira", ignoreCase = true) }
-                        ?: list.firstOrNull()
+                    val cleaned = list.filterNot {
+                        it.name.equals("Falcone", ignoreCase = true) || it.name.equals("Falcon", ignoreCase = true)
+                    }
+                    _agents.value = cleaned.ifEmpty { list }
+                    val preferred = _agents.value.find { it.name.equals("Funkira", ignoreCase = true) }
+                        ?: _agents.value.firstOrNull()
                     if (preferred != null) {
                         _selectedAgent.value = preferred
                     }
@@ -351,23 +360,23 @@ class FunkiraLiveViewModel : ViewModel() {
                     activeLiveModel = creds.live_model?.takeIf { it.isNotBlank() }
                         ?: cachedVertex?.liveModel
                         ?: de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_MODEL
-                    val isFalconSelected = _selectedAgent.value == null ||
-                        isFalconeAgentName(_selectedAgent.value?.name) ||
-                        (!userManuallyPickedNonFalcon && _agents.value.none { isFalconeAgentName(it.name) })
-                    activeSysInstruction = if (isFalconSelected && !creds.system_instruction.contains("Falcone", ignoreCase = true)) {
-                        "Du bist Falcone (geschrieben F-A-L-C-O-N-E, mit e am Ende), der technische Mitgründer, Chef-Architekt und die direkte rechte Hand von Alina Steinhauer bei Mein-Seelenfunke und Funkenwerk.\n\n" + creds.system_instruction
+                    val isFunkiraSelected = _selectedAgent.value == null ||
+                        isExecutiveRootAgentName(_selectedAgent.value?.name) ||
+                        (!userManuallyPickedNonFalcon && _agents.value.none { isExecutiveRootAgentName(it.name) })
+                    activeSysInstruction = if (isFunkiraSelected && !creds.system_instruction.contains("Funkira", ignoreCase = true)) {
+                        "Du bist Funkira, Alinas oberste Stabschefin und direkte rechte Hand bei Mein-Seelenfunke und Funkenwerk. Du befindest dich aktuell im Android Live-Call auf Alinas Smartphone.\n\n" + creds.system_instruction
                     } else {
                         creds.system_instruction
                     }
-                    activeVoiceName = if (isFalconSelected) {
+                    activeVoiceName = if (isFunkiraSelected) {
                         val serverVoice = creds.voice_name.trim()
-                        if (serverVoice.isBlank() || serverVoice.equals("Kore", ignoreCase = true) || serverVoice.equals("Aoede", ignoreCase = true)) {
-                            "Orus"
+                        if (serverVoice.isBlank() || serverVoice.equals("Orus", ignoreCase = true) || serverVoice.equals("Charon", ignoreCase = true)) {
+                            "Aoede"
                         } else {
                             serverVoice
                         }
                     } else {
-                        creds.voice_name.ifBlank { "Kore" }
+                        creds.voice_name.ifBlank { "Aoede" }
                     }
                     activeToolsJson = creds.tools?.toString()
                     pendingProactiveKickPrompt = if (!isMidCallReconnect) {
@@ -379,16 +388,16 @@ class FunkiraLiveViewModel : ViewModel() {
                             serverBlockades.isNotEmpty() -> {
                                 val first = serverBlockades.first()
                                 val q = first.pending_question ?: first.ag_response_summary ?: "Wartet auf deine Freigabe."
-                                "SYSTEM-STARTIMPULS FÜR FALCONE: Begrüße Alina kurz und sprich SOFORT von dir aus die offene Antigravity-Blockade an " +
+                                "SYSTEM-STARTIMPULS FÜR FUNKIRA: Begrüße Alina kurz und sprich SOFORT von dir aus die offene Antigravity-Blockade an " +
                                     "(${serverBlockades.size} wartende Freigabe(n), zuerst: \"${first.title}\", Frage: \"$q\"). " +
-                                    "Bestehe freundlich und beharrlich auf einer klaren Antwort oder einem Go, damit du sofort ag_resolve_pending_blockade aufrufen kannst."
+                                    "Frage freundlich nach einer klaren Antwort oder einem Go, damit du sofort ag_resolve_pending_blockade aufrufen kannst."
                             }
-                            isFalconSelected && localBlockades.isNotEmpty() -> {
+                            isFunkiraSelected && localBlockades.isNotEmpty() -> {
                                 val first = localBlockades.first()
                                 val q = first.pendingQuestion ?: first.agResponseSummary ?: "Wartet auf deine Freigabe."
-                                "SYSTEM-STARTIMPULS FÜR FALCONE: Begrüße Alina kurz und sprich SOFORT von dir aus die offene Antigravity-Blockade an " +
+                                "SYSTEM-STARTIMPULS FÜR FUNKIRA: Begrüße Alina kurz und sprich SOFORT von dir aus die offene Antigravity-Blockade an " +
                                     "(${localBlockades.size} wartende Freigabe(n), zuerst: \"${first.title}\", Frage: \"$q\"). " +
-                                    "Bestehe freundlich und beharrlich auf einer klaren Antwort oder einem Go, damit du sofort ag_resolve_pending_blockade aufrufen kannst."
+                                    "Frage freundlich nach einer klaren Antwort oder einem Go, damit du sofort ag_resolve_pending_blockade aufrufen kannst."
                             }
                             else -> null
                         }
@@ -445,23 +454,23 @@ class FunkiraLiveViewModel : ViewModel() {
                         fallbackDirectBearerToken = null
                         fallbackOriginUrl = defaultOrigin
                         activeLiveModel = cachedVertex.liveModel
-                        val useFalconFallback = !userManuallyPickedNonFalcon
+                        val useFunkiraFallback = !userManuallyPickedNonFalcon
                         if (activeSysInstruction.isBlank()) {
-                            activeSysInstruction = if (useFalconFallback) {
-                                "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Du bist Falcone (geschrieben F-A-L-C-O-N-E, mit e am Ende), der technische Mitgründer, Chef-Architekt und die direkte rechte Hand von Alina Steinhauer bei Mein-Seelenfunke und Funkenwerk. Antworte souverän, herzlich, klar und prägnant auf Deutsch."
+                            activeSysInstruction = if (useFunkiraFallback) {
+                                "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Du bist Funkira, Alinas oberste Stabschefin und direkte rechte Hand bei Mein-Seelenfunke und Funkenwerk. Du sprichst im Android Live-Call auf Alinas Smartphone. Antworte souverän, herzlich, klar und prägnant auf Deutsch."
                             } else {
-                                "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Du bist Funkira, Alinas KI-Assistentin von Mein-Seelenfunke. Antworte herzlich, natürlich und prägnant auf Deutsch."
+                                "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Du bist Funkira, Alinas Stabschefin von Mein-Seelenfunke. Antworte herzlich, natürlich und prägnant auf Deutsch."
                             }
                         }
                         if (activeVoiceName.isBlank()) {
-                            activeVoiceName = if (useFalconFallback) "Orus" else "Kore"
+                            activeVoiceName = if (useFunkiraFallback) "Aoede" else "Kore"
                         }
                         de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
                             context = ServiceLocator.context,
                             component = "funkira_live_credentials",
                             title = "Portal-Verbindungsproblem per Vertex-AI-Direktverbindung überbrückt",
                             message = err.message ?: "Live-Credentials nicht erreichbar",
-                            healSummary = "Falcone wurde auf dem Smartphone trotz Server-Fehler nahtlos über das kurzlebige EU-Vertex-AI-Paket verbunden.",
+                            healSummary = "Funkira wurde auf dem Smartphone trotz Server-Fehler nahtlos über das kurzlebige EU-Vertex-AI-Paket verbunden.",
                             extraContext = mapOf("base_host" to host)
                         )
                         addLog("[Auto-Heilung]: Server kurzzeitig nicht erreichbar. Starte Vertex-Direktmodus...")
@@ -572,12 +581,26 @@ class FunkiraLiveViewModel : ViewModel() {
                             val modalities = JsonArray()
                             modalities.add("AUDIO")
                             add("responseModalities", modalities)
+                            if (resolvedSetupModel.contains("2.5")) {
+                                add("thinkingConfig", JsonObject().apply {
+                                    addProperty("thinkingBudget", 0)
+                                })
+                            }
                             add("speechConfig", JsonObject().apply {
                                 add("voiceConfig", JsonObject().apply {
                                     add("prebuiltVoiceConfig", JsonObject().apply {
                                         addProperty("voiceName", voiceName)
                                     })
                                 })
+                            })
+                        })
+                        add("realtimeInputConfig", JsonObject().apply {
+                            add("automaticActivityDetection", JsonObject().apply {
+                                addProperty("disabled", false)
+                                addProperty("startOfSpeechSensitivity", "START_SENSITIVITY_HIGH")
+                                addProperty("endOfSpeechSensitivity", "END_SENSITIVITY_HIGH")
+                                addProperty("prefixPaddingMs", 100)
+                                addProperty("silenceDurationMs", 420)
                             })
                         })
                         add("systemInstruction", JsonObject().apply {
@@ -596,9 +619,25 @@ class FunkiraLiveViewModel : ViewModel() {
                                     if (!strictPrompt.contains("TOKEN-SPAR-DISZIPLIN")) {
                                         strictPrompt = "$strictPrompt\n\n$brevityRule"
                                     }
-                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (z.B. action='play_sport' für Sport-/Workout-Musik) und bestätige danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für Smart-Home-Steckdosen und Lichterketten (wie Fußleisten Lichterkette, Spiegel Lichterkette oder Packtisch) sofort falcon_smarthome_control (action='turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off', 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), für Entwicklungsaufträge/Ideen/Bugs an deinen Leitstand Antigravity falcon_send_to_antigravity (bereits in der App hinterlegte oder gerade geschossene Fotos/Dateien werden automatisch angehängt), für Statusabfragen falcon_check_antigravity_status, zum Öffnen von App-Bereichen falcon_app_navigate und für deinen 3D-Ausdruck falcon_set_emotion."
+                                    val falconDeviceToolsRule = "LOKALE SMARTPHONE-SUPERTOOLS: Nutze bei Musikwünschen sofort falcon_music_control (z.B. action='play_sport' für Sport-/Workout-Musik) und bestätige danach nur ultrakurz in max. 4 Wörtern ohne Gegenfrage, da du direkt in den Ruhemodus wechselst; für Smart-Home-Steckdosen/Lichterketten, Connexoon Window Somfy Rollläden UND SmartHome-Gruppen sofort falcon_smarthome_control (Steckdosen: 'turn_on', 'turn_off', 'toggle', 'turn_all_on', 'turn_all_off'; Rollläden: 'shutter_open', 'shutter_close', 'shutter_stop', 'shutter_my', 'shutter_position' mit position_percent 0..100; Gruppen & Kombi-Befehle wie 'Wohnzimmer und Terrassentür': 'group_open', 'group_close', 'group_stop', 'group_my', 'group_position', 'group_on', 'group_off' oder Gruppenname in device_name; Bestand: 'list_devices'), für Kamera-Sicht oder ein Foto falcon_camera_control (action='enable_vision', 'disable_vision', 'switch_camera', 'take_photo', ABER NIEMALS take_photo oder enable_vision aufrufen wenn bereits ein Foto/Screenshot in der App hinterlegt ist!), für Entwicklungsaufträge/Ideen/Bugs an deinen Leitstand Antigravity falcon_send_to_antigravity (bereits in der App hinterlegte oder gerade geschossene Fotos/Dateien werden automatisch angehängt), für Statusabfragen falcon_check_antigravity_status, zum Öffnen von App-Bereichen falcon_app_navigate und für deinen 3D-Ausdruck falcon_set_emotion."
                                     if (!strictPrompt.contains("LOKALE SMARTPHONE-SUPERTOOLS")) {
                                         strictPrompt = "$strictPrompt\n\n$falconDeviceToolsRule"
+                                    }
+                                    try {
+                                        val appCtx = ServiceLocator.context.applicationContext
+                                        de.meinseelenfunke.app.util.FunkenwerkAlarmManager.ensureInitialized(appCtx)
+                                        de.meinseelenfunke.app.util.FunkenwerkAlarmManager.refreshSmartHomeInventoryFromPortalAsync(appCtx)
+                                        val shDirective = de.meinseelenfunke.app.util.FalconClientTools.buildSmartHomeLiveInventoryDirective(
+                                            plugs = de.meinseelenfunke.app.util.FunkenwerkAlarmManager.smartPlugsFlow.value.ifEmpty {
+                                                de.meinseelenfunke.app.util.FunkenwerkAlarmManager.defaultSmartPlugs()
+                                            },
+                                            shutters = de.meinseelenfunke.app.util.FunkenwerkAlarmManager.smartShuttersFlow.value,
+                                            groups = de.meinseelenfunke.app.util.FunkenwerkAlarmManager.smartGroupsFlow.value
+                                        )
+                                        if (shDirective.isNotBlank() && !strictPrompt.contains("AKTIVER SMARTHOME-BESTAND")) {
+                                            strictPrompt = "$strictPrompt\n\n$shDirective"
+                                        }
+                                    } catch (_: Throwable) {
                                     }
                                     val attachedDirective = de.meinseelenfunke.app.util.FalconClientTools.buildAttachedMediaSystemDirective(
                                         de.meinseelenfunke.app.util.AgDirectInboxManager.getActiveStagedAttachment()
@@ -872,7 +911,7 @@ class FunkiraLiveViewModel : ViewModel() {
                     try {
                         val kickPacket = de.meinseelenfunke.app.util.FalconClientTools.buildClientContentKickPacket(kickPrompt)
                         webSocket?.send(gson.toJson(kickPacket))
-                        addLog("[Proaktiv]: Falcone spricht offene Antigravity-Freigabe ab Sekunde 0 an.")
+                        addLog("[Proaktiv]: Funkira spricht offene Antigravity-Freigabe ab Sekunde 0 an.")
                     } catch (_: Throwable) {
                     }
                 }
@@ -894,6 +933,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (otObj != null && otObj.has("text")) {
                     val delta = otObj.get("text").asString
                     if (delta.isNotBlank()) {
+                        hasOutputTranscriptionInTurn = true
                         inactivityTracker.onAiActivity(android.os.SystemClock.uptimeMillis())
                     }
                     aiTurnTranscript.append(delta)
@@ -919,6 +959,7 @@ class FunkiraLiveViewModel : ViewModel() {
 
                 // Handle interruption/barge-in
                 if (serverContent.has("interrupted") && serverContent.get("interrupted").asBoolean) {
+                    hasOutputTranscriptionInTurn = false
                     addLog("[System]: Unterbrechung erkannt.")
                     turnCompleteSettleJob?.cancel()
                     playbackActiveUntilUptimeMs = 0L
@@ -935,6 +976,7 @@ class FunkiraLiveViewModel : ViewModel() {
 
                 // Handle turnComplete for end_call & inactivity phase transitions
                 if (serverContent.has("turnComplete") && serverContent.get("turnComplete").asBoolean) {
+                    hasOutputTranscriptionInTurn = false
                     val remainingPlaybackMs = (playbackActiveUntilUptimeMs - android.os.SystemClock.uptimeMillis())
                         .coerceIn(280L, 6000L)
                     turnCompleteSettleJob?.cancel()
@@ -984,11 +1026,14 @@ class FunkiraLiveViewModel : ViewModel() {
                         parts.forEach { part ->
                             val partObj = part.asJsonObject
                             
-                            // Check text transcript
-                            if (partObj.has("text")) {
+                            // Check text transcript (ignore Gemini internal thoughts and avoid duplicating outputTranscription)
+                            val isThoughtPart = partObj.has("thought") && partObj.get("thought").isJsonPrimitive && partObj.get("thought").asBoolean
+                            if (partObj.has("text") && !isThoughtPart && !hasOutputTranscriptionInTurn) {
                                 val textPart = partObj.get("text").asString
-                                aiTurnTranscript.append(textPart)
-                                _liveSubtitle.value = "$agentName: ${aiTurnTranscript.toString().trim()}"
+                                if (!aiTurnTranscript.contains(textPart)) {
+                                    aiTurnTranscript.append(textPart)
+                                    _liveSubtitle.value = "$agentName: ${aiTurnTranscript.toString().trim()}"
+                                }
                             }
 
                             // Check audio data
@@ -1079,7 +1124,7 @@ class FunkiraLiveViewModel : ViewModel() {
                                         onEmotionChanged = { emo -> _falconEmotion.value = emo },
                                         onNavigate = { _ -> }
                                     )
-                                    addLog("[Falcone-Tool]: '$name' lokal ausgeführt.")
+                                    addLog("[Funkira-Tool]: '$name' lokal ausgeführt.")
                                     sendToolResponse(callId, name, resObj)
                                     if (name == "falcon_send_to_antigravity" ||
                                         name == "falcon_resolve_antigravity_blockade" ||
@@ -1597,7 +1642,7 @@ class FunkiraLiveViewModel : ViewModel() {
             }
             addLog(
                 if (isMidSessionSelection) {
-                    "[Anhang]: Hinterlegte Datei '${staged.fileName}' live an Falcone übermittelt."
+                    "[Anhang]: Hinterlegte Datei '${staged.fileName}' live an Funkira übermittelt."
                 } else {
                     "[Anhang]: Bereits hinterlegte Datei '${staged.fileName}' in Live-Kontext geladen."
                 }
@@ -1621,11 +1666,11 @@ class FunkiraLiveViewModel : ViewModel() {
                 when (action) {
                     de.meinseelenfunke.app.util.FalconInactivityAction.NONE -> {}
                     de.meinseelenfunke.app.util.FalconInactivityAction.SEND_STAGE1_CHECK -> {
-                        addLog("[Inaktivität]: 2 Minuten Stille erkannt. Falcone fragt kurz nach...")
+                        addLog("[Inaktivität]: 2 Minuten Stille erkannt. Funkira fragt kurz nach...")
                         sendRealtimeSystemPrompt(de.meinseelenfunke.app.util.FalconClientTools.STAGE1_INACTIVITY_PROMPT)
                     }
                     de.meinseelenfunke.app.util.FalconInactivityAction.SEND_STAGE2_FAREWELL -> {
-                        addLog("[Inaktivität]: Keine Antwort. Falcone verabschiedet sich automatisch...")
+                        addLog("[Inaktivität]: Keine Antwort. Funkira verabschiedet sich automatisch...")
                         sendRealtimeSystemPrompt(de.meinseelenfunke.app.util.FalconClientTools.STAGE2_AUTO_END_PROMPT)
                     }
                     de.meinseelenfunke.app.util.FalconInactivityAction.FORCE_DISCONNECT -> {

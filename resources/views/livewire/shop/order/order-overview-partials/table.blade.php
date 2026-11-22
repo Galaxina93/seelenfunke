@@ -195,7 +195,10 @@
                         && !in_array($order->status, ['cancelled', 'refunded'])
                         && $validLabelShipments->isNotEmpty();
                     $labelCount = $validLabelShipments->count();
-                    $firstTracking = $validLabelShipments->first()?->tracking_number;
+                    $firstShipment = $validLabelShipments->first();
+                    $firstTracking = $firstShipment?->tracking_number;
+                    $firstIsBrief = ($firstShipment?->carrier ?? '') === 'deutsche_post_brief';
+                    $labelTermSingular = $firstIsBrief ? 'Großbrief-Label' : 'DHL-Label';
                     $wasJustPrinted = ($this->lastPrintedOrderId ?? null) === (string) $order->id;
 
                     if ($isOnlyDigitalOrder) {
@@ -203,13 +206,13 @@
                     } elseif (in_array($order->status, ['cancelled', 'refunded'])) {
                         $printReasonText = 'Kein Druck: Bestellung storniert';
                     } elseif (!$hasPrintableLabel) {
-                        $printReasonText = 'Kein Label vorhanden – erst DHL-Label erstellen';
+                        $printReasonText = 'Kein Label vorhanden · erst Versandlabel erstellen';
                     } elseif ($wasJustPrinted) {
-                        $printReasonText = 'An Funkenwerk gesendet (' . ($firstTracking ?: 'DHL') . ')';
+                        $printReasonText = 'An Funkenwerk gesendet (' . ($firstTracking ?: ($firstIsBrief ? 'Großbrief' : 'DHL')) . ')';
                     } else {
                         $printReasonText = $labelCount > 1
-                            ? "{$labelCount} DHL-Labels bereit – via Funkenwerk drucken"
-                            : "DHL-Label ({$firstTracking}) via Funkenwerk drucken";
+                            ? "{$labelCount} Versandlabels bereit · via Funkenwerk drucken"
+                            : "{$labelTermSingular} ({$firstTracking}) via Funkenwerk drucken";
                     }
                 @endphp
                 <td class="px-6 {{ $hasItems ? 'pt-5 pb-2.5' : 'py-5' }} text-right align-middle">

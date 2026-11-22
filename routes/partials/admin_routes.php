@@ -324,10 +324,11 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/support/reviews', \App\Livewire\Shop\Support\SupportReviews::class)->name('admin.support.reviews');
 
     // -----------------------------------------------------------------------
-    // AI Agent Universe
+    // AI Agent Universe (Zentrales Funkira Universum-Ticketsystem)
     // -----------------------------------------------------------------------
-    Route::get('/admin/ai/analytics', \App\Livewire\Shop\Ai\AiAnalytics::class)->name('admin.ai.analytics');
-    Route::get('/admin/ai/workspace', \App\Livewire\Shop\Ai\AiWorkspace::class)->name('admin.ai.workspace');
+    Route::get('/admin/tickets', \App\Livewire\Shop\Ai\AiUniverseTickets::class)->name('admin.tickets');
+    Route::get('/admin/ai/analytics', fn () => redirect()->route('admin.tickets'))->name('admin.ai.analytics');
+    Route::get('/admin/ai/workspace', fn () => redirect()->route('admin.tickets'))->name('admin.ai.workspace');
     Route::get('/admin/ai/workspace/file', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
         if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\') || !str_starts_with($path, 'agenten/workspace/') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
@@ -349,11 +350,11 @@ Route::middleware(['auth:admin'])->group(function () {
         ]);
     })->name('admin.ai.workspace.file');
     Route::get('/admin/support/telephony', \App\Livewire\Shop\Support\SupportTelephony::class)->name('admin.support.telephony');
-    
-    // Organigramm bleibt separat
-    Route::get('/admin/organigramm', \App\Livewire\Shop\Ai\AiCompanyStructure::class)->name('admin.ai-company-structure');
-    
-    // Editoren für spezifische KI Agenten bleiben, da sie ID-gebunden sind
+
+    // Weiterleitung alter Organigramm-Link direkt in die integrierte Organigramm-Ansicht unter /admin/tickets
+    Route::get('/admin/organigramm', fn () => redirect()->route('admin.tickets', ['view' => 'organigramm']))->name('admin.ai-company-structure');
+
+    // Editoren für spezifische KI Agenten bleiben ID-gebunden erhalten
     Route::get('/admin/ki-agenten/{id}', \App\Livewire\Shop\Ai\AiAgentEditor::class)->name('admin.ai-agents.editor');
 
     // -----------------------------------------------------------------------

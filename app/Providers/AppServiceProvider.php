@@ -535,6 +535,16 @@ class AppServiceProvider extends ServiceProvider
 
                 $isOperationalCronCommand = $cronjob !== null || (bool) preg_match('/^(crm:|shop:|dhl:|funki:|backup:|gamification:|support:|system:|send-newsletters$)/', $cmdName);
 
+                $detailOutput = class_exists(\App\Services\System\SystemErrorLogger::class)
+                    ? \App\Services\System\SystemErrorLogger::getCommandFailureDetail($cmdName)
+                    : '';
+                if ($detailOutput === '' && $event->exitCode !== 0 && $cronjob) {
+                    $cronOutputFile = storage_path('logs/cron-' . md5((string) $cronjob->command) . '.log');
+                    if (is_file($cronOutputFile) && is_readable($cronOutputFile)) {
+                        $detailOutput = trim(mb_substr((string) @file_get_contents($cronOutputFile), 0, 2000));
+                    }
+                }
+
                 if ($cronjob && $cmdName !== 'system:heartbeat' && class_exists(\App\Models\System\SystemSchedulerLog::class) && Schema::hasTable('system_scheduler_logs')) {
                     \App\Models\System\SystemSchedulerLog::create([
                         'task_id' => (string) $cronjob->id,
@@ -542,7 +552,9 @@ class AppServiceProvider extends ServiceProvider
                         'started_at' => now(),
                         'finished_at' => now(),
                         'status' => $event->exitCode === 0 ? 'success' : 'error',
-                        'output' => $event->exitCode === 0 ? 'OK' : ('Exit-Code: ' . (int) $event->exitCode),
+                        'output' => $event->exitCode === 0
+                            ? 'OK'
+                            : ('Exit-Code: ' . (int) $event->exitCode . ($detailOutput !== '' ? ' | ' . $detailOutput : '')),
                     ]);
                 }
 
@@ -558,7 +570,7 @@ class AppServiceProvider extends ServiceProvider
                         \App\Services\System\SystemErrorLogger::recordCommandFailure(
                             $cmdName,
                             (int) $event->exitCode,
-                            '',
+                            $detailOutput,
                             [
                                 'cronjob_id' => $cronjob?->id,
                                 'cronjob_name' => $cronjob?->name ?? $cmdName,

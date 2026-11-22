@@ -158,8 +158,8 @@ fun ChatScreen(
                     )
                 )
         ) {
-            // Horizontal Agent Selector
-            if (agents.isNotEmpty()) {
+            // Horizontal Agent Selector (hidden when Funkira is the sole executive chat contact)
+            if (agents.size > 1) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -249,7 +249,7 @@ fun ChatScreen(
                         )
                         Toast.makeText(
                             context,
-                            if (ok) "✓ Go an Falcone übermittelt!" else "Offline als Direktauftrag gespeichert",
+                            if (ok) "✓ Go an Funkira übermittelt!" else "Offline als Direktauftrag gespeichert",
                             Toast.LENGTH_SHORT
                         ).show()
                         AgDirectInboxManager.refreshFromServer(context)

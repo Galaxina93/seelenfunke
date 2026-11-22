@@ -999,7 +999,10 @@ class CartService
                 ->keyBy('id');
 
             $canonicalCustomFields = [];
+            $canonicalFieldSides = [];
             $summaryParts = [];
+            $submittedFieldSides = is_array($configuration['custom_field_sides'] ?? null) ? $configuration['custom_field_sides'] : [];
+            $hasBackProductCfg = !empty($product->configurator_settings['has_back_side']);
 
             foreach ($defs as $cfDef) {
                 $cfId = (string) $cfDef['id'];
@@ -1033,23 +1036,46 @@ class CartService
                 $isNeutral = in_array(mb_strtolower($rawVal), ['', 'kein symbol', 'keine', 'nein', '-'], true);
                 $effectiveSurcharge = (!$isNeutral && $surcharge > 0) ? $surcharge : 0;
 
+                $targetSide = (string) ($cfDef['target_side'] ?? 'front');
+                if (!$hasBackProductCfg || $cfType === 'font') {
+                    $effectiveSide = 'front';
+                } elseif ($targetSide === 'choice') {
+                    $rawSubmittedSide = strtolower(trim((string) ((is_array($submitted) ? ($submitted['side'] ?? '') : '') ?: ($submittedFieldSides[$cfId] ?? ($cfDef['default_side'] ?? 'back')))));
+                    $effectiveSide = ($rawSubmittedSide === 'front') ? 'front' : 'back';
+                } else {
+                    $effectiveSide = ($targetSide === 'back') ? 'back' : 'front';
+                }
+                $canonicalFieldSides[$cfId] = $effectiveSide;
+
                 $canonicalCustomFields[] = [
                     'id'              => $cfId,
                     'label'           => (string) $cfDef['label'],
                     'type'            => (string) ($cfDef['type'] ?? 'text'),
                     'value'           => $rawVal,
                     'surcharge_cents' => $effectiveSurcharge,
+                    'side'            => $effectiveSide,
+                    'target_side'     => $targetSide,
                 ];
 
                 if ($rawVal !== '') {
-                    $summaryParts[] = $cfDef['label'] . ': ' . $rawVal;
+                    $labelForSummary = (string) $cfDef['label'];
+                    $labelLowerSummary = mb_strtolower($labelForSummary);
+                    if ($hasBackProductCfg && $cfType !== 'font') {
+                        if ($effectiveSide === 'back' && !str_contains($labelLowerSummary, 'rückseite')) {
+                            $labelForSummary .= ' (Rückseite)';
+                        } elseif ($effectiveSide === 'front' && $targetSide === 'choice' && !str_contains($labelLowerSummary, 'vorderseite')) {
+                            $labelForSummary .= ' (Vorderseite)';
+                        }
+                    }
+                    $summaryParts[] = $labelForSummary . ': ' . $rawVal;
                 }
             }
 
             $configuration['custom_fields_data'] = $canonicalCustomFields;
+            $configuration['custom_field_sides'] = $canonicalFieldSides;
             $configuration['text'] = implode(' · ', $summaryParts);
         } else {
-            unset($configuration['custom_fields_data']);
+            unset($configuration['custom_fields_data'], $configuration['custom_field_sides']);
         }
 
         return $configuration;

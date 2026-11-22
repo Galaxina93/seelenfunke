@@ -273,6 +273,67 @@ Unser ERP-Ökosystem 'Mein-Seelenfunke' ist das Herzstück der Infrastruktur. Es
         9. **Audioausgabe (TTS):** Browser liest die Antwort vor
                 "
             ],
+            // Artikel 14: Kompletter Kunden-Dashboard- & Konto-Wegweiser
+            [
+                'title' => 'Kunden-Dashboard & Konto-Wegweiser (Wo finde ich was?)',
+                'category' => 'Konto & Datenschutz',
+                'tags' => ['Kontakt', 'Datenschutz', 'Versand', 'Gamification', 'Ticket'],
+                'content' => "
+# Wegweiser durch dein Kundenkonto & Dashboard
+Sobald du eingeloggt bist, erreichst du alle Funktionen übersichtlich über dein Kundenmenü (kein Telefon-Support, Funki begleitet dich 24/7 direkt hier im Chat):
+
+1. **Kunden-Dashboard (`/dashboard` bzw. `/customer/dashboard`):**
+   - Deine zentrale Startseite nach dem Login mit Schnellzugriff auf deine letzten Bestellungen, aktive Geschenkgutscheine (inkl. PDF-Download), deinen persönlichen Empfehlungs-Code und die Kachel **Seelenfunken & Prämien** (`Magie aktivieren` bzw. `Funki öffnen`).
+
+2. **Mein Profil & Datenschutz (`/profile` bzw. `/customer/profile`):**
+   - **Persönliche Daten & Adressen:** Name, E-Mail-Adresse sowie Standard-Liefer- und Rechnungsadresse jederzeit ändern.
+   - **Geburtsdatum hinterlegen:** Im Bereich *Persönliche Daten* kannst du dein Geburtsdatum eintragen und speichern, um als Stammkunde jährlich **+50 Seelenfunken** zum Geburtstag zu erhalten.
+   - **Sicherheit & DSGVO:** Passwort ändern, Newsletter-Einstellungen verwalten, die **DSGVO-Einwilligung für KI-Beratung** ein- oder ausschalten, einen vollständigen **DSGVO-Datenexport** herunterladen oder die Kontolöschung beantragen.
+
+3. **Meine Bestellungen & Gravur-Vorschau (`/orders`):**
+   - Übersicht aller Bestellungen mit Suchfunktion nach Bestellnummer (`ORD-...`), aktuellem Manufaktur-Status und direktem **DHL-Sendungsverfolgungs-Link**, sobald dein Paket versendet wurde.
+   - **Gravur-Vorschau (Blueprint-Verlauf):** Klicke in deiner Bestellung auf einen personalisierten Artikel, um deine gespeicherte Gravur-Vorschau und alle gewählten Konfigurationsdetails jederzeit einzusehen.
+   - **Änderung vor Produktionsstart:** Solange eine Bestellung noch den Status *Ausstehend (pending)* hat, kannst du die Lieferadresse oder Personalisierung direkt prüfen bzw. anpassen.
+
+4. **Rechnungs-Archiv (`/invoices`):**
+   - Hier findest du alle offiziellen PDF-Rechnungen und eventuelle Gutschriften zu deinen Bestellungen gesammelt zum direkten Herunterladen.
+
+5. **Dein Funki & Prämien (`/funki`):**
+   - Eigene übersichtliche Prämien-Seite (erreichbar über `/funki` oder den Button **Funki öffnen** im Dashboard) mit 4 Reitern:
+     - **Rabatte:** Tausche gesammelte Seelenfunken gegen Gutscheincodes ein (**60 Funken = 5 %**, **150 Funken = 10 %**, **350 Funken = 15 %**). Dein Funki-Level sinkt beim Einlösen niemals.
+     - **Level:** Alle 10 Evolutionsstufen von Funki (Level 1 bis 10) samt freigeschalteten animierten Hintergründen und Lightbox-Großansicht per Klick auf das runde Funki-Bild.
+     - **Titel & Ränge:** 5 Kerntitel von Bronze bis Diamant sowie der höchste Ehrentitel *Seelengott unter Sterblichen*. Wähle deinen Wunschtitel mit einem Klick aktiv aus.
+     - **Halle der Helden:** Öffentliche Rangliste mit freiwilligem DSGVO-Opt-in (wahlweise einzigartiger Spielername mit 3 bis 20 Zeichen oder Echtname).
+   - **Musiksteuerung:** Oben rechts auf `/funki` findest du Lautstärkeregler, Stummschaltung und **Musik laufen lassen** für nahtlosen Sound beim Weiterstöbern.
+
+6. **Meine Bewertungen (`/reviews`):**
+   - Verfasse ehrliche Produktbewertungen zu deinen gekauften Unikaten (**+15 Seelenfunken** pro freigegebener Produktbewertung) oder gib kurzes Erlebnis-Feedback zu Konfigurator und Shop.
+
+7. **Support & Tickets (`/support`) sowie Widerruf (`/widerruf`):**
+   - Unter `/support` siehst du alle offenen und gelösten Support-Tickets (`TCK-...`), kannst Antworten unseres Teams lesen und direkt darauf antworten.
+   - Für gesetzliche Widerrufe oder Stornierungsanfragen steht jederzeit das offizielle Formular unter `/widerruf` bereit.
+                "
+            ],
+            // Artikel 15: Konfigurator & 3D-Atelier-Welt Bedienung
+            [
+                'title' => '2D/3D-Produktkonfigurator & 3D-Atelier-Welt (Bedienungshilfe)',
+                'category' => 'Gamification & 3D-Welt',
+                'tags' => ['Personalisierung', '3D', 'Laser', 'Produkte'],
+                'content' => "
+# So bedienst du den Produktkonfigurator & die 3D-Atelier-Welt
+1. **2D/3D-Produktkonfigurator auf jeder Produktseite:**
+   - **Text, Schriftart & Motive:** Trage deinen Wunschtext ein, wähle eine passende Schriftart oder ergänze maßstabsgetreue Motiv-Vorlagen und saisonale Sprüche.
+   - **Foto-Upload & Laser-Vorschau:** Bei Foto-Gravuren (z. B. K9-Kristallglas, Naturschiefer oder 14 Karat vergoldeter Edelstahl im Ion-Plating-Verfahren) bereitet unser Foto-Studio dein Bild automatisch kontraststark für den UV-Laser auf. Nutze möglichst helle, scharfe Originalfotos ohne starke Schatten im Gesicht.
+   - **Maßkontrolle & 3D-Ansicht:** Wechsle frei zwischen der maßstabsgetreuen 2D-Ansicht und dem interaktiven 3D-Modell. Das letzte Produktbild in der Galerie zeigt dir immer die exakten Millimeter-Maße des Rohlings.
+   - **Geschenkoptionen & Abschluss:** Optional kannst du eine edle schwarze Geschenkbox oder Schwarz-Gold-Geschenkpapier dazubuchen. Bestätige bei eigenen Uploads kurz die Urheberrechts-Freigabe und lege dein Unikat in den Warenkorb (`/cart`).
+
+2. **3D-Shoppen in der interaktiven Atelier-Welt:**
+   - Klicke im Shop auf **3D Shoppen**, um unsere virtuelle Manufaktur-Ausstellung direkt im Browser zu betreten.
+   - **Charakterwahl:** Wähle beim Start zwischen **Funki** und **Funkira**.
+   - **Steuerung & Wandsprung:** Bewege dich per `W A S D` (bzw. Pfeiltasten oder Touch-Joystick auf dem Smartphone), sprinte mit `Shift` und springe mit der `Leertaste` (inklusive direktem Mehrfach-Wandsprung von Wand zu Wand).
+   - **Direktkauf aus der 3D-Welt:** Tritt an ein ausgestelltes Produkt heran und klicke es an, um direkt die Detailansicht und den Konfigurator zu öffnen.
+                "
+            ],
             // --- START LASERSCHUTZSCHULUNG ---
             // Ausgelagert in AiKnowledgeBaseLaserSeeder.php
         ];
@@ -295,6 +356,8 @@ Unser ERP-Ökosystem 'Mein-Seelenfunke' ist das Herzstück der Infrastruktur. Es
             }
             $kb->tags()->sync($syncTags);
         }
+
+        \Illuminate\Support\Facades\Cache::forget('ai_kb_published_support');
 
         // 4. Funkira, Medizin- & Workspace-Master-Dossiers
         $dossiers = [
@@ -376,21 +439,30 @@ MD
                 'slug' => 'existenzgruendung-seelenfunke-gruendungszuschuss',
                 'title' => 'Existenzgründung Mein Seelenfunke & Gründungszuschuss (§ 93 SGB III)',
                 'category' => 'Existenzgründung & Arbeitsagentur',
-                'tags' => ['Gründungszuschuss', 'Businessplan', 'Liquiditätsplan', 'Tragfähigkeitsbescheinigung', 'Agentur für Arbeit'],
+                'tags' => ['Gründungszuschuss', 'Businessplan', 'Liquiditätsplan', 'Tragfähigkeitsbescheinigung', 'Agentur für Arbeit', 'Bewilligungsbescheid'],
                 'content' => <<<MD
 # Master-Dossier: Existenzgründung Mein Seelenfunke & Gründungszuschuss
 
-### 1. Rahmenbedingungen & Dringlichkeit
-* **Unternehmen:** Mein Seelenfunke (Personalisierte Lasergravuren, Manufaktur & E-Commerce)
-* **Gründungsdatum:** Geplant zum 01.11.2026.
-* **150-Tage-Restanspruch:** Für den Gründungszuschuss nach § 93 Abs. 1 Satz 1 Nr. 1 SGB III muss am Tag der Gründung noch ein Restanspruch auf ALG 1 von **mindestens 150 Tagen** bestehen.
-* **Ansprechpartnerin Arbeitsagentur:** Frau Grandke (Agentur für Arbeit Gifhorn).
+### 1. Offizieller Bewilligungsstatus (Bewilligungsbescheid BA GZ 10 liegt vor!)
+* **Unternehmen:** Mein-Seelenfunke (Personalisierte Lasergravuren, Manufaktur & E-Commerce, Inhaberin Alina Steinhauer)
+* **Behörde & Aktenzeichen:** Agentur für Arbeit Gifhorn (Team OS Alg Plus, Kundennummer / Mein Zeichen: **241D129534**, Ansprechpartnerin vor Ort: Frau Grandke)
+* **Antragsdatum:** 10.02.2026 | **Offizieller Gründungsbeginn:** 01.11.2026
+* **Bewilligungszeitraum Phase 1 (6 Monate):** **01.11.2026 bis 30.04.2027**
+* **Monatliche Förderhöhe Phase 1:** **2.106,30 €** (1.806,30 € ALG-1-Grundbetrag + 300,00 € Pauschale zur sozialen Absicherung gem. §§ 93, 94 SGB III; Gesamtförderung Phase 1 = **12.637,80 €**), Auszahlung jeweils **monatlich nachträglich**.
+* **Steuerrechtliche Einordnung:** 100 % steuerfrei gem. **§ 3 Nr. 2a EStG** und **ohne Progressionsvorbehalt** (rein private Einnahme, fließt nicht als Betriebseinnahme in die EÜR von Mein-Seelenfunke ein).
+* **Ablageort Originalbescheid:** `storage/app/buchhaltung/contracts/2026/11/2026-11-20_Agentur-fuer-Arbeit-Gifhorn_Bewilligungsbescheid-Gruendungszuschuss-Phase-1_241D129534.pdf`
 
-### 2. Erforderliche Antragsdokumente
-1. **Businessplan Mein Seelenfunke** (Stand 15.08.2026 / aktualisiert 2026)
-2. **Liquiditäts- und Rentabilitätsplan** für die ersten 3 Geschäftsjahre
-3. **Tragfähigkeitsbescheinigung der fachkundigen Stelle:** Übergabe des Businessplans an die Steuerberaterin zur Bestätigung der Tragfähigkeit.
-4. **Vordruck Bundesagentur für Arbeit:** "Stellungnahme der fachkundigen Stelle zur Tragfähigkeit der Existenzgründung".
+### 2. Verbindliche Fristen & Folge-Meilensteine aus dem Bescheid
+1. **Freiwillige Arbeitslosenversicherung für Selbständige (§ 28a SGB III) [ERLEDIGT am 20.11.2026]:**
+   - Am **20.11.2026 (12:48 Uhr)** fristgerecht innerhalb der 3-Monats-Frist online über das eService-Portal der Bundesagentur für Arbeit beantragt (inkl. unterschriebenem Antrag `APV 002`, Personalausweis, SEPA-Lastschriftmandat FYRST, Gewerbeanmeldung `GewA 1` und GZ-Bewilligungsbescheid).
+   - **Zahlungsweise & Beitrag:** Monatlicher SEPA-Lastschrifteinzug über FYRST (`DE76 2507 0370 0079 8629 00`, Privatentnahme / steuerliche Vorsorgeaufwendung); in der Startphase (erste 24 Monate) nur **halber Beitragssatz** (ca. 49,35 €/Monat).
+   - **Ablageorte:** Antrag & offizielle BA-Sendebestätigung liegen unter `storage/app/buchhaltung/contracts/2026/11/`.
+2. **Gründungszuschuss Phase 2 (01.05.2027 bis 31.01.2028):**
+   - Optional weitere **9 Monate à 300,00 € monatlich** (= 2.700,00 € Zuschuss zur sozialen Absicherung).
+   - Gesondert digital über die BA-eServices **erst zum Ende von Phase 1 / Beginn Phase 2 (Ende April 2027)** beantragen, zusammen mit der Einnahmen-Ausgaben-Übersicht (EÜR Nov 2026 bis Apr 2027). Entfällt nur, wenn die erwirtschafteten Gewinne die laufenden privaten Lebenshaltungskosten bereits voll decken.
+3. **Mitteilungspflichten & Restanspruch:**
+   - Wesentliche Änderungen (Wegfall der Hauptberuflichkeit >= 15 Std./Woche, Aufgabe der Tätigkeit, andere Sozialleistungen) sind unverzüglich mitzuteilen.
+   - Ein verbleibender ALG-1-Restanspruch bleibt **4 Jahre** ab Entstehung erhalten, mindert sich jedoch Tag für Tag um die bezogenen Tage des Gründungszuschusses Phase 1 (~181 Tage).
 MD
             ],
             [

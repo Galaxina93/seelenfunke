@@ -259,6 +259,9 @@ Route::prefix('funki/emails')->group(function () {
                 if ($request->filled('category_filter') && $request->category_filter !== 'all') {
                     $query->where('category', $request->category_filter);
                 }
+            } elseif ($folder === 'AllInboxes') {
+                // Global combined chronological inbox across all accounts
+                $query->where('folder', 'INBOX')->where('is_archived', false);
             } else {
                 if ($request->has('account_id') && (int) $request->account_id > 0) {
                     $query->where('mail_account_id', (int) $request->account_id);
@@ -1228,12 +1231,46 @@ Route::prefix('funki/emails')->group(function () {
             $updateData['password'] = $data['password'];
         }
 
+        $matchAttr = !empty($data['id'])
+            ? ['id' => (int) $data['id']]
+            : ['email' => strtolower(trim((string) $data['email']))];
+
         $account = MailAccount::updateOrCreate(
-            ['id' => $data['id'] ?? null],
+            $matchAttr,
             $updateData
         );
 
         $hasPw = trim((string) $account->password) !== '';
+        if ($hasPw) {
+            try {
+                $vaultPath = storage_path('app/leitung/mail/mail_accounts_vault.json');
+                if (!is_dir(dirname($vaultPath))) {
+                    @mkdir(dirname($vaultPath), 0775, true);
+                }
+                $vaultMap = file_exists($vaultPath) ? (json_decode((string) file_get_contents($vaultPath), true) ?: []) : [];
+                $emailKey = strtolower(trim((string) $account->email));
+                $vaultMap[$emailKey] = \Illuminate\Support\Facades\Crypt::encryptString(json_encode([
+                    'name' => $account->name,
+                    'email' => $account->email,
+                    'imap_host' => $account->imap_host,
+                    'imap_port' => (int) $account->imap_port,
+                    'imap_encryption' => $account->imap_encryption,
+                    'imap_username' => $account->imap_username ?: $account->email,
+                    'smtp_host' => $account->smtp_host,
+                    'smtp_port' => (int) $account->smtp_port,
+                    'smtp_encryption' => $account->smtp_encryption,
+                    'smtp_username' => $account->smtp_username ?: $account->email,
+                    'signature' => $account->signature,
+                    'is_default' => (bool) $account->is_default,
+                    'is_commercial' => (bool) $account->is_commercial,
+                    'password' => (string) $account->password,
+                ], JSON_UNESCAPED_UNICODE));
+                @file_put_contents($vaultPath, json_encode($vaultMap, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
+                @chmod($vaultPath, 0600);
+            } catch (\Throwable) {
+                // ignore vault write failure
+            }
+        }
         $smtpVerified = null;
         $smtpMessage = null;
 

@@ -543,15 +543,21 @@
                 <div class="absolute top-0 right-0 w-36 h-36 bg-yellow-500/10 rounded-bl-full pointer-events-none hidden dark:block"></div>
 
                 {{-- Header --}}
-                <div class="flex items-start justify-between gap-4 mb-5 pb-4 border-b border-gray-200 dark:border-gray-800/80">
+                <div class="flex items-start justify-between gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800/80">
                     <div class="flex items-center gap-3.5">
                         <div class="w-11 h-11 rounded-xl bg-yellow-400/10 border border-yellow-400/20 flex items-center justify-center shrink-0">
                             <svg class="w-6 h-6 text-yellow-600 dark:text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                         </div>
                         <div>
-                            <div class="flex items-center gap-2">
-                                <h3 class="text-lg font-serif text-gray-900 dark:text-white font-bold">DHL Label Erstellung</h3>
-                                @if(!empty($dhlWeightDetails['dhl_class']))
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="text-lg font-serif text-gray-900 dark:text-white font-bold">
+                                    {{ $shippingLabelMode === 'brief' ? 'Großbrief Etikett (MUNBYN 4×6")' : 'DHL Label Erstellung' }}
+                                </h3>
+                                @if($shippingLabelMode === 'brief')
+                                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-sm bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20">
+                                        Deutsche Post Großbrief
+                                    </span>
+                                @elseif(!empty($dhlWeightDetails['dhl_class']))
                                     <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-sm
                                         @if(($dhlWeightDetails['dhl_badge_color'] ?? '') === 'emerald') bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20
                                         @elseif(($dhlWeightDetails['dhl_badge_color'] ?? '') === 'yellow') bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/20
@@ -562,13 +568,116 @@
                                     </span>
                                 @endif
                             </div>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 font-medium mt-0.5">Packtisch-Assistent für automatische Gewichts- & Tarifermittlung</p>
                         </div>
                     </div>
                     <button wire:click="closeDhlModal" class="text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-white transition-colors p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
+
+                {{-- Versandart-Umschalter (DHL Paket vs. Deutsche Post Großbrief) --}}
+                <div class="grid grid-cols-2 gap-2 p-1 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 mb-5">
+                    <button type="button"
+                            wire:click="setShippingLabelMode('brief')"
+                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 {{ $shippingLabelMode === 'brief'
+                                ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-[var(--theme-color)] shadow-sm'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                        <span>✉️</span>
+                        <span>Großbrief (MUNBYN 4×6")</span>
+                        @include('components.alerts.info-tooltip', [
+                            'text' => 'Nach dem Drucken: Etikett auf die Vollpapp-Versandtasche kleben. Falls kein #PORTO-Code eingetragen wurde, oben rechts 1,80 € Briefmarke aufkleben (oder #PORTO handschriftlich notieren), in den gelben Post-Briefkasten einwerfen und beim Auftrag „Fertig verpackt & versendet“ klicken.'
+                        ])
+                    </button>
+                    <button type="button"
+                            wire:click="setShippingLabelMode('dhl')"
+                            class="px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 {{ $shippingLabelMode === 'dhl'
+                                ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white border border-yellow-400 shadow-sm'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                        <span>📦</span>
+                        <span>DHL Paket</span>
+                    </button>
+                </div>
+
+                @if($shippingLabelMode === 'brief')
+                    {{-- GROSSBRIEF 4x6 MUNBYN PANEL --}}
+                    @php
+                        $cleanPortoPreview = strtoupper(preg_replace('/[^A-Z0-9]/', '', preg_replace('/^#?PORTO[\s:\-]*/i', '', trim((string) $briefPortoCode)) ?? '') ?? '');
+                    @endphp
+                    <div class="space-y-4 mb-6">
+                        {{-- Etikett-Vorschau 4x6" --}}
+                        <div class="bg-white text-gray-950 border-2 border-gray-900 rounded-xl p-4 shadow-sm">
+                            <div class="flex items-start justify-between gap-4 border-b border-gray-900 pb-3 mb-3">
+                                <div class="text-[11px] leading-tight">
+                                    <div class="text-[9px] font-black uppercase tracking-wider text-gray-500">Absender</div>
+                                    <div class="font-bold">{{ shop_setting('company_name') ?: 'Mein-Seelenfunke · Alina Steinhauer' }}</div>
+                                    <div>{{ trim((shop_setting('company_street') ?: 'Carl-Goerdeler-Ring') . ' ' . (shop_setting('company_street_number') ?: '26')) }} · {{ shop_setting('company_zip') ?: '38518' }} {{ shop_setting('company_city') ?: 'Gifhorn' }}</div>
+                                </div>
+                                <div class="shrink-0 w-32 py-2 px-2.5 text-center rounded border {{ $cleanPortoPreview !== '' ? 'border-gray-900 border-solid font-bold' : 'border-dashed border-gray-500 text-gray-500' }}">
+                                    @if($cleanPortoPreview !== '')
+                                        <div class="text-xs font-black tracking-wider">#PORTO</div>
+                                        <div class="text-sm font-mono font-black tracking-widest">{{ mb_substr($cleanPortoPreview, 0, 16) }}</div>
+                                    @else
+                                        <div class="text-[9px] font-bold uppercase tracking-wider">Deutsche Post</div>
+                                        <div class="text-[10px] leading-tight mt-0.5">Briefmarke 1,80 €<br>oder #PORTO</div>
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Empfänger (Großbrief)</div>
+                            <div class="text-sm leading-snug">
+                                @if(!empty($briefRecipientPreview['company']))
+                                    <div class="font-bold">{{ $briefRecipientPreview['company'] }}</div>
+                                @endif
+                                <div class="font-black text-base">{{ $briefRecipientPreview['name'] ?? 'Kunde' }}</div>
+                                <div>{{ $briefRecipientPreview['street'] ?? '' }}</div>
+                                <div class="font-black text-base">{{ $briefRecipientPreview['postal_code'] ?? '' }} {{ $briefRecipientPreview['city'] ?? '' }}</div>
+                            </div>
+                            @if(!empty($dhlWeightDetails['recommended_box_hint']))
+                                <div class="mt-3 pt-2 border-t border-dashed border-gray-300 text-[10px] text-gray-600 font-semibold">
+                                    Hülle: {{ $dhlWeightDetails['recommended_box_hint'] }}
+                                </div>
+                            @endif
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">
+                                    #PORTO-Code (Post-App, optional)
+                                </label>
+                                <input type="text"
+                                       wire:model.live="briefPortoCode"
+                                       maxlength="32"
+                                       placeholder="z. B. 1MV5TER4 (leer = Briefmarke)"
+                                       class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-gray-900 dark:text-white text-sm font-mono uppercase focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none">
+                                @error('briefPortoCode') <span class="text-red-400 text-[10px] mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">
+                                    Sendungsnummer (Basis/Einschreiben, optional)
+                                </label>
+                                <input type="text"
+                                       wire:model="briefTrackingNumber"
+                                       maxlength="64"
+                                       placeholder="Optional für Tracking-Mail"
+                                       class="w-full bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-gray-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-[var(--theme-color-50)] focus:border-[var(--theme-color)] outline-none">
+                                @error('briefTrackingNumber') <span class="text-red-400 text-[10px] mt-1 block">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                        <div class="rounded-xl bg-gray-50 dark:bg-gray-950/70 border border-gray-200 dark:border-gray-800 px-3.5 py-2.5 text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">
+                            <span class="font-bold text-gray-900 dark:text-white">Tipp:</span> Etikett auf die Versandtasche kleben, oben rechts <span class="font-semibold">1,80 € Briefmarke</span> drauf (entfällt bei #PORTO-Code), ab in den gelben Briefkasten und im Auftrag die Versandmail über <span class="font-semibold">Fertig verpackt &amp; versendet</span> auslösen.
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800/80">
+                        <button wire:click="closeDhlModal" class="px-4 py-2.5 rounded-xl text-xs font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors shadow-sm dark:shadow-inner">
+                            Abbrechen
+                        </button>
+                        <button wire:click="generateGrossbriefLabel" class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider bg-[var(--theme-color)] text-gray-950 hover:brightness-95 transition-all shadow-lg flex items-center gap-2 cursor-pointer" wire:loading.attr="disabled">
+                            <div wire:loading wire:target="generateGrossbriefLabel" class="animate-spin w-3.5 h-3.5 border-2 border-gray-900/30 border-t-gray-900 rounded-full"></div>
+                            <span wire:loading.remove wire:target="generateGrossbriefLabel">Großbrief-Label erstellen &amp; drucken</span>
+                            <span wire:loading wire:target="generateGrossbriefLabel">Wird gedruckt...</span>
+                        </button>
+                    </div>
+                @else
 
                 {{-- Artikelliste mit Einzel- und Positionsgewichten --}}
                 <div class="mb-4">
@@ -775,6 +884,7 @@
                         <span wire:loading wire:target="generateDhlLabels">Wird erstellt...</span>
                     </button>
                 </div>
+                @endif
             </div>
         </div>
     @endif

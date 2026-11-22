@@ -499,6 +499,119 @@ object FalconClientTools {
         return emptyList()
     }
 
+    fun normalizeSmartHomeTargetKey(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        return normalizeGermanSmartHomeText(raw)
+            .replace("terrasse", "terasse")
+            .replace("rolllaeden", "rolladen")
+            .replace("rollaeden", "rolladen")
+            .replace("rollladen", "rolladen")
+            .trim()
+    }
+
+    fun splitCompoundSmartHomeTargets(query: String?): List<String> {
+        if (query.isNullOrBlank()) return emptyList()
+        return query
+            .split(Regex("\\s+(?:und|sowie|\\+|&)\\s+|\\s*[,;]\\s*", RegexOption.IGNORE_CASE))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    }
+
+    fun findMatchingSmartHomeGroup(
+        groups: List<SmartHomeGroupDto>,
+        query: String?
+    ): SmartHomeGroupDto? {
+        if (groups.isEmpty() || query.isNullOrBlank()) return null
+        val stripped = query.trim().replace(Regex("^(?:die\\s+|meine\\s+)?gruppe\\s+", RegexOption.IGNORE_CASE), "").trim()
+        val nq = normalizeSmartHomeTargetKey(stripped)
+        if (nq.isEmpty()) return null
+
+        groups.firstOrNull { normalizeSmartHomeTargetKey(it.name) == nq }?.let { return it }
+        return groups.firstOrNull { g ->
+            val ng = normalizeSmartHomeTargetKey(g.name)
+            ng.isNotEmpty() && (ng.contains(nq) || nq.contains(ng))
+        }
+    }
+
+    fun matchSmartHomePlugsWithGroupsAndCompounds(
+        devices: List<SmartPlugDevice>,
+        groups: List<SmartHomeGroupDto>,
+        query: String?
+    ): List<SmartPlugDevice> {
+        if (devices.isEmpty() || query.isNullOrBlank()) return emptyList()
+        val matchedGroup = findMatchingSmartHomeGroup(groups, query)
+        if (matchedGroup != null && matchedGroup.plugTargets.isNotEmpty()) {
+            val fromGroup = LinkedHashMap<String, SmartPlugDevice>()
+            for (pt in matchedGroup.plugTargets) {
+                matchSmartHomeDevices(devices, pt).forEach { d -> fromGroup[d.ip] = d }
+            }
+            if (fromGroup.isNotEmpty()) return fromGroup.values.toList()
+        }
+
+        val parts = splitCompoundSmartHomeTargets(query)
+        if (parts.size > 1) {
+            val combined = LinkedHashMap<String, SmartPlugDevice>()
+            for (part in parts) {
+                matchSmartHomeDevices(devices, part).forEach { d -> combined[d.ip] = d }
+            }
+            if (combined.isNotEmpty()) return combined.values.toList()
+        }
+
+        return matchSmartHomeDevices(devices, query)
+    }
+
+    fun matchSmartShutters(
+        shutters: List<SmartShutterDevice>,
+        query: String?
+    ): List<SmartShutterDevice> {
+        if (shutters.isEmpty() || query.isNullOrBlank()) return emptyList()
+        val nq = normalizeSmartHomeTargetKey(query)
+        if (nq in setOf("alle", "alles", "alle rolladen", "ueberall", "komplett")) {
+            return shutters
+        }
+        val parts = splitCompoundSmartHomeTargets(query).ifEmpty { listOf(query) }
+        val hits = LinkedHashMap<String, SmartShutterDevice>()
+        for (part in parts) {
+            val np = normalizeSmartHomeTargetKey(part)
+                .replace(Regex("^rolladen\\s+"), "")
+                .trim()
+            if (np.isEmpty()) continue
+            for (sh in shutters) {
+                val nl = normalizeSmartHomeTargetKey(sh.label)
+                val key = sh.deviceUrl.ifBlank { sh.label }
+                if (nl.isNotEmpty() && (nl == np || nl.contains(np) || np.contains(nl) || sh.deviceUrl.equals(part.trim(), ignoreCase = true))) {
+                    hits[key] = sh
+                }
+            }
+        }
+        return hits.values.toList()
+    }
+
+    fun buildSmartHomeLiveInventoryDirective(
+        plugs: List<SmartPlugDevice>,
+        shutters: List<SmartShutterDevice>,
+        groups: List<SmartHomeGroupDto>
+    ): String {
+        val parts = mutableListOf<String>()
+        if (plugs.isNotEmpty()) {
+            parts.add("Steckdosen: " + plugs.joinToString(", ") { it.name })
+        }
+        if (shutters.isNotEmpty()) {
+            parts.add("Connexoon Somfy Rollläden: " + shutters.joinToString(", ") { "${it.label} (${it.closurePercent}%)" })
+        } else {
+            parts.add("Connexoon Somfy Rollläden (Gateway 192.168.188.29): per Raumname wie 'Wohnzimmer', 'Terrassentür', 'alle' oder Kombi 'Wohnzimmer und Terrassentür' steuerbar")
+        }
+        if (groups.isNotEmpty()) {
+            parts.add(
+                "SmartHome-Gruppen: " + groups.joinToString(" | ") { g ->
+                    val members = (g.shutterTargets + g.plugTargets).joinToString(", ")
+                    "${g.name} [$members]"
+                }
+            )
+        }
+        return "AKTIVER SMARTHOME-BESTAND (für Funkira & Falcone via falcon_smarthome_control): " + parts.joinToString(" · ")
+    }
+
     fun shouldAttachCapturedPhoto(
         explicitAttachFlag: Boolean?,
         photo: FalconCapturedPhoto?,
@@ -757,7 +870,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_smarthome_control")
                 addProperty(
                     "description",
-                    "Steuert sofort Alinas lokale Smart-Home-Steckdosen und Lichterketten im Heim-WLAN per KLAP v2 (z. B. Fußleisten Lichterkette, Spiegel Lichterkette, Packtisch Warm Licht)."
+                    "Steuert Alinas Smart-Home-Steckdosen (KLAP v2), Connexoon Window Somfy Rollläden UND Geräte-Gruppen / Kombi-Befehle (z. B. Gruppenname oder 'Wohnzimmer und Terrassentür')."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -766,20 +879,43 @@ object FalconClientTools {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Aktion: turn_on, turn_off, toggle, turn_all_on, turn_all_off, list_devices"
+                                "Aktion: turn_on, turn_off, toggle, turn_all_on, turn_all_off, shutter_open, shutter_close, shutter_stop, shutter_my, shutter_position, group_open, group_close, group_stop, group_my, group_position, group_on, group_off, list_devices"
                             )
                         })
                         add("device_name", JsonObject().apply {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Optionaler Gerätename wie Fußleisten Lichterkette, Spiegel Lichterkette, Packtisch oder Lichterkette."
+                                "Name der Steckdose (z. B. Packtisch Warm Licht), des Rollladens (z. B. Wohnzimmer, Terrassentür, alle), einer Gruppe oder Kombi wie 'Wohnzimmer und Terrassentür'."
+                            )
+                        })
+                        add("position_percent", JsonObject().apply {
+                            addProperty("type", "INTEGER")
+                            addProperty(
+                                "description",
+                                "Optionaler Schließgrad 0 bis 100 Prozent bei shutter_position oder group_position (0 = offen, 100 = geschlossen)."
                             )
                         })
                     })
                     add("required", JsonArray().apply { add("action") })
                 })
             })
+        } else {
+            for (i in 0 until decls.size()) {
+                val obj = decls.get(i)?.takeIf { it.isJsonObject }?.asJsonObject ?: continue
+                if (obj.get("name")?.asString == "falcon_smarthome_control") {
+                    val props = obj.getAsJsonObject("parameters")?.getAsJsonObject("properties")
+                    if (props != null && !props.has("position_percent")) {
+                        props.add("position_percent", JsonObject().apply {
+                            addProperty("type", "INTEGER")
+                            addProperty(
+                                "description",
+                                "Optionaler Schließgrad 0 bis 100 Prozent bei shutter_position oder group_position (0 = offen, 100 = geschlossen)."
+                            )
+                        })
+                    }
+                }
+            }
         }
 
         if ("falcon_send_to_antigravity" !in existing) {
@@ -939,7 +1075,8 @@ object FalconClientTools {
         onEmotionChanged: (String) -> Unit,
         onNavigate: (FalconResolvedDestination) -> Unit,
         agApiOverride: AgDirectApi? = null,
-        smartHomeExecutorOverride: (suspend (action: String, ips: List<String>) -> Pair<Boolean, String>)? = null
+        smartHomeExecutorOverride: (suspend (action: String, ips: List<String>) -> Pair<Boolean, String>)? = null,
+        smartHomeRelayExecutorOverride: (suspend (action: String, target: String, position: Int?) -> Pair<Boolean, String>)? = null
     ): JsonObject {
         val appCtx = context.applicationContext
         val args = if (argsElement != null && argsElement.isJsonObject) argsElement.asJsonObject else JsonObject()
@@ -1334,20 +1471,48 @@ object FalconClientTools {
             "falcon_smarthome_control" -> {
                 val rawAction = args.optString("action").trim().lowercase(Locale.ROOT)
                 val deviceQuery = args.optString("device_name").trim()
+                    .ifBlank { args.optString("target").trim() }
+                val rawPos = args.optInt("position_percent", args.optInt("position", -1))
+                val positionPercent: Int? = if (rawPos in 0..100) rawPos else null
 
                 FunkenwerkAlarmManager.ensureInitialized(appCtx)
+                if (FunkenwerkAlarmManager.smartShuttersFlow.value.isEmpty() &&
+                    FunkenwerkAlarmManager.smartGroupsFlow.value.isEmpty() &&
+                    smartHomeExecutorOverride == null &&
+                    smartHomeRelayExecutorOverride == null
+                ) {
+                    withTimeoutOrNull(2000L) {
+                        FunkenwerkAlarmManager.refreshSmartHomeInventoryFromPortalSuspend(appCtx)
+                    }
+                }
+
                 val savedDevices = FunkenwerkAlarmManager.smartPlugsFlow.value
                     .ifEmpty { FunkenwerkAlarmManager.defaultSmartPlugs() }
+                val savedShutters = FunkenwerkAlarmManager.smartShuttersFlow.value
+                val savedGroups = FunkenwerkAlarmManager.smartGroupsFlow.value
+
                 val availableArr = JsonArray().apply {
                     savedDevices.forEach { add(it.name) }
                 }
+                val availableShuttersArr = JsonArray().apply {
+                    savedShutters.forEach { add(it.label) }
+                }
+                val availableGroupsArr = JsonArray().apply {
+                    savedGroups.forEach { add(it.name) }
+                }
 
                 val normalizedAction = when (rawAction) {
-                    "on", "ein", "einschalten", "turn_on" -> "turn_on"
-                    "off", "aus", "ausschalten", "turn_off" -> "turn_off"
-                    "toggle", "umschalten", "wechseln" -> "toggle"
+                    "on", "ein", "einschalten", "turn_on", "plug_on" -> "turn_on"
+                    "off", "aus", "ausschalten", "turn_off", "plug_off" -> "turn_off"
+                    "toggle", "umschalten", "wechseln", "plug_toggle" -> "toggle"
                     "all_on", "alle_an", "turn_all_on" -> "turn_all_on"
                     "all_off", "alle_aus", "turn_all_off" -> "turn_all_off"
+                    "open", "up", "hoch", "auf", "oeffnen", "shutter_open" -> "shutter_open"
+                    "close", "down", "runter", "zu", "schliessen", "shutter_close" -> "shutter_close"
+                    "stop", "halt", "stopp", "shutter_stop" -> "shutter_stop"
+                    "my", "favorit", "shutter_my" -> "shutter_my"
+                    "position", "set_position", "shutter_position" -> "shutter_position"
+                    "group_open", "group_close", "group_stop", "group_my", "group_position", "group_on", "group_off" -> rawAction
                     "list", "status", "devices", "list_devices" -> "list_devices"
                     else -> if (rawAction.isBlank()) "list_devices" else rawAction
                 }
@@ -1362,19 +1527,128 @@ object FalconClientTools {
                             addProperty("model", d.model)
                         })
                     }
+                    val shuttersDetailArr = JsonArray()
+                    savedShutters.forEach { s ->
+                        shuttersDetailArr.add(JsonObject().apply {
+                            addProperty("label", s.label)
+                            addProperty("device_url", s.deviceUrl)
+                            addProperty("closure_percent", s.closurePercent)
+                            addProperty("is_available", s.isAvailable)
+                        })
+                    }
+                    val groupsDetailArr = JsonArray()
+                    savedGroups.forEach { g ->
+                        groupsDetailArr.add(JsonObject().apply {
+                            addProperty("id", g.id)
+                            addProperty("name", g.name)
+                            add("shutter_targets", JsonArray().apply { g.shutterTargets.forEach { add(it) } })
+                            add("plug_targets", JsonArray().apply { g.plugTargets.forEach { add(it) } })
+                        })
+                    }
                     val (tapoEmail, tapoPass) = FunkenwerkAlarmManager.getTapoCredentials(appCtx)
                     return JsonObject().apply {
                         addProperty("status", "success")
                         addProperty("action", "list_devices")
                         addProperty("credentials_configured", tapoEmail.isNotBlank() && tapoPass.isNotBlank())
                         add("available_devices", availableArr)
+                        add("available_shutters", availableShuttersArr)
+                        add("available_groups", availableGroupsArr)
                         add("devices", detailArr)
+                        add("shutters", shuttersDetailArr)
+                        add("groups", groupsDetailArr)
                     }
                 }
 
+                suspend fun runRelay(relayAct: String, relayTarget: String, relayPos: Int?): Pair<Boolean, String> {
+                    return if (smartHomeRelayExecutorOverride != null) {
+                        smartHomeRelayExecutorOverride(relayAct, relayTarget, relayPos)
+                    } else {
+                        FunkenwerkAlarmManager.dispatchSmartHomeRelayCommandSuspend(appCtx, relayAct, relayTarget, relayPos)
+                    }
+                }
+
+                val matchedGroup = findMatchingSmartHomeGroup(savedGroups, deviceQuery)
+                val isExplicitShutterOrGroupAction = normalizedAction.startsWith("shutter_") || normalizedAction.startsWith("group_")
+                val matchedShuttersForQuery = matchSmartShutters(savedShutters, deviceQuery)
+                val looksLikeShutterRoomQuery = normalizeSmartHomeTargetKey(deviceQuery).let { nk ->
+                    nk.contains("rolladen") || nk.contains("wohnzimmer") || nk.contains("terasse") ||
+                        nk.contains("schlafzimmer") || nk.contains("connexoon") || nk.contains("somfy")
+                }
+
+                // 1. Handle Group or Connexoon Shutter commands (and hybrid groups with both plugs + shutters!)
+                if (isExplicitShutterOrGroupAction ||
+                    (matchedGroup != null && (matchedGroup.shutterTargets.isNotEmpty() || normalizedAction.startsWith("group_"))) ||
+                    (matchedGroup == null && matchSmartHomePlugsWithGroupsAndCompounds(savedDevices, savedGroups, deviceQuery).isEmpty() &&
+                        (matchedShuttersForQuery.isNotEmpty() || looksLikeShutterRoomQuery))
+                ) {
+                    val effectiveAction = when {
+                        normalizedAction in setOf("turn_on", "group_on") && matchedGroup != null && matchedGroup.shutterTargets.isNotEmpty() && matchedGroup.plugTargets.isEmpty() ->
+                            "group_open"
+                        normalizedAction in setOf("turn_off", "group_off") && matchedGroup != null && matchedGroup.shutterTargets.isNotEmpty() && matchedGroup.plugTargets.isEmpty() ->
+                            "group_close"
+                        normalizedAction == "turn_on" && !isExplicitShutterOrGroupAction -> "shutter_open"
+                        normalizedAction == "turn_off" && !isExplicitShutterOrGroupAction -> "shutter_close"
+                        matchedGroup != null && normalizedAction.startsWith("shutter_") ->
+                            normalizedAction.replaceFirst("shutter_", "group_")
+                        else -> normalizedAction
+                    }
+
+                    var localPlugSummary: String? = null
+                    var localPlugOk = false
+                    if (matchedGroup != null && matchedGroup.plugTargets.isNotEmpty() &&
+                        effectiveAction in setOf("group_on", "group_off", "turn_on", "turn_off", "group_open", "group_close")
+                    ) {
+                        val grpPlugs = matchSmartHomePlugsWithGroupsAndCompounds(savedDevices, savedGroups, matchedGroup.name)
+                        if (grpPlugs.isNotEmpty()) {
+                            val plugTurnOn = effectiveAction in setOf("group_on", "turn_on", "group_open")
+                            val plugAct = if (plugTurnOn) "turn_on" else "turn_off"
+                            val (pOk, pMsg) = if (smartHomeExecutorOverride != null) {
+                                smartHomeExecutorOverride(plugAct, grpPlugs.map { it.ip })
+                            } else {
+                                FunkenwerkAlarmManager.triggerSmartPlugsSuspend(appCtx, grpPlugs.map { it.ip }, turnOn = plugTurnOn)
+                            }
+                            localPlugOk = pOk
+                            localPlugSummary = pMsg
+                        }
+                    }
+
+                    val relayTarget = matchedGroup?.name ?: deviceQuery.ifBlank { "alle" }
+                    val effectivePos = if (effectiveAction in setOf("shutter_position", "group_position")) {
+                        (positionPercent ?: 50).coerceIn(0, 100)
+                    } else {
+                        positionPercent
+                    }
+
+                    val needsRelay = matchedGroup == null || matchedGroup.shutterTargets.isNotEmpty() || !localPlugOk
+                    val (relayOk, relayMsg) = if (needsRelay) {
+                        runRelay(effectiveAction, relayTarget, effectivePos)
+                    } else {
+                        Pair(true, localPlugSummary ?: "Gruppe '${matchedGroup?.name}' geschaltet.")
+                    }
+
+                    val combinedOk = localPlugOk || relayOk
+                    val combinedMsg = listOfNotNull(
+                        localPlugSummary?.takeIf { localPlugOk && needsRelay },
+                        relayMsg
+                    ).joinToString(" · ").ifBlank { relayMsg }
+
+                    return JsonObject().apply {
+                        addProperty("status", if (combinedOk) "success" else "error")
+                        addProperty("action", effectiveAction)
+                        addProperty("target", relayTarget)
+                        if (effectivePos != null) addProperty("position_percent", effectivePos)
+                        if (matchedGroup != null) addProperty("matched_group", matchedGroup.name)
+                        add("available_devices", availableArr)
+                        add("available_shutters", availableShuttersArr)
+                        add("available_groups", availableGroupsArr)
+                        addProperty("message", combinedMsg)
+                    }
+                }
+
+                // 2. Handle Smart Plugs (single, 'alle', compound 'Packtisch und Spiegel', or Plug-only Group!)
                 val targetDevices = when (normalizedAction) {
                     "turn_all_on", "turn_all_off" -> savedDevices
-                    else -> matchSmartHomeDevices(savedDevices, deviceQuery)
+                    else -> matchSmartHomePlugsWithGroupsAndCompounds(savedDevices, savedGroups, deviceQuery)
                 }
 
                 if (targetDevices.isEmpty()) {
@@ -1383,9 +1657,13 @@ object FalconClientTools {
                         addProperty("action", normalizedAction)
                         addProperty("requested_device", deviceQuery)
                         add("available_devices", availableArr)
+                        add("available_shutters", availableShuttersArr)
+                        add("available_groups", availableGroupsArr)
                         addProperty(
                             "message",
-                            "Kein Smart-Home-Gerät passend zu '$deviceQuery' gefunden. Verfügbare Geräte: ${savedDevices.joinToString(", ") { it.name }}."
+                            "Kein Smart-Home-Gerät oder keine Gruppe passend zu '$deviceQuery' gefunden. Steckdosen: ${savedDevices.joinToString(", ") { it.name }}." +
+                                (if (savedShutters.isNotEmpty()) " Rollläden: ${savedShutters.joinToString(", ") { it.label }}." else "") +
+                                (if (savedGroups.isNotEmpty()) " Gruppen: ${savedGroups.joinToString(", ") { it.name }}." else "")
                         )
                     }
                 }
@@ -1395,7 +1673,7 @@ object FalconClientTools {
                     targetDevices.forEach { add(it.name) }
                 }
 
-                val (anySuccess, summary) = if (smartHomeExecutorOverride != null) {
+                var (anySuccess, summary) = if (smartHomeExecutorOverride != null) {
                     smartHomeExecutorOverride(normalizedAction, targetIps)
                 } else {
                     when (normalizedAction) {
@@ -1410,6 +1688,21 @@ object FalconClientTools {
                     }
                 }
 
+                // Remote out-of-home fallback: if local Wi-Fi KLAP failed and no test override was injected, relay via Portal to PC Funkenwerk SmartHome!
+                if (!anySuccess && smartHomeExecutorOverride == null) {
+                    val relayPlugAction = when (normalizedAction) {
+                        "turn_on", "turn_all_on" -> if (matchedGroup != null) "group_on" else "plug_on"
+                        "turn_off", "turn_all_off" -> if (matchedGroup != null) "group_off" else "plug_off"
+                        else -> "plug_toggle"
+                    }
+                    val relayTarget = matchedGroup?.name ?: if (normalizedAction.contains("_all_")) "alle" else deviceQuery
+                    val (rOk, rMsg) = runRelay(relayPlugAction, relayTarget, null)
+                    if (rOk) {
+                        anySuccess = true
+                        summary = rMsg
+                    }
+                }
+
                 val desiredStateLabel = when (normalizedAction) {
                     "turn_on", "turn_all_on" -> "on"
                     "turn_off", "turn_all_off" -> "off"
@@ -1420,8 +1713,11 @@ object FalconClientTools {
                     addProperty("status", if (anySuccess) "success" else "error")
                     addProperty("action", normalizedAction)
                     addProperty("new_state", desiredStateLabel)
+                    if (matchedGroup != null) addProperty("matched_group", matchedGroup.name)
                     add("switched_devices", switchedNames)
                     add("available_devices", availableArr)
+                    add("available_shutters", availableShuttersArr)
+                    add("available_groups", availableGroupsArr)
                     addProperty("message", summary)
                 }
             }

@@ -339,6 +339,28 @@ namespace FunkenwerkPlayer
                         return (wasPlaying && stoppedAfterRemove && stoppedAfterClear,
                             $"RemoveStopped={stoppedAfterRemove}, ClearStopped={stoppedAfterClear}");
                     });
+
+                    // 17. Merged Manufaktur Playlists, GPU Focus Mode & IPC Pipe handler
+                    Check("ManufakturPlaylistsAndFocusAndIpc", () =>
+                    {
+                        win.LoadManufakturPlaylistsFromDisk(cacheDir);
+                        win.SwitchPlayerMode("playlists");
+                        bool modeSwitched = win.ActivePlayerMode == "playlists" &&
+                                            win.ManufakturPlaylistsViewGrid.Visibility == Visibility.Visible;
+
+                        win.EnterFocusModeAsync(startPlaybackIfIdle: false).GetAwaiter().GetResult();
+                        bool focusEntered = win.IsFocusModeActive && win.MusicVenomFocusOverlay.Visibility == Visibility.Visible;
+                        win.ExitFocusMode();
+                        bool focusExited = !win.IsFocusModeActive && win.MusicVenomFocusOverlay.Visibility == Visibility.Collapsed;
+
+                        string ipcJson = win.HandlePlayerPipeCommandAsync("{\"action\":\"volume\",\"volume\":62}").GetAwaiter().GetResult();
+                        bool ipcOk = ipcJson.Contains("\"ok\":true", StringComparison.Ordinal) &&
+                                     Math.Abs(win.VolumeSlider.Value - 62.0) < 0.01;
+
+                        win.SwitchPlayerMode("media");
+                        return (modeSwitched && focusEntered && focusExited && ipcOk,
+                            $"PlaylistsMode={modeSwitched}, Focus={focusEntered}->{focusExited}, IpcVol62={ipcOk}");
+                    });
                 }
                 finally
                 {

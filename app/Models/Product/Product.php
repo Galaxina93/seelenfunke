@@ -816,6 +816,26 @@ use HasFactory, HasUuids, SoftDeletes;
             $required = false;
         }
 
+        // Gravur-Seite ('front' | 'back' | 'choice') für intelligente Vorder-/Rückseiten-Verteilung im Neuling-Modus
+        $rawTargetSide = strtolower(trim((string) ($field['target_side'] ?? '')));
+        if ($type === 'font') {
+            $targetSide = 'front';
+        } elseif (in_array($rawTargetSide, ['front', 'back', 'choice'], true)) {
+            $targetSide = $rawTargetSide;
+        } else {
+            $labelLowerCheck = mb_strtolower($label . ' ' . $id);
+            $targetSide = (str_contains($labelLowerCheck, 'rückseite') || str_contains($labelLowerCheck, 'rueckseite') || str_contains($labelLowerCheck, 'cf_back'))
+                ? 'back'
+                : 'front';
+        }
+
+        $rawDefaultSide = strtolower(trim((string) ($field['default_side'] ?? '')));
+        if ($targetSide === 'choice') {
+            $defaultSide = ($rawDefaultSide === 'front') ? 'front' : 'back';
+        } else {
+            $defaultSide = ($targetSide === 'back') ? 'back' : 'front';
+        }
+
         return [
             'id'              => $id,
             'label'           => $label,
@@ -828,6 +848,8 @@ use HasFactory, HasUuids, SoftDeletes;
             'options_raw'     => implode(', ', $options),
             'surcharge_cents' => $surchargeCents,
             'surcharge_price' => $surchargeCents > 0 ? number_format($surchargeCents / 100, 2, '.', '') : '0.00',
+            'target_side'     => $targetSide,
+            'default_side'    => $defaultSide,
         ];
     }
 
@@ -875,12 +897,14 @@ use HasFactory, HasUuids, SoftDeletes;
             $raw = [
                 [
                     'id' => 'cf_wunschsymbol',
-                    'label' => '1. Wunsch-Symbol (oben mittig)',
+                    'label' => '1. Wunsch-Symbol (Vorderseite)',
                     'type' => 'select',
                     'options_raw' => 'Pfote 🐾, Herz ♥, Stern ★, Krone 👑, Schutzengel 👼, Kein Symbol',
                     'required' => true,
                     'max_length' => 40,
                     'surcharge_price' => '0.00',
+                    'target_side' => 'front',
+                    'default_side' => 'front',
                     'info_text' => 'Wir platzieren dein gewähltes Symbol harmonisch über dem Namen deines Vierbeiners.',
                 ],
                 [
@@ -891,17 +915,21 @@ use HasFactory, HasUuids, SoftDeletes;
                     'required' => true,
                     'max_length' => 18,
                     'surcharge_price' => '0.00',
+                    'target_side' => 'front',
+                    'default_side' => 'front',
                     'info_text' => 'Wird gut lesbar und abriebfest mittig auf der Vorderseite der Marke eingraviert.',
                 ],
                 [
                     'id' => 'cf_notfallnummer',
-                    'label' => '3. Telefonnummer / Notfall-Info (Optional)',
+                    'label' => '3. Telefonnummer / Notfall-Info',
                     'type' => 'text',
                     'placeholder' => 'z. B. +49 170 1234567',
                     'required' => false,
                     'max_length' => 26,
                     'surcharge_price' => '0.00',
-                    'info_text' => 'Optional: Deine Telefonnummer gravieren wir zusätzlich unter den Namen oder auf Wunsch auf die Rückseite.',
+                    'target_side' => 'choice',
+                    'default_side' => 'back',
+                    'info_text' => 'Standardmäßig klar lesbar auf der Rückseite graviert. Auf Wunsch per Klick auch auf der Vorderseite möglich.',
                 ],
                 [
                     'id' => 'cf_schriftart',
@@ -924,6 +952,8 @@ use HasFactory, HasUuids, SoftDeletes;
                     'required' => true,
                     'max_length' => 40,
                     'surcharge_price' => '0.00',
+                    'target_side' => 'front',
+                    'default_side' => 'front',
                     'info_text' => 'Wähle ein feines Motiv-Symbol, das wir wie in der Vorschau mittig über deinem Wunschtext gravieren.',
                 ],
                 [
@@ -934,6 +964,8 @@ use HasFactory, HasUuids, SoftDeletes;
                     'required' => true,
                     'max_length' => 80,
                     'surcharge_price' => '0.00',
+                    'target_side' => 'front',
+                    'default_side' => 'front',
                     'info_text' => 'Gib hier deinen gewünschten Namen, ein kurzes Datum oder deine Botschaft ein (Zeilenumbruch mit Enter möglich). Wir richten alles millimetergenau mittig für dich aus.',
                 ],
                 [
@@ -1135,7 +1167,10 @@ use HasFactory, HasUuids, SoftDeletes;
         }
 
         $cleanStorageRel = ltrim(preg_replace('#^/?storage/#', '', $relPath), '/');
-        return asset('storage/' . $cleanStorageRel);
+        $absPath = storage_path('app/public/' . $cleanStorageRel);
+        $version = @is_file($absPath) ? ('?v=' . @filemtime($absPath)) : '';
+
+        return asset('storage/' . $cleanStorageRel) . $version;
     }
 
     /**
@@ -1756,7 +1791,7 @@ use HasFactory, HasUuids, SoftDeletes;
 
         $fbFreq = $parseInt($fallbackSettings['xtool_frequency_khz'] ?? null, 0);
         $freqRaw = $parseInt($raw['frequency_khz'] ?? ($raw['xtool_frequency_khz'] ?? null), $fbFreq);
-        $frequencyKhz = $freqRaw > 0 ? max(1, min(200, $freqRaw)) : 0;
+        $frequencyKhz = $freqRaw > 0 ? max(40, min(200, $freqRaw)) : 0;
 
         $vectorNote = mb_substr(
             $cleanText((string) ($raw['vector_note'] ?? ($raw['xtool_vector_note'] ?? ($fallbackSettings['xtool_vector_note'] ?? '')))),
@@ -3124,6 +3159,42 @@ use HasFactory, HasUuids, SoftDeletes;
     }
 
     /**
+     * Prueft, ob ein Medienpfad ein technisches Massbild (*-dimensions.jpg) darstellt.
+     */
+    public static function isDimensionSheetPath(?string $path): bool
+    {
+        if (empty($path)) {
+            return false;
+        }
+
+        $lower = mb_strtolower($path);
+        return str_contains($lower, '-dimensions.')
+            || str_contains($lower, 'massblatt')
+            || str_contains($lower, 'maßblatt')
+            || str_contains($lower, 'massbild')
+            || str_contains($lower, 'maßbild');
+    }
+
+    /**
+     * Liefert fuer SEO/OG/Feeds bevorzugt ein echtes Produkt-Hauptbild (niemals ein Massblatt als Titelbild,
+     * wenn aktive Saisonbilder vorhanden sind).
+     */
+    public function resolveSeoMainImageMeta(): array
+    {
+        $neutral = $this->resolveMainImageMeta(null, false);
+        if (!empty($neutral['url']) && !self::isDimensionSheetPath($neutral['path'] ?? null)) {
+            return $neutral;
+        }
+
+        $seasonal = $this->resolveMainImageMeta(null, $this->isAutoSeasonalMainImageEnabled());
+        if (!empty($seasonal['url'])) {
+            return $seasonal;
+        }
+
+        return $neutral;
+    }
+
+    /**
      * Ermittelt den relativen Bildpfad unter Berücksichtigung einer Artikel-Konfiguration
      * (eingefrorenes Kaufbild 'purchased_image_path', gewählte Variante 'variant_id' oder saisonales Hauptbild zum Referenzdatum).
      */
@@ -3285,8 +3356,8 @@ use HasFactory, HasUuids, SoftDeletes;
         ]);
 
         $canonicalUrl = $canonicalUrl ?: route('product.show', $this->slug);
-        $mainImageUrl = $this->resolveMainImageUrl(null, false)
-            ?: ($this->resolveMainImageUrl() ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png'));
+        $mainImageUrl = $this->resolveSeoMainImageMeta()['url']
+            ?: asset('shop/projekt/logo/mein-seelenfunke-logo.png');
 
         $schemaImages = [$mainImageUrl];
         if (is_array($this->media_gallery)) {

@@ -317,7 +317,161 @@ class TaxAdvisorDashboardTest extends TestCase
 
         // Cleanup generated export files on disk
         @unlink(storage_path('app/buchhaltung/tax_exports/TaxExport_2026_05.zip'));
+        @unlink(storage_path('app/buchhaltung/exports/Finanzbericht_2026_05.zip'));
         @unlink(storage_path('app/buchhaltung/exports/Finanzbericht_2026_5.zip'));
         @unlink(storage_path('app/buchhaltung/exports/Rechnungen_und_Gutschriften_2026_05.zip'));
+    }
+
+    #[Test]
+    public function tax_advisor_exports_respect_quarter_and_year_modes_skr03_accounts_asset_afa_and_strict_business_privacy(): void
+    {
+        Storage::fake('local');
+
+        $year = 2026;
+        Storage::disk('local')->put('buchhaltung/receipts/laser_rechnung.pdf', '%PDF-1.4 Laser PDF');
+        Storage::disk('local')->put('buchhaltung/receipts/privat_beleg.pdf', '%PDF-1.4 Private PDF');
+
+        // 1. Capital Asset (> 800 € net -> SKR03 0440 + BU 9, linear 5y AfA)
+        $laserIssue = AccountingSpecialIssue::create([
+            'admin_id' => $this->admin->id,
+            'title' => 'xTool F2 Ultra UV Laser',
+            'category' => 'Maschinen',
+            'invoice_number' => 'RE-LASER-01',
+            'amount' => -4907.51, // 4123.96 net + 783.55 VAT
+            'tax_rate' => 19,
+            'is_business' => true,
+            'execution_date' => Carbon::create($year, 10, 15),
+            'file_paths' => ['buchhaltung/receipts/laser_rechnung.pdf'],
+        ]);
+
+        // 2. GWG (150-800 € net -> SKR03 0480 + BU 9)
+        AccountingSpecialIssue::create([
+            'admin_id' => $this->admin->id,
+            'title' => 'Bambu Lab A1 3D-Drucker',
+            'category' => 'Maschinen',
+            'invoice_number' => 'RE-BAMBU-01',
+            'amount' => -281.25, // 236.34 net
+            'tax_rate' => 19,
+            'is_business' => true,
+            'execution_date' => Carbon::create($year, 11, 17),
+            'file_paths' => ['buchhaltung/receipts/laser_rechnung.pdf'],
+        ]);
+
+        // 3. Raw Material (SKR03 3400 Automatik -> empty BU key)
+        AccountingSpecialIssue::create([
+            'admin_id' => $this->admin->id,
+            'title' => 'Schiefer-Rohlinge Großhandel',
+            'category' => 'Rohmaterial',
+            'invoice_number' => 'RE-ROH-99',
+            'amount' => -119.00,
+            'tax_rate' => 19,
+            'is_business' => true,
+            'execution_date' => Carbon::create($year, 11, 20),
+            'file_paths' => ['buchhaltung/receipts/laser_rechnung.pdf'],
+        ]);
+
+        // 4. Private expense (MUST NEVER leak into Finanzbericht ZIP or DATEV CSV)
+        AccountingSpecialIssue::create([
+            'admin_id' => $this->admin->id,
+            'title' => 'Private Hundeversicherung & Einkauf',
+            'category' => 'Privat',
+            'amount' => -250.00,
+            'tax_rate' => 0,
+            'is_business' => false,
+            'execution_date' => Carbon::create($year, 11, 18),
+            'file_paths' => ['buchhaltung/receipts/privat_beleg.pdf'],
+        ]);
+
+        // 5. Planned Reinvestment (§ 7g EStG IAB preview)
+        \App\Models\Accounting\AccountingInvestmentPlan::create([
+            'admin_id' => $this->admin->id,
+            'title' => 'Zweit-Laser Reserve',
+            'target_amount_gross' => 4950.00,
+            'tax_rate' => 19,
+            'monthly_rate' => 125.00,
+            'saved_initial' => 0.00,
+            'start_date' => '2026-11-01',
+            'afa_years' => 5,
+            'use_iab' => true,
+            'is_active' => true,
+            'priority' => 1,
+        ]);
+
+        $service = app(\App\Services\FinancialService::class);
+
+        // Verify Q4 UStVA & EÜR separation (Oct + Nov + Dec)
+        $q4Data = $service->getUstvaPeriodData($year, 4, 'quarter', $this->admin->id);
+        $this->assertSame('Q4', $q4Data['export_period_slug']);
+        $this->assertEqualsWithDelta(4123.96, $q4Data['capital_additions_net'], 0.05);
+        $this->assertEqualsWithDelta(336.34, $q4Data['operating_expenses_net'], 0.05); // 236.34 GWG + 100.00 Rohlinge
+        $this->assertGreaterThan(200.00, $q4Data['depreciation_net']); // 3 months * ~68.73 € AfA
+
+        // Verify SKR03 & BU-Schlüssel in DATEV CSV
+        $csv = $service->buildDatevCsv($q4Data);
+        $this->assertStringContainsString('"BU-Schlüssel"', $csv);
+        $this->assertStringContainsString(';"0440";"1200";"9";', $csv); // Laser -> 0440 + BU 9
+        $this->assertStringContainsString(';"0480";"1200";"9";', $csv); // Bambu GWG -> 0480 + BU 9
+        $this->assertStringContainsString(';"3400";"1200";"";', $csv);  // Rohmaterial -> 3400 Automatik (no BU)
+        $this->assertStringNotContainsString('Private Hundeversicherung', $csv);
+
+        // Verify Livewire Quarter & Year exports + Asset Schedule CSV
+        $component = Livewire::actingAs($this->taxAdvisor, 'employee')
+            ->test(TaxAdvisorDashboard::class)
+            ->set('selectedYear', $year)
+            ->call('setPeriodMode', 'quarter')
+            ->call('selectQuarter', 4)
+            ->assertOk()
+            ->assertSee('Kto. 0440')
+            ->assertSee('Kto. 0480')
+            ->assertSee('Kto. 3400')
+            ->assertSee('Zweit-Laser Reserve');
+
+        $component->call('downloadDatevCsv')
+            ->assertFileDownloaded('EXTF_Buchungsstapel_Q4_2026.csv');
+
+        $component->call('downloadDatevPackageZip')
+            ->assertFileDownloaded('TaxExport_2026_Q4.zip');
+
+        $component->call('downloadAssetScheduleCsv')
+            ->assertFileDownloaded('Anlagenspiegel_und_AfA_2026.csv');
+
+        $component->call('downloadFinancialReportZip')
+            ->assertFileDownloaded('Finanzbericht_2026_Q4.zip');
+
+        // Verify TaxExport_2026_Q4.zip contains Anlagenspiegel_und_AfA_2026.csv
+        $q4TaxZipPath = storage_path('app/buchhaltung/tax_exports/TaxExport_2026_Q4.zip');
+        $zip = new \ZipArchive();
+        $this->assertTrue($zip->open($q4TaxZipPath) === true);
+        $assetCsvInsideZip = $zip->getFromName('Anlagenspiegel_und_AfA_2026.csv');
+        $zip->close();
+        $this->assertNotFalse($assetCsvInsideZip);
+        $this->assertStringContainsString('xTool F2 Ultra UV Laser', $assetCsvInsideZip);
+        $this->assertStringContainsString('Bambu Lab A1 3D-Drucker', $assetCsvInsideZip);
+        $this->assertStringContainsString('Zweit-Laser Reserve', $assetCsvInsideZip);
+
+        // Verify Finanzbericht_2026_Q4.zip contains ZERO private expenses or private files
+        $q4FinZipPath = storage_path('app/buchhaltung/exports/Finanzbericht_2026_Q4.zip');
+        $fZip = new \ZipArchive();
+        $this->assertTrue($fZip->open($q4FinZipPath) === true);
+        $txCsvInsideFinZip = $fZip->getFromName('Transaktionen_2026_Q4.csv');
+        $fZip->close();
+        $this->assertNotFalse($txCsvInsideFinZip);
+        $this->assertStringContainsString('xTool F2 Ultra UV Laser', $txCsvInsideFinZip);
+        $this->assertStringNotContainsString('Private Hundeversicherung', $txCsvInsideFinZip);
+
+        // Verify Year mode exports full year
+        $component->call('setPeriodMode', 'year')
+            ->call('downloadDatevCsv')
+            ->assertFileDownloaded('EXTF_Buchungsstapel_GESAMT_2026.csv');
+
+        // Verify CLI command funki:generate-tax-export delegates cleanly to FinancialService
+        $this->artisan('funki:generate-tax-export', ['--month' => 11, '--year' => 2026, '--force' => true])
+            ->assertSuccessful();
+        $this->assertFileExists(storage_path('app/buchhaltung/tax_exports/TaxExport_2026_11.zip'));
+
+        // Cleanup
+        @unlink($q4TaxZipPath);
+        @unlink($q4FinZipPath);
+        @unlink(storage_path('app/buchhaltung/tax_exports/TaxExport_2026_11.zip'));
     }
 }

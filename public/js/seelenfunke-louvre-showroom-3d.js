@@ -28,6 +28,8 @@ export const DEFAULT_LOBBY_USER_SETTINGS = {
     cameraSensitivity: 100,
     useRealName: false,
     graphicsQuality: 'high',
+    characterGender: 'male',
+    skyTimeMode: 'auto',
 };
 
 export function loadLobbyUserSettings() {
@@ -50,6 +52,12 @@ export function loadLobbyUserSettings() {
                 if (parsed.graphicsQuality === 'balanced' || parsed.graphicsQuality === 'high') {
                     out.graphicsQuality = parsed.graphicsQuality;
                 }
+                if (parsed.characterGender === 'female' || parsed.characterGender === 'male') {
+                    out.characterGender = parsed.characterGender;
+                }
+                if (parsed.skyTimeMode === 'day' || parsed.skyTimeMode === 'night' || parsed.skyTimeMode === 'auto') {
+                    out.skyTimeMode = parsed.skyTimeMode;
+                }
             }
         }
     } catch (e) {}
@@ -62,6 +70,8 @@ export function saveLobbyUserSettings(partial) {
     merged.cameraSensitivity = Math.max(50, Math.min(150, Math.round(Number(merged.cameraSensitivity ?? 100))));
     merged.useRealName = Boolean(merged.useRealName);
     merged.graphicsQuality = merged.graphicsQuality === 'balanced' ? 'balanced' : 'high';
+    merged.characterGender = merged.characterGender === 'female' ? 'female' : 'male';
+    merged.skyTimeMode = (merged.skyTimeMode === 'day' || merged.skyTimeMode === 'night') ? merged.skyTimeMode : 'auto';
     if (typeof localStorage !== 'undefined') {
         try {
             localStorage.setItem(LOBBY_SETTINGS_STORAGE_KEY, JSON.stringify(merged));
@@ -70,7 +80,7 @@ export function saveLobbyUserSettings(partial) {
     return merged;
 }
 
-export function resolveLobbyEnvironment(rawEnv) {
+export function resolveLobbyEnvironment(rawEnv, skyTimeOverride = 'auto') {
     const now = new Date();
     const month = now.getMonth() + 1;
     const day = now.getDate();
@@ -124,12 +134,65 @@ export function resolveLobbyEnvironment(rawEnv) {
         ? env.server_time
         : localTime;
 
+    const timeParts = serverTime.split(':');
+    const hh = Math.max(0, Math.min(23, parseInt(timeParts[0], 10) || 12));
+    const mm = Math.max(0, Math.min(59, parseInt(timeParts[1], 10) || 0));
+    const totalMins = hh * 60 + mm;
+
+    let sunriseMin = 420;
+    let sunsetMin = 1095;
+    if (seasonKey === 'winter') {
+        sunriseMin = 465;
+        sunsetMin = 1005;
+    } else if (seasonKey === 'spring') {
+        sunriseMin = 390;
+        sunsetMin = 1185;
+    } else if (seasonKey === 'summer') {
+        sunriseMin = 330;
+        sunsetMin = 1275;
+    }
+
+    let computedNight = (totalMins < (sunriseMin - 25)) || (totalMins > (sunsetMin + 25));
+    if (typeof env.is_night === 'boolean' && skyTimeOverride === 'auto') {
+        computedNight = env.is_night;
+    }
+
+    let dayPhase = computedNight ? 'night' : 'day';
+    if (!computedNight) {
+        if (totalMins >= (sunriseMin - 25) && totalMins <= (sunriseMin + 35)) {
+            dayPhase = 'dawn';
+        } else if (totalMins >= (sunsetMin - 35) && totalMins <= (sunsetMin + 25)) {
+            dayPhase = 'dusk';
+        }
+    }
+    if (skyTimeOverride === 'day') {
+        computedNight = false;
+        dayPhase = 'day';
+    } else if (skyTimeOverride === 'night') {
+        computedNight = true;
+        dayPhase = 'night';
+    }
+
+    let weatherCondition = 'autumn_gold';
+    if (computedNight) {
+        weatherCondition = 'starry_night';
+    } else if (seasonKey === 'winter' || holidayKey === 'weihnachten' || holidayKey === 'neujahr') {
+        weatherCondition = 'winter_snow_sun';
+    } else if (seasonKey === 'spring' || holidayKey === 'ostern' || holidayKey === 'valentinstag') {
+        weatherCondition = 'spring_breeze';
+    } else if (seasonKey === 'summer') {
+        weatherCondition = 'summer_clear';
+    }
+
     return {
         season_key: seasonKey,
         season_label: seasonLabel,
         holiday_key: holidayKey,
         holiday_label: holidayLabel,
         server_time: serverTime,
+        is_night: computedNight,
+        day_phase: dayPhase,
+        weather_condition: weatherCondition,
     };
 }
 
@@ -207,6 +270,50 @@ function matchesActionKey(code, boundCode) {
 export { getLobbyAudioInstance, SeelenfunkeLobbyAudio };
 
 export const FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5;
+
+export const RIGGED_AVATAR_GLB_URLS = {
+    male: '/shop/customer/gamification/models/char_starter_male_rigged.glb?v=20261120v36',
+    female: '/shop/customer/gamification/models/char_starter_female_rigged.glb?v=20261120v36',
+};
+
+export const ARMORY_SHOWCASE_ITEMS = {
+    helm: {
+        key: 'helm',
+        slot: 'head',
+        label: 'Kristall-Helm',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_helm.glb?v=20261120v36',
+    },
+    chest: {
+        key: 'chest',
+        slot: 'chest',
+        label: 'Kristall-Brustpanzer',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_chest.glb?v=20261120v36',
+    },
+    gauntlets: {
+        key: 'gauntlets',
+        slot: 'hands',
+        label: 'Kristall-Handschuhe',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_gauntlets.glb?v=20261120v36',
+    },
+    boots: {
+        key: 'boots',
+        slot: 'feet',
+        label: 'Kristall-Stiefel',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_boots.glb?v=20261120v36',
+    },
+    lance: {
+        key: 'lance',
+        slot: 'weapon',
+        label: 'Kristall-Lanze',
+        url: '/shop/customer/gamification/models/armory/weapon_crystal_lance.glb?v=20261120v36',
+    },
+    spear: {
+        key: 'spear',
+        slot: 'weapon',
+        label: 'Kristall-Speer',
+        url: '/shop/customer/gamification/models/armory/weapon_crystal_spear.glb?v=20261120v36',
+    },
+};
 
 export const DEFAULT_FUNKI_GLB_URLS = {
     1: '/shop/customer/gamification/models/funki_lvl_1_rags.glb',
@@ -1611,6 +1718,80 @@ export const SF_LOBBY_SCOPED_CSS = `
     color: #111827;
     cursor: pointer;
 }
+.sf-lobby-char-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 2px;
+}
+.sf-lobby-char-card {
+    position: relative;
+    appearance: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 12px 14px;
+    border-radius: 16px;
+    border: 1.5px solid rgba(197, 160, 89, 0.42);
+    background: #FAF8F5;
+    color: #111827;
+    cursor: pointer;
+    transition: transform 0.14s ease, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+.sf-lobby-char-card:hover {
+    border-color: #C5A059;
+    background: #FFFFFF;
+    transform: translateY(-2px);
+}
+.sf-lobby-char-card.is-selected {
+    border-color: #C5A059;
+    background: #FFFFFF;
+    box-shadow: 0 8px 20px rgba(197, 160, 89, 0.16);
+}
+.sf-lobby-char-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #C5A059;
+    color: #FFFFFF;
+    font-size: 11px;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.sf-lobby-char-emblem {
+    width: 64px;
+    height: 64px;
+    border-radius: 999px;
+    background: #FFFFFF;
+    border: 1.5px solid rgba(197, 160, 89, 0.50);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(17, 24, 39, 0.06);
+}
+.sf-lobby-char-name {
+    font-size: 14px;
+    font-weight: 900;
+    color: #111827;
+    letter-spacing: 0.01em;
+}
+.sf-lobby-char-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: rgba(197, 160, 89, 0.14);
+    color: #8C6A2E;
+    font-size: 10.5px;
+    font-weight: 800;
+}
 @media (max-width: 900px), (pointer: coarse) {
     .sf-lobby-topbar { padding: 8px 10px; gap: 6px; }
     .sf-lobby-actions { margin-right: 0; }
@@ -1651,7 +1832,7 @@ export function ensureLobbyScopedStyles() {
         styleEl.id = 'sf-3d-lobby-scoped-css';
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
         (document.head || document.documentElement).appendChild(styleEl);
-    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-lobby-ping-anchor') === -1) {
+    } else if (!styleEl.textContent || styleEl.textContent.indexOf('.sf-lobby-ping-anchor') === -1 || styleEl.textContent.indexOf('.sf-lobby-char-card') === -1) {
         styleEl.textContent = SF_LOBBY_SCOPED_CSS;
     }
 }
@@ -1958,7 +2139,7 @@ function downscaleImageToCanvas(imgEl, maxSide) {
 /**
  * Nativer, abhaengigkeitsfreier GLB 2.0 Parser fuer komprimierte Seelenfunke Produkt- & Funki-Modelle (0 externe CDN-Assets).
  */
-export function parseGlbBinary(THREE, arrayBuffer, maxAniso, disposables) {
+export function parseGlbBinary(THREE, arrayBuffer, maxAniso, disposables, maxTexDim = 512) {
     if (!arrayBuffer || arrayBuffer.byteLength < 20) {
         return Promise.reject(new Error('Ungueltiger GLB-Datenstrom.'));
     }
@@ -2071,7 +2252,7 @@ export function parseGlbBinary(THREE, arrayBuffer, maxAniso, disposables) {
             const imgEl = new Image();
             imgEl.onload = () => {
                 URL.revokeObjectURL(blobUrl);
-                const source = downscaleImageToCanvas(imgEl, 512);
+                const source = downscaleImageToCanvas(imgEl, maxTexDim || 512);
                 const tex = new THREE.Texture(source);
                 tex.flipY = false;
                 tex.wrapS = THREE.RepeatWrapping;
@@ -2168,6 +2349,7 @@ export function parseGlbBinary(THREE, arrayBuffer, maxAniso, disposables) {
         if (!nDef) return Promise.resolve(new THREE.Group());
 
         const nodeObj = new THREE.Group();
+        nodeObj.name = nDef.name || '';
         if (Array.isArray(nDef.matrix) && nDef.matrix.length === 16) {
             tmpMat4.fromArray(nDef.matrix);
             tmpMat4.decompose(nodeObj.position, nodeObj.quaternion, nodeObj.scale);
@@ -2205,6 +2387,15 @@ export function parseGlbBinary(THREE, arrayBuffer, maxAniso, disposables) {
                         mat.vertexColors = true;
                     }
 
+                    const jointsData = readAccessorArray(attrs.JOINTS_0);
+                    const weightsData = readAccessorArray(attrs.WEIGHTS_0);
+                    if (jointsData && weightsData) {
+                        const jArr = jointsData.array instanceof Uint16Array ? jointsData.array : Uint16Array.from(jointsData.array);
+                        const wArr = weightsData.array instanceof Float32Array ? weightsData.array : Float32Array.from(weightsData.array);
+                        geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(jArr, 4));
+                        geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(wArr, 4));
+                    }
+
                     const idxData = readAccessorArray(prim.indices);
                     if (idxData) {
                         geo.setIndex(new THREE.BufferAttribute(idxData.array, 1));
@@ -2218,6 +2409,7 @@ export function parseGlbBinary(THREE, arrayBuffer, maxAniso, disposables) {
                     if (disposables) disposables.push(geo);
 
                     const mesh = new THREE.Mesh(geo, mat);
+                    mesh.name = (jsonObj.meshes[nDef.mesh] && jsonObj.meshes[nDef.mesh].name) || nDef.name || '';
                     nodeObj.add(mesh);
                 }));
             }
@@ -3030,9 +3222,9 @@ function buildLightModeMiniPlaqueTexture(THREE, maxAniso, textStr, disposables, 
 }
 
 /**
- * Saisonale Aussen-Himmelspartikel-Textur (Schneeflocke, Bluetenblatt, Herbstblatt, Sonnenfunke) streng fuer AUSSERHALB des Glasdachs!
+ * Saisonale Aussen-Himmelspartikel-Textur (Schneeflocke, Bluetenblatt, Herbstblatt, Sonnenfunke / Sternenstaub) streng fuer AUSSERHALB des Glasdachs!
  */
-function buildSeasonalOutdoorSpriteTexture(THREE, seasonKey, holidayKey, disposables) {
+function buildSeasonalOutdoorSpriteTexture(THREE, seasonKey, holidayKey, disposables, isNight = false) {
     const S = 128;
     const c = document.createElement('canvas');
     c.width = S;
@@ -3049,7 +3241,7 @@ function buildSeasonalOutdoorSpriteTexture(THREE, seasonKey, holidayKey, disposa
     if (isWinter) {
         ctx.save();
         ctx.translate(cx, cy);
-        ctx.strokeStyle = '#FFFFFF';
+        ctx.strokeStyle = isNight ? '#E6F1FF' : '#FFFFFF';
         ctx.lineCap = 'round';
         ctx.lineWidth = 4.5;
         for (let i = 0; i < 6; i++) {
@@ -3066,14 +3258,22 @@ function buildSeasonalOutdoorSpriteTexture(THREE, seasonKey, holidayKey, disposa
             ctx.restore();
         }
         const rg = ctx.createRadialGradient(0, 0, 2, 0, 0, 48);
-        rg.addColorStop(0, 'rgba(255,255,255,0.95)');
-        rg.addColorStop(0.55, 'rgba(226,240,255,0.45)');
+        rg.addColorStop(0, isNight ? 'rgba(230,242,255,0.92)' : 'rgba(255,255,255,0.95)');
+        rg.addColorStop(0.55, isNight ? 'rgba(185,214,255,0.38)' : 'rgba(226,240,255,0.45)');
         rg.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = rg;
         ctx.beginPath();
         ctx.arc(0, 0, 48, 0, TWO_PI);
         ctx.fill();
         ctx.restore();
+    } else if (isNight) {
+        const sg = ctx.createRadialGradient(cx, cy, 1.5, cx, cy, 46);
+        sg.addColorStop(0, 'rgba(255, 253, 244, 0.98)');
+        sg.addColorStop(0.28, 'rgba(238, 214, 158, 0.72)');
+        sg.addColorStop(0.65, 'rgba(182, 206, 255, 0.24)');
+        sg.addColorStop(1, 'rgba(182, 206, 255, 0)');
+        ctx.fillStyle = sg;
+        ctx.fillRect(0, 0, S, S);
     } else if (isSpring) {
         ctx.save();
         ctx.translate(cx, cy);
@@ -3120,9 +3320,405 @@ function buildSeasonalOutdoorSpriteTexture(THREE, seasonKey, holidayKey, disposa
 }
 
 /**
- * Tiefengestaffeltes, sanft beleuchtetes Panorama-Vorschaubild der Seelenfunke-Aussenwelt hinter dem West-Prunktor.
+ * Weiche volumetrische Wolken-Puff-Textur fuer die ziehende 3D-Wolkenschicht ueber dem Glasdach am Tag.
  */
-function buildOuterWorldPanoramaTexture(THREE, maxAniso, seasonKey, holidayKey, disposables) {
+function buildVolumetricCloudPuffTexture(THREE, seasonKey, dayPhase, disposables) {
+    const W = 512;
+    const H = 256;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+
+    const isGolden = (dayPhase === 'dusk' || dayPhase === 'dawn' || seasonKey === 'autumn');
+    const topTint = isGolden ? '255, 250, 240' : '255, 255, 255';
+    const baseShade = seasonKey === 'winter' ? '194, 211, 232' : (isGolden ? '224, 206, 186' : '206, 220, 238');
+
+    const puffs = [
+        [0.50, 0.48, 0.34, 0.34, 0.88],
+        [0.31, 0.54, 0.25, 0.26, 0.78],
+        [0.69, 0.53, 0.26, 0.27, 0.80],
+        [0.18, 0.60, 0.17, 0.18, 0.56],
+        [0.82, 0.59, 0.18, 0.19, 0.58],
+        [0.44, 0.37, 0.22, 0.22, 0.74],
+        [0.59, 0.39, 0.20, 0.21, 0.70],
+    ];
+
+    for (let i = 0; i < puffs.length; i++) {
+        const [ux, uy, rx, ry, alpha] = puffs[i];
+        const px = ux * W;
+        const py = uy * H;
+        const rad = Math.max(rx * W, ry * H);
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.scale(1.0, (ry * H) / Math.max(1, rx * W));
+        const g = ctx.createRadialGradient(0, -rad * 0.16, rad * 0.06, 0, 0, rad);
+        g.addColorStop(0.0, `rgba(${topTint}, ${alpha})`);
+        g.addColorStop(0.52, `rgba(${topTint}, ${(alpha * 0.68).toFixed(3)})`);
+        g.addColorStop(0.80, `rgba(${baseShade}, ${(alpha * 0.34).toFixed(3)})`);
+        g.addColorStop(1.0, `rgba(${baseShade}, 0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, rad, 0, TWO_PI);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    applySrgbColorSpace(THREE, tex);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Funkelnder 4-Strahl-Stern-Sprite fuer das 3D-Sternenzelt (Sternenhimmel) ueber der Glaskuppel.
+ */
+function buildTwinkleStarSpriteTexture(THREE, disposables) {
+    const S = 64;
+    const c = document.createElement('canvas');
+    c.width = S;
+    c.height = S;
+    const ctx = c.getContext('2d');
+    const cx = S * 0.5;
+    const cy = S * 0.5;
+
+    const rg = ctx.createRadialGradient(cx, cy, 0.5, cx, cy, 28);
+    rg.addColorStop(0.0, 'rgba(255,255,255,1)');
+    rg.addColorStop(0.22, 'rgba(255,248,230,0.88)');
+    rg.addColorStop(0.55, 'rgba(205,224,255,0.28)');
+    rg.addColorStop(1.0, 'rgba(205,224,255,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, S, S);
+
+    ctx.strokeStyle = 'rgba(255,252,240,0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(cx - 22, cy);
+    ctx.lineTo(cx + 22, cy);
+    ctx.moveTo(cx, cy - 22);
+    ctx.lineTo(cx, cy + 22);
+    ctx.stroke();
+
+    const tex = new THREE.CanvasTexture(c);
+    applySrgbColorSpace(THREE, tex);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Hochaufloesende realistische 360-Grad Himmelskuppel (2048x1024 Equirectangular):
+ * - Am Tag: Physikalischer Rayleigh/Mie-Himmel passend zur Jahreszeit & Wetterlage, strahlende Sonnenscheibe mit Atmosphaeren-Korona, Cirrus-Schleier & plastische Cumulus-Wolkenbaenke.
+ * - Nachts: Tiefer realistischer Sternenhimmel mit Milchstrassen-Band, ueber 1.350 Sternen verschiedener Farbtemperaturen, Leitsternen & fein schattiertem Vollmond mit Mondhof.
+ */
+function buildRealisticSeasonalSkyTexture(THREE, maxAniso, seasonKey, holidayKey, dayPhase, isNight, disposables) {
+    const W = 2048;
+    const H = 1024;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    const rng = mulberry32(isNight ? 2026112099 : (seasonKey === 'winter' ? 20260115 : (seasonKey === 'spring' ? 20260415 : (seasonKey === 'summer' ? 20260715 : 20261015))));
+
+    if (isNight) {
+        // 1. Tiefer realistischer Nachthimmel-Gradient (Zenit Kosmos-Schwarzblau bis sanftem Horizont-Airglow)
+        const nightGrad = ctx.createLinearGradient(0, 0, 0, H);
+        nightGrad.addColorStop(0.00, '#02050E');
+        nightGrad.addColorStop(0.18, '#050B1C');
+        nightGrad.addColorStop(0.36, '#0A152C');
+        nightGrad.addColorStop(0.49, '#132444');
+        nightGrad.addColorStop(0.54, '#1B2D4E');
+        nightGrad.addColorStop(0.62, '#101B31');
+        nightGrad.addColorStop(1.00, '#060A14');
+        ctx.fillStyle = nightGrad;
+        ctx.fillRect(0, 0, W, H);
+
+        // Dezenter saisonaler Horizontschimmer (Winter: kuehles Polarlicht-Blau, sonst warmer Gold-Airglow)
+        const horizonGlow = ctx.createLinearGradient(0, H * 0.38, 0, H * 0.56);
+        if (seasonKey === 'winter' || holidayKey === 'weihnachten') {
+            horizonGlow.addColorStop(0.0, 'rgba(96, 165, 250, 0)');
+            horizonGlow.addColorStop(0.65, 'rgba(125, 211, 252, 0.11)');
+            horizonGlow.addColorStop(1.0, 'rgba(197, 160, 89, 0.08)');
+        } else {
+            horizonGlow.addColorStop(0.0, 'rgba(197, 160, 89, 0)');
+            horizonGlow.addColorStop(0.72, 'rgba(197, 160, 89, 0.10)');
+            horizonGlow.addColorStop(1.0, 'rgba(147, 197, 253, 0.06)');
+        }
+        ctx.fillStyle = horizonGlow;
+        ctx.fillRect(0, H * 0.38, W, H * 0.18);
+
+        // 2. Sanft geschwungenes Milchstrassen-Band ueber den Zenit (nahtlos ueber 0..W gewrappt)
+        ctx.save();
+        for (let mi = 0; mi < 68; mi++) {
+            const u = mi / 68;
+            const ang = u * TWO_PI;
+            const bx = u * W;
+            const by = H * (0.20 + Math.sin(ang + 0.7) * 0.11);
+            const rad = 110 + (mi % 5) * 26;
+            const neb = ctx.createRadialGradient(bx, by, 6, bx, by, rad);
+            const warmBand = (mi % 3 === 0);
+            neb.addColorStop(0.0, warmBand ? 'rgba(232, 214, 184, 0.055)' : 'rgba(165, 196, 246, 0.062)');
+            neb.addColorStop(0.5, 'rgba(116, 150, 214, 0.028)');
+            neb.addColorStop(1.0, 'rgba(15, 28, 56, 0)');
+            ctx.fillStyle = neb;
+            ctx.beginPath();
+            ctx.arc(bx, by, rad, 0, TWO_PI);
+            ctx.fill();
+            if (bx < rad) {
+                ctx.save();
+                ctx.translate(W, 0);
+                ctx.fillStyle = neb;
+                ctx.beginPath();
+                ctx.arc(bx, by, rad, 0, TWO_PI);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+        ctx.restore();
+
+        // 3. 1.420 realistische Sterne mit echten Spektralfarben (O/B Blauweiss, A/F Reinweiss, G/K Champagner-Gold)
+        const starColors = ['#DCEBFF', '#FFFFFF', '#F8FAFC', '#FFF5DC', '#F5D491', '#CAE2FF'];
+        const starCount = 1420;
+        for (let si = 0; si < starCount; si++) {
+            const inMilkyWay = si < 420;
+            const u = rng();
+            let v;
+            if (inMilkyWay) {
+                const bandCenter = 0.20 + Math.sin(u * TWO_PI + 0.7) * 0.11;
+                v = clamp(bandCenter + (rng() - 0.5) * 0.15, 0.03, 0.49);
+            } else {
+                v = 0.025 + Math.pow(rng(), 0.92) * 0.485;
+            }
+            const sx = u * W;
+            const sy = v * H;
+            const horizonFade = v > 0.43 ? clamp((0.52 - v) / 0.09, 0.12, 1.0) : 1.0;
+            const magRoll = rng();
+            const radius = magRoll > 0.986 ? (2.15 + rng() * 0.95) : (magRoll > 0.91 ? (1.25 + rng() * 0.65) : (0.55 + rng() * 0.62));
+            const alpha = clamp((0.36 + rng() * 0.64) * horizonFade, 0.08, 0.99);
+            const col = starColors[si % starColors.length];
+
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = col;
+            ctx.beginPath();
+            ctx.arc(sx, sy, radius, 0, TWO_PI);
+            ctx.fill();
+
+            if (magRoll > 0.975) {
+                const haloR = radius * 4.8;
+                const sh = ctx.createRadialGradient(sx, sy, 0.4, sx, sy, haloR);
+                sh.addColorStop(0.0, 'rgba(255,252,240,0.82)');
+                sh.addColorStop(0.4, 'rgba(214,230,255,0.26)');
+                sh.addColorStop(1.0, 'rgba(214,230,255,0)');
+                ctx.fillStyle = sh;
+                ctx.beginPath();
+                ctx.arc(sx, sy, haloR, 0, TWO_PI);
+                ctx.fill();
+
+                if (magRoll > 0.991) {
+                    ctx.strokeStyle = 'rgba(255, 248, 226, 0.58)';
+                    ctx.lineWidth = 1.0;
+                    const spike = radius * 5.6;
+                    ctx.beginPath();
+                    ctx.moveTo(sx - spike, sy);
+                    ctx.lineTo(sx + spike, sy);
+                    ctx.moveTo(sx, sy - spike);
+                    ctx.lineTo(sx, sy + spike);
+                    ctx.stroke();
+                }
+            }
+        }
+        ctx.globalAlpha = 1.0;
+
+        // 4. Realistischer Vollmond mit Atmosphaeren-Hof & feinen Mondmeeren (gut sichtbar durch das Glasdach!)
+        const moonX = W * 0.34;
+        const moonY = H * 0.21;
+        const moonR = 27;
+
+        const moonHaloOuter = ctx.createRadialGradient(moonX, moonY, moonR * 0.7, moonX, moonY, moonR * 7.2);
+        moonHaloOuter.addColorStop(0.0, 'rgba(255, 250, 232, 0.44)');
+        moonHaloOuter.addColorStop(0.24, 'rgba(218, 232, 255, 0.16)');
+        moonHaloOuter.addColorStop(0.58, 'rgba(165, 196, 245, 0.05)');
+        moonHaloOuter.addColorStop(1.0, 'rgba(165, 196, 245, 0)');
+        ctx.fillStyle = moonHaloOuter;
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, moonR * 7.2, 0, TWO_PI);
+        ctx.fill();
+
+        const moonDisc = ctx.createRadialGradient(moonX - moonR * 0.24, moonY - moonR * 0.24, moonR * 0.12, moonX, moonY, moonR);
+        moonDisc.addColorStop(0.0, '#FFFDF7');
+        moonDisc.addColorStop(0.68, '#F4EFE2');
+        moonDisc.addColorStop(0.94, '#DDD6C5');
+        moonDisc.addColorStop(1.0, '#C8C0AE');
+        ctx.fillStyle = moonDisc;
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, moonR, 0, TWO_PI);
+        ctx.fill();
+
+        // Dezente Mondmeere (Maria) fuer fotorealistische Zeichnung
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(moonX, moonY, moonR - 0.8, 0, TWO_PI);
+        ctx.clip();
+        const maria = [
+            [-7, -6, 8.5, 6.2, 0.13],
+            [5, -8, 6.8, 5.2, 0.11],
+            [-4, 5, 9.2, 6.0, 0.10],
+            [8, 4, 5.5, 4.6, 0.09],
+            [-11, 2, 4.5, 5.5, 0.08],
+        ];
+        for (let k = 0; k < maria.length; k++) {
+            const [dx, dy, rx, ry, al] = maria[k];
+            ctx.fillStyle = `rgba(138, 146, 162, ${al})`;
+            ctx.beginPath();
+            ctx.ellipse(moonX + dx, moonY + dy, rx, ry, k * 0.5, 0, TWO_PI);
+            ctx.fill();
+        }
+        ctx.restore();
+    } else {
+        // 1. Realistischer heller Tageshimmel mit Jahreszeiten- & Wetter-Atmosphere (Rayleigh + Mie)
+        const isDuskDawn = (dayPhase === 'dusk' || dayPhase === 'dawn');
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+        if (seasonKey === 'winter' || holidayKey === 'weihnachten' || holidayKey === 'neujahr') {
+            skyGrad.addColorStop(0.00, '#4E82BE');
+            skyGrad.addColorStop(0.18, '#79A8DC');
+            skyGrad.addColorStop(0.36, '#B8D4F0');
+            skyGrad.addColorStop(0.49, isDuskDawn ? '#F5DFC6' : '#EBF3FA');
+            skyGrad.addColorStop(0.55, '#F4EFE7');
+            skyGrad.addColorStop(1.00, '#DCE4EE');
+        } else if (seasonKey === 'spring' || holidayKey === 'ostern' || holidayKey === 'valentinstag') {
+            skyGrad.addColorStop(0.00, '#3D84D6');
+            skyGrad.addColorStop(0.18, '#69A9EC');
+            skyGrad.addColorStop(0.36, '#AED5F8');
+            skyGrad.addColorStop(0.49, isDuskDawn ? '#FADEC4' : '#F4F7FB');
+            skyGrad.addColorStop(0.55, '#F7EFE4');
+            skyGrad.addColorStop(1.00, '#E6DEC9');
+        } else if (seasonKey === 'summer') {
+            skyGrad.addColorStop(0.00, '#2772CC');
+            skyGrad.addColorStop(0.17, '#5198E8');
+            skyGrad.addColorStop(0.35, '#99CAF7');
+            skyGrad.addColorStop(0.49, isDuskDawn ? '#FCE0B6' : '#F2F7FC');
+            skyGrad.addColorStop(0.55, '#F7EEDB');
+            skyGrad.addColorStop(1.00, '#E7DCC4');
+        } else {
+            // Herbst: klarer Kobalt-Zenit zu warmem Gold-Elfenbein-Horizont
+            skyGrad.addColorStop(0.00, '#4479BD');
+            skyGrad.addColorStop(0.18, '#73A0D6');
+            skyGrad.addColorStop(0.36, '#B7CEE8');
+            skyGrad.addColorStop(0.49, '#F6E3C6');
+            skyGrad.addColorStop(0.55, '#EED7B5');
+            skyGrad.addColorStop(1.00, '#DFC8A7');
+        }
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, W, H);
+
+        // 2. Strahlende Tagessonne + Mie-Streulicht-Korona (Jahreszeiten-Sonnenstand)
+        const sunX = W * 0.62;
+        const sunY = H * (seasonKey === 'summer' ? 0.16 : (seasonKey === 'winter' ? 0.28 : 0.22));
+        const sunHalo = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 340);
+        sunHalo.addColorStop(0.00, 'rgba(255, 255, 248, 0.98)');
+        sunHalo.addColorStop(0.08, 'rgba(255, 249, 224, 0.86)');
+        sunHalo.addColorStop(0.24, 'rgba(255, 238, 188, 0.34)');
+        sunHalo.addColorStop(0.58, 'rgba(255, 232, 175, 0.09)');
+        sunHalo.addColorStop(1.00, 'rgba(255, 232, 175, 0)');
+        ctx.fillStyle = sunHalo;
+        ctx.beginPath();
+        ctx.arc(sunX, sunY, 340, 0, TWO_PI);
+        ctx.fill();
+
+        // 3. Feine hohe Cirrus-Schleierwolken im oberen Himmelsgewoelbe
+        ctx.save();
+        for (let ci = 0; ci < 26; ci++) {
+            const cx = rng() * W;
+            const cy = H * (0.09 + rng() * 0.18);
+            const cw = 180 + rng() * 260;
+            const ch = 10 + rng() * 18;
+            const cg = ctx.createRadialGradient(cx, cy, 4, cx, cy, cw);
+            cg.addColorStop(0.0, 'rgba(255,255,255,0.22)');
+            cg.addColorStop(0.55, 'rgba(255,255,255,0.09)');
+            cg.addColorStop(1.0, 'rgba(255,255,255,0)');
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate((rng() - 0.5) * 0.18);
+            ctx.scale(1.0, ch / cw);
+            ctx.fillStyle = cg;
+            ctx.beginPath();
+            ctx.arc(0, 0, cw, 0, TWO_PI);
+            ctx.fill();
+            ctx.restore();
+        }
+        ctx.restore();
+
+        // 4. Plastische, nahtlos gekachelte Cumulus-Wolkenformationen passend zur Jahreszeiten-Wetterlage
+        const cloudClusters = seasonKey === 'summer' ? 18 : (seasonKey === 'winter' ? 28 : 22);
+        const shadeRgb = seasonKey === 'winter' ? '186, 203, 224' : (seasonKey === 'autumn' ? '210, 198, 186' : '194, 212, 232');
+        const drawSeamlessCircle = (x, y, r, fillStyle, scaleY = 1.0) => {
+            const offsets = [0];
+            if (x - r < 0) offsets.push(W);
+            if (x + r > W) offsets.push(-W);
+            for (let oi = 0; oi < offsets.length; oi++) {
+                ctx.save();
+                ctx.translate(x + offsets[oi], y);
+                ctx.scale(1.0, scaleY);
+                ctx.fillStyle = fillStyle;
+                ctx.beginPath();
+                ctx.arc(0, 0, r, 0, TWO_PI);
+                ctx.fill();
+                ctx.restore();
+            }
+        };
+
+        for (let cl = 0; cl < cloudClusters; cl++) {
+            const baseX = (cl / cloudClusters) * W + (rng() - 0.5) * 95;
+            const baseY = H * (0.24 + rng() * 0.20);
+            const clusterScale = 0.75 + rng() * 0.65;
+            const puffCount = 5 + Math.floor(rng() * 4);
+
+            // Sanfter Wolkenschatten an der Unterseite
+            for (let pi = 0; pi < puffCount; pi++) {
+                const px = ((baseX + (pi - puffCount * 0.5) * 34 * clusterScale) % W + W) % W;
+                const py = baseY + 12 * clusterScale + (rng() - 0.5) * 8;
+                const pr = (36 + rng() * 28) * clusterScale;
+                const sg = ctx.createRadialGradient(0, 0, pr * 0.1, 0, 0, pr);
+                sg.addColorStop(0.0, `rgba(${shadeRgb}, 0.42)`);
+                sg.addColorStop(0.65, `rgba(${shadeRgb}, 0.18)`);
+                sg.addColorStop(1.0, `rgba(${shadeRgb}, 0)`);
+                drawSeamlessCircle(px, py, pr, sg, 0.56);
+            }
+
+            // Sonnenbeschienene helle Wolkenkronen
+            for (let pi = 0; pi < puffCount; pi++) {
+                const arch = 1.0 - Math.abs((pi / Math.max(1, puffCount - 1)) - 0.5) * 1.25;
+                const px = ((baseX + (pi - puffCount * 0.5) * 32 * clusterScale) % W + W) % W;
+                const py = baseY - Math.max(0, arch) * 18 * clusterScale + (rng() - 0.5) * 6;
+                const pr = (34 + arch * 26 + rng() * 18) * clusterScale;
+                const tg = ctx.createRadialGradient(-pr * 0.12, -pr * 0.18, pr * 0.08, 0, 0, pr);
+                tg.addColorStop(0.0, 'rgba(255, 255, 255, 0.88)');
+                tg.addColorStop(0.55, 'rgba(255, 253, 249, 0.54)');
+                tg.addColorStop(1.0, 'rgba(255, 253, 249, 0)');
+                drawSeamlessCircle(px, py, pr, tg, 0.68);
+            }
+        }
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = Math.min(maxAniso || 4, 8);
+    applySrgbColorSpace(THREE, tex);
+    tex.needsUpdate = true;
+    if (disposables) disposables.push(tex);
+    return tex;
+}
+
+/**
+ * Tiefengestaffeltes, sanft beleuchtetes Panorama-Vorschaubild der Seelenfunke-Aussenwelt hinter dem West-Prunktor (Tag & Sternenhimmel).
+ */
+function buildOuterWorldPanoramaTexture(THREE, maxAniso, seasonKey, holidayKey, disposables, isNight = false) {
     const W = 1024;
     const H = 1024;
     const c = document.createElement('canvas');
@@ -3131,40 +3727,83 @@ function buildOuterWorldPanoramaTexture(THREE, maxAniso, seasonKey, holidayKey, 
     const ctx = c.getContext('2d');
 
     const skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.75);
-    if (seasonKey === 'winter' || holidayKey === 'weihnachten') {
-        skyGrad.addColorStop(0.0, '#BFD8F2');
-        skyGrad.addColorStop(0.42, '#E8F1FA');
+    if (isNight) {
+        skyGrad.addColorStop(0.0, '#040917');
+        skyGrad.addColorStop(0.42, '#0B1731');
+        skyGrad.addColorStop(0.78, '#16284A');
+        skyGrad.addColorStop(1.0, '#1F3152');
+    } else if (seasonKey === 'winter' || holidayKey === 'weihnachten') {
+        skyGrad.addColorStop(0.0, '#6FA2D8');
+        skyGrad.addColorStop(0.42, '#CFE4F7');
         skyGrad.addColorStop(0.78, '#F9EBD2');
         skyGrad.addColorStop(1.0, '#E5ECF4');
     } else if (seasonKey === 'spring') {
-        skyGrad.addColorStop(0.0, '#BFE3F7');
-        skyGrad.addColorStop(0.45, '#F9EFE6');
+        skyGrad.addColorStop(0.0, '#5B9EE6');
+        skyGrad.addColorStop(0.45, '#D9EEFC');
         skyGrad.addColorStop(0.82, '#FCE5C8');
         skyGrad.addColorStop(1.0, '#EDE4D3');
     } else if (seasonKey === 'summer') {
-        skyGrad.addColorStop(0.0, '#9CC9F5');
-        skyGrad.addColorStop(0.45, '#EBF4FC');
+        skyGrad.addColorStop(0.0, '#3D88DF');
+        skyGrad.addColorStop(0.45, '#CAE6FC');
         skyGrad.addColorStop(0.82, '#FBE8BD');
         skyGrad.addColorStop(1.0, '#E9DFC8');
     } else {
-        skyGrad.addColorStop(0.0, '#C4D3E8');
-        skyGrad.addColorStop(0.44, '#F5E4CA');
+        skyGrad.addColorStop(0.0, '#5A8AC6');
+        skyGrad.addColorStop(0.44, '#D8E3F0');
         skyGrad.addColorStop(0.80, '#F3C78B');
         skyGrad.addColorStop(1.0, '#DFC49E');
     }
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, W, H);
 
-    // Sanfte Sonnenscheibe & volumetrischer Horizontglanz
-    const sunGlow = ctx.createRadialGradient(W * 0.5, H * 0.44, 18, W * 0.5, H * 0.44, W * 0.46);
-    sunGlow.addColorStop(0.0, 'rgba(255, 251, 235, 0.96)');
-    sunGlow.addColorStop(0.28, 'rgba(253, 230, 138, 0.55)');
-    sunGlow.addColorStop(1.0, 'rgba(253, 230, 138, 0.0)');
-    ctx.fillStyle = sunGlow;
-    ctx.fillRect(0, 0, W, H);
+    if (isNight) {
+        const starRng = mulberry32(20261199);
+        const cols = ['#FFFFFF', '#DCEBFF', '#FFF3D1', '#F5D08A'];
+        for (let si = 0; si < 260; si++) {
+            const sx = starRng() * W;
+            const sy = starRng() * (H * 0.56);
+            const sr = starRng() > 0.94 ? 2.0 : (0.7 + starRng() * 0.9);
+            ctx.globalAlpha = 0.42 + starRng() * 0.56;
+            ctx.fillStyle = cols[si % cols.length];
+            ctx.beginPath();
+            ctx.arc(sx, sy, sr, 0, TWO_PI);
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+
+        // Mond & sanfter Mondschein hinter dem West-Tor
+        const moonGlow = ctx.createRadialGradient(W * 0.52, H * 0.26, 12, W * 0.52, H * 0.26, W * 0.34);
+        moonGlow.addColorStop(0.0, 'rgba(255, 252, 240, 0.95)');
+        moonGlow.addColorStop(0.10, 'rgba(240, 236, 220, 0.45)');
+        moonGlow.addColorStop(0.42, 'rgba(175, 205, 250, 0.14)');
+        moonGlow.addColorStop(1.0, 'rgba(175, 205, 250, 0)');
+        ctx.fillStyle = moonGlow;
+        ctx.fillRect(0, 0, W, H);
+    } else {
+        // Sanfte Sonnenscheibe, Wolken & volumetrischer Horizontglanz am Tag
+        const sunGlow = ctx.createRadialGradient(W * 0.5, H * 0.40, 18, W * 0.5, H * 0.40, W * 0.46);
+        sunGlow.addColorStop(0.0, 'rgba(255, 252, 240, 0.97)');
+        sunGlow.addColorStop(0.26, 'rgba(253, 230, 138, 0.50)');
+        sunGlow.addColorStop(1.0, 'rgba(253, 230, 138, 0.0)');
+        ctx.fillStyle = sunGlow;
+        ctx.fillRect(0, 0, W, H);
+
+        const panoClouds = [[0.24, 0.22, 120], [0.34, 0.20, 95], [0.72, 0.25, 130], [0.82, 0.23, 92]];
+        for (let ci = 0; ci < panoClouds.length; ci++) {
+            const [cxU, cyU, cr] = panoClouds[ci];
+            const cg = ctx.createRadialGradient(W * cxU, H * cyU, 8, W * cxU, H * cyU, cr);
+            cg.addColorStop(0.0, 'rgba(255,255,255,0.78)');
+            cg.addColorStop(0.6, 'rgba(255,255,255,0.28)');
+            cg.addColorStop(1.0, 'rgba(255,255,255,0)');
+            ctx.fillStyle = cg;
+            ctx.beginPath();
+            ctx.ellipse(W * cxU, H * cyU, cr, cr * 0.52, 0, 0, TWO_PI);
+            ctx.fill();
+        }
+    }
 
     // Ferne Gebirgs-/Huegelkette
-    ctx.fillStyle = seasonKey === 'winter' ? '#9FB4CA' : '#9AA6B2';
+    ctx.fillStyle = isNight ? '#16233B' : (seasonKey === 'winter' ? '#9FB4CA' : '#9AA6B2');
     ctx.beginPath();
     ctx.moveTo(0, H * 0.64);
     ctx.quadraticCurveTo(W * 0.22, H * 0.50, W * 0.46, H * 0.59);
@@ -3175,7 +3814,7 @@ function buildOuterWorldPanoramaTexture(THREE, maxAniso, seasonKey, holidayKey, 
     ctx.fill();
 
     // Mittlere Park- & Manufaktur-Garten-Silhouette mit Zypressen / Tannen
-    ctx.fillStyle = seasonKey === 'winter' ? '#6D8299' : (seasonKey === 'autumn' ? '#7C5D41' : '#5B6E62');
+    ctx.fillStyle = isNight ? '#0E1829' : (seasonKey === 'winter' ? '#6D8299' : (seasonKey === 'autumn' ? '#7C5D41' : '#5B6E62'));
     ctx.beginPath();
     ctx.moveTo(0, H * 0.71);
     ctx.quadraticCurveTo(W * 0.30, H * 0.63, W * 0.55, H * 0.68);
@@ -3186,7 +3825,7 @@ function buildOuterWorldPanoramaTexture(THREE, maxAniso, seasonKey, holidayKey, 
     ctx.fill();
 
     const treePositions = [0.14, 0.23, 0.33, 0.68, 0.77, 0.87];
-    ctx.fillStyle = seasonKey === 'winter' ? '#4B5E73' : (seasonKey === 'autumn' ? '#5E432C' : '#3B4D43');
+    ctx.fillStyle = isNight ? '#09101D' : (seasonKey === 'winter' ? '#4B5E73' : (seasonKey === 'autumn' ? '#5E432C' : '#3B4D43'));
     for (let ti = 0; ti < treePositions.length; ti++) {
         const tx = W * treePositions[ti];
         const baseH = H * (0.69 + (ti % 2) * 0.02);
@@ -3199,15 +3838,20 @@ function buildOuterWorldPanoramaTexture(THREE, maxAniso, seasonKey, holidayKey, 
         ctx.fill();
     }
 
-    // Helle Naturstein-Promenade im Vordergrund bis zur Schwelle
+    // Naturstein-Promenade im Vordergrund bis zur Schwelle
     const terraceGrad = ctx.createLinearGradient(0, H * 0.72, 0, H);
-    terraceGrad.addColorStop(0.0, seasonKey === 'winter' ? '#DCE6F0' : '#E7DEC9');
-    terraceGrad.addColorStop(1.0, '#CBBBA0');
+    if (isNight) {
+        terraceGrad.addColorStop(0.0, '#222D42');
+        terraceGrad.addColorStop(1.0, '#182030');
+    } else {
+        terraceGrad.addColorStop(0.0, seasonKey === 'winter' ? '#DCE6F0' : '#E7DEC9');
+        terraceGrad.addColorStop(1.0, '#CBBBA0');
+    }
     ctx.fillStyle = terraceGrad;
     ctx.fillRect(0, H * 0.72, W, H * 0.28);
 
     // Goldene Perspektivlinien des Aussenwegs
-    ctx.strokeStyle = 'rgba(197, 160, 89, 0.65)';
+    ctx.strokeStyle = isNight ? 'rgba(197, 160, 89, 0.82)' : 'rgba(197, 160, 89, 0.65)';
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(W * 0.43, H * 0.72);
@@ -3692,10 +4336,16 @@ class SeelenfunkeLouvreShowroom3D {
         this.floatingHeroCardEl = options.floatingHeroCardEl || null;
         this.floatingPortalCardEl = options.floatingPortalCardEl || null;
         this.floatingOuterGateEl = options.floatingOuterGateEl || null;
+        this.floatingArmoryEl = options.floatingArmoryEl || null;
         this.floatingStarStationEl = options.floatingStarStationEl || null;
 
         this.products = Array.isArray(options.products) ? options.products : [];
-        this.environmentInfo = resolveLobbyEnvironment(options.environment || null);
+        this.userSettings = loadLobbyUserSettings();
+        this._rawEnvironmentInput = options.environment || null;
+        this.environmentInfo = resolveLobbyEnvironment(this._rawEnvironmentInput, this.userSettings.skyTimeMode || 'auto');
+        this.characterGender = (options.characterGender === 'female' || options.characterGender === 'male')
+            ? options.characterGender
+            : (this.userSettings.characterGender === 'female' ? 'female' : 'male');
 
         const rawPlayerObj = (options.player && typeof options.player === 'object') ? options.player : null;
         const legacyFunki = options.playerFunki || { is_guest: true, level: 2 };
@@ -3775,7 +4425,6 @@ class SeelenfunkeLouvreShowroom3D {
         });
 
         this.audio = options.audio || getLobbyAudioInstance({ isAuthenticated: this.isAuthenticatedCustomer });
-        this.userSettings = loadLobbyUserSettings();
         this.cameraSensitivityFactor = clamp((this.userSettings.cameraSensitivity || 100) / 100, 0.5, 1.5);
         if (this.audio) {
             if (typeof this.audio.setSfxVolume === 'function') this.audio.setSfxVolume(this.userSettings.volume);
@@ -3800,6 +4449,7 @@ class SeelenfunkeLouvreShowroom3D {
         this.onAuthGatePrompt = rawAuthGateCb ? (zone) => rawAuthGateCb(zone, this.getSanctumAccessState()) : null;
         this.onOuterGatePromptChange = typeof options.onOuterGatePromptChange === 'function' ? options.onOuterGatePromptChange : null;
         this.onOuterGateModalOpen = typeof options.onOuterGateModalOpen === 'function' ? options.onOuterGateModalOpen : null;
+        this.onArmoryStateChange = typeof options.onArmoryStateChange === 'function' ? options.onArmoryStateChange : null;
         this.onAtelierStarStationFocusChange = typeof options.onAtelierStarStationFocusChange === 'function' ? options.onAtelierStarStationFocusChange : null;
         this.onTeleportTransition = typeof options.onTeleportTransition === 'function' ? options.onTeleportTransition : null;
         this.onPlayerHudChange = typeof options.onPlayerHudChange === 'function' ? options.onPlayerHudChange : null;
@@ -3814,9 +4464,20 @@ class SeelenfunkeLouvreShowroom3D {
         this._engineReady = false;
         this.galleryGroup = null;
         this.charFollowLights = null;
+        this.hemiLight = null;
+        this.dirMainLight = null;
+        this.skyDomeMesh = null;
+        this.skyDomeMat = null;
+        this.westPanoMat = null;
         this.outdoorWeatherGroup = null;
         this.outdoorWeatherPosAttr = null;
         this.outdoorWeatherMeta = [];
+        this.outdoorCloudMeshes = [];
+        this.starfieldPoints = null;
+        this.starfieldMat = null;
+        this.shootingStarMesh = null;
+        this._shootingStarState = null;
+        this._exoCharPools = {};
         this.westOuterGateGroup = null;
         this.westGateHitMeshes = [];
         this.westGateFocused = false;
@@ -3825,6 +4486,26 @@ class SeelenfunkeLouvreShowroom3D {
         this._outerGateCardScreenX = -9999;
         this._outerGateCardScreenY = -9999;
         this._outerGateCardVisible = false;
+        this.armoryGroup = null;
+        this.armoryStandCollider = null;
+        this.armoryHitMeshes = [];
+        this.armoryDisplayNodes = {};
+        this.armoryWorldAnchors = {};
+        this.armoryTemplates = new Map();
+        this.armoryTemplatePromises = new Map();
+        this.equippedArmory = {
+            head: false,
+            chest: false,
+            hands: false,
+            feet: false,
+            weapon: null,
+        };
+        this.armoryFocused = false;
+        this.armoryFocusedKey = 'chest';
+        this.armoryHoveredKey = null;
+        this._armoryCardScreenX = -9999;
+        this._armoryCardScreenY = -9999;
+        this._armoryCardVisible = false;
         this._heroesAuthGateTriggered = false;
         this._gateRepulseTimer = 0;
         this._gateRepulseDuration = 0.38;
@@ -3947,6 +4628,12 @@ class SeelenfunkeLouvreShowroom3D {
             isWallClinging: false,
             wallClingTimer: 0.0,
             wallClingUsed: false,
+            wallTouchTimer: 0.0,
+            wallJumpBufferTimer: 0.0,
+            wallJumpChain: 0,
+            lastWallJumpNx: 0.0,
+            lastWallJumpNz: 0.0,
+            sameWallCooldown: 0.0,
             wallClingBlend: 0.0,
             wallNormalX: 0.0,
             wallNormalZ: 0.0,
@@ -3984,6 +4671,9 @@ class SeelenfunkeLouvreShowroom3D {
             bubbleExpiresAt: 0,
             emote: null,
             emoteTimer: 0,
+            weaponSwingTimer: 0,
+            weaponSwingDuration: 0.42,
+            weaponComboStep: 0,
         };
 
         this.freePedestalCrests = [];
@@ -4126,6 +4816,7 @@ class SeelenfunkeLouvreShowroom3D {
         this._buildSeasonalSkyAndOutdoorWeather(isMobile);
         this._buildSeasonalIndoorAccents();
         this._buildWestOuterWorldGate();
+        this._buildOuterGateArmoryShowcase();
         this._buildGoldenHonorPortalAndPromenade();
         this._buildHallOfHeroes();
         this._buildAtelierStarRatingStation();
@@ -4293,11 +4984,16 @@ class SeelenfunkeLouvreShowroom3D {
     _buildLighting() {
         const THREE = this.THREE;
         const sKey = this.environmentInfo ? this.environmentInfo.season_key : 'autumn';
+        const isNight = Boolean(this.environmentInfo && this.environmentInfo.is_night);
 
         let hemiSky = 0xfffdf8;
         let hemiGround = 0xd8cbb4;
         let sunHex = 0xffecc8;
-        if (sKey === 'winter') {
+        if (isNight) {
+            hemiSky = 0xe8effc;
+            hemiGround = 0xd3c7b2;
+            sunHex = 0xf4ecdc;
+        } else if (sKey === 'winter') {
             hemiSky = 0xf4f8ff;
             hemiGround = 0xd6d2c8;
             sunHex = 0xfff3dd;
@@ -4311,14 +5007,16 @@ class SeelenfunkeLouvreShowroom3D {
             sunHex = 0xfff0c4;
         }
 
-        const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, 1.26);
+        const hemi = new THREE.HemisphereLight(hemiSky, hemiGround, isNight ? 1.18 : 1.26);
         hemi.position.set(0, 26, this.hallNorthZ);
         this.scene.add(hemi);
+        this.hemiLight = hemi;
 
-        const dirMain = new THREE.DirectionalLight(sunHex, 1.38);
+        const dirMain = new THREE.DirectionalLight(sunHex, isNight ? 1.22 : 1.38);
         dirMain.position.set(11, 28, 14);
         dirMain.castShadow = false;
         this.scene.add(dirMain);
+        this.dirMainLight = dirMain;
 
         const dirPantheon = new THREE.DirectionalLight(0xfff8ea, 0.68);
         dirPantheon.position.set(-10, 25, this.pantheonCenterZ + 18);
@@ -5102,54 +5800,145 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Baustein 2a: Dynamischer Jahreszeiten-Himmel & Aussenpartikel ueber dem Glas-Kuppeldach (STRIKT AUSSERHALB y >= 14.85 m, 0 Flocken im Innenraum!).
+     * Baustein 2a: Realistischer Jahreszeiten-Himmel (Tag mit Sonne, Cumulus-Wolken & Wetter vs. Nachts tiefer Sternenhimmel mit Milchstrasse & Vollmond)
+     * inkl. Aussenpartikeln ueber dem Glas-Kuppeldach (STRIKT AUSSERHALB y >= 14.85 m, 0 Flocken im Innenraum!).
      */
     _buildSeasonalSkyAndOutdoorWeather(isMobile) {
         const THREE = this.THREE;
+        this._skyIsMobile = Boolean(isMobile);
+
+        if (this.skyDomeMesh && this.galleryGroup) {
+            this.galleryGroup.remove(this.skyDomeMesh);
+            this.skyDomeMesh = null;
+        }
+        if (this.outdoorWeatherGroup && this.scene) {
+            this.scene.remove(this.outdoorWeatherGroup);
+        }
+
         const sKey = this.environmentInfo ? this.environmentInfo.season_key : 'autumn';
         const hKey = this.environmentInfo ? this.environmentInfo.holiday_key : null;
+        const isNight = Boolean(this.environmentInfo && this.environmentInfo.is_night);
+        const dayPhase = (this.environmentInfo && this.environmentInfo.day_phase) || (isNight ? 'night' : 'day');
 
-        const skyGeo = this._trackDisposable(new THREE.SphereGeometry(240, 24, 16));
-        const skyCanvas = document.createElement('canvas');
-        skyCanvas.width = 32;
-        skyCanvas.height = 128;
-        const skyCtx = skyCanvas.getContext('2d');
-        const skyGrad = skyCtx.createLinearGradient(0, 0, 0, 128);
-
-        if (sKey === 'winter' || hKey === 'weihnachten') {
-            skyGrad.addColorStop(0.0, '#bdd4ed');
-            skyGrad.addColorStop(0.38, '#e6eff9');
-            skyGrad.addColorStop(0.72, '#f5ede0');
-            skyGrad.addColorStop(1.0, '#e3e8ef');
-        } else if (sKey === 'spring' || hKey === 'ostern') {
-            skyGrad.addColorStop(0.0, '#c8e3f8');
-            skyGrad.addColorStop(0.36, '#fbf2e9');
-            skyGrad.addColorStop(0.70, '#f8e6ce');
-            skyGrad.addColorStop(1.0, '#ece2d0');
-        } else if (sKey === 'summer') {
-            skyGrad.addColorStop(0.0, '#a8cff5');
-            skyGrad.addColorStop(0.34, '#f3f2e8');
-            skyGrad.addColorStop(0.68, '#f7e5be');
-            skyGrad.addColorStop(1.0, '#eae0ca');
-        } else {
-            skyGrad.addColorStop(0.0, '#c6d4ea');
-            skyGrad.addColorStop(0.35, '#f6ead6');
-            skyGrad.addColorStop(0.70, '#efcfa2');
-            skyGrad.addColorStop(1.0, '#e2ceb0');
+        if (this.scene) {
+            this.scene.background = new THREE.Color(isNight ? 0x060b18 : 0xe9eff7);
         }
-        skyCtx.fillStyle = skyGrad;
-        skyCtx.fillRect(0, 0, 32, 128);
-        const skyTex = this._trackDisposable(new THREE.CanvasTexture(skyCanvas));
-        applySrgbColorSpace(THREE, skyTex);
-        const skyMat = this._trackDisposable(new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false }));
+
+        const skyGeo = this._trackDisposable(new THREE.SphereGeometry(245, 48, 32));
+        const skyTex = buildRealisticSeasonalSkyTexture(THREE, this.maxAniso, sKey, hKey, dayPhase, isNight, this.disposables);
+        const skyMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+            map: skyTex,
+            side: THREE.BackSide,
+            fog: false,
+            depthWrite: false,
+        }));
         const skyDome = new THREE.Mesh(skyGeo, skyMat);
+        skyDome.renderOrder = -10;
         skyDome.position.set(0, 0, (this.hallSouthZ + this.pantheonCenterZ) * 0.5);
+        this.skyDomeMesh = skyDome;
+        this.skyDomeMat = skyMat;
         this.galleryGroup.add(skyDome);
 
         this.outdoorWeatherGroup = new THREE.Group();
         this.scene.add(this.outdoorWeatherGroup);
+        this.outdoorCloudMeshes = [];
+        this.starfieldPoints = null;
+        this.starfieldMat = null;
+        this.shootingStarMesh = null;
+        this._shootingStarState = null;
 
         const isBalanced = (this.userSettings && this.userSettings.graphicsQuality === 'balanced') || isMobile;
+
+        if (!isNight) {
+            // Ziehende volumetrische 3D-Wolkenbaenke hoch ueber dem Glasdach (y = 28.5..46 m)
+            const cloudTex = buildVolumetricCloudPuffTexture(THREE, sKey, dayPhase, this.disposables);
+            const cloudCount = isBalanced ? 8 : 14;
+            const cloudRng = mulberry32(2026112001);
+            const cloudGeo = this._trackDisposable(new THREE.PlaneGeometry(1.0, 1.0));
+
+            for (let ci = 0; ci < cloudCount; ci++) {
+                const overPantheon = (ci % 4 === 0);
+                const cMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                    map: cloudTex,
+                    transparent: true,
+                    opacity: (sKey === 'summer' ? 0.52 : 0.72) * (0.76 + cloudRng() * 0.24),
+                    depthWrite: false,
+                    side: THREE.DoubleSide,
+                }));
+                const cMesh = new THREE.Mesh(cloudGeo, cMat);
+                const wScale = 24.0 + cloudRng() * 22.0;
+                const hScale = wScale * (0.48 + cloudRng() * 0.16);
+                cMesh.scale.set(wScale, hScale, 1.0);
+                cMesh.rotation.x = Math.PI * 0.5;
+                cMesh.rotation.z = (cloudRng() - 0.5) * 0.45;
+                const cy = overPantheon ? (42.5 + cloudRng() * 6.5) : (26.5 + cloudRng() * 9.5);
+                const cx = -42.0 + cloudRng() * 84.0;
+                const cz = overPantheon
+                    ? (this.pantheonCenterZ - 26.0 + cloudRng() * 52.0)
+                    : (this.hallNorthZ - 16.0 + cloudRng() * ((this.hallSouthZ - this.hallNorthZ) + 34.0));
+                cMesh.position.set(cx, cy, cz);
+                this.outdoorWeatherGroup.add(cMesh);
+                this.outdoorCloudMeshes.push({
+                    mesh: cMesh,
+                    speedX: 0.32 + cloudRng() * 0.44,
+                    baseZ: cz,
+                    swayPhase: cloudRng() * TWO_PI,
+                });
+            }
+        } else {
+            // 3D-Funkel-Sternenzelt (Parallax-Sterne bei Radius 185 m, strikt y >= 18 m ueber dem Glasdach) + dezente Sternschnuppe
+            const starCount = isBalanced ? 150 : 280;
+            const starPos = new Float32Array(starCount * 3);
+            const sRng = mulberry32(2026112077);
+            const centerZ = (this.hallSouthZ + this.pantheonCenterZ) * 0.5;
+            for (let si = 0; si < starCount; si++) {
+                const theta = sRng() * TWO_PI;
+                const elev = 0.16 + sRng() * 1.32;
+                const rad = 175.0 + sRng() * 25.0;
+                const horiz = Math.cos(elev) * rad;
+                starPos[si * 3] = Math.cos(theta) * horiz;
+                starPos[si * 3 + 1] = Math.max(18.5, Math.sin(elev) * rad);
+                starPos[si * 3 + 2] = centerZ + Math.sin(theta) * horiz;
+            }
+            const starGeo = this._trackDisposable(new THREE.BufferGeometry());
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            const starSprite = buildTwinkleStarSpriteTexture(THREE, this.disposables);
+            this.starfieldMat = this._trackDisposable(new THREE.PointsMaterial({
+                size: 2.35,
+                map: starSprite,
+                transparent: true,
+                opacity: 0.92,
+                depthWrite: false,
+            }));
+            this.starfieldPoints = new THREE.Points(starGeo, this.starfieldMat);
+            this.starfieldPoints.frustumCulled = false;
+            this.outdoorWeatherGroup.add(this.starfieldPoints);
+
+            const shootGeo = this._trackDisposable(new THREE.PlaneGeometry(6.8, 0.22));
+            const shootMat = this._trackDisposable(new THREE.MeshBasicMaterial({
+                color: 0xfff8dc,
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+            }));
+            this.shootingStarMesh = new THREE.Mesh(shootGeo, shootMat);
+            this.shootingStarMesh.rotation.x = Math.PI * 0.5;
+            this.shootingStarMesh.visible = false;
+            this.outdoorWeatherGroup.add(this.shootingStarMesh);
+            this._shootingStarState = {
+                cooldown: 5.5,
+                active: false,
+                progress: 0,
+                duration: 0.85,
+                startX: -18,
+                startY: 34,
+                startZ: 2,
+                vx: 38,
+                vz: -16,
+            };
+        }
+
         const count = isBalanced ? 90 : 180;
         const positions = new Float32Array(count * 3);
         this.outdoorWeatherMeta = [];
@@ -5166,7 +5955,8 @@ class SeelenfunkeLouvreShowroom3D {
                 ? (this.pantheonCenterZ - 9.0 + rng() * 18.0)
                 : (this.hallNorthZ - 4.0 + rng() * ((this.hallSouthZ - this.hallNorthZ) + 8.0));
             const ph = rng();
-            const fallSpeed = (sKey === 'summer') ? (0.04 + rng() * 0.05) : (0.11 + rng() * 0.12);
+            const isGentleFloat = (sKey === 'summer' || (isNight && sKey !== 'winter' && hKey !== 'weihnachten'));
+            const fallSpeed = isGentleFloat ? (0.035 + rng() * 0.045) : (0.11 + rng() * 0.12);
             const swayAmp = 0.8 + rng() * 1.4;
             this.outdoorWeatherMeta.push({ bx, bz, minY, maxY, ph, fallSpeed, swayAmp });
 
@@ -5179,13 +5969,13 @@ class SeelenfunkeLouvreShowroom3D {
         this.outdoorWeatherPosAttr = new THREE.BufferAttribute(positions, 3);
         weatherGeo.setAttribute('position', this.outdoorWeatherPosAttr);
 
-        const weatherSprite = buildSeasonalOutdoorSpriteTexture(THREE, sKey, hKey, this.disposables);
-        const pSize = (sKey === 'winter' || hKey === 'weihnachten') ? 0.44 : (sKey === 'summer' ? 0.36 : 0.48);
+        const weatherSprite = buildSeasonalOutdoorSpriteTexture(THREE, sKey, hKey, this.disposables, isNight);
+        const pSize = (sKey === 'winter' || hKey === 'weihnachten') ? 0.44 : (isNight ? 0.34 : (sKey === 'summer' ? 0.36 : 0.48));
         const weatherMat = this._trackDisposable(new THREE.PointsMaterial({
             size: pSize,
             map: weatherSprite,
             transparent: true,
-            opacity: sKey === 'summer' ? 0.62 : 0.88,
+            opacity: isNight ? (sKey === 'winter' ? 0.82 : 0.56) : (sKey === 'summer' ? 0.62 : 0.88),
             depthWrite: false,
         }));
         const weatherPoints = new THREE.Points(weatherGeo, weatherMat);
@@ -5193,11 +5983,105 @@ class SeelenfunkeLouvreShowroom3D {
         this.outdoorWeatherGroup.add(weatherPoints);
     }
 
-    _updateSeasonalOutdoorWeather() {
+    rebuildSkyEnvironment() {
+        if (this.destroyed || !this.THREE || !this.galleryGroup) return;
+        const THREE = this.THREE;
+        const skyMode = (this.userSettings && this.userSettings.skyTimeMode) || 'auto';
+        this.environmentInfo = resolveLobbyEnvironment(this._rawEnvironmentInput, skyMode);
+        const isNight = Boolean(this.environmentInfo.is_night);
+        const sKey = this.environmentInfo.season_key || 'autumn';
+        const hKey = this.environmentInfo.holiday_key || null;
+
+        this._buildSeasonalSkyAndOutdoorWeather(Boolean(this._skyIsMobile));
+
+        if (this.westPanoMat) {
+            const nextPanoTex = buildOuterWorldPanoramaTexture(THREE, this.maxAniso, sKey, hKey, this.disposables, isNight);
+            this.westPanoMat.map = nextPanoTex;
+            this.westPanoMat.needsUpdate = true;
+        }
+
+        if (this.hemiLight && this.dirMainLight) {
+            if (isNight) {
+                this.hemiLight.color.setHex(0xe8effc);
+                this.hemiLight.groundColor.setHex(0xd3c7b2);
+                this.hemiLight.intensity = 1.18;
+                this.dirMainLight.color.setHex(0xf4ecdc);
+                this.dirMainLight.intensity = 1.22;
+            } else {
+                this.hemiLight.color.setHex(sKey === 'winter' ? 0xf4f8ff : 0xfffdf8);
+                this.hemiLight.groundColor.setHex(0xd8cbb4);
+                this.hemiLight.intensity = 1.26;
+                this.dirMainLight.color.setHex(sKey === 'winter' ? 0xfff3dd : 0xffecc8);
+                this.dirMainLight.intensity = 1.38;
+            }
+        }
+
+        this._emitPlayerHudUpdate();
+    }
+
+    _updateSeasonalOutdoorWeather(dt = 0.016) {
+        const t = this.elapsedTime;
+
+        if (this.skyDomeMesh) {
+            const isNight = Boolean(this.environmentInfo && this.environmentInfo.is_night);
+            this.skyDomeMesh.rotation.y = t * (isNight ? 0.0022 : 0.0045);
+        }
+
+        if (this.outdoorCloudMeshes && this.outdoorCloudMeshes.length > 0) {
+            for (let ci = 0; ci < this.outdoorCloudMeshes.length; ci++) {
+                const cm = this.outdoorCloudMeshes[ci];
+                cm.mesh.position.x += cm.speedX * dt;
+                if (cm.mesh.position.x > 46.0) {
+                    cm.mesh.position.x = -46.0;
+                }
+                cm.mesh.position.z = cm.baseZ + Math.sin(t * 0.18 + cm.swayPhase) * 1.2;
+            }
+        }
+
+        if (this.starfieldPoints && this.starfieldMat) {
+            this.starfieldPoints.rotation.y = t * 0.0032;
+            this.starfieldMat.opacity = 0.80 + Math.sin(t * 2.15) * 0.14;
+        }
+
+        if (this.shootingStarMesh && this._shootingStarState) {
+            const st = this._shootingStarState;
+            if (!st.active) {
+                st.cooldown -= dt;
+                if (st.cooldown <= 0) {
+                    st.active = true;
+                    st.progress = 0;
+                    const ph = (t * 0.37) % 1;
+                    st.startX = -22.0 + ph * 28.0;
+                    st.startY = 30.0 + ((t * 1.7) % 8.0);
+                    st.startZ = this.hallNorthZ + ((t * 3.1) % 24.0);
+                    st.vx = 34.0;
+                    st.vz = -18.0;
+                    this.shootingStarMesh.rotation.z = Math.atan2(st.vz, st.vx);
+                    this.shootingStarMesh.visible = true;
+                }
+            } else {
+                st.progress += dt / Math.max(0.2, st.duration);
+                if (st.progress >= 1.0) {
+                    st.active = false;
+                    st.cooldown = 7.5 + ((t * 2.3) % 6.5);
+                    this.shootingStarMesh.visible = false;
+                    this.shootingStarMesh.material.opacity = 0;
+                } else {
+                    const envAlpha = Math.sin(st.progress * Math.PI);
+                    const curTime = st.progress * st.duration;
+                    this.shootingStarMesh.position.set(
+                        st.startX + st.vx * curTime,
+                        st.startY - 2.4 * curTime,
+                        st.startZ + st.vz * curTime
+                    );
+                    this.shootingStarMesh.material.opacity = 0.82 * envAlpha;
+                }
+            }
+        }
+
         if (!this.outdoorWeatherPosAttr || this.outdoorWeatherMeta.length === 0) {
             return;
         }
-        const t = this.elapsedTime;
         const arr = this.outdoorWeatherPosAttr.array;
         for (let i = 0; i < this.outdoorWeatherMeta.length; i++) {
             const m = this.outdoorWeatherMeta[i];
@@ -5314,9 +6198,11 @@ class SeelenfunkeLouvreShowroom3D {
         const springY = 3.55;
         const sKey = this.environmentInfo ? this.environmentInfo.season_key : 'autumn';
         const hKey = this.environmentInfo ? this.environmentInfo.holiday_key : null;
+        const isNight = Boolean(this.environmentInfo && this.environmentInfo.is_night);
 
-        const panoTex = buildOuterWorldPanoramaTexture(THREE, this.maxAniso, sKey, hKey, this.disposables);
+        const panoTex = buildOuterWorldPanoramaTexture(THREE, this.maxAniso, sKey, hKey, this.disposables, isNight);
         const panoMat = this._trackDisposable(new THREE.MeshBasicMaterial({ map: panoTex }));
+        this.westPanoMat = panoMat;
         const panoBackdrop = new THREE.Mesh(
             this._trackDisposable(new THREE.PlaneGeometry(halfSpan * 2 + 0.5, 6.2)),
             panoMat
@@ -5546,6 +6432,723 @@ class SeelenfunkeLouvreShowroom3D {
         gateHitProxy.userData = { isWestOuterGate: true };
         this.westOuterGateGroup.add(gateHitProxy);
         this.westGateHitMeshes.push(gateHitProxy);
+    }
+
+    /**
+     * Interaktiver Ruestungsstaender & Wand-Waffenhalterung rechts neben dem "Tor zur Aussenwelt" (X ~ -10.76..-11.83, Z < -3.5).
+     * Erlaubt das einzelne An- & Ablegen der extrahierten Kristall-Ruestungsteile mit [E] sowie das Nutzen der Wand-Waffen mit [Q].
+     */
+    _buildOuterGateArmoryShowcase() {
+        const THREE = this.THREE;
+        if (!THREE || !this.galleryGroup) return;
+
+        this.armoryGroup = new THREE.Group();
+        this.galleryGroup.add(this.armoryGroup);
+        this.armoryHitMeshes = [];
+        this.armoryDisplayNodes = {};
+        this.armoryWorldAnchors = {};
+
+        const westPiers = Array.isArray(this._galleryPierPlacements)
+            ? this._galleryPierPlacements.filter((p) => p[0] < 0).map((p) => p[1])
+            : [];
+        const minPierClearance = (candZ) => {
+            let minD = 99;
+            for (let i = 0; i < westPiers.length; i++) {
+                const d = Math.abs(candZ - westPiers[i]);
+                if (d < minD) minD = d;
+            }
+            return minD;
+        };
+
+        const standX = -10.74;
+        const standZ = -3.68;
+        this.armoryStandCollider = { x: standX, z: standZ, r: 0.56 };
+
+        let rackZ = -5.32;
+        const rackCandidates = [-5.32, -5.85, -4.78, -6.38, -6.92];
+        let bestClear = -1;
+        for (let ci = 0; ci < rackCandidates.length; ci++) {
+            const cz = rackCandidates[ci];
+            if (cz < this.hallNorthZ + 1.8) continue;
+            const clr = minPierClearance(cz);
+            if (clr > bestClear) {
+                bestClear = clr;
+                rackZ = cz;
+            }
+            if (clr >= 1.18) break;
+        }
+        const rackX = -11.83;
+
+        // 1. Schwarz-Gold Ruestungsstaender rechts neben dem Tor zur Aussenwelt
+        const standGroup = new THREE.Group();
+        standGroup.position.set(standX, 0, standZ);
+        standGroup.rotation.y = Math.PI * 0.36;
+        this.armoryGroup.add(standGroup);
+
+        const basePedestal = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.45, 0.50, 0.14, 24)),
+            this.mats.neroPedestal
+        );
+        basePedestal.position.y = 0.07;
+        standGroup.add(basePedestal);
+
+        const baseGoldRim = new THREE.Mesh(
+            this._trackDisposable(new THREE.TorusGeometry(0.46, 0.022, 10, 28)),
+            this.mats.goldMatcapBright
+        );
+        baseGoldRim.rotation.x = Math.PI * 0.5;
+        baseGoldRim.position.y = 0.14;
+        standGroup.add(baseGoldRim);
+
+        const standPost = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.036, 0.046, 1.16, 14)),
+            this.mats.wroughtIronMatte
+        );
+        standPost.position.y = 0.72;
+        standGroup.add(standPost);
+
+        // Dunkle matte Ritter-Mannequin-Bueste & Kopfform (damit der Helm niemals frei auf einer Stange schwebt!)
+        const mannequinTorso = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.125, 0.095, 0.34, 18)),
+            this.mats.wroughtIronMatte
+        );
+        mannequinTorso.scale.set(1.12, 1.0, 0.76);
+        mannequinTorso.position.y = 0.88;
+        standGroup.add(mannequinTorso);
+
+        const mannequinHeadForm = new THREE.Mesh(
+            this._trackDisposable(new THREE.SphereGeometry(0.108, 18, 14)),
+            this.mats.wroughtIronMatte
+        );
+        mannequinHeadForm.scale.set(0.95, 1.16, 1.02);
+        mannequinHeadForm.position.set(0, 1.21, 0.015);
+        standGroup.add(mannequinHeadForm);
+
+        const postFinial = new THREE.Mesh(
+            this._trackDisposable(new THREE.OctahedronGeometry(0.048, 0)),
+            this.mats.goldMatcapBright
+        );
+        postFinial.position.y = 1.37;
+        standGroup.add(postFinial);
+
+        const shoulderBar = new THREE.Mesh(
+            this._trackDisposable(new THREE.CylinderGeometry(0.024, 0.024, 0.46, 12)),
+            this.mats.goldBrushed
+        );
+        shoulderBar.rotation.z = Math.PI * 0.5;
+        shoulderBar.position.y = 0.98;
+        standGroup.add(shoulderBar);
+
+        [-0.23, 0.23].forEach((ax) => {
+            const armPeg = new THREE.Mesh(
+                this._trackDisposable(new THREE.CylinderGeometry(0.022, 0.018, 0.30, 12)),
+                this.mats.wroughtIronMatte
+            );
+            armPeg.position.set(ax, 0.82, 0.01);
+            armPeg.rotation.z = ax < 0 ? 0.14 : -0.14;
+            standGroup.add(armPeg);
+        });
+
+        const standPlaqueTex = buildLightModeMiniPlaqueTexture(THREE, this.maxAniso, 'Rüstungsständer · [E]', this.disposables, false);
+        const standPlaqueMat = this._trackDisposable(new THREE.MeshBasicMaterial({ map: standPlaqueTex }));
+        const standPlaqueBack = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(0.48, 0.12, 0.026)),
+            this.mats.goldBrushed
+        );
+        standPlaqueBack.position.set(0, 0.10, 0.48);
+        standPlaqueBack.rotation.x = -0.32;
+        const standPlaqueFace = new THREE.Mesh(
+            this._trackDisposable(new THREE.PlaneGeometry(0.45, 0.10)),
+            standPlaqueMat
+        );
+        standPlaqueFace.position.set(0, 0, 0.015);
+        standPlaqueBack.add(standPlaqueFace);
+        standGroup.add(standPlaqueBack);
+
+        const standArmorRoot = new THREE.Group();
+        standArmorRoot.position.set(0, 0.14, 0);
+        standGroup.add(standArmorRoot);
+
+        const invisHitMat = this._trackDisposable(new THREE.MeshBasicMaterial({ visible: false }));
+        const standSlots = [
+            { key: 'helm', localY: 1.34, boxW: 0.52, boxH: 0.42, boxD: 0.46 },
+            { key: 'chest', localY: 0.95, boxW: 0.56, boxH: 0.36, boxD: 0.42 },
+            { key: 'gauntlets', localY: 0.72, boxW: 0.74, boxH: 0.30, boxD: 0.40 },
+            { key: 'boots', localY: 0.34, boxW: 0.52, boxH: 0.38, boxD: 0.44 },
+        ];
+
+        standSlots.forEach((sl) => {
+            const holder = new THREE.Group();
+            standArmorRoot.add(holder);
+            this.armoryDisplayNodes[sl.key] = holder;
+
+            const hitMesh = new THREE.Mesh(
+                this._trackDisposable(new THREE.BoxGeometry(sl.boxW, sl.boxH, sl.boxD)),
+                invisHitMat
+            );
+            hitMesh.position.set(0, sl.localY, 0);
+            hitMesh.userData = { isArmoryItem: true, armoryItemKey: sl.key };
+            standGroup.add(hitMesh);
+            this.armoryHitMeshes.push(hitMesh);
+
+            this.armoryWorldAnchors[sl.key] = {
+                x: standX,
+                y: sl.localY,
+                z: standZ,
+                cardY: 1.88,
+                isStand: true,
+            };
+        });
+
+        // 2. Schwarz-Gold Wand-Waffenhalterung direkt daneben an der Westwand (2,30 m hoch, beide Waffen 100 % im Goldrahmen!)
+        const rackGroup = new THREE.Group();
+        rackGroup.position.set(rackX, 0, rackZ);
+        rackGroup.rotation.y = Math.PI * 0.5;
+        this.armoryGroup.add(rackGroup);
+
+        const rackFrameGold = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(1.58, 2.30, 0.055)),
+            this.mats.goldBrushed
+        );
+        rackFrameGold.position.set(0, 1.56, 0.025);
+        rackGroup.add(rackFrameGold);
+
+        const rackBoard = new THREE.Mesh(
+            this._trackDisposable(new THREE.BoxGeometry(1.48, 2.20, 0.045)),
+            this.mats.neroPedestal
+        );
+        rackBoard.position.set(0, 1.56, 0.042);
+        rackGroup.add(rackBoard);
+
+        const rackPlaqueTex = buildLightModeMiniPlaqueTexture(THREE, this.maxAniso, 'Waffen · [E] & [Q]', this.disposables, false);
+        const rackPlaqueMat = this._trackDisposable(new THREE.MeshBasicMaterial({ map: rackPlaqueTex }));
+        const rackPlaquePlane = new THREE.Mesh(
+            this._trackDisposable(new THREE.PlaneGeometry(0.66, 0.15)),
+            rackPlaqueMat
+        );
+        rackPlaquePlane.position.set(0, 2.52, 0.072);
+        rackGroup.add(rackPlaquePlane);
+
+        const weaponMounts = [
+            { key: 'lance', localX: -0.34, worldZ: rackZ + 0.34 },
+            { key: 'spear', localX: 0.34, worldZ: rackZ - 0.34 },
+        ];
+
+        const hookStemGeo = this._trackDisposable(new THREE.BoxGeometry(0.052, 0.036, 0.125));
+        const hookLipGeo = this._trackDisposable(new THREE.BoxGeometry(0.068, 0.058, 0.022));
+        weaponMounts.forEach((wm) => {
+            [0.88, 1.34].forEach((hy) => {
+                const stem = new THREE.Mesh(hookStemGeo, this.mats.wroughtIronMatte);
+                stem.position.set(wm.localX, hy - 0.012, 0.10);
+                rackGroup.add(stem);
+
+                const lip = new THREE.Mesh(hookLipGeo, this.mats.goldMatcapBright);
+                lip.position.set(wm.localX, hy + 0.008, 0.158);
+                rackGroup.add(lip);
+            });
+
+            const wHolder = new THREE.Group();
+            wHolder.position.set(wm.localX, 1.02, 0.132);
+            rackGroup.add(wHolder);
+            this.armoryDisplayNodes[wm.key] = wHolder;
+
+            const wHit = new THREE.Mesh(
+                this._trackDisposable(new THREE.BoxGeometry(0.58, 1.88, 0.38)),
+                invisHitMat
+            );
+            wHit.position.set(wm.localX, 1.48, 0.14);
+            wHit.userData = { isArmoryItem: true, armoryItemKey: wm.key };
+            rackGroup.add(wHit);
+            this.armoryHitMeshes.push(wHit);
+
+            this.armoryWorldAnchors[wm.key] = {
+                x: rackX + 0.25,
+                y: 1.56,
+                z: wm.worldZ,
+                cardY: 2.48,
+                isStand: false,
+            };
+        });
+
+        // Lade alle 6 extrahierten 3D-.glb-Objekte asynchron auf den Ruestungsstaender & an die Wandhalterung
+        Object.keys(ARMORY_SHOWCASE_ITEMS).forEach((itemKey) => {
+            this._loadArmoryItemTemplate(itemKey)
+                .then((tpl) => {
+                    if (this.destroyed || !this.THREE) return;
+                    const holder = this.armoryDisplayNodes[itemKey];
+                    if (!holder) return;
+                    for (let p = 0; p < tpl.parts.length; p++) {
+                        const part = tpl.parts[p];
+                        const dispMat = (part.material && typeof part.material.clone === 'function')
+                            ? this._trackDisposable(part.material.clone())
+                            : part.material;
+                        if (dispMat) {
+                            dispMat.skinning = false;
+                            dispMat.needsUpdate = true;
+                        }
+                        const dispMesh = new THREE.Mesh(part.geometry, dispMat);
+                        dispMesh.name = `Stand_${itemKey}_${p}`;
+                        holder.add(dispMesh);
+                    }
+                    this._syncArmoryStandVisibility();
+                })
+                .catch(() => null);
+        });
+    }
+
+    _loadArmoryItemTemplate(itemKey) {
+        const meta = ARMORY_SHOWCASE_ITEMS[itemKey];
+        if (!meta) return Promise.reject(new Error(`Unbekanntes Armory-Item: ${itemKey}`));
+        if (this.armoryTemplates.has(itemKey)) {
+            return Promise.resolve(this.armoryTemplates.get(itemKey));
+        }
+        if (this.armoryTemplatePromises.has(itemKey)) {
+            return this.armoryTemplatePromises.get(itemKey);
+        }
+        if (typeof fetch !== 'function') {
+            return Promise.reject(new Error('Fetch nicht verfuegbar'));
+        }
+
+        const THREE = this.THREE;
+        const fetchOpts = { method: 'GET', credentials: 'same-origin' };
+        if (this.abortController) {
+            fetchOpts.signal = this.abortController.signal;
+        }
+
+        const p = fetch(meta.url, fetchOpts)
+            .then((resp) => {
+                if (!resp.ok) throw new Error(`Armory GLB HTTP ${resp.status}`);
+                return resp.arrayBuffer();
+            })
+            .then((buf) => parseGlbBinary(THREE, buf, this.maxAniso, this.disposables, 2048))
+            .then((parsed) => {
+                const parts = [];
+                parsed.scene.updateMatrixWorld(true);
+                parsed.scene.traverse((child) => {
+                    if (!child.isMesh || !child.geometry) return;
+                    this._trackDisposable(child.geometry);
+                    parts.push({
+                        name: String(child.name || ''),
+                        geometry: child.geometry,
+                        material: child.material,
+                        isSkinned: Boolean(child.geometry.attributes.skinIndex && child.geometry.attributes.skinWeight),
+                    });
+                });
+                const tpl = {
+                    key: itemKey,
+                    slot: meta.slot,
+                    label: meta.label,
+                    parts,
+                };
+                this.armoryTemplates.set(itemKey, tpl);
+                this.armoryTemplatePromises.delete(itemKey);
+                return tpl;
+            })
+            .catch((err) => {
+                this.armoryTemplatePromises.delete(itemKey);
+                throw err;
+            });
+
+        this.armoryTemplatePromises.set(itemKey, p);
+        return p;
+    }
+
+    _isArmoryKeyEquipped(itemKey) {
+        const eq = this.equippedArmory || {};
+        if (itemKey === 'helm') return Boolean(eq.head);
+        if (itemKey === 'chest') return Boolean(eq.chest);
+        if (itemKey === 'gauntlets') return Boolean(eq.hands);
+        if (itemKey === 'boots') return Boolean(eq.feet);
+        if (itemKey === 'lance' || itemKey === 'spear') return eq.weapon === itemKey;
+        return false;
+    }
+
+    _syncArmoryStandVisibility() {
+        Object.keys(ARMORY_SHOWCASE_ITEMS).forEach((k) => {
+            const node = this.armoryDisplayNodes ? this.armoryDisplayNodes[k] : null;
+            if (node) {
+                node.visible = !this._isArmoryKeyEquipped(k);
+            }
+        });
+    }
+
+    _syncRigBodySubMeshMasking(rig) {
+        if (!rig) return;
+        const eq = this.equippedArmory || {};
+        if (rig.starterHairMesh) {
+            rig.starterHairMesh.visible = !eq.head;
+        }
+        const sub = rig.bodySubMeshes;
+        if (sub && typeof sub === 'object') {
+            // Der komplette Funki-Koerper (inkl. Kopf & Hals) bleibt zu 100 % sichtbar (kein unsichtbarer Kopf beim Helmtragen, 0 Loecher bei Einzelruestung!).
+            if (sub.Body_Head) sub.Body_Head.visible = true;
+            if (sub.Body_Torso_UpperArms) sub.Body_Torso_UpperArms.visible = true;
+            if (sub.Body_Pelvis_Underwear) sub.Body_Pelvis_Underwear.visible = true;
+            if (sub.Body_Forearms_Hands) sub.Body_Forearms_Hands.visible = true;
+            if (sub.Body_Legs_Feet) sub.Body_Legs_Feet.visible = true;
+            if (sub.Body_Rags) sub.Body_Rags.visible = !eq.chest;
+        }
+    }
+
+    _applyEquippedArmoryToPlayerRig(targetRig = null) {
+        const THREE = this.THREE;
+        const rig = targetRig || (this.player && this.player.builtRecord ? this.player.builtRecord.skinnedRig : null);
+        if (!THREE || !rig || !rig.skinnedMesh || !rig.skeleton) return;
+
+        if (!rig.equippedArmorNodes) {
+            rig.equippedArmorNodes = {};
+        }
+
+        // Sub-Mesh Body Masking: Verdeckte Koerperzonen unter Ruestungsteilen sauber ausblenden (0.00% Clipping!)
+        this._syncRigBodySubMeshMasking(rig);
+
+        const slotMap = [
+            { slot: 'head', key: 'helm' },
+            { slot: 'chest', key: 'chest' },
+            { slot: 'hands', key: 'gauntlets' },
+            { slot: 'feet', key: 'boots' },
+        ];
+
+        const hostGroup = rig.skinnedMesh.parent || rig.skinnedMesh;
+
+        slotMap.forEach(({ slot, key }) => {
+            const shouldWear = Boolean(this.equippedArmory[slot]);
+            const existing = rig.equippedArmorNodes[slot];
+            if (!shouldWear) {
+                if (Array.isArray(existing)) {
+                    for (let i = 0; i < existing.length; i++) {
+                        if (existing[i] && existing[i].parent) {
+                            existing[i].parent.remove(existing[i]);
+                        }
+                    }
+                }
+                rig.equippedArmorNodes[slot] = null;
+                this._syncRigBodySubMeshMasking(rig);
+                return;
+            }
+            if (Array.isArray(existing) && existing.length > 0) {
+                this._syncRigBodySubMeshMasking(rig);
+                return;
+            }
+
+            this._loadArmoryItemTemplate(key)
+                .then((tpl) => {
+                    if (this.destroyed || !this.equippedArmory[slot]) return;
+                    const activeRig = this.player && this.player.builtRecord ? this.player.builtRecord.skinnedRig : null;
+                    if (activeRig !== rig) return;
+                    if (Array.isArray(rig.equippedArmorNodes[slot]) && rig.equippedArmorNodes[slot].length > 0) return;
+
+                    const createdNodes = [];
+                    for (let p = 0; p < tpl.parts.length; p++) {
+                        const part = tpl.parts[p];
+                        const matClone = (part.material && typeof part.material.clone === 'function')
+                            ? this._trackDisposable(part.material.clone())
+                            : part.material;
+                        if (part.isSkinned) {
+                            if (matClone) {
+                                matClone.skinning = true;
+                                matClone.side = THREE.DoubleSide;
+                                matClone.transparent = false;
+                                matClone.depthWrite = true;
+                                if ('envMapIntensity' in matClone) {
+                                    matClone.envMapIntensity = 0.72;
+                                }
+                                matClone.needsUpdate = true;
+                            }
+                            const sm = new THREE.SkinnedMesh(part.geometry, matClone);
+                            sm.name = `Equipped_${key}_${p}`;
+                            sm.frustumCulled = false;
+                            hostGroup.add(sm);
+                            sm.bind(rig.skeleton, rig.skinnedMesh.bindMatrix);
+                            createdNodes.push(sm);
+                        } else if (slot === 'head' && rig.bones && rig.bones[4]) {
+                            if (matClone) {
+                                matClone.skinning = false;
+                                matClone.needsUpdate = true;
+                            }
+                            const headExtra = new THREE.Mesh(part.geometry, matClone);
+                            headExtra.name = `Equipped_${key}_diadem_${p}`;
+                            headExtra.position.set(0, -0.94, 0);
+                            rig.bones[4].add(headExtra);
+                            createdNodes.push(headExtra);
+                        }
+                    }
+                    hostGroup.updateMatrixWorld(true);
+                    rig.skeleton.update();
+                    rig.equippedArmorNodes[slot] = createdNodes;
+                    this._syncRigBodySubMeshMasking(rig);
+                })
+                .catch(() => null);
+        });
+
+        // Rechte Waffen-Hand (rightHandWeaponSocket): Waffe seitlich-vorn an der rechten Koerperseite fuehren (0% Brust-/Gesichts-Clipping!)
+        const desiredWeapon = this.equippedArmory.weapon;
+        if (rig.equippedWeaponKey !== desiredWeapon) {
+            if (rig.equippedWeaponGroup && rig.equippedWeaponGroup.parent) {
+                rig.equippedWeaponGroup.parent.remove(rig.equippedWeaponGroup);
+            }
+            rig.equippedWeaponGroup = null;
+            rig.equippedWeaponKey = null;
+
+            if (desiredWeapon && (desiredWeapon === 'lance' || desiredWeapon === 'spear') && rig.rightHandWeaponSocket) {
+                rig.equippedWeaponKey = desiredWeapon;
+                this._loadArmoryItemTemplate(desiredWeapon)
+                    .then((tpl) => {
+                        if (this.destroyed || this.equippedArmory.weapon !== desiredWeapon) return;
+                        const activeRig = this.player && this.player.builtRecord ? this.player.builtRecord.skinnedRig : null;
+                        if (activeRig !== rig || !rig.rightHandWeaponSocket) return;
+                        if (rig.equippedWeaponGroup && rig.equippedWeaponGroup.parent) {
+                            rig.equippedWeaponGroup.parent.remove(rig.equippedWeaponGroup);
+                        }
+
+                        const gripGroup = new THREE.Group();
+                        gripGroup.name = `EquippedWeapon_${desiredWeapon}`;
+                        gripGroup.rotation.set(0.66, 0, 0.36);
+                        gripGroup.position.set(-0.026, 0.0, 0.018);
+
+                        for (let p = 0; p < tpl.parts.length; p++) {
+                            const part = tpl.parts[p];
+                            const wMat = (part.material && typeof part.material.clone === 'function')
+                                ? this._trackDisposable(part.material.clone())
+                                : part.material;
+                            if (wMat) {
+                                wMat.skinning = false;
+                                if ('envMapIntensity' in wMat) {
+                                    wMat.envMapIntensity = 0.72;
+                                }
+                                wMat.needsUpdate = true;
+                            }
+                            const wm = new THREE.Mesh(part.geometry, wMat);
+                            gripGroup.add(wm);
+                        }
+                        rig.rightHandWeaponSocket.add(gripGroup);
+                        rig.equippedWeaponGroup = gripGroup;
+                    })
+                    .catch(() => null);
+            }
+        }
+    }
+
+    getArmoryState() {
+        const key = this.armoryFocusedKey || 'chest';
+        const meta = ARMORY_SHOWCASE_ITEMS[key] || ARMORY_SHOWCASE_ITEMS.chest;
+        return {
+            visible: Boolean(this.armoryFocused && this.currentZone === 'gallery'),
+            focusedKey: meta.key,
+            focusedLabel: meta.label,
+            isEquipped: this._isArmoryKeyEquipped(meta.key),
+            equipped: {
+                head: Boolean(this.equippedArmory.head),
+                chest: Boolean(this.equippedArmory.chest),
+                hands: Boolean(this.equippedArmory.hands),
+                feet: Boolean(this.equippedArmory.feet),
+                weapon: this.equippedArmory.weapon || null,
+            },
+        };
+    }
+
+    _emitArmoryStateChange() {
+        if (this.onArmoryStateChange) {
+            this.onArmoryStateChange(this.getArmoryState());
+        }
+    }
+
+    _setArmoryFocused(flag, nextKey = null) {
+        const cleanFlag = Boolean(flag) && this.currentZone === 'gallery';
+        const resolvedKey = (nextKey && ARMORY_SHOWCASE_ITEMS[nextKey]) ? nextKey : (this.armoryFocusedKey || 'chest');
+        if (this.armoryFocused === cleanFlag && this.armoryFocusedKey === resolvedKey) {
+            return;
+        }
+        this.armoryFocused = cleanFlag;
+        this.armoryFocusedKey = resolvedKey;
+        this._emitArmoryStateChange();
+    }
+
+    toggleArmoryItem(rawKey = null) {
+        if (this.destroyed) return this.getArmoryState();
+        const key = (rawKey && ARMORY_SHOWCASE_ITEMS[rawKey]) ? rawKey : (this.armoryFocusedKey || 'chest');
+        const meta = ARMORY_SHOWCASE_ITEMS[key];
+        if (!meta) return this.getArmoryState();
+
+        if (meta.slot === 'head') {
+            this.equippedArmory.head = !this.equippedArmory.head;
+        } else if (meta.slot === 'chest') {
+            this.equippedArmory.chest = !this.equippedArmory.chest;
+        } else if (meta.slot === 'hands') {
+            this.equippedArmory.hands = !this.equippedArmory.hands;
+        } else if (meta.slot === 'feet') {
+            this.equippedArmory.feet = !this.equippedArmory.feet;
+        } else if (meta.slot === 'weapon') {
+            this.equippedArmory.weapon = (this.equippedArmory.weapon === key) ? null : key;
+        }
+
+        this._syncArmoryStandVisibility();
+        this._applyEquippedArmoryToPlayerRig();
+
+        if (this.audio && typeof this.audio.playUiSwitch === 'function') {
+            this.audio.playUiSwitch();
+        }
+        this._spawnDoubleJumpBurst(this.player.x || 0, (this.player.y || 0) + 0.52, this.player.z || 0);
+
+        // Komfort-Fokus: Steht der Spieler ohne Maus-Hover vor dem Ruestungsstaender und zieht ein Teil an,
+        // rueckt der [E]-Fokus automatisch auf das naechste noch freie Ruestungsteil weiter!
+        if (!this.armoryHoveredKey && meta.slot !== 'weapon' && this._isArmoryKeyEquipped(key)) {
+            const standOrder = ['chest', 'helm', 'gauntlets', 'boots'];
+            for (let i = 0; i < standOrder.length; i++) {
+                if (!this._isArmoryKeyEquipped(standOrder[i])) {
+                    this.armoryFocusedKey = standOrder[i];
+                    break;
+                }
+            }
+        } else {
+            this.armoryFocusedKey = key;
+        }
+
+        this._emitArmoryStateChange();
+        return this.getArmoryState();
+    }
+
+    _playWeaponSwingSfx(comboStep = 1) {
+        if (!this.userSettings || (this.userSettings.volume || 0) <= 0) return;
+        if (this.audio && this.audio.sfxMuted) return;
+        try {
+            const Ctx = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext);
+            if (!Ctx) return;
+            if (!this._weaponAudioCtx) {
+                this._weaponAudioCtx = new Ctx();
+            }
+            const ctx = this._weaponAudioCtx;
+            if (ctx.state === 'suspended') {
+                ctx.resume().catch(() => {});
+            }
+            const now = ctx.currentTime;
+            const volScale = clamp((this.userSettings.volume || 5) / 100, 0, 1) * 0.22;
+
+            // Mattes Luft-Swoosh (gefiltertes Rauschen + tiefer Schwung-Impuls, kein schrilles Piepsen)
+            const dur = 0.20;
+            const bufLen = Math.max(1, Math.floor(ctx.sampleRate * dur));
+            const noiseBuf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+            const ch = noiseBuf.getChannelData(0);
+            for (let i = 0; i < bufLen; i++) {
+                const env = Math.sin((i / bufLen) * Math.PI);
+                ch[i] = (Math.random() * 2 - 1) * env;
+            }
+            const src = ctx.createBufferSource();
+            src.buffer = noiseBuf;
+
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            const startHz = comboStep === 3 ? 520 : (comboStep === 2 ? 420 : 360);
+            filter.frequency.setValueAtTime(startHz, now);
+            filter.frequency.exponentialRampToValueAtTime(160, now + dur);
+            filter.Q.value = 1.6;
+
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0.001, now);
+            gain.gain.linearRampToValueAtTime(Math.max(0.002, volScale), now + 0.035);
+            gain.gain.exponentialRampToValueAtTime(0.0008, now + dur);
+
+            src.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+            src.start(now);
+            src.stop(now + dur + 0.02);
+        } catch (e) {}
+    }
+
+    _spawnWeaponSlashArc(comboStep = 1) {
+        if (!this.scene || !this.THREE) return;
+        if (this.weaponBursts.length >= 16) {
+            const oldest = this.weaponBursts.shift();
+            if (oldest) this._disposeWeaponBurst(oldest);
+        }
+
+        const THREE = this.THREE;
+        const shared = this._ensureAvatarSharedPool();
+        const yaw = this.player.yaw || 0;
+        const fwdX = Math.sin(yaw);
+        const fwdZ = Math.cos(yaw);
+        const floorY = this._computeFloorBaseY(this.player.x || 0, this.player.z || 0);
+
+        const group = new THREE.Group();
+        group.position.set(
+            (this.player.x || 0) + fwdX * 0.72,
+            floorY + (this.player.y || 0) + 0.84,
+            (this.player.z || 0) + fwdZ * 0.72
+        );
+        group.rotation.y = yaw;
+
+        const arcColor = comboStep === 3 ? '#C5A059' : '#93C5FD';
+        const arcMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(arcColor),
+            transparent: true,
+            opacity: 0.82,
+            side: THREE.DoubleSide,
+            depthWrite: false,
+        });
+
+        const slashHolder = new THREE.Group();
+        const arcGeo = this._trackDisposable(new THREE.RingGeometry(0.46, 0.68, 22, 1, -Math.PI * 0.42, Math.PI * 0.84));
+        const arcMesh = new THREE.Mesh(arcGeo, arcMat);
+        if (comboStep === 1) {
+            arcMesh.rotation.set(Math.PI * 0.36, 0, -0.45);
+        } else if (comboStep === 2) {
+            arcMesh.rotation.set(-Math.PI * 0.34, 0, 0.48);
+        } else {
+            arcMesh.rotation.set(0, 0, 0);
+        }
+        slashHolder.add(arcMesh);
+        group.add(slashHolder);
+
+        const sparkMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color('#FFF6DB'),
+            transparent: true,
+            opacity: 0.92,
+            depthWrite: false,
+        });
+        const sparks = [];
+        for (let i = 0; i < 8; i++) {
+            const sm = new THREE.Mesh(shared.geos.sparkDiamond, sparkMat);
+            const spread = ((i / 7) - 0.5) * 1.3;
+            sm.position.set(spread * 0.32, (i % 2 === 0 ? 0.08 : -0.06), 0.18);
+            group.add(sm);
+            sparks.push({
+                mesh: sm,
+                vx: spread * 1.4,
+                vy: 0.35 + (i % 3) * 0.25,
+                vz: 1.8 + (i % 2) * 0.65,
+            });
+        }
+
+        this.scene.add(group);
+        this.weaponBursts.push({
+            group,
+            slashMesh: slashHolder,
+            arcMat,
+            sparkMat,
+            sparks,
+            age: 0,
+            duration: 0.28,
+            maxRingScale: comboStep === 3 ? 1.48 : 1.26,
+            isRemote: false,
+        });
+    }
+
+    triggerWeaponSwing() {
+        if (this.destroyed || !this.running) return false;
+        if (!this.equippedArmory || !this.equippedArmory.weapon) return false;
+        if ((this.player.weaponSwingTimer || 0) > 0.24) return false;
+
+        const nextCombo = ((this.player.weaponComboStep || 0) % 3) + 1;
+        this.player.weaponComboStep = nextCombo;
+        this.player.weaponSwingDuration = nextCombo === 3 ? 0.44 : 0.38;
+        this.player.weaponSwingTimer = this.player.weaponSwingDuration;
+        this.player.emote = null;
+        this.player.emoteTimer = 0;
+
+        this._playWeaponSwingSfx(nextCombo);
+        this._spawnWeaponSlashArc(nextCombo);
+        return true;
     }
 
     _normalizeAtelierReview(raw) {
@@ -6695,6 +8298,7 @@ class SeelenfunkeLouvreShowroom3D {
             funkenActualBalance: this.playerProfile.funkenBalance,
             funkenTotalEarned: this.playerProfile.funkenTotalEarned,
             statusHintText: this.playerProfile.statusHintText || '',
+            characterGender: this.characterGender === 'female' ? 'female' : 'male',
             environment: this.environmentInfo,
         };
     }
@@ -7234,7 +8838,8 @@ class SeelenfunkeLouvreShowroom3D {
             null,
             false,
             heroModelUrlForRig,
-            this.heroDynamicDisposables
+            this.heroDynamicDisposables,
+            { useHeroPedestalGlb: true }
         );
         if (avatarBuilt && avatarBuilt.joints && avatarBuilt.joints.baseRing) {
             avatarBuilt.joints.baseRing.visible = false;
@@ -9072,6 +10677,105 @@ class SeelenfunkeLouvreShowroom3D {
         return promise;
     }
 
+    /**
+     * Laedt die via Funkenwerk 3D nativ geriggten 50k-HD-Charakter-GLBs (funki_male_rigged.glb / funkira_female_rigged.glb)
+     * mit 2048px Texturschaerfe, 22 eingebackenen JOINTS_0/WEIGHTS_0-Knochen & optionalem 14K-Stern-Diadem (Funkira).
+     */
+    _loadNativeRiggedAvatarTemplate(rawGender) {
+        const THREE = this.THREE;
+        const cleanGender = rawGender === 'female' ? 'female' : 'male';
+        const url = RIGGED_AVATAR_GLB_URLS[cleanGender] || RIGGED_AVATAR_GLB_URLS.male;
+        const cacheKey = `native_rigged_avatar:${cleanGender}:${url}`;
+
+        if (this.skinnedFunkiCache.has(cacheKey)) {
+            return Promise.resolve(this.skinnedFunkiCache.get(cacheKey));
+        }
+        if (this.skinnedFunkiPromises.has(cacheKey)) {
+            return this.skinnedFunkiPromises.get(cacheKey);
+        }
+        if (typeof fetch !== 'function') {
+            return Promise.reject(new Error('Fetch nicht verfuegbar'));
+        }
+
+        const fetchOpts = { method: 'GET', credentials: 'same-origin' };
+        if (this.abortController) {
+            fetchOpts.signal = this.abortController.signal;
+        }
+
+        const promise = fetch(url, fetchOpts)
+            .then((resp) => {
+                if (!resp.ok) throw new Error(`Rigged Avatar GLB HTTP ${resp.status}`);
+                return resp.arrayBuffer();
+            })
+            .then((buf) => parseGlbBinary(THREE, buf, this.maxAniso, this.disposables, 2048))
+            .then((parsed) => {
+                const skinnedParts = [];
+                let fallbackBodyMesh = null;
+                let diademMesh = null;
+                let starterHairMesh = null;
+                parsed.scene.updateMatrixWorld(true);
+                parsed.scene.traverse((child) => {
+                    if (!child.isMesh || !child.geometry) return;
+                    const nm = String(child.name || '');
+                    if (/StarterHairMesh/i.test(nm)) {
+                        starterHairMesh = child;
+                    } else if (/FunkiraStarDiadem/i.test(nm)) {
+                        diademMesh = child;
+                    } else if (child.geometry.attributes.skinIndex && child.geometry.attributes.skinWeight) {
+                        skinnedParts.push({
+                            name: nm || `BodyPart_${skinnedParts.length}`,
+                            geometry: child.geometry,
+                            material: child.material,
+                        });
+                    } else if (!fallbackBodyMesh) {
+                        fallbackBodyMesh = child;
+                    }
+                });
+
+                const primaryPart = skinnedParts[0] || fallbackBodyMesh;
+                if (!primaryPart || !primaryPart.geometry.attributes.skinIndex) {
+                    throw new Error('Kein geriggtes SkinnedMesh in Avatar-GLB gefunden.');
+                }
+
+                const combinedBox = new THREE.Box3();
+                for (let pi = 0; pi < skinnedParts.length; pi++) {
+                    skinnedParts[pi].geometry.computeBoundingBox();
+                    if (skinnedParts[pi].geometry.boundingBox) {
+                        combinedBox.union(skinnedParts[pi].geometry.boundingBox);
+                    }
+                }
+                const hasValidBox = !combinedBox.isEmpty();
+                const H = hasValidBox ? Math.max(0.5, combinedBox.max.y - combinedBox.min.y) : 1.24;
+                const palmX = hasValidBox ? Math.max(-0.345, combinedBox.min.x + 0.025) : -0.282;
+
+                const tpl = {
+                    level: 1,
+                    gender: cleanGender,
+                    isStarterCharacter: skinnedParts.length > 1,
+                    skinnedParts,
+                    height: H,
+                    geometry: primaryPart.geometry,
+                    material: primaryPart.material,
+                    starterHairGeo: starterHairMesh ? starterHairMesh.geometry : null,
+                    starterHairMat: starterHairMesh ? starterHairMesh.material : null,
+                    headAccessoryGeo: diademMesh ? diademMesh.geometry : null,
+                    headAccessoryMat: diademMesh ? diademMesh.material : null,
+                    rightHandPalmBind: { x: palmX, y: 0.505, z: 0.014 },
+                    rightHandSkinWeights: new Float32Array([0.04, 0.20, 0.54, 0.22]),
+                };
+                this.skinnedFunkiCache.set(cacheKey, tpl);
+                this.skinnedFunkiPromises.delete(cacheKey);
+                return tpl;
+            })
+            .catch((err) => {
+                this.skinnedFunkiPromises.delete(cacheKey);
+                throw err;
+            });
+
+        this.skinnedFunkiPromises.set(cacheKey, promise);
+        return promise;
+    }
+
     _createSkinnedFunkiFromTemplate(tpl, customDisposableBucket = null) {
         const THREE = this.THREE;
         const H = tpl.height || 1.62;
@@ -9123,6 +10827,37 @@ class SeelenfunkeLouvreShowroom3D {
         bCapeUpper.add(bCapeMid);
         bCapeMid.add(bCapeLower);
 
+        let starterHairInstance = null;
+        if (tpl.starterHairGeo && tpl.starterHairMat) {
+            const hMat = typeof tpl.starterHairMat.clone === 'function'
+                ? tpl.starterHairMat.clone()
+                : tpl.starterHairMat;
+            if (hMat !== tpl.starterHairMat) {
+                if (Array.isArray(customDisposableBucket)) customDisposableBucket.push(hMat);
+                else this._trackDisposable(hMat);
+            }
+            if (hMat && 'envMapIntensity' in hMat) {
+                hMat.envMapIntensity = 0.34;
+                hMat.needsUpdate = true;
+            }
+            starterHairInstance = new THREE.Mesh(tpl.starterHairGeo, hMat);
+            starterHairInstance.name = 'StarterHairMesh';
+            bHead.add(starterHairInstance);
+        }
+
+        if (tpl.headAccessoryGeo && tpl.headAccessoryMat) {
+            const accMat = typeof tpl.headAccessoryMat.clone === 'function'
+                ? tpl.headAccessoryMat.clone()
+                : tpl.headAccessoryMat;
+            if (accMat !== tpl.headAccessoryMat) {
+                if (Array.isArray(customDisposableBucket)) customDisposableBucket.push(accMat);
+                else this._trackDisposable(accMat);
+            }
+            const diadem = new THREE.Mesh(tpl.headAccessoryGeo, accMat);
+            diadem.name = 'FunkiraStarDiadem';
+            bHead.add(diadem);
+        }
+
         const bones = [
             bRoot, bPelvis, bSpine, bChest, bHead,
             bShoulderL, bForeArmL, bHandL, bFingersL,
@@ -9141,7 +10876,7 @@ class SeelenfunkeLouvreShowroom3D {
             }
             matInstance.skinning = true;
             if ('envMapIntensity' in matInstance) {
-                matInstance.envMapIntensity = tpl.level === 1 ? 0.96 : 1.24;
+                matInstance.envMapIntensity = tpl.isStarterCharacter ? 0.68 : (tpl.level === 1 ? 0.96 : 1.24);
             }
             if (tpl.level === 1 && !matInstance.map && matInstance.color) {
                 matInstance.color.set('#A8947B');
@@ -9149,7 +10884,15 @@ class SeelenfunkeLouvreShowroom3D {
             matInstance.needsUpdate = true;
         }
 
-        const skinnedMesh = new THREE.SkinnedMesh(tpl.geometry, matInstance);
+        const isMultiPartStarter = Boolean(tpl.isStarterCharacter && Array.isArray(tpl.skinnedParts) && tpl.skinnedParts.length > 1);
+        let anchorMat = matInstance;
+        if (isMultiPartStarter) {
+            anchorMat = new THREE.MeshBasicMaterial({ visible: false });
+            if (Array.isArray(customDisposableBucket)) customDisposableBucket.push(anchorMat);
+            else this._trackDisposable(anchorMat);
+        }
+
+        const skinnedMesh = new THREE.SkinnedMesh(tpl.geometry, anchorMat);
         skinnedMesh.frustumCulled = false;
         skinnedMesh.add(bRoot);
         skinnedMesh.updateMatrixWorld(true);
@@ -9157,7 +10900,21 @@ class SeelenfunkeLouvreShowroom3D {
         const skeleton = new THREE.Skeleton(bones);
         skinnedMesh.bind(skeleton);
 
-        // Echter Hand-Socket fuer die goldene Klinge direkt an der anatomisch RECHTEN Hand (-X Seite, bones[5..8] handL/fingersL) des SkinnedMesh!
+        const bodySubMeshes = {};
+        if (isMultiPartStarter) {
+            for (let pi = 0; pi < tpl.skinnedParts.length; pi++) {
+                const sp = tpl.skinnedParts[pi];
+                const subMesh = new THREE.SkinnedMesh(sp.geometry, matInstance);
+                subMesh.name = sp.name;
+                subMesh.frustumCulled = false;
+                skinnedMesh.add(subMesh);
+                subMesh.bind(skeleton, skinnedMesh.bindMatrix);
+                bodySubMeshes[sp.name] = subMesh;
+            }
+            skinnedMesh.updateMatrixWorld(true);
+        }
+
+        // Echter Hand-Socket fuer die Waffe direkt an der anatomisch RECHTEN Hand (-X Seite, bones[5..8] handL/fingersL) des SkinnedMesh!
         const palmBind = tpl.rightHandPalmBind || { x: -0.345, y: 0.505, z: 0.016 };
         const palmWeights = tpl.rightHandSkinWeights || new Float32Array([0.04, 0.20, 0.54, 0.22]);
         const rightHandWeaponSocket = new THREE.Group();
@@ -9183,8 +10940,13 @@ class SeelenfunkeLouvreShowroom3D {
 
         return {
             skinnedMesh,
+            bodySubMeshes,
             skeleton,
             bones,
+            starterHairMesh: starterHairInstance,
+            equippedArmorNodes: {},
+            equippedWeaponGroup: null,
+            equippedWeaponKey: null,
             rightHandWeaponSocket,
             rightHandPalmBind: palmBind,
             rightHandSkinWeights: palmWeights,
@@ -9434,10 +11196,1318 @@ class SeelenfunkeLouvreShowroom3D {
     }
 
     /**
-     * Erzeugt den Funki-Charakter (Stufe 1 bis 10) mit edlem 3D-Exoskelett, Hand-/Finger-Gelenken,
-     * 22-Bone SkinnedMesh, Umhang-Spring-Physik und 0 Roboter-Fallback-Meshes!
+     * Erzeugt einen hochaufloesenden, dirty-gecheckten 512x320 OLED-Visor-Gesichts-Controller fuer Funki (maennlich) & Funkira (weiblich).
+     * Garantiert 100 % freundliche, lebendige Mimik (Blinzeln, Blickfolgen, Sprint-Fokus, Freude beim Salto, warmes Laecheln, 0 maulender Mund!).
      */
-    _createArticulatedAvatarInstance(level, weaponInfo, isLocalPlayer = false, customModelUrl = null, customDisposableBucket = null) {
+    _createExoVisorFaceController(gender = 'male', customDisposableBucket = null) {
+        const THREE = this.THREE;
+        const isFemale = gender === 'female';
+        const W = 512;
+        const H = 320;
+        const canvas = document.createElement('canvas');
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext('2d');
+
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        applySrgbColorSpace(THREE, tex);
+        if (Array.isArray(customDisposableBucket)) {
+            customDisposableBucket.push(tex);
+        } else {
+            this._trackDisposable(tex);
+        }
+
+        const mat = new THREE.MeshBasicMaterial({
+            map: tex,
+            fog: false,
+        });
+        if (Array.isArray(customDisposableBucket)) {
+            customDisposableBucket.push(mat);
+        } else {
+            this._trackDisposable(mat);
+        }
+
+        const state = {
+            blinkTimer: 2.6 + Math.random() * 2.2,
+            blinkElapsed: -1,
+            blinkDuration: 0.14,
+            lastSig: '',
+        };
+
+        const renderFace = (blinkAmt, gazeX, gazeY, mood) => {
+            ctx.clearRect(0, 0, W, H);
+
+            // 1. Edles tiefschwarzes Obsidian-Visor-Display mit feinem goldenem Tiefenschimmer
+            const bg = ctx.createRadialGradient(W * 0.5, H * 0.48, 18, W * 0.5, H * 0.50, W * 0.56);
+            bg.addColorStop(0.0, '#121724');
+            bg.addColorStop(0.62, '#090C14');
+            bg.addColorStop(1.0, '#04060B');
+            ctx.fillStyle = bg;
+            ctx.fillRect(0, 0, W, H);
+
+            // Dezente 24K-Gold HUD-Eckwinkel im Visor
+            ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
+            ctx.lineWidth = 2.2;
+            const padX = 42;
+            const padY = 36;
+            const tick = 18;
+            const corners = [
+                [padX, padY, 1, 1],
+                [W - padX, padY, -1, 1],
+                [padX, H - padY, 1, -1],
+                [W - padX, H - padY, -1, -1],
+            ];
+            for (let ci = 0; ci < corners.length; ci++) {
+                const [cx, cy, sx, sy] = corners[ci];
+                ctx.beginPath();
+                ctx.moveTo(cx, cy + sy * tick);
+                ctx.lineTo(cx, cy);
+                ctx.lineTo(cx + sx * tick, cy);
+                ctx.stroke();
+            }
+
+            const shiftX = clamp(gazeX, -1, 1) * 16;
+            const shiftY = clamp(gazeY, -1, 1) * 10;
+            const eyeBaseY = (isFemale ? 148 : 146) + shiftY;
+            const eyeSpacing = isFemale ? 92 : 96;
+            const eyeW = isFemale ? 54 : 58;
+            const openFrac = clamp(1.0 - blinkAmt, 0.04, 1.0);
+            const baseEyeH = isFemale ? 42 : 34;
+            const eyeH = Math.max(3.2, baseEyeH * (mood === 'sprint' ? 0.82 : 1.0) * openFrac);
+            const isJoy = (mood === 'joy' || mood === 'salto');
+
+            // Sanfter warmer Wangen-Lichtpunkt bei Funkira
+            if (isFemale) {
+                [-1, 1].forEach((sSign) => {
+                    const bx = W * 0.5 + sSign * (eyeSpacing + 30) + shiftX * 0.5;
+                    const by = eyeBaseY + 42;
+                    const cg = ctx.createRadialGradient(bx, by, 2, bx, by, 30);
+                    cg.addColorStop(0.0, 'rgba(236, 184, 148, 0.24)');
+                    cg.addColorStop(1.0, 'rgba(236, 184, 148, 0)');
+                    ctx.fillStyle = cg;
+                    ctx.beginPath();
+                    ctx.arc(bx, by, 30, 0, TWO_PI);
+                    ctx.fill();
+                });
+            }
+
+            // 2. Ausdrucksstarke leuchtende Augen (Funki: selbstbewusst heroisch | Funkira: warm strahlend mit feinem Wimpernschwung)
+            [-1, 1].forEach((side) => {
+                const ex = W * 0.5 + side * eyeSpacing + shiftX;
+                const ey = eyeBaseY;
+
+                // Sanfter goldener Iris-Schein
+                const aura = ctx.createRadialGradient(ex, ey, 4, ex, ey, eyeW * 1.45);
+                aura.addColorStop(0.0, 'rgba(245, 210, 132, 0.30)');
+                aura.addColorStop(0.55, 'rgba(197, 160, 89, 0.10)');
+                aura.addColorStop(1.0, 'rgba(197, 160, 89, 0)');
+                ctx.fillStyle = aura;
+                ctx.beginPath();
+                ctx.arc(ex, ey, eyeW * 1.45, 0, TWO_PI);
+                ctx.fill();
+
+                if (isJoy && openFrac > 0.35) {
+                    // Fröhlich strahlende Freuden-Augenboegen (^ ^) bei Salto, Tanz & Jubel
+                    ctx.save();
+                    ctx.strokeStyle = '#FFF7DF';
+                    ctx.shadowColor = '#E6C687';
+                    ctx.shadowBlur = 12;
+                    ctx.lineWidth = isFemale ? 8.5 : 9.0;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(ex - eyeW * 0.72, ey + 8);
+                    ctx.quadraticCurveTo(ex, ey - 26, ex + eyeW * 0.72, ey + 8);
+                    ctx.stroke();
+                    ctx.restore();
+                } else {
+                    ctx.save();
+                    ctx.translate(ex, ey);
+                    const tilt = mood === 'sprint' ? (side * -0.09) : (isFemale ? (side * 0.035) : (side * -0.025));
+                    ctx.rotate(tilt);
+
+                    const eyeGrad = ctx.createLinearGradient(0, -eyeH, 0, eyeH);
+                    eyeGrad.addColorStop(0.0, '#FFFDF5');
+                    eyeGrad.addColorStop(0.52, '#F7DC9C');
+                    eyeGrad.addColorStop(1.0, '#C5A059');
+                    ctx.fillStyle = eyeGrad;
+
+                    ctx.beginPath();
+                    if (isFemale) {
+                        ctx.ellipse(0, 0, eyeW * 0.78, eyeH, 0, 0, TWO_PI);
+                    } else {
+                        const rw = eyeW * 0.80;
+                        const rh = eyeH;
+                        const cr = Math.min(rh * 0.82, 18);
+                        ctx.moveTo(-rw + cr, -rh);
+                        ctx.lineTo(rw - cr, -rh);
+                        ctx.quadraticCurveTo(rw, -rh, rw, -rh + cr);
+                        ctx.lineTo(rw, rh - cr);
+                        ctx.quadraticCurveTo(rw, rh, rw - cr, rh);
+                        ctx.lineTo(-rw + cr, rh);
+                        ctx.quadraticCurveTo(-rw, rh, -rw, rh - cr);
+                        ctx.lineTo(-rw, -rh + cr);
+                        ctx.quadraticCurveTo(-rw, -rh, -rw + cr, -rh);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Lebendige Glanzlichter (Catchlights) bei geoeffnetem Auge
+                    if (openFrac > 0.28) {
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.beginPath();
+                        ctx.arc(-side * 10 + shiftX * 0.18, -eyeH * 0.34, isFemale ? 8.2 : 7.0, 0, TWO_PI);
+                        ctx.fill();
+
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
+                        ctx.beginPath();
+                        ctx.arc(side * 12 + shiftX * 0.12, eyeH * 0.28, isFemale ? 4.4 : 3.8, 0, TWO_PI);
+                        ctx.fill();
+                    }
+
+                    // Feiner oberer Wimpern-Schwung bei Funkira bzw. markante Brauenlinie bei Funki
+                    if (isFemale && openFrac > 0.22) {
+                        ctx.strokeStyle = '#F7E2B4';
+                        ctx.lineWidth = 4.2;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(-eyeW * 0.70, -eyeH * 0.62);
+                        ctx.quadraticCurveTo(0, -eyeH * 1.14, eyeW * 0.86 * side + (side < 0 ? -4 : 4), -eyeH * 0.78);
+                        ctx.stroke();
+
+                        // Aeusserer feiner Wimpernakzent
+                        const outerX = side * eyeW * 0.78;
+                        ctx.lineWidth = 3.4;
+                        ctx.beginPath();
+                        ctx.moveTo(outerX * 0.92, -eyeH * 0.42);
+                        ctx.lineTo(outerX + side * 13, -eyeH * 0.76);
+                        ctx.moveTo(outerX * 0.96, -eyeH * 0.12);
+                        ctx.lineTo(outerX + side * 11, -eyeH * 0.32);
+                        ctx.stroke();
+                    } else if (!isFemale) {
+                        ctx.strokeStyle = 'rgba(230, 198, 135, 0.82)';
+                        ctx.lineWidth = 4.5;
+                        ctx.lineCap = 'round';
+                        const browLift = mood === 'sprint' ? -8 : -13;
+                        ctx.beginPath();
+                        ctx.moveTo(-eyeW * 0.76, -eyeH + browLift - side * 2);
+                        ctx.lineTo(eyeW * 0.76, -eyeH + browLift + (mood === 'sprint' ? (-side * -4) : 0));
+                        ctx.stroke();
+                    }
+
+                    ctx.restore();
+                }
+            });
+
+            // 3. Freundlicher, positiv nach OBEN geschwungener Mundbogen (niemals maulend nach unten!)
+            const mouthX = W * 0.5 + shiftX * 0.42;
+            const mouthY = (isFemale ? 216 : 218) + shiftY * 0.35;
+            const mouthHalfW = isJoy ? 30 : (mood === 'sprint' ? 22 : 24);
+            const smileDip = isJoy ? 16 : (mood === 'sprint' ? 7 : 11);
+
+            ctx.save();
+            ctx.strokeStyle = '#F5DCA4';
+            ctx.lineWidth = isFemale ? 4.4 : 4.8;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(mouthX - mouthHalfW, mouthY - smileDip * 0.38);
+            ctx.quadraticCurveTo(mouthX, mouthY + smileDip, mouthX + mouthHalfW, mouthY - smileDip * 0.38);
+            ctx.stroke();
+            ctx.restore();
+
+            tex.needsUpdate = true;
+        };
+
+        renderFace(0, 0, 0, 'idle');
+
+        return {
+            material: mat,
+            texture: tex,
+            update(dt, headYaw = 0, headPitch = 0, mood = 'idle') {
+                const step = clamp(dt || 0.016, 0.001, 0.05);
+                let blinkAmt = 0;
+                if (state.blinkElapsed >= 0) {
+                    state.blinkElapsed += step;
+                    if (state.blinkElapsed >= state.blinkDuration) {
+                        state.blinkElapsed = -1;
+                        state.blinkTimer = 3.1 + Math.random() * 2.4;
+                    } else {
+                        blinkAmt = Math.sin((state.blinkElapsed / state.blinkDuration) * Math.PI);
+                    }
+                } else {
+                    state.blinkTimer -= step;
+                    if (state.blinkTimer <= 0) {
+                        state.blinkElapsed = 0;
+                    }
+                }
+
+                const qBlink = Math.round(blinkAmt * 8);
+                const qGx = Math.round(clamp(-headYaw * 1.4, -1, 1) * 10);
+                const qGy = Math.round(clamp(headPitch * 1.6, -1, 1) * 8);
+                const sig = `${qBlink}:${qGx}:${qGy}:${mood}`;
+                if (sig !== state.lastSig) {
+                    state.lastSig = sig;
+                    renderFace(qBlink / 8, qGx / 10, qGy / 8, mood);
+                }
+            },
+        };
+    }
+
+    /**
+     * Hochaufloesender Geometrie- & Material-Pool fuer die zwei MMO-Grundcharaktere:
+     * - 'male': Maennlicher Funki (Athletischer Funkenwaechter-Kuerass, kantige Fluegel-Schulterplatten, Helm-Kamm & Wappen-Umhang)
+     * - 'female': Weibliche Funkira (Konturierte Sanduhr-Ruestung, geschwungene Lotus-Schulterplatten, Sternen-Diadem & Doppelschleifen-Mantel)
+     */
+    _ensureExoskeletonCharacterPool(rawGender = 'male') {
+        const gender = rawGender === 'female' ? 'female' : 'male';
+        if (!this._exoCharPools) {
+            this._exoCharPools = {};
+        }
+        if (this._exoCharPools[gender]) {
+            return this._exoCharPools[gender];
+        }
+
+        const THREE = this.THREE;
+        const isFemale = gender === 'female';
+
+        if (!this._exoSharedCharMats) {
+            this._exoSharedCharMats = {
+                obsidianArmor: this._trackDisposable(new THREE.MeshStandardMaterial({
+                    color: 0x111520,
+                    roughness: 0.28,
+                    metalness: 0.36,
+                    envMapIntensity: 1.22,
+                })),
+                titaniumSub: this._trackDisposable(new THREE.MeshStandardMaterial({
+                    color: 0x232a3a,
+                    roughness: 0.33,
+                    metalness: 0.66,
+                    envMapIntensity: 1.26,
+                })),
+                alabasterInlay: this._trackDisposable(new THREE.MeshStandardMaterial({
+                    color: 0xf0e9dc,
+                    roughness: 0.26,
+                    metalness: 0.12,
+                    envMapIntensity: 1.08,
+                })),
+                goldRoyal: this._trackDisposable(new THREE.MeshStandardMaterial({
+                    color: 0xc5a059,
+                    roughness: 0.20,
+                    metalness: 0.92,
+                    envMapIntensity: 1.40,
+                })),
+                goldChampagne: this._trackDisposable(new THREE.MeshStandardMaterial({
+                    color: 0xe4c585,
+                    roughness: 0.16,
+                    metalness: 0.94,
+                    envMapIntensity: 1.46,
+                })),
+                visorGlassShell: this._trackDisposable(new THREE.MeshStandardMaterial({
+                    color: 0x0b101d,
+                    roughness: 0.06,
+                    metalness: 0.25,
+                    envMapIntensity: 1.55,
+                    transparent: true,
+                    opacity: 0.22,
+                    depthWrite: false,
+                })),
+                capeSilk: this._trackDisposable(new THREE.MeshStandardMaterial({
+                    color: 0x121622,
+                    roughness: 0.64,
+                    metalness: 0.16,
+                    envMapIntensity: 0.85,
+                    side: THREE.DoubleSide,
+                })),
+            };
+        }
+
+        const makeLathe = (ptsArr, radialSegs = 36) => {
+            const v2 = ptsArr.map((p) => new THREE.Vector2(p[0], p[1]));
+            const g = new THREE.LatheGeometry(v2, radialSegs);
+            g.computeVertexNormals();
+            return this._trackDisposable(g);
+        };
+
+        // 1. Anatomisch modellierter Rumpf-Kuerass (36 Segmente LatheGeometry)
+        const cuirassGeo = isFemale
+            ? makeLathe([
+                [0.010, 0.000], [0.124, 0.010], [0.114, 0.075], [0.118, 0.135],
+                [0.146, 0.215], [0.166, 0.275], [0.156, 0.335], [0.122, 0.382],
+                [0.088, 0.415], [0.078, 0.432], [0.010, 0.434],
+            ], 36)
+            : makeLathe([
+                [0.010, 0.000], [0.144, 0.012], [0.148, 0.085], [0.160, 0.165],
+                [0.184, 0.250], [0.200, 0.320], [0.178, 0.375], [0.132, 0.408],
+                [0.102, 0.428], [0.088, 0.440], [0.010, 0.442],
+            ], 36);
+
+        // 2. Becken-Schale
+        const pelvisShellGeo = isFemale
+            ? makeLathe([
+                [0.010, -0.095], [0.095, -0.090], [0.148, -0.048], [0.156, -0.008],
+                [0.132, 0.042], [0.116, 0.068], [0.010, 0.070],
+            ], 32)
+            : makeLathe([
+                [0.010, -0.095], [0.104, -0.088], [0.146, -0.045], [0.152, -0.005],
+                [0.146, 0.045], [0.138, 0.068], [0.010, 0.070],
+            ], 32);
+
+        // 3. Oberschenkel- & Schienbein-Exoschalen (y = 0 .. -0.33 bzw. 0 .. -0.32)
+        const thighShellGeo = isFemale
+            ? makeLathe([
+                [0.010, -0.325], [0.050, -0.315], [0.058, -0.235], [0.068, -0.135],
+                [0.073, -0.048], [0.062, 0.012], [0.010, 0.018],
+            ], 30)
+            : makeLathe([
+                [0.010, -0.325], [0.058, -0.312], [0.068, -0.230], [0.079, -0.130],
+                [0.084, -0.045], [0.070, 0.014], [0.010, 0.020],
+            ], 30);
+
+        const shinShellGeo = isFemale
+            ? makeLathe([
+                [0.010, -0.312], [0.044, -0.300], [0.046, -0.215], [0.057, -0.110],
+                [0.053, -0.020], [0.046, 0.012], [0.010, 0.015],
+            ], 30)
+            : makeLathe([
+                [0.010, -0.312], [0.052, -0.298], [0.055, -0.210], [0.066, -0.108],
+                [0.061, -0.018], [0.052, 0.014], [0.010, 0.016],
+            ], 30);
+
+        // 4. Oberarm- & Unterarm-Vambrace (y = 0 .. -0.23 bzw. 0 .. -0.21)
+        const upperArmShellGeo = isFemale
+            ? makeLathe([
+                [0.008, -0.225], [0.036, -0.215], [0.042, -0.120], [0.046, -0.035],
+                [0.038, 0.014], [0.008, 0.018],
+            ], 26)
+            : makeLathe([
+                [0.008, -0.225], [0.044, -0.215], [0.052, -0.118], [0.056, -0.035],
+                [0.046, 0.016], [0.008, 0.020],
+            ], 26);
+
+        const forearmShellGeo = isFemale
+            ? makeLathe([
+                [0.008, -0.204], [0.033, -0.196], [0.039, -0.115], [0.043, -0.032],
+                [0.036, 0.010], [0.008, 0.014],
+            ], 26)
+            : makeLathe([
+                [0.008, -0.204], [0.040, -0.195], [0.048, -0.112], [0.052, -0.030],
+                [0.044, 0.012], [0.008, 0.016],
+            ], 26);
+
+        // 5. Bevelled Brustpanzer-Schild & Hueft-Tassetten (ExtrudeGeometry)
+        const chestShieldShape = new THREE.Shape();
+        if (isFemale) {
+            chestShieldShape.moveTo(0, -0.085);
+            chestShieldShape.quadraticCurveTo(0.105, -0.040, 0.128, 0.055);
+            chestShieldShape.quadraticCurveTo(0.068, 0.092, 0, 0.058);
+            chestShieldShape.quadraticCurveTo(-0.068, 0.092, -0.128, 0.055);
+            chestShieldShape.quadraticCurveTo(-0.105, -0.040, 0, -0.085);
+        } else {
+            chestShieldShape.moveTo(0, -0.100);
+            chestShieldShape.lineTo(0.118, -0.052);
+            chestShieldShape.lineTo(0.158, 0.068);
+            chestShieldShape.lineTo(0.064, 0.098);
+            chestShieldShape.lineTo(0, 0.072);
+            chestShieldShape.lineTo(-0.064, 0.098);
+            chestShieldShape.lineTo(-0.158, 0.068);
+            chestShieldShape.lineTo(-0.118, -0.052);
+        }
+        chestShieldShape.closePath();
+        const chestPlateGeo = this._trackDisposable(new THREE.ExtrudeGeometry(chestShieldShape, {
+            depth: 0.022,
+            bevelEnabled: true,
+            bevelThickness: 0.008,
+            bevelSize: 0.007,
+            bevelSegments: 3,
+            curveSegments: 16,
+        }));
+
+        const tassetShape = new THREE.Shape();
+        if (isFemale) {
+            tassetShape.moveTo(-0.052, 0.0);
+            tassetShape.quadraticCurveTo(0.0, 0.012, 0.052, 0.0);
+            tassetShape.quadraticCurveTo(0.064, -0.095, 0.012, -0.175);
+            tassetShape.quadraticCurveTo(-0.048, -0.125, -0.052, 0.0);
+        } else {
+            tassetShape.moveTo(-0.058, 0.0);
+            tassetShape.lineTo(0.058, 0.0);
+            tassetShape.lineTo(0.066, -0.115);
+            tassetShape.lineTo(0.0, -0.185);
+            tassetShape.lineTo(-0.062, -0.115);
+        }
+        tassetShape.closePath();
+        const tassetGeo = this._trackDisposable(new THREE.ExtrudeGeometry(tassetShape, {
+            depth: 0.010,
+            bevelEnabled: true,
+            bevelThickness: 0.004,
+            bevelSize: 0.004,
+            bevelSegments: 2,
+            curveSegments: 12,
+        }));
+
+        // 6. Knie-Poleyn-Schild & Schulter-Pauldron
+        const kneeShieldShape = new THREE.Shape();
+        kneeShieldShape.moveTo(0, 0.058);
+        kneeShieldShape.lineTo(0.042, 0.010);
+        kneeShieldShape.lineTo(0.028, -0.056);
+        kneeShieldShape.lineTo(0, -0.072);
+        kneeShieldShape.lineTo(-0.028, -0.056);
+        kneeShieldShape.lineTo(-0.042, 0.010);
+        kneeShieldShape.closePath();
+        const kneeShieldGeo = this._trackDisposable(new THREE.ExtrudeGeometry(kneeShieldShape, {
+            depth: 0.014,
+            bevelEnabled: true,
+            bevelThickness: 0.005,
+            bevelSize: 0.004,
+            bevelSegments: 2,
+        }));
+
+        const pauldronDomeGeo = this._trackDisposable(new THREE.SphereGeometry(
+            isFemale ? 0.082 : 0.098,
+            28,
+            20,
+            0,
+            Math.PI * 1.28,
+            0.08,
+            Math.PI * 0.62
+        ));
+
+        const crestFinShape = new THREE.Shape();
+        if (isFemale) {
+            // Elegantes Sternen-Diadem (Tiara) fuer Funkira
+            crestFinShape.moveTo(-0.095, -0.012);
+            crestFinShape.quadraticCurveTo(-0.045, 0.026, 0, 0.056);
+            crestFinShape.quadraticCurveTo(0.045, 0.026, 0.095, -0.012);
+            crestFinShape.quadraticCurveTo(0.042, 0.004, 0, 0.020);
+            crestFinShape.quadraticCurveTo(-0.042, 0.004, -0.095, -0.012);
+        } else {
+            // Aerodynamischer Funkenwaechter-Helmkamm fuer Funki
+            crestFinShape.moveTo(0, 0.0);
+            crestFinShape.quadraticCurveTo(0.04, 0.052, -0.02, 0.072);
+            crestFinShape.quadraticCurveTo(-0.14, 0.068, -0.20, 0.010);
+            crestFinShape.quadraticCurveTo(-0.11, -0.012, 0, 0.0);
+        }
+        crestFinShape.closePath();
+        const helmetCrestGeo = this._trackDisposable(new THREE.ExtrudeGeometry(crestFinShape, {
+            depth: isFemale ? 0.010 : 0.016,
+            bevelEnabled: true,
+            bevelThickness: 0.004,
+            bevelSize: 0.003,
+            bevelSegments: 2,
+            curveSegments: 16,
+        }));
+
+        // 7. Hochaufloesender Visor-Helm + verzerrungsfrei UV-gemappte sphaerische OLED-Visor-Frontscheibe
+        const helmetRadius = isFemale ? 0.148 : 0.156;
+        const helmetDomeGeo = this._trackDisposable(new THREE.SphereGeometry(helmetRadius, 40, 30));
+
+        const phiStart = Math.PI * 0.5 - 0.56;
+        const phiLen = 1.12;
+        const thetaStart = Math.PI * 0.24;
+        const thetaLen = Math.PI * 0.44;
+        const visorRadius = helmetRadius + 0.0065;
+        const visorFaceGeo = this._trackDisposable(new THREE.SphereGeometry(visorRadius, 36, 24, phiStart, phiLen, thetaStart, thetaLen));
+        // SphereGeometry startet bei phi=0 auf +X; Drehung um -90 Grad auf Y richtet die Kappe exakt nach +Z (Vorne) aus!
+        visorFaceGeo.rotateY(-Math.PI * 0.5);
+        const vUv = visorFaceGeo.attributes.uv;
+        for (let ui = 0; ui < vUv.count; ui++) {
+            vUv.setXY(ui, clamp(vUv.getX(ui), 0.02, 0.98), clamp(vUv.getY(ui), 0.02, 0.98));
+        }
+        vUv.needsUpdate = true;
+
+        const visorShellGeo = this._trackDisposable(visorFaceGeo.clone());
+        visorShellGeo.scale(1.016, 1.016, 1.016);
+
+        // 8. Modellierter MagBoot-Schuhkorpus & Gelenkkugeln
+        const bootVampGeo = this._trackDisposable(new THREE.SphereGeometry(0.068, 24, 18));
+        const jointSphereGeo = this._trackDisposable(new THREE.SphereGeometry(isFemale ? 0.038 : 0.045, 20, 16));
+        const knuckleRingGeo = this._trackDisposable(new THREE.TorusGeometry(0.0095, 0.0026, 8, 14));
+        const phalanxProxGeo = this._trackDisposable(new THREE.CylinderGeometry(0.0085, 0.0095, 0.026, 12));
+        const phalanxDistGeo = this._trackDisposable(new THREE.CylinderGeometry(0.0068, 0.0082, 0.024, 12));
+
+        // 9. 3-Gliedrige Mantel-/Schleifen-Segmente fuer die Ruecken-Spring-Physik
+        const capeSeg1Geo = this._trackDisposable(new THREE.PlaneGeometry(isFemale ? 0.115 : 0.34, 0.23, 4, 2));
+        const capeSeg2Geo = this._trackDisposable(new THREE.PlaneGeometry(isFemale ? 0.130 : 0.38, 0.25, 4, 2));
+        const capeSeg3Shape = new THREE.Shape();
+        const cw3 = isFemale ? 0.068 : 0.205;
+        capeSeg3Shape.moveTo(-cw3, 0);
+        capeSeg3Shape.lineTo(cw3, 0);
+        capeSeg3Shape.lineTo(cw3 * 0.86, -0.19);
+        capeSeg3Shape.lineTo(0, -0.27);
+        capeSeg3Shape.lineTo(-cw3 * 0.86, -0.19);
+        capeSeg3Shape.closePath();
+        const capeSeg3Geo = this._trackDisposable(new THREE.ShapeGeometry(capeSeg3Shape, 8));
+        const capeGoldEdgeGeo = this._trackDisposable(new THREE.BoxGeometry(0.011, 0.23, 0.004));
+
+        const pool = {
+            gender,
+            isFemale,
+            mats: this._exoSharedCharMats,
+            geos: {
+                cuirassGeo,
+                pelvisShellGeo,
+                thighShellGeo,
+                shinShellGeo,
+                upperArmShellGeo,
+                forearmShellGeo,
+                chestPlateGeo,
+                tassetGeo,
+                kneeShieldGeo,
+                pauldronDomeGeo,
+                helmetCrestGeo,
+                helmetDomeGeo,
+                visorFaceGeo,
+                visorShellGeo,
+                bootVampGeo,
+                jointSphereGeo,
+                knuckleRingGeo,
+                phalanxProxGeo,
+                phalanxDistGeo,
+                capeSeg1Geo,
+                capeSeg2Geo,
+                capeSeg3Geo,
+                capeGoldEdgeGeo,
+            },
+        };
+        this._exoCharPools[gender] = pool;
+        return pool;
+    }
+
+    /**
+     * Baut die hochdetaillierten MMO-Exoskelett-Grundcharaktere (Maennlicher Funki & Weibliche Funkira)
+     * mit 24 Gelenken, 5-Finger-Handschuhen, Brust-Sternkern, Rueckenreaktor, 3-Segment-Mantel & 512x320 OLED-Visor.
+     */
+    _buildHighResExoskeletonAvatar(level, rawGender = 'male', isLocalPlayer = false, customDisposableBucket = null) {
+        const THREE = this.THREE;
+        const shared = this._ensureAvatarSharedPool();
+        const gender = rawGender === 'female' ? 'female' : 'male';
+        const exoPool = this._ensureExoskeletonCharacterPool(gender);
+        const isFemale = exoPool.isFemale;
+        const { mats: baseMats, geos: baseGeos } = shared;
+        const { mats: cMats, geos: cGeos } = exoPool;
+
+        const lvl = clamp(parseInt(level, 10) || 2, 1, 10);
+        const isMaster = lvl >= 7;
+        const armorMat = cMats.obsidianArmor;
+        const subMat = cMats.titaniumSub;
+        const inlayMat = cMats.alabasterInlay;
+        const goldMat = isFemale ? cMats.goldChampagne : cMats.goldRoyal;
+        const brightGoldMat = cMats.goldChampagne;
+
+        const root = new THREE.Group();
+        root.visible = isLocalPlayer ? Boolean(this._engineReady && !(this.camControl && this.camControl.distance < 0.55)) : true;
+
+        const footShadow = new THREE.Mesh(baseGeos.footShadow, this.mats.contactShadow);
+        footShadow.rotation.x = -Math.PI * 0.5;
+        footShadow.position.y = 0.002;
+        root.add(footShadow);
+
+        const baseRing = new THREE.Mesh(baseGeos.baseRing, this.mats.avatarBaseRing || this.mats.goldMatcapBrushed);
+        baseRing.rotation.x = -Math.PI * 0.5;
+        baseRing.position.y = 0.002;
+        root.add(baseRing);
+
+        const skinnedHostGroup = new THREE.Group();
+        skinnedHostGroup.position.y = 0.004;
+        skinnedHostGroup.scale.setScalar(1.0);
+        root.add(skinnedHostGroup);
+
+        // 1. Becken & artikulierte Hueft-Tassetten (pelvisPivot bei y = 0.776 -> 0.000 mm exakte Sohlenkalibrierung!)
+        const pelvisPivot = new THREE.Group();
+        pelvisPivot.position.set(0, 0.776, 0);
+        root.add(pelvisPivot);
+
+        const pelvisShell = new THREE.Mesh(cGeos.pelvisShellGeo, armorMat);
+        pelvisShell.scale.set(isFemale ? 1.06 : 1.04, 1.0, 0.84);
+        pelvisShell.position.set(0, 0.005, 0);
+        pelvisPivot.add(pelvisShell);
+
+        const gyroBelt = new THREE.Mesh(baseGeos.beltRing, subMat);
+        gyroBelt.rotation.x = Math.PI * 0.5;
+        gyroBelt.scale.set(isFemale ? 0.68 : 0.76, isFemale ? 0.56 : 0.64, 0.85);
+        gyroBelt.position.set(0, 0.042, 0);
+        pelvisPivot.add(gyroBelt);
+
+        const gyroGoldTrim = new THREE.Mesh(baseGeos.beltRing, goldMat);
+        gyroGoldTrim.rotation.x = Math.PI * 0.5;
+        gyroGoldTrim.scale.set(isFemale ? 0.71 : 0.79, isFemale ? 0.59 : 0.67, 0.52);
+        gyroGoldTrim.position.set(0, 0.042, 0);
+        pelvisPivot.add(gyroGoldTrim);
+
+        const beltStarBuckle = new THREE.Mesh(baseGeos.seelenfunkeStar, brightGoldMat);
+        beltStarBuckle.scale.setScalar(isFemale ? 0.20 : 0.23);
+        beltStarBuckle.position.set(0, 0.042, isFemale ? 0.132 : 0.145);
+        pelvisPivot.add(beltStarBuckle);
+
+        const buildTasset = (sideSign) => {
+            const tPivot = new THREE.Group();
+            tPivot.position.set(sideSign * (isFemale ? 0.142 : 0.154), 0.032, 0.006);
+            tPivot.rotation.y = sideSign * (Math.PI * 0.44);
+            tPivot.rotation.z = sideSign * (isFemale ? 0.16 : 0.11);
+            const plate = new THREE.Mesh(cGeos.tassetGeo, armorMat);
+            const goldStud = new THREE.Mesh(baseGeos.buckleGem, brightGoldMat);
+            goldStud.scale.set(0.42, 0.48, 0.30);
+            goldStud.position.set(0, -0.025, 0.015);
+            const goldTip = new THREE.Mesh(baseGeos.buckleGem, goldMat);
+            goldTip.scale.set(0.50, 0.65, 0.28);
+            goldTip.position.set(0, -0.145, 0.013);
+            tPivot.add(plate, goldStud, goldTip);
+            pelvisPivot.add(tPivot);
+            return tPivot;
+        };
+        const tassetPivotL = buildTasset(-1);
+        const tassetPivotR = buildTasset(1);
+
+        // 2. Anatomische Exoskelett-Beine & MagBoots
+        const hipOffsetX = isFemale ? 0.102 : 0.118;
+        const buildSculptedLeg = (sideSign) => {
+            const hipPivot = new THREE.Group();
+            hipPivot.position.set(sideSign * hipOffsetX, -0.04, 0);
+            pelvisPivot.add(hipPivot);
+
+            const hipBall = new THREE.Mesh(cGeos.jointSphereGeo, subMat);
+            const thighArmor = new THREE.Mesh(cGeos.thighShellGeo, armorMat);
+            thighArmor.scale.set(1.0, 1.0, 1.06);
+
+            const thighInlay = new THREE.Mesh(baseGeos.thighStripe, inlayMat);
+            thighInlay.scale.set(1.4, 0.82, 0.8);
+            thighInlay.position.set(sideSign * 0.012, -0.155, isFemale ? 0.062 : 0.072);
+
+            const thighGoldRib = new THREE.Mesh(baseGeos.thighStripe, goldMat);
+            thighGoldRib.scale.set(0.75, 0.88, 0.65);
+            thighGoldRib.position.set(sideSign * (isFemale ? 0.066 : 0.076), -0.160, 0.008);
+
+            const pistonSleeve = new THREE.Mesh(baseGeos.exoPistonSleeve, subMat);
+            pistonSleeve.scale.set(0.72, 0.85, 0.72);
+            pistonSleeve.position.set(sideSign * (isFemale ? 0.072 : 0.084), -0.115, -0.014);
+
+            const pistonRod = new THREE.Mesh(baseGeos.exoPistonRod, brightGoldMat);
+            pistonRod.scale.set(0.78, 0.92, 0.78);
+            pistonRod.position.set(sideSign * (isFemale ? 0.072 : 0.084), -0.175, -0.014);
+
+            hipPivot.add(hipBall, thighArmor, thighInlay, thighGoldRib, pistonSleeve, pistonRod);
+
+            const kneePivot = new THREE.Group();
+            kneePivot.position.set(0, -0.33, 0);
+            hipPivot.add(kneePivot);
+
+            const kneeJoint = new THREE.Mesh(cGeos.jointSphereGeo, subMat);
+            kneeJoint.scale.setScalar(0.92);
+            const kneeServoCap = new THREE.Mesh(baseGeos.earCap, goldMat);
+            kneeServoCap.rotation.z = Math.PI * 0.5;
+            kneeServoCap.scale.setScalar(0.72);
+            kneeServoCap.position.set(sideSign * (isFemale ? 0.052 : 0.060), 0, 0);
+
+            const kneePoleyn = new THREE.Mesh(cGeos.kneeShieldGeo, armorMat);
+            kneePoleyn.position.set(0, 0.008, isFemale ? 0.050 : 0.058);
+            const kneeGoldGem = new THREE.Mesh(baseGeos.buckleGem, brightGoldMat);
+            kneeGoldGem.scale.set(0.42, 0.56, 0.30);
+            kneeGoldGem.position.set(0, 0.012, isFemale ? 0.068 : 0.076);
+
+            const shinArmor = new THREE.Mesh(cGeos.shinShellGeo, armorMat);
+            shinArmor.scale.set(1.0, 1.0, 1.05);
+
+            const shinGoldLine = new THREE.Mesh(baseGeos.thighStripe, goldMat);
+            shinGoldLine.scale.set(0.68, 0.86, 0.65);
+            shinGoldLine.position.set(0, -0.155, isFemale ? 0.050 : 0.058);
+
+            const calfDamper = new THREE.Mesh(baseGeos.exoShinDamper, subMat);
+            calfDamper.scale.set(0.68, 0.84, 0.68);
+            calfDamper.position.set(0, -0.150, -0.044);
+
+            kneePivot.add(kneeJoint, kneeServoCap, kneePoleyn, kneeGoldGem, shinArmor, shinGoldLine, calfDamper);
+
+            const anklePivot = new THREE.Group();
+            anklePivot.position.set(0, -0.32, 0);
+            kneePivot.add(anklePivot);
+
+            const bootCuff = new THREE.Mesh(baseGeos.bootCuff, goldMat);
+            bootCuff.rotation.x = Math.PI * 0.5;
+            bootCuff.scale.setScalar(isFemale ? 0.86 : 0.96);
+            bootCuff.position.y = -0.004;
+
+            const bootFrame = new THREE.Mesh(baseGeos.exoMagBootFrame, armorMat);
+            bootFrame.scale.set(isFemale ? 0.78 : 0.90, 0.88, isFemale ? 0.90 : 0.96);
+            bootFrame.position.set(0, -0.038, 0.026);
+
+            const bootToeVamp = new THREE.Mesh(cGeos.bootVampGeo, armorMat);
+            bootToeVamp.scale.set(isFemale ? 0.74 : 0.84, 0.52, 1.24);
+            bootToeVamp.position.set(0, -0.045, 0.056);
+
+            const bootToeGold = new THREE.Mesh(baseGeos.bootCuff, brightGoldMat);
+            bootToeGold.rotation.x = Math.PI * 0.38;
+            bootToeGold.scale.set(isFemale ? 0.76 : 0.86, 0.92, 0.65);
+            bootToeGold.position.set(0, -0.034, 0.042);
+
+            // Unterkante exakt bei y = -0.082 fuer 0-mm-Bodenbuendigkeit in _computeAvatarMinSoleY!
+            const bootSole = new THREE.Mesh(baseGeos.bootSole, goldMat);
+            bootSole.scale.set(isFemale ? 0.80 : 0.92, 1.0, isFemale ? 0.92 : 0.98);
+            bootSole.position.set(0, -0.072, 0.028);
+
+            const heelNozzle = new THREE.Mesh(baseGeos.exoHeelNozzle, subMat);
+            heelNozzle.scale.setScalar(0.82);
+            heelNozzle.rotation.x = -0.28;
+            heelNozzle.position.set(0, -0.028, -0.082);
+
+            const thrusterFlame = new THREE.Mesh(baseGeos.exoThrusterFlame, baseMats.thrusterGlow);
+            thrusterFlame.rotation.x = Math.PI - 0.28;
+            thrusterFlame.position.set(0, -0.092, -0.102);
+            thrusterFlame.visible = false;
+
+            anklePivot.add(bootCuff, bootFrame, bootToeVamp, bootToeGold, bootSole, heelNozzle, thrusterFlame);
+            return { hipPivot, kneePivot, anklePivot, thrusterFlame };
+        };
+
+        const legL = buildSculptedLeg(-1);
+        const legR = buildSculptedLeg(1);
+
+        // 3. Rumpf-Kuerass, leuchtender Seelenfunke-Bruststern, Wirbelsaeulen-Reaktor & 3-Gliedriger Mantel
+        const torsoPivot = new THREE.Group();
+        torsoPivot.position.set(0, 0.05, 0);
+        pelvisPivot.add(torsoPivot);
+
+        const cuirassMesh = new THREE.Mesh(cGeos.cuirassGeo, armorMat);
+        cuirassMesh.scale.set(isFemale ? 1.05 : 1.16, 1.0, isFemale ? 0.80 : 0.78);
+        torsoPivot.add(cuirassMesh);
+
+        // Edler Elfenbein-Alabaster Unterpanzer-Streifen + Brustplatte
+        const sternumInlay = new THREE.Mesh(baseGeos.lapel, inlayMat);
+        sternumInlay.scale.set(isFemale ? 1.5 : 1.9, 1.45, 0.8);
+        sternumInlay.position.set(0, 0.16, isFemale ? 0.118 : 0.128);
+        torsoPivot.add(sternumInlay);
+
+        const chestPlate = new THREE.Mesh(cGeos.chestPlateGeo, armorMat);
+        chestPlate.position.set(0, isFemale ? 0.265 : 0.275, isFemale ? 0.122 : 0.136);
+        torsoPivot.add(chestPlate);
+
+        const chestCollarGold = new THREE.Mesh(baseGeos.exoRibBrace, goldMat);
+        chestCollarGold.rotation.x = Math.PI * 0.42;
+        chestCollarGold.rotation.z = -Math.PI * 0.92;
+        chestCollarGold.scale.set(isFemale ? 0.62 : 0.76, isFemale ? 0.56 : 0.64, 0.85);
+        chestCollarGold.position.set(0, 0.365, 0.02);
+        torsoPivot.add(chestCollarGold);
+
+        const chestCoreBezel = new THREE.Mesh(baseGeos.cuffRing, brightGoldMat);
+        chestCoreBezel.scale.setScalar(isFemale ? 0.95 : 1.08);
+        chestCoreBezel.position.set(0, isFemale ? 0.285 : 0.292, isFemale ? 0.152 : 0.168);
+        torsoPivot.add(chestCoreBezel);
+
+        const chestStar = new THREE.Mesh(baseGeos.seelenfunkeStar, baseMats.seelenfunkeGold);
+        chestStar.scale.setScalar(isFemale ? 0.22 : 0.25);
+        chestStar.position.set(0, isFemale ? 0.285 : 0.292, isFemale ? 0.158 : 0.174);
+        torsoPivot.add(chestStar);
+
+        // Ruecken-Exoskelett & Funken-Reaktor
+        const exoBackFrame = new THREE.Group();
+        exoBackFrame.position.set(0, 0.21, isFemale ? -0.124 : -0.142);
+        torsoPivot.add(exoBackFrame);
+
+        const spineRail = new THREE.Mesh(baseGeos.exoSpineRail, subMat);
+        spineRail.scale.set(isFemale ? 0.72 : 0.88, 0.86, 0.72);
+        exoBackFrame.add(spineRail);
+
+        for (let vi = 0; vi < 5; vi++) {
+            const vert = new THREE.Mesh(baseGeos.exoVertebra, vi % 2 === 0 ? subMat : goldMat);
+            vert.scale.set(isFemale ? 0.72 : 0.88, 0.85, 0.75);
+            vert.position.set(0, -0.14 + vi * 0.072, -0.012);
+            exoBackFrame.add(vert);
+        }
+
+        const reactorHousing = new THREE.Mesh(baseGeos.exoReactorHex, armorMat);
+        reactorHousing.rotation.x = Math.PI * 0.5;
+        reactorHousing.scale.setScalar(isFemale ? 0.76 : 0.88);
+        reactorHousing.position.set(0, 0.07, -0.028);
+        exoBackFrame.add(reactorHousing);
+
+        const reactorRing = new THREE.Mesh(baseGeos.exoReactorRing, brightGoldMat);
+        reactorRing.scale.setScalar(isFemale ? 0.80 : 0.92);
+        reactorRing.position.set(0, 0.07, -0.056);
+        exoBackFrame.add(reactorRing);
+
+        const reactorCore = new THREE.Mesh(baseGeos.seelenfunkeStar, baseMats.seelenfunkeGold);
+        reactorCore.scale.setScalar(isFemale ? 0.18 : 0.21);
+        reactorCore.position.set(0, 0.07, -0.062);
+        exoBackFrame.add(reactorCore);
+
+        // 3-Segment Spring-Physik Mantel (Funki: Wappen-Umhang | Funkira: Doppelschleifen-Seidenmantel)
+        const capeRoot = new THREE.Group();
+        capeRoot.position.set(0, 0.365, isFemale ? -0.126 : -0.145);
+        torsoPivot.add(capeRoot);
+
+        const capePivots = [];
+        const buildCapeChain = (xOffset, yawSplay = 0) => {
+            const p1 = new THREE.Group();
+            p1.position.set(xOffset, 0, 0);
+            p1.rotation.y = yawSplay;
+            const clasp = new THREE.Mesh(baseGeos.buckleGem, brightGoldMat);
+            clasp.scale.set(0.55, 0.55, 0.35);
+            p1.add(clasp);
+
+            const m1 = new THREE.Mesh(cGeos.capeSeg1Geo, cMats.capeSilk);
+            m1.position.set(0, -0.115, -0.008);
+            p1.add(m1);
+            const hw1 = isFemale ? 0.057 : 0.17;
+            [-hw1, hw1].forEach((ex) => {
+                const ge = new THREE.Mesh(cGeos.capeGoldEdgeGeo, goldMat);
+                ge.position.set(ex, -0.115, -0.008);
+                p1.add(ge);
+            });
+
+            const p2 = new THREE.Group();
+            p2.position.set(0, -0.225, -0.008);
+            const m2 = new THREE.Mesh(cGeos.capeSeg2Geo, cMats.capeSilk);
+            m2.position.set(0, -0.122, -0.004);
+            p2.add(m2);
+            const hw2 = isFemale ? 0.065 : 0.19;
+            [-hw2, hw2].forEach((ex) => {
+                const ge2 = new THREE.Mesh(cGeos.capeGoldEdgeGeo, goldMat);
+                ge2.scale.y = 1.08;
+                ge2.position.set(ex, -0.122, -0.004);
+                p2.add(ge2);
+            });
+            p1.add(p2);
+
+            const p3 = new THREE.Group();
+            p3.position.set(0, -0.242, -0.004);
+            const m3 = new THREE.Mesh(cGeos.capeSeg3Geo, cMats.capeSilk);
+            p3.add(m3);
+            const tipGem = new THREE.Mesh(baseGeos.seelenfunkeStar, brightGoldMat);
+            tipGem.scale.setScalar(isFemale ? 0.14 : 0.22);
+            tipGem.position.set(0, -0.205, -0.004);
+            p3.add(tipGem);
+            p2.add(p3);
+
+            capeRoot.add(p1);
+            return [p1, p2, p3];
+        };
+
+        if (isFemale) {
+            capePivots.push(buildCapeChain(-0.085, 0.06), buildCapeChain(0.085, -0.06));
+        } else {
+            capePivots.push(buildCapeChain(0, 0));
+        }
+
+        // 4. Hals, hochaufloesender Visor-Helm & lebendiges 512x320 OLED-Gesicht
+        const neckPivot = new THREE.Group();
+        neckPivot.position.set(0, 0.435, 0);
+        torsoPivot.add(neckPivot);
+
+        const neckCol = new THREE.Mesh(baseGeos.potionVialNeck, subMat);
+        neckCol.scale.set(isFemale ? 1.85 : 2.25, 1.35, isFemale ? 1.85 : 2.25);
+        neckCol.position.set(0, 0.025, 0);
+        const neckGoldRing = new THREE.Mesh(baseGeos.cuffRing, goldMat);
+        neckGoldRing.rotation.x = Math.PI * 0.5;
+        neckGoldRing.scale.setScalar(isFemale ? 1.25 : 1.45);
+        neckGoldRing.position.set(0, 0.032, 0);
+        neckPivot.add(neckCol, neckGoldRing);
+
+        const headPivot = new THREE.Group();
+        headPivot.position.set(0, 0.068, 0);
+        neckPivot.add(headPivot);
+
+        const helmetCenterY = isFemale ? 0.132 : 0.140;
+        const helmetDome = new THREE.Mesh(cGeos.helmetDomeGeo, armorMat);
+        helmetDome.scale.set(isFemale ? 0.98 : 1.03, isFemale ? 1.05 : 1.08, isFemale ? 1.03 : 1.06);
+        helmetDome.position.set(0, helmetCenterY, 0);
+        headPivot.add(helmetDome);
+
+        const visorCtrl = this._createExoVisorFaceController(gender, customDisposableBucket);
+        const visorFaceMesh = new THREE.Mesh(cGeos.visorFaceGeo, visorCtrl.material);
+        visorFaceMesh.scale.copy(helmetDome.scale);
+        visorFaceMesh.position.set(0, helmetCenterY, 0.004);
+        headPivot.add(visorFaceMesh);
+
+        const visorCrystalCover = new THREE.Mesh(cGeos.visorShellGeo, cMats.visorGlassShell);
+        visorCrystalCover.scale.copy(helmetDome.scale);
+        visorCrystalCover.position.set(0, helmetCenterY, 0.006);
+        headPivot.add(visorCrystalCover);
+
+        // Goldener Visor-Rahmenbogen & Ohr-Sensoren
+        const visorBrowTrim = new THREE.Mesh(baseGeos.exoRibBrace, brightGoldMat);
+        visorBrowTrim.rotation.x = Math.PI * 0.44;
+        visorBrowTrim.rotation.z = -Math.PI * 0.92;
+        visorBrowTrim.scale.set(isFemale ? 0.68 : 0.74, 0.72, 0.62);
+        visorBrowTrim.position.set(0, helmetCenterY + 0.056, 0.020);
+        headPivot.add(visorBrowTrim);
+
+        const visorChinTrim = new THREE.Mesh(baseGeos.exoRibBrace, goldMat);
+        visorChinTrim.rotation.x = -Math.PI * 0.36;
+        visorChinTrim.rotation.z = -Math.PI * 0.92;
+        visorChinTrim.scale.set(isFemale ? 0.58 : 0.66, 0.64, 0.52);
+        visorChinTrim.position.set(0, helmetCenterY - 0.072, 0.018);
+        headPivot.add(visorChinTrim);
+
+        [-1, 1].forEach((sSign) => {
+            const earPod = new THREE.Mesh(baseGeos.earCap, subMat);
+            earPod.rotation.z = Math.PI * 0.5;
+            earPod.scale.setScalar(isFemale ? 0.88 : 1.02);
+            earPod.position.set(sSign * (isFemale ? 0.146 : 0.160), helmetCenterY, -0.006);
+
+            const earRing = new THREE.Mesh(baseGeos.cuffRing, brightGoldMat);
+            earRing.rotation.y = Math.PI * 0.5;
+            earRing.scale.setScalar(isFemale ? 0.78 : 0.90);
+            earRing.position.set(sSign * (isFemale ? 0.158 : 0.174), helmetCenterY, -0.006);
+            headPivot.add(earPod, earRing);
+
+            if (isFemale) {
+                const winglet = new THREE.Mesh(baseGeos.buckleGem, brightGoldMat);
+                winglet.scale.set(0.24, 0.95, 0.45);
+                winglet.rotation.z = sSign * -0.42;
+                winglet.rotation.x = -0.28;
+                winglet.position.set(sSign * 0.162, helmetCenterY + 0.036, -0.022);
+                headPivot.add(winglet);
+            }
+        });
+
+        // Charakteristischer Kopfschmuck: Funki = Goldener Helmkamm | Funkira = Sternen-Diadem
+        const helmetCrest = new THREE.Mesh(cGeos.helmetCrestGeo, brightGoldMat);
+        if (isFemale) {
+            helmetCrest.position.set(0, helmetCenterY + 0.088, 0.128);
+            helmetCrest.rotation.x = -0.22;
+            const tiaraGem = new THREE.Mesh(baseGeos.seelenfunkeStar, baseMats.seelenfunkeGold);
+            tiaraGem.scale.setScalar(0.14);
+            tiaraGem.position.set(0, helmetCenterY + 0.122, 0.140);
+            headPivot.add(tiaraGem);
+        } else {
+            helmetCrest.rotation.y = Math.PI * 0.5;
+            helmetCrest.position.set(-0.008, helmetCenterY + 0.132, 0.065);
+        }
+        headPivot.add(helmetCrest);
+
+        const sparkCrest = new THREE.Mesh(
+            isMaster ? baseGeos.seelenfunkeStar : baseGeos.crestSmall,
+            isMaster ? baseMats.seelenfunkeGold : brightGoldMat
+        );
+        if (isMaster) {
+            sparkCrest.scale.setScalar(0.24);
+        } else {
+            sparkCrest.scale.setScalar(0.72);
+        }
+        sparkCrest.position.set(0, helmetCenterY + 0.255, 0);
+        sparkCrest.visible = lvl >= 4;
+        headPivot.add(sparkCrest);
+
+        // 5. Schulter-Pauldrons, Hydraulik-Arme & voll artikulierte 5-Finger-Exo-Handschuhe
+        const shoulderOffsetX = isFemale ? 0.196 : 0.236;
+        const buildSculptedArm = (sideSign) => {
+            const shoulderPivot = new THREE.Group();
+            shoulderPivot.position.set(sideSign * shoulderOffsetX, 0.368, -0.006);
+            torsoPivot.add(shoulderPivot);
+
+            const shJoint = new THREE.Mesh(cGeos.jointSphereGeo, subMat);
+            const pauldron = new THREE.Mesh(cGeos.pauldronDomeGeo, armorMat);
+            pauldron.rotation.y = sideSign > 0 ? -Math.PI * 0.14 : Math.PI * 0.86;
+            pauldron.rotation.z = sideSign * -0.26;
+            pauldron.position.set(sideSign * 0.012, 0.014, 0);
+
+            const pauldronRim = new THREE.Mesh(baseGeos.shoulderTrim, brightGoldMat);
+            pauldronRim.rotation.y = Math.PI * 0.5;
+            pauldronRim.rotation.x = 0.38;
+            pauldronRim.scale.setScalar(isFemale ? 1.15 : 1.36);
+            pauldronRim.position.set(sideSign * 0.022, 0.012, 0);
+
+            const pauldronStar = new THREE.Mesh(baseGeos.buckleGem, brightGoldMat);
+            pauldronStar.scale.set(0.32, 0.65, 0.32);
+            pauldronStar.rotation.z = sideSign * -0.45;
+            pauldronStar.position.set(sideSign * (isFemale ? 0.072 : 0.088), 0.028, 0.012);
+
+            const upperArm = new THREE.Mesh(cGeos.upperArmShellGeo, armorMat);
+            const armPistonSleeve = new THREE.Mesh(baseGeos.exoPistonSleeve, subMat);
+            armPistonSleeve.scale.set(0.62, 0.72, 0.62);
+            armPistonSleeve.position.set(sideSign * (isFemale ? 0.044 : 0.054), -0.095, 0.010);
+            const armPistonRod = new THREE.Mesh(baseGeos.exoPistonRod, goldMat);
+            armPistonRod.scale.set(0.68, 0.76, 0.68);
+            armPistonRod.position.set(sideSign * (isFemale ? 0.044 : 0.054), -0.132, 0.010);
+
+            shoulderPivot.add(shJoint, pauldron, pauldronRim, pauldronStar, upperArm, armPistonSleeve, armPistonRod);
+
+            const elbowPivot = new THREE.Group();
+            elbowPivot.position.set(0, -0.228, 0);
+            shoulderPivot.add(elbowPivot);
+
+            const elbowBall = new THREE.Mesh(cGeos.jointSphereGeo, subMat);
+            elbowBall.scale.setScalar(0.80);
+            const elbowGoldCap = new THREE.Mesh(baseGeos.earCap, goldMat);
+            elbowGoldCap.rotation.z = Math.PI * 0.5;
+            elbowGoldCap.scale.setScalar(0.62);
+            elbowGoldCap.position.set(sideSign * (isFemale ? 0.036 : 0.044), 0, 0);
+
+            const forearm = new THREE.Mesh(cGeos.forearmShellGeo, armorMat);
+            const forearmStripe = new THREE.Mesh(baseGeos.thighStripe, brightGoldMat);
+            forearmStripe.scale.set(0.55, 0.56, 0.55);
+            forearmStripe.position.set(sideSign * (isFemale ? 0.036 : 0.045), -0.105, 0.010);
+
+            const wristCuff = new THREE.Mesh(baseGeos.cuffRing, goldMat);
+            wristCuff.rotation.x = Math.PI * 0.5;
+            wristCuff.scale.setScalar(isFemale ? 0.84 : 0.98);
+            wristCuff.position.set(0, -0.198, 0);
+
+            elbowPivot.add(elbowBall, elbowGoldCap, forearm, forearmStripe, wristCuff);
+
+            const wristPivot = new THREE.Group();
+            wristPivot.position.set(0, -0.208, 0);
+            elbowPivot.add(wristPivot);
+
+            const handScale = isFemale ? 0.86 : 1.0;
+            const palm = new THREE.Mesh(baseGeos.palm, subMat);
+            palm.scale.setScalar(handScale);
+            palm.position.set(0, -0.030 * handScale, 0.004);
+
+            const dorsalPlate = new THREE.Mesh(baseGeos.dorsalPlate, armorMat);
+            dorsalPlate.scale.setScalar(handScale);
+            dorsalPlate.position.set(sideSign * 0.006, -0.028 * handScale, 0.004);
+
+            const dorsalGoldGem = new THREE.Mesh(baseGeos.buckleGem, brightGoldMat);
+            dorsalGoldGem.scale.set(0.24 * handScale, 0.40 * handScale, 0.24 * handScale);
+            dorsalGoldGem.position.set(sideSign * 0.026 * handScale, -0.028 * handScale, 0.004);
+
+            const thumbPivot = new THREE.Group();
+            thumbPivot.position.set(-sideSign * 0.012 * handScale, -0.022 * handScale, 0.026 * handScale);
+            const thumbProx = new THREE.Mesh(cGeos.phalanxProxGeo, armorMat);
+            thumbProx.scale.setScalar(handScale * 0.95);
+            thumbProx.position.set(0, -0.012 * handScale, 0.008 * handScale);
+            thumbProx.rotation.x = -0.48;
+            thumbProx.rotation.z = -sideSign * 0.22;
+            const thumbTip = new THREE.Mesh(cGeos.phalanxDistGeo, brightGoldMat);
+            thumbTip.scale.setScalar(handScale * 0.88);
+            thumbTip.position.set(0, -0.028 * handScale, 0.018 * handScale);
+            thumbTip.rotation.x = -0.62;
+            thumbPivot.add(thumbProx, thumbTip);
+
+            const fingerCurl = new THREE.Group();
+            fingerCurl.position.set(0, -0.058 * handScale, 0.004);
+            const zOffsets = [0.020, 0.007, -0.006, -0.019];
+            const lengths = [0.95, 1.05, 0.98, 0.82];
+            for (let fi = 0; fi < 4; fi++) {
+                const len = lengths[fi] * handScale;
+                const knuckle = new THREE.Mesh(cGeos.knuckleRingGeo, brightGoldMat);
+                knuckle.rotation.y = Math.PI * 0.5;
+                knuckle.scale.setScalar(handScale);
+                knuckle.position.set(sideSign * 0.003, -0.002, zOffsets[fi] * handScale);
+
+                const prox = new THREE.Mesh(cGeos.phalanxProxGeo, armorMat);
+                prox.scale.set(handScale, len, handScale);
+                prox.position.set(sideSign * 0.003, -0.013 * len, zOffsets[fi] * handScale);
+                prox.rotation.z = sideSign * 0.10;
+
+                const dist = new THREE.Mesh(cGeos.phalanxDistGeo, goldMat);
+                dist.scale.set(handScale, len, handScale);
+                dist.position.set(sideSign * 0.006, -0.034 * len, zOffsets[fi] * handScale);
+                dist.rotation.z = sideSign * 0.22;
+
+                fingerCurl.add(knuckle, prox, dist);
+            }
+
+            wristPivot.add(palm, dorsalPlate, dorsalGoldGem, thumbPivot, fingerCurl);
+            return { shoulderPivot, elbowPivot, wristPivot, thumbPivot, fingerCurl };
+        };
+
+        const armL = buildSculptedArm(-1);
+        const armR = buildSculptedArm(1);
+
+        const proceduralExoMeshes = [];
+        pelvisPivot.traverse((node) => {
+            if (node && node.isMesh) {
+                node.visible = false;
+                proceduralExoMeshes.push(node);
+            }
+        });
+
+        const builtRecord = {
+            root,
+            characterGender: gender,
+            isHighResExoskeleton: true,
+            visorCtrl,
+            capePivots,
+            capeAngles: new Float32Array([0.06, 0.08, 0.10]),
+            capeVels: new Float32Array(3),
+            capeYawAngles: new Float32Array(3),
+            capeYawVels: new Float32Array(3),
+            tassetPivotL,
+            tassetPivotR,
+            chestStar,
+            skinnedHostGroup,
+            weaponMesh: null,
+            proceduralExoMeshes,
+            skinnedRig: null,
+            readyPromise: null,
+            joints: {
+                footShadow,
+                baseRing,
+                pelvisPivot,
+                torsoPivot,
+                neckPivot,
+                headPivot,
+                sparkCrest,
+                reactorRing,
+                reactorCore,
+                thrusterFlameL: legL.thrusterFlame,
+                thrusterFlameR: legR.thrusterFlame,
+                hipPivotL: legL.hipPivot,
+                kneePivotL: legL.kneePivot,
+                anklePivotL: legL.anklePivot,
+                hipPivotR: legR.hipPivot,
+                kneePivotR: legR.kneePivot,
+                anklePivotR: legR.anklePivot,
+                shoulderPivotL: armL.shoulderPivot,
+                elbowPivotL: armL.elbowPivot,
+                wristPivotL: armL.wristPivot,
+                thumbPivotL: armL.thumbPivot,
+                fingerCurlL: armL.fingerCurl,
+                shoulderPivotR: armR.shoulderPivot,
+                elbowPivotR: armR.elbowPivot,
+                wristPivotR: armR.wristPivot,
+                thumbPivotR: armR.thumbPivot,
+                fingerCurlR: armR.fingerCurl,
+            },
+        };
+
+        const genAtCreate = this._monumentGeneration;
+        builtRecord.readyPromise = this._loadNativeRiggedAvatarTemplate(gender)
+            .then((tpl) => {
+                if (this.destroyed || !this.THREE) return null;
+                if (Array.isArray(customDisposableBucket) && genAtCreate !== this._monumentGeneration) return null;
+                const rig = this._createSkinnedFunkiFromTemplate(tpl, customDisposableBucket);
+                if (builtRecord.weaponMesh && rig.rightHandWeaponSocket) {
+                    rig.rightHandWeaponSocket.add(builtRecord.weaponMesh);
+                }
+                skinnedHostGroup.add(rig.skinnedMesh);
+                builtRecord.skinnedRig = rig;
+                if (isLocalPlayer) {
+                    this._applyEquippedArmoryToPlayerRig(rig);
+                }
+                this._syncSkinnedFunkiBones(rig, builtRecord.joints, 0, {
+                    dt: 0.016,
+                    speed: 0,
+                    vy: 0,
+                    turnRate: 0,
+                    animState: 'idle',
+                });
+                if (rig.mixer) {
+                    rig.mixer.update(0);
+                }
+                if (!isLocalPlayer || this._engineReady) {
+                    root.visible = isLocalPlayer ? !(this.camControl && this.camControl.distance < 0.55) : true;
+                }
+                return rig;
+            })
+            .catch(() => {
+                for (let mi = 0; mi < proceduralExoMeshes.length; mi++) {
+                    const pm = proceduralExoMeshes[mi];
+                    if (pm !== legL.thrusterFlame && pm !== legR.thrusterFlame) {
+                        pm.visible = true;
+                    }
+                }
+                if (!isLocalPlayer || this._engineReady) {
+                    root.visible = isLocalPlayer ? !(this.camControl && this.camControl.distance < 0.55) : true;
+                }
+                return null;
+            });
+
+        return builtRecord;
+    }
+
+    /**
+     * Aktualisiert Mantel-Spring-Physik, Hueft-Tassetten, Brust-Sternkern & das lebendige 512x320 OLED-Visor-Gesicht
+     * fuer Funki & Funkira in Echtzeit (allokationsfrei fuer 60 FPS!).
+     */
+    _updateExoskeletonCharacterExtras(builtRecord, dt, kinMeta = null) {
+        if (!builtRecord || !builtRecord.isHighResExoskeleton) return;
+        const stepDt = clamp(dt || 0.016, 0.001, 0.045);
+        const speed = (kinMeta && kinMeta.speed) ? kinMeta.speed : 0;
+        const vy = (kinMeta && kinMeta.vy) ? kinMeta.vy : 0;
+        const turnRate = (kinMeta && kinMeta.turnRate) ? kinMeta.turnRate : 0;
+        const sprintBoost = (kinMeta && kinMeta.sprintBoost) ? kinMeta.sprintBoost : 0;
+        const isJumping = Boolean(kinMeta && kinMeta.isJumping);
+        const isSomersault = Boolean(kinMeta && kinMeta.isSomersault);
+        const emote = (kinMeta && kinMeta.emote) ? kinMeta.emote : null;
+        const headYaw = (kinMeta && kinMeta.headYaw) ? kinMeta.headYaw : 0;
+        const headPitch = (kinMeta && kinMeta.headPitch) ? kinMeta.headPitch : 0;
+
+        // 1. Lebendiges OLED-Visor-Gesicht
+        if (builtRecord.visorCtrl) {
+            let mood = 'idle';
+            if (isSomersault || emote === 'cheer' || emote === 'dance' || emote === 'clap') {
+                mood = 'joy';
+            } else if (sprintBoost > 0.35) {
+                mood = 'sprint';
+            } else if (isJumping) {
+                mood = 'jump';
+            }
+            builtRecord.visorCtrl.update(stepDt, headYaw, headPitch, mood);
+        }
+
+        // 2. Artikulierte Hueft-Tassetten schwingen kollisionsfrei mit dem Oberschenkelhub mit
+        const j = builtRecord.joints;
+        const isFem = builtRecord.characterGender === 'female';
+        if (builtRecord.tassetPivotL && j && j.hipPivotL) {
+            const liftL = Math.max(0, -j.hipPivotL.rotation.x);
+            builtRecord.tassetPivotL.rotation.z = -(isFem ? 0.16 : 0.11) - liftL * 0.32;
+        }
+        if (builtRecord.tassetPivotR && j && j.hipPivotR) {
+            const liftR = Math.max(0, -j.hipPivotR.rotation.x);
+            builtRecord.tassetPivotR.rotation.z = (isFem ? 0.16 : 0.11) + liftR * 0.32;
+        }
+
+        // 3. Sanfter Puls des Seelenfunke-Bruststerns
+        if (builtRecord.chestStar) {
+            const pulse = (isFem ? 0.22 : 0.25) * (1.0 + Math.sin(this.elapsedTime * 2.8) * 0.045);
+            builtRecord.chestStar.scale.setScalar(pulse);
+        }
+
+        // 4. 3-Segment Mantel-Spring-Physik (weht geschmeidig bei Lauf, Sprint, Sprung & Salto)
+        if (builtRecord.capePivots && builtRecord.capePivots.length > 0) {
+            const speedNorm = clamp(speed / 8.6, 0, 1.0);
+            const airLift = vy < -0.2 ? clamp((-vy) * 0.052, 0, 0.42) : (vy > 0.35 ? 0.10 : 0.0);
+            const flutter = Math.sin(this.elapsedTime * (3.4 + speedNorm * 9.0)) * (0.016 + speedNorm * 0.055);
+            const targetYaw = clamp(-turnRate * 0.048, -0.30, 0.30);
+
+            for (let si = 0; si < 3; si++) {
+                const segWeight = si === 0 ? 0.56 : (si === 1 ? 0.86 : 1.12);
+                const restGravity = 0.065 + si * 0.022;
+                const targetPitch = clamp(
+                    restGravity + (speedNorm * 0.44 + airLift) * segWeight + flutter * (0.35 + si * 0.45),
+                    0.04,
+                    0.74
+                );
+                const curP = builtRecord.capeAngles[si];
+                const accP = (targetPitch - curP) * 34.0 - builtRecord.capeVels[si] * 8.2;
+                builtRecord.capeVels[si] += accP * stepDt;
+                const nextP = clamp(curP + builtRecord.capeVels[si] * stepDt, 0.04, 0.78);
+                builtRecord.capeAngles[si] = nextP;
+
+                const curY = builtRecord.capeYawAngles[si];
+                const accY = (targetYaw * (0.45 + si * 0.30) - curY) * 26.0 - builtRecord.capeYawVels[si] * 7.4;
+                builtRecord.capeYawVels[si] += accY * stepDt;
+                const nextY = clamp(curY + builtRecord.capeYawVels[si] * stepDt, -0.34, 0.34);
+                builtRecord.capeYawAngles[si] = nextY;
+
+                for (let ci = 0; ci < builtRecord.capePivots.length; ci++) {
+                    const chain = builtRecord.capePivots[ci];
+                    if (chain && chain[si]) {
+                        const baseSplay = (builtRecord.capePivots.length > 1 && si === 0) ? (ci === 0 ? 0.06 : -0.06) : 0;
+                        chain[si].rotation.set(nextP, baseSplay + nextY, -nextY * 0.45);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Erzeugt den Funki-/Funkira-Charakter (Stufe 1 bis 10):
+     * - Begehbarer Spieler & Mitspieler: Hochaufloesendes MMO-Exoskelett (Maennlicher Funki / Weibliche Funkira) mit 512x320 OLED-Visor (0 maulender Mund!).
+     * - Top-5-Ehrenpodeste (options.useHeroPedestalGlb === true): Stufen-GLB-Statuen (funki_lvl_1..10.glb) inkl. 22-Bone SkinnedMesh.
+     */
+    _createArticulatedAvatarInstance(level, weaponInfo, isLocalPlayer = false, customModelUrl = null, customDisposableBucket = null, avatarOpts = null) {
+        const useHeroPedestalGlb = Boolean(avatarOpts && avatarOpts.useHeroPedestalGlb);
+        if (!useHeroPedestalGlb) {
+            const gender = (avatarOpts && (avatarOpts.gender === 'female' || avatarOpts.gender === 'male'))
+                ? avatarOpts.gender
+                : (this.characterGender === 'female' ? 'female' : 'male');
+            return this._buildHighResExoskeletonAvatar(level, gender, isLocalPlayer, customDisposableBucket);
+        }
+
         const THREE = this.THREE;
         const shared = this._ensureAvatarSharedPool();
         const { mats, geos } = shared;
@@ -9463,6 +12533,7 @@ class SeelenfunkeLouvreShowroom3D {
 
         const skinnedHostGroup = new THREE.Group();
         skinnedHostGroup.position.y = 0.004;
+        skinnedHostGroup.scale.setScalar(1.0);
         root.add(skinnedHostGroup);
 
         const pelvisPivot = new THREE.Group();
@@ -9757,6 +12828,9 @@ class SeelenfunkeLouvreShowroom3D {
                 }
                 skinnedHostGroup.add(rig.skinnedMesh);
                 builtRecord.skinnedRig = rig;
+                if (isLocalPlayer) {
+                    this._applyEquippedArmoryToPlayerRig(rig);
+                }
                 this._syncSkinnedFunkiBones(rig, builtRecord.joints, 0, { dt: 0.016, speed: 0, vy: 0, turnRate: 0, animState: 'idle' });
                 if (rig.mixer) {
                     rig.mixer.update(0);
@@ -9793,7 +12867,9 @@ class SeelenfunkeLouvreShowroom3D {
             || this._resolveFunkiModelUrl(lvl, null);
         const playerModelUrl = this._sanitizeStandingFunkiUrl(lvl, rawPlayerUrl);
 
-        const built = this._createArticulatedAvatarInstance(lvl, null, true, playerModelUrl);
+        const built = this._createArticulatedAvatarInstance(lvl, null, true, playerModelUrl, null, {
+            gender: this.characterGender === 'female' ? 'female' : 'male',
+        });
         built.root.visible = false;
         built.root.position.set(this.player.x, this.player.y, this.player.z);
         built.root.rotation.y = this.player.yaw;
@@ -9803,7 +12879,60 @@ class SeelenfunkeLouvreShowroom3D {
         this.player.root = built.root;
         this.player.joints = built.joints;
 
+        // Pre-warm das zweite Geschlechts-GLB im Hintergrund fuer 0ms Sofort-Wechsel im HUD!
+        const alternateGender = this.characterGender === 'female' ? 'male' : 'female';
+        this._loadNativeRiggedAvatarTemplate(alternateGender).catch(() => null);
+
         return built.readyPromise || Promise.resolve();
+    }
+
+    getCharacterGender() {
+        return this.characterGender === 'female' ? 'female' : 'male';
+    }
+
+    setCharacterGender(rawGender) {
+        const cleanGender = rawGender === 'female' ? 'female' : 'male';
+        this.characterGender = cleanGender;
+        this.userSettings = saveLobbyUserSettings({ characterGender: cleanGender });
+
+        if (this.destroyed || !this.THREE || !this.scene) {
+            return cleanGender;
+        }
+
+        const prevBuilt = this.player.builtRecord;
+        if (prevBuilt && prevBuilt.characterGender === cleanGender && prevBuilt.isHighResExoskeleton) {
+            return cleanGender;
+        }
+
+        const prevBubble = this.player.bubbleSprite || null;
+        if (prevBuilt && prevBuilt.root) {
+            if (prevBubble && prevBubble.parent === prevBuilt.root) {
+                prevBuilt.root.remove(prevBubble);
+            }
+            this.scene.remove(prevBuilt.root);
+        }
+
+        const lvl = clamp(parseInt(this.playerProfile.level, 10) || 2, 1, 10);
+        const nextBuilt = this._createArticulatedAvatarInstance(lvl, null, true, null, null, {
+            gender: cleanGender,
+        });
+        const floorOffset = this._computeFloorBaseY(this.player.x, this.player.z);
+        nextBuilt.root.position.set(this.player.x, floorOffset + (this.player.y || 0), this.player.z);
+        nextBuilt.root.rotation.y = this.player.yaw || Math.PI;
+        nextBuilt.root.visible = Boolean(this._engineReady && !(this.camControl && this.camControl.distance < 0.55));
+        if (prevBubble) {
+            nextBuilt.root.add(prevBubble);
+        }
+        this.scene.add(nextBuilt.root);
+
+        this.player.builtRecord = nextBuilt;
+        this.player.root = nextBuilt.root;
+        this.player.joints = nextBuilt.joints;
+        this._updatePlayerKinematics(0.016, 0, 0, null, 0);
+        this._spawnDoubleJumpBurst(this.player.x, (this.player.y || 0) + 0.14, this.player.z);
+        this._emitPlayerHudUpdate();
+        this._notifyUrgentLocalSync('avatar_gender');
+        return cleanGender;
     }
 
     upgradePlayerModel(rawNewLevel, rawNewModelUrl = null) {
@@ -9820,6 +12949,14 @@ class SeelenfunkeLouvreShowroom3D {
         this.playerFunki.glb_url = nextUrl;
         this.playerFunki.model_url = nextUrl;
         this._emitPlayerHudUpdate();
+
+        if (this.player.builtRecord.isHighResExoskeleton) {
+            if (this.player.joints && this.player.joints.sparkCrest) {
+                this.player.joints.sparkCrest.visible = newLvl >= 4;
+            }
+            this._spawnDoubleJumpBurst(this.player.x, (this.player.y || 0) + 0.14, this.player.z);
+            return Promise.resolve(true);
+        }
 
         return this._loadRiggedFunkiTemplate(newLvl, nextUrl)
             .then((tpl) => {
@@ -9912,10 +13049,10 @@ class SeelenfunkeLouvreShowroom3D {
                 const hz = (ky * skx + kz * ckx);
                 for (let xi = 0; xi < 2; xi++) {
                     const hx = soleXs[xi];
-                    // 3. hipPivot Euler XYZ (hrx, 0, hrz): erst Z, dann X + translate(sideSign * 0.145, -0.04, 0)
+                    // 3. hipPivot Euler XYZ (hrx, 0, hrz): erst Z, dann X + translate(hipPivot.position.x, -0.04, 0)
                     const zRotX = hx * chz - hy * shz;
                     const zRotY = hx * shz + hy * chz;
-                    const lx = zRotX + sideSign * 0.145;
+                    const lx = zRotX + (hipPivot.position.x || (sideSign * 0.145));
                     const ly = (zRotY * chx - hz * shx) - 0.04;
                     const lz = (zRotY * shx + hz * chx);
                     // 4. pelvisPivot Euler XYZ (prx, pry, prz): erst Z, dann Y, dann X + translate(px, py, pz)
@@ -10189,10 +13326,57 @@ class SeelenfunkeLouvreShowroom3D {
             j.torsoPivot.rotation.x = lerp(j.torsoPivot.rotation.x, -0.10, aw);
         }
 
+        // Dynamische 3-Stufen-Waffenschwung-Choreografie am rechten Waffenarm (shoulderPivotL / elbowPivotL / wristPivotL / torsoPivot)
+        if ((this.player.weaponSwingTimer || 0) > 0) {
+            this.player.weaponSwingTimer = Math.max(0, this.player.weaponSwingTimer - dt);
+            const dur = Math.max(0.12, this.player.weaponSwingDuration || 0.38);
+            const prog = clamp(1.0 - (this.player.weaponSwingTimer / dur), 0, 1);
+            const bell = Math.sin(prog * Math.PI);
+            const step = this.player.weaponComboStep || 1;
+
+            if (step === 1) {
+                const sweep = prog < 0.25 ? lerp(0, -0.45, prog / 0.25) : lerp(-0.45, 1.0, (prog - 0.25) / 0.75);
+                j.torsoPivot.rotation.y += lerp(0.32, -0.36, prog) * bell;
+                j.torsoPivot.rotation.x += 0.14 * bell;
+                j.shoulderPivotL.rotation.x = lerp(j.shoulderPivotL.rotation.x, -1.55 + sweep * 1.15, bell);
+                j.shoulderPivotL.rotation.z = lerp(j.shoulderPivotL.rotation.z, -0.42 + sweep * 0.58, bell);
+                j.elbowPivotL.rotation.x = lerp(j.elbowPivotL.rotation.x, -0.52 + sweep * 0.36, bell);
+                j.wristPivotL.rotation.x = lerp(j.wristPivotL.rotation.x, 0.48 * sweep, bell);
+            } else if (step === 2) {
+                const sweep = prog < 0.22 ? lerp(0, -0.35, prog / 0.22) : lerp(-0.35, 1.0, (prog - 0.22) / 0.78);
+                j.torsoPivot.rotation.y += lerp(-0.30, 0.34, prog) * bell;
+                j.shoulderPivotL.rotation.x = lerp(j.shoulderPivotL.rotation.x, -0.42 - sweep * 1.25, bell);
+                j.shoulderPivotL.rotation.z = lerp(j.shoulderPivotL.rotation.z, 0.22 - sweep * 0.55, bell);
+                j.elbowPivotL.rotation.x = lerp(j.elbowPivotL.rotation.x, -0.28 - sweep * 0.24, bell);
+                j.wristPivotL.rotation.x = lerp(j.wristPivotL.rotation.x, -0.35 * sweep, bell);
+            } else {
+                // Schritt 3: Kraftvoller Lanzen-/Speer-Vorwaertsstoss
+                const thrust = prog < 0.28 ? lerp(0, -0.30, prog / 0.28) : Math.sin(((prog - 0.28) / 0.72) * Math.PI * 0.82);
+                j.torsoPivot.rotation.x += 0.22 * bell;
+                j.torsoPivot.rotation.y += -0.40 * bell;
+                j.shoulderPivotL.rotation.x = lerp(j.shoulderPivotL.rotation.x, -1.42 - thrust * 0.24, bell);
+                j.shoulderPivotL.rotation.z = lerp(j.shoulderPivotL.rotation.z, -0.10, bell);
+                j.elbowPivotL.rotation.x = lerp(j.elbowPivotL.rotation.x, -0.10 * (1 - Math.max(0, thrust)), bell);
+                j.wristPivotL.rotation.x = lerp(j.wristPivotL.rotation.x, 0.36, bell);
+            }
+        } else if (this.equippedArmory && this.equippedArmory.weapon && !this.player.emote) {
+            // Aufrechte Paladin-Bereitschaftshaltung seitlich neben der rechten Schulter (0% Brust-/Gesichts-Clipping!)
+            j.shoulderPivotL.rotation.x = lerp(j.shoulderPivotL.rotation.x, -0.22, 0.62);
+            j.shoulderPivotL.rotation.z = lerp(j.shoulderPivotL.rotation.z, -0.26, 0.62);
+            j.elbowPivotL.rotation.x = lerp(j.elbowPivotL.rotation.x, -0.34, 0.62);
+            j.wristPivotL.rotation.z = lerp(j.wristPivotL.rotation.z, 0.12, 0.62);
+        }
+
         if (j.thrusterFlameL && j.thrusterFlameR) {
-            const showThrusters = !(this.player.builtRecord && this.player.builtRecord.skinnedRig) && sprintBoost > 0.15;
+            const showThrusters = !(this.player.builtRecord && this.player.builtRecord.skinnedRig)
+                && (sprintBoost > 0.15 || this.player.isSomersault || (this.player.isJumping && (this.player.vy || 0) > 1.2));
             j.thrusterFlameL.visible = showThrusters;
             j.thrusterFlameR.visible = showThrusters;
+            if (showThrusters) {
+                const flPulse = 0.85 + Math.sin(this.elapsedTime * 36.0) * 0.22;
+                j.thrusterFlameL.scale.set(0.92, flPulse, 0.92);
+                j.thrusterFlameR.scale.set(0.92, flPulse, 0.92);
+            }
         }
         if (j.reactorRing) {
             j.reactorRing.rotation.z = this.elapsedTime * (1.1 + 2.9 * sprintBoost);
@@ -10250,6 +13434,20 @@ class SeelenfunkeLouvreShowroom3D {
         const animState = isAwakening
             ? 'cast'
             : ((airBlend > 0.25 || wc > 0.25) ? 'jump' : (mb > 0.18 ? 'run' : 'idle'));
+
+        if (this.player.builtRecord && this.player.builtRecord.isHighResExoskeleton) {
+            this._updateExoskeletonCharacterExtras(this.player.builtRecord, dt, {
+                speed: instantSpeed,
+                vy: this.player.vy || 0,
+                turnRate,
+                sprintBoost,
+                isJumping: Boolean(this.player.isJumping || airBlend > 0.22),
+                isSomersault: Boolean(this.player.isSomersault),
+                emote: this.player.emote || null,
+                headYaw: this.player.headYaw,
+                headPitch: this.player.headPitch,
+            });
+        }
 
         // Sanft geklemmte Knochenwinkel, Hand-/Finger-Posen, Crossfading & Umhang-Spring-Physik auf das 22-Bone THREE.SkinnedMesh uebertragen!
         if (this.player.builtRecord && this.player.builtRecord.skinnedRig) {
@@ -10508,11 +13706,20 @@ class SeelenfunkeLouvreShowroom3D {
         if (partial.graphicsQuality !== undefined) {
             settingsPatch.graphicsQuality = partial.graphicsQuality === 'balanced' ? 'balanced' : 'high';
         }
+        if (partial.skyTimeMode !== undefined) {
+            settingsPatch.skyTimeMode = (partial.skyTimeMode === 'day' || partial.skyTimeMode === 'night') ? partial.skyTimeMode : 'auto';
+        }
         if (Object.keys(settingsPatch).length > 0) {
             this.userSettings = saveLobbyUserSettings(settingsPatch);
             if (settingsPatch.graphicsQuality !== undefined) {
                 this.resize();
             }
+            if (settingsPatch.skyTimeMode !== undefined) {
+                this.rebuildSkyEnvironment();
+            }
+        }
+        if (partial.characterGender === 'female' || partial.characterGender === 'male') {
+            this.setCharacterGender(partial.characterGender);
         }
         if (partial.resetKeybindings) {
             this.resetKeybindings();
@@ -10544,40 +13751,82 @@ class SeelenfunkeLouvreShowroom3D {
         this.keybindings = resetLobbyKeybindings();
         return this.getKeybindings();
     }
+    _executeWallSalto(rawWnX, rawWnZ) {
+        const len = Math.hypot(rawWnX || 0, rawWnZ || 0);
+        const wnX = len > 0.001 ? (rawWnX / len) : Math.sin(this.player.yaw || 0);
+        const wnZ = len > 0.001 ? (rawWnZ / len) : Math.cos(this.player.yaw || 0);
+
+        // Aktive WASD-Richtung einmischen, damit man in Ecken & Gaengen nahtlos von Wand zu Wand zielen kann!
+        let steerVx = 0;
+        let steerVz = 0;
+        const inMag = Math.hypot(this.player.smoothInputForward || 0, this.player.smoothInputRight || 0);
+        if (inMag > 0.05 && this.camControl) {
+            const nf = (this.player.smoothInputForward || 0) / Math.max(1.0, inMag);
+            const nr = (this.player.smoothInputRight || 0) / Math.max(1.0, inMag);
+            const sinY = Math.sin(this.camControl.yaw || 0);
+            const cosY = Math.cos(this.camControl.yaw || 0);
+            steerVx = (-sinY * nf + cosY * nr) * 3.4;
+            steerVz = (-cosY * nf - sinY * nr) * 3.4;
+        }
+
+        const kickVx = clamp(wnX * 6.35 + steerVx, -8.9, 8.9);
+        const kickVz = clamp(wnZ * 6.35 + steerVz, -8.9, 8.9);
+
+        this.player.isWallClinging = false;
+        this.player.wallClingTimer = 0.0;
+        this.player.wallTouchTimer = 0.0;
+        this.player.wallJumpBufferTimer = 0.0;
+        this.player.wallClingUsed = false;
+        this.player.wallJumpChain = (this.player.wallJumpChain || 0) + 1;
+        this.player.lastWallJumpNx = wnX;
+        this.player.lastWallJumpNz = wnZ;
+        this.player.sameWallCooldown = 0.24;
+        this.player.wallNormalX = wnX;
+        this.player.wallNormalZ = wnZ;
+        this.player.wallClingBlend = 0.86;
+        this.player.isJumping = true;
+        this.player.jumpCount = 2;
+        this.player.vy = 6.85;
+        this.player.wallFlipVx = kickVx;
+        this.player.wallFlipVz = kickVz;
+        this.player.velX = kickVx;
+        this.player.velZ = kickVz;
+        this.player.worldVx = kickVx;
+        this.player.worldVz = kickVz;
+        this.player.currentSpeed = Math.hypot(kickVx, kickVz);
+        this.player.yaw = Math.atan2(-wnX, -wnZ);
+        this.player.somersaultSeq = (this.player.somersaultSeq || 0) + 1;
+        this.player.isSomersault = true;
+        this.player.somersaultDir = -1;
+        this.player.somersaultDuration = 0.58;
+        this.player.somersaultProgress = 0.0;
+
+        this._spawnWallKickBurst(
+            this.player.x - wnX * 0.28,
+            (this.player.y || 0) + 0.85,
+            this.player.z - wnZ * 0.28,
+            wnX,
+            wnZ
+        );
+        if (this.audio) this.audio.playJump(true);
+        this._notifyUrgentLocalSync('wall_flip');
+        return true;
+    }
+
     triggerJump() {
         if (!this.running || this.destroyed) return false;
 
-        // 0. Epischer Rueckwaertssalto (Wall-Backflip) direkt aus dem 1-Sekunden Wall-Cling an der Wand!
-        if (this.player.isWallClinging) {
-            const wnX = this.player.wallNormalX || 0;
-            const wnZ = this.player.wallNormalZ || 0;
-            this.player.isWallClinging = false;
-            this.player.wallClingTimer = 0;
-            this.player.isJumping = true;
-            this.player.jumpCount = 2;
-            this.player.vy = 6.75;
-            this.player.wallFlipVx = wnX * 6.5;
-            this.player.wallFlipVz = wnZ * 6.5;
-            this.player.velX = this.player.wallFlipVx;
-            this.player.velZ = this.player.wallFlipVz;
-            this.player.worldVx = this.player.wallFlipVx;
-            this.player.worldVz = this.player.wallFlipVz;
-            this.player.currentSpeed = Math.hypot(this.player.worldVx, this.player.worldVz);
-            this.player.somersaultSeq = (this.player.somersaultSeq || 0) + 1;
-            this.player.isSomersault = true;
-            this.player.somersaultDir = -1;
-            this.player.somersaultDuration = 0.62;
-            this.player.somersaultProgress = 0.0;
-            this._spawnWallKickBurst(
-                this.player.x - wnX * 0.28,
-                (this.player.y || 0) + 0.85,
-                this.player.z - wnZ * 0.28,
-                wnX,
-                wnZ
-            );
-            if (this.audio) this.audio.playJump(true);
-            this._notifyUrgentLocalSync('wall_flip');
-            return true;
+        const isAirborne = Boolean(this.player.isJumping || (this.player.y || 0) > 0.16);
+
+        // 0. Sofortiger Mehrfach-Wandsprung (0s Haltezeit: direkt an der Wand Leertaste druecken -> 360-Grad-Salto von Wand zu Wand!)
+        if (isAirborne && this._gateRepulseTimer <= 0) {
+            if (this.player.isWallClinging || (this.player.wallTouchTimer || 0) > 0) {
+                return this._executeWallSalto(this.player.wallNormalX || 0, this.player.wallNormalZ || 0);
+            }
+            const liveWall = this._detectWallForCling(this.player.x, this.player.z, false, 0, 0, true);
+            if (liveWall && liveWall.ok) {
+                return this._executeWallSalto(liveWall.nx, liveWall.nz);
+            }
         }
 
         const onGroundOrCoyote = (!this.player.isJumping && Math.abs((this.player.y || 0) - (this.player.groundY || 0)) <= 0.08)
@@ -10592,7 +13841,13 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.standingPlatform = null;
             this.player.wallClingUsed = false;
             this.player.isWallClinging = false;
-            this.player.wallClingTimer = 0;
+            this.player.wallClingTimer = 0.0;
+            this.player.wallTouchTimer = 0.0;
+            this.player.wallJumpBufferTimer = 0.0;
+            this.player.wallJumpChain = 0;
+            this.player.lastWallJumpNx = 0.0;
+            this.player.lastWallJumpNz = 0.0;
+            this.player.sameWallCooldown = 0.0;
             this.player.vy = 5.8;
             this.player.isSomersault = false;
             this.player.somersaultDir = 1;
@@ -10603,7 +13858,7 @@ class SeelenfunkeLouvreShowroom3D {
             return true;
         }
 
-        // 2. Doppelsprung mit 360-Grad Vorwaertssalto in der Luft
+        // 2. Doppelsprung mit 360-Grad Vorwaertssalto im freien Raum
         if (this.player.jumpCount === 1) {
             this.player.isJumping = true;
             this.player.jumpCount = 2;
@@ -10617,6 +13872,11 @@ class SeelenfunkeLouvreShowroom3D {
             if (this.audio) this.audio.playJump(true);
             this._notifyUrgentLocalSync('double_jump');
             return true;
+        }
+
+        // 3. Knapper Pre-Impact Input-Buffer (150 ms): Wer kurz vor dem naechsten Wandkontakt Leertaste drueckt, springt bei Kontakt in 0.00s sofort ab!
+        if (isAirborne) {
+            this.player.wallJumpBufferTimer = 0.15;
         }
 
         return false;
@@ -10960,6 +14220,7 @@ class SeelenfunkeLouvreShowroom3D {
             somersault_dir: this.player.isSomersault ? (this.player.somersaultDir || 1) : 0,
             somersault_prog: this.player.isSomersault ? round3(clamp(this.player.somersaultProgress || 0, 0, 1)) : 0,
             emote: activeEmote,
+            avatar_gender: this.characterGender === 'female' ? 'female' : 'male',
             combo_seq: 0,
             combo_stage: 0,
         };
@@ -11214,12 +14475,15 @@ class SeelenfunkeLouvreShowroom3D {
         const incomingSeq = Math.max(0, parseInt(pData.somersault_seq, 10) || 0);
         const incomingDir = Number(pData.somersault_dir) || 0;
         const peerLvl = clamp(parseInt(pData.level, 10) || 1, 1, 10);
+        const peerGender = pData.avatar_gender === 'female' ? 'female' : 'male';
         const resolvedYaw = (isPeerWallCling && (Math.abs(peerWallNx) > 0.01 || Math.abs(peerWallNz) > 0.01))
             ? Math.atan2(-peerWallNx, -peerWallNz)
             : tYaw;
 
         if (!peer) {
-            const built = this._createArticulatedAvatarInstance(peerLvl, null, false);
+            const built = this._createArticulatedAvatarInstance(peerLvl, null, false, null, null, {
+                gender: peerGender,
+            });
             const floorOffset = this._computeFloorBaseY(tx, tz);
             built.root.position.set(tx, floorOffset + ty, tz);
             built.root.rotation.y = resolvedYaw;
@@ -11229,7 +14493,7 @@ class SeelenfunkeLouvreShowroom3D {
             const accentHex = '#C5A059';
             const nameplateTex = buildPeerNameplateTexture(
                 THREE,
-                pData.display_name || 'Funki',
+                pData.display_name || (peerGender === 'female' ? 'Funkira' : 'Funki'),
                 peerLvl,
                 classLabel,
                 accentHex
@@ -11269,6 +14533,7 @@ class SeelenfunkeLouvreShowroom3D {
                 peerId: pData.peer_id ? String(pData.peer_id) : pid,
                 legacyPlayerId: pData.player_id ? String(pData.player_id) : pid,
                 level: peerLvl,
+                characterGender: peerGender,
                 builtRecord: built,
                 root: built.root,
                 joints: built.joints,
@@ -11333,6 +14598,29 @@ class SeelenfunkeLouvreShowroom3D {
         }
         if (pData.pkt_seq) {
             peer.lastPktSeq = Math.max(0, parseInt(pData.pkt_seq, 10) || 0);
+        }
+
+        if (pData.avatar_gender && peer.characterGender !== peerGender) {
+            peer.characterGender = peerGender;
+            const nextBuilt = this._createArticulatedAvatarInstance(peer.level || peerLvl, null, false, null, null, {
+                gender: peerGender,
+            });
+            const pFloor = this._computeFloorBaseY(peer.x, peer.z);
+            nextBuilt.root.position.set(peer.x, pFloor + peer.y, peer.z);
+            nextBuilt.root.rotation.y = peer.yaw;
+            if (peer.nameplateSprite) {
+                if (peer.root) peer.root.remove(peer.nameplateSprite);
+                nextBuilt.root.add(peer.nameplateSprite);
+            }
+            if (peer.bubbleSprite) {
+                if (peer.root) peer.root.remove(peer.bubbleSprite);
+                nextBuilt.root.add(peer.bubbleSprite);
+            }
+            if (peer.root) this.scene.remove(peer.root);
+            this.scene.add(nextBuilt.root);
+            peer.builtRecord = nextBuilt;
+            peer.root = nextBuilt.root;
+            peer.joints = nextBuilt.joints;
         }
 
         const dtPacket = Math.max(0.016, Math.min(1.2, this.elapsedTime - (peer.packetTime || peer.lastPacketAt || (this.elapsedTime - 0.033))));
@@ -11817,9 +15105,15 @@ class SeelenfunkeLouvreShowroom3D {
             }
 
             if (j.thrusterFlameL && j.thrusterFlameR) {
-                const peerThrusters = !(peer.builtRecord && peer.builtRecord.skinnedRig) && peerSprint > 0.15;
+                const peerThrusters = !(peer.builtRecord && peer.builtRecord.skinnedRig)
+                    && (peerSprint > 0.15 || peer.isSomersault || (activeJumping && (peer.vy || 0) > 1.2));
                 j.thrusterFlameL.visible = peerThrusters;
                 j.thrusterFlameR.visible = peerThrusters;
+                if (peerThrusters) {
+                    const pFl = 0.85 + Math.sin(this.elapsedTime * 34.0 + (peer.level || 1)) * 0.22;
+                    j.thrusterFlameL.scale.set(0.92, pFl, 0.92);
+                    j.thrusterFlameR.scale.set(0.92, pFl, 0.92);
+                }
             }
             if (j.reactorRing) {
                 j.reactorRing.rotation.z = this.elapsedTime * (peerSprint > 0.15 ? 4.0 : 1.1);
@@ -11841,6 +15135,20 @@ class SeelenfunkeLouvreShowroom3D {
             const sScale = 1.0 / (1.0 + aboveGround * 0.55);
             j.footShadow.scale.set(sScale, sScale, 1);
             j.sparkCrest.rotation.y = this.elapsedTime * 1.4;
+
+            if (peer.builtRecord && peer.builtRecord.isHighResExoskeleton) {
+                this._updateExoskeletonCharacterExtras(peer.builtRecord, dt, {
+                    speed: effectiveSpeed,
+                    vy: peer.vy || 0,
+                    turnRate: 0,
+                    sprintBoost: peerSprint,
+                    isJumping: Boolean(activeJumping || airBlend > 0.22),
+                    isSomersault: Boolean(peer.isSomersault),
+                    emote: peer.emote || null,
+                    headYaw: peer.headYaw || 0,
+                    headPitch: peer.headPitch || 0,
+                });
+            }
 
             if (peer.builtRecord && peer.builtRecord.skinnedRig) {
                 const skinnedRig = peer.builtRecord.skinnedRig;
@@ -11964,8 +15272,11 @@ class SeelenfunkeLouvreShowroom3D {
 
         const marginX = Math.min(156, this._viewW * 0.46);
         const topSafeY = Math.min(254, Math.max(140, this._viewH * 0.34));
-        const clampedX = clamp(rawX, marginX, Math.max(marginX, this._viewW - marginX));
         const clampedY = clamp(rawY, topSafeY, Math.max(topSafeY, this._viewH - 110));
+        const rightMaxX = (clampedY < 430 && this._viewW > 700)
+            ? Math.max(marginX, this._viewW - 430)
+            : Math.max(marginX, this._viewW - marginX);
+        const clampedX = clamp(rawX, marginX, rightMaxX);
 
         if (!this[visKey]) {
             this[visKey] = true;
@@ -12036,10 +15347,21 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         // 4. Schwebender Hinweis am monumentalen West-Prunktor ("Tor zur Außenwelt")
-        if (this.westGateFocused && this.floatingOuterGateEl && this.currentZone === 'gallery') {
+        if (this.westGateFocused && !this.armoryFocused && this.floatingOuterGateEl && this.currentZone === 'gallery') {
             this._projectElementToWorld(this.floatingOuterGateEl, -11.65, 2.75, 0.0, '_outerGateCard');
         } else {
             this._hideProjectedElement(this.floatingOuterGateEl, '_outerGateCard');
+        }
+
+        // 4b. Schwebende Light-Mode Ausruestungs-Karte am Ruestungsstaender / Wand-Waffenhalter
+        if (this.armoryFocused && this.floatingArmoryEl && this.currentZone === 'gallery') {
+            const focKey = this.armoryFocusedKey || 'chest';
+            const anc = (this.armoryWorldAnchors && this.armoryWorldAnchors[focKey])
+                ? this.armoryWorldAnchors[focKey]
+                : { x: -10.74, cardY: 1.92, z: -3.68 };
+            this._projectElementToWorld(this.floatingArmoryEl, anc.x, anc.cardY || 1.92, anc.z, '_armoryCard');
+        } else {
+            this._hideProjectedElement(this.floatingArmoryEl, '_armoryCard');
         }
 
         // 5. 1-Klick Light-Mode Bewertungs-Kaertchen an der 3D-Sternebewertungs-Station neben dem Ehrenportal
@@ -12146,7 +15468,7 @@ class SeelenfunkeLouvreShowroom3D {
         if (!this.running) return;
         const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
         if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-        if (e.target && e.target.closest && e.target.closest('[data-testid="lobby-settings-modal"], [data-testid="lobby-sanctum-gate-modal"], [data-testid="lobby-outer-gate-modal"], [data-testid="atelier-star-rating-card"]')) {
+        if (e.target && e.target.closest && e.target.closest('[data-testid="lobby-settings-modal"], [data-testid="lobby-sanctum-gate-modal"], [data-testid="lobby-outer-gate-modal"], [data-testid="atelier-star-rating-card"], [data-testid="lobby-character-picker-modal"]')) {
             return;
         }
 
@@ -12164,11 +15486,29 @@ class SeelenfunkeLouvreShowroom3D {
 
         if (matchesActionKey(code, kb.jump) || (kb.jump === 'Space' && e.key === ' ')) {
             e.preventDefault();
+            if (e.repeat) return;
             this.triggerJump();
             return;
         }
 
+        if (code === 'KeyQ') {
+            if (this.equippedArmory && this.equippedArmory.weapon) {
+                e.preventDefault();
+                if (!e.repeat) {
+                    this.triggerWeaponSwing();
+                }
+                return;
+            }
+        }
+
         if (code === 'Enter' || code === 'KeyE') {
+            if (this.currentZone === 'gallery' && this.armoryFocused) {
+                e.preventDefault();
+                if (!e.repeat) {
+                    this.toggleArmoryItem(this.armoryFocusedKey);
+                }
+                return;
+            }
             if (this.focusedSteleIndex >= 0 && this.steles[this.focusedSteleIndex]) {
                 const prod = this.steles[this.focusedSteleIndex].product;
                 if (this.onSelectProduct) {
@@ -12329,14 +15669,27 @@ class SeelenfunkeLouvreShowroom3D {
         this.pointerNdc.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
         this.raycaster.setFromCamera(this.pointerNdc, this.camera);
 
-        const targets = this.interactiveHitMeshes
+        const targets = this.armoryHitMeshes
+            .concat(this.interactiveHitMeshes)
             .concat(this.canEnterSanctums ? [] : this.portalHitMeshes)
             .concat(this.heroInteractiveHitMeshes)
             .concat(this.westGateHitMeshes);
 
-        if (targets.length > 0 && this.raycaster.intersectObjects(targets, false).length > 0) {
+        const hits = targets.length > 0 ? this.raycaster.intersectObjects(targets, false) : [];
+        if (hits.length > 0) {
             this.canvas.style.cursor = 'pointer';
+            const hd = hits[0].object && hits[0].object.userData ? hits[0].object.userData : null;
+            if (hd && hd.isArmoryItem && hd.armoryItemKey) {
+                this.armoryHoveredKey = hd.armoryItemKey;
+                if (this.armoryFocused && this.armoryFocusedKey !== hd.armoryItemKey) {
+                    this.armoryFocusedKey = hd.armoryItemKey;
+                    this._emitArmoryStateChange();
+                }
+            } else {
+                this.armoryHoveredKey = null;
+            }
         } else {
+            this.armoryHoveredKey = null;
             this.canvas.style.cursor = 'grab';
         }
     }
@@ -12470,6 +15823,33 @@ class SeelenfunkeLouvreShowroom3D {
         this.pointerNdc.x = ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
         this.pointerNdc.y = -((clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
         this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+
+        // 0. Ruestungsstaender & Wand-Waffenhalterung rechts neben dem Tor zur Aussenwelt
+        if (this.currentZone === 'gallery' && this.armoryHitMeshes.length > 0) {
+            const armHits = this.raycaster.intersectObjects(this.armoryHitMeshes, false);
+            if (armHits.length > 0) {
+                const hitKey = armHits[0].object.userData ? armHits[0].object.userData.armoryItemKey : null;
+                if (hitKey && ARMORY_SHOWCASE_ITEMS[hitKey]) {
+                    const anc = this.armoryWorldAnchors[hitKey] || { x: -10.74, z: -3.68 };
+                    const distToArm = Math.hypot((this.player.x || 0) - anc.x, (this.player.z || 0) - anc.z);
+                    this.armoryFocusedKey = hitKey;
+                    if (distToArm <= 3.65) {
+                        this._setArmoryFocused(true, hitKey);
+                        this.toggleArmoryItem(hitKey);
+                    } else {
+                        this.player.autoTarget = { x: -9.35, z: anc.z };
+                        this.player.autoLookAt = { x: anc.x, z: anc.z };
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Shift + Klick schwingt ausgeruestete Waffe ohne Click-to-Walk auszuloesen
+        if (this.equippedArmory && this.equippedArmory.weapon && (this.keys.ShiftLeft || this.keys.ShiftRight || this.keys.Shift)) {
+            this.triggerWeaponSwing();
+            return;
+        }
 
         // 1. Monumentales Tor zur Aussenwelt an der Westwand
         if (this.westGateHitMeshes.length > 0) {
@@ -13000,6 +16380,19 @@ class SeelenfunkeLouvreShowroom3D {
                     z += (dz / dist) * push;
                 }
             }
+
+            // Sanfte Kreiskollision um den Ruestungsstaender rechts neben dem Tor zur Aussenwelt (r = 0.56)
+            if (this.armoryStandCollider) {
+                const dx = x - this.armoryStandCollider.x;
+                const dz = z - this.armoryStandCollider.z;
+                const dist = Math.hypot(dx, dz);
+                const ar = this.armoryStandCollider.r || 0.56;
+                if (dist < ar && dist > 0.0001) {
+                    const push = ar - dist;
+                    x += (dx / dist) * push;
+                    z += (dz / dist) * push;
+                }
+            }
         } else if (z >= this.heroesEntryZ + 0.38) {
             // Ehrenportal & Marmor-Ehrenpromenade
             if (x < -portalClearHalfW) {
@@ -13075,35 +16468,54 @@ class SeelenfunkeLouvreShowroom3D {
         return this._collisionOut;
     }
 
-    _detectWallForCling(px, pz, hitWall, wnX, wnZ) {
+    _detectWallForCling(px, pz, hitWall, wnX, wnZ, onJumpKeyPress = false) {
+        const isSameWallLocked = (nx, nz) => {
+            if ((this.player.sameWallCooldown || 0) <= 0) return false;
+            const prevNx = this.player.lastWallJumpNx || 0;
+            const prevNz = this.player.lastWallJumpNz || 0;
+            if (Math.abs(prevNx) < 0.01 && Math.abs(prevNz) < 0.01) return false;
+            return (nx * prevNx + nz * prevNz) > 0.72;
+        };
+
         const faceDirX = Math.sin(this.player.yaw || 0);
         const faceDirZ = Math.cos(this.player.yaw || 0);
         const vLen = Math.hypot(this.player.velX || 0, this.player.velZ || 0);
         const moveDirX = vLen > 0.25 ? (this.player.velX / vLen) : faceDirX;
         const moveDirZ = vLen > 0.25 ? (this.player.velZ / vLen) : faceDirZ;
 
-        if (hitWall && (wnX !== 0 || wnZ !== 0)) {
+        if (hitWall && (wnX !== 0 || wnZ !== 0) && !isSameWallLocked(wnX, wnZ)) {
             const intoWall = moveDirX * (-wnX) + moveDirZ * (-wnZ);
-            if (intoWall > 0.15) {
+            if (onJumpKeyPress || intoWall > 0.06) {
                 return { ok: true, nx: wnX, nz: wnZ };
             }
         }
 
-        // Wandabstand <= 0.46 m in Blick- oder Bewegungsrichtung pruefen (auch beim Hochspringen dicht vor der Wand!)
+        // Wand-, Pilaster- & Saeulenabstand <= 0.58 m pruefen fuer fliessende Wand-zu-Wand-Ecksprunge ohne Bodenberuehrung!
         const portalClearHalfW = this.portalHalfW - 0.52;
         const candidates = [];
 
         if (pz >= this.hallNorthZ + 0.30) {
-            const westSurfaceX = Math.abs(pz) <= 2.45 ? -11.81 : -this.hallHalfW;
+            const westSurfaceX = Math.abs(pz) <= 2.45 ? -11.35 : -this.hallHalfW;
             candidates.push({ dist: px - westSurfaceX, nx: 1, nz: 0 });
             candidates.push({ dist: this.hallHalfW - px, nx: -1, nz: 0 });
             candidates.push({ dist: this.hallSouthZ - pz, nx: 0, nz: -1 });
             if (Math.abs(px) > portalClearHalfW) {
                 candidates.push({ dist: pz - this.hallNorthZ, nx: 0, nz: 1 });
             }
+            if (this._galleryPierPlacements) {
+                for (let pi = 0; pi < this._galleryPierPlacements.length; pi++) {
+                    const pier = this._galleryPierPlacements[pi];
+                    const dx = px - pier[0];
+                    const dz = pz - pier[1];
+                    const d = Math.hypot(dx, dz);
+                    if (d > 0.001 && d <= 0.98) {
+                        candidates.push({ dist: Math.max(0, d - 0.54), nx: dx / d, nz: dz / d });
+                    }
+                }
+            }
         } else if (pz >= this.heroesEntryZ + 0.38) {
-            candidates.push({ dist: px - (-this.portalHalfW), nx: 1, nz: 0 });
-            candidates.push({ dist: this.portalHalfW - px, nx: -1, nz: 0 });
+            candidates.push({ dist: px - (-portalClearHalfW), nx: 1, nz: 0 });
+            candidates.push({ dist: portalClearHalfW - px, nx: -1, nz: 0 });
         } else {
             candidates.push({ dist: px - (-this.pantheonHalfW), nx: 1, nz: 0 });
             candidates.push({ dist: this.pantheonHalfW - px, nx: -1, nz: 0 });
@@ -13111,16 +16523,29 @@ class SeelenfunkeLouvreShowroom3D {
             if (Math.abs(px) > portalClearHalfW + 1.2) {
                 candidates.push({ dist: this.heroesEntryZ - pz, nx: 0, nz: -1 });
             }
+            if (this.pantheonColumnColliders) {
+                for (let ci = 0; ci < this.pantheonColumnColliders.length; ci++) {
+                    const col = this.pantheonColumnColliders[ci];
+                    const dx = px - col.x;
+                    const dz = pz - col.z;
+                    const d = Math.hypot(dx, dz);
+                    if (d > 0.001 && d <= col.r + 0.52) {
+                        candidates.push({ dist: Math.max(0, d - col.r), nx: dx / d, nz: dz / d });
+                    }
+                }
+            }
         }
 
         let best = null;
-        let bestDist = 0.46;
+        let bestDist = onJumpKeyPress ? 0.62 : 0.52;
+        const minAlign = onJumpKeyPress ? -0.15 : 0.18;
         for (let i = 0; i < candidates.length; i++) {
             const c = candidates[i];
-            if (c.dist <= bestDist && c.dist >= -0.05) {
+            if (isSameWallLocked(c.nx, c.nz)) continue;
+            if (c.dist <= bestDist && c.dist >= -0.08) {
                 const alignFace = faceDirX * (-c.nx) + faceDirZ * (-c.nz);
                 const alignMove = moveDirX * (-c.nx) + moveDirZ * (-c.nz);
-                if (alignFace > 0.35 || alignMove > 0.35) {
+                if (onJumpKeyPress || alignFace > minAlign || alignMove > minAlign) {
                     bestDist = c.dist;
                     best = c;
                 }
@@ -13333,57 +16758,39 @@ class SeelenfunkeLouvreShowroom3D {
             }
         }
 
-        // 1-Sekunde Wall-Cling + Boden- & Sprung-Physik in Produkt-Atelier, Ehrenpromenade & Halle der Helden (y = 0)
+        // Sofortiger Mehrfach-Wandsprung (0s Haltezeit, beliebig oft von Wand zu Wand ohne Bodenberuehrung!) + Sprung-Physik
         this.player.groundY = 0;
+        if ((this.player.sameWallCooldown || 0) > 0) {
+            this.player.sameWallCooldown = Math.max(0, this.player.sameWallCooldown - dt);
+        }
+        if ((this.player.wallTouchTimer || 0) > 0) {
+            this.player.wallTouchTimer = Math.max(0, this.player.wallTouchTimer - dt);
+        }
+        if ((this.player.wallJumpBufferTimer || 0) > 0) {
+            this.player.wallJumpBufferTimer = Math.max(0, this.player.wallJumpBufferTimer - dt);
+        }
 
-        if (this.player.isWallClinging) {
-            this.player.vy = 0;
-            this.player.velX = 0;
-            this.player.velZ = 0;
-            const faceWallYaw = Math.atan2(-(this.player.wallNormalX || 0), -(this.player.wallNormalZ || 0));
-            this.player.yaw = lerpAngle(this.player.yaw, faceWallYaw, 1.0 - Math.exp(-dt * 22.0));
-
-            this.player.wallClingTimer -= dt;
-            if (this.player.wallClingTimer < 0.20 && this.player.wallClingTimer > 0) {
-                this.player.y = Math.max(0.05, (this.player.y || 0) - 0.15 * dt);
-            }
-            if (this.player.wallClingTimer <= 0) {
-                this.player.isWallClinging = false;
-                this.player.wallClingTimer = 0;
-                this.player.vy = -0.35;
-                this._notifyUrgentLocalSync('wall_cling_end');
-            }
-        } else if (this.player.isJumping || this.player.y > 0) {
+        if (this.player.isJumping || this.player.y > 0) {
             const impactSpeedBefore = Math.max(0, -(this.player.vy || 0));
             this.player.vy -= 15.2 * dt;
             this.player.y += this.player.vy * dt;
 
-            // Startet 1-Sekunde Wall-Cling beim Sprung nahe an / gegen eine Wand
+            // 0s Reaktions-Wandkontakt: Kein Festkleben an der Wand, sondern direkt Leertaste druecken fuer den Wand-Salto (mehrmals moeglich!)
             if (
                 this.player.isJumping
-                && this.player.y > 0.26
-                && this.player.vy > -3.5
-                && !this.player.wallClingUsed
+                && this.player.y > 0.18
                 && this._gateRepulseTimer <= 0
             ) {
-                const clingWall = this._detectWallForCling(this.player.x, this.player.z, frameHitWall, frameWnX, frameWnZ);
+                const clingWall = this._detectWallForCling(this.player.x, this.player.z, frameHitWall, frameWnX, frameWnZ, false);
                 if (clingWall && clingWall.ok) {
-                    this.player.isWallClinging = true;
-                    this.player.wallClingTimer = 1.0;
-                    this.player.wallClingUsed = true;
+                    this.player.isWallClinging = false;
+                    this.player.wallClingTimer = 0.0;
                     this.player.wallNormalX = clingWall.nx;
                     this.player.wallNormalZ = clingWall.nz;
-                    this.player.vy = 0;
-                    this.player.velX = 0;
-                    this.player.velZ = 0;
-                    this.player.worldVx = 0;
-                    this.player.worldVz = 0;
-                    this.player.currentSpeed = 0;
-                    this.player.isSomersault = false;
-                    this.player.somersaultProgress = 0.0;
-                    this.player.yaw = Math.atan2(-clingWall.nx, -clingWall.nz);
-                    if (this.audio) this.audio.playFootstep('marble');
-                    this._notifyUrgentLocalSync('wall_cling_start');
+                    this.player.wallTouchTimer = 0.20;
+                    if ((this.player.wallJumpBufferTimer || 0) > 0) {
+                        this._executeWallSalto(clingWall.nx, clingWall.nz);
+                    }
                 }
             }
 
@@ -13395,7 +16802,7 @@ class SeelenfunkeLouvreShowroom3D {
                 }
             }
 
-            if (!this.player.isWallClinging && this.player.y <= 0) {
+            if (this.player.y <= 0) {
                 this.player.y = 0;
                 this.player.vy = 0;
                 this.player.isJumping = false;
@@ -13403,7 +16810,13 @@ class SeelenfunkeLouvreShowroom3D {
                 this.player.jumpCount = 0;
                 this.player.wallClingUsed = false;
                 this.player.isWallClinging = false;
-                this.player.wallClingTimer = 0;
+                this.player.wallClingTimer = 0.0;
+                this.player.wallTouchTimer = 0.0;
+                this.player.wallJumpBufferTimer = 0.0;
+                this.player.wallJumpChain = 0;
+                this.player.lastWallJumpNx = 0.0;
+                this.player.lastWallJumpNz = 0.0;
+                this.player.sameWallCooldown = 0.0;
                 this.player.wallFlipVx = 0;
                 this.player.wallFlipVz = 0;
                 this.player.isSomersault = false;
@@ -13418,12 +16831,55 @@ class SeelenfunkeLouvreShowroom3D {
             if (this.player.x > -10.2) {
                 this._westOuterGateArmed = true;
             }
-            const nearOuterGate = (this.player.x < -9.2 && Math.abs(this.player.z) < 3.5);
+            const nearOuterGate = (this.player.x < -9.2 && Math.abs(this.player.z) < 2.85);
             if (nearOuterGate !== this.westGateFocused) {
                 this._setWestOuterGateFocused(nearOuterGate);
             }
-        } else if (this.westGateFocused) {
-            this._setWestOuterGateFocused(false);
+
+            // Ruestungsstaender & Wand-Waffenhalterung rechts neben dem Tor zur Aussenwelt
+            let bestArmoryKey = null;
+            let bestArmoryDist = 99;
+            if (this.armoryWorldAnchors) {
+                const standAnc = this.armoryWorldAnchors.chest;
+                const lanceAnc = this.armoryWorldAnchors.lance;
+                const spearAnc = this.armoryWorldAnchors.spear;
+                const dStand = standAnc ? Math.hypot(this.player.x - standAnc.x, this.player.z - standAnc.z) : 99;
+                const dLance = lanceAnc ? Math.hypot(this.player.x - lanceAnc.x, this.player.z - lanceAnc.z) : 99;
+                const dSpear = spearAnc ? Math.hypot(this.player.x - spearAnc.x, this.player.z - spearAnc.z) : 99;
+                bestArmoryDist = Math.min(dStand, dLance, dSpear);
+
+                const armoryRange = this.armoryFocused ? 2.95 : 2.65;
+                if (bestArmoryDist <= armoryRange) {
+                    if (this.armoryHoveredKey && ARMORY_SHOWCASE_ITEMS[this.armoryHoveredKey]) {
+                        bestArmoryKey = this.armoryHoveredKey;
+                    } else if (Math.min(dLance, dSpear) + 0.18 < dStand) {
+                        bestArmoryKey = dLance <= dSpear ? 'lance' : 'spear';
+                    } else if (this.armoryFocused && this.armoryFocusedKey && this.armoryWorldAnchors[this.armoryFocusedKey] && this.armoryWorldAnchors[this.armoryFocusedKey].isStand) {
+                        bestArmoryKey = this.armoryFocusedKey;
+                    } else {
+                        const standOrder = ['chest', 'helm', 'gauntlets', 'boots'];
+                        bestArmoryKey = 'chest';
+                        for (let si = 0; si < standOrder.length; si++) {
+                            if (!this._isArmoryKeyEquipped(standOrder[si])) {
+                                bestArmoryKey = standOrder[si];
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if (bestArmoryKey) {
+                this._setArmoryFocused(true, bestArmoryKey);
+            } else if (this.armoryFocused) {
+                this._setArmoryFocused(false);
+            }
+        } else {
+            if (this.westGateFocused) {
+                this._setWestOuterGateFocused(false);
+            }
+            if (this.armoryFocused) {
+                this._setArmoryFocused(false);
+            }
         }
 
         // 3D-Sternebewertungs-Station neben dem Ehrenportal (dist < 2.95 m in gallery)
@@ -13783,6 +17239,7 @@ class SeelenfunkeLouvreShowroom3D {
             this.floatingHeroCardEl,
             this.floatingPortalCardEl,
             this.floatingOuterGateEl,
+            this.floatingArmoryEl,
             this.floatingStarStationEl,
         ].forEach((el) => {
             if (el) {
@@ -13795,8 +17252,18 @@ class SeelenfunkeLouvreShowroom3D {
         this.floatingHeroCardEl = null;
         this.floatingPortalCardEl = null;
         this.floatingOuterGateEl = null;
+        this.floatingArmoryEl = null;
         this.floatingStarStationEl = null;
         this.atelierStarStation = null;
+        this.armoryHitMeshes = [];
+        this.armoryDisplayNodes = {};
+        this.armoryWorldAnchors = {};
+        this.armoryTemplates.clear();
+        this.armoryTemplatePromises.clear();
+        if (this._weaponAudioCtx && typeof this._weaponAudioCtx.close === 'function') {
+            this._weaponAudioCtx.close().catch(() => {});
+            this._weaponAudioCtx = null;
+        }
 
         if (this._fsResizeTimer) {
             clearTimeout(this._fsResizeTimer);
@@ -13856,7 +17323,19 @@ class SeelenfunkeLouvreShowroom3D {
         }
         this.disposables = [];
         this._avatarShared = null;
+        this._exoCharPools = {};
+        this._exoSharedCharMats = null;
         this._funkiFallbackMats = null;
+        this.hemiLight = null;
+        this.dirMainLight = null;
+        this.skyDomeMesh = null;
+        this.skyDomeMat = null;
+        this.westPanoMat = null;
+        this.outdoorCloudMeshes = [];
+        this.starfieldPoints = null;
+        this.starfieldMat = null;
+        this.shootingStarMesh = null;
+        this._shootingStarState = null;
         this.glbCache.clear();
         this.glbTemplateCache.clear();
         this.glbLoadingPromises.clear();
@@ -14030,6 +17509,25 @@ export function createLouvreShowroom(options) {
         },
         setGraphicsQuality(level) {
             return Object.freeze(engine.updateSettings({ graphicsQuality: level === 'balanced' ? 'balanced' : 'high' }));
+        },
+        setCharacterGender(gender) {
+            return engine.setCharacterGender(gender === 'female' ? 'female' : 'male');
+        },
+        getCharacterGender() {
+            return engine.getCharacterGender();
+        },
+        toggleArmoryItem(itemKey) {
+            return Object.freeze(engine.toggleArmoryItem(itemKey || null));
+        },
+        getArmoryState() {
+            return Object.freeze(engine.getArmoryState());
+        },
+        triggerWeaponSwing() {
+            return engine.triggerWeaponSwing();
+        },
+        rebuildSkyEnvironment() {
+            engine.rebuildSkyEnvironment();
+            return Object.freeze(engine.getEnvironmentInfo());
         },
         updatePeers(peersArray) {
             engine.updatePeers(peersArray);

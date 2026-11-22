@@ -35,6 +35,8 @@ class AIFunctionsRegistry
     use Functions\AiLaserFuncs;
     use Functions\AiSuppliersFuncs;
     use Functions\AiStripeFuncs;
+    use Functions\AiSmartHomeFuncs;
+    use Functions\AiUniverseTicketFuncs;
 
     /**
      * Optional static context merged into all executed function arguments.
@@ -89,6 +91,8 @@ class AIFunctionsRegistry
             self::getAiLaserFuncsSchema(),
             self::getAiSuppliersFuncsSchema(),
             self::getAiStripeFuncsSchema(),
+            self::getAiSmartHomeFuncsSchema(),
+            self::getAiUniverseTicketFuncsSchema(),
             FunkiraSkillPoolService::getEquipToolSchema()
         );
     }
@@ -150,8 +154,11 @@ class AIFunctionsRegistry
             'agents_',
             'agent_',
             'holiday_',
+            'smarthome_',
+            'procurement_',
         ];
         $adminOnlyTools = [
+            'ticket_save_learned_preference',
             'move_agent_to_department',
             'analyze_agents_activity',
             'system_get_server_status',
@@ -161,6 +168,8 @@ class AIFunctionsRegistry
             'system_read_web_url',
             'ag_list_pending_blockades',
             'ag_resolve_pending_blockade',
+            'ag_send_to_antigravity',
+            'ag_check_antigravity_status',
             'system_write_to_file',
             'system_multi_replace_file',
             'system_run_command',
@@ -437,6 +446,8 @@ class AIFunctionsRegistry
                             'system_read_web_url',
                             'ag_list_pending_blockades',
                             'ag_resolve_pending_blockade',
+                            'ag_send_to_antigravity',
+                            'ag_check_antigravity_status',
                             'master_get_next_best_actions',
                             FunkiraSkillPoolService::EQUIP_TOOL_NAME,
                         ]

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>FunkenwerkSmartHome</AssemblyName>
+    <RootNamespace>FunkenwerkSmartHome</RootNamespace>
+    <ApplicationIcon>funkenwerk_smarthome.ico</ApplicationIcon>
+    <Version>1.5.0</Version>
+    <AssemblyVersion>1.5.0.13</AssemblyVersion>
+    <FileVersion>1.5.0.13</FileVersion>
+    <InformationalVersion>1.5.0+b13</InformationalVersion>
+    <Product>Funkenwerk SmartHome</Product>
+    <Company>Mein-Seelenfunke</Company>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
+    <Resource Include="funkenwerk_smarthome.ico" />
+    <Resource Include="funkenwerk_smarthome.png" />
+    <None Include="funkenwerk_smarthome.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="funkenwerk_smarthome.png" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="..\funkenwerk\SmartHomeEngine.cs" Link="SmartHomeEngine.cs" />
+    <Compile Include="..\funkenwerk\FunkenwerkSharedSession.cs" Link="FunkenwerkSharedSession.cs" />
+  </ItemGroup>
+
+</Project>

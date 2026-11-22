@@ -226,12 +226,13 @@
             @if(!$this->selectedOrder->isOnlyDigital() || $this->selectedOrder->canBePermanentlyDeleted() || $nextInQueue)
                 <div class="flex items-center gap-1.5 ml-auto sm:ml-0 shrink-0">
                     @if(!$this->selectedOrder->isOnlyDigital())
+                        @php $isBriefOrderHeader = $this->selectedOrder->isPostalVoucherOnly(); @endphp
                         <button type="button"
                                 wire:click="openDhlModal('{{ $this->selectedOrder->id }}')"
-                                title="DHL Label-Assistent öffnen"
+                                title="{{ $isBriefOrderHeader ? 'Großbrief-Label Assistent öffnen' : 'Versandlabel-Assistent öffnen' }}"
                                 class="h-9 px-3 rounded-xl bg-gray-50 dark:bg-gray-950/90 hover:bg-[var(--theme-color-15)] text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-200/80 dark:border-gray-800 hover:border-[var(--theme-color)] inline-flex items-center justify-center gap-1.5 text-[11px] font-bold tracking-wide transition-all cursor-pointer">
                             <svg class="w-3.5 h-3.5 text-[var(--theme-color)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                            <span>DHL</span>
+                            <span>{{ $isBriefOrderHeader ? 'Großbrief' : 'DHL' }}</span>
                         </button>
                     @endif
 

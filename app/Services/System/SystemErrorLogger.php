@@ -24,11 +24,49 @@ class SystemErrorLogger
     protected static array $loggedExceptionIds = [];
 
     /**
+     * Speichert detaillierte Fehlermeldungen von Artisan-Befehlen innerhalb desselben CLI-Prozesses,
+     * damit der CommandFinished-Listener sofort die exakte Ursache protokolliert.
+     *
+     * @var array<string, array<int, string>>
+     */
+    protected static array $commandFailureDetails = [];
+
+    /**
      * Gecachte Liste aller echten Projekt-Tabellennamen aus database/migrations/*.php.
      *
      * @var array<string, bool>|null
      */
     protected static ?array $knownMigrationTables = null;
+
+    /**
+     * Hinterlegt ein Diagnose-Detail für einen laufenden Artisan-Befehl (z. B. crm:fetch-mails),
+     * damit recordCommandFailure() bei Exit != 0 den exakten Fehlergrund mitschreibt.
+     */
+    public static function rememberCommandFailureDetail(string $command, string $detail): void
+    {
+        $key = strtolower(trim(explode(' ', trim($command))[0]));
+        $clean = trim(self::sanitizeSensitiveText($detail));
+        if ($key === '' || $clean === '') {
+            return;
+        }
+        self::$commandFailureDetails[$key] ??= [];
+        if (count(self::$commandFailureDetails[$key]) < 15) {
+            self::$commandFailureDetails[$key][] = $clean;
+        }
+    }
+
+    /**
+     * Liefert die gesammelten Diagnose-Details eines Artisan-Befehls als kompakten String.
+     */
+    public static function getCommandFailureDetail(string $command): string
+    {
+        $key = strtolower(trim(explode(' ', trim($command))[0]));
+        if ($key === '' || empty(self::$commandFailureDetails[$key])) {
+            return '';
+        }
+
+        return implode(' | ', array_unique(self::$commandFailureDetails[$key]));
+    }
 
     /**
      * Analysiert eine Fehlermeldung / Exception und liefert eine strukturierte deutsche Ursachen-Diagnose.
@@ -37,6 +75,20 @@ class SystemErrorLogger
     {
         $msgLower = strtolower($message);
         $classLower = strtolower((string) $exceptionClass);
+        $fileLower = strtolower((string) $file);
+
+        if (
+            str_contains($fileLower, 'standard input code')
+            || str_contains($fileLower, 'command line code')
+            || str_contains($msgLower, 'at standard input code:')
+            || str_contains($msgLower, 'in command line code')
+        ) {
+            return [
+                'category' => 'cli_stdin_eval_error',
+                'probable_cause' => 'Einmaliger manueller CLI-/Tinker-Testaufruf über Standard-Input (php -r / stdin), kein regulärer Laufzeitfehler im Anwendungscode.',
+                'recommended_action' => 'Kein Eingriff im Produktivcode erforderlich; Eintrag kann als manueller CLI-Testlauf archiviert werden.',
+            ];
+        }
 
         if (str_contains($msgLower, 'allowed memory size')
             || str_contains($msgLower, 'maximum execution time')
@@ -47,6 +99,64 @@ class SystemErrorLogger
                 'category' => 'php_fatal_or_oom',
                 'probable_cause' => 'Harter PHP-Prozessabbruch (Speicherlimit erschöpft, Zeitüberschreitung oder Fatal/Parse-Error).',
                 'recommended_action' => 'Prüfe die exakte Datei und Zeilennummer im Antigravity-Dossier (z. B. unpaginierte Abfrage, Endlosschleife oder Syntax-/Typfehler).',
+            ];
+        }
+
+        if (str_contains($msgLower, 'auto-firewall')
+            || str_contains($msgLower, 'scanner-ip')
+            || str_contains($msgLower, 'exploit_path_ban')
+            || str_contains($msgLower, 'auto_ip_ban')) {
+            return [
+                'category' => 'security_auto_firewall_defense',
+                'probable_cause' => 'Erfolgreiche automatische Firewall-Abwehr: Ein externer Bot/Exploit-Scanner hat einen verbotenen Pfad (Honeypot) aufgerufen und wurde automatisch für 24 Stunden gesperrt.',
+                'recommended_action' => 'Kein Anwendungsfehler. Der Angriff wurde bereits abgewehrt; gesperrte IPs sind unter /admin/settings (Firewall) einsehbar.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'system-schranke')
+            || str_contains($msgLower, 'sicherheitsprüfung: verwundbarkeiten')
+            || str_contains($msgLower, 'package_audit')) {
+            return [
+                'category' => 'security_package_or_guardrail_audit',
+                'probable_cause' => 'Der tägliche Sicherheits- & Architektur-Audit (system:security-audit) hat eine verletzte System-Schranke oder ein Paket-Advisory gemeldet.',
+                'recommended_action' => 'Prüfe die Sektion guardrails / failed_guardrails unter Weitere Details (z. B. unbekannte Datei in public/ oder Composer/NPM Advisory).',
+            ];
+        }
+
+        if (str_contains($msgLower, 'address already in use')
+            && (str_contains($msgLower, '6001') || str_contains($msgLower, 'reverb') || str_contains((string) $file, 'Reverb'))) {
+            return [
+                'category' => 'reverb_port_already_bound',
+                'probable_cause' => 'Ein zweiter Reverb-Startversuch traf auf den bereits belegten WebSocket-Port 6001 (der primäre Reverb-Server läuft bereits).',
+                'recommended_action' => 'Unkritisch, solange der primäre Reverb-Daemon aktiv ist. Bei Port-Hängern: bestehenden Prozess auf Port 6001 sauber neu starten.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'infrastruktur-ausfall: backup')) {
+            return [
+                'category' => 'backup_overdue_warning',
+                'probable_cause' => 'Das letzte Datenbank-Backup im überwachten Backup-Verzeichnis ist älter als 48 Stunden (in Lokal-Umgebungen ohne aktiven Backup-Cron normal).',
+                'recommended_action' => 'Auf Stage/Live Backup-Cronjob (backup:run) unter /admin/backups prüfen; lokal ist kein täglicher Backup-Zwang erforderlich.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'uncaught referenceerror:')
+            || str_contains($msgLower, 'frontend js error')) {
+            return [
+                'category' => 'frontend_alpine_or_js_reference',
+                'probable_cause' => 'Ein Alpine.js- oder Browser-Skript referenzierte eine Variable außerhalb ihres gültigen x-data-Scopes (häufig beim Livewire wire:navigate Seitenwechsel).',
+                'recommended_action' => 'Prüfe die Unterseite, den Alpine-Ausdruck und die Zeilennummer im Payload und stelle sicher, dass x-data-Properties sauber initialisiert sind.',
+            ];
+        }
+
+        if (str_contains($msgLower, 'influencer')
+            || str_contains($msgLower, 'creator-cockpit')
+            || str_contains($msgLower, 'pr-sample')
+            || str_contains((string) $file, 'Influencer')) {
+            return [
+                'category' => 'influencer_workflow_error',
+                'probable_cause' => 'Fehler im Influencer- & Creator-Workflow (Onboarding, PR-Sample-Gutschein, Tracking-Link oder Provisions-/Gutschrifts-Abrechnung).',
+                'recommended_action' => 'Prüfe die Unterseite, die Livewire-Methode, die Influencer-ID (@handle) und die Eingabefelder unter Weitere Details.',
             ];
         }
 
@@ -184,11 +294,16 @@ class SystemErrorLogger
             ];
         }
 
-        if (str_contains($msgLower, 'okhttp') || str_contains($msgLower, 'retrofit') || str_contains($msgLower, 'sockettimeout') || str_contains($classLower, 'unknownhostexception')) {
+        if (str_contains($msgLower, 'okhttp')
+            || str_contains($msgLower, 'retrofit')
+            || str_contains($msgLower, 'sockettimeout')
+            || str_contains($msgLower, 'httpexception')
+            || str_contains($classLower, 'httpexception')
+            || str_contains($classLower, 'unknownhostexception')) {
             return [
                 'category' => 'client_network_or_api',
-                'probable_cause' => 'Temporärer Mobilfunk-/WLAN-Abbruch oder API-Timeout auf dem Endgerät (Android / Desktop).',
-                'recommended_action' => 'Kein Datenverlust bei aktivem Offline-Puffer; bei gehäuftem Auftreten Server-Antwortzeiten prüfen.',
+                'probable_cause' => 'Temporärer Mobilfunk-/WLAN-Abbruch, Server-Restart oder API-Timeout auf dem Endgerät (Android / Desktop).',
+                'recommended_action' => 'Kein Datenverlust bei aktivem Offline-Puffer; bei gehäuftem Auftreten Server-Antwortzeiten und API-Status prüfen.',
             ];
         }
 
@@ -306,14 +421,17 @@ class SystemErrorLogger
     }
 
     /**
-     * Erstellt Informationen über den aktuellen HTTP-Request oder CLI-Befehl.
+     * Erstellt Informationen über den aktuellen HTTP-Request oder CLI-Befehl inklusive exakter Unterseite und Livewire-Kontext.
      */
     public static function buildExecutionContext(): array
     {
         if (app()->runningInConsole()) {
+            $rawCmd = self::sanitizeSensitiveText(implode(' ', $_SERVER['argv'] ?? []));
+            $shortCmd = trim((string) preg_replace('/^.*?\bartisan\s+/i', '', $rawCmd));
             return [
                 'mode' => 'cli',
-                'command' => self::sanitizeSensitiveText(implode(' ', $_SERVER['argv'] ?? [])),
+                'command' => $rawCmd,
+                'subpage_path' => $shortCmd !== '' ? ('CLI: ' . $shortCmd) : 'CLI / Artisan',
             ];
         }
 
@@ -334,11 +452,57 @@ class SystemErrorLogger
         } catch (\Throwable $ignore) {
         }
 
+        $rawPath = '/' . ltrim((string) ($req?->path() ?? ''), '/');
+        $referer = self::sanitizeSensitiveText((string) ($req?->headers?->get('Referer') ?? ''));
+        $subpagePath = $rawPath;
+        $livewireComponent = null;
+        $livewireMethod = null;
+
+        try {
+            $isLivewireRequest = str_contains($rawPath, 'livewire/update') || str_contains($rawPath, 'livewire/message');
+            if ($isLivewireRequest && $req) {
+                $components = $req->input('components');
+                if (is_array($components) && !empty($components[0])) {
+                    $firstComp = $components[0];
+                    $snapshotRaw = $firstComp['snapshot'] ?? null;
+                    if (is_string($snapshotRaw)) {
+                        $snapshot = json_decode($snapshotRaw, true);
+                        if (is_array($snapshot)) {
+                            $memoPath = trim((string) ($snapshot['memo']['path'] ?? ''));
+                            $memoName = trim((string) ($snapshot['memo']['name'] ?? ''));
+                            if ($memoPath !== '') {
+                                $subpagePath = '/' . ltrim($memoPath, '/');
+                            }
+                            if ($memoName !== '') {
+                                $livewireComponent = $memoName;
+                            }
+                        }
+                    }
+                    $calls = $firstComp['calls'] ?? null;
+                    if (is_array($calls) && !empty($calls[0]['method'])) {
+                        $livewireMethod = (string) $calls[0]['method'];
+                    }
+                }
+
+                if (($subpagePath === $rawPath || $subpagePath === '/livewire/update') && $referer !== '') {
+                    $parsedRefPath = parse_url($referer, PHP_URL_PATH);
+                    if (is_string($parsedRefPath) && $parsedRefPath !== '') {
+                        $subpagePath = '/' . ltrim($parsedRefPath, '/');
+                    }
+                }
+            }
+        } catch (\Throwable $ignore) {
+        }
+
         return [
             'mode' => 'http',
             'method' => $req?->method() ?? 'GET',
             'url' => self::sanitizeSensitiveText($req?->fullUrl() ?? ''),
+            'subpage_path' => $subpagePath,
+            'referer' => $referer !== '' ? $referer : null,
             'route' => $req?->route()?->getName() ?? $req?->path(),
+            'livewire_component' => $livewireComponent,
+            'livewire_method' => $livewireMethod,
             'ip' => $req?->ip(),
             'user_agent' => $req?->userAgent(),
             'authenticated_user' => $user,
@@ -351,9 +515,19 @@ class SystemErrorLogger
      */
     public static function buildServerEnvironment(): array
     {
+        $appEnv = strtolower((string) config('app.env', 'local'));
+        $appUrl = strtolower((string) config('app.url', ''));
+        $resolvedEnv = match (true) {
+            str_contains($appUrl, 'stage.') || in_array($appEnv, ['stage', 'staging'], true) => 'stage',
+            in_array($appEnv, ['production', 'live', 'prod'], true) => 'live',
+            default => $appEnv ?: 'local',
+        };
+
         return [
             'php_version' => PHP_VERSION,
             'app_env' => config('app.env'),
+            'resolved_env' => $resolvedEnv,
+            'app_url' => config('app.url'),
             'cache_driver' => config('cache.default'),
             'session_driver' => config('session.driver'),
             'queue_connection' => config('queue.default'),
@@ -776,15 +950,26 @@ class SystemErrorLogger
             $normalizedSig = preg_replace('/\b\d+\b/', '#', strtolower($sanitizedMessage));
             $fingerprint = hash('sha256', strtolower($type . '|' . $resolvedActionId . '|' . get_class($e) . '|' . $e->getFile() . '|' . $e->getLine() . '|' . mb_substr((string) $normalizedSig, 0, 160)));
 
-            $existing = self::incrementRecentDuplicate($type, $resolvedActionId, ['error', 'warning'], $fingerprint, 1);
-            if ($existing) {
-                return $existing;
-            }
-
             $resolvedFile = self::resolveCompiledBladeViewPath($e->getFile()) ?? $e->getFile();
             if ($resolvedFile !== $e->getFile()) {
                 $payload['compiled_view_file'] = $e->getFile();
                 $payload['file'] = $resolvedFile;
+            }
+
+            try {
+                ZeroTokenSelfHealer::handleSystemError(
+                    $sanitizedMessage,
+                    get_class($e),
+                    $resolvedFile,
+                    $e->getLine(),
+                    is_array($payload['diagnosis'] ?? null) ? $payload['diagnosis'] : null
+                );
+            } catch (\Throwable $ignoreHealer) {
+            }
+
+            $existing = self::incrementRecentDuplicate($type, $resolvedActionId, ['error', 'warning'], $fingerprint, 1);
+            if ($existing) {
+                return $existing;
             }
 
             $payload['fingerprint'] = $fingerprint;
@@ -945,7 +1130,11 @@ class SystemErrorLogger
         try {
             self::$loggedExceptionIds[crc32($dedupeKey)] = true;
 
-            $sanitizedOutput = self::sanitizeSensitiveText(trim($output));
+            $rawOutput = trim($output);
+            if ($rawOutput === '') {
+                $rawOutput = self::getCommandFailureDetail($commandClean);
+            }
+            $sanitizedOutput = self::sanitizeSensitiveText($rawOutput);
             $cronjobName = $extra['cronjob_name'] ?? $commandClean;
             $actionId = Str::limit('scheduler:cronjob_failed:' . $commandClean, 190, '');
 
@@ -954,13 +1143,22 @@ class SystemErrorLogger
                 $message .= " Ausgabe: " . Str::limit($sanitizedOutput, 1500);
             }
 
+            $diagnosis = self::diagnose($message, null, 'Console/Commands');
             $fingerprint = hash('sha256', strtolower('scheduler|' . $actionId . '|' . $exitCode));
             $existing = self::incrementRecentDuplicate('scheduler', $actionId, ['error', 'warning'], $fingerprint, 1);
             if ($existing) {
+                if ($sanitizedOutput !== '') {
+                    $p = is_array($existing->payload) ? $existing->payload : [];
+                    if (empty($p['console_output'])) {
+                        $p['console_output'] = Str::limit($sanitizedOutput, 3000);
+                        $p['diagnosis'] = $diagnosis;
+                        $existing->payload = $p;
+                        $existing->message = Str::limit($message, 2000);
+                        $existing->save();
+                    }
+                }
                 return $existing;
             }
-
-            $diagnosis = self::diagnose($message, null, 'Console/Commands');
 
             $attributes = [
                 'type' => 'scheduler',
@@ -970,6 +1168,7 @@ class SystemErrorLogger
                 'status' => 'error',
                 'payload' => array_merge([
                     'command' => $command,
+                    'subpage_path' => 'CLI: ' . $commandClean,
                     'exit_code' => $exitCode,
                     'console_output' => Str::limit($sanitizedOutput, 3000),
                     'fingerprint' => $fingerprint,

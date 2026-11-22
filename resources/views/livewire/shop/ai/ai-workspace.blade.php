@@ -1,5 +1,5 @@
-<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
-    <div class="h-auto min-h-[calc(100dvh-4rem)] lg:h-[calc(100vh-6rem)] w-full font-mono text-[var(--theme-color)] flex flex-col pt-4 overflow-hidden relative"
+<div style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-60: {{ $this->themeColorHex }}99; --theme-color-70: {{ $this->themeColorHex }}B3; --theme-color-80: {{ $this->themeColorHex }}CC;">
+    <div class="h-auto min-h-[calc(100dvh-4rem)] lg:h-[calc(100vh-6rem)] w-full font-mono text-[var(--theme-color)] flex flex-col pt-2 overflow-hidden relative"
      @request-clipboard.window="readClipboard()"
      @write-clipboard.window="writeClipboard($event.detail.text)"
      x-data="{
@@ -60,18 +60,28 @@
         },
         async writeClipboard(text) {
             try {
-                await navigator.clipboard.writeText(text);
-                console.log('Clipboard erfolgreich überschrieben.');
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                    return;
+                }
             } catch (error) {
-                console.error('Clipboard Write Error:', error);
+                console.warn('Clipboard API Fallback aktiv:', error);
+            }
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text ?? '';
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            } catch (fallbackError) {
+                console.error('Clipboard Write Error:', fallbackError);
             }
         }
      }">
-
-    <!-- Neon Header -->
-    <div x-show="!isChatFullScreen" class="text-center mb-4 lg:mb-6 shrink-0 relative z-10 w-full px-4 lg:px-6">
-        <p class="text-gray-600 dark:text-gray-400 text-xs font-bold uppercase tracking-widest mt-1">Multi-Agenten Arbeitsfläche & Kommunikation</p>
-    </div>
 
     <!-- Main Workspace Container -->
     <div class="flex-1 flex flex-col gap-4 lg:gap-6 px-4 lg:px-6 pb-4 lg:pb-6 overflow-hidden relative"

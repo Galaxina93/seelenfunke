@@ -39,11 +39,18 @@ class SystemSecurityAuditCommand extends Command
         $guardrailErrors = (int) ($guardrailsReport['failed_count'] ?? 0);
         $outdatedSafeCount = (int) ($composerReport['semver_safe_count'] ?? 0);
 
+        $failedGuardrails = [];
+        foreach (($guardrailsReport['checks'] ?? []) as $gKey => $gCheck) {
+            if (empty($gCheck['passed'])) {
+                $failedGuardrails[$gKey] = ($gCheck['label'] ?? $gKey) . ' (' . ($gCheck['detail'] ?? 'fehlgeschlagen') . ')';
+            }
+        }
+
         $overallStatus = ($totalCves > 0 || $guardrailErrors > 0) ? 'error' : 'success';
 
         $summaryMessage = match (true) {
             $totalCves > 0 => "{$totalCves} Sicherheitslücke(n) (CVE) in Paketen erkannt!",
-            $guardrailErrors > 0 => "{$guardrailErrors} System-Schranke(n) verletzt!",
+            $guardrailErrors > 0 => "{$guardrailErrors} System-Schranke(n) verletzt: " . implode(' | ', $failedGuardrails),
             $outdatedSafeCount > 0 => "0 CVEs • {$outdatedSafeCount} sichere Paket-Update(s) verfügbar",
             default => '0 Sicherheitslücken (CVEs) • Alle Pakete & Schranken geprüft',
         };
@@ -109,10 +116,12 @@ class SystemSecurityAuditCommand extends Command
                 'status' => $overallStatus === 'error' ? 'warning' : 'success',
                 'payload' => [
                     'category' => 'idor_integrity',
+                    'subpage_path' => 'CLI: system:security-audit',
                     'cve_count' => $totalCves,
                     'composer_cves' => $composerReport['cve_count'] ?? 0,
                     'npm_cves' => $npmReport['cve_count'] ?? 0,
                     'guardrail_errors' => $guardrailErrors,
+                    'failed_guardrails' => $failedGuardrails,
                     'outdated_count' => $outdatedSafeCount,
                 ],
                 'started_at' => now(),
@@ -632,18 +641,19 @@ class SystemSecurityAuditCommand extends Command
         ];
 
         // 3. Public-Root Sauberkeit (keine fremden .php/.sql/.bak Dateien)
+        $allowedPublicPhpFiles = ['index.php', 'lobby-ping.php'];
         $forbiddenPublicFiles = [];
         foreach (File::files(public_path()) as $file) {
             $name = $file->getFilename();
             $ext = strtolower($file->getExtension());
-            if (($ext === 'php' && $name !== 'index.php') || in_array($ext, ['sql', 'bak', 'env', 'sh'], true)) {
+            if (($ext === 'php' && !in_array($name, $allowedPublicPhpFiles, true)) || in_array($ext, ['sql', 'bak', 'env', 'sh'], true)) {
                 $forbiddenPublicFiles[] = $name;
             }
         }
         $checks['public_cleanliness'] = [
             'label' => 'Public-Verzeichnis Integrität',
             'passed' => empty($forbiddenPublicFiles),
-            'detail' => empty($forbiddenPublicFiles) ? 'Nur index.php ausführbar' : 'Verdächtige Dateien: ' . implode(', ', $forbiddenPublicFiles),
+            'detail' => empty($forbiddenPublicFiles) ? 'Nur autorisierte Entry-Points ausführbar' : 'Verdächtige Dateien: ' . implode(', ', $forbiddenPublicFiles),
         ];
 
         // 4. Session & Cookie Härtung
@@ -661,8 +671,8 @@ class SystemSecurityAuditCommand extends Command
         $blueprintDetail = 'Alle Modelle & Pfade konform';
         if (class_exists(SystemBlueprintService::class)) {
             try {
-                $bpAudit = app(SystemBlueprintService::class)->audit();
-                $blueprintCompliant = (bool) ($bpAudit['is_compliant'] ?? true);
+                $bpAudit = app(SystemBlueprintService::class)->auditArchitecture();
+                $blueprintCompliant = (bool) ($bpAudit['is_compliant'] ?? empty($bpAudit['unmapped_models']));
                 if (!$blueprintCompliant) {
                     $blueprintDetail = 'Abweichung in SystemBlueprintService erkannt';
                 }

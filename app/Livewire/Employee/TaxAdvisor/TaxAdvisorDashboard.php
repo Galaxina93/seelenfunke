@@ -5,6 +5,7 @@ namespace App\Livewire\Employee\TaxAdvisor;
 use App\Models\Accounting\AccountingBankTransaction;
 use App\Models\Accounting\AccountingCostItem;
 use App\Models\Accounting\AccountingGroup;
+use App\Models\Accounting\AccountingInvestmentPlan;
 use App\Models\Accounting\AccountingInvoice;
 use App\Models\Accounting\AccountingSpecialIssue;
 use App\Models\Marketing\MarketingInfluencerPayout;
@@ -19,7 +20,9 @@ use App\Models\Management\ManagementTaskList as TaskListModel;
 use App\Models\System\SystemLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
@@ -35,11 +38,12 @@ class TaxAdvisorDashboard extends Component
 
     public int $selectedYear;
     public int $selectedMonth;
+    public int $selectedQuarter = 1;
     public bool $isNet = false;
 
     // Filter & Ansicht-Steuerung
     public string $scopeFilter = 'all'; // all, business, private
-    public string $periodMode = 'month'; // month, year
+    public string $periodMode = 'month'; // month, quarter, year
     public string $receiptStatusFilter = 'all'; // all, with_receipt, missing_receipt
     public string $invoiceTypeFilter = ''; // '', invoice, cancellation, credit_note, influencer_payout
     public string $invoiceSearch = '';
@@ -79,6 +83,7 @@ class TaxAdvisorDashboard extends Component
         if ($currentMonth === 1) {
             $this->selectedYear--;
         }
+        $this->selectedQuarter = (int) ceil($this->selectedMonth / 3);
 
         $this->loadArchivedExports();
         $this->taxAdvisorListId = $this->getTaxAdvisorList()->id;
@@ -316,6 +321,14 @@ class TaxAdvisorDashboard extends Component
     public function selectMonth(int $month): void
     {
         $this->selectedMonth = max(1, min(12, $month));
+        $this->selectedQuarter = (int) ceil($this->selectedMonth / 3);
+        $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
+    }
+
+    public function selectQuarter(int $quarter): void
+    {
+        $this->selectedQuarter = max(1, min(4, $quarter));
+        $this->selectedMonth = ($this->selectedQuarter - 1) * 3 + 1;
         $this->selectedYear = max(2000, min(2100, (int) ($this->selectedYear ?: date('Y'))));
     }
 
@@ -333,9 +346,40 @@ class TaxAdvisorDashboard extends Component
 
     public function setPeriodMode(string $mode): void
     {
-        if (in_array($mode, ['month', 'year'], true)) {
+        if (in_array($mode, ['month', 'quarter', 'year'], true)) {
             $this->periodMode = $mode;
+            if ($mode === 'quarter') {
+                $this->selectedQuarter = max(1, min(4, (int) ($this->selectedQuarter ?: ceil($this->selectedMonth / 3))));
+            }
         }
+    }
+
+    /**
+     * Liefert die aktiven Kalendermonate (1..12) passend zu periodMode ('month', 'quarter', 'year').
+     */
+    protected function resolveActivePeriodMonths(): array
+    {
+        if ($this->periodMode === 'year') {
+            return range(1, 12);
+        }
+        if ($this->periodMode === 'quarter') {
+            $q = max(1, min(4, $this->selectedQuarter));
+            return range(($q - 1) * 3 + 1, $q * 3);
+        }
+        return [max(1, min(12, $this->selectedMonth))];
+    }
+
+    /**
+     * Liefert den konsistenten UStVA-/EÜR-Datensatz für den gewählten Modus (Monat / Quartal / Jahr).
+     */
+    protected function resolveActiveUstvaData(FinancialService $financialService, ?string $adminId = null): array
+    {
+        $year = max(2000, min(2100, (int) $this->selectedYear));
+        $periodVal = $this->periodMode === 'quarter'
+            ? max(1, min(4, $this->selectedQuarter))
+            : max(1, min(12, $this->selectedMonth));
+
+        return $financialService->getUstvaPeriodData($year, $periodVal, $this->periodMode, $adminId);
     }
 
     public function loadArchivedExports(): void
@@ -355,12 +399,12 @@ class TaxAdvisorDashboard extends Component
     }
 
     /**
-     * 1. Komplettpaket DATEV & UStVA Export (ZIP mit EXTF CSV + UStVA PDF + allen Belegen)
+     * 1. Komplettpaket DATEV & UStVA Export (ZIP mit EXTF CSV + Anlagenspiegel CSV + UStVA PDF + allen Belegen)
      */
     public function downloadDatevPackageZip(FinancialService $financialService)
     {
         $adminId = $financialService->resolveMandantAdminId();
-        $data = $financialService->getUstvaMonthData($adminId, $this->selectedMonth, $this->selectedYear);
+        $data = $this->resolveActiveUstvaData($financialService, $adminId);
         $result = $financialService->generateDatevExportZip($data);
 
         $this->loadArchivedExports();
@@ -370,23 +414,24 @@ class TaxAdvisorDashboard extends Component
             return null;
         }
 
-        $this->logTaxAdvisorAccess('datev_package_zip', $result['zip_name']);
+        $this->logTaxAdvisorAccess('datev_package_zip', $result['zip_name'], ['period_mode' => $this->periodMode]);
         session()->flash('tax_success', "DATEV- & UStVA-Komplettpaket ({$result['zip_name']}) erfolgreich generiert.");
         return response()->download($result['zip_path'], $result['zip_name']);
     }
 
     /**
-     * 2. Einzelner DATEV EXTF Buchungsstapel (CSV, Windows-1252)
+     * 2. Einzelner DATEV EXTF Buchungsstapel (CSV, Windows-1252, inkl. SKR03 & BU-Schlüssel)
      */
     public function downloadDatevCsv(FinancialService $financialService)
     {
         $adminId = $financialService->resolveMandantAdminId();
-        $data = $financialService->getUstvaMonthData($adminId, $this->selectedMonth, $this->selectedYear);
+        $data = $this->resolveActiveUstvaData($financialService, $adminId);
         $csvContent = $financialService->buildDatevCsv($data);
         $encoded = mb_convert_encoding($csvContent, 'Windows-1252', 'UTF-8');
 
-        $filename = "EXTF_Buchungsstapel_{$data['month_number']}_{$data['year']}.csv";
-        $this->logTaxAdvisorAccess('datev_csv', $filename);
+        $slug = $data['export_period_slug'] ?? $data['month_number'];
+        $filename = "EXTF_Buchungsstapel_{$slug}_{$data['year']}.csv";
+        $this->logTaxAdvisorAccess('datev_csv', $filename, ['period_mode' => $this->periodMode]);
 
         return response()->streamDownload(function () use ($encoded) {
             echo $encoded;
@@ -397,16 +442,39 @@ class TaxAdvisorDashboard extends Component
     }
 
     /**
+     * 2b. Anlagenspiegel & AfA-Verzeichnis (Anlage AVEÜR + GWG + § 7g IAB-Planung) als CSV
+     */
+    public function downloadAssetScheduleCsv(FinancialService $financialService)
+    {
+        $adminId = $financialService->resolveMandantAdminId();
+        $months = $this->resolveActivePeriodMonths();
+        $upToMonth = !empty($months) ? max($months) : 12;
+        $year = max(2000, min(2100, (int) $this->selectedYear));
+
+        $csvContent = $financialService->buildAssetScheduleCsv($adminId, $year, $upToMonth);
+        $filename = "Anlagenspiegel_und_AfA_{$year}.csv";
+        $this->logTaxAdvisorAccess('asset_schedule_csv', $filename, ['period_mode' => $this->periodMode]);
+
+        return response()->streamDownload(function () use ($csvContent) {
+            echo $csvContent;
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
+    /**
      * 3. Einzelnes UStVA-Prüfprotokoll (PDF)
      */
     public function downloadUstvaPdf(FinancialService $financialService)
     {
         $adminId = $financialService->resolveMandantAdminId();
-        $data = $financialService->getUstvaMonthData($adminId, $this->selectedMonth, $this->selectedYear);
+        $data = $this->resolveActiveUstvaData($financialService, $adminId);
         $pdf = $financialService->generateUstvaPdf($data);
 
-        $filename = "UStVA_Auswertung_{$data['month_number']}_{$data['year']}.pdf";
-        $this->logTaxAdvisorAccess('ustva_pdf', $filename);
+        $slug = $data['export_period_slug'] ?? $data['month_number'];
+        $filename = "UStVA_Auswertung_{$slug}_{$data['year']}.pdf";
+        $this->logTaxAdvisorAccess('ustva_pdf', $filename, ['period_mode' => $this->periodMode]);
 
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -417,21 +485,34 @@ class TaxAdvisorDashboard extends Component
     }
 
     /**
-     * 4. Finanz- & Liquiditätsbericht inkl. Transaktionen CSV & Bank-/Sonderbelege (ZIP)
+     * 4. Gewerblicher Finanz- & Betriebsbericht inkl. Transaktionen CSV, Anlagenspiegel & Belegen (ZIP, strikt ohne Privatdaten)
      */
     public function downloadFinancialReportZip(FinancialService $financialService)
     {
         $adminId = $financialService->resolveMandantAdminId();
-        $zipPath = $financialService->generateTaxExport($adminId, $this->selectedMonth, $this->selectedYear);
+        $monthsInPeriod = $this->resolveActivePeriodMonths();
+        $periodSlug = $this->periodMode === 'year'
+            ? 'GESAMT'
+            : ($this->periodMode === 'quarter'
+                ? 'Q' . max(1, min(4, $this->selectedQuarter))
+                : str_pad((string) $this->selectedMonth, 2, '0', STR_PAD_LEFT));
+
+        $zipPath = $financialService->generateTaxExport(
+            $adminId,
+            $this->selectedMonth,
+            $this->selectedYear,
+            'business',
+            $monthsInPeriod,
+            $periodSlug
+        );
 
         if (!$zipPath || !File::exists($zipPath) || is_link($zipPath)) {
             session()->flash('tax_error', 'Der Finanz- & Liquiditätsbericht konnte nicht erstellt werden.');
             return null;
         }
 
-        $monthStr = str_pad((string) $this->selectedMonth, 2, '0', STR_PAD_LEFT);
-        $downloadName = "Finanzbericht_{$this->selectedYear}_{$monthStr}.zip";
-        $this->logTaxAdvisorAccess('financial_report_zip', $downloadName);
+        $downloadName = "Finanzbericht_{$this->selectedYear}_{$periodSlug}.zip";
+        $this->logTaxAdvisorAccess('financial_report_zip', $downloadName, ['period_mode' => $this->periodMode]);
 
         return response()->download($zipPath, $downloadName);
     }
@@ -444,6 +525,7 @@ class TaxAdvisorDashboard extends Component
         $month = max(1, min(12, $this->selectedMonth));
         $year = max(2000, min(2100, $this->selectedYear));
         $monthStr = str_pad((string) $month, 2, '0', STR_PAD_LEFT);
+        $monthsInPeriod = $this->resolveActivePeriodMonths();
 
         $invoiceQuery = AccountingInvoice::with('order.items')
             ->where('status', '!=', 'draft')
@@ -457,6 +539,11 @@ class TaxAdvisorDashboard extends Component
             $invoiceQuery->whereMonth('invoice_date', $month);
             $payoutQuery->whereMonth('created_at', $month);
             $periodLabel = "{$year}_{$monthStr}";
+        } elseif ($this->periodMode === 'quarter') {
+            $q = max(1, min(4, $this->selectedQuarter));
+            $invoiceQuery->whereIn(DB::raw('MONTH(invoice_date)'), $monthsInPeriod);
+            $payoutQuery->whereIn(DB::raw('MONTH(created_at)'), $monthsInPeriod);
+            $periodLabel = "{$year}_Q{$q}";
         } else {
             $periodLabel = "{$year}_Gesamtjahr";
         }
@@ -561,9 +648,12 @@ class TaxAdvisorDashboard extends Component
         $month = max(1, min(12, $this->selectedMonth));
         $year = max(2000, min(2100, $this->selectedYear));
         $monthStr = str_pad((string) $month, 2, '0', STR_PAD_LEFT);
-        $periodLabel = $this->periodMode === 'month' ? "{$year}_{$monthStr}" : "{$year}_Gesamtjahr";
+        $monthsToExport = $this->resolveActivePeriodMonths();
+        $periodLabel = $this->periodMode === 'month'
+            ? "{$year}_{$monthStr}"
+            : ($this->periodMode === 'quarter' ? "{$year}_Q" . max(1, min(4, $this->selectedQuarter)) : "{$year}_Gesamtjahr");
 
-        $contracts = \Illuminate\Support\Facades\Schema::hasTable('employee_contracts')
+        $contracts = Schema::hasTable('employee_contracts')
             ? \App\Models\Employee\EmployeeContract::with(['employee.profile', 'payslips' => fn ($q) => $q->where('period_year', $year)])
                 ->whereNotNull('invitation_accepted_at')
                 ->orderBy('is_archived')
@@ -609,8 +699,7 @@ class TaxAdvisorDashboard extends Component
                     $addedCount++;
                 }
 
-                // 3. Stundenzettel & Lohnabrechnungen (Monat oder Gesamtjahr)
-                $monthsToExport = $this->periodMode === 'month' ? [$month] : range(1, 12);
+                // 3. Stundenzettel & Lohnabrechnungen (Monat, Quartal oder Gesamtjahr)
                 foreach ($monthsToExport as $m) {
                     $mStr = str_pad((string) $m, 2, '0', STR_PAD_LEFT);
                     $tPath = $hrService->generateAndStoreTimesheetPdf($contract, $year, $m);
@@ -793,8 +882,9 @@ class TaxAdvisorDashboard extends Component
     {
         $employee = Auth::guard('employee')->user();
         $mandantAdminId = $financialService->resolveMandantAdminId();
+        $activePeriodMonths = $this->resolveActivePeriodMonths();
 
-        // 1. Monats-Navigationsstatus (1..12) + Aktiver Monat (UStVA & Steuer-Kennzahlen)
+        // 1. Monats-Navigationsstatus (1..12) + Aktiver Zeitraum (Monat / Quartal / Jahr)
         $monthsNav = [];
         for ($m = 1; $m <= 12; $m++) {
             $mData = $financialService->getUstvaMonthData($mandantAdminId, $m, $this->selectedYear);
@@ -806,10 +896,20 @@ class TaxAdvisorDashboard extends Component
             ];
         }
 
-        $activeMonthData = $financialService->getUstvaMonthData($mandantAdminId, $this->selectedMonth, $this->selectedYear);
-        $monthlyStatsBrutto = $financialService->getMonthlyStats($mandantAdminId, $this->selectedMonth, $this->selectedYear, false);
-        $monthlyStatsNetto = $financialService->getMonthlyStats($mandantAdminId, $this->selectedMonth, $this->selectedYear, true);
-        $yearlyMatrix = $financialService->getYearlyMatrix($mandantAdminId, $this->selectedYear, $this->isNet);
+        $activeMonthData = $this->resolveActiveUstvaData($financialService, $mandantAdminId);
+        $monthlyStatsBrutto = $financialService->getMonthlyStats($mandantAdminId, $this->selectedMonth, $this->selectedYear, false, 'business');
+        $monthlyStatsNetto = $financialService->getMonthlyStats($mandantAdminId, $this->selectedMonth, $this->selectedYear, true, 'business');
+        $yearlyMatrix = $financialService->getYearlyMatrix($mandantAdminId, $this->selectedYear, $this->isNet, $this->scopeFilter);
+
+        $upToMonthForAssets = !empty($activePeriodMonths) ? max($activePeriodMonths) : 12;
+        $assetSchedule = $financialService->getFixedAssetsAndDepreciation($mandantAdminId, (int) $this->selectedYear, (int) $upToMonthForAssets);
+        $investmentPlans = (Schema::hasTable('accounting_investment_plans') && $mandantAdminId)
+            ? AccountingInvestmentPlan::where('admin_id', $mandantAdminId)
+                ->where('is_active', true)
+                ->whereNull('completed_special_issue_id')
+                ->orderBy('priority')
+                ->get()
+            : collect();
 
         // 2. Fixkosten & Fix-Einnahmen (Gewerblich & Privat) detailliert aufbereiten
         $groups = AccountingGroup::with('items')
@@ -841,7 +941,13 @@ class TaxAdvisorDashboard extends Component
                 $net = $rate > 0 ? ($gross / (1 + ($rate / 100))) : $gross;
                 $vat = $gross - $net;
 
-                $isDueInSelectedMonth = $financialService->isDueInMonth($item, $this->selectedMonth, $this->selectedYear);
+                $dueInPeriodCount = 0;
+                foreach ($activePeriodMonths as $pMonth) {
+                    if ($financialService->isDueInMonth($item, $pMonth, $this->selectedYear)) {
+                        $dueInPeriodCount++;
+                    }
+                }
+                $isDueInSelectedPeriod = $dueInPeriodCount > 0;
 
                 $dueMonthsCount = 0;
                 for ($m = 1; $m <= 12; $m++) {
@@ -850,22 +956,23 @@ class TaxAdvisorDashboard extends Component
                     }
                 }
                 $yearGross = $gross * $dueMonthsCount;
+                $periodGross = $gross * max(1, $dueInPeriodCount);
 
                 if ($isIncomeGroup) {
-                    if ($isDueInSelectedMonth) {
-                        $fixedSummary['income_month_gross'] += $gross;
+                    if ($isDueInSelectedPeriod) {
+                        $fixedSummary['income_month_gross'] += ($gross * $dueInPeriodCount);
                     }
                     $fixedSummary['income_year_gross'] += $yearGross;
                 } elseif ($isBusiness) {
-                    if ($isDueInSelectedMonth) {
-                        $fixedSummary['business_month_gross'] += $gross;
-                        $fixedSummary['business_month_net'] += $net;
-                        $fixedSummary['business_month_vat'] += $vat;
+                    if ($isDueInSelectedPeriod) {
+                        $fixedSummary['business_month_gross'] += ($gross * $dueInPeriodCount);
+                        $fixedSummary['business_month_net'] += ($net * $dueInPeriodCount);
+                        $fixedSummary['business_month_vat'] += ($vat * $dueInPeriodCount);
                     }
                     $fixedSummary['business_year_gross'] += $yearGross;
                 } else {
-                    if ($isDueInSelectedMonth) {
-                        $fixedSummary['private_month_gross'] += $gross;
+                    if ($isDueInSelectedPeriod) {
+                        $fixedSummary['private_month_gross'] += ($gross * $dueInPeriodCount);
                     }
                     $fixedSummary['private_year_gross'] += $yearGross;
                 }
@@ -895,19 +1002,26 @@ class TaxAdvisorDashboard extends Component
                     }
                 }
 
+                $skrInfo = ($isBusiness && !$isIncomeGroup)
+                    ? $financialService->resolveSkr03ExpenseAccountAndBuKey($item, $isSmallBusinessYear)
+                    : null;
+
                 $fixedItemsDetailed->push([
                     'id' => $item->id,
                     'name' => $item->name,
                     'group_name' => $group->name,
                     'is_income' => $isIncomeGroup,
                     'is_business' => $isBusiness,
+                    'skr03_account' => $skrInfo['account'] ?? null,
                     'interval_months' => max(1, (int) ($item->interval_months ?: 1)),
                     'first_payment_date' => $item->first_payment_date ? Carbon::parse($item->first_payment_date)->format('d.m.Y') : '—',
                     'last_payment_date' => $item->last_payment_date ? Carbon::parse($item->last_payment_date)->format('d.m.Y') : null,
-                    'is_due_in_month' => $isDueInSelectedMonth,
+                    'is_due_in_month' => $isDueInSelectedPeriod,
+                    'due_in_period_count' => $dueInPeriodCount,
                     'due_months_in_year' => $dueMonthsCount,
                     'tax_rate' => $rate,
-                    'gross' => $gross,
+                    'gross' => $this->periodMode === 'month' ? $gross : ($isDueInSelectedPeriod ? $periodGross : $gross),
+                    'unit_gross' => $gross,
                     'net' => $net,
                     'vat' => $vat,
                     'year_gross' => $yearGross,
@@ -917,24 +1031,29 @@ class TaxAdvisorDashboard extends Component
             }
         }
 
-        // 3. Sonderausgaben / Variable Kosten & Banktransaktionen (Gewerblich & Privat)
+        // 3. Sonderausgaben / Variable Kosten & Banktransaktionen (mit Dublettenschutz)
         $specialQuery = AccountingSpecialIssue::where('admin_id', $mandantAdminId)
             ->whereYear('execution_date', $this->selectedYear);
 
         if ($this->periodMode === 'month') {
             $specialQuery->whereMonth('execution_date', $this->selectedMonth);
+        } elseif ($this->periodMode === 'quarter') {
+            $specialQuery->whereIn(DB::raw('MONTH(execution_date)'), $activePeriodMonths);
         }
 
         $allPeriodSpecials = $specialQuery->orderByDesc('execution_date')->get();
 
-        $bankTxs = class_exists(AccountingBankTransaction::class)
+        $rawBankTxs = class_exists(AccountingBankTransaction::class)
             ? AccountingBankTransaction::with(['account', 'financeCategory'])
                 ->whereHas('account', fn ($q) => $q->where('admin_id', $mandantAdminId))
                 ->whereYear('transaction_date', $this->selectedYear)
                 ->when($this->periodMode === 'month', fn ($q) => $q->whereMonth('transaction_date', $this->selectedMonth))
+                ->when($this->periodMode === 'quarter', fn ($q) => $q->whereIn(DB::raw('MONTH(transaction_date)'), $activePeriodMonths))
                 ->orderByDesc('transaction_date')
                 ->get()
             : collect();
+
+        $bankTxs = $financialService->filterNonDuplicateBankTransactions($rawBankTxs, $allPeriodSpecials);
 
         $specialSummary = [
             'business_gross' => 0.0,
@@ -990,6 +1109,10 @@ class TaxAdvisorDashboard extends Component
                 }
             }
 
+            $skrInfo = $isBusiness
+                ? $financialService->resolveSkr03ExpenseAccountAndBuKey($special, $isSmallBusinessYear)
+                : null;
+
             $variableItemsDetailed->push([
                 'id' => $special->id,
                 'source' => 'special',
@@ -997,6 +1120,8 @@ class TaxAdvisorDashboard extends Component
                 'sort_date' => $special->execution_date ? Carbon::parse($special->execution_date)->timestamp : 0,
                 'title' => $special->title,
                 'category' => $special->category ?: 'Sonstiges',
+                'skr03_account' => $skrInfo['account'] ?? null,
+                'is_capital_asset' => ($skrInfo['account'] ?? '') === '0440',
                 'invoice_number' => $special->invoice_number,
                 'location' => $special->location,
                 'is_business' => $isBusiness,
@@ -1012,7 +1137,7 @@ class TaxAdvisorDashboard extends Component
         }
 
         foreach ($bankTxs as $tx) {
-            $isBusiness = (bool) ($tx->is_business ?? ($tx->account ? $tx->account->is_business : false));
+            $isBusiness = (bool) ($tx->is_business ?? ($tx->account ? ($tx->account->is_business_account ?? $tx->account->is_business ?? false) : false));
             $signedGross = (float) $tx->amount;
             $absGross = abs($signedGross);
             $files = is_array($tx->file_paths) ? array_values(array_filter($tx->file_paths)) : [];
@@ -1059,6 +1184,8 @@ class TaxAdvisorDashboard extends Component
                 'sort_date' => $tx->transaction_date ? Carbon::parse($tx->transaction_date)->timestamp : 0,
                 'title' => $txTitle,
                 'category' => $txCat,
+                'skr03_account' => $isBusiness ? '4900' : null,
+                'is_capital_asset' => false,
                 'invoice_number' => null,
                 'location' => $tx->account?->name ?: 'Bankkonto',
                 'is_business' => $isBusiness,
@@ -1092,6 +1219,10 @@ class TaxAdvisorDashboard extends Component
             $invoicesQuery->whereMonth('invoice_date', $this->selectedMonth);
             $ordersPeriodQuery->whereMonth('created_at', $this->selectedMonth);
             $payoutsQuery->whereMonth('created_at', $this->selectedMonth);
+        } elseif ($this->periodMode === 'quarter') {
+            $invoicesQuery->whereIn(DB::raw('MONTH(invoice_date)'), $activePeriodMonths);
+            $ordersPeriodQuery->whereIn(DB::raw('MONTH(created_at)'), $activePeriodMonths);
+            $payoutsQuery->whereIn(DB::raw('MONTH(created_at)'), $activePeriodMonths);
         }
 
         $allPeriodInvoices = $invoicesQuery->orderByDesc('invoice_date')->orderByDesc('created_at')->get();
@@ -1152,7 +1283,7 @@ class TaxAdvisorDashboard extends Component
             return true;
         })->values();
 
-        $employeeContracts = \Illuminate\Support\Facades\Schema::hasTable('employee_contracts')
+        $employeeContracts = Schema::hasTable('employee_contracts')
             ? \App\Models\Employee\EmployeeContract::with([
                 'employee.profile',
                 'payslips' => fn ($q) => $q->where('period_year', (int) $this->selectedYear),
@@ -1203,8 +1334,11 @@ class TaxAdvisorDashboard extends Component
             ->where('is_completed', true)
             ->count();
 
-        // Fristen-Radar für den Abrechnungsmonat berechnen (§ 18 UStG / § 108 AO)
-        $baseDeadline = Carbon::create($this->selectedYear, $this->selectedMonth, 10)->addMonth();
+        // Fristen-Radar passend zum Modus (Monat / Quartal: 10. Folgemonat | Jahr: 31.07. Folgejahr, § 108 AO)
+        $baseDeadline = isset($activeMonthData['deadline']) && $activeMonthData['deadline'] instanceof Carbon
+            ? $activeMonthData['deadline']->copy()
+            : Carbon::create($this->selectedYear, $this->selectedMonth, 10)->addMonth();
+
         if ($baseDeadline->isSaturday()) {
             $baseDeadline->addDays(2);
         } elseif ($baseDeadline->isSunday()) {
@@ -1237,6 +1371,8 @@ class TaxAdvisorDashboard extends Component
             'companyMeta' => $financialService->getCompanyTaxMeta(),
             'monthsNav' => $monthsNav,
             'activeMonthData' => $activeMonthData,
+            'assetSchedule' => $assetSchedule,
+            'investmentPlans' => $investmentPlans,
             'deadlineStatus' => $deadlineStatus,
             'monthlyGrossSalariesCents' => $monthlyGrossSalariesCents,
             'receiptStatusFilter' => $this->receiptStatusFilter,

@@ -219,16 +219,17 @@
             <table class="w-full text-left border-collapse min-w-[960px]">
                 <thead>
                     <tr class="bg-gray-50/80 dark:bg-gray-950/80 border-b border-gray-200 dark:border-gray-800 text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest">
-                        <th class="px-6 sm:px-8 py-5 w-[18%]">Bereich</th>
-                        <th class="px-6 py-5 w-[22%]">Modul & Aktion</th>
-                        <th class="px-6 py-5 w-[44%]">Meldung</th>
-                        <th class="px-6 sm:px-8 py-5 w-[16%] text-right">Status</th>
+                        <th class="px-6 sm:px-8 py-5 w-[24%]">Bereich & Unterseite</th>
+                        <th class="px-6 py-5 w-[20%]">Modul & Aktion</th>
+                        <th class="px-6 py-5 w-[36%]">Meldung</th>
+                        <th class="px-6 sm:px-8 py-5 w-[20%] text-right">Status</th>
                     </tr>
                 </thead>
                 @forelse($logs as $log)
                     @php
                         $rowPayload = is_array($log->payload) ? $log->payload : (json_decode((string) $log->payload, true) ?? []);
                         $displayOccurrences = max(1, (int) ($rowPayload['occurrences_count'] ?? 1));
+                        $areaMeta = $log->resolveAreaAndSubpageMeta();
                         $platMeta = $log->resolvePlatformMeta();
                         $platKey = $platMeta['key'];
                         $platBadgeClasses = match ($platKey) {
@@ -241,21 +242,39 @@
                     @endphp
                     <tbody wire:key="sys-log-{{ $log->id }}" x-data="{ expanded: false }" class="border-b border-gray-100 dark:border-gray-800/60 transition-colors group hover:bg-gray-50/80 dark:hover:bg-gray-800/40">
                         <tr @click="expanded = !expanded" class="cursor-pointer">
-                            {{-- SPALTE 1: BEREICH (Webportal / Android / Mini-PC / Funkenwerk) + Zeitstempel --}}
+                            {{-- SPALTE 1: BEREICH (Plattform + Umgebung + Unterseite + Zeitstempel) --}}
                             <td class="px-6 sm:px-8 py-4 align-top border-l-[3px] {{ $log->status === 'error' ? 'border-red-500' : ($log->status === 'warning' ? 'border-amber-500' : ($log->status === 'success' ? 'border-emerald-500' : 'border-gray-400 dark:border-gray-700')) }}">
                                 <div class="flex flex-col items-start gap-1.5">
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border whitespace-nowrap {{ $platBadgeClasses }}">
-                                        @if($platKey === 'android')
-                                            <x-heroicon-o-device-phone-mobile class="w-3.5 h-3.5 shrink-0" />
-                                        @elseif($platKey === 'minipc_linux')
-                                            <x-heroicon-o-cpu-chip class="w-3.5 h-3.5 shrink-0" />
-                                        @elseif($platKey === 'windows_desktop')
-                                            <x-heroicon-o-computer-desktop class="w-3.5 h-3.5 shrink-0" />
-                                        @else
-                                            <x-heroicon-o-globe-alt class="w-3.5 h-3.5 shrink-0" />
+                                    <div class="flex flex-wrap items-center gap-1.5">
+                                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider border whitespace-nowrap {{ $platBadgeClasses }}">
+                                            @if($platKey === 'android')
+                                                <x-heroicon-o-device-phone-mobile class="w-3.5 h-3.5 shrink-0" />
+                                            @elseif($platKey === 'minipc_linux')
+                                                <x-heroicon-o-cpu-chip class="w-3.5 h-3.5 shrink-0" />
+                                            @elseif($platKey === 'windows_desktop')
+                                                <x-heroicon-o-computer-desktop class="w-3.5 h-3.5 shrink-0" />
+                                            @else
+                                                <x-heroicon-o-globe-alt class="w-3.5 h-3.5 shrink-0" />
+                                            @endif
+                                            {{ $platMeta['short'] }}
+                                        </span>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest border whitespace-nowrap {{ $areaMeta['env_badge_class'] }}">
+                                            {{ $areaMeta['env_label'] }}
+                                        </span>
+                                    </div>
+
+                                    {{-- Unterseite / Modul-Pfad --}}
+                                    <div class="flex flex-col gap-0.5 max-w-[260px]">
+                                        <span class="text-[11px] font-bold text-gray-900 dark:text-white leading-tight truncate" title="{{ $areaMeta['subpage_label'] }}">
+                                            {{ $areaMeta['subpage_label'] }}
+                                        </span>
+                                        @if(!empty($areaMeta['subpage_path']) && $areaMeta['subpage_path'] !== $areaMeta['subpage_label'])
+                                            <span class="text-[10px] font-mono text-[var(--theme-color)] truncate" title="{{ $areaMeta['subpage_path'] }}">
+                                                {{ $areaMeta['subpage_path'] }}
+                                            </span>
                                         @endif
-                                        {{ $platMeta['short'] }}
-                                    </span>
+                                    </div>
+
                                     @if($displayTime)
                                         <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
                                             {{ $displayTime->format('d.m.Y · H:i:s') }}
@@ -273,6 +292,11 @@
                                         <span class="text-xs font-bold text-[var(--theme-color)]">{{ $rowPayload['component'] ?? $log->type }}</span>
                                     @endif
                                     <span class="text-[10px] font-mono text-gray-500 dark:text-gray-400 break-all">{{ $log->action_id }}</span>
+                                    @if(!empty($areaMeta['livewire_action']))
+                                        <span class="text-[10px] font-mono text-gray-700 dark:text-gray-300 truncate max-w-[210px]" title="{{ $areaMeta['livewire_action'] }}">
+                                            {{ $areaMeta['livewire_action'] }}
+                                        </span>
+                                    @endif
                                 </div>
                             </td>
 
@@ -292,47 +316,56 @@
                                     $rowTriageState = $rowPayload['triage']['state'] ?? null;
                                     $rowAutoHealed = !empty($rowPayload['auto_healed']) || $rowTriageState === 'auto_healed';
                                 @endphp
-                                <div class="flex justify-end items-center gap-2 mt-0.5 flex-wrap">
-                                    @if($rowTriageState === 'queued_for_antigravity' && in_array($log->status, ['error', 'warning'], true))
-                                        <span class="px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border border-[#C5A059]/35 bg-[#C5A059]/10 text-[#8F6B29] dark:text-[#C5A059]">
-                                            POOL
-                                        </span>
-                                    @elseif($rowAutoHealed)
-                                        <span class="px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                                            AUTO-GEHEILT
-                                        </span>
-                                    @endif
+                                <div class="flex flex-col items-end gap-2 mt-0.5">
+                                    <div class="flex justify-end items-center gap-1.5 flex-wrap">
+                                        @if($rowTriageState === 'queued_for_antigravity' && in_array($log->status, ['error', 'warning'], true))
+                                            <span class="px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border border-[#C5A059]/35 bg-[#C5A059]/10 text-[#8F6B29] dark:text-[#C5A059]">
+                                                POOL
+                                            </span>
+                                        @elseif($rowAutoHealed)
+                                            <span class="px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                                                AUTO-GEHEILT
+                                            </span>
+                                        @endif
 
-                                    @if($log->status === 'success' || $log->status === 'resolved')
-                                        <button type="button" wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer">
-                                            GELÖST
-                                        </button>
-                                    @elseif($log->status === 'running')
-                                        <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 inline-flex items-center gap-1.5">
-                                            <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping"></span> AKTIV
-                                        </span>
-                                    @elseif($log->status === 'error')
-                                        <button type="button" wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 inline-flex items-center gap-1.5 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors cursor-pointer">
-                                            FEHLER
-                                            @if($displayOccurrences > 1)
-                                                <span class="bg-red-600 text-white rounded px-1.5 py-0.5 text-[8px]">{{ $displayOccurrences }}x</span>
-                                            @endif
-                                        </button>
-                                    @elseif($log->status === 'warning')
-                                        <button type="button" wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 inline-flex items-center gap-1.5 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors cursor-pointer">
-                                            WARNUNG
-                                            @if($displayOccurrences > 1)
-                                                <span class="bg-amber-500 text-gray-950 rounded px-1.5 py-0.5 text-[8px]">{{ $displayOccurrences }}x</span>
-                                            @endif
-                                        </button>
-                                    @else
-                                        <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">{{ strtoupper($log->status) }}</span>
-                                    @endif
+                                        @if($log->status === 'success' || $log->status === 'resolved')
+                                            <button type="button" wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-colors cursor-pointer">
+                                                GELÖST
+                                            </button>
+                                        @elseif($log->status === 'running')
+                                            <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-sky-500/30 bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 inline-flex items-center gap-1.5">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping"></span> AKTIV
+                                            </span>
+                                        @elseif($log->status === 'error')
+                                            <button type="button" wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 inline-flex items-center gap-1.5 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors cursor-pointer">
+                                                FEHLER
+                                                @if($displayOccurrences > 1)
+                                                    <span class="bg-red-600 text-white rounded px-1.5 py-0.5 text-[8px]">{{ $displayOccurrences }}x</span>
+                                                @endif
+                                            </button>
+                                        @elseif($log->status === 'warning')
+                                            <button type="button" wire:click.stop="toggleStatus({{ $log->id }})" class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 inline-flex items-center gap-1.5 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors cursor-pointer">
+                                                WARNUNG
+                                                @if($displayOccurrences > 1)
+                                                    <span class="bg-amber-500 text-gray-950 rounded px-1.5 py-0.5 text-[8px]">{{ $displayOccurrences }}x</span>
+                                                @endif
+                                            </button>
+                                        @else
+                                            <span class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">{{ strtoupper($log->status) }}</span>
+                                        @endif
 
-                                    <button type="button" wire:click.stop="deleteLog({{ $log->id }})" wire:confirm="Diesen Log-Eintrag endgültig löschen?" class="p-1.5 rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer" title="Löschen">
-                                        <x-heroicon-o-trash class="w-4 h-4" />
+                                        <button type="button" wire:click.stop="deleteLog({{ $log->id }})" wire:confirm="Diesen Log-Eintrag endgültig löschen?" class="p-1.5 rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer" title="Löschen">
+                                            <x-heroicon-o-trash class="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    {{-- Expliziter "Weitere Details"-Button --}}
+                                    <button type="button"
+                                            @click.stop="expanded = !expanded"
+                                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 text-gray-600 dark:text-gray-300 hover:border-[var(--theme-color)]/50 hover:text-[var(--theme-color)] transition-colors cursor-pointer">
+                                        <span x-text="expanded ? 'Details schließen' : 'Weitere Details'">Weitere Details</span>
+                                        <x-heroicon-m-chevron-down class="w-3.5 h-3.5 transition-transform" x-bind:class="expanded ? 'rotate-180 text-[var(--theme-color)]' : ''" />
                                     </button>
-                                    <x-heroicon-m-chevron-down class="w-4 h-4 text-gray-400 transition-transform group-hover:text-gray-700 dark:group-hover:text-gray-200" x-bind:class="expanded ? 'rotate-180 text-[var(--theme-color)]' : ''" />
                                 </div>
                             </td>
                         </tr>
@@ -344,12 +377,143 @@
                                     $cPayload = $rowPayload;
                                     $diag = $cPayload['diagnosis'] ?? null;
                                     $tel = $cPayload['session_telemetry'] ?? null;
-                                    $execCtx = $cPayload['execution_context'] ?? null;
+                                    $execCtx = is_array($cPayload['execution_context'] ?? null) ? $cPayload['execution_context'] : [];
+                                    $serverEnv = is_array($cPayload['server_environment'] ?? null) ? $cPayload['server_environment'] : [];
                                     $traceList = $cPayload['trace_excerpt'] ?? null;
                                     $rawStack = $cPayload['stack'] ?? $cPayload['stack_excerpt'] ?? null;
                                     $recentEvents = $cPayload['recent_events'] ?? null;
+                                    $prevEx = is_array($cPayload['previous_exception'] ?? null) ? $cPayload['previous_exception'] : null;
+                                    $authUser = is_array($execCtx['authenticated_user'] ?? null) ? $execCtx['authenticated_user'] : null;
                                 @endphp
                                 <div class="space-y-4">
+                                    {{-- WEITERE DETAILS: 3-Spalten Diagnose-Cockpit (Umgebung & Unterseite | Auslöser & Sitzung | Technischer Fehler-Ursprung) --}}
+                                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-3 text-xs">
+                                        {{-- Box 1: Umgebung & Unterseite --}}
+                                        <div class="p-4 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 space-y-2">
+                                            <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] flex items-center gap-1.5">
+                                                <x-heroicon-o-map-pin class="w-3.5 h-3.5" /> Umgebung & Unterseite
+                                            </div>
+                                            <div class="space-y-1 text-[11px]">
+                                                <div class="flex items-center justify-between gap-2">
+                                                    <span class="text-gray-500 dark:text-gray-400">Umgebung:</span>
+                                                    <span class="font-bold text-gray-900 dark:text-white">{{ $areaMeta['platform_label'] }} · {{ $areaMeta['env_label'] }}</span>
+                                                </div>
+                                                <div class="flex items-center justify-between gap-2">
+                                                    <span class="text-gray-500 dark:text-gray-400">Bereich:</span>
+                                                    <span class="font-bold text-gray-900 dark:text-white text-right">{{ $areaMeta['subpage_label'] }}</span>
+                                                </div>
+                                                <div class="pt-1 border-t border-gray-100 dark:border-gray-800">
+                                                    <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Unterseite / Route / CLI:</span>
+                                                    <span class="font-mono text-[11px] font-bold text-[var(--theme-color)] break-all">{{ $areaMeta['subpage_path'] }}</span>
+                                                </div>
+                                                @if(!empty($areaMeta['full_url']))
+                                                    <div>
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Request-URL:</span>
+                                                        <span class="font-mono text-[10px] text-gray-700 dark:text-gray-300 break-all">{{ $areaMeta['http_method'] ? $areaMeta['http_method'] . ' ' : '' }}{{ $areaMeta['full_url'] }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($areaMeta['referer']) && $areaMeta['referer'] !== $areaMeta['full_url'])
+                                                    <div>
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Referer (Herkunftsseite):</span>
+                                                        <span class="font-mono text-[10px] text-gray-700 dark:text-gray-300 break-all">{{ $areaMeta['referer'] }}</span>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        {{-- Box 2: Auslöser, Komponente & Sitzung --}}
+                                        <div class="p-4 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 space-y-2">
+                                            <div class="text-[10px] font-black uppercase tracking-widest text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+                                                <x-heroicon-o-cursor-arrow-rays class="w-3.5 h-3.5" /> Auslöser & Sitzung
+                                            </div>
+                                            <div class="space-y-1 text-[11px]">
+                                                <div class="flex items-center justify-between gap-2">
+                                                    <span class="text-gray-500 dark:text-gray-400">Aktion-ID:</span>
+                                                    <span class="font-mono text-[10px] text-gray-900 dark:text-white break-all text-right">{{ $log->action_id }}</span>
+                                                </div>
+                                                @if(!empty($areaMeta['livewire_action']))
+                                                    <div>
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Livewire-Komponente & Methode:</span>
+                                                        <span class="font-mono text-[11px] font-bold text-gray-900 dark:text-white break-all">{{ $areaMeta['livewire_action'] }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($cPayload['alpine_expression']))
+                                                    <div>
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Alpine.js Ausdruck:</span>
+                                                        <span class="font-mono text-[10px] text-amber-700 dark:text-amber-300 break-all">{{ $cPayload['alpine_expression'] }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($authUser))
+                                                    <div class="flex items-center justify-between gap-2 pt-1 border-t border-gray-100 dark:border-gray-800">
+                                                        <span class="text-gray-500 dark:text-gray-400">Benutzer (Guard):</span>
+                                                        <span class="font-mono text-[10px] text-gray-900 dark:text-white">{{ strtoupper((string) ($authUser['guard'] ?? 'web')) }} · {{ $authUser['email'] ?? ($authUser['id'] ?? '-') }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($cPayload['influencer_handle']) || !empty($cPayload['influencer_id']))
+                                                    <div class="flex items-center justify-between gap-2">
+                                                        <span class="text-gray-500 dark:text-gray-400">Creator / Influencer:</span>
+                                                        <span class="font-mono text-[10px] font-bold text-[var(--theme-color)]">{{ $cPayload['influencer_handle'] ?? $cPayload['influencer_id'] }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($cPayload['ip']) || !empty($execCtx['ip']))
+                                                    <div class="flex items-center justify-between gap-2">
+                                                        <span class="text-gray-500 dark:text-gray-400">Client-IP:</span>
+                                                        <span class="font-mono text-[10px] text-gray-800 dark:text-gray-200">{{ $cPayload['ip'] ?? $execCtx['ip'] }}</span>
+                                                    </div>
+                                                @endif
+                                                <div class="flex items-center justify-between gap-2 pt-1 border-t border-gray-100 dark:border-gray-800">
+                                                    <span class="text-gray-500 dark:text-gray-400">Auftreten:</span>
+                                                    <span class="font-bold text-gray-900 dark:text-white">{{ $displayOccurrences }}x{{ !empty($cPayload['last_seen_at']) ? ' (zuletzt ' . \Illuminate\Support\Str::limit((string) $cPayload['last_seen_at'], 19, '') . ')' : '' }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {{-- Box 3: Technischer Fehler-Ursprung --}}
+                                        <div class="p-4 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 space-y-2">
+                                            <div class="text-[10px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                                                <x-heroicon-o-cpu-chip class="w-3.5 h-3.5" /> Technischer Ursprung
+                                            </div>
+                                            <div class="space-y-1 text-[11px]">
+                                                @if(!empty($cPayload['exception_class']))
+                                                    <div>
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Exception-Klasse:</span>
+                                                        <span class="font-mono text-[11px] font-bold text-red-600 dark:text-red-400 break-all">{{ $cPayload['exception_class'] }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($cPayload['file']) || !empty($cPayload['source']))
+                                                    <div>
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Datei & Zeile:</span>
+                                                        <span class="font-mono text-[10px] text-gray-900 dark:text-white break-all">{{ $cPayload['file'] ?? $cPayload['source'] }}:{{ $cPayload['line'] ?? ($cPayload['lineno'] ?? '?') }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($prevEx))
+                                                    <div class="pt-1 border-t border-gray-100 dark:border-gray-800">
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Ursprüngliche Exception (Previous):</span>
+                                                        <span class="font-mono text-[10px] text-red-600 dark:text-red-400 break-all">{{ $prevEx['exception_class'] ?? '' }}: {{ $prevEx['message'] ?? '' }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($execCtx['input_keys']) && is_array($execCtx['input_keys']))
+                                                    <div class="pt-1 border-t border-gray-100 dark:border-gray-800">
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Übergebene Request-Felder:</span>
+                                                        <span class="font-mono text-[10px] text-gray-700 dark:text-gray-300 break-all">{{ implode(', ', array_slice($execCtx['input_keys'], 0, 15)) }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($cPayload['console_output']))
+                                                    <div class="pt-1 border-t border-gray-100 dark:border-gray-800">
+                                                        <span class="text-gray-500 dark:text-gray-400 block text-[10px] uppercase font-bold">Konsolen-Ausgabe:</span>
+                                                        <span class="font-mono text-[10px] text-amber-700 dark:text-amber-300 break-all">{{ \Illuminate\Support\Str::limit((string) $cPayload['console_output'], 260) }}</span>
+                                                    </div>
+                                                @endif
+                                                @if(!empty($serverEnv['php_version']))
+                                                    <div class="flex items-center justify-between gap-2 pt-1 border-t border-gray-100 dark:border-gray-800 text-[10px] text-gray-500 dark:text-gray-400">
+                                                        <span>PHP {{ $serverEnv['php_version'] }}</span>
+                                                        <span>Cache: {{ $serverEnv['cache_driver'] ?? '-' }} · Queue: {{ $serverEnv['queue_connection'] ?? '-' }}</span>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div>
                                         <div class="text-[10px] font-black uppercase tracking-widest text-[var(--theme-color)] mb-2 flex items-center gap-2">
                                             <x-heroicon-o-document-text class="w-3.5 h-3.5" />
