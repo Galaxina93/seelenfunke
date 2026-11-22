@@ -370,6 +370,12 @@ namespace FunkenwerkMcp
                 return await RunStripeApiBrokerCliAsync(args);
             }
 
+            if (args.Any(a => string.Equals(a, "--kdrive-broker", StringComparison.OrdinalIgnoreCase)) ||
+                args.Any(a => a.StartsWith("--kdrive-broker=", StringComparison.OrdinalIgnoreCase)))
+            {
+                return await RunKdriveBrokerCliAsync(args);
+            }
+
             // Ensure ACL lockdown on MCP data directory immediately at startup
             McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
 
@@ -2739,6 +2745,36 @@ namespace FunkenwerkMcp
             }
         }
 
+        public static async Task<int> RunKdriveBrokerCliAsync(string[] args)
+        {
+            try
+            {
+                McpSecurityGuard.LockDownDirectoryAcl(McpSecurityGuard.VaultDirectory);
+
+                string? preset = TryReadCliOption(args, "--kdrive-broker")
+                              ?? TryReadCliOption(args, "--preset");
+
+                if (string.IsNullOrWhiteSpace(preset))
+                    throw new ArgumentException("Bitte <preset> angeben: --kdrive-broker <verify|provision|e2e_test> [--drive-id 2216011] [--entry <titleOrId>]");
+
+                string driveId = TryReadCliOption(args, "--drive-id") ?? "2216011";
+                string? entry = TryReadCliOption(args, "--entry");
+
+                var res = await McpTresorBroker.ExecuteKdriveBrokerPresetAsync(
+                    preset: preset,
+                    driveId: driveId,
+                    entryTitleOrId: entry);
+
+                Console.WriteLine(McpSecurityGuard.ScrubSecrets(JsonSerializer.Serialize(res, JsonPretty)));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"❌ kDrive API-Broker abgebrochen: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return 1;
+            }
+        }
+
         public static async Task RunStdioServerLoopAsync(Stream stdin, Stream stdout, CancellationToken ct = default)
         {
             var frameReader = new JsonRpcByteFrameReader(stdin);
@@ -3255,14 +3291,14 @@ namespace FunkenwerkMcp
             new
             {
                 name = "collection_control",
-                description = "Zentrale Steuerung & Prüfung der Funkenwerk Collection: Systemstatus abrufen ('status'), eine der 10 Desktop-Apps starten ('launch'), Unternehmens-Stammdaten abrufen ('stammdaten') oder das Sicherheits-Audit prüfen ('security_audit').",
+                description = "Zentrale Steuerung & Prüfung der Funkenwerk Collection: Systemstatus abrufen ('status'), Hauptmodul oder eines der 14 Module starten ('launch'), Unternehmens-Stammdaten abrufen ('stammdaten') oder das Sicherheits-Audit prüfen ('security_audit').",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
                   "properties": {
                     "action": { "type": "string", "enum": ["status", "launch", "stammdaten", "security_audit"] },
-                    "app": { "type": "string", "enum": ["funkenwerk", "tresor", "player", "video", "craft", "ftp", "ssh", "pdf", "drucker", "os", "browser"], "description": "Ziel-App bei action='launch'." },
-                    "filePath": { "type": "string", "description": "Optionaler sicherer Dateipfad (für 'pdf'/'drucker'/'player'), HTTPS-URL (für 'browser') oder Projektname (für 'craft'). CLI-Flags sind gesperrt." }
+                    "app": { "type": "string", "enum": ["funkenwerk", "3d", "browser", "craft", "drucker", "ftp", "kamera", "marketing", "os", "pdf", "player", "smarthome", "ssh", "tresor", "video"], "description": "Ziel-App bei action='launch'." },
+                    "filePath": { "type": "string", "description": "Optionaler sicherer Dateipfad (für 'pdf'/'drucker'/'player'/'3d'/'video'), HTTPS-URL (für 'browser') oder Projektname (für 'craft'). CLI-Flags sind gesperrt." }
                   },
                   "required": ["action"],
                   "additionalProperties": false
@@ -3272,7 +3308,7 @@ namespace FunkenwerkMcp
             new
             {
                 name = "music_control",
-                description = "Steuert den integrierten Funkenwerk Musikplayer und den VSync-GPU Fokus-Modus live auf Alinas Windows-PC (Status abfragen, Songs/Playlists/Favoriten abspielen, Pause, Nächster/Vorheriger Titel, Lautstärke 0 bis 100 in 1er-Schritten, Fokus-Modus ein/aus, Shuffle, Repeat).",
+                description = "Steuert das eigenständige Modul Funkenwerk Player (Manufaktur-Playlists, Offline-Cache, lokaler Mediaplayer & VSync-GPU Fokus-Modus) live auf Alinas Windows-PC (Status abfragen, Songs/Playlists abspielen, Pause, Nächster/Vorheriger Titel, Lautstärke 0 bis 100 in 1er-Schritten, Fokus-Modus ein/aus, Shuffle, Repeat).",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
@@ -3283,7 +3319,7 @@ namespace FunkenwerkMcp
                     },
                     "query": { "type": "string", "description": "Optionaler Songtitel, Künstler oder Playlistname bei action='play' (z. B. 'Favoriten')." },
                     "volume": { "type": "integer", "minimum": -100, "maximum": 100, "description": "Ziel-Lautstärke 0..100 (bei set_volume) bzw. Änderung in 1er-Schritten (bei volume_delta)." },
-                    "autoStartApp": { "type": "boolean", "description": "Startet Funkenwerk automatisch, falls die App gerade geschlossen ist (Standard: true bei play/focus_on, sonst false)." }
+                    "autoStartApp": { "type": "boolean", "description": "Startet Funkenwerk Player automatisch, falls das Modul gerade geschlossen ist (Standard: true bei play/focus_on, sonst false)." }
                   },
                   "required": ["action"],
                   "additionalProperties": false
@@ -3293,18 +3329,19 @@ namespace FunkenwerkMcp
             new
             {
                 name = "smarthome_control",
-                description = "Steuert Smart-Home-Steckdosen ('Lichterkette Fußleiste', 'Packtisch Warm Licht', 'Lichterkette Spiegel' oder 'alle') und IP-Kameras ('Terasse', 'Einfahrt', 'Garage', 'Gewerbe': Großansicht, 4er-Raster, PTZ-Drehung, Schnappschuss) lokal über Funkenwerk ohne Passwort-Exposition.",
+                description = "Steuert das eigenständige Modul Funkenwerk SmartHome lokal ohne Passwort-Exposition: Connexoon Window Somfy Rollläden ('shutter_open', 'shutter_close', 'shutter_stop', 'shutter_my', 'shutter_position' 0..100 %), Geräte-Gruppen ('group_open', 'group_close', 'group_stop', 'group_my', 'group_position', 'group_on', 'group_off' sowie Kombinationsziele wie 'Wohnzimmer und Terrassentür'), Tapo-Steckdosen ('Lichterkette Fußleiste', 'Packtisch Warm Licht', 'Lichterkette Spiegel' oder 'alle') und IP-Kameras ('Terasse', 'Einfahrt', 'Garage', 'Gewerbe').",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
                   "properties": {
                     "action": {
                       "type": "string",
-                      "enum": ["status", "plug_on", "plug_off", "plug_toggle", "camera_focus", "camera_grid", "camera_ptz", "camera_snapshot"]
+                      "enum": ["status", "shutter_open", "shutter_close", "shutter_stop", "shutter_my", "shutter_position", "group_open", "group_close", "group_stop", "group_my", "group_position", "group_on", "group_off", "plug_on", "plug_off", "plug_toggle", "camera_focus", "camera_grid", "camera_ptz", "camera_snapshot"]
                     },
-                    "target": { "type": "string", "description": "Name der Steckdose (z. B. 'Packtisch Warm Licht', 'alle') oder Kamera ('Terasse', 'Einfahrt', 'Garage', 'Gewerbe')." },
+                    "target": { "type": "string", "description": "Name des Rollladens, einer Geräte-Gruppe, eines Kombi-Ziels ('Wohnzimmer und Terrassentür' oder 'alle'), der Steckdose ('Packtisch Warm Licht', 'alle') oder Kamera ('Terasse', 'Einfahrt', 'Garage', 'Gewerbe')." },
+                    "position": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Rollladen- oder Gruppen-Schließgrad 0..100 % bei action='shutter_position' oder 'group_position' (0 = offen, 100 = geschlossen)." },
                     "direction": { "type": "string", "enum": ["left", "right", "up", "down", "stop"], "description": "PTZ-Bewegungsrichtung bei action='camera_ptz'." },
-                    "autoStartApp": { "type": "boolean", "description": "Startet Funkenwerk automatisch, falls geschlossen (Standard: true)." }
+                    "autoStartApp": { "type": "boolean", "description": "Startet Funkenwerk SmartHome automatisch, falls geschlossen (Standard: true)." }
                   },
                   "required": ["action"],
                   "additionalProperties": false
@@ -3897,10 +3934,12 @@ namespace FunkenwerkMcp
                                         "pdf" => new[] { ".pdf" },
                                         "drucker" => new[] { ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff" },
                                         "player" => new[] { ".mp4", ".mkv", ".webm", ".mov", ".avi", ".mp3", ".wav", ".flac", ".m4a", ".ogg" },
+                                        "video" => new[] { ".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v" },
+                                        "3d" => new[] { ".glb", ".gltf", ".stl", ".obj", ".ply", ".3mf" },
                                         _ => Array.Empty<string>()
                                     };
                                     if (allowedExts.Length == 0)
-                                        throw new UnauthorizedAccessException("Dateiparameter werden aus Sicherheitsgründen nur für 'pdf', 'drucker', 'player', 'browser' und 'craft' akzeptiert.");
+                                        throw new UnauthorizedAccessException("Dateiparameter werden aus Sicherheitsgründen nur für 'pdf', 'drucker', 'player', 'video', '3d', 'browser' und 'craft' akzeptiert.");
 
                                     string validated = McpSecurityGuard.ValidateSafeFilePath(trimmed, allowedExts, mustExist: true, maxBytes: 500L * 1024L * 1024L);
                                     safeArg = validated;
@@ -3940,6 +3979,10 @@ namespace FunkenwerkMcp
                     string action = GetString(args, "action").ToLowerInvariant();
                     string? target = GetOptString(args, "target", maxLen: 128);
                     string? direction = GetOptString(args, "direction", maxLen: 32);
+                    int? position = args["position"] != null ? args["position"]!.GetValue<int>() : null;
+                    if ((action == "shutter_position" || action == "group_position") && (!position.HasValue || position.Value < 0 || position.Value > 100))
+                        throw new ArgumentException("Für action='shutter_position' bzw. 'group_position' muss 'position' zwischen 0 und 100 liegen.");
+
                     bool defaultAutoStart = action != "status";
                     bool autoStart = GetBool(args, "autoStartApp", defaultAutoStart);
                     return await SendFunkenwerkLocalPipeCommandAsync(
@@ -3949,7 +3992,8 @@ namespace FunkenwerkMcp
                         target: target,
                         direction: direction,
                         volume: null,
-                        autoStartApp: autoStart);
+                        autoStartApp: autoStart,
+                        position: position);
                 }
 
                 case "craft_workspace_status":
@@ -4310,6 +4354,8 @@ namespace FunkenwerkMcp
         }
 
         private const string FunkenwerkControlPipeName = "Funkenwerk_ControlPipe_v1";
+        private const string FunkenwerkPlayerPipeName = "Funkenwerk_PlayerPipe_v1";
+        private const string FunkenwerkSmartHomePipeName = "Funkenwerk_SmartHomePipe_v1";
 
         private static async Task<object> SendFunkenwerkLocalPipeCommandAsync(
             string domain,
@@ -4318,8 +4364,22 @@ namespace FunkenwerkMcp
             string? target,
             string? direction,
             int? volume,
-            bool autoStartApp)
+            bool autoStartApp,
+            int? position = null)
         {
+            string primaryPipe = domain switch
+            {
+                "music" => FunkenwerkPlayerPipeName,
+                "smarthome" => FunkenwerkSmartHomePipeName,
+                _ => FunkenwerkControlPipeName
+            };
+            string launchAppKey = domain switch
+            {
+                "music" => "player",
+                "smarthome" => "smarthome",
+                _ => "funkenwerk"
+            };
+
             string reqJson = JsonSerializer.Serialize(new
             {
                 domain,
@@ -4327,17 +4387,18 @@ namespace FunkenwerkMcp
                 query,
                 target,
                 direction,
-                volume
+                volume,
+                position
             }, JsonCompact);
 
             for (int attempt = 0; attempt < 2; attempt++)
             {
                 try
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(attempt == 0 ? 2500 : 5000));
+                    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(attempt == 0 ? 1800 : 4500));
                     using var pipe = new NamedPipeClientStream(
                         serverName: ".",
-                        pipeName: FunkenwerkControlPipeName,
+                        pipeName: primaryPipe,
                         direction: PipeDirection.InOut,
                         options: PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
@@ -4350,7 +4411,7 @@ namespace FunkenwerkMcp
                     string? respLine = await ReadBoundedLineAsync(reader, 65536);
                     if (string.IsNullOrWhiteSpace(respLine))
                     {
-                        return new { ok = false, error = "Leere Antwort von Funkenwerk IPC-Bridge." };
+                        return new { ok = false, error = "Leere Antwort von Funkenwerk Modul-IPC-Bridge." };
                     }
 
                     var parsed = JsonNode.Parse(respLine, documentOptions: StrictJsonParseOptions);
@@ -4358,8 +4419,8 @@ namespace FunkenwerkMcp
                 }
                 catch (Exception) when (attempt == 0 && autoStartApp)
                 {
-                    LaunchCollectionExecutable("funkenwerk", null);
-                    await Task.Delay(2600);
+                    LaunchCollectionExecutable(launchAppKey, null);
+                    await Task.Delay(2400);
                 }
                 catch (TimeoutException)
                 {
@@ -4367,7 +4428,8 @@ namespace FunkenwerkMcp
                     {
                         ok = false,
                         funkenwerkRunning = false,
-                        hint = "Funkenwerk Desktop Suite läuft aktuell nicht auf dem Desktop. Setze autoStartApp=true oder starte Funkenwerk über collection_control (action='launch', app='funkenwerk')."
+                        module = launchAppKey,
+                        hint = $"Modul '{launchAppKey}' läuft aktuell nicht auf dem Desktop. Setze autoStartApp=true oder starte es über collection_control (action='launch', app='{launchAppKey}')."
                     };
                 }
                 catch (OperationCanceledException)
@@ -4376,12 +4438,13 @@ namespace FunkenwerkMcp
                     {
                         ok = false,
                         funkenwerkRunning = false,
-                        hint = "Funkenwerk Desktop Suite läuft aktuell nicht auf dem Desktop. Setze autoStartApp=true oder starte Funkenwerk über collection_control (action='launch', app='funkenwerk')."
+                        module = launchAppKey,
+                        hint = $"Modul '{launchAppKey}' läuft aktuell nicht auf dem Desktop. Setze autoStartApp=true oder starte es über collection_control (action='launch', app='{launchAppKey}')."
                     };
                 }
             }
 
-            return new { ok = false, funkenwerkRunning = false };
+            return new { ok = false, funkenwerkRunning = false, module = launchAppKey };
         }
 
         public static ProcessStartInfo BuildValidatedCollectionStartInfo(
@@ -4393,20 +4456,24 @@ namespace FunkenwerkMcp
             (string subFolder, string exeName) = (appKey ?? "").Trim().ToLowerInvariant() switch
             {
                 "funkenwerk" => ("Funkenwerk", "Funkenwerk.exe"),
-                "tresor" => ("Funkenwerk Tresor", "FunkenwerkTresor.exe"),
-                "player" => ("Funkenwerk Player", "FunkenwerkPlayer.exe"),
-                "video" => ("Funkenwerk Video", "FunkenwerkVideo.exe"),
-                "craft" => ("Funkenwerk Craft", "FunkenwerkCraft.exe"),
-                "ftp" => ("Funkenwerk FTP", "FunkenwerkFtp.exe"),
-                "ssh" => ("Funkenwerk SSH", "FunkenwerkSsh.exe"),
-                "pdf" => ("Funkenwerk PDF", "FunkenwerkPdf.exe"),
-                "drucker" => ("Funkenwerk Drucker", "FunkenwerkDrucker.exe"),
-                "os" => ("Funkenwerk OS", "FunkenwerkOS.exe"),
+                "3d" => ("Funkenwerk 3D", "Funkenwerk3D.exe"),
                 "browser" => ("Funkenwerk Browser", "FunkenwerkBrowser.exe"),
+                "craft" => ("Funkenwerk Craft", "FunkenwerkCraft.exe"),
+                "drucker" => ("Funkenwerk Drucker", "FunkenwerkDrucker.exe"),
+                "ftp" => ("Funkenwerk FTP", "FunkenwerkFtp.exe"),
+                "kamera" => ("Funkenwerk Kamera", "FunkenwerkKamera.exe"),
+                "marketing" => ("Funkenwerk Marketing", "FunkenwerkMarketing.exe"),
+                "os" => ("Funkenwerk OS", "FunkenwerkOS.exe"),
+                "pdf" => ("Funkenwerk PDF", "FunkenwerkPdf.exe"),
+                "player" => ("Funkenwerk Player", "FunkenwerkPlayer.exe"),
+                "smarthome" => ("Funkenwerk SmartHome", "FunkenwerkSmartHome.exe"),
+                "ssh" => ("Funkenwerk SSH", "FunkenwerkSsh.exe"),
+                "tresor" => ("Funkenwerk Tresor", "FunkenwerkTresor.exe"),
+                "video" => ("Funkenwerk Video", "FunkenwerkVideo.exe"),
                 _ => throw new ArgumentException($"Unbekannte Funkenwerk-App '{appKey}'.")
             };
 
-            string exePath = Path.Combine(McpSecurityGuard.CollectionRootDir, subFolder, exeName);
+            string exePath = Path.Combine(McpSecurityGuard.ResolveCollectionSubDir(subFolder), exeName);
             if (requireBinaryExists && !File.Exists(exePath))
                 throw new FileNotFoundException($"App-Binary nicht gefunden: {exePath}");
 
@@ -5646,9 +5713,11 @@ namespace FunkenwerkMcp
                 string? volInvalidResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3501,"method":"tools/call","params":{"name":"music_control","arguments":{"action":"set_volume","volume":150}}}""");
                 string? musicStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3502,"method":"tools/call","params":{"name":"music_control","arguments":{"action":"status","autoStartApp":false}}}""");
                 string? smartStatusResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3503,"method":"tools/call","params":{"name":"smarthome_control","arguments":{"action":"status","autoStartApp":false}}}""");
-                AssertTest("35. Ecosystem Health, Music 0..100 Volume Guard & CurrentUser Pipe Probes",
+                string? groupPosInvalidResp = await Program.ProcessJsonRpcMessageAsync("""{"jsonrpc":"2.0","id":3504,"method":"tools/call","params":{"name":"smarthome_control","arguments":{"action":"group_position","target":"Gartenfront","position":150,"autoStartApp":false}}}""");
+                AssertTest("35. Ecosystem Health, Music/Group 0..100 Guard & CurrentUser Pipe Probes",
                     healthJson.Contains("\"apiOnline\":true")
                     && volInvalidResp != null && volInvalidResp.Contains("\"isError\":true")
+                    && groupPosInvalidResp != null && groupPosInvalidResp.Contains("\"isError\":true")
                     && musicStatusResp != null && musicStatusResp.Contains("\"isError\":false")
                     && smartStatusResp != null && smartStatusResp.Contains("\"isError\":false"));
 

@@ -68,7 +68,7 @@ data class KdriveWebDavConfigDto(
     val email: String = "",
     val has_password: Boolean = false,
     val root_folder: String = "Meine Daten",
-    val direct_sort: Boolean = true,
+    val direct_sort: Boolean = false,
     val pending_relay_count: Int = 0,
     val last_verified_at: String? = null,
     val last_error: String? = null,
@@ -85,7 +85,7 @@ data class KdriveWebDavSaveRequest(
     val drive_id: String,
     val email: String? = null,
     val app_password: String? = null,
-    val direct_sort: Boolean = true
+    val direct_sort: Boolean = false
 )
 
 data class UpdateVariableRequest(

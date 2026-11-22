@@ -123,6 +123,7 @@ fun SettingsScreen(
     }
     var inputKdrivePass by remember { mutableStateOf("") }
     var kdrivePassVisible by remember { mutableStateOf(false) }
+    var showKdriveEditFields by remember { mutableStateOf(false) }
     var showKdriveInfoDialog by remember { mutableStateOf(false) }
 
     val phoneConciergeEnabled by viewModel.phoneConciergeEnabled.collectAsState()
@@ -321,12 +322,12 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Verarbeitet Scans aus dem Massenscanner über die offizielle Infomaniak kDrive API v3, vergibt saubere Dateinamen und sortiert sie direkt in deine 8 Ordner unter 'Meine Daten' ein (funktioniert in allen Tarifen und auch bei ausgeschaltetem PC).",
+                        text = "Überträgt deine Scans über die verschlüsselte Infomaniak kDrive API v3 (SHA-256 geprüft) direkt in deinen Ordner 'Meine Daten/00_Eingang_Trichter' (24/7, auch bei ausgeschaltetem PC).",
                         fontSize = 13.sp,
                         color = AppTheme.colors.textPrimary
                     )
                     Text(
-                        text = "Einmalig einrichten: Tippe auf 'API-Token erstellen', setze bei Berechtigungen den Haken bei 'drive' (Gültigkeit: Unbegrenzt) und füge den Token hier ein.",
+                        text = "Der API-Token liegt geschützt im Server-Tresor und wird niemals auf dem Smartphone gespeichert.",
                         fontSize = 12.sp,
                         color = Gold
                     )
@@ -830,77 +831,132 @@ fun SettingsScreen(
                         }
                     }
 
-                    OutlinedTextField(
-                        value = inputKdriveId,
-                        onValueChange = { inputKdriveId = it },
-                        label = { Text("kDrive-ID oder Link") },
-                        placeholder = { Text("2216011") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Gold,
-                            unfocusedBorderColor = AppTheme.colors.inputBorder,
-                            focusedTextColor = AppTheme.colors.textPrimary,
-                            unfocusedTextColor = AppTheme.colors.textPrimary,
-                            focusedContainerColor = AppTheme.colors.inputBackground,
-                            unfocusedContainerColor = AppTheme.colors.inputBackground
-                        )
-                    )
-
-                    OutlinedTextField(
-                        value = inputKdrivePass,
-                        onValueChange = { inputKdrivePass = it },
-                        label = { Text("Infomaniak API-Token") },
-                        placeholder = {
+                    if (kdriveConfig.configured && !showKdriveEditFields) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                if (kdriveConfig.has_password) "Gespeichert (leer lassen zum Behalten)"
-                                else "API-Token (Berechtigung: drive)"
+                                text = "kDrive ${kdriveConfig.drive_id} · 00_Eingang_Trichter",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = AppTheme.colors.textSecondary
                             )
-                        },
-                        singleLine = true,
-                        visualTransformation = if (kdrivePassVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { kdrivePassVisible = !kdrivePassVisible }) {
-                                Icon(
-                                    imageVector = if (kdrivePassVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                    contentDescription = if (kdrivePassVisible) "Verbergen" else "Anzeigen",
-                                    tint = AppTheme.colors.textSecondary
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (kdriveConfig.pending_relay_count > 0) {
+                                    TextButton(
+                                        onClick = { viewModel.flushPendingKdriveRelay() },
+                                        enabled = !kdriveSaving
+                                    ) {
+                                        Text(
+                                            text = "Wartende (${kdriveConfig.pending_relay_count}) senden",
+                                            color = Gold,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                                TextButton(onClick = { showKdriveEditFields = true }) {
+                                    Text(
+                                        text = "Ändern",
+                                        color = Gold,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Gold,
-                            unfocusedBorderColor = AppTheme.colors.inputBorder,
-                            focusedTextColor = AppTheme.colors.textPrimary,
-                            unfocusedTextColor = AppTheme.colors.textPrimary,
-                            focusedContainerColor = AppTheme.colors.inputBackground,
-                            unfocusedContainerColor = AppTheme.colors.inputBackground
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = inputKdriveId,
+                            onValueChange = { inputKdriveId = it },
+                            label = { Text("kDrive-ID oder Link") },
+                            placeholder = { Text("2216011") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Gold,
+                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                focusedTextColor = AppTheme.colors.textPrimary,
+                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                unfocusedContainerColor = AppTheme.colors.inputBackground
+                            )
                         )
-                    )
 
-                    OutlinedButton(
-                        onClick = {
-                            try {
-                                val intent = android.content.Intent(
-                                    android.content.Intent.ACTION_VIEW,
-                                    android.net.Uri.parse("https://manager.infomaniak.com/v3/ng/profile/user/token/list")
+                        OutlinedTextField(
+                            value = inputKdrivePass,
+                            onValueChange = { inputKdrivePass = it },
+                            label = { Text("Infomaniak API-Token") },
+                            placeholder = {
+                                Text(
+                                    if (kdriveConfig.has_password) "Gespeichert (leer lassen zum Behalten)"
+                                    else "API-Token (Berechtigung: drive)"
                                 )
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                Toast.makeText(context, "Browser konnte nicht geöffnet werden.", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f))
-                    ) {
-                        Text(
-                            text = "API-Token bei Infomaniak erstellen",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.5.sp,
-                            color = Gold
+                            },
+                            singleLine = true,
+                            visualTransformation = if (kdrivePassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { kdrivePassVisible = !kdrivePassVisible }) {
+                                    Icon(
+                                        imageVector = if (kdrivePassVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (kdrivePassVisible) "Verbergen" else "Anzeigen",
+                                        tint = AppTheme.colors.textSecondary
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Gold,
+                                unfocusedBorderColor = AppTheme.colors.inputBorder,
+                                focusedTextColor = AppTheme.colors.textPrimary,
+                                unfocusedTextColor = AppTheme.colors.textPrimary,
+                                focusedContainerColor = AppTheme.colors.inputBackground,
+                                unfocusedContainerColor = AppTheme.colors.inputBackground
+                            )
                         )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (kdriveConfig.configured) {
+                                TextButton(onClick = { showKdriveEditFields = false }) {
+                                    Text("Schließen", color = AppTheme.colors.textMuted, fontSize = 12.sp)
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Button(
+                                onClick = {
+                                    viewModel.saveKdriveConfig(inputKdriveId, kdriveConfig.email, inputKdrivePass) { ok, msg ->
+                                        if (ok) {
+                                            inputKdrivePass = ""
+                                            kdrivePassVisible = false
+                                            showKdriveEditFields = false
+                                        }
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = !kdriveSaving && inputKdriveId.isNotBlank() &&
+                                    (inputKdrivePass.isNotBlank() || kdriveConfig.has_password),
+                                colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
+                            ) {
+                                if (kdriveSaving) {
+                                    CircularProgressIndicator(
+                                        color = SpaceBlack,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
+                                Text(
+                                    text = if (kdriveSaving) "Prüfe..." else "Verbinden & Speichern",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
 
                     if (kdriveStatusFeedback != null) {
@@ -918,54 +974,6 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Medium,
                             color = Rose500
                         )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (kdriveConfig.configured && kdriveConfig.pending_relay_count > 0) {
-                            TextButton(
-                                onClick = { viewModel.flushPendingKdriveRelay() },
-                                enabled = !kdriveSaving
-                            ) {
-                                Text(
-                                    text = "Wartende (${kdriveConfig.pending_relay_count}) senden",
-                                    color = Gold,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-                        Button(
-                            onClick = {
-                                viewModel.saveKdriveConfig(inputKdriveId, kdriveConfig.email, inputKdrivePass) { ok, msg ->
-                                    if (ok) {
-                                        inputKdrivePass = ""
-                                        kdrivePassVisible = false
-                                    }
-                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            enabled = !kdriveSaving && inputKdriveId.isNotBlank() &&
-                                (inputKdrivePass.isNotBlank() || kdriveConfig.has_password),
-                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
-                        ) {
-                            if (kdriveSaving) {
-                                CircularProgressIndicator(
-                                    color = SpaceBlack,
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                            }
-                            Text(
-                                text = if (kdriveSaving) "Prüfe..." else "Verbinden & Speichern",
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
                 }
             }

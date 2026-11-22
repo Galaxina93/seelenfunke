@@ -3884,5 +3884,538 @@ function(mode, userVal, passVal, totpVal, doSubmit) {
                     client.Dispose();
             }
         }
+
+        // =====================================================================
+        // 6. INFOMANIAK KDRIVE API v3 ZERO-SECRET BROKER & PROVISIONING
+        // =====================================================================
+        public const string PinnedKdriveApiHost = "api.infomaniak.com";
+
+        public static readonly string[] AllowedKdrivePresets =
+        {
+            "verify",
+            "provision",
+            "e2e_test"
+        };
+
+        private static readonly Regex SafeKdriveIdRegex = new(@"^[0-9]{3,12}$", RegexOptions.Compiled);
+
+        public sealed class KdriveBrokerResultDto
+        {
+            [JsonPropertyName("status")]
+            public string Status { get; set; } = "ok";
+
+            [JsonPropertyName("preset")]
+            public string Preset { get; set; } = "";
+
+            [JsonPropertyName("drive_id")]
+            public string DriveId { get; set; } = "";
+
+            [JsonPropertyName("entry_title")]
+            public string EntryTitle { get; set; } = "";
+
+            [JsonPropertyName("data")]
+            public JsonNode? Data { get; set; }
+        }
+
+        private static Uri BuildPinnedKdriveUri(string apiPath)
+        {
+            if (string.IsNullOrWhiteSpace(apiPath) || !apiPath.StartsWith("/3/drive/", StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("kDrive API-Broker erlaubt ausschließlich relative '/3/drive/...'-Pfade.");
+
+            if (apiPath.Contains('@') || apiPath.Contains('\\') || apiPath.Contains("..", StringComparison.Ordinal) || apiPath.Contains('#'))
+                throw new UnauthorizedAccessException("Ungültige Zeichen im kDrive API-Pfad blockiert.");
+
+            var uri = new Uri($"https://{PinnedKdriveApiHost}{apiPath}", UriKind.Absolute);
+            if (!string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(uri.Host, PinnedKdriveApiHost, StringComparison.OrdinalIgnoreCase) ||
+                uri.Port != 443 ||
+                !string.IsNullOrEmpty(uri.UserInfo))
+            {
+                throw new UnauthorizedAccessException("SSRF-Schutz: kDrive API-Ziel weicht von https://api.infomaniak.com:443 ab.");
+            }
+
+            return uri;
+        }
+
+        private static async Task<(int StatusCode, string RawCleanedBody, JsonNode? Json)> SendKdriveRequestAsync(
+            HttpClient client,
+            HttpMethod method,
+            string apiPath,
+            ReadOnlyMemory<byte> apiTokenUtf8,
+            CancellationToken ct)
+        {
+            Uri uri = BuildPinnedKdriveUri(apiPath);
+            char[] tokenChars = new char[Encoding.UTF8.GetCharCount(apiTokenUtf8.Span)];
+            Encoding.UTF8.GetChars(apiTokenUtf8.Span, tokenChars);
+            string tokenStr = new string(tokenChars).Trim();
+            if (tokenStr.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                tokenStr = tokenStr.Substring(7).Trim();
+
+            try
+            {
+                using var req = new HttpRequestMessage(method, uri);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenStr);
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                using var resp = await client.SendAsync(req, ct);
+                string rawBody = resp.Content != null ? await resp.Content.ReadAsStringAsync(ct) : "";
+
+                if (!string.IsNullOrEmpty(tokenStr) && rawBody.Contains(tokenStr, StringComparison.Ordinal))
+                    rawBody = rawBody.Replace(tokenStr, "[REDACTED-BY-FUNKENWERK-DLP]", StringComparison.Ordinal);
+
+                string cleanBody = McpSecurityGuard.ScrubSecrets(rawBody);
+                JsonNode? parsed = null;
+                if (!string.IsNullOrWhiteSpace(cleanBody))
+                {
+                    try
+                    {
+                        parsed = JsonNode.Parse(cleanBody, documentOptions: new JsonDocumentOptions { MaxDepth = 24 });
+                    }
+                    catch
+                    {
+                        parsed = JsonValue.Create(cleanBody);
+                    }
+                }
+
+                return ((int)resp.StatusCode, cleanBody, parsed);
+            }
+            finally
+            {
+                Array.Clear(tokenChars, 0, tokenChars.Length);
+            }
+        }
+
+        private static byte[] BuildSecretProvisionJsonUtf8(string driveId, ReadOnlySpan<byte> apiTokenUtf8)
+        {
+            char[] tokenChars = new char[Encoding.UTF8.GetCharCount(apiTokenUtf8)];
+            Encoding.UTF8.GetChars(apiTokenUtf8, tokenChars);
+            try
+            {
+                string tokenStr = new string(tokenChars).Trim();
+                if (tokenStr.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                    tokenStr = tokenStr.Substring(7).Trim();
+
+                using var ms = new MemoryStream();
+                using (var w = new Utf8JsonWriter(ms))
+                {
+                    w.WriteStartObject();
+                    w.WriteString("drive_id", driveId);
+                    w.WriteString("token", tokenStr);
+                    w.WriteBoolean("direct_sort", false);
+                    w.WriteEndObject();
+                    w.Flush();
+                }
+                byte[] copy = ms.ToArray();
+                if (ms.TryGetBuffer(out var seg) && seg.Array != null)
+                    CryptographicOperations.ZeroMemory(seg.Array);
+                return copy;
+            }
+            finally
+            {
+                Array.Clear(tokenChars, 0, tokenChars.Length);
+            }
+        }
+
+        private static async Task<JsonNode?> ProvisionLocalDockerZeroCliAsync(byte[] secretJsonUtf8, CancellationToken ct)
+        {
+            string phpCode = @"
+require '/var/www/html/vendor/autoload.php';
+$app = require_once '/var/www/html/bootstrap/app.php';
+$app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$raw = (string) stream_get_contents(STDIN);
+$in = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+unset($raw);
+$svc = app(\App\Services\System\KdriveTrichterRelayService::class);
+$res = $svc->saveAndVerifyWebDavConfig((string) $in['drive_id'], null, (string) $in['token'], false);
+unset($in);
+echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+";
+            string phpB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(phpCode));
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "wsl.exe",
+                Arguments = $"-d Ubuntu -- docker exec -u www-data -i mein_php_server php -r \"eval(base64_decode('{phpB64}'));\"",
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var proc = System.Diagnostics.Process.Start(psi)
+                ?? throw new InvalidOperationException("wsl.exe konnte für lokales Docker-Provisioning nicht gestartet werden.");
+
+            await proc.StandardInput.BaseStream.WriteAsync(secretJsonUtf8.AsMemory(), ct);
+            await proc.StandardInput.BaseStream.FlushAsync(ct);
+            proc.StandardInput.Close();
+
+            string stdout = await proc.StandardOutput.ReadToEndAsync(ct);
+            string stderr = await proc.StandardError.ReadToEndAsync(ct);
+            await proc.WaitForExitAsync(ct);
+
+            string cleanOut = McpSecurityGuard.ScrubSecrets(stdout.Trim());
+            if (proc.ExitCode != 0)
+            {
+                return new JsonObject
+                {
+                    ["ok"] = false,
+                    ["exit_code"] = proc.ExitCode,
+                    ["error"] = McpSecurityGuard.ScrubSecrets((stdout + "\n" + stderr).Trim())
+                };
+            }
+
+            try
+            {
+                return JsonNode.Parse(cleanOut);
+            }
+            catch
+            {
+                return JsonValue.Create(cleanOut);
+            }
+        }
+
+        public static async Task<KdriveBrokerResultDto> ExecuteKdriveBrokerPresetAsync(
+            string preset,
+            string driveId = "2216011",
+            string? entryTitleOrId = null,
+            CancellationToken ct = default)
+        {
+            string normPreset = (preset ?? "").Trim().ToLowerInvariant();
+            if (!AllowedKdrivePresets.Contains(normPreset, StringComparer.Ordinal))
+            {
+                McpSecurityGuard.AppendAuditLog("kdrive_api_broker", normPreset, "DENY:unknown_preset");
+                throw new UnauthorizedAccessException(
+                    $"Unbekanntes kDrive-Preset '{McpSecurityGuard.ScrubSecrets(preset)}'. Erlaubt: {string.Join(", ", AllowedKdrivePresets)}.");
+            }
+
+            string cleanDriveId = string.IsNullOrWhiteSpace(driveId) ? "2216011" : driveId.Trim();
+            if (!SafeKdriveIdRegex.IsMatch(cleanDriveId))
+                throw new ArgumentException("Ungültige numerische kDrive-ID.");
+
+            string lookupQuery = string.IsNullOrWhiteSpace(entryTitleOrId) ? "KDrive" : entryTitleOrId!.Trim();
+            using var lease = ResolveEntrySecretLease(lookupQuery, requireApiToken: true);
+            using var client = McpSecurityGuard.CreateHardenedApiClient(TimeSpan.FromSeconds(30));
+
+            // Always verify token & inspect root spaces first
+            var (rootStatus, rootBody, rootNode) = await SendKdriveRequestAsync(
+                client,
+                HttpMethod.Get,
+                $"/3/drive/{cleanDriveId}/files/1/files?limit=100",
+                lease.ApiTokenUtf8,
+                ct);
+
+            if (rootStatus is < 200 or >= 300)
+            {
+                McpSecurityGuard.AppendAuditLog("kdrive_api_broker", $"{normPreset}:http={rootStatus}", "ERROR");
+                throw new InvalidOperationException(
+                    $"Infomaniak kDrive API v3 antwortete mit HTTP {rootStatus} für Drive {cleanDriveId}: {rootBody}");
+            }
+
+            int privateDirId = 0;
+            string privateDirName = "";
+            if (rootNode?["data"] is JsonArray rootArr)
+            {
+                foreach (var item in rootArr)
+                {
+                    if (item is not JsonObject obj) continue;
+                    string type = obj["type"]?.GetValue<string>() ?? "";
+                    if (type != "dir") continue;
+                    string vis = obj["visibility"]?.GetValue<string>() ?? "";
+                    string nm = obj["name"]?.GetValue<string>() ?? "";
+                    int id = obj["id"]?.GetValue<int>() ?? 0;
+
+                    if (vis == "is_private_space" ||
+                        string.Equals(nm, "Meine Daten", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(nm, "Private", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(nm, "Mes données", StringComparison.OrdinalIgnoreCase))
+                    {
+                        privateDirId = id;
+                        privateDirName = nm;
+                        break;
+                    }
+                }
+            }
+
+            int meineDatenDirId = privateDirId;
+            int trichterDirId = 0;
+            if (privateDirId > 0)
+            {
+                var (subStatus, _, subNode) = await SendKdriveRequestAsync(
+                    client,
+                    HttpMethod.Get,
+                    $"/3/drive/{cleanDriveId}/files/{privateDirId}/files?limit=100",
+                    lease.ApiTokenUtf8,
+                    ct);
+                if (subStatus is >= 200 and < 300 && subNode?["data"] is JsonArray subArr)
+                {
+                    foreach (var item in subArr)
+                    {
+                        if (item is not JsonObject obj) continue;
+                        if ((obj["type"]?.GetValue<string>() ?? "") != "dir") continue;
+                        string nm = obj["name"]?.GetValue<string>() ?? "";
+                        int cid = obj["id"]?.GetValue<int>() ?? 0;
+                        if (string.Equals(nm, "Meine Daten", StringComparison.OrdinalIgnoreCase) && cid > 0)
+                        {
+                            meineDatenDirId = cid;
+                        }
+                        else if (string.Equals(nm, "00_Eingang_Trichter", StringComparison.OrdinalIgnoreCase) && cid > 0)
+                        {
+                            trichterDirId = cid;
+                        }
+                    }
+                }
+
+                if (meineDatenDirId != privateDirId && meineDatenDirId > 0)
+                {
+                    var (mdSt, _, mdNode) = await SendKdriveRequestAsync(
+                        client,
+                        HttpMethod.Get,
+                        $"/3/drive/{cleanDriveId}/files/{meineDatenDirId}/files?limit=100",
+                        lease.ApiTokenUtf8,
+                        ct);
+                    if (mdSt is >= 200 and < 300 && mdNode?["data"] is JsonArray mdArr)
+                    {
+                        foreach (var item in mdArr)
+                        {
+                            if (item is not JsonObject obj) continue;
+                            if ((obj["type"]?.GetValue<string>() ?? "") == "dir" &&
+                                string.Equals(obj["name"]?.GetValue<string>(), "00_Eingang_Trichter", StringComparison.OrdinalIgnoreCase))
+                            {
+                                trichterDirId = obj["id"]?.GetValue<int>() ?? 0;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (normPreset == "verify")
+            {
+                McpSecurityGuard.AppendAuditLog("kdrive_api_broker", $"verify:drive={cleanDriveId}:md={meineDatenDirId}:trichter={trichterDirId}", "ALLOW");
+                return new KdriveBrokerResultDto
+                {
+                    Status = "ok",
+                    Preset = normPreset,
+                    DriveId = cleanDriveId,
+                    EntryTitle = lease.Title,
+                    Data = new JsonObject
+                    {
+                        ["http_status"] = rootStatus,
+                        ["private_dir_id"] = privateDirId,
+                        ["private_dir_name"] = privateDirName,
+                        ["meine_daten_dir_id"] = meineDatenDirId,
+                        ["trichter_dir_id"] = trichterDirId,
+                        ["trichter_exists"] = trichterDirId > 0
+                    }
+                };
+            }
+
+            if (normPreset == "provision")
+            {
+                byte[]? secretJson = null;
+                try
+                {
+                    secretJson = BuildSecretProvisionJsonUtf8(cleanDriveId, lease.ApiTokenUtf8.AsSpan());
+
+                    JsonNode? localRes = await ProvisionLocalDockerZeroCliAsync(secretJson, ct);
+
+                    string stagePhpBody = @"
+$svc = app(\App\Services\System\KdriveTrichterRelayService::class);
+$res = $svc->saveAndVerifyWebDavConfig((string) $in['drive_id'], null, (string) $in['token'], false);
+unset($in);
+echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+";
+                    string stageRaw = await McpSecurityGuard.ExecuteStagePhpWithPrivatePayloadAsync(
+                        stagePhpBody,
+                        secretJson,
+                        "kdrive_broker_stage_provision");
+
+                    JsonNode? stageNode = null;
+                    try { stageNode = JsonNode.Parse(stageRaw); } catch { stageNode = JsonValue.Create(stageRaw); }
+
+                    McpSecurityGuard.AppendAuditLog("kdrive_api_broker", $"provision:drive={cleanDriveId}", "ALLOW");
+                    return new KdriveBrokerResultDto
+                    {
+                        Status = "ok",
+                        Preset = normPreset,
+                        DriveId = cleanDriveId,
+                        EntryTitle = lease.Title,
+                        Data = new JsonObject
+                        {
+                            ["private_dir_id"] = privateDirId,
+                            ["trichter_dir_id"] = trichterDirId,
+                            ["local"] = localRes,
+                            ["stage"] = stageNode
+                        }
+                    };
+                }
+                finally
+                {
+                    if (secretJson != null)
+                        CryptographicOperations.ZeroMemory(secretJson);
+                }
+            }
+
+            // normPreset == "e2e_test"
+            string marker = Guid.NewGuid().ToString("N").Substring(0, 10);
+            string testFileName = $"Funkenwerk_E2E_Pruefung_{marker}.pdf";
+            string pdfText =
+                "%PDF-1.4\n" +
+                $"% Funkenwerk E2E Security Self-Test {marker}\n" +
+                "1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n" +
+                "2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n" +
+                "3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >> endobj\n" +
+                "xref\n0 4\n0000000000 65535 f \n0000000055 00000 n \n0000000104 00000 n \n0000000161 00000 n \n" +
+                "trailer << /Size 4 /Root 1 0 R >>\nstartxref\n232\n%%EOF\n";
+            byte[] pdfBytes = Encoding.ASCII.GetBytes(pdfText);
+            string expectedShaHex = Convert.ToHexString(SHA256.HashData(pdfBytes)).ToLowerInvariant();
+
+            byte[] e2ePayload = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
+            {
+                file_name = testFileName,
+                pdf_b64 = Convert.ToBase64String(pdfBytes)
+            }));
+
+            string e2ePhpBody = @"
+$svc = app(\App\Services\System\KdriveTrichterRelayService::class);
+$pdfBytes = base64_decode((string) $in['pdf_b64'], true);
+$res = $svc->processAndDeliverDirect(
+    $pdfBytes,
+    (string) $in['file_name'],
+    'application/pdf',
+    null,
+    'e2e_broker_selftest'
+);
+echo json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+";
+            string stageE2eRaw = await McpSecurityGuard.ExecuteStagePhpWithPrivatePayloadAsync(
+                e2ePhpBody,
+                e2ePayload,
+                "kdrive_broker_e2e_test");
+
+            JsonNode? stageE2eNode = JsonNode.Parse(stageE2eRaw);
+            string deliveredFileName = stageE2eNode?["file_name"]?.GetValue<string>() ?? testFileName;
+            string remotePath = stageE2eNode?["remote_path"]?.GetValue<string>() ?? "";
+
+            string localTrichterDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "kDrive",
+                "Meine Daten",
+                "00_Eingang_Trichter");
+            string localExpectedFile = Path.Combine(localTrichterDir, deliveredFileName);
+
+            bool syncedLocally = false;
+            bool sha256Verified = false;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (sw.Elapsed < TimeSpan.FromSeconds(25))
+            {
+                if (File.Exists(localExpectedFile))
+                {
+                    try
+                    {
+                        byte[] diskBytes = await File.ReadAllBytesAsync(localExpectedFile, ct);
+                        if (diskBytes.Length == pdfBytes.Length)
+                        {
+                            syncedLocally = true;
+                            string diskSha = Convert.ToHexString(SHA256.HashData(diskBytes)).ToLowerInvariant();
+                            sha256Verified = string.Equals(diskSha, expectedShaHex, StringComparison.OrdinalIgnoreCase);
+                            if (sha256Verified)
+                                break;
+                        }
+                    }
+                    catch
+                    {
+                        // kDrive client may still hold brief write handle while finalizing
+                    }
+                }
+                await Task.Delay(750, ct);
+            }
+
+            // Resolve remote file_id inside 00_Eingang_Trichter and delete synthetic test artifact cleanly
+            bool remoteDeleted = false;
+            int resolvedTrichterId = trichterDirId;
+            if (resolvedTrichterId <= 0 && meineDatenDirId > 0)
+            {
+                var (st2, _, sub2) = await SendKdriveRequestAsync(
+                    client,
+                    HttpMethod.Get,
+                    $"/3/drive/{cleanDriveId}/files/{meineDatenDirId}/files?limit=100",
+                    lease.ApiTokenUtf8,
+                    ct);
+                if (st2 is >= 200 and < 300 && sub2?["data"] is JsonArray arr2)
+                {
+                    foreach (var it in arr2)
+                    {
+                        if (it is JsonObject o &&
+                            string.Equals(o["name"]?.GetValue<string>(), "00_Eingang_Trichter", StringComparison.OrdinalIgnoreCase))
+                        {
+                            resolvedTrichterId = o["id"]?.GetValue<int>() ?? 0;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (resolvedTrichterId > 0)
+            {
+                var (listSt, _, listNode) = await SendKdriveRequestAsync(
+                    client,
+                    HttpMethod.Get,
+                    $"/3/drive/{cleanDriveId}/files/{resolvedTrichterId}/files?limit=100",
+                    lease.ApiTokenUtf8,
+                    ct);
+                if (listSt is >= 200 and < 300 && listNode?["data"] is JsonArray filesArr)
+                {
+                    foreach (var fItem in filesArr)
+                    {
+                        if (fItem is not JsonObject fObj) continue;
+                        if (string.Equals(fObj["name"]?.GetValue<string>(), deliveredFileName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            int fid = fObj["id"]?.GetValue<int>() ?? 0;
+                            if (fid > 0)
+                            {
+                                var (delSt, _, _) = await SendKdriveRequestAsync(
+                                    client,
+                                    HttpMethod.Delete,
+                                    $"/3/drive/{cleanDriveId}/files/{fid}",
+                                    lease.ApiTokenUtf8,
+                                    ct);
+                                remoteDeleted = delSt is >= 200 and < 300;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (File.Exists(localExpectedFile))
+            {
+                try { File.Delete(localExpectedFile); } catch { }
+            }
+
+            McpSecurityGuard.AppendAuditLog(
+                "kdrive_api_broker",
+                $"e2e_test:synced={syncedLocally}:sha={sha256Verified}:cleanup={remoteDeleted}",
+                "ALLOW");
+
+            return new KdriveBrokerResultDto
+            {
+                Status = "ok",
+                Preset = normPreset,
+                DriveId = cleanDriveId,
+                EntryTitle = lease.Title,
+                Data = new JsonObject
+                {
+                    ["delivered_file_name"] = deliveredFileName,
+                    ["remote_path"] = remotePath,
+                    ["expected_sha256"] = expectedShaHex,
+                    ["local_windows_path"] = localExpectedFile,
+                    ["local_sync_verified"] = syncedLocally,
+                    ["sha256_verified"] = sha256Verified,
+                    ["sync_elapsed_ms"] = (long)sw.Elapsed.TotalMilliseconds,
+                    ["test_artifact_cleaned_up"] = remoteDeleted
+                }
+            };
+        }
     }
 }

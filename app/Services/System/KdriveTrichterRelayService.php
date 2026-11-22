@@ -211,6 +211,8 @@ class KdriveTrichterRelayService
             throw new \InvalidArgumentException('Ungültige Dateiendung.');
         }
 
+        self::assertSafeDocumentContentAndMagicBytes($rawBytes, $ext);
+
         $cleanTitle = $customTitle !== null
             ? trim((string) preg_replace('/[\r\n\t]+/', ' ', $customTitle))
             : '';
@@ -287,11 +289,114 @@ class KdriveTrichterRelayService
 
     public static function sanitizeFilenameSegment(string $raw): string
     {
-        $s = str_replace([' – ', ' — ', '–', '—'], '-', $raw);
-        $s = preg_replace('/[^A-Za-z0-9ÄÖÜäöüß._ -]/u', '_', $s);
+        // 1. Strip invisible Unicode BiDi overrides (RLO U+202E extension spoofing) & control chars
+        $s = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{206F}\x{FEFF}\x{00AD}\x{0000}-\x{001F}]/u', '', $raw) ?? $raw;
+        $s = str_replace([' – ', ' — ', '–', '—'], '-', $s);
+        // 2. Neutralize dangerous disguised inner extensions (e.g. "Rechnung.exe" stem before ".pdf")
+        $s = preg_replace('/\.(exe|dll|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|msi|com|scr|hta|cpl|jar|reg|lnk|pif|php|phtml|phar|sh|py|docm|xlsm)\b/iu', '_$1', (string) $s);
+        $s = preg_replace('/[^A-Za-z0-9ÄÖÜäöüß._ -]/u', '_', (string) $s);
         $s = preg_replace('/\s+/', '_', (string) $s);
         $s = preg_replace('/_+/', '_', (string) $s);
-        return trim((string) $s, ' ._');
+        $s = trim((string) $s, ' ._');
+
+        // 3. Block Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+        if ($s !== '' && preg_match('/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*|$)/i', $s)) {
+            $s = 'Dok_' . $s;
+        }
+        return $s;
+    }
+
+    /**
+     * Harte binäre Inhalts- & Magic-Byte-Prüfung gegen getarnte Executables, Skripte,
+     * Makro-Trojaner (vbaProject.bin) und aktive PDF-Exploits (/JavaScript, /Launch).
+     */
+    public static function assertSafeDocumentContentAndMagicBytes(string $rawBytes, string $ext): void
+    {
+        $len = strlen($rawBytes);
+        if ($len <= 0 || $len > self::MAX_BYTES) {
+            throw new \InvalidArgumentException('Ungültige Dateigröße.');
+        }
+
+        $cleanExt = strtolower(trim($ext, '. '));
+        $head32 = substr($rawBytes, 0, 32);
+        $head4k = substr($rawBytes, 0, 4096);
+
+        // Globaler Schutz gegen ausführbare Binär- & Skript-Header unabhängig von der Dateiendung
+        if (str_starts_with($head32, "\x7FELF")
+            || str_starts_with($head32, "\x4C\x00\x00\x00\x01\x14\x02\x00") // Windows .lnk
+            || str_starts_with($head32, "\xCA\xFE\xBA\xBE") // Java .class
+            || str_starts_with($head32, "\xFE\xED\xFA\xCE")
+            || str_starts_with($head32, "\xCF\xFA\xED\xFE")
+            || preg_match('/^\s*(?:<\?php|<\?=|#!\/(?:usr\/)?bin\/)/i', $head4k) === 1
+        ) {
+            throw new \InvalidArgumentException('Sicherheits-Sperre: Ausführbarer oder skriptbasierter Dateiinhalt abgelehnt.');
+        }
+
+        if (str_starts_with($head32, "MZ") && !in_array($cleanExt, ['txt', 'csv'], true)) {
+            throw new \InvalidArgumentException('Sicherheits-Sperre: Windows-Programmdatei (PE/EXE) abgelehnt.');
+        }
+
+        switch ($cleanExt) {
+            case 'pdf':
+                if (!str_contains($head32, '%PDF-')) {
+                    throw new \InvalidArgumentException('Ungültige PDF-Datei (fehlender %PDF-Header).');
+                }
+                if (preg_match('/\/(?:JavaScript|JS|Launch|RichMedia|SubmitForm|ImportData|GoToE)\b/i', $rawBytes) === 1) {
+                    throw new \InvalidArgumentException('Sicherheits-Sperre: Aktive Skripte oder Startbefehle in PDF-Dateien sind blockiert.');
+                }
+                break;
+
+            case 'jpg':
+            case 'jpeg':
+                if (!str_starts_with($head32, "\xFF\xD8\xFF")) {
+                    throw new \InvalidArgumentException('Ungültige JPEG-Bilddatei (Magic-Header stimmt nicht überein).');
+                }
+                break;
+
+            case 'png':
+                if (!str_starts_with($head32, "\x89PNG\r\n\x1A\n")) {
+                    throw new \InvalidArgumentException('Ungültige PNG-Bilddatei (Magic-Header stimmt nicht überein).');
+                }
+                break;
+
+            case 'webp':
+                if (!str_starts_with($head32, 'RIFF') || substr($head32, 8, 4) !== 'WEBP') {
+                    throw new \InvalidArgumentException('Ungültige WebP-Bilddatei (Magic-Header stimmt nicht überein).');
+                }
+                break;
+
+            case 'docx':
+            case 'xlsx':
+            case 'odt':
+            case 'ods':
+                if (!str_starts_with($head32, "PK\x03\x04")) {
+                    throw new \InvalidArgumentException('Ungültiges Office-Dokument (kein valides ZIP-Containerformat).');
+                }
+                if (stripos($rawBytes, 'vbaProject.bin') !== false || stripos($rawBytes, 'macros/') !== false) {
+                    throw new \InvalidArgumentException('Sicherheits-Sperre: Office-Dokumente mit eingebetteten Makros sind blockiert.');
+                }
+                break;
+
+            case 'txt':
+            case 'csv':
+                if (str_contains($rawBytes, "\x00")) {
+                    throw new \InvalidArgumentException('Sicherheits-Sperre: Binärdaten in Textdatei abgelehnt.');
+                }
+                if (preg_match('/<\s*(?:script|iframe|object|embed)\b/i', $head4k) === 1) {
+                    throw new \InvalidArgumentException('Sicherheits-Sperre: Aktiver HTML/Skript-Inhalt in Textdatei abgelehnt.');
+                }
+                break;
+        }
+    }
+
+    private static function scrubSecretFromText(string $message, ?string $secret = null): string
+    {
+        $clean = $message;
+        if ($secret !== null && trim($secret) !== '' && strlen(trim($secret)) >= 6) {
+            $clean = str_replace(trim($secret), '[GESCHUETZT]', $clean);
+        }
+        $clean = preg_replace('/Bearer\s+[A-Za-z0-9._\-~+\/=]{8,}/i', 'Bearer [GESCHUETZT]', $clean) ?? $clean;
+        return mb_substr(trim($clean), 0, 260);
     }
 
     public static function listPending(): array
@@ -383,6 +488,18 @@ class KdriveTrichterRelayService
 
         $existed = File::exists($metaPath) || File::exists($encPath);
         if (File::exists($encPath)) {
+            try {
+                $sz = (int) @filesize($encPath);
+                if ($sz > 0 && $sz <= 35000000) {
+                    $fp = @fopen($encPath, 'r+b');
+                    if (is_resource($fp)) {
+                        @fwrite($fp, str_repeat("\0", min($sz, 65536)));
+                        @fflush($fp);
+                        @fclose($fp);
+                    }
+                }
+            } catch (\Throwable) {
+            }
             @unlink($encPath);
         }
         if (File::exists($metaPath)) {
@@ -768,7 +885,7 @@ PROMPT;
         }
 
         $rootFolder = self::sanitizeRootFolder((string) ($decoded['root_folder'] ?? 'Meine Daten'));
-        $directSort = array_key_exists('direct_sort', $decoded) ? (bool) $decoded['direct_sort'] : true;
+        $directSort = array_key_exists('direct_sort', $decoded) ? (bool) $decoded['direct_sort'] : false;
         $mode = in_array(($decoded['mode'] ?? ''), ['api_v3', 'webdav'], true) ? (string) $decoded['mode'] : 'webdav';
         $meineDatenDirId = isset($decoded['meine_daten_dir_id']) ? (int) $decoded['meine_daten_dir_id'] : 0;
         $meineDatenPrefix = isset($decoded['meine_daten_prefix']) ? trim((string) $decoded['meine_daten_prefix'], '/') : '';
@@ -836,7 +953,7 @@ PROMPT;
         string $rawDriveInput,
         ?string $rawEmail = null,
         ?string $rawAppPassword = null,
-        bool $directSort = true,
+        bool $directSort = false,
         string $rawRootFolder = 'Meine Daten'
     ): array {
         $driveId = self::extractKdriveId($rawDriveInput);
@@ -1247,6 +1364,8 @@ PROMPT;
         $safeOrigName = $origName !== '' ? $origName : ('Scan_' . date('Y-m-d_His') . '.' . $ext);
         $mimeType = (string) ($file->getMimeType() ?: 'application/octet-stream');
 
+        self::assertSafeDocumentContentAndMagicBytes($rawBytes, $ext);
+
         $cfg = self::getWebDavConfig();
         if (!empty($cfg['configured'])) {
             try {
@@ -1274,7 +1393,7 @@ PROMPT;
                     'kdrive_configured' => true,
                 ]);
             } catch (\Throwable $e) {
-                self::updateLastWebDavError($e->getMessage());
+                self::updateLastWebDavError(self::scrubSecretFromText($e->getMessage(), (string) ($cfg['app_password'] ?? '')));
                 $meta = self::enqueueRawBytes($rawBytes, $safeOrigName, $mimeType, $customTitle, $source, $batchIndex, $batchTotal);
                 return [
                     'success' => true,
@@ -1320,9 +1439,11 @@ PROMPT;
             throw new \InvalidArgumentException('Ungültige Dateiendung.');
         }
 
+        self::assertSafeDocumentContentAndMagicBytes($rawBytes, $ext);
+
         $activeCfg = $cfg ?? self::getWebDavConfig();
         if (empty($activeCfg['configured'])) {
-            throw new \RuntimeException('kDrive WebDAV ist noch nicht verbunden.');
+            throw new \RuntimeException('kDrive ist noch nicht verbunden.');
         }
 
         $sha256 = hash('sha256', $rawBytes);
@@ -1335,12 +1456,12 @@ PROMPT;
                 'remote_path' => $alreadyUploaded,
                 'file_name' => basename($alreadyUploaded),
                 'target_folder' => dirname($alreadyUploaded),
-                'message' => 'Bereits in kDrive abgelegt: ' . $alreadyUploaded,
+                'message' => 'Bereits im kDrive Eingang-Trichter abgelegt: ' . $alreadyUploaded,
             ];
         }
 
         $rootFolder = self::sanitizeRootFolder((string) ($activeCfg['root_folder'] ?? 'Meine Daten'));
-        $directSort = array_key_exists('direct_sort', $activeCfg) ? (bool) $activeCfg['direct_sort'] : true;
+        $directSort = array_key_exists('direct_sort', $activeCfg) ? (bool) $activeCfg['direct_sort'] : false;
 
         $cleanTitle = $customTitle !== null
             ? trim((string) preg_replace('/[\r\n\t]+/', ' ', $customTitle))
@@ -1390,6 +1511,10 @@ PROMPT;
         $shortRemotePath = "{$shortDisplayDir}/{$finalFileName}";
         self::recordUploadedSha256($sha256, $shortRemotePath);
 
+        $humanMsg = $shortDisplayDir === '00_Eingang_Trichter'
+            ? "Im kDrive Eingang-Trichter abgelegt: {$finalFileName}"
+            : "Direkt in kDrive einsortiert: {$shortDisplayDir}/{$finalFileName}";
+
         return [
             'success' => true,
             'direct_uploaded' => true,
@@ -1398,7 +1523,7 @@ PROMPT;
             'full_kdrive_path' => "{$targetRelativeDir}/{$finalFileName}",
             'file_name' => $finalFileName,
             'target_folder' => $shortDisplayDir,
-            'message' => "Direkt in kDrive einsortiert: {$shortDisplayDir}/{$finalFileName}",
+            'message' => $humanMsg,
         ];
     }
 

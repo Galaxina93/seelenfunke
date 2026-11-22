@@ -714,7 +714,10 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
                 $request->filled('batch_total') ? (int) $request->input('batch_total') : null
             );
 
-            return response()->json($result);
+            return response()->json($result, 200, [
+                'Cache-Control' => 'no-store, private',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
@@ -723,10 +726,10 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'kDrive-Trichter Übergabe fehlgeschlagen: ' . $e->getMessage(),
+                'message' => 'kDrive-Trichter Übergabe fehlgeschlagen.',
             ], 500);
         }
-    });
+    })->middleware('throttle:45,1');
 
     Route::get('/config', function (Request $request) use ($ensureAdminOwner) {
         $ensureAdminOwner($request);
@@ -734,7 +737,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
         return response()->json([
             'success' => true,
             'data' => \App\Services\System\KdriveTrichterRelayService::getPublicWebDavStatus(),
-        ], 200, ['Cache-Control' => 'no-store, private']);
+        ], 200, ['Cache-Control' => 'no-store, private', 'X-Content-Type-Options' => 'nosniff']);
     });
 
     Route::post('/config', function (Request $request) use ($ensureAdminOwner) {
@@ -751,7 +754,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
         try {
             $directSort = $request->has('direct_sort')
                 ? filter_var($request->input('direct_sort'), FILTER_VALIDATE_BOOLEAN)
-                : true;
+                : false;
 
             $secret = $request->filled('api_token')
                 ? (string) $request->input('api_token')
@@ -767,14 +770,14 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
 
             $flushed = (int) ($status['flushed_count'] ?? 0);
             $msg = $flushed > 0
-                ? "kDrive verbunden! {$flushed} wartende(r) Scan(s) direkt verarbeitet und einsortiert."
+                ? "kDrive verbunden! {$flushed} wartende(r) Scan(s) nach 00_Eingang_Trichter übertragen."
                 : 'kDrive erfolgreich verbunden und geprüft.';
 
             return response()->json([
                 'success' => true,
                 'message' => $msg,
                 'data' => $status,
-            ]);
+            ], 200, ['Cache-Control' => 'no-store, private']);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
@@ -783,10 +786,10 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage(),
+                'message' => 'kDrive-Verbindungsprüfung fehlgeschlagen.',
             ], 502);
         }
-    });
+    })->middleware('throttle:12,1');
 
     Route::post('/flush', function (Request $request) use ($ensureAdminOwner) {
         $ensureAdminOwner($request);
@@ -794,7 +797,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
         $flush = \App\Services\System\KdriveTrichterRelayService::flushPendingRelayToWebDav(30);
         $ok = empty($flush['errors']) || $flush['flushed'] > 0;
         $msg = $flush['flushed'] > 0
-            ? "{$flush['flushed']} Scan(s) direkt nach kDrive verarbeitet."
+            ? "{$flush['flushed']} Scan(s) in den kDrive Eingang-Trichter übertragen."
             : (!empty($flush['errors']) ? $flush['errors'][0] : 'Keine wartenden Scans vorhanden.');
 
         return response()->json([
@@ -802,7 +805,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
             'message' => $msg,
             'data' => $flush,
         ], $ok ? 200 : 422);
-    });
+    })->middleware('throttle:12,1');
 
     Route::get('/pending', function (Request $request) use ($ensureAdminOwner) {
         $ensureAdminOwner($request);

@@ -40,6 +40,7 @@ object KdriveTrichterOfflineQueue {
     private const val KEY_ALIAS = "funkenwerk_kdrive_trichter_key_v1"
     private const val GCM_IV_BYTES = 12
     private const val GCM_TAG_BITS = 128
+    private val SAFE_UUID_REGEX = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
     private val mutex = Mutex()
     private val _pendingCount = MutableStateFlow(0)
@@ -164,12 +165,41 @@ object KdriveTrichterOfflineQueue {
                     if (batchTotal != null) put("batch_total", batchTotal)
                     put("created_at_ms", System.currentTimeMillis())
                 }
-                metaFile.writeText(metaJson.toString(), Charsets.UTF_8)
+                val metaUtf8 = metaJson.toString().toByteArray(Charsets.UTF_8)
+                try {
+                    metaFile.writeBytes(encryptBytes(metaUtf8))
+                } finally {
+                    metaUtf8.fill(0)
+                }
                 refreshCount(context)
                 true
             } catch (_: Throwable) {
                 false
             }
+        }
+    }
+
+    private fun wipeAndDeleteFile(file: File) {
+        try {
+            if (file.exists() && file.isFile) {
+                val len = file.length()
+                if (len in 1..(64L * 1024L * 1024L)) {
+                    java.io.RandomAccessFile(file, "rw").use { raf ->
+                        val zeros = ByteArray(minOf(len.toInt(), 65536))
+                        var remaining = len
+                        raf.seek(0)
+                        while (remaining > 0) {
+                            val chunk = minOf(remaining, zeros.size.toLong()).toInt()
+                            raf.write(zeros, 0, chunk)
+                            remaining -= chunk
+                        }
+                        raf.fd.sync()
+                    }
+                }
+                file.delete()
+            }
+        } catch (_: Throwable) {
+            try { file.delete() } catch (_: Throwable) {}
         }
     }
 
@@ -182,9 +212,23 @@ object KdriveTrichterOfflineQueue {
             val metaFiles = dir.listFiles { f -> f.isFile && f.name.endsWith(".json") }
                 ?.mapNotNull { file ->
                     try {
-                        val json = JSONObject(file.readText(Charsets.UTF_8))
-                        val id = json.optString("id", "")
-                        if (id.isBlank()) return@mapNotNull null
+                        val rawMeta = file.readBytes()
+                        val decMeta = decryptBytes(rawMeta)
+                        val jsonStr = if (decMeta != null) {
+                            try {
+                                String(decMeta, Charsets.UTF_8)
+                            } finally {
+                                decMeta.fill(0)
+                            }
+                        } else {
+                            String(rawMeta, Charsets.UTF_8)
+                        }
+                        val json = JSONObject(jsonStr)
+                        val id = json.optString("id", "").trim()
+                        if (!SAFE_UUID_REGEX.matches(id)) {
+                            wipeAndDeleteFile(file)
+                            return@mapNotNull null
+                        }
                         QueuedTrichterScanMeta(
                             id = id,
                             fileName = json.optString("file_name", "Scan.pdf"),
@@ -196,7 +240,7 @@ object KdriveTrichterOfflineQueue {
                             createdAtMs = json.optLong("created_at_ms", 0L)
                         ) to file
                     } catch (_: Throwable) {
-                        file.delete()
+                        wipeAndDeleteFile(file)
                         null
                     }
                 }
@@ -207,41 +251,45 @@ object KdriveTrichterOfflineQueue {
             for ((meta, metaFile) in metaFiles) {
                 val binFile = File(dir, "${meta.id}.bin")
                 if (!binFile.exists()) {
-                    metaFile.delete()
+                    wipeAndDeleteFile(metaFile)
                     continue
                 }
                 val plainBytes = decryptBytes(binFile.readBytes())
                 if (plainBytes == null || plainBytes.isEmpty()) {
-                    binFile.delete()
-                    metaFile.delete()
+                    wipeAndDeleteFile(binFile)
+                    wipeAndDeleteFile(metaFile)
                     continue
                 }
 
-                val res = financeRepository.sendToKdriveTrichterDirect(
-                    fileBytes = plainBytes,
-                    fileName = meta.fileName,
-                    mimeType = meta.mimeType,
-                    customTitle = meta.customTitle,
-                    source = meta.source,
-                    batchIndex = meta.batchIndex,
-                    batchTotal = meta.batchTotal
-                )
-                if (res.isSuccess) {
-                    binFile.delete()
-                    metaFile.delete()
-                    uploaded++
-                } else if (isTransientNetworkFailure(res.exceptionOrNull())) {
-                    // Stop flushing until network returns
-                    break
-                } else {
-                    // Permanent validation rejection (e.g. unsupported file type) -> drop item so queue isn't poisoned
-                    val errMsg = res.exceptionOrNull()?.message ?: ""
-                    if (!errMsg.contains("Sitzung abgelaufen")) {
-                        binFile.delete()
-                        metaFile.delete()
-                    } else {
+                try {
+                    val res = financeRepository.sendToKdriveTrichterDirect(
+                        fileBytes = plainBytes,
+                        fileName = meta.fileName,
+                        mimeType = meta.mimeType,
+                        customTitle = meta.customTitle,
+                        source = meta.source,
+                        batchIndex = meta.batchIndex,
+                        batchTotal = meta.batchTotal
+                    )
+                    if (res.isSuccess) {
+                        wipeAndDeleteFile(binFile)
+                        wipeAndDeleteFile(metaFile)
+                        uploaded++
+                    } else if (isTransientNetworkFailure(res.exceptionOrNull())) {
+                        // Stop flushing until network returns
                         break
+                    } else {
+                        // Permanent validation rejection (e.g. unsupported file type) -> drop item so queue isn't poisoned
+                        val errMsg = res.exceptionOrNull()?.message ?: ""
+                        if (!errMsg.contains("Sitzung abgelaufen")) {
+                            wipeAndDeleteFile(binFile)
+                            wipeAndDeleteFile(metaFile)
+                        } else {
+                            break
+                        }
                     }
+                } finally {
+                    plainBytes.fill(0)
                 }
             }
 

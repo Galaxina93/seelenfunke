@@ -308,7 +308,7 @@ class KdriveTrichterRelayTest extends TestCase
         ])->assertStatus(422);
         $this->assertStringContainsString('API-Token', (string) $blockedWebDavRes->json('message'));
 
-        // 2. Saving an Infomaniak API-Token (even without email!) connects via API v3 AND flushes the waiting scan!
+        // 2. Saving an Infomaniak API-Token (default direct_sort = false -> lands directly in 00_Eingang_Trichter!)
         $this->postJson('/api/funki/kdrive-trichter/config', [
             'drive_id' => '2216011',
             'app_password' => 'ik-api-token-drive-999',
@@ -316,6 +316,7 @@ class KdriveTrichterRelayTest extends TestCase
           ->assertJsonPath('success', true)
           ->assertJsonPath('data.configured', true)
           ->assertJsonPath('data.mode', 'api_v3')
+          ->assertJsonPath('data.direct_sort', false)
           ->assertJsonPath('data.flushed_count', 1)
           ->assertJsonPath('data.pending_relay_count', 0);
 
@@ -323,9 +324,39 @@ class KdriveTrichterRelayTest extends TestCase
         $uploadUrl = array_key_first($apiUploads);
         parse_str((string) parse_url($uploadUrl, PHP_URL_QUERY), $queryParams);
         $this->assertSame('77', $queryParams['directory_id']);
-        $this->assertSame('/01_Mein-Seelenfunke/Eingangsrechnungen_Belege', $queryParams['directory_path']);
+        $this->assertSame('/00_Eingang_Trichter', $queryParams['directory_path']);
         $this->assertStringContainsString('PrintEquipment_Rohlinge.pdf', $queryParams['file_name']);
         $this->assertSame('sha256:' . hash('sha256', $waitingPdf), $queryParams['total_chunk_hash']);
         $this->assertSame($waitingPdf, $apiUploads[$uploadUrl]);
+
+        // 3. Adversarial Security Checks: disguised EXE, PDF /JavaScript exploit, and Office macro must be blocked with 422
+        $disguisedExe = UploadedFile::fake()->createWithContent('Rechnung.pdf', "MZ\x90\x00\x03\x00\x00\x00EvilPayload");
+        $this->postJson('/api/funki/kdrive-trichter/enqueue', [
+            'file' => $disguisedExe,
+            'source' => 'android_scanner',
+        ])->assertStatus(422);
+
+        $exploitPdf = UploadedFile::fake()->createWithContent(
+            'Harmlos.pdf',
+            "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /OpenAction << /S /JavaScript /JS (app.alert(1)) >> >>\nendobj\n%%EOF"
+        );
+        $this->postJson('/api/funki/kdrive-trichter/enqueue', [
+            'file' => $exploitPdf,
+            'source' => 'android_scanner',
+        ])->assertStatus(422);
+
+        $macroDocx = UploadedFile::fake()->createWithContent(
+            'Angebot.docx',
+            "PK\x03\x04\x14\x00\x00\x00word/vbaProject.binEvilMacro"
+        );
+        $this->postJson('/api/funki/kdrive-trichter/enqueue', [
+            'file' => $macroDocx,
+            'source' => 'android_scanner',
+        ])->assertStatus(422);
+
+        // 4. RLO U+202E & Windows reserved device names sanitized
+        $this->assertSame('Dok_CON', KdriveTrichterRelayService::sanitizeFilenameSegment('CON'));
+        $this->assertStringNotContainsString("\u{202E}", KdriveTrichterRelayService::sanitizeFilenameSegment("Scan\u{202E}fdp.exe"));
+        $this->assertStringNotContainsString('.exe', KdriveTrichterRelayService::sanitizeFilenameSegment('Rechnung.exe'));
     }
 }

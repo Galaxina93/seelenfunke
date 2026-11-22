@@ -326,7 +326,7 @@ class ZentrumViewModel : ViewModel() {
                         lastSuccessMsg?.contains("Bereits in kDrive", ignoreCase = true) == true ->
                         "$successCount Dokumente direkt in kDrive verarbeitet & einsortiert."
                     else ->
-                        "$successCount PDFs an kDrive übergeben."
+                        "$successCount PDFs im kDrive Eingang-Trichter abgelegt."
                 }
                 _trichterFeedback.value = TrichterFeedback(isSuccess = true, message = summary)
                 _actionResult.value = Result.success(summary)

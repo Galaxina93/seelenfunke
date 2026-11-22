@@ -109,13 +109,21 @@ class KdriveTrichterScannerTest {
         assertTrue(queued)
         assertEquals(1, KdriveTrichterOfflineQueue.pendingCount.value)
 
-        // Verify encrypted on disk (zero plaintext PDF header or content)
+        // Verify encrypted on disk (zero plaintext PDF header, content, or metadata title)
         val queueDir = File(context.filesDir, "kdrive_trichter_queue")
         val binFile = queueDir.listFiles { f -> f.name.endsWith(".bin") }?.firstOrNull()
+        val metaFile = queueDir.listFiles { f -> f.name.endsWith(".json") }?.firstOrNull()
         assertNotNull(binFile)
+        assertNotNull(metaFile)
         val rawDiskStr = String(binFile!!.readBytes(), Charsets.ISO_8859_1)
+        val rawMetaStr = String(metaFile!!.readBytes(), Charsets.ISO_8859_1)
         assertFalse(rawDiskStr.contains("%PDF"))
         assertFalse(rawDiskStr.contains("Secret Invoice Content"))
+        assertFalse(rawMetaStr.contains("Lieferantenrechnung"))
+        assertFalse(rawMetaStr.contains("Scan_2026-11-20_01.pdf"))
+
+        // Tampered path-traversal metadata entry must be rejected and wiped
+        File(queueDir, "tampered.json").writeText("""{"id":"../../etc/passwd","file_name":"evil.pdf"}""", Charsets.UTF_8)
 
         server.enqueue(
             MockResponse()

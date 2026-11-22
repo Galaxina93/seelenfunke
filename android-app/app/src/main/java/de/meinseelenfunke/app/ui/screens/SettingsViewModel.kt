@@ -76,7 +76,7 @@ class SettingsViewModel : ViewModel() {
                 driveId = driveId,
                 email = email,
                 appPassword = appPassword,
-                directSort = true
+                directSort = false
             )
             _kdriveSaving.value = false
             res.onSuccess { payload ->

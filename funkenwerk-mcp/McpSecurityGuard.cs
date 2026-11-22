@@ -371,11 +371,40 @@ namespace FunkenwerkMcp
         {
             get
             {
+                string? baseDir = AppContext.BaseDirectory?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (!string.IsNullOrEmpty(baseDir))
+                {
+                    var parent = Directory.GetParent(baseDir);
+                    if (parent != null)
+                    {
+                        if (string.Equals(parent.Name, "Module", StringComparison.OrdinalIgnoreCase) && parent.Parent != null)
+                            return parent.Parent.FullName;
+                        if (string.Equals(parent.Name, "Funkenwerk Collection", StringComparison.OrdinalIgnoreCase))
+                            return parent.FullName;
+                    }
+                }
+
                 string desktopCol = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Funkenwerk Collection");
                 if (Directory.Exists(desktopCol)) return desktopCol;
+                if (Directory.Exists(@"C:\Users\konta\Desktop\Funkenwerk Collection")) return @"C:\Users\konta\Desktop\Funkenwerk Collection";
                 if (Directory.Exists(@"C:\Funkenwerk Collection")) return @"C:\Funkenwerk Collection";
                 return desktopCol;
             }
+        }
+
+        public static string ResolveCollectionSubDir(string subFolder)
+        {
+            string root = CollectionRootDir;
+            if (string.Equals(subFolder, "Funkenwerk", StringComparison.OrdinalIgnoreCase))
+                return Path.Combine(root, "Funkenwerk");
+
+            string modular = Path.Combine(root, "Module", subFolder);
+            if (Directory.Exists(modular)) return modular;
+
+            string legacy = Path.Combine(root, subFolder);
+            if (Directory.Exists(legacy)) return legacy;
+
+            return modular;
         }
 
         public static List<string> GetAllowedFilesystemRoots()
@@ -2703,6 +2732,186 @@ try {
                         FileSizeBytes = apkSize,
                         RemoteManifestJson = ScrubSecrets(remoteOut)
                     };
+                }
+                finally
+                {
+                    keyFile?.Dispose();
+                }
+            });
+        }
+
+        internal static async Task<string> ExecuteStagePhpWithPrivatePayloadAsync(
+            string phpBodyUsingInArray,
+            byte[] secretJsonPayloadUtf8,
+            string auditAction = "stage_private_broker_exec",
+            string profileName = "Mittwald")
+        {
+            EnforceRateLimit(auditAction, isSshCall: true);
+            ValidateStageOnlyTarget(StageAllowedHost, StageWebRemoteDir, allowWorkerStage: false);
+
+            using var creds = ResolveProfileInternal(profileName, StageWebRemoteDir, forceKeyOnlyNoPasswordDecrypt: true)
+                ?? throw new InvalidOperationException($"Profil '{profileName}' wurde nicht gefunden.");
+
+            ValidateStageOnlyTarget(creds.Host, creds.RemoteDirectory, allowWorkerStage: false);
+
+            if (!HasAnySha256PinForHost(creds.Host, creds.Port))
+            {
+                AppendAuditLog(auditAction, $"{creds.Host}:{creds.Port}", "DENY:unpinned_host_key");
+                throw new UnauthorizedAccessException($"Host '{creds.Host}:{creds.Port}' ist nicht per SHA-256 gepinnt.");
+            }
+
+            var fwPinned = LoadFunkenwerkPinnedHostKeysSha256();
+            string remotePrivateDir = $"{StageWebRemoteDir}/storage/app/private";
+            string remoteTmpFull = $"{remotePrivateDir}/_fw_broker_{Guid.NewGuid():N}.tmp";
+
+            string wrapperPhp = @"
+require 'vendor/autoload.php';
+$app = require_once 'bootstrap/app.php';
+$app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+$appUrl = rtrim((string) config('app.url'), '/');
+if ($appUrl !== 'https://stage.mein-seelenfunke.de') {
+    fwrite(STDERR, 'LIVE-AIR-GAP SPERRE: APP_URL=' . $appUrl);
+    exit(2);
+}
+$tmp = (string) $argv[1];
+$rawPayload = '';
+if (is_file($tmp)) {
+    $rawPayload = (string) file_get_contents($tmp);
+    $sz = strlen($rawPayload);
+    if ($sz > 0 && $sz <= 33554432) {
+        $fh = @fopen($tmp, 'c+b');
+        if (is_resource($fh)) {
+            @fseek($fh, 0);
+            @fwrite($fh, str_repeat(""\0"", $sz));
+            @fflush($fh);
+            @fclose($fh);
+        }
+    }
+    @unlink($tmp);
+}
+if ($rawPayload === '') {
+    fwrite(STDERR, 'Private Broker-Payload fehlt oder leer.');
+    exit(3);
+}
+$in = json_decode($rawPayload, true, 512, JSON_THROW_ON_ERROR);
+unset($rawPayload);
+" + "\n" + phpBodyUsingInArray;
+
+            string phpRunnerB64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(wrapperPhp));
+
+            return await Task.Run(() =>
+            {
+                var authMethods = new List<AuthenticationMethod>();
+                PrivateKeyFile? keyFile = null;
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(creds.PrivateKeyPath) && File.Exists(creds.PrivateKeyPath))
+                    {
+                        keyFile = new PrivateKeyFile(creds.PrivateKeyPath);
+                        authMethods.Add(new PrivateKeyAuthenticationMethod(creds.Username, keyFile));
+                    }
+                    if (keyFile == null || authMethods.Count == 0)
+                    {
+                        AppendAuditLog(auditAction, creds.Name, "DENY:stage_requires_ed25519_key");
+                        throw new UnauthorizedAccessException(
+                            "Stage-Broker erzwingt reine Ed25519-SSH-Key-Authentifizierung (Passwort-Fallback ist hart deaktiviert).");
+                    }
+
+                    bool VerifyPinnedKey(byte[] hostKeyBytes, string hostKeyName)
+                    {
+                        string actualFp = "SHA256:" + Convert.ToBase64String(SHA256.HashData(hostKeyBytes)).TrimEnd('=');
+                        byte[] actualBytes = Encoding.ASCII.GetBytes(actualFp);
+
+                        var allowedFps = new List<string>();
+                        string exactKey = $"{creds.Host.ToLowerInvariant()}:{creds.Port}:{hostKeyName}";
+                        if (fwPinned.TryGetValue(exactKey, out string? fwExact)) allowedFps.Add(fwExact);
+                        if (fwPinned.TryGetValue($"{creds.Host}:{creds.Port}", out string? fwHostPort)) allowedFps.Add(fwHostPort);
+                        allowedFps.AddRange(FindOpenSshPinnedFingerprintsForHost(creds.Host, creds.Port, hostKeyName));
+
+                        foreach (string candidateFp in allowedFps)
+                        {
+                            byte[] expectedBytes = Encoding.ASCII.GetBytes(candidateFp.Trim());
+                            if (actualBytes.Length == expectedBytes.Length &&
+                                CryptographicOperations.FixedTimeEquals(actualBytes, expectedBytes))
+                            {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+
+                    var connInfo = new ConnectionInfo(creds.Host, creds.Port, creds.Username, authMethods.ToArray())
+                    {
+                        Timeout = TimeSpan.FromSeconds(25)
+                    };
+
+                    using (var sftp = new SftpClient(connInfo))
+                    {
+                        bool sftpPinned = false;
+                        sftp.HostKeyReceived += (s, e) => { sftpPinned = VerifyPinnedKey(e.HostKey, e.HostKeyName); e.CanTrust = sftpPinned; };
+                        sftp.Connect();
+                        if (!sftpPinned || !sftp.IsConnected)
+                            throw new UnauthorizedAccessException("SFTP Host-Key-Prüfung für Stage-Broker fehlgeschlagen.");
+
+                        if (sftp.Exists(remotePrivateDir))
+                        {
+                            var attr = sftp.GetAttributes(remotePrivateDir);
+                            if (attr.IsSymbolicLink)
+                                throw new UnauthorizedAccessException($"Remote-Symlink-Verzeichnis verweigert: {remotePrivateDir}");
+                        }
+                        else
+                        {
+                            sftp.CreateDirectory(remotePrivateDir);
+                        }
+
+                        using (var ms = new MemoryStream(secretJsonPayloadUtf8, writable: false))
+                        {
+                            sftp.UploadFile(ms, remoteTmpFull, canOverride: true);
+                        }
+                        try { sftp.ChangePermissions(remoteTmpFull, 0600); } catch { }
+                        sftp.Disconnect();
+                    }
+
+                    string execCmd = $"cd -- '{StageWebRemoteDir}' && php -r 'eval(base64_decode(\"{phpRunnerB64}\"));' -- '{remoteTmpFull}'";
+                    using (var ssh = new SshClient(connInfo))
+                    {
+                        bool sshPinned = false;
+                        ssh.HostKeyReceived += (s, e) => { sshPinned = VerifyPinnedKey(e.HostKey, e.HostKeyName); e.CanTrust = sshPinned; };
+                        ssh.Connect();
+                        if (!sshPinned || !ssh.IsConnected)
+                            throw new UnauthorizedAccessException("SSH Host-Key-Prüfung für Stage-Broker fehlgeschlagen.");
+
+                        string stdout;
+                        string stderr;
+                        int exitCode;
+                        try
+                        {
+                            using var cmd = ssh.CreateCommand(execCmd);
+                            cmd.CommandTimeout = TimeSpan.FromSeconds(60);
+                            stdout = cmd.Execute() ?? "";
+                            stderr = cmd.Error ?? "";
+                            exitCode = cmd.ExitStatus ?? 0;
+                        }
+                        finally
+                        {
+                            try
+                            {
+                                using var cleanCmd = ssh.CreateCommand($"rm -f -- '{remoteTmpFull}'");
+                                cleanCmd.Execute();
+                            }
+                            catch { }
+                        }
+
+                        ssh.Disconnect();
+                        if (exitCode != 0)
+                        {
+                            AppendAuditLog(auditAction, $"exit={exitCode}", "ERROR");
+                            throw new InvalidOperationException($"Stage-Broker-Ausführung fehlgeschlagen (Exit {exitCode}): {ScrubSecrets((stdout + "\n" + stderr).Trim())}");
+                        }
+
+                        AppendAuditLog(auditAction, "stage_ok", "ALLOW");
+                        return ScrubSecrets(stdout.Trim());
+                    }
                 }
                 finally
                 {
