@@ -171,9 +171,10 @@ class FunkiraTicketRouter
             'approve_procurement' => self::approveProcurementTicket($ticket, $channel),
             'approve_ag_blockade' => self::resolveAgBlockadeFromTicketUi($ticket, 'approved', (string) ($params['note'] ?? 'Go im Ticketsystem erteilt')),
             'dismiss_ag_blockade' => self::resolveAgBlockadeFromTicketUi($ticket, 'dismissed', (string) ($params['note'] ?? 'Im Ticketsystem verworfen')),
-            'complete' => self::markTicketStatus($ticket, AiUniverseTicket::STATUS_COMPLETED, 'Ticket abgeschlossen.', $channel),
-            'archive' => self::markTicketStatus($ticket, AiUniverseTicket::STATUS_ARCHIVED, 'Ticket archiviert.', $channel),
-            'reopen' => self::markTicketStatus($ticket, AiUniverseTicket::STATUS_IN_PROGRESS, 'Ticket wieder geöffnet.', $channel),
+            'set_status' => self::setManualTicketStatus($ticket, (string) ($params['status'] ?? AiUniverseTicket::STATUS_IN_PROGRESS), $channel),
+            'complete' => self::setManualTicketStatus($ticket, AiUniverseTicket::STATUS_COMPLETED, $channel),
+            'archive' => self::setManualTicketStatus($ticket, AiUniverseTicket::STATUS_ARCHIVED, $channel),
+            'reopen' => self::setManualTicketStatus($ticket, AiUniverseTicket::STATUS_IN_PROGRESS, $channel),
             default => [
                 'status' => 'error',
                 'reply' => "Unbekannte Ticket-Aktion '{$action}'.",
@@ -213,7 +214,16 @@ class FunkiraTicketRouter
 
         if ($departmentId && Schema::hasTable('ai_knowledge_bases') && Schema::hasColumn('ai_knowledge_bases', 'title')) {
             try {
-                $kbQuery = AiKnowledgeBase::query()->latest('updated_at')->limit(5);
+                $kbQuery = AiKnowledgeBase::query()
+                    ->where(function ($q) {
+                        $q->whereNull('visibility_scope')
+                          ->orWhere('visibility_scope', '!=', AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE);
+                    })
+                    ->whereDoesntHave('category', function ($q) {
+                        $q->whereIn('slug', \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS);
+                    })
+                    ->latest('updated_at')
+                    ->limit(5);
                 if (Schema::hasColumn('ai_knowledge_bases', 'is_active')) {
                     $kbQuery->where('is_active', true);
                 }
@@ -221,9 +231,15 @@ class FunkiraTicketRouter
                 if ($entries->isNotEmpty()) {
                     $kbLines = ['[KOMPAKTES FIRMENWISSEN]:'];
                     foreach ($entries as $entry) {
-                        $kbLines[] = '- ' . $entry->title . ': ' . Str::limit(trim(strip_tags((string) $entry->content)), 180);
+                        $rawContent = (string) $entry->content;
+                        if (str_starts_with($rawContent, '[TS_ENC_V1]:')) {
+                            continue;
+                        }
+                        $kbLines[] = '- ' . $entry->title . ': ' . Str::limit(trim(strip_tags($rawContent)), 180);
                     }
-                    $blocks[] = implode("\n", $kbLines);
+                    if (count($kbLines) > 1) {
+                        $blocks[] = implode("\n", $kbLines);
+                    }
                 }
             } catch (\Throwable) {
             }
@@ -621,14 +637,29 @@ class FunkiraTicketRouter
 
         // Harte 0-Token Nachkontrolle: Gedankenstriche, Materialangaben, Bestellreferenzen & Anti-Bluff ("No Tool = No Promise")
         $gate = AiOutputQualityGate::inspectAndClean($rawReply, $executedTools);
-        $finalReply = $gate['text'] !== '' ? $gate['text'] : 'Status im Ticket aktualisiert.';
+        // Keine Romane im Ticket: knackig auf den Punkt halten
+        $finalReply = $gate['text'] !== '' ? Str::limit($gate['text'], 720) : 'Status im Ticket aktualisiert.';
 
         $ticket->refresh();
+        $previousStatus = $ticket->status;
         $actionCard = null;
         if (!empty($gate['suggest_antigravity_handoff'])) {
+            $budget = AgentSkillBudgetGuard::evaluateAgentSkillBudget($activeAgent);
+            $dossier = AgentSkillBudgetGuard::formatAntigravitySkillGapDossier(
+                $budget,
+                Str::limit($prompt, 140),
+                'Kein ausführendes Werkzeug im aktuellen Skill-Korb für diese Anforderung vorhanden (0-Token Anti-Bluff-Schutz).',
+                $presence['active_route'] ?? 'Ticketsystem'
+            );
+
+            if (AiAuthHelper::isAdmin()) {
+                return self::routeTicketToAntigravity($ticket, $presence, $dossier);
+            }
+
             $actionCard = [
                 'type' => 'antigravity_handoff',
                 'label' => 'An Antigravity übergeben',
+                'skill_gap_dossier' => $budget,
             ];
             $ticket->status = AiUniverseTicket::STATUS_WAITING_FOR_ALINA;
             $ticket->ticket_type = 'capability_gap';
@@ -642,6 +673,17 @@ class FunkiraTicketRouter
             if ($ticket->status === AiUniverseTicket::STATUS_COMPLETED) {
                 $ticket->completed_at = now();
             }
+        }
+
+        // Verbindliches Status-Protokoll bei jedem Statuswechsel (kurz, klar, inklusive finaler Ticket-Aktion)
+        if ($ticket->status !== $previousStatus && !str_contains($finalReply, 'Status ->')) {
+            $newLabel = AiUniverseTicket::getStatusLabel($ticket->status);
+            $statusFooter = match ($ticket->status) {
+                AiUniverseTicket::STATUS_COMPLETED => "\n\n**Status -> {$newLabel}:** Alle Schritte ausgeführt, Ticket wird abgeschlossen und im Erledigt-Register abgelegt.",
+                AiUniverseTicket::STATUS_WAITING_FOR_ALINA => "\n\n**Status -> {$newLabel}:** Entscheidung oder kurze Rückmeldung von Alina erforderlich.",
+                default => "\n\n**Status -> {$newLabel}:** Bearbeitung aktualisiert.",
+            };
+            $finalReply .= $statusFooter;
         }
 
         AiUniverseTicketMessage::create([
@@ -801,6 +843,72 @@ class FunkiraTicketRouter
             'status' => 'ok',
             'mode' => 'procurement_approved',
             'reply' => $reply,
+            'ticket' => $ticket->fresh(['department', 'agent', 'messages']),
+        ];
+    }
+
+    public static function setManualTicketStatus(AiUniverseTicket $ticket, string $newStatus, string $channel = 'web_portal'): array
+    {
+        $allowed = [
+            AiUniverseTicket::STATUS_NEW,
+            AiUniverseTicket::STATUS_IN_PROGRESS,
+            AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
+            AiUniverseTicket::STATUS_WAITING_FOR_NOTEBOOK,
+            AiUniverseTicket::STATUS_WAITING_FOR_TRESOR,
+            AiUniverseTicket::STATUS_COMPLETED,
+            AiUniverseTicket::STATUS_ARCHIVED,
+        ];
+
+        if (!in_array($newStatus, $allowed, true)) {
+            $newStatus = AiUniverseTicket::STATUS_IN_PROGRESS;
+        }
+
+        $oldStatus = $ticket->status;
+        if ($oldStatus === $newStatus) {
+            return [
+                'status' => 'ok',
+                'reply' => 'Status unverändert.',
+                'ticket' => $ticket->fresh(['department', 'agent', 'messages']),
+            ];
+        }
+
+        $oldLabel = AiUniverseTicket::getStatusLabel($oldStatus);
+        $newLabel = AiUniverseTicket::getStatusLabel($newStatus);
+        $note = "**Status manuell geändert -> {$newLabel}** (vorher: {$oldLabel}) · durch Alina.";
+
+        AiUniverseTicketMessage::create([
+            'ticket_id' => $ticket->id,
+            'sender_role' => 'alina',
+            'sender_name' => 'Alina',
+            'channel' => $channel,
+            'content' => $note,
+        ]);
+
+        $ticket->update([
+            'status' => $newStatus,
+            'completed_at' => $newStatus === AiUniverseTicket::STATUS_COMPLETED ? now() : ($newStatus === AiUniverseTicket::STATUS_IN_PROGRESS ? null : $ticket->completed_at),
+            'messages_count' => $ticket->messages()->count(),
+            'last_activity_at' => now(),
+        ]);
+
+        // Bidirektionale Rückspiegelung in AntigravityDirectInboxService, falls verknüpft
+        $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+        $agId = trim((string) ($payload['ag_item_id'] ?? ''));
+        if ($agId !== '') {
+            try {
+                $inbox = app(\App\Services\System\AntigravityDirectInboxService::class);
+                if ($newStatus === AiUniverseTicket::STATUS_COMPLETED) {
+                    $inbox->completeItem($agId, 'Manuell durch Alina im Ticketsystem als Erledigt abgeschlossen.', true);
+                } elseif ($newStatus === AiUniverseTicket::STATUS_ARCHIVED && ($payload['type'] ?? '') === 'ag_inbox_blockade') {
+                    $inbox->resolveBlockadeItem($agId, 'dismissed', 'Manuell im Ticketsystem archiviert', 'Alina');
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return [
+            'status' => 'ok',
+            'reply' => $note,
             'ticket' => $ticket->fresh(['department', 'agent', 'messages']),
         ];
     }

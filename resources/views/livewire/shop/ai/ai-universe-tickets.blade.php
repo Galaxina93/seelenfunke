@@ -254,7 +254,18 @@
                             <h2 class="text-sm sm:text-base font-black text-gray-900 dark:text-white mt-0.5 truncate">{{ $ticket->title }}</h2>
                         </div>
 
-                        <div class="flex items-center gap-1.5 flex-wrap">
+                        @php
+                            $headerStatusClass = match ($ticket->status) {
+                                'waiting_for_alina' => 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30',
+                                'waiting_for_tresor' => 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
+                                'waiting_for_notebook' => 'bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border-indigo-500/30',
+                                'completed' => 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+                                'archived' => 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+                                default => 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/30',
+                            };
+                        @endphp
+
+                        <div class="flex items-center gap-2 flex-wrap">
                             @if(!$ticket->assigned_to_antigravity && $ticket->status !== 'completed' && $ticket->status !== 'archived')
                                 <button type="button"
                                         wire:click="triggerTicketAction('handoff_antigravity')"
@@ -263,28 +274,22 @@
                                 </button>
                             @endif
 
-                            @if($ticket->status !== 'completed')
-                                <button type="button"
-                                        wire:click="triggerTicketAction('complete')"
-                                        class="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 transition-colors cursor-pointer">
-                                    Erledigt
-                                </button>
-                            @else
-                                <button type="button"
-                                        wire:click="triggerTicketAction('reopen')"
-                                        class="px-3 py-1.5 rounded-xl text-xs font-bold bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 transition-colors cursor-pointer">
-                                    Öffnen
-                                </button>
-                            @endif
-
-                            @if($ticket->status !== 'archived')
-                                <button type="button"
-                                        wire:click="triggerTicketAction('archive')"
-                                        class="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                                        title="Ticket archivieren">
-                                    <x-heroicon-m-archive-box class="w-4 h-4" />
-                                </button>
-                            @endif
+                            {{-- Synchroner Live-Status & Manuelle Status-Änderung in 1 Klick --}}
+                            <div class="relative flex items-center">
+                                <select wire:key="status-select-{{ $ticket->id }}-{{ $ticket->status }}"
+                                        wire:change="changeTicketStatus($event.target.value)"
+                                        aria-label="Ticket-Status manuell ändern"
+                                        class="appearance-none pl-3 pr-7 py-1.5 rounded-xl text-xs font-black border transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-[var(--theme-color-50)] {{ $headerStatusClass }}">
+                                    <option value="new" @selected($ticket->status === 'new') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Neu</option>
+                                    <option value="in_progress" @selected($ticket->status === 'in_progress') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">In Arbeit</option>
+                                    <option value="waiting_for_alina" @selected($ticket->status === 'waiting_for_alina') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Rückfrage / Go</option>
+                                    <option value="waiting_for_notebook" @selected($ticket->status === 'waiting_for_notebook') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Wartet auf Notebook</option>
+                                    <option value="waiting_for_tresor" @selected($ticket->status === 'waiting_for_tresor') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Tresor bereit</option>
+                                    <option value="completed" @selected($ticket->status === 'completed') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Erledigt</option>
+                                    <option value="archived" @selected($ticket->status === 'archived') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Archiv</option>
+                                </select>
+                                <x-heroicon-m-chevron-down class="w-3.5 h-3.5 pointer-events-none absolute right-2 opacity-75" />
+                            </div>
                         </div>
                     </div>
 
@@ -359,13 +364,24 @@
                         </div>
                     @endif
 
-                    {{-- Chronologische Nachrichtenliste --}}
-                    <div class="flex-1 overflow-y-auto p-5 space-y-3 max-h-[calc(100dvh-23rem)]">
+                    {{-- Chronologische Nachrichtenliste mit edlen Gold-Rahmen-Profilbildern & Lightbox --}}
+                    <div class="flex-1 overflow-y-auto p-5 space-y-4 max-h-[calc(100dvh-23rem)]">
                         @foreach($ticket->messages as $msg)
                             @php
                                 $isAlina = ($msg->sender_role === 'alina');
+                                $avatarUrl = $this->resolveMessageAvatarUrl($msg);
                             @endphp
-                            <div class="flex {{ $isAlina ? 'justify-end' : 'justify-start' }}">
+                            <div class="flex items-start gap-3 {{ $isAlina ? 'flex-row-reverse' : 'flex-row' }}">
+                                {{-- Edles rundes Profilbild mit dezentem Seelenfunke-Goldrahmen (#C5A059) & Lightbox-Klick --}}
+                                <button type="button"
+                                        @click="openLightbox('{{ $avatarUrl }}', '{{ addslashes($msg->sender_name) }}')"
+                                        title="{{ $msg->sender_name }} vergrößern"
+                                        class="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-[#C5A059]/75 ring-2 ring-[#C5A059]/15 bg-white dark:bg-gray-900 shrink-0 shadow-xs hover:scale-105 hover:border-[#C5A059] transition-all cursor-pointer">
+                                    <img src="{{ $avatarUrl }}"
+                                         alt="{{ $msg->sender_name }}"
+                                         class="w-full h-full object-cover" />
+                                </button>
+
                                 <div class="max-w-2xl rounded-2xl px-4 py-3 border {{ $isAlina ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-30)] text-gray-900 dark:text-white' : 'bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-gray-100' }}">
                                     <div class="flex items-center justify-between gap-4 mb-1 text-[10px] text-gray-500 dark:text-gray-400">
                                         <span class="font-black uppercase tracking-wider {{ $isAlina ? 'text-[var(--theme-color)]' : 'text-gray-700 dark:text-gray-300' }}">
@@ -374,7 +390,7 @@
                                         <span class="font-mono">{{ $msg->created_at?->format('d.m. H:i') }}</span>
                                     </div>
 
-                                    <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-line">{{ $msg->content }}</div>
+                                    <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-line">{!! \App\Livewire\Shop\Ai\AiUniverseTickets::formatMessageHtml($msg->content) !!}</div>
 
                                     @if(!empty($msg->executed_tools))
                                         <div class="mt-2 flex flex-wrap gap-1">

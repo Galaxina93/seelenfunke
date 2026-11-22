@@ -493,6 +493,52 @@ class FunkiraUniverseTicketSystemTest extends TestCase
             $ticket2->refresh();
             $this->assertSame(AiUniverseTicket::STATUS_IN_PROGRESS, $ticket2->status);
             $this->assertSame(2, AiUniverseTicket::count()); // Kein doppeltes Folge-Ticket im Ticketsystem!
+
+            // 5. Manuelle Status-Änderung im UI + autonome Skill-Gap-Eskalation mit 0-Token Kontext-Budget-Prüfung
+            $admin = $this->createAdmin();
+            Auth::guard('admin')->login($admin);
+
+            Livewire::actingAs($admin, 'admin')
+                ->test(AiUniverseTickets::class)
+                ->call('selectTicket', $ticket2->id)
+                ->call('changeTicketStatus', AiUniverseTicket::STATUS_COMPLETED)
+                ->assertSet('statusFilter', 'completed')
+                ->assertSee('gruender-profil.webp')
+                ->assertSee('openLightbox');
+
+            $this->assertSame(AiUniverseTicket::STATUS_COMPLETED, $ticket2->fresh()->status);
+
+            // Prüfe 0-Token Skill-Budget-Wächter für alle Spezialisten (keine Rolle darf ihr Kontext-Limit sprengen!)
+            foreach (\App\Models\Ai\AiAgent::where('is_active', true)->get() as $agentItem) {
+                $budget = \App\Services\AI\AgentSkillBudgetGuard::evaluateAgentSkillBudget($agentItem);
+                $this->assertLessThanOrEqual(
+                    $budget['max_tool_cap'],
+                    $budget['current_tool_count'],
+                    "Agent {$agentItem->name} sprengt das Skill-Budget ({$budget['current_tool_count']}/{$budget['max_tool_cap']})"
+                );
+            }
+
+            $einkaufi = \App\Models\Ai\AiAgent::where('name', 'Einkaufi')->firstOrFail();
+            $skillTicket = AiUniverseTicket::create([
+                'ticket_number' => AiUniverseTicket::generateNextTicketNumber(),
+                'title' => 'Automatischer Zoll-Rechnungsexport Schweiz',
+                'status' => AiUniverseTicket::STATUS_IN_PROGRESS,
+                'assigned_agent_id' => $einkaufi->id,
+                'source_channel' => 'web_portal',
+                'environment_tier' => 'LOCAL',
+                'last_activity_at' => now(),
+            ]);
+
+            $escRes = \App\Services\AI\AIFunctionsRegistry::execute('ticket_escalate_missing_capability', [
+                'ticket_id' => $skillTicket->id,
+                'missing_capability' => 'Zolltarifnummern-Generator CH',
+                'why_blocked' => 'Kein Export-Tool für Schweizer Zolldeklaration CN22 in Einkaufis Werkzeugkorb.',
+                'affected_area' => '/admin/shipping',
+            ], $einkaufi);
+
+            $this->assertSame('escalated_to_antigravity', $escRes['status'] ?? null);
+            $this->assertTrue($skillTicket->fresh()->assigned_to_antigravity);
+            $this->assertNotEmpty($skillTicket->fresh()->action_payload['skill_gap_dossier'] ?? null);
         } finally {
             \Illuminate\Support\Facades\File::deleteDirectory($isolatedRoot);
         }

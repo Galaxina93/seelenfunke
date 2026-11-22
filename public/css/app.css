@@ -5954,6 +5954,9 @@ video {
 .border-\[\#eadcc4\]\/80 {
   border-color: rgb(234 220 196 / 0.8);
 }
+.border-\[\#C5A059\]\/75 {
+  border-color: rgb(197 160 89 / 0.75);
+}
 .border-b-primary\/20 {
   border-bottom-color: rgb(201 166 107 / 0.2);
 }
@@ -11820,6 +11823,9 @@ video {
 }
 .ring-yellow-500\/50 {
   --tw-ring-color: rgb(234 179 8 / 0.5);
+}
+.ring-\[\#C5A059\]\/15 {
+  --tw-ring-color: rgb(197 160 89 / 0.15);
 }
 .ring-offset-0 {
   --tw-ring-offset-width: 0px;

@@ -359,16 +359,38 @@ trait AiPersonaFuncs
         ];
     }
 
-    // [AREA: SECURITY HELPER]
+    // [AREA: SECURITY & AES-256 ENCRYPTION HELPERS]
     private static function assertPersonaAdminAccess(): ?array
     {
-        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
             return [
                 'status' => 'error',
-                'message' => 'Zugriff verweigert: OSINT- und Persona-Werkzeuge erfordern Administrator-Berechtigungen.',
+                'message' => 'Zugriff verweigert: OSINT- und Top-Secret-Werkzeuge erfordern strikte Administrator-Berechtigungen.',
             ];
         }
         return null;
+    }
+
+    public static function encryptTopSecretPayload(string $plain): string
+    {
+        if ($plain === '' || str_starts_with($plain, '[TS_ENC_V1]:')) {
+            return $plain;
+        }
+        return '[TS_ENC_V1]:' . \Illuminate\Support\Facades\Crypt::encryptString($plain);
+    }
+
+    public static function decryptTopSecretPayload(?string $raw): string
+    {
+        $raw = (string) $raw;
+        if ($raw === '' || !str_starts_with($raw, '[TS_ENC_V1]:')) {
+            return $raw;
+        }
+        try {
+            return \Illuminate\Support\Facades\Crypt::decryptString(substr($raw, strlen('[TS_ENC_V1]:')));
+        } catch (\Throwable $e) {
+            Log::warning('TopSecret decrypt failed: ' . $e->getMessage());
+            return '[VERSCHLÜSSELTES DOSSIER]';
+        }
     }
 
     private static function isSafeExternalUrl(string $url): bool
@@ -411,16 +433,25 @@ trait AiPersonaFuncs
     }
 
     // [AREA: IMAGE PROCESSING]
-    private static function processPersonaImage($url, $name)
+    private static function processPersonaImage($url, $name, bool $returnLocalPathForPdf = false)
     {
         if (empty($url)) return $url;
 
-        // Falls es schon eine lokale oder sichere base64-Bild-URL ist, ignorieren
-        if (preg_match('#^data:image/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=\s]+$#i', (string) $url) || str_starts_with($url, url('/'))) {
+        // Falls es bereits auf unseren privaten Top-Secret-Media-Endpunkt zeigt
+        if (is_string($url) && preg_match('#/api/ai/top-secret/file/(media|dossiers)/([A-Za-z0-9._-]+)$#', $url, $m)) {
+            if ($returnLocalPathForPdf) {
+                $localFile = storage_path('app/private/top_secret/' . $m[1] . '/' . basename($m[2]));
+                return is_file($localFile) ? $localFile : null;
+            }
             return $url;
         }
-        if (str_starts_with((string) $url, 'data:')) {
-            return null;
+
+        // Falls es schon eine sichere base64-Bild-URL ist
+        if (preg_match('#^data:image/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=\s]+$#i', (string) $url)) {
+            return $url;
+        }
+        if (str_starts_with((string) $url, 'data:') || str_starts_with((string) $url, url('/'))) {
+            return $returnLocalPathForPdf ? null : $url;
         }
 
         if (!self::isSafeExternalUrl($url)) {
@@ -431,7 +462,7 @@ trait AiPersonaFuncs
         try {
             $response = \Illuminate\Support\Facades\Http::withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-            ])->timeout(10)->withoutRedirecting()->get($url);
+            ])->timeout(8)->withoutRedirecting()->get($url);
 
             if ($response->successful()) {
                 $imgContent = $response->body();
@@ -444,17 +475,20 @@ trait AiPersonaFuncs
                     if ($mime === 'image/webp') $ext = 'webp';
                     if ($mime === 'image/gif') $ext = 'gif';
 
-                    $filename = Str::slug($name) . '_' . time() . '_' . Str::random(10) . '.' . $ext;
+                    $filename = Str::slug($name ?: 'persona') . '_' . time() . '_' . Str::random(10) . '.' . $ext;
 
-                    // Speichern im Storage-Ordner (public für Web-Zugriff)
-                    $dir = storage_path('app/public/agenten/ai/persona');
+                    // Speichern im strikt privaten Top-Secret-Ordner (kein öffentlicher Web-Zugriff!)
+                    $dir = storage_path('app/private/top_secret/media');
                     if (!file_exists($dir)) {
-                        mkdir($dir, 0755, true);
+                        mkdir($dir, 0750, true);
                     }
 
-                    file_put_contents($dir . '/' . $filename, $imgContent);
+                    $fullPath = $dir . '/' . $filename;
+                    file_put_contents($fullPath, $imgContent);
 
-                    return url('storage/agenten/ai/persona/' . $filename);
+                    return $returnLocalPathForPdf
+                        ? $fullPath
+                        : url('/api/ai/top-secret/file/media/' . $filename);
                 }
             }
         } catch (\Exception $e) {
@@ -464,9 +498,8 @@ trait AiPersonaFuncs
         // FALLBACK: Wenn Wikipedia-Link kaputt war oder 404, hole das Bild über die Wikipedia API
         if (str_contains($url, 'wikipedia') || str_contains($url, 'wikimedia')) {
             try {
-                // Suche per Wikipedia API nach dem echten Namen und hole das Thumbnail
                 $wikiUrl = "https://de.wikipedia.org/w/api.php?action=query&titles=" . urlencode($name) . "&prop=pageimages&format=json&pithumbsize=400";
-                $wikiRes = \Illuminate\Support\Facades\Http::timeout(10)->get($wikiUrl);
+                $wikiRes = \Illuminate\Support\Facades\Http::timeout(6)->get($wikiUrl);
 
                 if ($wikiRes->successful()) {
                     $wikiData = $wikiRes->json();
@@ -475,7 +508,7 @@ trait AiPersonaFuncs
                             if (isset($page['thumbnail']['source'])) {
                                 $thumbnailUrl = $page['thumbnail']['source'];
                                 if (self::isSafeExternalUrl($thumbnailUrl)) {
-                                    return self::processPersonaImage($thumbnailUrl, $name . '_wiki');
+                                    return self::processPersonaImage($thumbnailUrl, $name . '_wiki', $returnLocalPathForPdf);
                                 }
                             }
                         }
@@ -533,11 +566,15 @@ trait AiPersonaFuncs
 
         $agentName = $agent ? $agent->name : session('current_ai_agent_name', 'System');
 
-        // Robust image download
+        // Robust image download into private storage for DomPDF (isRemoteEnabled = false)
         if (!empty($args['image_url'])) {
-            $processedUrl = self::processPersonaImage($args['image_url'], $name);
-            // Für DomPDF ist ein lokaler Pfad oft besser als eine URL, aber URL geht auch.
-            $args['image_url'] = $processedUrl;
+            $localImageFile = self::processPersonaImage($args['image_url'], $name, true);
+            if ($localImageFile && is_file($localImageFile)) {
+                $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($localImageFile) ?: 'image/jpeg';
+                $args['image_url'] = 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($localImageFile));
+            } else {
+                $args['image_url'] = null;
+            }
         }
 
         try {
@@ -546,16 +583,16 @@ trait AiPersonaFuncs
             ]);
             $pdf->getDomPDF()->getOptions()->set('isRemoteEnabled', false);
 
-            $dir = storage_path('app/public/agenten/exports/dossiers');
+            $dir = storage_path('app/private/top_secret/dossiers');
             if (!file_exists($dir)) {
-                mkdir($dir, 0755, true);
+                mkdir($dir, 0750, true);
             }
 
-            $filename = 'profil_' . Str::slug($name) . '_' . time() . '_' . Str::random(12) . '.pdf';
+            $filename = 'profil_' . Str::slug($name ?: 'dossier') . '_' . time() . '_' . Str::random(12) . '.pdf';
             $filePath = $dir . '/' . $filename;
             $pdf->save($filePath);
 
-            $downloadUrl = url('storage/agenten/exports/dossiers/' . $filename);
+            $downloadUrl = url('/api/ai/top-secret/file/dossiers/' . $filename);
 
             if ($action === 'email') {
                 if (empty($recipient)) {
@@ -614,12 +651,16 @@ trait AiPersonaFuncs
         if ($denied = self::assertPersonaAdminAccess()) {
             return $denied;
         }
+        $action = strtolower(trim((string) ($args['action'] ?? 'focus')));
         return [
             'status' => 'success',
-            'message' => "Das gewünschte Element wurde für den Nutzer vergrößert/fokussiert.",
+            'message' => $action === 'unfocus'
+                ? 'Die Vollbild-Ansicht der Akte wurde wieder minimiert.'
+                : 'Das gewünschte Element wurde für den Nutzer vergrößert/fokussiert.',
             '_frontend_event' => [
                 'name' => 'ai-focus-widget',
                 'detail' => [
+                    'action' => $action,
                     'type' => $args['type'] ?? 'persona',
                     'identifier' => $args['identifier'] ?? ''
                 ]
@@ -725,12 +766,15 @@ trait AiPersonaFuncs
                 ['name' => 'OSINT Intel']
             );
 
+            $encryptedContent = self::encryptTopSecretPayload((string) $intelContent);
+
             $kb = AiKnowledgeBase::create([
                 'title' => $entityName,
-                'slug' => Str::slug($entityName . '-' . time()),
+                'slug' => Str::slug($entityName . '-' . time() . '-' . Str::random(4)),
                 'ai_knowledge_base_category_id' => $category->id,
-                'content' => $intelContent,
+                'content' => $encryptedContent,
                 'is_published' => true,
+                'visibility_scope' => AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE,
             ]);
 
             $customTags[] = 'top_secret';
@@ -751,7 +795,11 @@ trait AiPersonaFuncs
 
             return [
                 'status' => 'success',
-                'message' => "Die OSINT-Daten für '$entityName' wurden dauerhaft in der Top Secret Datenbank gespeichert."
+                'message' => "Die OSINT-Daten für '$entityName' wurden AES-256-verschlüsselt im Top Secret Tresor gespeichert.",
+                '_frontend_event' => [
+                    'name' => 'ai-top-secret-refresh',
+                    'detail' => ['open' => true]
+                ]
             ];
         } catch (\Exception $e) {
             Log::error("OSINT Save Intel Error: " . $e->getMessage());
@@ -788,8 +836,9 @@ trait AiPersonaFuncs
                 'title' => $title,
                 'slug' => Str::slug('relation-' . time() . '-' . Str::random(5)),
                 'ai_knowledge_base_category_id' => $category->id,
-                'content' => $relationData,
+                'content' => self::encryptTopSecretPayload((string) $relationData),
                 'is_published' => true,
+                'visibility_scope' => AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE,
             ]);
 
             $tag = AiKnowledgeBaseTag::firstOrCreate(
@@ -800,7 +849,11 @@ trait AiPersonaFuncs
 
             return [
                 'status' => 'success',
-                'message' => "Die Verbindung zwischen '$source' und '$target' wurde als '$relType' im Netzwerk gespeichert."
+                'message' => "Die Verbindung zwischen '$source' und '$target' wurde verschlüsselt als '$relType' im Netzwerk gespeichert.",
+                '_frontend_event' => [
+                    'name' => 'ai-top-secret-refresh',
+                    'detail' => ['open' => true]
+                ]
             ];
         } catch (\Exception $e) {
             Log::error("OSINT Link Entities Error: " . $e->getMessage());
@@ -833,12 +886,14 @@ trait AiPersonaFuncs
             $network = [];
 
             foreach ($relations as $rel) {
-                $data = json_decode($rel->content, true);
+                $decryptedJson = self::decryptTopSecretPayload((string) $rel->content);
+                $data = json_decode($decryptedJson, true);
                 if (is_array($data)) {
+                    $data['id'] = $rel->id;
                     if ($filterEntity) {
-                        $s = strtolower($data['source'] ?? '');
-                        $t = strtolower($data['target'] ?? '');
-                        $f = strtolower($filterEntity);
+                        $s = mb_strtolower((string) ($data['source'] ?? ''));
+                        $t = mb_strtolower((string) ($data['target'] ?? ''));
+                        $f = mb_strtolower((string) $filterEntity);
                         if (str_contains($s, $f) || str_contains($t, $f)) {
                             $network[] = $data;
                         }
@@ -898,7 +953,14 @@ trait AiPersonaFuncs
                 ->first();
             if ($kb) {
                 $kb->delete();
-                return ['status' => 'success', 'message' => "Der Eintrag '$title' wurde dauerhaft aus der OSINT Datenbank gelöscht."];
+                return [
+                    'status' => 'success',
+                    'message' => "Der Eintrag '$title' wurde dauerhaft aus dem Top Secret Tresor gelöscht.",
+                    '_frontend_event' => [
+                        'name' => 'ai-top-secret-refresh',
+                        'detail' => ['open' => true]
+                    ]
+                ];
             } else {
                 return ['status' => 'error', 'message' => "Kein Eintrag mit dem exakten Titel '$title' gefunden."];
             }

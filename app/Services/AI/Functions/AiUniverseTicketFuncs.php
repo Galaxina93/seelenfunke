@@ -57,13 +57,15 @@ trait AiUniverseTicketFuncs
             ],
             [
                 'name' => 'ticket_escalate_missing_capability',
-                'description' => 'Ehrliche Meldung einer fehlenden technischen Fähigkeit statt leerer Versprechungen: Bereitet das Ticket zur 1-Klick-Übergabe an Antigravity vor.',
+                'description' => 'Selbstständige Weiterleitung an Antigravity bei fehlendem Skill oder notwendiger Code-Erweiterung: Dokumentiert exakt, warum der Agent die Aufgabe nicht selbst lösen konnte, prüft in 0 Tokens das Skill-/Kontext-Budget und übergibt das Ticket sauber an Antigravity.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'ticket_id' => ['type' => 'string', 'description' => 'Optionale UUID oder Ticket-Nummer des aktiven Tickets.'],
-                        'missing_capability' => ['type' => 'string', 'description' => 'Was technisch fehlt oder im Code ergänzt werden muss (1 Satz).'],
+                        'missing_capability' => ['type' => 'string', 'description' => 'Welcher konkrete Skill oder welche Systemfunktion fehlt (1 kurzer Satz).'],
+                        'why_blocked' => ['type' => 'string', 'description' => 'Warum der Agent die Aufgabe technisch nicht selbst abschließen konnte (1 kurzer Satz).'],
                         'affected_area' => ['type' => 'string', 'description' => 'Betroffener Systembereich oder Route.'],
+                        'auto_handoff_to_antigravity' => ['type' => 'boolean', 'description' => 'Standard true: Leitet das Ticket direkt selbstständig inkl. Skill-Budget-Prüfung an Antigravity weiter.'],
                     ],
                     'required' => ['missing_capability'],
                 ],
@@ -116,8 +118,11 @@ trait AiUniverseTicketFuncs
         }
 
         $options = array_values(array_filter(array_map('strval', (array) ($args['options'] ?? []))));
+        $cleanReason = \App\Services\AI\AiOutputQualityGate::sanitizeText(Str::limit(trim((string) ($args['question_or_summary'] ?? '')), 360));
 
         if ($ticket) {
+            $oldStatusLabel = AiUniverseTicket::getStatusLabel($ticket->status);
+            $newStatusLabel = AiUniverseTicket::getStatusLabel($status);
             $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
             if (!empty($options)) {
                 $payload['type'] = 'quick_choice';
@@ -129,13 +134,29 @@ trait AiUniverseTicketFuncs
                 'last_activity_at' => now(),
                 'completed_at' => $status === AiUniverseTicket::STATUS_COMPLETED ? now() : $ticket->completed_at,
             ]);
+
+            if ($cleanReason !== '' && \Illuminate\Support\Facades\Schema::hasTable('ai_universe_ticket_messages')) {
+                $closingInfo = $status === AiUniverseTicket::STATUS_COMPLETED
+                    ? ' · Finale Aktion: Aufgabe abgeschlossen, Ticket wird ins Erledigt-Register gelegt.'
+                    : '';
+                \App\Models\Ai\AiUniverseTicketMessage::create([
+                    'ticket_id' => $ticket->id,
+                    'sender_role' => 'agent',
+                    'sender_name' => $ticket->agent?->name ?: 'Funkira',
+                    'ai_agent_id' => $ticket->assigned_agent_id,
+                    'channel' => $ticket->source_channel ?: 'web_portal',
+                    'content' => "**Status -> {$newStatusLabel}** (vorher: {$oldStatusLabel})\nGrund: {$cleanReason}{$closingInfo}",
+                    'executed_tools' => ['ticket_set_status_or_ask'],
+                ]);
+                $ticket->update(['messages_count' => $ticket->messages()->count()]);
+            }
         }
 
         return [
             'status' => 'success',
             'ticket_number' => $ticket?->ticket_number,
             'new_status' => $status,
-            'summary' => (string) ($args['question_or_summary'] ?? ''),
+            'summary' => $cleanReason,
             'options' => $options,
         ];
     }
@@ -185,17 +206,48 @@ trait AiUniverseTicketFuncs
         }
 
         $missing = trim((string) ($args['missing_capability'] ?? 'Fehlende technische Funktion'));
+        $whyBlocked = trim((string) ($args['why_blocked'] ?? "Kein passendes Ausführungswerkzeug im aktuellen Skill-Korb für '{$missing}' vorhanden."));
         $area = trim((string) ($args['affected_area'] ?? 'System'));
+        $autoHandoff = !array_key_exists('auto_handoff_to_antigravity', $args) || (bool) $args['auto_handoff_to_antigravity'];
+
         $ticket = self::resolveActiveUniverseTicket($args['ticket_id'] ?? null);
+        $reportingAgent = $ticket?->agent ?? \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
+        $budget = \App\Services\AI\AgentSkillBudgetGuard::evaluateAgentSkillBudget($reportingAgent);
+        $dossier = \App\Services\AI\AgentSkillBudgetGuard::formatAntigravitySkillGapDossier($budget, $missing, $whyBlocked, $area);
 
         if ($ticket) {
+            if ($autoHandoff && AiAuthHelper::isAdmin()) {
+                \App\Services\AI\FunkiraTicketRouter::routeTicketToAntigravity(
+                    $ticket,
+                    FunkiraPresenceContext::build(['channel' => $ticket->source_channel ?: 'web_portal']),
+                    $dossier
+                );
+                $ticket->refresh();
+                $p = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+                $p['skill_gap_dossier'] = $budget;
+                $p['missing_capability'] = $missing;
+                $p['why_blocked'] = $whyBlocked;
+                $ticket->update(['ticket_type' => 'capability_gap', 'action_payload' => $p]);
+
+                return [
+                    'status' => 'escalated_to_antigravity',
+                    'ticket_number' => $ticket->ticket_number,
+                    'missing_capability' => $missing,
+                    'why_blocked' => $whyBlocked,
+                    'skill_budget_check' => $budget,
+                    'message' => "Ticket {$ticket->ticket_number} wurde selbstständig inkl. Skill-Erweiterungs-Dossier und Kontext-Prüfung ({$budget['current_tool_count']}/{$budget['max_tool_cap']} Tools) direkt an Antigravity übergeben.",
+                ];
+            }
+
             $ticket->update([
                 'status' => AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
                 'ticket_type' => 'capability_gap',
                 'action_payload' => [
                     'type' => 'antigravity_handoff',
                     'missing_capability' => $missing,
+                    'why_blocked' => $whyBlocked,
                     'affected_area' => $area,
+                    'skill_gap_dossier' => $budget,
                 ],
                 'last_activity_at' => now(),
             ]);
@@ -205,8 +257,9 @@ trait AiUniverseTicketFuncs
             'status' => 'awaiting_antigravity_confirmation',
             'ticket_number' => $ticket?->ticket_number,
             'missing_capability' => $missing,
-            'affected_area' => $area,
-            'prompt_for_alina' => "Dafür fehlt aktuell noch die passende Systemfunktion ({$missing}). Soll ich das direkt an Antigravity übergeben?",
+            'why_blocked' => $whyBlocked,
+            'skill_budget_check' => $budget,
+            'prompt_for_alina' => "Dafür fehlt aktuell der Skill '{$missing}' ({$budget['current_tool_count']}/{$budget['max_tool_cap']} Tools belegt). Soll ich das inkl. Skill-Anforderung an Antigravity übergeben?",
         ];
     }
 

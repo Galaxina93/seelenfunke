@@ -374,8 +374,17 @@ trait AiBrainFuncs
                 $rankedEntries = self::queryAndRankKnowledgeBase($queryStr, $cleaned, $segments, $keywords, 6);
 
                 foreach ($rankedEntries as $kb) {
+                    $rawKbContent = (string) $kb->content;
+                    if (str_starts_with($rawKbContent, '[TS_ENC_V1]:')) {
+                        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+                            continue;
+                        }
+                        $rawKbContent = method_exists(self::class, 'decryptTopSecretPayload')
+                            ? self::decryptTopSecretPayload($rawKbContent)
+                            : $rawKbContent;
+                    }
                     $sliced = self::sliceRelevantMarkdownChapters(
-                        (string) $kb->content,
+                        $rawKbContent,
                         $cleaned,
                         $keywords,
                         1800,
@@ -561,6 +570,22 @@ trait AiBrainFuncs
         $driver = DB::connection()->getDriverName();
         $isMysqlFamily = in_array($driver, ['mysql', 'mariadb'], true);
         $hasSourcePath = self::cachedHasColumn('ai_knowledge_bases', 'source_path');
+        $hasVisibilityScope = self::cachedHasColumn('ai_knowledge_bases', 'visibility_scope');
+        $isAdminActor = \App\Services\AI\AiAuthHelper::isAdmin();
+        $applyVisibilityGuard = static function ($query) use ($isAdminActor, $hasVisibilityScope): void {
+            if ($isAdminActor) {
+                return;
+            }
+            $query->whereDoesntHave('category', function ($cq) {
+                $cq->whereIn('slug', \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS);
+            });
+            if ($hasVisibilityScope) {
+                $query->where(function ($vq) {
+                    $vq->whereNull('visibility_scope')
+                       ->orWhere('visibility_scope', '!=', AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE);
+                });
+            }
+        };
         $booleanFt = $isMysqlFamily ? self::buildMysqlBooleanFulltextQuery($keywords) : '';
         $hasFulltextIndex = $isMysqlFamily && $booleanFt !== '' && self::cachedHasMysqlFulltextIndex();
 
@@ -568,8 +593,10 @@ trait AiBrainFuncs
 
         if ($hasFulltextIndex) {
             // Reiner FULLTEXT-Index-Scan ohne OR-Subqueries (nutzt ft_akb_title_content direkt in < 3 ms)
-            $candidates = AiKnowledgeBase::with(['category', 'tags'])
-                ->where('is_published', true)
+            $ftQuery = AiKnowledgeBase::with(['category', 'tags'])
+                ->where('is_published', true);
+            $applyVisibilityGuard($ftQuery);
+            $candidates = $ftQuery
                 ->select('ai_knowledge_bases.*')
                 ->selectRaw('MATCH(`title`, `content`) AGAINST (? IN BOOLEAN MODE) AS `ft_score`', [$booleanFt])
                 ->whereRaw('MATCH(`title`, `content`) AGAINST (? IN BOOLEAN MODE)', [$booleanFt])
@@ -589,8 +616,10 @@ trait AiBrainFuncs
 
             if ($needsMetaFallback) {
                 $existingIds = $candidates->pluck('id')->all();
-                $metaHits = AiKnowledgeBase::with(['category', 'tags'])
-                    ->where('is_published', true)
+                $metaQuery = AiKnowledgeBase::with(['category', 'tags'])
+                    ->where('is_published', true);
+                $applyVisibilityGuard($metaQuery);
+                $metaHits = $metaQuery
                     ->when(!empty($existingIds), fn ($q) => $q->whereNotIn('id', $existingIds))
                     ->where(function ($mq) use ($cleanedQuery, $keywords, $hasSourcePath) {
                         $escClean = addcslashes($cleanedQuery, '%_\\');
@@ -621,6 +650,7 @@ trait AiBrainFuncs
 
         if (!$hasFulltextIndex || $candidates->isEmpty()) {
             $kbQuery = AiKnowledgeBase::with(['category', 'tags'])->where('is_published', true);
+            $applyVisibilityGuard($kbQuery);
             $kbQuery->where(function ($rootQ) use ($rawQuery, $cleanedQuery, $segments, $keywords, $hasSourcePath) {
                 foreach (array_unique([$rawQuery, $cleanedQuery]) as $phrase) {
                     $escPhrase = addcslashes($phrase, '%_\\');

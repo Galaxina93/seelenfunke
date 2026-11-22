@@ -361,6 +361,122 @@ namespace FunkenwerkPlayer
                         return (modeSwitched && focusEntered && focusExited && ipcOk,
                             $"PlaylistsMode={modeSwitched}, Focus={focusEntered}->{focusExited}, IpcVol62={ipcOk}");
                     });
+
+                    // 18. Audio container magic-byte validator rejects HTML/JSON error pages disguised as .m4a
+                    Check("AudioContainerMagicByteValidator", () =>
+                    {
+                        string fakeHtmlM4a = Path.Combine(tempRoot, "fake_401.m4a");
+                        string fakeJsonM4a = Path.Combine(tempRoot, "fake_err.m4a");
+                        File.WriteAllText(fakeHtmlM4a, "<!DOCTYPE html><html><body>401 Unauthorized" + new string('x', 2048) + "</body></html>");
+                        File.WriteAllText(fakeJsonM4a, "{\"error\":\"Unauthenticated\",\"detail\":\"" + new string('y', 2048) + "\"}");
+
+                        bool wavAccepted = MainWindow.IsValidAudioFile(wav2);
+                        bool mp4Accepted = MainWindow.IsValidAudioFile(mp4Track1);
+                        bool htmlRejected = !MainWindow.IsValidAudioFile(fakeHtmlM4a);
+                        bool jsonRejected = !MainWindow.IsValidAudioFile(fakeJsonM4a);
+
+                        return (wavAccepted && mp4Accepted && htmlRejected && jsonRejected,
+                            $"WAV={wavAccepted}, MP4={mp4Accepted}, HtmlRejected={htmlRejected}, JsonRejected={jsonRejected}");
+                    });
+
+                    // 19. 1:1 Android Music Logic: Playlist Click Auto-Play, Sequential Advance (Loop=Off), Prev, Shuffle & FavSync
+                    Check("AndroidParityPlaylistAutoPlayAndQueueNavigation", () =>
+                    {
+                        string parityDir = Path.Combine(tempRoot, "AndroidParityCache");
+                        Directory.CreateDirectory(parityDir);
+
+                        WritePcmSineWav(Path.Combine(parityDir, "song_alpha.wav"), 0.5, 440.0);
+                        WritePcmSineWav(Path.Combine(parityDir, "song_beta.wav"), 0.5, 554.37);
+                        WritePcmSineWav(Path.Combine(parityDir, "song_gamma.wav"), 0.5, 659.25);
+
+                        string catalogJson = """
+                        {
+                          "success": true,
+                          "data": [
+                            {
+                              "id": "pl_focus",
+                              "name": "Lieblingssongs",
+                              "position": 1,
+                              "tracks": [
+                                { "id": "song_alpha", "playlist_id": "pl_focus", "title": "Alpha Gold", "artist": "Seelenfunke", "duration_seconds": 180, "position": 1, "is_favorite": false },
+                                { "id": "song_beta", "playlist_id": "pl_focus", "title": "Beta Glow", "artist": "Manufaktur", "duration_seconds": 195, "position": 2, "is_favorite": false }
+                              ]
+                            },
+                            {
+                              "id": "pl_tekk",
+                              "name": "Tekk Drive",
+                              "position": 2,
+                              "tracks": [
+                                { "id": "song_gamma", "playlist_id": "pl_tekk", "title": "Gamma Pulse", "artist": "Funkenwerk", "duration_seconds": 210, "position": 1, "is_favorite": false }
+                              ]
+                            },
+                            {
+                              "id": "pl_sync_hidden",
+                              "name": "__FUNKENWERK_FAV_SYNC__",
+                              "description": "fav_sync:v1:1999999999:song_bet",
+                              "position": 99,
+                              "tracks": []
+                            }
+                          ]
+                        }
+                        """;
+                        File.WriteAllText(Path.Combine(parityDir, "playlists_cache.json"), catalogJson, Encoding.UTF8);
+
+                        win.LoadManufakturPlaylistsFromDisk(parityDir);
+                        bool hiddenFiltered = win.ManufakturPlaylists.Count == 2 &&
+                                              win.ManufakturPlaylists.All(p => p.Name != "__FUNKENWERK_FAV_SYNC__");
+
+                        bool loopDefaultOff = !win.IsLoopEnabled;
+
+                        // Clicking "pl_tekk" immediately starts playing "song_gamma"
+                        win.SelectManufakturPlaylistAsync("pl_tekk", autoPlayRandom: true).GetAwaiter().GetResult();
+                        bool tekkAutoPlayed = win.IsPlaying &&
+                                              win.IsManufakturPlaybackActive &&
+                                              win.ActiveManufakturTrack?.Id == "song_gamma" &&
+                                              win.ManufakturNowTitleTxt.Text == "Gamma Pulse";
+
+                        // Clicking "favorites" plays "song_beta" reconciled from __FUNKENWERK_FAV_SYNC__
+                        win.SelectManufakturPlaylistAsync("favorites", autoPlayRandom: true).GetAwaiter().GetResult();
+                        bool favAutoPlayed = win.IsPlaying && win.ActiveManufakturTrack?.Id == "song_beta";
+
+                        // Clicking "pl_focus" loads 2-song queue and advances sequentially on Next
+                        win.SelectManufakturPlaylistAsync("pl_focus", autoPlayRandom: true).GetAwaiter().GetResult();
+                        string firstFocusId = win.ActiveManufakturTrack?.Id ?? "";
+                        bool focusQueueLoaded = win.CurrentManufakturQueue.Count == 2 && !string.IsNullOrEmpty(firstFocusId);
+
+                        win.PlayNextManufakturTrackAsync().GetAwaiter().GetResult();
+                        string secondFocusId = win.ActiveManufakturTrack?.Id ?? "";
+                        bool nextAdvanced = !string.IsNullOrEmpty(secondFocusId) && secondFocusId != firstFocusId;
+
+                        win.PlayPreviousManufakturTrackAsync().GetAwaiter().GetResult();
+                        bool prevReturned = win.ActiveManufakturTrack?.Id == firstFocusId;
+
+                        // Toggle play/pause & shuffle
+                        win.TogglePlayPause();
+                        bool pausedOk = !win.IsPlaying;
+                        win.TogglePlayPause();
+                        bool resumedOk = win.IsPlaying;
+                        win.ToggleManufakturShuffle();
+                        bool shuffleOn = win.IsShuffleEnabled;
+                        win.ToggleManufakturShuffle();
+                        bool shuffleOff = !win.IsShuffleEnabled;
+
+                        win.ClearPlaylist();
+                        bool allOk = hiddenFiltered && loopDefaultOff && tekkAutoPlayed && favAutoPlayed &&
+                                     focusQueueLoaded && nextAdvanced && prevReturned &&
+                                     pausedOk && resumedOk && shuffleOn && shuffleOff;
+
+                        return (allOk,
+                            $"AutoPlay={tekkAutoPlayed}, FavSync={favAutoPlayed}, Queue2={focusQueueLoaded}, Next={firstFocusId}->{secondFocusId}, Prev={prevReturned}, Toggle={pausedOk}->{resumedOk}, Shuffle={shuffleOn}->{shuffleOff}");
+                    });
+
+                    // 20. Version badge metadata check (v1.5.0 · Build 15)
+                    Check("LogicalVersionBadgePresent", () =>
+                    {
+                        var asmVer = typeof(MainWindow).Assembly.GetName().Version;
+                        bool verOk = asmVer != null && asmVer.Major == 1 && asmVer.Minor == 5 && asmVer.Build == 0 && asmVer.Revision == 15;
+                        return (verOk, $"AssemblyVersion={asmVer}");
+                    });
                 }
                 finally
                 {

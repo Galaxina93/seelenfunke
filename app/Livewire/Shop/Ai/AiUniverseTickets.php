@@ -231,6 +231,92 @@ class AiUniverseTickets extends Component
         FunkiraTicketRouter::performTicketAction($ticket, $action, ['channel' => 'web_portal']);
     }
 
+    public function changeTicketStatus(string $newStatus): void
+    {
+        if (!$this->activeTicketId || !Schema::hasTable('ai_universe_tickets')) {
+            return;
+        }
+
+        if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+            abort(403);
+        }
+
+        $ticket = AiUniverseTicket::find($this->activeTicketId);
+        if (!$ticket) {
+            return;
+        }
+
+        FunkiraTicketRouter::setManualTicketStatus($ticket, $newStatus, 'web_portal');
+
+        // Filter automatisch mitführen, damit das geöffnete Ticket links und rechts synchron sichtbar bleibt
+        $this->statusFilter = match ($newStatus) {
+            AiUniverseTicket::STATUS_WAITING_FOR_ALINA => 'waiting',
+            AiUniverseTicket::STATUS_COMPLETED => 'completed',
+            AiUniverseTicket::STATUS_ARCHIVED => 'archived',
+            default => 'open',
+        };
+    }
+
+    /**
+     * Löst das passende hochauflösende Profilbild (Alina oder jeweiliger KI-Spezialist) für den Chat-Stream auf.
+     */
+    public function resolveMessageAvatarUrl(\App\Models\Ai\AiUniverseTicketMessage $msg): string
+    {
+        if ($msg->sender_role === 'alina') {
+            $adminUser = Auth::guard('admin')->user();
+            $photoPath = $adminUser?->profile?->photo_path ?? \App\Models\Admin\AdminProfile::whereNotNull('photo_path')->value('photo_path');
+            if (!empty($photoPath)) {
+                return \Illuminate\Support\Str::startsWith($photoPath, ['http://', 'https://', '/'])
+                    ? $photoPath
+                    : (\Illuminate\Support\Str::startsWith($photoPath, 'shop/') ? asset($photoPath) : \Illuminate\Support\Facades\Storage::url($photoPath));
+            }
+            return asset('shop/projekt/about/gruender-profil.webp');
+        }
+
+        static $agentPictureMap = null;
+        if ($agentPictureMap === null) {
+            $agentPictureMap = [];
+            if (Schema::hasTable('ai_agents')) {
+                foreach (AiAgent::all(['id', 'name', 'profile_picture']) as $ag) {
+                    if (!empty($ag->profile_picture)) {
+                        $url = \Illuminate\Support\Str::startsWith($ag->profile_picture, 'shop/')
+                            ? asset($ag->profile_picture)
+                            : \Illuminate\Support\Facades\Storage::url($ag->profile_picture);
+                        $agentPictureMap['id:' . $ag->id] = $url;
+                        $agentPictureMap['name:' . strtolower(trim($ag->name))] = $url;
+                    }
+                }
+            }
+        }
+
+        if ($msg->ai_agent_id && isset($agentPictureMap['id:' . $msg->ai_agent_id])) {
+            return $agentPictureMap['id:' . $msg->ai_agent_id];
+        }
+
+        $normSender = strtolower(trim((string) $msg->sender_name));
+        if (isset($agentPictureMap['name:' . $normSender])) {
+            return $agentPictureMap['name:' . $normSender];
+        }
+
+        if (str_contains($normSender, 'antigravity')) {
+            return asset('shop/projekt/logo/funkenwerk.png');
+        }
+
+        return $agentPictureMap['name:funkira'] ?? asset('shop/ai/images/funkira_selfie.png');
+    }
+
+    /**
+     * Formatiert kompaktes Ticket-Markdown (**Fett**, `Code`) XSS-sicher ohne rohe Sternchen.
+     */
+    public static function formatMessageHtml(?string $content): string
+    {
+        $escaped = e((string) $content);
+        $formatted = preg_replace('/\*\*(.+?)\*\*/s', '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>', $escaped) ?? $escaped;
+        $formatted = preg_replace('/`([^`\n]+)`/', '<code class="px-1.5 py-0.5 rounded bg-gray-200/70 dark:bg-gray-800 font-mono text-[11px]">$1</code>', $formatted) ?? $formatted;
+
+        return $formatted;
+    }
+
     public function deleteLearnedPreference(string $prefId): void
     {
         if (!AiAuthHelper::isAdmin()) {

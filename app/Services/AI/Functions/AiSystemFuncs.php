@@ -4299,15 +4299,22 @@ trait AiSystemFuncs
 
         if (
             !\App\Services\AI\AiAuthHelper::isAdmin()
-            && $article->category
-            && in_array($article->category->slug, \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS, true)
+            && (
+                ($article->category && in_array($article->category->slug, \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS, true))
+                || $article->visibility_scope === \App\Models\Ai\AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE
+            )
         ) {
             return ['status' => 'error', 'message' => 'Zugriff verweigert: Diese Wissens-Kategorie ist ausschließlich der Geschäftsführung (Admin) vorbehalten.'];
         }
 
+        $resolvedContent = (string) $article->content;
+        if (str_starts_with($resolvedContent, '[TS_ENC_V1]:') && method_exists(self::class, 'decryptTopSecretPayload')) {
+            $resolvedContent = self::decryptTopSecretPayload($resolvedContent);
+        }
+
         return [
             'status' => 'success',
-            'content' => $article->content,
+            'content' => $resolvedContent,
             '_frontend_thought_stream' => '<div class="text-[10px] font-mono mt-1 pl-3 ml-2 border-l-2 border-yellow-500/50 p-1.5 rounded bg-black/20">
                                <div class="text-yellow-300 truncate max-w-full font-bold"><x-heroicon-o-academic-cap class="w-3 h-3 inline-block -mt-0.5" /> ' . htmlspecialchars($topic) . '</div>
                                <div class="flex gap-2.5 mt-0.5">

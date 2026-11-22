@@ -48,6 +48,8 @@ class AiKnowledgeBase extends Component
         'existenzgruendung-arbeitsagentur',
         'steuern-buchhaltung',
         'workspace-dokumentenkatalog',
+        'osint-intel',
+        'osint-relation',
     ];
 
     protected $queryString = [
@@ -57,7 +59,7 @@ class AiKnowledgeBase extends Component
 
     protected function isRestrictedCategory(?string $slug): bool
     {
-        if (Auth::guard('admin')->check()) {
+        if (Auth::guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin()) {
             return false;
         }
 
@@ -68,6 +70,13 @@ class AiKnowledgeBase extends Component
     {
         $article->loadMissing('category');
         if ($this->isRestrictedCategory($article->category?->slug)) {
+            abort(403);
+        }
+        if (
+            !Auth::guard('admin')->check()
+            && !\App\Services\AI\AiAuthHelper::isAdmin()
+            && $article->visibility_scope === KB::VISIBILITY_ADMIN_EXECUTIVE
+        ) {
             abort(403);
         }
     }
@@ -338,9 +347,12 @@ class AiKnowledgeBase extends Component
 
         $query = KB::with(['category', 'tags'])->where('is_published', true);
 
-        if (!Auth::guard('admin')->check()) {
+        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             $query->whereDoesntHave('category', function ($q) {
                 $q->whereIn('slug', self::ADMIN_ONLY_CATEGORY_SLUGS);
+            })->where(function ($q) {
+                $q->whereNull('visibility_scope')
+                  ->orWhere('visibility_scope', '!=', KB::VISIBILITY_ADMIN_EXECUTIVE);
             });
         }
 
@@ -368,7 +380,13 @@ class AiKnowledgeBase extends Component
         }
 
         $activeArticle = $this->activeArticleId ? KB::with(['category', 'tags'])->find($this->activeArticleId) : null;
-        if ($activeArticle && $this->isRestrictedCategory($activeArticle->category?->slug)) {
+        if (
+            $activeArticle
+            && (
+                $this->isRestrictedCategory($activeArticle->category?->slug)
+                || (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && $activeArticle->visibility_scope === KB::VISIBILITY_ADMIN_EXECUTIVE)
+            )
+        ) {
             $activeArticle = null;
             $this->activeArticleId = null;
         }

@@ -89,6 +89,9 @@ namespace FunkenwerkPlayer
         private DispatcherTimer? _importPollTimer;
         private CancellationTokenSource? _playerPipeCts;
         private CancellationTokenSource? _preCacheCts;
+        private readonly Dictionary<string, string> _localCacheStemMap = new(StringComparer.OrdinalIgnoreCase);
+        private HashSet<string> _wslAvailableStems = new(StringComparer.OrdinalIgnoreCase);
+        private string? _cachedWslTracksDir;
 
         public string ActivePlayerMode => _playerMode;
         public bool IsFocusModeActive => _isFocusModeActive;
@@ -119,16 +122,84 @@ namespace FunkenwerkPlayer
             return GetMusicCacheDirectory();
         }
 
+        private static string? _resolvedWslMusicRoot;
+        private static DateTime _lastWslProbeUtc = DateTime.MinValue;
+
         private static string? TryGetLocalWslMusicRoot()
         {
+            if (!string.IsNullOrWhiteSpace(_resolvedWslMusicRoot) && Directory.Exists(_resolvedWslMusicRoot))
+                return _resolvedWslMusicRoot;
+
+            if ((DateTime.UtcNow - _lastWslProbeUtc).TotalSeconds < 30)
+                return null;
+            _lastWslProbeUtc = DateTime.UtcNow;
+
             try
             {
                 string repoRel = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "storage", "app", "leitung", "music"));
-                if (Directory.Exists(repoRel)) return repoRel;
+                if (Directory.Exists(repoRel))
+                {
+                    _resolvedWslMusicRoot = repoRel;
+                    return repoRel;
+                }
 
-                string wslPrefix = @"\\" + "wsl" + ".localhost";
-                string wslPath = Path.Combine(wslPrefix, "Ubuntu", "home", "ubuntuxina", "meine-projekte", "seelenfunke", "storage", "app", "leitung", "music");
-                if (Directory.Exists(wslPath)) return wslPath;
+                // Fast non-blocking SMB port-445 probe against local WSL Hyper-V 172.16.0.0/12 ARP neighbors (avoids Windows wsl.localhost P9Rdr hang!)
+                var candidateIps = new HashSet<string>(StringComparer.Ordinal);
+                try
+                {
+                    string arpExe = Path.Combine(Environment.SystemDirectory, "arp.exe");
+                    if (File.Exists(arpExe))
+                    {
+                        var psi = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = arpExe,
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            CreateNoWindow = true
+                        };
+                        psi.ArgumentList.Add("-a");
+                        using var proc = System.Diagnostics.Process.Start(psi);
+                        if (proc != null)
+                        {
+                            string arpOut = proc.StandardOutput.ReadToEnd();
+                            proc.WaitForExit(1000);
+                            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(arpOut, @"\b(172\.(?:1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3})\b"))
+                            {
+                                string ip = m.Groups[1].Value;
+                                if (!ip.EndsWith(".1", StringComparison.Ordinal) && !ip.EndsWith(".255", StringComparison.Ordinal))
+                                {
+                                    candidateIps.Add(ip);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                var smbReachable = new System.Collections.Concurrent.ConcurrentBag<string>();
+                Parallel.ForEach(candidateIps, ip =>
+                {
+                    try
+                    {
+                        using var tcp = new System.Net.Sockets.TcpClient();
+                        var connectTask = tcp.ConnectAsync(ip, 445);
+                        if (connectTask.Wait(220) && tcp.Connected)
+                        {
+                            smbReachable.Add(ip);
+                        }
+                    }
+                    catch { }
+                });
+
+                foreach (string ip in smbReachable)
+                {
+                    string uncRoot = $@"\\{ip}\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\storage\app\leitung\music";
+                    if (Directory.Exists(uncRoot))
+                    {
+                        _resolvedWslMusicRoot = uncRoot;
+                        return uncRoot;
+                    }
+                }
             }
             catch { }
             return null;
@@ -426,6 +497,7 @@ namespace FunkenwerkPlayer
         // =====================================================================
         private async Task InitializeManufakturEngineAsync(bool openPlaylistsViewByDefault)
         {
+            StartPlayerIpcPipeServer();
             LoadManufakturPlaylistsFromDisk();
             if (openPlaylistsViewByDefault)
             {
@@ -436,8 +508,93 @@ namespace FunkenwerkPlayer
                 UpdateModeButtonsUI();
             }
 
-            StartPlayerIpcPipeServer();
+            _ = RefreshWslMusicIndexInBackgroundAsync();
             await SyncManufakturPlaylistsOnlineAsync();
+        }
+
+        private void RefreshLocalCacheStemIndex()
+        {
+            _localCacheStemMap.Clear();
+            try
+            {
+                string dir = GetActiveMusicCacheDirectory();
+                if (!Directory.Exists(dir)) return;
+                var allowedExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".m4a", ".wav", ".mp3", ".flac", ".ogg" };
+                foreach (var file in Directory.EnumerateFiles(dir))
+                {
+                    string ext = Path.GetExtension(file);
+                    if (!allowedExts.Contains(ext)) continue;
+                    string stem = Path.GetFileNameWithoutExtension(file);
+                    if (SafeCacheIdRegex.IsMatch(stem))
+                    {
+                        _localCacheStemMap[stem] = file;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private async Task RefreshWslMusicIndexInBackgroundAsync()
+        {
+            if (_customMusicCacheDirOverride != null) return;
+            try
+            {
+                var (wslTracksDir, stems, wslCatalog) = await Task.Run(() =>
+                {
+                    string? root = TryGetLocalWslMusicRoot();
+                    if (string.IsNullOrWhiteSpace(root))
+                        return ((string?)null, new HashSet<string>(StringComparer.OrdinalIgnoreCase), (List<MusicPlaylistDto>?)null);
+
+                    var foundStems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    string tDir = Path.Combine(root, "tracks");
+                    if (Directory.Exists(tDir))
+                    {
+                        foreach (var f in Directory.EnumerateFiles(tDir, "*.m4a"))
+                        {
+                            string s = Path.GetFileNameWithoutExtension(f);
+                            if (SafeCacheIdRegex.IsMatch(s)) foundStems.Add(s);
+                        }
+                    }
+
+                    List<MusicPlaylistDto>? cat = null;
+                    string catFile = Path.Combine(root, "playlists_catalog.json");
+                    if (File.Exists(catFile))
+                    {
+                        cat = ParsePlaylistsPayload(File.ReadAllText(catFile, Encoding.UTF8));
+                    }
+                    return ((string?)tDir, foundStems, cat);
+                });
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (_customMusicCacheDirOverride != null) return;
+                    _cachedWslTracksDir = wslTracksDir;
+                    _wslAvailableStems = stems;
+
+                    if (wslCatalog != null)
+                    {
+                        int wslTrackCount = wslCatalog
+                            .Where(p => !p.Name.Equals(FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase))
+                            .Sum(p => p.Tracks?.Count ?? 0);
+                        if (wslTrackCount > _allManufakturTracks.Count(t => t.PlaylistId != LocalPcPlaylistId && t.PlaylistId != LocalOrphanPlaylistId))
+                        {
+                            string cacheDir = GetMusicCacheDirectory();
+                            ApplyManufakturPlaylists(wslCatalog, cacheDir, includeLocalPcScan: true);
+                            try
+                            {
+                                string outJson = JsonSerializer.Serialize(new { success = true, data = wslCatalog });
+                                File.WriteAllText(Path.Combine(cacheDir, "playlists_cache.json"), outJson, Encoding.UTF8);
+                            }
+                            catch { }
+                            return;
+                        }
+                    }
+
+                    UpdateManufakturCacheLabel();
+                    if (_playerMode == "playlists") RenderManufakturLibrary();
+                });
+            }
+            catch { }
         }
 
         private void ShutdownManufakturEngine()
@@ -509,6 +666,13 @@ namespace FunkenwerkPlayer
         public void LoadManufakturPlaylistsFromDisk(string? customCacheDir = null)
         {
             _customMusicCacheDirOverride = customCacheDir;
+            if (customCacheDir != null)
+            {
+                _wslAvailableStems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                _cachedWslTracksDir = null;
+            }
+            RefreshLocalCacheStemIndex();
+
             try
             {
                 string cacheDir = GetActiveMusicCacheDirectory();
@@ -541,12 +705,6 @@ namespace FunkenwerkPlayer
                 {
                     string bundledFile = Path.Combine(AppContext.BaseDirectory, "playlists_cache.json");
                     ConsiderCatalogFile(bundledFile);
-
-                    string? wslRoot = TryGetLocalWslMusicRoot();
-                    if (!string.IsNullOrWhiteSpace(wslRoot))
-                    {
-                        ConsiderCatalogFile(Path.Combine(wslRoot, "playlists_catalog.json"));
-                    }
 
                     if (best.Count > 0 && !File.Exists(cacheFile))
                     {
@@ -863,10 +1021,14 @@ namespace FunkenwerkPlayer
         private string? TryFindLocalWslSourceTrack(MusicTrackDto track)
         {
             if (_customMusicCacheDirOverride != null) return null;
-            string? wslRoot = TryGetLocalWslMusicRoot();
-            if (string.IsNullOrWhiteSpace(wslRoot)) return null;
-
-            string tracksDir = Path.Combine(wslRoot, "tracks");
+            string? tracksDir = _cachedWslTracksDir;
+            if (string.IsNullOrWhiteSpace(tracksDir))
+            {
+                string? wslRoot = TryGetLocalWslMusicRoot();
+                if (string.IsNullOrWhiteSpace(wslRoot)) return null;
+                tracksDir = Path.Combine(wslRoot, "tracks");
+                _cachedWslTracksDir = tracksDir;
+            }
             if (!Directory.Exists(tracksDir)) return null;
 
             string? p1 = TryResolveSafeAudioFileInDir(tracksDir, track.ExternalId, ".m4a");
@@ -880,9 +1042,33 @@ namespace FunkenwerkPlayer
 
         private bool IsTrackAvailableLocallyOrOnWsl(MusicTrackDto track, out string? directCachePath)
         {
-            directCachePath = ResolveCachedTrackFile(track);
-            if (directCachePath != null) return true;
-            return TryFindLocalWslSourceTrack(track) != null;
+            directCachePath = null;
+            if (!string.IsNullOrWhiteSpace(track.LocalFilePath))
+            {
+                directCachePath = track.LocalFilePath;
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(track.Id) && _localCacheStemMap.TryGetValue(track.Id, out string? byId))
+            {
+                directCachePath = byId;
+                return true;
+            }
+            if (!string.IsNullOrWhiteSpace(track.ExternalId) && _localCacheStemMap.TryGetValue(track.ExternalId, out string? byExt))
+            {
+                directCachePath = byExt;
+                return true;
+            }
+
+            if (_customMusicCacheDirOverride == null)
+            {
+                if ((!string.IsNullOrWhiteSpace(track.ExternalId) && _wslAvailableStems.Contains(track.ExternalId)) ||
+                    (!string.IsNullOrWhiteSpace(track.Id) && _wslAvailableStems.Contains(track.Id)))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private static string? TryResolveSafeAudioFileInDir(string baseDir, string? rawId, string extensionWithDot)
@@ -940,6 +1126,7 @@ namespace FunkenwerkPlayer
 
                     if (IsValidAudioFile(targetPath))
                     {
+                        _localCacheStemMap[cacheKey] = targetPath;
                         UpdateManufakturCacheLabel();
                         return targetPath;
                     }
@@ -964,7 +1151,9 @@ namespace FunkenwerkPlayer
                         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                     }
 
-                    using var resp = await _musicHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                    using var reqCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    reqCts.CancelAfter(TimeSpan.FromSeconds(4.5));
+                    using var resp = await _musicHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, reqCts.Token);
                     if (!resp.IsSuccessStatusCode) continue;
 
                     string mediaType = resp.Content.Headers.ContentType?.MediaType ?? "";
@@ -987,6 +1176,7 @@ namespace FunkenwerkPlayer
                     }
 
                     File.Move(tmpDl, targetPath, overwrite: true);
+                    _localCacheStemMap[cacheKey] = targetPath;
                     UpdateManufakturCacheLabel();
                     return targetPath;
                 }
@@ -1759,6 +1949,7 @@ namespace FunkenwerkPlayer
             if (ManufakturCacheStatusTxt == null) return;
             try
             {
+                RefreshLocalCacheStemIndex();
                 string dir = GetActiveMusicCacheDirectory();
                 var files = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.m4a") : Array.Empty<string>();
                 double mb = files.Sum(f => new FileInfo(f).Length) / (1024.0 * 1024.0);
@@ -1768,16 +1959,19 @@ namespace FunkenwerkPlayer
                 }
                 else
                 {
-                    string? wslRoot = _customMusicCacheDirOverride == null ? TryGetLocalWslMusicRoot() : null;
-                    int wslCount = (!string.IsNullOrWhiteSpace(wslRoot) && Directory.Exists(Path.Combine(wslRoot, "tracks")))
-                        ? Directory.GetFiles(Path.Combine(wslRoot, "tracks"), "*.m4a").Length
-                        : 0;
+                    int wslCount = _customMusicCacheDirOverride == null ? _wslAvailableStems.Count : 0;
                     ManufakturCacheStatusTxt.Text = wslCount > 0
                         ? $"⚡ {wslCount} Manufaktur-Songs bereit"
                         : "⚡ 0 Songs lokal (0.0 MB)";
                 }
             }
             catch { }
+        }
+
+        private void StartPlayerIpcPipeServerOnce()
+        {
+            if (_playerPipeCts != null) return;
+            StartPlayerIpcPipeServer();
         }
 
         private async void SelectManufakturAll_Click(object sender, MouseButtonEventArgs e)
