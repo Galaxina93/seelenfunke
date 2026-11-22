@@ -2,6 +2,7 @@ package de.meinseelenfunke.app.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.meinseelenfunke.app.data.api.KdriveWebDavConfigDto
 import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.CachedWhitelistContact
@@ -24,6 +25,15 @@ class SettingsViewModel : ViewModel() {
     private val _tapoPassword = MutableStateFlow(ServiceLocator.getTapoPassword())
     val tapoPassword: StateFlow<String> = _tapoPassword.asStateFlow()
 
+    private val _kdriveConfig = MutableStateFlow(KdriveWebDavConfigDto())
+    val kdriveConfig: StateFlow<KdriveWebDavConfigDto> = _kdriveConfig.asStateFlow()
+
+    private val _kdriveSaving = MutableStateFlow(false)
+    val kdriveSaving: StateFlow<Boolean> = _kdriveSaving.asStateFlow()
+
+    private val _kdriveStatusFeedback = MutableStateFlow<TrichterFeedback?>(null)
+    val kdriveStatusFeedback: StateFlow<TrichterFeedback?> = _kdriveStatusFeedback.asStateFlow()
+
     private val _wakeWordEnabled = MutableStateFlow(ServiceLocator.isWakeWordEnabled())
     val wakeWordEnabled: StateFlow<Boolean> = _wakeWordEnabled.asStateFlow()
 
@@ -41,6 +51,63 @@ class SettingsViewModel : ViewModel() {
 
     init {
         refreshPhoneConcierge()
+        refreshKdriveConfig()
+    }
+
+    fun refreshKdriveConfig() {
+        viewModelScope.launch(Dispatchers.IO) {
+            ServiceLocator.financeRepository.getKdriveTrichterConfig()
+                .onSuccess { dto ->
+                    _kdriveConfig.value = dto
+                }
+        }
+    }
+
+    fun saveKdriveConfig(
+        driveId: String,
+        email: String,
+        appPassword: String,
+        onComplete: (Boolean, String) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch {
+            _kdriveSaving.value = true
+            _kdriveStatusFeedback.value = null
+            val res = ServiceLocator.financeRepository.saveKdriveTrichterConfig(
+                driveId = driveId,
+                email = email,
+                appPassword = appPassword,
+                directSort = true
+            )
+            _kdriveSaving.value = false
+            res.onSuccess { payload ->
+                payload.data?.let { _kdriveConfig.value = it }
+                val msg = payload.message ?: "kDrive verbunden."
+                _kdriveStatusFeedback.value = TrichterFeedback(isSuccess = true, message = msg)
+                onComplete(true, msg)
+            }.onFailure { err ->
+                val msg = err.localizedMessage ?: "kDrive-Verbindung fehlgeschlagen."
+                _kdriveStatusFeedback.value = TrichterFeedback(isSuccess = false, message = msg)
+                onComplete(false, msg)
+            }
+        }
+    }
+
+    fun flushPendingKdriveRelay() {
+        viewModelScope.launch {
+            _kdriveSaving.value = true
+            _kdriveStatusFeedback.value = null
+            val res = ServiceLocator.financeRepository.flushKdriveTrichterRelay()
+            _kdriveSaving.value = false
+            res.onSuccess { msg ->
+                _kdriveStatusFeedback.value = TrichterFeedback(isSuccess = true, message = msg)
+                refreshKdriveConfig()
+            }.onFailure { err ->
+                _kdriveStatusFeedback.value = TrichterFeedback(
+                    isSuccess = false,
+                    message = err.localizedMessage ?: "Verarbeitung fehlgeschlagen."
+                )
+            }
+        }
     }
 
     fun refreshPhoneConcierge() {

@@ -131,4 +131,71 @@ class KdriveTrichterScannerTest {
         val recorded = server.takeRequest()
         assertEquals("/api/funki/kdrive-trichter/enqueue", recorded.path)
     }
+
+    @Test
+    fun `native DCTDecode PDF builder embeds JPEGs directly without uncompressed bitmap bloat`() {
+        val page1 = makeSampleJpeg(Color.WHITE)
+        val page2 = makeSampleJpeg(Color.LTGRAY)
+        val page3 = makeSampleJpeg(Color.GRAY)
+
+        val pdfBytes = ImageUtils.buildPdfFromJpegPages(listOf(page1, page2, page3))
+        assertNotNull(pdfBytes)
+        val rawPdf = String(pdfBytes!!, Charsets.ISO_8859_1)
+
+        assertTrue(rawPdf.startsWith("%PDF-1.4"))
+        assertTrue(rawPdf.contains("/Count 3"))
+        assertTrue(rawPdf.contains("/Filter /DCTDecode"))
+        assertTrue(rawPdf.contains("xref\n0 12"))
+        assertTrue(rawPdf.trimEnd().endsWith("%%EOF"))
+
+        val totalInputBytes = page1.size + page2.size + page3.size
+        assertTrue(
+            "Expected compact DCTDecode PDF (< ${totalInputBytes + 4096} bytes), got ${pdfBytes.size}",
+            pdfBytes.size < totalInputBytes + 4096
+        )
+    }
+
+    @Test
+    fun `kdrive webdav config save and status roundtrip via FinanceRepository`() = runBlocking {
+        val baseUrl = server.url("/api/").toString()
+        ServiceLocator.saveBaseUrl(baseUrl)
+        ServiceLocator.saveAuthToken("test-sanctum-token-123")
+
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(
+                    """{
+                        "success": true,
+                        "message": "kDrive verbunden! 1 wartende(r) Scan(s) direkt verarbeitet und einsortiert.",
+                        "data": {
+                            "configured": true,
+                            "drive_id": "654321",
+                            "email": "kontakt@mein-seelenfunke.de",
+                            "has_password": true,
+                            "direct_sort": true,
+                            "pending_relay_count": 0,
+                            "flushed_count": 1
+                        }
+                    }"""
+                )
+        )
+
+        val saveRes = ServiceLocator.financeRepository.saveKdriveTrichterConfig(
+            driveId = "654321",
+            email = "kontakt@mein-seelenfunke.de",
+            appPassword = "SecretAppPassword123",
+            directSort = true
+        )
+        assertTrue(saveRes.isSuccess)
+        val payload = saveRes.getOrThrow()
+        assertEquals(true, payload.data?.configured)
+        assertEquals("654321", payload.data?.drive_id)
+        assertEquals(1, payload.data?.flushed_count)
+
+        val recorded = server.takeRequest()
+        assertEquals("/api/funki/kdrive-trichter/config", recorded.path)
+        assertEquals("POST", recorded.method)
+    }
 }

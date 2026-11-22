@@ -54,7 +54,38 @@ data class FinanceGroup(
 
 data class SimpleSuccessResponse(
     val success: Boolean,
-    val message: String? = null
+    val message: String? = null,
+    val direct_uploaded: Boolean = false,
+    val kdrive_configured: Boolean = true,
+    val remote_path: String? = null,
+    val file_name: String? = null,
+    val pending_count: Int = 0
+)
+
+data class KdriveWebDavConfigDto(
+    val configured: Boolean = false,
+    val drive_id: String = "",
+    val email: String = "",
+    val has_password: Boolean = false,
+    val root_folder: String = "Meine Daten",
+    val direct_sort: Boolean = true,
+    val pending_relay_count: Int = 0,
+    val last_verified_at: String? = null,
+    val last_error: String? = null,
+    val flushed_count: Int? = null
+)
+
+data class KdriveWebDavConfigResponse(
+    val success: Boolean,
+    val message: String? = null,
+    val data: KdriveWebDavConfigDto? = null
+)
+
+data class KdriveWebDavSaveRequest(
+    val drive_id: String,
+    val email: String,
+    val app_password: String? = null,
+    val direct_sort: Boolean = true
 )
 
 data class UpdateVariableRequest(
@@ -136,6 +167,17 @@ interface FinanceApi {
         @Part("batch_index") batchIndex: RequestBody? = null,
         @Part("batch_total") batchTotal: RequestBody? = null
     ): SimpleSuccessResponse
+
+    @GET("funki/kdrive-trichter/config")
+    suspend fun getKdriveTrichterConfig(): KdriveWebDavConfigResponse
+
+    @POST("funki/kdrive-trichter/config")
+    suspend fun saveKdriveTrichterConfig(
+        @Body body: KdriveWebDavSaveRequest
+    ): KdriveWebDavConfigResponse
+
+    @POST("funki/kdrive-trichter/flush")
+    suspend fun flushKdriveTrichterRelay(): SimpleSuccessResponse
 
     @Multipart
     @POST("funki/kdrive-trichter/enqueue")

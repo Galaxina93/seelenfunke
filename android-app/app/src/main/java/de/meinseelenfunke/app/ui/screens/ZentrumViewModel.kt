@@ -315,13 +315,18 @@ class ZentrumViewModel : ViewModel() {
             if (errors.isEmpty()) {
                 val summary = when {
                     offlineCount > 0 && validItems.size == 1 ->
-                        "Scan offline gesichert (automatischer Upload in 00_Eingang_Trichter sobald Netz steht)."
+                        "Scan offline gesichert (automatischer Upload nach kDrive sobald Netz steht)."
                     offlineCount > 0 ->
-                        "$successCount Scans bereit ($offlineCount offline gepuffert für 00_Eingang_Trichter)."
+                        "$successCount Scans bereit ($offlineCount offline gepuffert für kDrive)."
                     validItems.size == 1 ->
-                        lastSuccessMsg ?: "Scan im kDrive Eingang-Trichter abgelegt."
+                        lastSuccessMsg ?: "Dokument direkt in kDrive verarbeitet."
+                    lastSuccessMsg?.contains("Einstellungen verbinden", ignoreCase = true) == true ->
+                        "$successCount Scans verschlüsselt vorgemerkt (bitte kDrive unter Einstellungen verbinden)."
+                    lastSuccessMsg?.contains("Direkt in kDrive", ignoreCase = true) == true ||
+                        lastSuccessMsg?.contains("Bereits in kDrive", ignoreCase = true) == true ->
+                        "$successCount Dokumente direkt in kDrive verarbeitet & einsortiert."
                     else ->
-                        "$successCount PDFs an 00_Eingang_Trichter übergeben."
+                        "$successCount PDFs an kDrive übergeben."
                 }
                 _trichterFeedback.value = TrichterFeedback(isSuccess = true, message = summary)
                 _actionResult.value = Result.success(summary)

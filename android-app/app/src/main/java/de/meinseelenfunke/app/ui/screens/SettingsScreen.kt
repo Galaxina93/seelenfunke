@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
@@ -114,6 +115,15 @@ fun SettingsScreen(
     var tapoPassVisible by remember { mutableStateOf(false) }
     var showTapoInfoDialog by remember { mutableStateOf(false) }
 
+    val kdriveConfig by viewModel.kdriveConfig.collectAsState()
+    val kdriveSaving by viewModel.kdriveSaving.collectAsState()
+    val kdriveStatusFeedback by viewModel.kdriveStatusFeedback.collectAsState()
+    var inputKdriveId by remember(kdriveConfig.drive_id) { mutableStateOf(kdriveConfig.drive_id) }
+    var inputKdriveEmail by remember(kdriveConfig.email) { mutableStateOf(kdriveConfig.email) }
+    var inputKdrivePass by remember { mutableStateOf("") }
+    var kdrivePassVisible by remember { mutableStateOf(false) }
+    var showKdriveInfoDialog by remember { mutableStateOf(false) }
+
     val phoneConciergeEnabled by viewModel.phoneConciergeEnabled.collectAsState()
     val phoneRingDelaySec by viewModel.phoneRingDelaySec.collectAsState()
     val whitelistContacts by viewModel.whitelistContacts.collectAsState()
@@ -138,6 +148,7 @@ fun SettingsScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 permCheckTick++
                 viewModel.refreshPhoneConcierge()
+                viewModel.refreshKdriveConfig()
                 AppUpdateManager.resumePendingInstallIfPermitted(context)
             }
         }
@@ -289,6 +300,39 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showTapoInfoDialog = false }) {
+                    Text("Verstanden", color = Gold, fontWeight = FontWeight.Bold)
+                }
+            }
+        )
+    }
+
+    if (showKdriveInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showKdriveInfoDialog = false },
+            containerColor = AppTheme.colors.cardBackground,
+            title = {
+                Text(
+                    text = "kDrive Eingang-Trichter",
+                    fontWeight = FontWeight.Bold,
+                    color = Gold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Verarbeitet Scans aus dem Massenscanner sofort direkt per Infomaniak WebDAV, vergibt saubere Dateinamen und sortiert sie automatisch in deine 8 Ordner unter 'Meine Daten' ein (auch bei ausgeschaltetem PC).",
+                        fontSize = 13.sp,
+                        color = AppTheme.colors.textPrimary
+                    )
+                    Text(
+                        text = "1. kDrive-ID: Öffne kDrive im Browser; die Zahl hinter '/drive/' in der Adresszeile (oder der komplette Link) genügt.\n2. Anwendungs-Passwort: Im Infomaniak-Konto unter Sicherheit -> Anwendungs-Passwörter einmalig erstellen.",
+                        fontSize = 12.sp,
+                        color = Gold
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showKdriveInfoDialog = false }) {
                     Text("Verstanden", color = Gold, fontWeight = FontWeight.Bold)
                 }
             }
@@ -688,6 +732,233 @@ fun SettingsScreen(
                             checkedTrackColor = Gold.copy(alpha = 0.45f)
                         )
                     )
+                }
+            }
+
+            // kDrive Eingang-Trichter (WebDAV Direct Sort) Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = AppTheme.colors.cardBackground),
+                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CloudUpload,
+                                contentDescription = null,
+                                tint = Gold,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "kDrive Eingang-Trichter",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                            IconButton(
+                                onClick = { showKdriveInfoDialog = true },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Erklärung anzeigen",
+                                    tint = AppTheme.colors.textMuted,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        when {
+                            kdriveConfig.configured -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Emerald500.copy(alpha = 0.15f))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Aktiv",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Emerald500
+                                    )
+                                }
+                            }
+                            kdriveConfig.pending_relay_count > 0 -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Gold.copy(alpha = 0.2f))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Wartend (${kdriveConfig.pending_relay_count})",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Gold
+                                    )
+                                }
+                            }
+                            else -> {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(AppTheme.colors.cardBorder.copy(alpha = 0.3f))
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Nicht verbunden",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AppTheme.colors.textMuted
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = inputKdriveId,
+                        onValueChange = { inputKdriveId = it },
+                        label = { Text("kDrive-ID oder Link") },
+                        placeholder = { Text("z.B. 123456") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = inputKdriveEmail,
+                        onValueChange = { inputKdriveEmail = it },
+                        label = { Text("Infomaniak E-Mail") },
+                        placeholder = { Text("kontakt@mein-seelenfunke.de") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = inputKdrivePass,
+                        onValueChange = { inputKdrivePass = it },
+                        label = { Text("Anwendungs-Passwort") },
+                        placeholder = {
+                            Text(
+                                if (kdriveConfig.has_password) "Gespeichert (leer lassen zum Behalten)"
+                                else "Infomaniak App-Passwort"
+                            )
+                        },
+                        singleLine = true,
+                        visualTransformation = if (kdrivePassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { kdrivePassVisible = !kdrivePassVisible }) {
+                                Icon(
+                                    imageVector = if (kdrivePassVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (kdrivePassVisible) "Verbergen" else "Anzeigen",
+                                    tint = AppTheme.colors.textSecondary
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Gold,
+                            unfocusedBorderColor = AppTheme.colors.inputBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary,
+                            focusedContainerColor = AppTheme.colors.inputBackground,
+                            unfocusedContainerColor = AppTheme.colors.inputBackground
+                        )
+                    )
+
+                    if (kdriveStatusFeedback != null) {
+                        val fb = kdriveStatusFeedback!!
+                        Text(
+                            text = fb.message,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (fb.isSuccess) Emerald500 else Rose500
+                        )
+                    } else if (!kdriveConfig.last_error.isNullOrBlank()) {
+                        Text(
+                            text = kdriveConfig.last_error!!,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Rose500
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (kdriveConfig.configured && kdriveConfig.pending_relay_count > 0) {
+                            TextButton(
+                                onClick = { viewModel.flushPendingKdriveRelay() },
+                                enabled = !kdriveSaving
+                            ) {
+                                Text(
+                                    text = "Wartende (${kdriveConfig.pending_relay_count}) senden",
+                                    color = Gold,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Button(
+                            onClick = {
+                                viewModel.saveKdriveConfig(inputKdriveId, inputKdriveEmail, inputKdrivePass) { ok, msg ->
+                                    if (ok) {
+                                        inputKdrivePass = ""
+                                        kdrivePassVisible = false
+                                    }
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = !kdriveSaving && inputKdriveId.isNotBlank() && inputKdriveEmail.isNotBlank() &&
+                                (inputKdrivePass.isNotBlank() || kdriveConfig.has_password),
+                            colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack)
+                        ) {
+                            if (kdriveSaving) {
+                                CircularProgressIndicator(
+                                    color = SpaceBlack,
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
+                            Text(
+                                text = if (kdriveSaving) "Prüfe..." else "Verbinden & Speichern",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
 

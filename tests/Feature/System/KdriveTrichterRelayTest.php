@@ -4,10 +4,13 @@ namespace Tests\Feature\System;
 
 use App\Models\Admin\Admin;
 use App\Models\Employee\Employee;
+use App\Models\System\SystemSetting;
 use App\Services\System\KdriveTrichterRelayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request as HttpClientRequest;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -122,5 +125,109 @@ class KdriveTrichterRelayTest extends TestCase
         ])->assertOk();
 
         $this->assertSame('01_Mein-Seelenfunke', $res->json('data.target_folder'));
+    }
+
+    public function test_kdrive_webdav_config_flushes_pending_scans_and_sorts_new_scans_directly(): void
+    {
+        KdriveTrichterRelayService::resetWebDavCaches();
+
+        $this->assertSame('654321', KdriveTrichterRelayService::extractKdriveId('654321'));
+        $this->assertSame('654321', KdriveTrichterRelayService::extractKdriveId('https://654321.connect.kdrive.infomaniak.com'));
+        $this->assertSame('654321', KdriveTrichterRelayService::extractKdriveId('https://ksuite.infomaniak.com/all/kdrive/app/drive/654321/files/99'));
+        $this->assertNull(KdriveTrichterRelayService::extractKdriveId('https://evil.example.com/123456'));
+
+        $admin = Admin::factory()->create();
+        Sanctum::actingAs($admin, ['*']);
+
+        // 1. Scan arrives BEFORE kDrive WebDAV is connected -> safely encrypted in relay queue
+        $waitingPdf = "%PDF-1.4\n1 0 obj\n<< /Title (Waiting Scan) >>\nendobj\n%%EOF";
+        $waitingFile = UploadedFile::fake()->createWithContent('Scan_2026-11-22_143200.pdf', $waitingPdf);
+
+        $queuedRes = $this->postJson('/api/funki/kdrive-trichter/enqueue', [
+            'file' => $waitingFile,
+            'custom_title' => 'Westpack Geschenkboxen',
+            'source' => 'android_scanner',
+        ])->assertOk()
+          ->assertJsonPath('success', true)
+          ->assertJsonPath('direct_uploaded', false)
+          ->assertJsonPath('kdrive_configured', false);
+
+        $this->assertSame(1, KdriveTrichterRelayService::countPending());
+        $this->assertNotEmpty($queuedRes->json('relay_id'));
+
+        // 2. Mock Infomaniak kDrive WebDAV server (PROPFIND, MKCOL, PUT)
+        $uploadedFilesOnWebDav = [];
+        Http::fake(function (HttpClientRequest $req) use (&$uploadedFilesOnWebDav) {
+            $method = strtoupper($req->method());
+            $url = $req->url();
+
+            if (!str_starts_with($url, 'https://654321.connect.kdrive.infomaniak.com/')) {
+                return Http::response('Forbidden host', 403);
+            }
+
+            if ($method === 'PROPFIND') {
+                if (str_ends_with($url, '/')) {
+                    return Http::response('<d:multistatus xmlns:d="DAV:"/>', 207);
+                }
+                return isset($uploadedFilesOnWebDav[$url])
+                    ? Http::response('<d:multistatus xmlns:d="DAV:"/>', 207)
+                    : Http::response('Not Found', 404);
+            }
+
+            if ($method === 'MKCOL') {
+                return Http::response('', 201);
+            }
+
+            if ($method === 'PUT') {
+                $uploadedFilesOnWebDav[$url] = $req->body();
+                return Http::response('', 201);
+            }
+
+            return Http::response('Unsupported', 405);
+        });
+
+        // 3. Connect kDrive in Settings -> verifies WebDAV AND immediately flushes the waiting scan!
+        $cfgRes = $this->postJson('/api/funki/kdrive-trichter/config', [
+            'drive_id' => 'https://ksuite.infomaniak.com/all/kdrive/app/drive/654321/files/1',
+            'email' => 'kontakt@mein-seelenfunke.de',
+            'app_password' => 'AppPassSecret9988',
+            'direct_sort' => true,
+        ])->assertOk()
+          ->assertJsonPath('success', true)
+          ->assertJsonPath('data.configured', true)
+          ->assertJsonPath('data.drive_id', '654321')
+          ->assertJsonPath('data.has_password', true)
+          ->assertJsonPath('data.flushed_count', 1)
+          ->assertJsonPath('data.pending_relay_count', 0);
+
+        // Verify password is encrypted in DB and NEVER exposed in GET /config
+        $rawDbJson = (string) SystemSetting::where('key', KdriveTrichterRelayService::WEBDAV_SETTING_KEY)->value('value');
+        $this->assertStringNotContainsString('AppPassSecret9988', $rawDbJson);
+
+        $statusRes = $this->getJson('/api/funki/kdrive-trichter/config')->assertOk();
+        $this->assertArrayNotHasKey('app_password', $statusRes->json('data'));
+        $this->assertTrue((bool) $statusRes->json('data.has_password'));
+
+        // Waiting scan was directly sorted into 01_Mein-Seelenfunke/Eingangsrechnungen_Belege!
+        $this->assertCount(1, $uploadedFilesOnWebDav);
+        $firstUrl = array_key_first($uploadedFilesOnWebDav);
+        $this->assertStringContainsString('/Meine%20Daten/01_Mein-Seelenfunke/Eingangsrechnungen_Belege/', $firstUrl);
+        $this->assertStringContainsString('Westpack_Geschenkboxen.pdf', $firstUrl);
+        $this->assertSame($waitingPdf, $uploadedFilesOnWebDav[$firstUrl]);
+
+        // 4. New scan arrives -> directly classified & uploaded into 8-pillar subfolder without touching relay disk
+        $bkkBytes = "%PDF-1.4\n1 0 obj\n<< /Title (BKK Bescheid) >>\nendobj\n%%EOF";
+        $bkkFile = UploadedFile::fake()->createWithContent('Scan_2026-11-22_154500.pdf', $bkkBytes);
+
+        $directRes = $this->postJson('/api/funki/kdrive-trichter/enqueue', [
+            'file' => $bkkFile,
+            'custom_title' => 'BKK firmus Bescheid',
+            'source' => 'android_scanner',
+        ])->assertOk()
+          ->assertJsonPath('success', true)
+          ->assertJsonPath('direct_uploaded', true);
+
+        $this->assertStringStartsWith('06_Gesundheit/Krankenkasse/', (string) $directRes->json('remote_path'));
+        $this->assertSame(0, KdriveTrichterRelayService::countPending());
     }
 }

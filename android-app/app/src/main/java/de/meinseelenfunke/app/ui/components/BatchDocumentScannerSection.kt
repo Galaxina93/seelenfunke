@@ -330,14 +330,14 @@ fun BatchDocumentScannerSection(
                                 val imgBytes = ImageUtils.compressImageUri(
                                     context,
                                     page.imageUri,
-                                    maxDimension = 1950,
-                                    quality = 86
+                                    maxDimension = 1850,
+                                    quality = 82
                                 ) ?: contentResolver.openInputStream(page.imageUri)?.use { it.readBytes() }
                                 if (imgBytes != null && imgBytes.isNotEmpty()) {
                                     pageList.add(imgBytes)
                                 }
                             }
-                            val pdfBytes = if (!hadPreviousPages) {
+                            val pdfBytes = if (pageList.isEmpty() && !hadPreviousPages) {
                                 scanResult.pdf?.uri?.let { pdfUri ->
                                     try {
                                         readUriRawBytesLimited(pdfUri)?.first
@@ -351,7 +351,7 @@ fun BatchDocumentScannerSection(
                         localLoadingFiles = false
                         val (newPages, nativePdf) = extracted
                         if (newPages.isNotEmpty()) {
-                            nativeCombinedPdfBytes = if (!hadPreviousPages) nativePdf else null
+                            nativeCombinedPdfBytes = null
                             scannedPages = scannedPages + newPages
                         } else if (nativePdf != null && nativePdf.isNotEmpty()) {
                             val stamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())

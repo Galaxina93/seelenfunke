@@ -530,4 +530,71 @@ class FinanceRepository(private val serviceLocator: ServiceLocator) {
 
         return direct
     }
+
+    suspend fun getKdriveTrichterConfig(): Result<de.meinseelenfunke.app.data.api.KdriveWebDavConfigDto> {
+        return try {
+            val res = serviceLocator.getFinanceApi().getKdriveTrichterConfig()
+            if (res.success && res.data != null) {
+                Result.success(res.data)
+            } else {
+                Result.failure(Exception(res.message ?: "kDrive-Status konnte nicht geladen werden."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun saveKdriveTrichterConfig(
+        driveId: String,
+        email: String,
+        appPassword: String?,
+        directSort: Boolean = true
+    ): Result<de.meinseelenfunke.app.data.api.KdriveWebDavConfigResponse> {
+        return try {
+            val req = de.meinseelenfunke.app.data.api.KdriveWebDavSaveRequest(
+                drive_id = driveId.trim(),
+                email = email.trim(),
+                app_password = appPassword?.trim()?.ifEmpty { null },
+                direct_sort = directSort
+            )
+            val res = serviceLocator.getFinanceApi().saveKdriveTrichterConfig(req)
+            if (res.success) {
+                Result.success(res)
+            } else {
+                Result.failure(Exception(res.message ?: "kDrive-Verbindung konnte nicht gespeichert werden."))
+            }
+        } catch (e: retrofit2.HttpException) {
+            val errBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+            val parsedMsg = try {
+                if (!errBody.isNullOrBlank()) org.json.JSONObject(errBody).optString("message") else null
+            } catch (_: Exception) { null }
+            val msg = if (!parsedMsg.isNullOrBlank()) {
+                parsedMsg
+            } else {
+                "kDrive-Prüfung fehlgeschlagen (HTTP ${e.code()})."
+            }
+            Result.failure(Exception(msg))
+        } catch (e: Exception) {
+            Result.failure(Exception(e.localizedMessage ?: "kDrive-Verbindung fehlgeschlagen."))
+        }
+    }
+
+    suspend fun flushKdriveTrichterRelay(): Result<String> {
+        return try {
+            val res = serviceLocator.getFinanceApi().flushKdriveTrichterRelay()
+            if (res.success) {
+                Result.success(res.message ?: "Warteschlange verarbeitet.")
+            } else {
+                Result.failure(Exception(res.message ?: "Verarbeitung fehlgeschlagen."))
+            }
+        } catch (e: retrofit2.HttpException) {
+            val errBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+            val parsedMsg = try {
+                if (!errBody.isNullOrBlank()) org.json.JSONObject(errBody).optString("message") else null
+            } catch (_: Exception) { null }
+            Result.failure(Exception(parsedMsg?.takeIf { it.isNotBlank() } ?: "Fehler (HTTP ${e.code()})."))
+        } catch (e: Exception) {
+            Result.failure(Exception(e.localizedMessage ?: "Verbindungsfehler."))
+        }
+    }
 }

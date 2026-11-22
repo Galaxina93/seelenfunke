@@ -706,7 +706,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
         ]);
 
         try {
-            $meta = \App\Services\System\KdriveTrichterRelayService::enqueueUploadedFile(
+            $result = \App\Services\System\KdriveTrichterRelayService::processUploadedFile(
                 $request->file('file'),
                 $request->input('custom_title'),
                 (string) $request->input('source', 'android_scanner'),
@@ -714,13 +714,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
                 $request->filled('batch_total') ? (int) $request->input('batch_total') : null
             );
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Im kDrive Eingang-Trichter bereitgestellt.',
-                'relay_id' => $meta['id'],
-                'file_name' => $meta['file_name'],
-                'pending_count' => \App\Services\System\KdriveTrichterRelayService::countPending(),
-            ]);
+            return response()->json($result);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
@@ -732,6 +726,77 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
                 'message' => 'kDrive-Trichter Übergabe fehlgeschlagen: ' . $e->getMessage(),
             ], 500);
         }
+    });
+
+    Route::get('/config', function (Request $request) use ($ensureAdminOwner) {
+        $ensureAdminOwner($request);
+
+        return response()->json([
+            'success' => true,
+            'data' => \App\Services\System\KdriveTrichterRelayService::getPublicWebDavStatus(),
+        ], 200, ['Cache-Control' => 'no-store, private']);
+    });
+
+    Route::post('/config', function (Request $request) use ($ensureAdminOwner) {
+        $ensureAdminOwner($request);
+        $request->validate([
+            'drive_id' => 'required|string|max:240',
+            'email' => 'required|email|max:160',
+            'app_password' => 'nullable|string|max:200',
+            'direct_sort' => 'nullable|boolean',
+            'root_folder' => 'nullable|string|max:120',
+        ]);
+
+        try {
+            $directSort = $request->has('direct_sort')
+                ? filter_var($request->input('direct_sort'), FILTER_VALIDATE_BOOLEAN)
+                : true;
+
+            $status = \App\Services\System\KdriveTrichterRelayService::saveAndVerifyWebDavConfig(
+                (string) $request->input('drive_id'),
+                (string) $request->input('email'),
+                $request->input('app_password'),
+                $directSort,
+                (string) $request->input('root_folder', 'Meine Daten')
+            );
+
+            $flushed = (int) ($status['flushed_count'] ?? 0);
+            $msg = $flushed > 0
+                ? "kDrive verbunden! {$flushed} wartende(r) Scan(s) direkt verarbeitet und einsortiert."
+                : 'kDrive erfolgreich verbunden und geprüft.';
+
+            return response()->json([
+                'success' => true,
+                'message' => $msg,
+                'data' => $status,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 502);
+        }
+    });
+
+    Route::post('/flush', function (Request $request) use ($ensureAdminOwner) {
+        $ensureAdminOwner($request);
+
+        $flush = \App\Services\System\KdriveTrichterRelayService::flushPendingRelayToWebDav(30);
+        $ok = empty($flush['errors']) || $flush['flushed'] > 0;
+        $msg = $flush['flushed'] > 0
+            ? "{$flush['flushed']} Scan(s) direkt nach kDrive verarbeitet."
+            : (!empty($flush['errors']) ? $flush['errors'][0] : 'Keine wartenden Scans vorhanden.');
+
+        return response()->json([
+            'success' => $ok,
+            'message' => $msg,
+            'data' => $flush,
+        ], $ok ? 200 : 422);
     });
 
     Route::get('/pending', function (Request $request) use ($ensureAdminOwner) {
