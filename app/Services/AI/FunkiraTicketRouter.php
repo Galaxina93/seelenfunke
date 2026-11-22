@@ -56,8 +56,32 @@ class FunkiraTicketRouter
 
         // 2. Falls kein explizites Ticket übergeben wurde: Prüfe, ob eine 1-Wort-Bestätigung ("Ja", "Go", "Freigeben") zu einem offenen Rückfrage-Ticket gehört
         $targetTicket = self::resolveExistingOrPendingReplyTicket($existingTicketId, $cleanPrompt);
-        if ($targetTicket && self::isShortConfirmation($cleanPrompt) && $targetTicket->status === AiUniverseTicket::STATUS_WAITING_FOR_ALINA) {
-            return self::handleOneWordConfirmation($targetTicket, $cleanPrompt, $presence);
+        if ($targetTicket && $targetTicket->status === AiUniverseTicket::STATUS_WAITING_FOR_ALINA) {
+            $tp = is_array($targetTicket->action_payload) ? $targetTicket->action_payload : [];
+            if (($tp['type'] ?? '') === 'ag_inbox_blockade' && !empty($tp['ag_item_id'])) {
+                $normReply = mb_strtolower(trim(preg_replace('/[!?.]+$/u', '', $cleanPrompt) ?? $cleanPrompt));
+                $decision = in_array($normReply, ['nein', 'verwerfen', 'ablehnen', 'abbrechen', 'stornieren'], true)
+                    ? 'dismissed'
+                    : (self::isShortConfirmation($cleanPrompt) ? 'approved' : 'info_provided');
+                app(\App\Services\System\AntigravityDirectInboxService::class)->resolveBlockadeItem(
+                    (string) $tp['ag_item_id'],
+                    $decision,
+                    $cleanPrompt,
+                    'Alina'
+                );
+                return [
+                    'status' => 'ok',
+                    'mode' => 'ag_blockade_resolved',
+                    'reply' => $decision === 'dismissed'
+                        ? "Konzept **{$targetTicket->ticket_number}** wurde verworfen und im Archiv protokolliert."
+                        : "Freigabe & Antwort zu **{$targetTicket->ticket_number}** wurde direkt an **Antigravity** übermittelt.",
+                    'ticket' => $targetTicket->fresh(['department', 'agent', 'messages']),
+                    'presence' => $presence,
+                ];
+            }
+            if (self::isShortConfirmation($cleanPrompt)) {
+                return self::handleOneWordConfirmation($targetTicket, $cleanPrompt, $presence);
+            }
         }
 
         // 3. 0-Token Sofortreflex ("Fast-Lane") für reine Gerätesteuerung & Kurzstatus (kein Ticket-Müll!)
@@ -145,6 +169,8 @@ class FunkiraTicketRouter
                 (string) ($params['note'] ?? 'Per 1-Klick an Antigravity übergeben.')
             ),
             'approve_procurement' => self::approveProcurementTicket($ticket, $channel),
+            'approve_ag_blockade' => self::resolveAgBlockadeFromTicketUi($ticket, 'approved', (string) ($params['note'] ?? 'Go im Ticketsystem erteilt')),
+            'dismiss_ag_blockade' => self::resolveAgBlockadeFromTicketUi($ticket, 'dismissed', (string) ($params['note'] ?? 'Im Ticketsystem verworfen')),
             'complete' => self::markTicketStatus($ticket, AiUniverseTicket::STATUS_COMPLETED, 'Ticket abgeschlossen.', $channel),
             'archive' => self::markTicketStatus($ticket, AiUniverseTicket::STATUS_ARCHIVED, 'Ticket archiviert.', $channel),
             'reopen' => self::markTicketStatus($ticket, AiUniverseTicket::STATUS_IN_PROGRESS, 'Ticket wieder geöffnet.', $channel),
@@ -666,8 +692,27 @@ class FunkiraTicketRouter
             ? "Ticket **{$ticket->ticket_number}** wurde direkt an **Antigravity** übergeben (Notebook ist online). Ergebnisse und Rückfragen laufen chronologisch hier ins Ticket ein."
             : "Ticket **{$ticket->ticket_number}** ist vorqualifiziert in der Warteschlange **Wartet auf Notebook** geparkt. Sobald dein Notebook eingeschaltet ist, übernimmt Antigravity nahtlos.";
 
-        $payload = array_merge(is_array($ticket->action_payload) ? $ticket->action_payload : [], [
+        $existingPayload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+        $agItemId = (string) ($existingPayload['ag_item_id'] ?? '');
+        if ($agItemId === '') {
+            try {
+                $firstUserBody = (string) ($ticket->messages()->where('sender_role', 'alina')->orderBy('created_at')->value('content') ?? $ticket->title);
+                $enqueued = app(\App\Services\System\AntigravityDirectInboxService::class)->enqueueMessage([
+                    'channel' => 'leitung',
+                    'title' => "[{$ticket->ticket_number}] " . $ticket->title,
+                    'body' => $firstUserBody . ($reasonNote !== '' ? "\n\nHinweis: {$reasonNote}" : ''),
+                    'execution_mode' => 'direct',
+                    'source' => $presence['channel'] ?? 'web_portal',
+                    'skip_universe_mirror' => true,
+                ]);
+                $agItemId = (string) ($enqueued['item']['id'] ?? '');
+            } catch (\Throwable) {
+            }
+        }
+
+        $payload = array_merge($existingPayload, [
             'type' => 'antigravity_active',
+            'ag_item_id' => $agItemId !== '' ? $agItemId : ($existingPayload['ag_item_id'] ?? null),
             'handoff_at' => now()->toIso8601String(),
             'notebook_online' => $notebookOnline,
             'note' => $reasonNote,
@@ -700,6 +745,27 @@ class FunkiraTicketRouter
             'reply' => $reply,
             'ticket' => $ticket->fresh(['department', 'agent', 'messages']),
             'presence' => $presence,
+        ];
+    }
+
+    protected static function resolveAgBlockadeFromTicketUi(AiUniverseTicket $ticket, string $decision, string $note): array
+    {
+        $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+        $agId = trim((string) ($payload['ag_item_id'] ?? ''));
+        if ($agId !== '') {
+            try {
+                app(\App\Services\System\AntigravityDirectInboxService::class)->resolveBlockadeItem($agId, $decision, $note, 'Alina');
+            } catch (\Throwable) {
+            }
+        }
+
+        return [
+            'status' => 'ok',
+            'mode' => 'ag_blockade_resolved',
+            'reply' => $decision === 'dismissed'
+                ? "Konzept {$ticket->ticket_number} wurde verworfen."
+                : "Go für {$ticket->ticket_number} wurde direkt an Antigravity übermittelt.",
+            'ticket' => $ticket->fresh(['department', 'agent', 'messages']),
         ];
     }
 

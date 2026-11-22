@@ -5,7 +5,9 @@ using System.IO.Pipes;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.AccessControl;
+using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
@@ -27,6 +29,7 @@ namespace FunkenwerkPlayer
         [JsonPropertyName("name")] public string Name { get; set; } = "";
         [JsonPropertyName("description")] public string? Description { get; set; }
         [JsonPropertyName("position")] public int Position { get; set; }
+        [JsonPropertyName("is_local_folder")] public bool IsLocalFolder { get; set; }
         [JsonPropertyName("tracks")] public List<MusicTrackDto>? Tracks { get; set; }
     }
 
@@ -41,6 +44,8 @@ namespace FunkenwerkPlayer
         [JsonPropertyName("is_favorite")] public bool IsFavorite { get; set; }
         [JsonPropertyName("position")] public int Position { get; set; }
 
+        [JsonIgnore] public string? LocalFilePath { get; set; }
+
         [JsonIgnore]
         public string FormattedDuration => DurationSeconds <= 0
             ? "--:--"
@@ -51,25 +56,49 @@ namespace FunkenwerkPlayer
     {
         public const string PlayerPipeName = "Funkenwerk_PlayerPipe_v1";
         private const string FavSyncPlaylistName = "__FUNKENWERK_FAV_SYNC__";
+        private const string LocalPcPlaylistId = "local_pc_music";
+        private const string LocalOrphanPlaylistId = "local_cached_orphans";
 
-        private static readonly HttpClient _musicHttp = new() { Timeout = TimeSpan.FromSeconds(10) };
+        private static readonly HttpClient _musicHttp = new() { Timeout = TimeSpan.FromSeconds(14) };
+        private static readonly HashSet<string> _allowedMusicApiHosts = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "127.0.0.1",
+            "localhost",
+            "::1",
+            "[::1]",
+            "seelenfunke.test",
+            "stage.mein-seelenfunke.de",
+            "mein-seelenfunke.de"
+        };
 
         private string _playerMode = "media"; // "playlists" or "media"
         private List<MusicPlaylistDto> _manufakturPlaylists = new();
         private readonly List<MusicTrackDto> _allManufakturTracks = new();
+        private readonly List<MusicTrackDto> _currentManufakturQueue = new();
         private string _activeManufakturPlaylistId = "all";
         private string _manufakturSearchQuery = "";
         private MusicTrackDto? _activeManufakturTrack;
+        private string? _customMusicCacheDirOverride;
 
+        private bool _isManufakturPlaybackActive;
         private bool _isFocusModeActive;
         private bool _isShuffleEnabled;
+        private long _localFavSyncTimestamp;
         private DateTime _lastFocusMouseUtc = DateTime.UtcNow;
         private DispatcherTimer? _focusIdleTimer;
+        private DispatcherTimer? _importPollTimer;
         private CancellationTokenSource? _playerPipeCts;
+        private CancellationTokenSource? _preCacheCts;
 
         public string ActivePlayerMode => _playerMode;
         public bool IsFocusModeActive => _isFocusModeActive;
+        public bool IsManufakturPlaybackActive => _isManufakturPlaybackActive;
+        public bool IsShuffleEnabled => _isShuffleEnabled;
+        public bool IsLoopEnabled => _isLoopEnabled;
+        public string ActiveManufakturPlaylistId => _activeManufakturPlaylistId;
+        public MusicTrackDto? ActiveManufakturTrack => _activeManufakturTrack;
         public IReadOnlyList<MusicPlaylistDto> ManufakturPlaylists => _manufakturPlaylists;
+        public IReadOnlyList<MusicTrackDto> CurrentManufakturQueue => _currentManufakturQueue;
 
         private static string GetMusicCacheDirectory()
         {
@@ -80,6 +109,321 @@ namespace FunkenwerkPlayer
             return dir;
         }
 
+        private string GetActiveMusicCacheDirectory()
+        {
+            if (!string.IsNullOrWhiteSpace(_customMusicCacheDirOverride))
+            {
+                Directory.CreateDirectory(_customMusicCacheDirOverride);
+                return _customMusicCacheDirOverride;
+            }
+            return GetMusicCacheDirectory();
+        }
+
+        private static string? TryGetLocalWslMusicRoot()
+        {
+            try
+            {
+                string repoRel = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "storage", "app", "leitung", "music"));
+                if (Directory.Exists(repoRel)) return repoRel;
+
+                string wslPrefix = @"\\" + "wsl" + ".localhost";
+                string wslPath = Path.Combine(wslPrefix, "Ubuntu", "home", "ubuntuxina", "meine-projekte", "seelenfunke", "storage", "app", "leitung", "music");
+                if (Directory.Exists(wslPath)) return wslPath;
+            }
+            catch { }
+            return null;
+        }
+
+        // =====================================================================
+        // AUDIO MAGIC-BYTE VALIDATOR (1:1 Android MusicPlayerManager.isValidAudioFile)
+        // =====================================================================
+        public static bool IsValidAudioFile(string? filePath, long minBytes = 1024)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return false;
+            try
+            {
+                var fi = new FileInfo(filePath);
+                if (!fi.Exists || fi.Length < minBytes) return false;
+                if ((fi.Attributes & FileAttributes.ReparsePoint) != 0) return false;
+
+                Span<byte> header = stackalloc byte[64];
+                int read;
+                using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    read = fs.Read(header);
+                }
+                if (read < 12) return false;
+
+                string asciiPrefix = Encoding.ASCII.GetString(header.Slice(0, Math.Min(read, 48))).TrimStart();
+                if (asciiPrefix.StartsWith("<!doctype", StringComparison.OrdinalIgnoreCase) ||
+                    asciiPrefix.StartsWith("<html", StringComparison.OrdinalIgnoreCase) ||
+                    asciiPrefix.StartsWith("<?xml", StringComparison.OrdinalIgnoreCase) ||
+                    asciiPrefix.StartsWith("{\"error", StringComparison.OrdinalIgnoreCase) ||
+                    asciiPrefix.StartsWith("{\"message", StringComparison.OrdinalIgnoreCase) ||
+                    asciiPrefix.StartsWith("{\"success\":false", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                // ISO BMFF / MP4 / M4A (ftyp, moov, styp, mdat at offset 4)
+                string boxType = Encoding.ASCII.GetString(header.Slice(4, 4));
+                if (boxType is "ftyp" or "moov" or "styp" or "mdat" or "free" or "skip")
+                    return true;
+
+                // RIFF WAVE
+                if (header[0] == 'R' && header[1] == 'I' && header[2] == 'F' && header[3] == 'F' &&
+                    header[8] == 'W' && header[9] == 'A' && header[10] == 'V' && header[11] == 'E')
+                    return true;
+
+                // ID3v2 MP3 or raw MPEG ADTS/MP3 sync frame
+                if (header[0] == 'I' && header[1] == 'D' && header[2] == '3')
+                    return true;
+                if (header[0] == 0xFF && (header[1] & 0xE0) == 0xE0)
+                    return true;
+
+                // FLAC
+                if (header[0] == 'f' && header[1] == 'L' && header[2] == 'a' && header[3] == 'C')
+                    return true;
+
+                // Ogg / Opus
+                if (header[0] == 'O' && header[1] == 'g' && header[2] == 'g' && header[3] == 'S')
+                    return true;
+
+                // Matroska / WebM
+                if (header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3)
+                    return true;
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // =====================================================================
+        // MULTI-SOURCE AUTHENTICATED ENDPOINT RESOLVER (SharedSession + Vault)
+        // =====================================================================
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct VaultDataBlob
+        {
+            public int cbData;
+            public IntPtr pbData;
+        }
+
+        [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern bool CryptUnprotectData(
+            ref VaultDataBlob pCipherText,
+            IntPtr ppszDescription,
+            ref VaultDataBlob pEntropy,
+            IntPtr pReserved,
+            IntPtr pPrompt,
+            int dwFlags,
+            out VaultDataBlob pPlainText);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr LocalFree(IntPtr hMem);
+
+        private static string UnprotectLayoutVaultToken(string? storedText)
+        {
+            if (string.IsNullOrWhiteSpace(storedText)) return "";
+            const string aesPrefix = "FWAES256GCM1:";
+            const string v2Prefix = "FWVAULT2:";
+            const string dpapiPrefix = "DPAPI:";
+
+            string? matchedPrefix = null;
+            if (storedText.StartsWith(aesPrefix, StringComparison.Ordinal)) matchedPrefix = aesPrefix;
+            else if (storedText.StartsWith(v2Prefix, StringComparison.Ordinal)) matchedPrefix = v2Prefix;
+
+            byte[] entropyBytes = Encoding.UTF8.GetBytes("Funkenwerk_Seelenfunke_HardwareVault_v1");
+
+            if (matchedPrefix != null)
+            {
+                byte[]? key = null;
+                byte[]? plainBytes = null;
+                try
+                {
+                    byte[] dpapiCipher = Convert.FromBase64String(storedText.Substring(matchedPrefix.Length));
+                    byte[]? envelope = TryDpapiUnprotectRaw(dpapiCipher, entropyBytes);
+                    if (envelope == null || envelope.Length < 45 || envelope[0] != 0x02) return "";
+
+                    byte[] salt = new byte[16];
+                    byte[] nonce = new byte[12];
+                    byte[] tag = new byte[16];
+                    int cipherLen = envelope.Length - 45;
+                    byte[] cipher = new byte[cipherLen];
+                    plainBytes = new byte[cipherLen];
+
+                    Buffer.BlockCopy(envelope, 1, salt, 0, 16);
+                    Buffer.BlockCopy(envelope, 17, nonce, 0, 12);
+                    Buffer.BlockCopy(envelope, 29, tag, 0, 16);
+                    Buffer.BlockCopy(envelope, 45, cipher, 0, cipherLen);
+
+                    byte[] idBytes = Encoding.UTF8.GetBytes($"{Environment.MachineName}|{Environment.UserName}|Funkenwerk_AES256GCM_KeyDerivation_v2");
+                    try
+                    {
+                        key = Rfc2898DeriveBytes.Pbkdf2(idBytes, salt, 100_000, HashAlgorithmName.SHA512, 32);
+                    }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(idBytes);
+                    }
+
+                    byte[] aad = Encoding.UTF8.GetBytes("Funkenwerk-Vault-v2-AEAD-AES256GCM");
+                    using var aes = new AesGcm(key, 16);
+                    aes.Decrypt(nonce, cipher, tag, plainBytes, aad);
+                    return Encoding.UTF8.GetString(plainBytes).Trim();
+                }
+                catch
+                {
+                    return "";
+                }
+                finally
+                {
+                    if (key != null) CryptographicOperations.ZeroMemory(key);
+                    if (plainBytes != null) CryptographicOperations.ZeroMemory(plainBytes);
+                }
+            }
+
+            if (storedText.StartsWith(dpapiPrefix, StringComparison.Ordinal))
+            {
+                try
+                {
+                    byte[] cipher = Convert.FromBase64String(storedText.Substring(dpapiPrefix.Length));
+                    byte[]? plain = TryDpapiUnprotectRaw(cipher, entropyBytes);
+                    return plain != null ? Encoding.UTF8.GetString(plain).Trim() : "";
+                }
+                catch { return ""; }
+            }
+
+            return storedText.Trim();
+        }
+
+        private static byte[]? TryDpapiUnprotectRaw(byte[] cipherBytes, byte[] entropyBytes)
+        {
+            IntPtr cipherPtr = IntPtr.Zero;
+            IntPtr entropyPtr = IntPtr.Zero;
+            VaultDataBlob outBlob = default;
+            try
+            {
+                cipherPtr = Marshal.AllocHGlobal(cipherBytes.Length);
+                Marshal.Copy(cipherBytes, 0, cipherPtr, cipherBytes.Length);
+                entropyPtr = Marshal.AllocHGlobal(entropyBytes.Length);
+                Marshal.Copy(entropyBytes, 0, entropyPtr, entropyBytes.Length);
+
+                var inBlob = new VaultDataBlob { cbData = cipherBytes.Length, pbData = cipherPtr };
+                var entBlob = new VaultDataBlob { cbData = entropyBytes.Length, pbData = entropyPtr };
+
+                if (CryptUnprotectData(ref inBlob, IntPtr.Zero, ref entBlob, IntPtr.Zero, IntPtr.Zero, 0x1, out outBlob) &&
+                    outBlob.pbData != IntPtr.Zero && outBlob.cbData >= 0)
+                {
+                    byte[] plain = new byte[outBlob.cbData];
+                    if (outBlob.cbData > 0)
+                        Marshal.Copy(outBlob.pbData, plain, 0, outBlob.cbData);
+                    return plain;
+                }
+            }
+            catch { }
+            finally
+            {
+                if (cipherPtr != IntPtr.Zero) Marshal.FreeHGlobal(cipherPtr);
+                if (entropyPtr != IntPtr.Zero) Marshal.FreeHGlobal(entropyPtr);
+                if (outBlob.pbData != IntPtr.Zero) LocalFree(outBlob.pbData);
+            }
+            return null;
+        }
+
+        private static bool IsTrustedMusicApiBaseUrl(string? rawBaseUrl, out string normalizedBaseUrl)
+        {
+            normalizedBaseUrl = "";
+            if (string.IsNullOrWhiteSpace(rawBaseUrl)) return false;
+            if (!Uri.TryCreate(rawBaseUrl.Trim(), UriKind.Absolute, out var uri)) return false;
+            if (!_allowedMusicApiHosts.Contains(uri.Host)) return false;
+
+            bool isLoopback = uri.IsLoopback || uri.Host.Equals("seelenfunke.test", StringComparison.OrdinalIgnoreCase);
+            if (!isLoopback && !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (isLoopback && !uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+                !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            normalizedBaseUrl = uri.ToString().TrimEnd('/');
+            if (!normalizedBaseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase))
+                normalizedBaseUrl += "/api";
+            return true;
+        }
+
+        private List<(string BaseUrl, string Token)> GetCandidateEndpointsAndTokens()
+        {
+            var results = new List<(string BaseUrl, string Token)>();
+            if (!string.IsNullOrWhiteSpace(_customMusicCacheDirOverride))
+                return results;
+
+            void AddCandidate(string? rawUrl, string? rawToken)
+            {
+                if (!IsTrustedMusicApiBaseUrl(rawUrl, out string cleanUrl)) return;
+                string tok = (rawToken ?? "").Trim();
+                int existingIdx = results.FindIndex(x => x.BaseUrl.Equals(cleanUrl, StringComparison.OrdinalIgnoreCase));
+                if (existingIdx >= 0)
+                {
+                    if (string.IsNullOrWhiteSpace(results[existingIdx].Token) && !string.IsNullOrWhiteSpace(tok))
+                        results[existingIdx] = (cleanUrl, tok);
+                    return;
+                }
+                results.Add((cleanUrl, tok));
+            }
+
+            try
+            {
+                var session = FunkenwerkSharedSession.Load();
+                if (!session.IsSessionLocked)
+                {
+                    AddCandidate(session.ApiBaseUrl, session.BearerToken);
+                }
+            }
+            catch { }
+
+            try
+            {
+                string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Funkenwerk");
+                foreach (string fileName in new[] { "layout_settings.json", "settings.json" })
+                {
+                    string cfgPath = Path.Combine(appData, fileName);
+                    if (!File.Exists(cfgPath)) continue;
+                    using var doc = JsonDocument.Parse(File.ReadAllText(cfgPath, Encoding.UTF8));
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("IsSessionLocked", out var lockedProp) && lockedProp.ValueKind == JsonValueKind.True)
+                        continue;
+
+                    string tokLocal = root.TryGetProperty("ApiTokenLocal", out var tl) && tl.ValueKind == JsonValueKind.String
+                        ? UnprotectLayoutVaultToken(tl.GetString()) : "";
+                    string tokStage = root.TryGetProperty("ApiTokenStage", out var ts) && ts.ValueKind == JsonValueKind.String
+                        ? UnprotectLayoutVaultToken(ts.GetString()) : "";
+                    string tokLive = root.TryGetProperty("ApiTokenLive", out var tv) && tv.ValueKind == JsonValueKind.String
+                        ? UnprotectLayoutVaultToken(tv.GetString()) : "";
+                    string activeUrl = root.TryGetProperty("ApiBaseUrl", out var au) && au.ValueKind == JsonValueKind.String
+                        ? (au.GetString() ?? "") : "";
+
+                    if (!string.IsNullOrWhiteSpace(activeUrl))
+                    {
+                        string activeTok = activeUrl.Contains("stage.", StringComparison.OrdinalIgnoreCase) ? tokStage
+                            : (activeUrl.Contains("mein-seelenfunke.de", StringComparison.OrdinalIgnoreCase) ? tokLive : tokLocal);
+                        AddCandidate(activeUrl, activeTok);
+                    }
+                    AddCandidate("http://127.0.0.1/api", tokLocal);
+                    AddCandidate("https://stage.mein-seelenfunke.de/api", tokStage);
+                    AddCandidate("https://mein-seelenfunke.de/api", tokLive);
+                }
+            }
+            catch { }
+
+            AddCandidate("http://127.0.0.1/api", "");
+            return results;
+        }
+
+        // =====================================================================
+        // INITIALIZATION, CATALOG DISCOVERY & PC MUSIC SCANNER
+        // =====================================================================
         private async Task InitializeManufakturEngineAsync(bool openPlaylistsViewByDefault)
         {
             LoadManufakturPlaylistsFromDisk();
@@ -99,6 +443,8 @@ namespace FunkenwerkPlayer
         private void ShutdownManufakturEngine()
         {
             try { _playerPipeCts?.Cancel(); } catch { }
+            try { _preCacheCts?.Cancel(); } catch { }
+            try { _importPollTimer?.Stop(); } catch { }
             try { _focusIdleTimer?.Stop(); } catch { }
             try { CelestialFocusHost?.StopRendering(); } catch { }
         }
@@ -115,6 +461,7 @@ namespace FunkenwerkPlayer
             UpdateModeButtonsUI();
             if (_playerMode == "playlists")
             {
+                SyncManufakturNowPlayingDeck();
                 RenderManufakturLibrary();
             }
         }
@@ -161,107 +508,291 @@ namespace FunkenwerkPlayer
 
         public void LoadManufakturPlaylistsFromDisk(string? customCacheDir = null)
         {
+            _customMusicCacheDirOverride = customCacheDir;
             try
             {
-                string cacheDir = customCacheDir ?? GetMusicCacheDirectory();
+                string cacheDir = GetActiveMusicCacheDirectory();
                 string cacheFile = Path.Combine(cacheDir, "playlists_cache.json");
-                string bundledFile = Path.Combine(AppContext.BaseDirectory, "playlists_cache.json");
 
-                List<MusicPlaylistDto> bundled = File.Exists(bundledFile)
-                    ? ParsePlaylistsPayload(File.ReadAllText(bundledFile, Encoding.UTF8))
-                    : new();
-                if (bundled.Count > 0 && !File.Exists(cacheFile))
+                List<MusicPlaylistDto> best = new();
+                int bestTrackCount = -1;
+
+                void ConsiderCatalogFile(string? candidatePath)
                 {
-                    Directory.CreateDirectory(cacheDir);
-                    File.Copy(bundledFile, cacheFile, overwrite: true);
+                    if (string.IsNullOrWhiteSpace(candidatePath) || !File.Exists(candidatePath)) return;
+                    try
+                    {
+                        var parsed = ParsePlaylistsPayload(File.ReadAllText(candidatePath, Encoding.UTF8));
+                        int cnt = parsed
+                            .Where(p => !p.Name.Equals(FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase))
+                            .Sum(p => p.Tracks?.Count ?? 0);
+                        if (cnt > bestTrackCount || (best.Count == 0 && parsed.Count > 0))
+                        {
+                            best = parsed;
+                            bestTrackCount = cnt;
+                        }
+                    }
+                    catch { }
                 }
 
-                List<MusicPlaylistDto> cached = File.Exists(cacheFile)
-                    ? ParsePlaylistsPayload(File.ReadAllText(cacheFile, Encoding.UTF8))
-                    : new();
+                ConsiderCatalogFile(cacheFile);
 
-                int cachedCount = cached.Where(p => !p.Name.Equals(FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase)).Sum(p => p.Tracks?.Count ?? 0);
-                int bundledCount = bundled.Where(p => !p.Name.Equals(FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase)).Sum(p => p.Tracks?.Count ?? 0);
-                var best = bundledCount > cachedCount ? bundled : cached;
-                if (best.Count > 0)
+                if (customCacheDir == null)
                 {
-                    ApplyManufakturPlaylists(best, cacheDir);
+                    string bundledFile = Path.Combine(AppContext.BaseDirectory, "playlists_cache.json");
+                    ConsiderCatalogFile(bundledFile);
+
+                    string? wslRoot = TryGetLocalWslMusicRoot();
+                    if (!string.IsNullOrWhiteSpace(wslRoot))
+                    {
+                        ConsiderCatalogFile(Path.Combine(wslRoot, "playlists_catalog.json"));
+                    }
+
+                    if (best.Count > 0 && !File.Exists(cacheFile))
+                    {
+                        try
+                        {
+                            string outJson = JsonSerializer.Serialize(new { success = true, data = best });
+                            File.WriteAllText(cacheFile, outJson, Encoding.UTF8);
+                        }
+                        catch { }
+                    }
                 }
+
+                ApplyManufakturPlaylists(best, cacheDir, includeLocalPcScan: customCacheDir == null);
             }
             catch { }
         }
 
         private async Task SyncManufakturPlaylistsOnlineAsync()
         {
-            try
+            if (!string.IsNullOrWhiteSpace(_customMusicCacheDirOverride)) return;
+
+            foreach (var (baseUrl, token) in GetCandidateEndpointsAndTokens())
             {
-                var session = FunkenwerkSharedSession.Load();
-                if (string.IsNullOrWhiteSpace(session.ApiBaseUrl)) return;
-
-                using var req = new HttpRequestMessage(HttpMethod.Get, $"{session.ApiBaseUrl.TrimEnd('/')}/funki/music/playlists");
-                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                if (!string.IsNullOrWhiteSpace(session.BearerToken))
+                try
                 {
-                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.BearerToken);
-                }
+                    using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/funki/music/playlists");
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (!string.IsNullOrWhiteSpace(token))
+                    {
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    }
 
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
-                using var resp = await _musicHttp.SendAsync(req, cts.Token);
-                if (!resp.IsSuccessStatusCode) return;
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                    using var resp = await _musicHttp.SendAsync(req, cts.Token);
+                    if (!resp.IsSuccessStatusCode) continue;
 
-                string body = await resp.Content.ReadAsStringAsync(cts.Token);
-                var remote = ParsePlaylistsPayload(body);
-                int remoteTracks = remote.Where(p => !p.Name.Equals(FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase)).Sum(p => p.Tracks?.Count ?? 0);
-                if (remoteTracks > 0)
-                {
-                    string cacheDir = GetMusicCacheDirectory();
-                    ApplyManufakturPlaylists(remote, cacheDir);
-                    string outJson = JsonSerializer.Serialize(new { success = true, data = _manufakturPlaylists });
-                    File.WriteAllText(Path.Combine(cacheDir, "playlists_cache.json"), outJson, Encoding.UTF8);
+                    string body = await resp.Content.ReadAsStringAsync(cts.Token);
+                    var remote = ParsePlaylistsPayload(body);
+                    int remoteTracks = remote
+                        .Where(p => !p.Name.Equals(FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase))
+                        .Sum(p => p.Tracks?.Count ?? 0);
+
+                    if (remoteTracks > 0 || (_manufakturPlaylists.Count == 0 && remote.Count > 0))
+                    {
+                        string cacheDir = GetMusicCacheDirectory();
+                        ApplyManufakturPlaylists(remote, cacheDir, includeLocalPcScan: true);
+                        string outJson = JsonSerializer.Serialize(new { success = true, data = remote });
+                        File.WriteAllText(Path.Combine(cacheDir, "playlists_cache.json"), outJson, Encoding.UTF8);
+                        return;
+                    }
                 }
+                catch { }
             }
-            catch { }
         }
 
-        private void ApplyManufakturPlaylists(List<MusicPlaylistDto> playlists, string cacheDir)
+        private void ApplyManufakturPlaylists(List<MusicPlaylistDto> playlists, string cacheDir, bool includeLocalPcScan)
         {
-            var localFavIds = LoadLocalFavoriteIds(cacheDir);
+            var localFavIds = LoadLocalFavoriteIds(cacheDir, out long savedFavTs);
+            _localFavSyncTimestamp = savedFavTs;
+
+            // Reconcile hidden __FUNKENWERK_FAV_SYNC__ playlist (1:1 Android fav_sync:v1:<ts>:<id8prefixes>)
+            var favSyncPl = playlists.FirstOrDefault(p => string.Equals(p.Name, FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase));
+            HashSet<string>? remoteFavPrefixes = null;
+            long remoteFavTs = 0;
+            if (favSyncPl != null && !string.IsNullOrWhiteSpace(favSyncPl.Description) &&
+                favSyncPl.Description.StartsWith("fav_sync:v1:", StringComparison.Ordinal))
+            {
+                var parts = favSyncPl.Description.Split(':');
+                if (parts.Length >= 4 && long.TryParse(parts[2], out remoteFavTs))
+                {
+                    remoteFavPrefixes = new HashSet<string>(
+                        parts[3].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                        StringComparer.OrdinalIgnoreCase);
+                }
+            }
+
             _manufakturPlaylists = playlists
-                .Where(p => !string.Equals(p.Name, FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase))
+                .Where(p => !string.Equals(p.Name, FavSyncPlaylistName, StringComparison.OrdinalIgnoreCase) && !p.IsLocalFolder)
+                .OrderBy(p => p.Position)
                 .ToList();
 
             _allManufakturTracks.Clear();
+            var knownFileNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var pl in _manufakturPlaylists)
             {
                 if (pl.Tracks == null) continue;
                 foreach (var tr in pl.Tracks)
                 {
                     if (string.IsNullOrWhiteSpace(tr.PlaylistId)) tr.PlaylistId = pl.Id;
-                    if (localFavIds.Contains(tr.Id)) tr.IsFavorite = true;
+                    if (!string.IsNullOrWhiteSpace(tr.Id)) knownFileNames.Add(tr.Id);
+                    if (!string.IsNullOrWhiteSpace(tr.ExternalId)) knownFileNames.Add(tr.ExternalId);
+
+                    if (remoteFavPrefixes != null && remoteFavTs > _localFavSyncTimestamp)
+                    {
+                        string prefix = tr.Id.Length >= 8 ? tr.Id.Substring(0, 8) : tr.Id;
+                        tr.IsFavorite = remoteFavPrefixes.Contains(prefix) || localFavIds.Contains(tr.Id);
+                    }
+                    else if (localFavIds.Contains(tr.Id) || (!string.IsNullOrWhiteSpace(tr.ExternalId) && localFavIds.Contains(tr.ExternalId)))
+                    {
+                        tr.IsFavorite = true;
+                    }
+
                     _allManufakturTracks.Add(tr);
                 }
             }
 
-            if (_activeManufakturPlaylistId == "all" && _manufakturPlaylists.Count > 0)
+            // Recover orphan cached .m4a files in MusicCache so cached music is never lost offline
+            try
             {
-                var favPl = _manufakturPlaylists.FirstOrDefault(p => p.Name.Contains("Lieblingssongs", StringComparison.OrdinalIgnoreCase))
-                            ?? _manufakturPlaylists[0];
-                _activeManufakturPlaylistId = favPl.Id;
+                if (Directory.Exists(cacheDir))
+                {
+                    var orphans = new List<MusicTrackDto>();
+                    int pos = 1;
+                    foreach (var m4a in Directory.GetFiles(cacheDir, "*.m4a"))
+                    {
+                        string stem = Path.GetFileNameWithoutExtension(m4a);
+                        if (knownFileNames.Contains(stem)) continue;
+                        if (!SafeCacheIdRegex.IsMatch(stem) || !IsValidAudioFile(m4a)) continue;
+
+                        var dto = new MusicTrackDto
+                        {
+                            Id = stem,
+                            PlaylistId = LocalOrphanPlaylistId,
+                            Title = stem,
+                            Artist = "Offline gespeichert",
+                            Position = pos++,
+                            IsFavorite = localFavIds.Contains(stem),
+                            LocalFilePath = m4a
+                        };
+                        orphans.Add(dto);
+                        _allManufakturTracks.Add(dto);
+                    }
+                    if (orphans.Count > 0)
+                    {
+                        _manufakturPlaylists.Add(new MusicPlaylistDto
+                        {
+                            Id = LocalOrphanPlaylistId,
+                            Name = "Offline gespeichert",
+                            Position = 998,
+                            IsLocalFolder = true,
+                            Tracks = orphans
+                        });
+                    }
+                }
+            }
+            catch { }
+
+            // Scan Windows "MyMusic" folder as "Auf diesem PC" (1:1 Android "Auf diesem Gerät")
+            if (includeLocalPcScan)
+            {
+                try
+                {
+                    string myMusic = Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
+                    if (!string.IsNullOrWhiteSpace(myMusic) && Directory.Exists(myMusic))
+                    {
+                        var audioExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp3", ".m4a", ".wav", ".flac", ".ogg" };
+                        var pcTracks = new List<MusicTrackDto>();
+                        int pcPos = 1;
+                        foreach (var file in Directory.EnumerateFiles(myMusic, "*.*", SearchOption.TopDirectoryOnly).Take(250))
+                        {
+                            if (!audioExts.Contains(Path.GetExtension(file))) continue;
+                            if (!IsValidAudioFile(file)) continue;
+
+                            string stem = Path.GetFileNameWithoutExtension(file);
+                            string artist = "Auf diesem PC";
+                            string title = stem;
+                            int dashIdx = stem.IndexOf(" - ", StringComparison.Ordinal);
+                            if (dashIdx > 0 && dashIdx + 3 < stem.Length)
+                            {
+                                artist = stem.Substring(0, dashIdx).Trim();
+                                title = stem.Substring(dashIdx + 3).Trim();
+                            }
+
+                            string syntheticId = "pc_" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(file))).Substring(0, 16).ToLowerInvariant();
+                            var pcDto = new MusicTrackDto
+                            {
+                                Id = syntheticId,
+                                PlaylistId = LocalPcPlaylistId,
+                                Title = title,
+                                Artist = artist,
+                                Position = pcPos++,
+                                IsFavorite = localFavIds.Contains(syntheticId),
+                                LocalFilePath = file
+                            };
+                            pcTracks.Add(pcDto);
+                            _allManufakturTracks.Add(pcDto);
+                        }
+
+                        if (pcTracks.Count > 0)
+                        {
+                            _manufakturPlaylists.Add(new MusicPlaylistDto
+                            {
+                                Id = LocalPcPlaylistId,
+                                Name = "Auf diesem PC",
+                                Position = 999,
+                                IsLocalFolder = true,
+                                Tracks = pcTracks
+                            });
+                        }
+                    }
+                }
+                catch { }
             }
 
+            bool currentExists = _activeManufakturPlaylistId == "all" ||
+                                 _activeManufakturPlaylistId == "favorites" ||
+                                 _manufakturPlaylists.Any(p => p.Id == _activeManufakturPlaylistId);
+
+            if (!currentExists || (_activeManufakturPlaylistId == "all" && _manufakturPlaylists.Count > 0 && _activeManufakturTrack == null))
+            {
+                var favPl = _manufakturPlaylists.FirstOrDefault(p => p.Name.Contains("Lieblingssongs", StringComparison.OrdinalIgnoreCase))
+                            ?? _manufakturPlaylists.FirstOrDefault();
+                _activeManufakturPlaylistId = favPl?.Id ?? "all";
+            }
+
+            SyncManufakturNowPlayingDeck();
             RenderManufakturLibrary();
             UpdateManufakturCacheLabel();
         }
 
-        private static HashSet<string> LoadLocalFavoriteIds(string cacheDir)
+        private static HashSet<string> LoadLocalFavoriteIds(string cacheDir, out long updatedUnixTs)
         {
+            updatedUnixTs = 0;
             try
             {
                 string f = Path.Combine(cacheDir, "favorites_local.json");
                 if (File.Exists(f))
                 {
-                    var arr = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(f, Encoding.UTF8));
-                    if (arr != null) return new HashSet<string>(arr, StringComparer.OrdinalIgnoreCase);
+                    string raw = File.ReadAllText(f, Encoding.UTF8);
+                    using var doc = JsonDocument.Parse(raw);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        var arr = JsonSerializer.Deserialize<List<string>>(raw);
+                        if (arr != null) return new HashSet<string>(arr, StringComparer.OrdinalIgnoreCase);
+                    }
+                    else if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                    {
+                        if (doc.RootElement.TryGetProperty("ts", out var tsP) && tsP.TryGetInt64(out long ts))
+                            updatedUnixTs = ts;
+                        if (doc.RootElement.TryGetProperty("ids", out var idsP) && idsP.ValueKind == JsonValueKind.Array)
+                        {
+                            var arr = JsonSerializer.Deserialize<List<string>>(idsP.GetRawText());
+                            if (arr != null) return new HashSet<string>(arr, StringComparer.OrdinalIgnoreCase);
+                        }
+                    }
                 }
             }
             catch { }
@@ -272,24 +803,30 @@ namespace FunkenwerkPlayer
         {
             try
             {
-                string f = Path.Combine(GetMusicCacheDirectory(), "favorites_local.json");
-                var ids = _allManufakturTracks.Where(t => t.IsFavorite).Select(t => t.Id).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                File.WriteAllText(f, JsonSerializer.Serialize(ids), Encoding.UTF8);
+                _localFavSyncTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                string f = Path.Combine(GetActiveMusicCacheDirectory(), "favorites_local.json");
+                var ids = _allManufakturTracks
+                    .Where(t => t.IsFavorite)
+                    .Select(t => t.Id)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                string payload = JsonSerializer.Serialize(new { ts = _localFavSyncTimestamp, ids });
+                File.WriteAllText(f, payload, Encoding.UTF8);
             }
             catch { }
         }
 
-        private List<MusicTrackDto> GetFilteredManufakturTracks()
+        private List<MusicTrackDto> GetTracksForPlaylistId(string playlistId, string? searchOverride = null)
         {
             IEnumerable<MusicTrackDto> list = _allManufakturTracks;
-            if (_activeManufakturPlaylistId == "favorites")
+            if (playlistId == "favorites")
                 list = list.Where(t => t.IsFavorite);
-            else if (_activeManufakturPlaylistId != "all")
-                list = list.Where(t => t.PlaylistId == _activeManufakturPlaylistId);
+            else if (playlistId != "all")
+                list = list.Where(t => t.PlaylistId == playlistId);
 
-            if (!string.IsNullOrWhiteSpace(_manufakturSearchQuery))
+            string q = (searchOverride ?? _manufakturSearchQuery).Trim();
+            if (!string.IsNullOrWhiteSpace(q))
             {
-                string q = _manufakturSearchQuery.Trim();
                 list = list.Where(t =>
                     t.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                     (!string.IsNullOrWhiteSpace(t.Artist) && t.Artist.Contains(q, StringComparison.OrdinalIgnoreCase)));
@@ -297,41 +834,73 @@ namespace FunkenwerkPlayer
             return list.OrderBy(t => t.Position).ToList();
         }
 
+        private List<MusicTrackDto> GetFilteredManufakturTracks()
+            => GetTracksForPlaylistId(_activeManufakturPlaylistId);
+
+        // =====================================================================
+        // 3-TIER TRACK RESOLUTION & PRE-CACHE (MusicCache -> WSL Storage -> API)
+        // =====================================================================
         private string? ResolveCachedTrackFile(MusicTrackDto track)
         {
-            string dir = GetMusicCacheDirectory();
-            return TryResolveSafeMusicCacheTrackPath(dir, track.Id)
-                   ?? TryResolveSafeMusicCacheTrackPath(dir, track.ExternalId);
-        }
-
-        private async Task<string?> EnsureManufakturTrackCachedAsync(MusicTrackDto track)
-        {
-            string? existing = ResolveCachedTrackFile(track);
-            if (!string.IsNullOrEmpty(existing) && new FileInfo(existing).Length > 1024)
+            if (!string.IsNullOrWhiteSpace(track.LocalFilePath) && IsValidAudioFile(track.LocalFilePath))
             {
-                return existing;
+                return track.LocalFilePath;
             }
 
-            if (!SafeCacheIdRegex.IsMatch(track.Id)) return null;
-            string targetPath = Path.Combine(GetMusicCacheDirectory(), $"{track.Id}.m4a");
+            string dir = GetActiveMusicCacheDirectory();
+            foreach (string ext in new[] { ".m4a", ".wav", ".mp3", ".flac", ".ogg" })
+            {
+                string? byId = TryResolveSafeAudioFileInDir(dir, track.Id, ext);
+                if (byId != null && IsValidAudioFile(byId)) return byId;
+
+                string? byExtId = TryResolveSafeAudioFileInDir(dir, track.ExternalId, ext);
+                if (byExtId != null && IsValidAudioFile(byExtId)) return byExtId;
+            }
+
+            return null;
+        }
+
+        private string? TryFindLocalWslSourceTrack(MusicTrackDto track)
+        {
+            if (_customMusicCacheDirOverride != null) return null;
+            string? wslRoot = TryGetLocalWslMusicRoot();
+            if (string.IsNullOrWhiteSpace(wslRoot)) return null;
+
+            string tracksDir = Path.Combine(wslRoot, "tracks");
+            if (!Directory.Exists(tracksDir)) return null;
+
+            string? p1 = TryResolveSafeAudioFileInDir(tracksDir, track.ExternalId, ".m4a");
+            if (p1 != null && IsValidAudioFile(p1)) return p1;
+
+            string? p2 = TryResolveSafeAudioFileInDir(tracksDir, track.Id, ".m4a");
+            if (p2 != null && IsValidAudioFile(p2)) return p2;
+
+            return null;
+        }
+
+        private bool IsTrackAvailableLocallyOrOnWsl(MusicTrackDto track, out string? directCachePath)
+        {
+            directCachePath = ResolveCachedTrackFile(track);
+            if (directCachePath != null) return true;
+            return TryFindLocalWslSourceTrack(track) != null;
+        }
+
+        private static string? TryResolveSafeAudioFileInDir(string baseDir, string? rawId, string extensionWithDot)
+        {
+            if (string.IsNullOrWhiteSpace(baseDir) || string.IsNullOrWhiteSpace(rawId)) return null;
+            if (!SafeCacheIdRegex.IsMatch(rawId)) return null;
 
             try
             {
-                var session = FunkenwerkSharedSession.Load();
-                string baseUrl = string.IsNullOrWhiteSpace(session.ApiBaseUrl) ? "http://127.0.0.1/api" : session.ApiBaseUrl.TrimEnd('/');
-                using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/funki/music/stream/{track.Id}");
-                if (!string.IsNullOrWhiteSpace(session.BearerToken))
-                {
-                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.BearerToken);
-                }
-                using var resp = await _musicHttp.SendAsync(req);
-                if (!resp.IsSuccessStatusCode) return null;
-
-                byte[] bytes = await resp.Content.ReadAsByteArrayAsync();
-                if (bytes.Length <= 1024) return null;
-                await File.WriteAllBytesAsync(targetPath, bytes);
-                UpdateManufakturCacheLabel();
-                return targetPath;
+                string fullBase = Path.GetFullPath(baseDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string candidate = Path.GetFullPath(Path.Combine(fullBase, rawId + extensionWithDot));
+                if (!candidate.StartsWith(fullBase + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                    return null;
+                if (!File.Exists(candidate))
+                    return null;
+                if ((File.GetAttributes(candidate) & FileAttributes.ReparsePoint) != 0)
+                    return null;
+                return candidate;
             }
             catch
             {
@@ -339,6 +908,654 @@ namespace FunkenwerkPlayer
             }
         }
 
+        private async Task<string?> EnsureManufakturTrackCachedAsync(MusicTrackDto track, CancellationToken ct = default)
+        {
+            // Tier 1: Already in Windows NTFS MusicCache or Local PC Music
+            string? existing = ResolveCachedTrackFile(track);
+            if (!string.IsNullOrEmpty(existing))
+            {
+                return existing;
+            }
+
+            string cacheKey = !string.IsNullOrWhiteSpace(track.ExternalId) && SafeCacheIdRegex.IsMatch(track.ExternalId)
+                ? track.ExternalId
+                : track.Id;
+            if (!SafeCacheIdRegex.IsMatch(cacheKey)) return null;
+
+            string cacheDir = GetActiveMusicCacheDirectory();
+            string targetPath = Path.Combine(cacheDir, $"{cacheKey}.m4a");
+
+            // Tier 2: Instant atomic copy from local Seelenfunke WSL storage/app/leitung/music/tracks/ (< 10 ms!)
+            string? wslSource = TryFindLocalWslSourceTrack(track);
+            if (!string.IsNullOrEmpty(wslSource))
+            {
+                string tmpCopy = targetPath + ".tmp_" + Guid.NewGuid().ToString("N").Substring(0, 6);
+                try
+                {
+                    await Task.Run(() =>
+                    {
+                        File.Copy(wslSource, tmpCopy, overwrite: true);
+                        File.Move(tmpCopy, targetPath, overwrite: true);
+                    }, ct);
+
+                    if (IsValidAudioFile(targetPath))
+                    {
+                        UpdateManufakturCacheLabel();
+                        return targetPath;
+                    }
+                }
+                catch { }
+                finally
+                {
+                    try { if (File.Exists(tmpCopy)) File.Delete(tmpCopy); } catch { }
+                }
+            }
+
+            // Tier 3: Multi-endpoint authenticated HTTP stream (/funki/music/stream/{id}) with container validation
+            if (!SafeCacheIdRegex.IsMatch(track.Id)) return null;
+            foreach (var (baseUrl, token) in GetCandidateEndpointsAndTokens())
+            {
+                string tmpDl = targetPath + ".dl_" + Guid.NewGuid().ToString("N").Substring(0, 6);
+                try
+                {
+                    using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/funki/music/stream/{track.Id}");
+                    if (!string.IsNullOrWhiteSpace(token))
+                    {
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    }
+
+                    using var resp = await _musicHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                    if (!resp.IsSuccessStatusCode) continue;
+
+                    string mediaType = resp.Content.Headers.ContentType?.MediaType ?? "";
+                    if (mediaType.Contains("html", StringComparison.OrdinalIgnoreCase) ||
+                        mediaType.Contains("json", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    await using (var netStream = await resp.Content.ReadAsStreamAsync(ct))
+                    await using (var fs = new FileStream(tmpDl, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        await netStream.CopyToAsync(fs, ct);
+                    }
+
+                    if (!IsValidAudioFile(tmpDl, minBytes: 4096))
+                    {
+                        try { File.Delete(tmpDl); } catch { }
+                        continue;
+                    }
+
+                    File.Move(tmpDl, targetPath, overwrite: true);
+                    UpdateManufakturCacheLabel();
+                    return targetPath;
+                }
+                catch (OperationCanceledException)
+                {
+                    try { if (File.Exists(tmpDl)) File.Delete(tmpDl); } catch { }
+                    throw;
+                }
+                catch
+                {
+                    try { if (File.Exists(tmpDl)) File.Delete(tmpDl); } catch { }
+                }
+            }
+
+            return null;
+        }
+
+        private void StartBackgroundPreCacheNextTracks(MusicTrackDto currentTrack, List<MusicTrackDto> queue, int count = 3)
+        {
+            if (_customMusicCacheDirOverride != null || queue.Count <= 1) return;
+
+            try { _preCacheCts?.Cancel(); } catch { }
+            _preCacheCts = new CancellationTokenSource();
+            var ct = _preCacheCts.Token;
+
+            int curIdx = queue.FindIndex(t => t.Id == currentTrack.Id);
+            if (curIdx < 0) curIdx = 0;
+
+            var upcoming = new List<MusicTrackDto>();
+            for (int offset = 1; offset <= count && offset < queue.Count; offset++)
+            {
+                upcoming.Add(queue[(curIdx + offset) % queue.Count]);
+            }
+
+            _ = Task.Run(async () =>
+            {
+                foreach (var nextTrack in upcoming)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    try
+                    {
+                        if (ResolveCachedTrackFile(nextTrack) == null)
+                        {
+                            await EnsureManufakturTrackCachedAsync(nextTrack, ct);
+                        }
+                    }
+                    catch { }
+                }
+            }, ct);
+        }
+
+        // =====================================================================
+        // STUDIO NOW-PLAYING DECK & ANDROID-PARITY PLAYLIST/QUEUE ENGINE
+        // =====================================================================
+        private void SyncManufakturNowPlayingDeck(string? statusOverride = null, bool isError = false)
+        {
+            if (ManufakturNowTitleTxt == null || ManufakturNowArtistTxt == null || ManufakturStatusLineTxt == null)
+                return;
+
+            if (_activeManufakturTrack != null)
+            {
+                ManufakturNowTitleTxt.Text = _activeManufakturTrack.Title;
+                ManufakturNowArtistTxt.Text = !string.IsNullOrWhiteSpace(_activeManufakturTrack.Artist)
+                    ? _activeManufakturTrack.Artist!
+                    : "Mein Seelenfunke";
+
+                if (ManufakturCurrentFavBtn != null)
+                {
+                    ManufakturCurrentFavBtn.Content = _activeManufakturTrack.IsFavorite ? "♥" : "♡";
+                    ManufakturCurrentFavBtn.Foreground = BrushFromHex(_activeManufakturTrack.IsFavorite ? "#C5A059" : "#9CA3AF");
+                }
+
+                if (!string.IsNullOrWhiteSpace(statusOverride))
+                {
+                    ManufakturStatusLineTxt.Text = statusOverride;
+                    ManufakturStatusLineTxt.Foreground = BrushFromHex(isError ? "#F87171" : "#C5A059");
+                }
+                else
+                {
+                    string modeBadge = _isShuffleEnabled ? " · Zufall" : (_isLoopEnabled ? " · Repeat" : "");
+                    ManufakturStatusLineTxt.Text = _isPlaying
+                        ? $"▶ Spielt jetzt{modeBadge}"
+                        : $"❚❚ Pausiert{modeBadge}";
+                    ManufakturStatusLineTxt.Foreground = BrushFromHex(_isPlaying ? "#34D399" : "#9CA3AF");
+                }
+            }
+            else
+            {
+                ManufakturNowTitleTxt.Text = "Kein Song ausgewählt";
+                ManufakturNowArtistTxt.Text = _allManufakturTracks.Count > 0
+                    ? $"{_allManufakturTracks.Count} Songs bereit"
+                    : "Bibliothek wird geladen";
+                ManufakturStatusLineTxt.Text = !string.IsNullOrWhiteSpace(statusOverride)
+                    ? statusOverride
+                    : "⚡ Klicke links eine Playlist oder einen Song";
+                ManufakturStatusLineTxt.Foreground = BrushFromHex(isError ? "#F87171" : "#34D399");
+
+                if (ManufakturCurrentFavBtn != null)
+                {
+                    ManufakturCurrentFavBtn.Content = "♡";
+                    ManufakturCurrentFavBtn.Foreground = BrushFromHex("#9CA3AF");
+                }
+            }
+
+            UpdateDynamicControlBrushes();
+        }
+
+        public async Task SelectManufakturPlaylistAsync(string playlistId, bool autoPlayRandom = true)
+        {
+            _activeManufakturPlaylistId = string.IsNullOrWhiteSpace(playlistId) ? "all" : playlistId;
+            if (_playerMode != "playlists")
+            {
+                SwitchPlayerMode("playlists");
+            }
+
+            var tracks = GetFilteredManufakturTracks();
+            if (tracks.Count == 0 && !string.IsNullOrWhiteSpace(_manufakturSearchQuery))
+            {
+                _manufakturSearchQuery = "";
+                if (ManufakturSearchBox != null) ManufakturSearchBox.Text = "";
+                tracks = GetFilteredManufakturTracks();
+            }
+
+            RenderManufakturLibrary();
+            SyncManufakturNowPlayingDeck();
+
+            if (!autoPlayRandom) return;
+
+            if (tracks.Count == 0)
+            {
+                ShowOsdToast("ℹ Keine Songs in dieser Playlist");
+                SyncManufakturNowPlayingDeck("Keine Songs in dieser Auswahl", isError: false);
+                return;
+            }
+
+            // 1:1 Android selectPlaylist: pick a random playable song from the clicked playlist and start immediately!
+            var locallyReady = tracks.Where(t => IsTrackAvailableLocallyOrOnWsl(t, out _)).ToList();
+            var pool = locallyReady.Count > 0 ? locallyReady : tracks;
+            var chosen = pool[_vizRng.Next(pool.Count)];
+
+            await PlayManufakturTrackFromQueueAsync(chosen, tracks, retryDepth: 0);
+        }
+
+        public async Task StartOrResumeManufakturPlaybackAsync()
+        {
+            if (_activeManufakturTrack != null && !string.IsNullOrWhiteSpace(_currentFilePath))
+            {
+                TogglePlayPause();
+                return;
+            }
+
+            var tracks = _currentManufakturQueue.Count > 0
+                ? _currentManufakturQueue.ToList()
+                : GetFilteredManufakturTracks();
+
+            if (tracks.Count == 0) tracks = _allManufakturTracks.ToList();
+            if (tracks.Count == 0)
+            {
+                ShowOsdToast("⚠ Keine Songs in der Musikbibliothek");
+                return;
+            }
+
+            var pool = tracks.Where(t => IsTrackAvailableLocallyOrOnWsl(t, out _)).ToList();
+            if (pool.Count == 0) pool = tracks;
+            var startTrack = _isShuffleEnabled ? pool[_vizRng.Next(pool.Count)] : pool[0];
+
+            await PlayManufakturTrackFromQueueAsync(startTrack, tracks, retryDepth: 0);
+        }
+
+        public async Task PlayManufakturTrackFromQueueAsync(MusicTrackDto track, List<MusicTrackDto> queue, int retryDepth = 0)
+        {
+            if (queue == null || queue.Count == 0)
+            {
+                queue = new List<MusicTrackDto> { track };
+            }
+
+            _isManufakturPlaybackActive = true;
+            _activeManufakturTrack = track;
+            _currentManufakturQueue.Clear();
+            _currentManufakturQueue.AddRange(queue);
+
+            SyncManufakturNowPlayingDeck($"⏳ Lade \"{track.Title}\"...");
+            RenderManufakturLibrary();
+
+            string? localFile = await EnsureManufakturTrackCachedAsync(track);
+            if (string.IsNullOrEmpty(localFile) || !File.Exists(localFile))
+            {
+                if (retryDepth < 8 && queue.Count > 1)
+                {
+                    var fallback = FindNextPlayableCandidate(track, queue);
+                    if (fallback != null && !string.Equals(fallback.Id, track.Id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        await PlayManufakturTrackFromQueueAsync(fallback, queue, retryDepth + 1);
+                        return;
+                    }
+                }
+
+                SyncManufakturNowPlayingDeck("⚠ Song konnte weder lokal noch vom Server geladen werden", isError: true);
+                ShowOsdToast("⚠ Song aktuell nicht verfügbar");
+                return;
+            }
+
+            string label = !string.IsNullOrWhiteSpace(track.Artist) ? $"{track.Artist} · {track.Title}" : track.Title;
+            _trackDisplayTitles[localFile] = label;
+
+            _playlist.Clear();
+            _playlist.Add(localFile);
+
+            RenderPlaylistUI();
+            PlayIndex(0);
+
+            SyncManufakturNowPlayingDeck();
+            SyncFocusOverlayLabels();
+            RenderManufakturLibrary();
+
+            StartBackgroundPreCacheNextTracks(track, _currentManufakturQueue, count: 3);
+        }
+
+        private MusicTrackDto? FindNextPlayableCandidate(MusicTrackDto current, List<MusicTrackDto> queue)
+        {
+            if (queue.Count == 0) return null;
+            int idx = queue.FindIndex(t => string.Equals(t.Id, current.Id, StringComparison.OrdinalIgnoreCase));
+            if (idx < 0) idx = 0;
+
+            for (int step = 1; step < queue.Count; step++)
+            {
+                var cand = queue[(idx + step) % queue.Count];
+                if (IsTrackAvailableLocallyOrOnWsl(cand, out _))
+                    return cand;
+            }
+            return queue[(idx + 1) % queue.Count];
+        }
+
+        public async Task PlayNextManufakturTrackAsync()
+        {
+            var queue = _currentManufakturQueue.Count > 0
+                ? _currentManufakturQueue.ToList()
+                : GetFilteredManufakturTracks();
+
+            if (queue.Count == 0) return;
+
+            MusicTrackDto nextTrack;
+            if (_activeManufakturTrack == null)
+            {
+                nextTrack = _isShuffleEnabled ? queue[_vizRng.Next(queue.Count)] : queue[0];
+            }
+            else if (_isShuffleEnabled && queue.Count > 1)
+            {
+                int curIdx = queue.FindIndex(t => string.Equals(t.Id, _activeManufakturTrack.Id, StringComparison.OrdinalIgnoreCase));
+                int rand = _vizRng.Next(queue.Count - 1);
+                if (curIdx >= 0 && rand >= curIdx) rand++;
+                nextTrack = queue[rand];
+            }
+            else
+            {
+                int curIdx = queue.FindIndex(t => string.Equals(t.Id, _activeManufakturTrack.Id, StringComparison.OrdinalIgnoreCase));
+                int nextIdx = curIdx >= 0 ? (curIdx + 1) % queue.Count : 0;
+                nextTrack = queue[nextIdx];
+            }
+
+            await PlayManufakturTrackFromQueueAsync(nextTrack, queue, retryDepth: 0);
+        }
+
+        public async Task PlayPreviousManufakturTrackAsync()
+        {
+            var queue = _currentManufakturQueue.Count > 0
+                ? _currentManufakturQueue.ToList()
+                : GetFilteredManufakturTracks();
+
+            if (queue.Count == 0) return;
+
+            int curIdx = _activeManufakturTrack != null
+                ? queue.FindIndex(t => string.Equals(t.Id, _activeManufakturTrack.Id, StringComparison.OrdinalIgnoreCase))
+                : -1;
+
+            int prevIdx = curIdx >= 0 ? (curIdx - 1 + queue.Count) % queue.Count : queue.Count - 1;
+            await PlayManufakturTrackFromQueueAsync(queue[prevIdx], queue, retryDepth: 0);
+        }
+
+        public async Task HandleManufakturMediaFailedFallbackAsync()
+        {
+            if (_activeManufakturTrack == null || _currentManufakturQueue.Count <= 1) return;
+            var next = FindNextPlayableCandidate(_activeManufakturTrack, _currentManufakturQueue);
+            if (next != null)
+            {
+                await PlayManufakturTrackFromQueueAsync(next, _currentManufakturQueue.ToList(), retryDepth: 1);
+            }
+        }
+
+        public void ToggleManufakturShuffle()
+        {
+            _isShuffleEnabled = !_isShuffleEnabled;
+            UpdateDynamicControlBrushes();
+            SyncManufakturNowPlayingDeck();
+            ShowOsdToast(_isShuffleEnabled ? "🔀 Zufallswiedergabe Aktiv" : "🔀 Reihenfolge normal");
+        }
+
+        public void ToggleManufakturFavorite(MusicTrackDto track)
+        {
+            bool targetState = !track.IsFavorite;
+            track.IsFavorite = targetState;
+
+            foreach (var item in _allManufakturTracks)
+            {
+                if (string.Equals(item.Id, track.Id, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrWhiteSpace(track.ExternalId) && string.Equals(item.ExternalId, track.ExternalId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    item.IsFavorite = targetState;
+                }
+            }
+
+            SaveLocalFavoriteIds();
+            SyncManufakturNowPlayingDeck();
+            RenderManufakturLibrary();
+            ShowOsdToast(targetState ? $"♥ Favorit: {track.Title}" : $"♡ Entfernt: {track.Title}");
+
+            if (_customMusicCacheDirOverride == null && !track.Id.StartsWith("pc_", StringComparison.OrdinalIgnoreCase))
+            {
+                _ = SyncFavoriteToBackendAsync(track);
+            }
+        }
+
+        private async Task SyncFavoriteToBackendAsync(MusicTrackDto track)
+        {
+            long snapTs = _localFavSyncTimestamp > 0 ? _localFavSyncTimestamp : DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var favPrefixes = _allManufakturTracks
+                .Where(t => t.IsFavorite && !t.Id.StartsWith("pc_", StringComparison.OrdinalIgnoreCase))
+                .Select(t => t.Id.Length >= 8 ? t.Id.Substring(0, 8) : t.Id)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            string syncMarker = $"fav_sync:v1:{snapTs}:{string.Join(",", favPrefixes)}";
+
+            foreach (var (baseUrl, token) in GetCandidateEndpointsAndTokens())
+            {
+                if (string.IsNullOrWhiteSpace(token)) continue;
+                try
+                {
+                    if (SafeCacheIdRegex.IsMatch(track.Id))
+                    {
+                        using var favReq = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/funki/music/tracks/{track.Id}/favorite");
+                        favReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                        favReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        favReq.Content = new StringContent(JsonSerializer.Serialize(new { is_favorite = track.IsFavorite }), Encoding.UTF8, "application/json");
+                        using var favResp = await _musicHttp.SendAsync(favReq);
+
+                        // Also push Android-compatible __FUNKENWERK_FAV_SYNC__ snapshot
+                        using var plReq = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/funki/music/playlists");
+                        plReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                        plReq.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        plReq.Content = new StringContent(JsonSerializer.Serialize(new
+                        {
+                            name = FavSyncPlaylistName,
+                            description = syncMarker
+                        }), Encoding.UTF8, "application/json");
+                        using var plResp = await _musicHttp.SendAsync(plReq);
+
+                        if (favResp.IsSuccessStatusCode) return;
+                    }
+                }
+                catch { }
+            }
+        }
+
+        // =====================================================================
+        // YOUTUBE SONG / PLAYLIST IMPORTER & PLAYLIST CREATION (1:1 Android)
+        // =====================================================================
+        private static bool LooksLikeMusicImportUrl(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+            return raw.Contains("http://", StringComparison.OrdinalIgnoreCase) ||
+                   raw.Contains("https://", StringComparison.OrdinalIgnoreCase) ||
+                   raw.Contains("youtube.com", StringComparison.OrdinalIgnoreCase) ||
+                   raw.Contains("youtu.be", StringComparison.OrdinalIgnoreCase) ||
+                   raw.Contains("music.youtube", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void ManufakturImportInputBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            string val = ManufakturImportInputBox?.Text ?? "";
+            if (ManufakturImportPlaceholderTxt != null)
+            {
+                ManufakturImportPlaceholderTxt.Visibility = string.IsNullOrEmpty(val) ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (ManufakturImportBtn != null)
+            {
+                bool isUrl = string.IsNullOrWhiteSpace(val) || LooksLikeMusicImportUrl(val);
+                ManufakturImportBtn.Content = isUrl ? "⬇ Import" : "＋ Playlist";
+            }
+        }
+
+        private void ManufakturImportInputBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                ManufakturImportOrCreate_Click(sender, new RoutedEventArgs());
+            }
+        }
+
+        private async void ManufakturImportOrCreate_Click(object sender, RoutedEventArgs e)
+        {
+            string raw = (ManufakturImportInputBox?.Text ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                ShowOsdToast("ℹ Bitte YouTube-Link oder Playlist-Namen eingeben");
+                return;
+            }
+
+            if (ManufakturImportBtn != null) ManufakturImportBtn.IsEnabled = false;
+            try
+            {
+                if (LooksLikeMusicImportUrl(raw))
+                {
+                    await SubmitMusicUrlImportAsync(raw);
+                }
+                else
+                {
+                    await CreateNewManufakturPlaylistAsync(raw);
+                }
+            }
+            finally
+            {
+                if (ManufakturImportBtn != null) ManufakturImportBtn.IsEnabled = true;
+            }
+        }
+
+        private async Task CreateNewManufakturPlaylistAsync(string playlistName)
+        {
+            foreach (var (baseUrl, token) in GetCandidateEndpointsAndTokens())
+            {
+                try
+                {
+                    using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/funki/music/playlists");
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (!string.IsNullOrWhiteSpace(token))
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    req.Content = new StringContent(JsonSerializer.Serialize(new { name = playlistName }), Encoding.UTF8, "application/json");
+
+                    using var resp = await _musicHttp.SendAsync(req);
+                    if (!resp.IsSuccessStatusCode) continue;
+
+                    if (ManufakturImportInputBox != null) ManufakturImportInputBox.Text = "";
+                    await SyncManufakturPlaylistsOnlineAsync();
+
+                    var created = _manufakturPlaylists.FirstOrDefault(p => p.Name.Equals(playlistName, StringComparison.OrdinalIgnoreCase));
+                    if (created != null)
+                    {
+                        _activeManufakturPlaylistId = created.Id;
+                        RenderManufakturLibrary();
+                    }
+                    ShowOsdToast($"✓ Playlist \"{playlistName}\" erstellt");
+                    return;
+                }
+                catch { }
+            }
+
+            ShowOsdToast("⚠ Playlist konnte nicht erstellt werden (Anmeldung prüfen)");
+        }
+
+        private async Task SubmitMusicUrlImportAsync(string url)
+        {
+            string? targetPlId = (_activeManufakturPlaylistId != "all" &&
+                                  _activeManufakturPlaylistId != "favorites" &&
+                                  _activeManufakturPlaylistId != LocalPcPlaylistId &&
+                                  _activeManufakturPlaylistId != LocalOrphanPlaylistId)
+                ? _activeManufakturPlaylistId
+                : null;
+
+            foreach (var (baseUrl, token) in GetCandidateEndpointsAndTokens())
+            {
+                try
+                {
+                    using var req = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/funki/music/import-url");
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (!string.IsNullOrWhiteSpace(token))
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                    req.Content = new StringContent(JsonSerializer.Serialize(new { url, playlist_id = targetPlId }), Encoding.UTF8, "application/json");
+
+                    using var resp = await _musicHttp.SendAsync(req);
+                    if (!resp.IsSuccessStatusCode) continue;
+
+                    if (ManufakturImportInputBox != null) ManufakturImportInputBox.Text = "";
+                    if (ManufakturImportProgressCard != null)
+                    {
+                        ManufakturImportLabelTxt.Text = "Import gestartet...";
+                        ManufakturImportPctTxt.Text = "5 %";
+                        ManufakturImportProgressBar.Value = 5;
+                        ManufakturImportSubTxt.Text = url;
+                        ManufakturImportProgressCard.Visibility = Visibility.Visible;
+                    }
+
+                    StartImportProgressPolling(baseUrl, token);
+                    ShowOsdToast("⬇ Musik-Import gestartet");
+                    return;
+                }
+                catch { }
+            }
+
+            ShowOsdToast("⚠ Import fehlgeschlagen (Server/Login prüfen)");
+        }
+
+        private void StartImportProgressPolling(string baseUrl, string token)
+        {
+            _importPollTimer?.Stop();
+            int idleTicks = 0;
+            _importPollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+            _importPollTimer.Tick += async (_, _) =>
+            {
+                try
+                {
+                    using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/funki/music/import-status");
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (!string.IsNullOrWhiteSpace(token))
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                    using var resp = await _musicHttp.SendAsync(req);
+                    if (!resp.IsSuccessStatusCode) return;
+
+                    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                    var root = doc.RootElement.TryGetProperty("data", out var d) ? d : doc.RootElement;
+
+                    string status = root.TryGetProperty("status", out var st) && st.ValueKind == JsonValueKind.String
+                        ? (st.GetString() ?? "") : "";
+                    int pct = root.TryGetProperty("percent", out var pc) && pc.TryGetInt32(out int pVal)
+                        ? Math.Clamp(pVal, 0, 100) : 0;
+                    string msg = root.TryGetProperty("message", out var mg) && mg.ValueKind == JsonValueKind.String
+                        ? (mg.GetString() ?? "") : "";
+                    string curTitle = root.TryGetProperty("current_title", out var ct) && ct.ValueKind == JsonValueKind.String
+                        ? (ct.GetString() ?? "") : "";
+
+                    if (ManufakturImportProgressCard != null)
+                    {
+                        ManufakturImportProgressCard.Visibility = Visibility.Visible;
+                        ManufakturImportLabelTxt.Text = !string.IsNullOrWhiteSpace(msg) ? msg : "Importiere Songs...";
+                        ManufakturImportPctTxt.Text = $"{pct} %";
+                        ManufakturImportProgressBar.Value = pct;
+                        ManufakturImportSubTxt.Text = curTitle;
+                    }
+
+                    bool isFinished = status.Equals("completed", StringComparison.OrdinalIgnoreCase) ||
+                                      status.Equals("done", StringComparison.OrdinalIgnoreCase) ||
+                                      status.Equals("idle", StringComparison.OrdinalIgnoreCase) ||
+                                      status.Equals("error", StringComparison.OrdinalIgnoreCase) ||
+                                      pct >= 100;
+
+                    if (isFinished)
+                    {
+                        idleTicks++;
+                        if (idleTicks >= 1)
+                        {
+                            _importPollTimer?.Stop();
+                            LoadManufakturPlaylistsFromDisk();
+                            await SyncManufakturPlaylistsOnlineAsync();
+                            if (ManufakturImportProgressCard != null)
+                                ManufakturImportProgressCard.Visibility = Visibility.Collapsed;
+                            ShowOsdToast(status.Equals("error", StringComparison.OrdinalIgnoreCase)
+                                ? "⚠ Import mit Hinweis beendet"
+                                : "✓ Musik-Import abgeschlossen");
+                        }
+                    }
+                }
+                catch { }
+            };
+            _importPollTimer.Start();
+        }
+
+        // =====================================================================
+        // LIBRARY RENDERER (SIDEBAR + TRACK ROWS)
+        // =====================================================================
         private void RenderManufakturLibrary()
         {
             if (ManufakturPlaylistsStack == null || ManufakturTracksStack == null) return;
@@ -363,15 +1580,17 @@ namespace FunkenwerkPlayer
                     CornerRadius = new CornerRadius(9),
                     Padding = new Thickness(11, 8, 11, 8),
                     Margin = new Thickness(0, 0, 0, 4),
-                    Cursor = Cursors.Hand
+                    Cursor = Cursors.Hand,
+                    ToolTip = $"{pl.Name} direkt abspielen"
                 };
                 var g = new Grid();
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+                string icon = pl.Id == LocalPcPlaylistId ? "💻" : (pl.Id == LocalOrphanPlaylistId ? "⚡" : "💿");
                 var nameTxt = new TextBlock
                 {
-                    Text = $"💿  {pl.Name}",
+                    Text = $"{icon}  {pl.Name}",
                     FontSize = 12.5,
                     FontWeight = sel ? FontWeights.Bold : FontWeights.SemiBold,
                     Foreground = BrushFromHex(sel ? "#C5A059" : "#F9FAFB"),
@@ -382,7 +1601,7 @@ namespace FunkenwerkPlayer
                     Text = (pl.Tracks?.Count ?? 0).ToString(),
                     FontSize = 11,
                     FontWeight = FontWeights.Bold,
-                    Foreground = BrushFromHex("#9CA3AF"),
+                    Foreground = BrushFromHex(sel ? "#C5A059" : "#9CA3AF"),
                     Margin = new Thickness(8, 0, 0, 0)
                 };
                 Grid.SetColumn(nameTxt, 0);
@@ -392,11 +1611,7 @@ namespace FunkenwerkPlayer
                 bd.Child = g;
 
                 var capturedPl = pl;
-                bd.MouseLeftButtonUp += (_, _) =>
-                {
-                    _activeManufakturPlaylistId = capturedPl.Id;
-                    RenderManufakturLibrary();
-                };
+                bd.MouseLeftButtonUp += async (_, _) => await SelectManufakturPlaylistAsync(capturedPl.Id, autoPlayRandom: true);
                 ManufakturPlaylistsStack.Children.Add(bd);
             }
 
@@ -412,9 +1627,9 @@ namespace FunkenwerkPlayer
             int pos = 1;
             foreach (var tr in tracks)
             {
-                string? cachedFile = ResolveCachedTrackFile(tr);
-                bool isCurrent = (_activeManufakturTrack != null && _activeManufakturTrack.Id == tr.Id) ||
-                                 (cachedFile != null && string.Equals(_currentFilePath, cachedFile, StringComparison.OrdinalIgnoreCase));
+                bool readyLocally = IsTrackAvailableLocallyOrOnWsl(tr, out string? directCachedFile);
+                bool isCurrent = (_activeManufakturTrack != null && string.Equals(_activeManufakturTrack.Id, tr.Id, StringComparison.OrdinalIgnoreCase)) ||
+                                 (directCachedFile != null && string.Equals(_currentFilePath, directCachedFile, StringComparison.OrdinalIgnoreCase));
 
                 var row = new Border
                 {
@@ -465,19 +1680,19 @@ namespace FunkenwerkPlayer
                 Grid.SetColumn(info, 1);
                 g.Children.Add(info);
 
-                if (cachedFile != null)
+                if (readyLocally)
                 {
                     var badge = new Border
                     {
-                        Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#142921")),
+                        Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#142921" : "#DCFCE7")),
                         CornerRadius = new CornerRadius(5),
                         Padding = new Thickness(6, 2, 6, 2),
                         Margin = new Thickness(8, 0, 8, 0),
                         VerticalAlignment = VerticalAlignment.Center,
                         Child = new TextBlock
                         {
-                            Text = "⚡ Lokal",
-                            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#34D399")),
+                            Text = directCachedFile != null ? "⚡ Lokal" : "⚡ Bereit",
+                            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_isDarkMode ? "#34D399" : "#15803D")),
                             FontSize = 9.5,
                             FontWeight = FontWeights.Bold
                         }
@@ -513,59 +1728,30 @@ namespace FunkenwerkPlayer
                 favBtn.Click += (_, ev) =>
                 {
                     ev.Handled = true;
-                    capturedTrack.IsFavorite = !capturedTrack.IsFavorite;
-                    SaveLocalFavoriteIds();
-                    RenderManufakturLibrary();
+                    ToggleManufakturFavorite(capturedTrack);
                 };
                 Grid.SetColumn(favBtn, 4);
                 g.Children.Add(favBtn);
 
                 var capturedList = tracks;
-                row.MouseLeftButtonUp += async (_, _) => await PlayManufakturTrackFromQueueAsync(capturedTrack, capturedList);
+                row.MouseLeftButtonUp += async (_, _) =>
+                {
+                    // 1:1 Android MusicTabContent: clicking the already active track toggles Play/Pause!
+                    if (_activeManufakturTrack != null &&
+                        string.Equals(_activeManufakturTrack.Id, capturedTrack.Id, StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(_currentFilePath))
+                    {
+                        TogglePlayPause();
+                    }
+                    else
+                    {
+                        await PlayManufakturTrackFromQueueAsync(capturedTrack, capturedList, retryDepth: 0);
+                    }
+                };
                 row.Child = g;
                 ManufakturTracksStack.Children.Add(row);
                 pos++;
             }
-        }
-
-        private async Task PlayManufakturTrackFromQueueAsync(MusicTrackDto track, List<MusicTrackDto> queue)
-        {
-            _activeManufakturTrack = track;
-            string? localFile = await EnsureManufakturTrackCachedAsync(track);
-            if (string.IsNullOrEmpty(localFile))
-            {
-                ShowOsdToast("⚠ Song offline noch nicht im lokalen Cache");
-                return;
-            }
-
-            // Build active playlist from all locally cached tracks in this view + current track
-            _playlist.Clear();
-            int targetIdx = 0;
-            foreach (var q in queue)
-            {
-                string? qFile = q.Id == track.Id ? localFile : ResolveCachedTrackFile(q);
-                if (!string.IsNullOrEmpty(qFile))
-                {
-                    string label = !string.IsNullOrWhiteSpace(q.Artist) ? $"{q.Artist} · {q.Title}" : q.Title;
-                    _trackDisplayTitles[qFile] = label;
-                    if (!_playlist.Contains(qFile, StringComparer.OrdinalIgnoreCase))
-                    {
-                        if (q.Id == track.Id) targetIdx = _playlist.Count;
-                        _playlist.Add(qFile);
-                    }
-                }
-            }
-
-            if (_playlist.Count == 0)
-            {
-                _playlist.Add(localFile);
-                targetIdx = 0;
-            }
-
-            RenderPlaylistUI();
-            PlayIndex(targetIdx);
-            SyncFocusOverlayLabels();
-            RenderManufakturLibrary();
         }
 
         private void UpdateManufakturCacheLabel()
@@ -573,38 +1759,64 @@ namespace FunkenwerkPlayer
             if (ManufakturCacheStatusTxt == null) return;
             try
             {
-                string dir = GetMusicCacheDirectory();
+                string dir = GetActiveMusicCacheDirectory();
                 var files = Directory.Exists(dir) ? Directory.GetFiles(dir, "*.m4a") : Array.Empty<string>();
                 double mb = files.Sum(f => new FileInfo(f).Length) / (1024.0 * 1024.0);
-                ManufakturCacheStatusTxt.Text = $"⚡ {files.Length} Songs lokal ({mb:0.0} MB)";
+                if (files.Length > 0)
+                {
+                    ManufakturCacheStatusTxt.Text = $"⚡ {files.Length} Songs im Cache ({mb:0.0} MB)";
+                }
+                else
+                {
+                    string? wslRoot = _customMusicCacheDirOverride == null ? TryGetLocalWslMusicRoot() : null;
+                    int wslCount = (!string.IsNullOrWhiteSpace(wslRoot) && Directory.Exists(Path.Combine(wslRoot, "tracks")))
+                        ? Directory.GetFiles(Path.Combine(wslRoot, "tracks"), "*.m4a").Length
+                        : 0;
+                    ManufakturCacheStatusTxt.Text = wslCount > 0
+                        ? $"⚡ {wslCount} Manufaktur-Songs bereit"
+                        : "⚡ 0 Songs lokal (0.0 MB)";
+                }
             }
             catch { }
         }
 
-        private void SelectManufakturAll_Click(object sender, MouseButtonEventArgs e)
-        {
-            _activeManufakturPlaylistId = "all";
-            RenderManufakturLibrary();
-        }
+        private async void SelectManufakturAll_Click(object sender, MouseButtonEventArgs e)
+            => await SelectManufakturPlaylistAsync("all", autoPlayRandom: true);
 
-        private void SelectManufakturFavorites_Click(object sender, MouseButtonEventArgs e)
+        private async void SelectManufakturFavorites_Click(object sender, MouseButtonEventArgs e)
+            => await SelectManufakturPlaylistAsync("favorites", autoPlayRandom: true);
+
+        private void ManufakturCurrentFav_Click(object sender, RoutedEventArgs e)
         {
-            _activeManufakturPlaylistId = "favorites";
-            RenderManufakturLibrary();
+            if (_activeManufakturTrack != null)
+            {
+                ToggleManufakturFavorite(_activeManufakturTrack);
+            }
         }
 
         private void ManufakturSearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             _manufakturSearchQuery = ManufakturSearchBox.Text ?? "";
+            if (ManufakturSearchPlaceholderTxt != null)
+            {
+                ManufakturSearchPlaceholderTxt.Visibility = string.IsNullOrEmpty(_manufakturSearchQuery)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
             RenderManufakturLibrary();
         }
 
         private async void ManufakturShuffle_Click(object sender, RoutedEventArgs e)
         {
-            var tracks = GetFilteredManufakturTracks();
-            if (tracks.Count == 0) return;
-            var shuffled = tracks.OrderBy(_ => _vizRng.Next()).ToList();
-            await PlayManufakturTrackFromQueueAsync(shuffled[0], shuffled);
+            ToggleManufakturShuffle();
+            if (_isShuffleEnabled && !_isPlaying && _playerMode == "playlists")
+            {
+                var tracks = GetFilteredManufakturTracks();
+                if (tracks.Count > 0)
+                {
+                    await PlayManufakturTrackFromQueueAsync(tracks[_vizRng.Next(tracks.Count)], tracks, retryDepth: 0);
+                }
+            }
         }
 
         private async void ManufakturCacheAll_Click(object sender, RoutedEventArgs e)
@@ -615,14 +1827,17 @@ namespace FunkenwerkPlayer
             try
             {
                 int done = 0;
+                int cachedOk = 0;
                 foreach (var tr in tracks)
                 {
                     done++;
-                    ManufakturCacheStatusTxt.Text = $"⚡ Lade ({done}/{tracks.Count})...";
-                    await EnsureManufakturTrackCachedAsync(tr);
+                    ManufakturCacheStatusTxt.Text = $"⚡ Speichere ({done}/{tracks.Count})...";
+                    string? path = await EnsureManufakturTrackCachedAsync(tr);
+                    if (!string.IsNullOrEmpty(path)) cachedOk++;
                 }
                 RenderManufakturLibrary();
                 UpdateManufakturCacheLabel();
+                ShowOsdToast($"⚡ {cachedOk}/{tracks.Count} Songs offline gespeichert");
             }
             finally
             {
@@ -674,19 +1889,7 @@ namespace FunkenwerkPlayer
         {
             if (startPlaybackIfIdle && !_isPlaying)
             {
-                if (_playlist.Count > 0)
-                {
-                    if (_currentIndex < 0) PlayIndex(0);
-                    else TogglePlayPause();
-                }
-                else
-                {
-                    var tracks = GetFilteredManufakturTracks();
-                    if (tracks.Count > 0)
-                    {
-                        await PlayManufakturTrackFromQueueAsync(tracks[0], tracks);
-                    }
-                }
+                await StartOrResumeManufakturPlaybackAsync();
             }
 
             SyncFocusOverlayLabels();
@@ -828,27 +2031,22 @@ namespace FunkenwerkPlayer
                             {
                                 var matchPl = _manufakturPlaylists.FirstOrDefault(p => p.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
                                 if (matchPl != null)
-                                    _activeManufakturPlaylistId = matchPl.Id;
+                                {
+                                    await SelectManufakturPlaylistAsync(matchPl.Id, autoPlayRandom: true);
+                                }
                                 else
+                                {
                                     _manufakturSearchQuery = query;
-
-                                SwitchPlayerMode("playlists");
-                                var qTracks = GetFilteredManufakturTracks();
-                                if (qTracks.Count > 0)
-                                    await PlayManufakturTrackFromQueueAsync(qTracks[0], qTracks);
+                                    if (ManufakturSearchBox != null) ManufakturSearchBox.Text = query;
+                                    SwitchPlayerMode("playlists");
+                                    var qTracks = GetFilteredManufakturTracks();
+                                    if (qTracks.Count > 0)
+                                        await PlayManufakturTrackFromQueueAsync(qTracks[0], qTracks, retryDepth: 0);
+                                }
                             }
                             else if (!_isPlaying)
                             {
-                                if (_playlist.Count > 0)
-                                {
-                                    if (_currentIndex < 0) PlayIndex(0);
-                                    else TogglePlayPause();
-                                }
-                                else
-                                {
-                                    var tracks = GetFilteredManufakturTracks();
-                                    if (tracks.Count > 0) await PlayManufakturTrackFromQueueAsync(tracks[0], tracks);
-                                }
+                                await StartOrResumeManufakturPlaybackAsync();
                             }
                             break;
                         case "pause":
@@ -858,10 +2056,12 @@ namespace FunkenwerkPlayer
                             TogglePlayPause();
                             break;
                         case "next":
-                            StepNextTrack();
+                            if (_isManufakturPlaybackActive) await PlayNextManufakturTrackAsync();
+                            else StepNextTrack();
                             break;
                         case "prev":
-                            StepPreviousTrack();
+                            if (_isManufakturPlaybackActive) await PlayPreviousManufakturTrackAsync();
+                            else StepPreviousTrack();
                             break;
                         case "volume":
                         case "set_volume":
@@ -879,10 +2079,11 @@ namespace FunkenwerkPlayer
                             }
                             break;
                         case "shuffle":
-                            _isShuffleEnabled = !_isShuffleEnabled;
+                            ToggleManufakturShuffle();
                             break;
                         case "repeat":
                             _isLoopEnabled = !_isLoopEnabled;
+                            UpdateDynamicControlBrushes();
                             break;
                         case "focus_on":
                             await EnterFocusModeAsync(true);
@@ -896,27 +2097,40 @@ namespace FunkenwerkPlayer
                                 var matchPl = _manufakturPlaylists.FirstOrDefault(p => p.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
                                 if (matchPl != null)
                                 {
-                                    _activeManufakturPlaylistId = matchPl.Id;
+                                    await SelectManufakturPlaylistAsync(matchPl.Id, autoPlayRandom: true);
+                                }
+                                else if (query.Contains("favorit", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    await SelectManufakturPlaylistAsync("favorites", autoPlayRandom: true);
+                                }
+                                else if (query.Contains("alle", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    await SelectManufakturPlaylistAsync("all", autoPlayRandom: true);
                                 }
                                 else
                                 {
                                     _manufakturSearchQuery = query;
+                                    SwitchPlayerMode("playlists");
+                                    var plTracks = GetFilteredManufakturTracks();
+                                    if (plTracks.Count > 0)
+                                        await PlayManufakturTrackFromQueueAsync(plTracks[0], plTracks, retryDepth: 0);
                                 }
                             }
-                            SwitchPlayerMode("playlists");
-                            var plTracks = GetFilteredManufakturTracks();
-                            if (plTracks.Count > 0)
+                            else
                             {
-                                await PlayManufakturTrackFromQueueAsync(plTracks[0], plTracks);
+                                await SelectManufakturPlaylistAsync(_activeManufakturPlaylistId, autoPlayRandom: true);
                             }
                             break;
                     }
 
                     SyncFocusOverlayLabels();
+                    SyncManufakturNowPlayingDeck();
                     return JsonSerializer.Serialize(new
                     {
                         ok = true,
                         is_playing = _isPlaying,
+                        shuffle = _isShuffleEnabled,
+                        repeat = _isLoopEnabled,
                         volume = (int)Math.Round(VolumeSlider.Value),
                         focus_mode = _isFocusModeActive,
                         current_track = CurrentTitleTxt.Text,

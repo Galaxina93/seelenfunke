@@ -428,4 +428,73 @@ class FunkiraUniverseTicketSystemTest extends TestCase
         $this->assertFalse($overLimitEval['auto_execute_allowed']);
         $this->assertGreaterThan(2500, $overLimitEval['gross_total_cents']);
     }
+
+    public function test_antigravity_direct_inbox_concepts_awaiting_go_and_dismissals_mirror_bidirectionally_into_tickets(): void
+    {
+        $this->seed(AiCompanyStructureSeeder::class);
+        $this->seed(AiAgentSeeder::class);
+
+        $isolatedRoot = storage_path('framework/testing/ag_ticket_mirror_' . Str::lower(Str::random(8)));
+        \Illuminate\Support\Facades\File::makeDirectory($isolatedRoot, 0700, true, true);
+        $inbox = new \App\Services\System\AntigravityDirectInboxService($isolatedRoot);
+        $this->app->instance(\App\Services\System\AntigravityDirectInboxService::class, $inbox);
+
+        try {
+            // 1. Funkira erstellt ein Konzept-Ticket für Antigravity -> erscheint sofort 1:1 in ai_universe_tickets
+            $created = $inbox->createItem([
+                'channel' => 'leitung',
+                'title' => 'Konzept für Digital-Produkt-Marktanalyse',
+                'body' => 'Bitte Chancen und Risiken prüfen.',
+                'execution_mode' => 'concept',
+                'source' => 'android_live_call',
+            ]);
+            $agId = (string) $created['item']['id'];
+
+            $mirrored = \App\Services\AI\AntigravityUniverseTicketBridge::findTicketByAgId($agId);
+            $this->assertNotNull($mirrored);
+            $this->assertTrue($mirrored->assigned_to_antigravity);
+            $this->assertSame('Antigravity', $mirrored->agent?->name);
+            $this->assertSame('Leitung', $mirrored->department?->name);
+
+            // 2. Antigravity liefert Konzept -> Status awaiting_go spiegelt sich sofort auf waiting_for_alina ("Rückfrage / Go")
+            $inbox->completeItem($agId, 'Konzept fertiggestellt. Sollen wir starten?');
+            $mirrored->refresh();
+            $this->assertSame(AiUniverseTicket::STATUS_WAITING_FOR_ALINA, $mirrored->status);
+            $this->assertSame('ag_inbox_blockade', $mirrored->action_payload['type'] ?? null);
+
+            // 3. Verwerfung ("dismissed") spiegelt sich sofort ins Ticket-Archiv mit Verworfen-Markierung
+            $inbox->resolveBlockadeItem($agId, 'dismissed', 'Auf Alinas Wunsch verworfen', 'Alina');
+            $mirrored->refresh();
+            $this->assertSame(AiUniverseTicket::STATUS_ARCHIVED, $mirrored->status);
+            $this->assertTrue((bool) ($mirrored->action_payload['dismissed'] ?? false));
+
+            // 4. Zweites Konzept -> 1-Klick Go direkt aus dem Ticketsystem löst die Antigravity-Blockade bidirektional auf!
+            $created2 = $inbox->createItem([
+                'channel' => 'shop',
+                'title' => 'Konzept Konfigurator Smart-Fit Feinschliff',
+                'body' => 'Abstände optimieren.',
+                'execution_mode' => 'concept',
+            ]);
+            $agId2 = (string) $created2['item']['id'];
+            $inbox->completeItem($agId2, 'Konzept bereit. Bitte Go geben.');
+
+            $ticket2 = \App\Services\AI\AntigravityUniverseTicketBridge::findTicketByAgId($agId2);
+            $this->assertNotNull($ticket2);
+            $this->assertSame(AiUniverseTicket::STATUS_WAITING_FOR_ALINA, $ticket2->status);
+            $this->assertCount(1, $inbox->getPendingBlockades());
+
+            FunkiraPresenceContext::markAntigravityNotebookOnline();
+            FunkiraTicketRouter::performTicketAction($ticket2, 'approve_ag_blockade', [
+                'channel' => 'web_portal',
+                'note' => 'Go direkt im Ticketsystem erteilt',
+            ]);
+
+            $this->assertCount(0, $inbox->getPendingBlockades());
+            $ticket2->refresh();
+            $this->assertSame(AiUniverseTicket::STATUS_IN_PROGRESS, $ticket2->status);
+            $this->assertSame(2, AiUniverseTicket::count()); // Kein doppeltes Folge-Ticket im Ticketsystem!
+        } finally {
+            \Illuminate\Support\Facades\File::deleteDirectory($isolatedRoot);
+        }
+    }
 }

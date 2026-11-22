@@ -236,6 +236,12 @@
                                 <span class="font-mono text-xs font-black text-[var(--theme-color)]">{{ $ticket->ticket_number }}</span>
                                 <span class="text-xs font-bold text-gray-500 dark:text-gray-400">{{ $ticket->department?->name ?? 'Leitung' }} · {{ $ticket->agent?->name ?? 'Funkira' }}</span>
                                 <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-200/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300">{{ $ticket->environment_tier }}</span>
+                                @if(!empty($payload['ag_item_id']))
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">{{ $payload['ag_item_id'] }}</span>
+                                @endif
+                                @if(!empty($payload['dismissed']))
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300">Verworfen</span>
+                                @endif
                                 @if(!empty($ticket->compact_context))
                                     <button type="button"
                                             @click="showCompactSummary = !showCompactSummary"
@@ -305,6 +311,29 @@
                                             wire:click="triggerTicketAction('approve_procurement')"
                                             class="px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all cursor-pointer">
                                         Kauf jetzt via Tresor ausführen
+                                    </button>
+                                </div>
+                            @elseif($payload['type'] === 'ag_inbox_blockade')
+                                <div class="text-xs space-y-0.5 min-w-0 flex-1">
+                                    <div class="font-black text-gray-900 dark:text-white">
+                                        Antigravity wartet auf dein Go / deine Entscheidung ({{ $payload['ag_item_id'] ?? '' }})
+                                    </div>
+                                    @if(!empty($payload['pending_question']))
+                                        <div class="text-gray-600 dark:text-gray-300 line-clamp-2">
+                                            {{ $payload['pending_question'] }}
+                                        </div>
+                                    @endif
+                                </div>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <button type="button"
+                                            wire:click="triggerTicketAction('approve_ag_blockade')"
+                                            class="px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all cursor-pointer">
+                                        Go erteilen
+                                    </button>
+                                    <button type="button"
+                                            wire:click="triggerTicketAction('dismiss_ag_blockade')"
+                                            class="px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-xs font-bold text-rose-600 dark:text-rose-400 hover:border-rose-500 transition-colors cursor-pointer">
+                                        Verwerfen
                                     </button>
                                 </div>
                             @elseif($payload['type'] === 'antigravity_handoff')

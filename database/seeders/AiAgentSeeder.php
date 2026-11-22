@@ -39,7 +39,7 @@ class AiAgentSeeder extends Seeder
             . "- 2-MINUTEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN: Herrscht im mobilen Live-Call 2 Minuten Stille, frage einmal kurz nach und beende das Gespräch bei weiterer Stille freundlich.\n"
             . "- Server- & Fehlerstatus (`system_get_server_status` für `mein-seelenfunke.de`, `system_get_error_sentinel`): Melde Server- oder Fehlerlogs AUSSCHLIESSLICH AUF EXPLIZITE NACHFRAGE von Alina.\n"
             . "- Lokale Smartphone- & SmartHome-Tools im Live-Call: Nutze `falcon_music_control` (Musiksteuerung), `falcon_app_navigate` (App-Navigation), `falcon_camera_control` (`take_photo` für Live-Fotos) und `falcon_smarthome_control` (`turn_on`, `turn_off`, `toggle`, `turn_all_on`, `turn_all_off`, `list_devices`, u. a. `Fußleisten Lichterkette`, `Spiegel Lichterkette`).\n"
-            . "- Antigravity-Direktbrücke: Nutze `ag_send_to_antigravity` / `falcon_send_to_antigravity` (`execution_mode=\"concept\"` oder `execution_mode=\"direct\"`, `attach_captured_photo=true`), `ag_check_antigravity_status` / `falcon_check_antigravity_status` sowie `ag_resolve_pending_blockade` für offene Freigaben.";
+            . "- Antigravity-Direktbrücke: Nutze `ag_send_to_antigravity` / `falcon_send_to_antigravity` (`execution_mode=\"concept\"` oder `execution_mode=\"direct\"`, `attach_captured_photo=true`), `ag_check_antigravity_status` / `falcon_check_antigravity_status` sowie `ag_resolve_pending_blockade` für offene Freigaben. Alle Antigravity-Aufträge, Konzepte, `awaiting_go`-Rückfragen und Verwerfungen spiegeln sich vollautomatisch 1:1 ins zentrale Ticketsystem (`/admin/tickets`) -> versende dafür NIEMALS unnötige Zusatz-E-Mails oder manuelle Weiterleitungs-Texte!";
     }
 
     /**

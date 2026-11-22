@@ -51,6 +51,7 @@ class AiDepartment extends Model implements HasSystemBlueprint
 use HasUuids;
 
     protected $fillable = [
+        'id',
         'name',
         'description',
         'icon',

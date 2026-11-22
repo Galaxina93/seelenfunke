@@ -28,7 +28,7 @@ namespace FunkenwerkPlayer
         private bool _isDarkMode = true;
         private bool _isPlaying = false;
         private bool _isMuted = false;
-        private bool _isLoopEnabled = true;
+        private bool _isLoopEnabled = false;
         private bool _isDraggingSlider = false;
         private bool _isFullscreen = false;
         private bool _isUniformToFill = false;
@@ -152,7 +152,6 @@ namespace FunkenwerkPlayer
             }
             else if (!_disableAutoDiscovery)
             {
-                TryPopulateDesktopMediaQueue(autoPlay: false);
                 _ = InitializeManufakturEngineAsync(openPlaylistsViewByDefault: true);
             }
         }
@@ -318,8 +317,34 @@ namespace FunkenwerkPlayer
         {
             if (LoopBtn != null)
             {
+                LoopBtn.Background = BrushFromHex(_isLoopEnabled ? "#26231F" : "#181B24");
                 LoopBtn.Foreground = _isLoopEnabled ? BrushFromHex("#C5A059") : BrushFromHex("#9CA3AF");
                 LoopBtn.BorderBrush = _isLoopEnabled ? BrushFromHex("#C5A059") : BrushFromHex("#262A36");
+                LoopBtn.Content = _isLoopEnabled ? "🔁 Loop An" : "🔁 Loop Aus";
+            }
+
+            if (ManufakturRepeatBtn != null)
+            {
+                ManufakturRepeatBtn.Background = BrushFromHex(_isLoopEnabled ? "#26231F" : "#181B24");
+                ManufakturRepeatBtn.Foreground = _isLoopEnabled ? BrushFromHex("#C5A059") : BrushFromHex("#F9FAFB");
+                ManufakturRepeatBtn.BorderBrush = _isLoopEnabled ? BrushFromHex("#C5A059") : BrushFromHex("#262A36");
+                ManufakturRepeatBtn.Content = _isLoopEnabled ? "🔁 Repeat An" : "🔁 Repeat";
+            }
+
+            if (ShuffleTransportBtn != null)
+            {
+                ShuffleTransportBtn.Background = BrushFromHex(_isShuffleEnabled ? "#26231F" : "#181B24");
+                ShuffleTransportBtn.Foreground = _isShuffleEnabled ? BrushFromHex("#C5A059") : BrushFromHex("#9CA3AF");
+                ShuffleTransportBtn.BorderBrush = _isShuffleEnabled ? BrushFromHex("#C5A059") : BrushFromHex("#262A36");
+                ShuffleTransportBtn.Content = _isShuffleEnabled ? "🔀 Zufall An" : "🔀 Zufall";
+            }
+
+            if (ManufakturShuffleBtn != null)
+            {
+                ManufakturShuffleBtn.Background = BrushFromHex(_isShuffleEnabled ? "#26231F" : "#181B24");
+                ManufakturShuffleBtn.Foreground = _isShuffleEnabled ? BrushFromHex("#C5A059") : BrushFromHex("#F9FAFB");
+                ManufakturShuffleBtn.BorderBrush = _isShuffleEnabled ? BrushFromHex("#C5A059") : BrushFromHex("#262A36");
+                ManufakturShuffleBtn.Content = _isShuffleEnabled ? "🔀 Zufall An" : "🔀 Zufall";
             }
 
             if (AbLoopBtn != null)
@@ -601,6 +626,8 @@ namespace FunkenwerkPlayer
 
             if (collected.Count == 0) return;
 
+            _isManufakturPlaybackActive = false;
+            _activeManufakturTrack = null;
             _playlist.Clear();
             foreach (var f in collected.Distinct(StringComparer.OrdinalIgnoreCase))
             {
@@ -751,9 +778,27 @@ namespace FunkenwerkPlayer
                 return;
             }
 
+            if (_isManufakturPlaybackActive && _currentManufakturQueue.Count > 0)
+            {
+                _ = PlayNextManufakturTrackAsync();
+                return;
+            }
+
+            if (_isShuffleEnabled && _playlist.Count > 1)
+            {
+                int nextRand = _vizRng.Next(_playlist.Count - 1);
+                if (nextRand >= _currentIndex) nextRand++;
+                PlayIndex(nextRand);
+                return;
+            }
+
             if (_currentIndex >= 0 && _currentIndex + 1 < _playlist.Count)
             {
                 PlayIndex(_currentIndex + 1);
+            }
+            else if (_playlist.Count > 1)
+            {
+                PlayIndex(0);
             }
             else
             {
@@ -761,6 +806,9 @@ namespace FunkenwerkPlayer
                 PlayerMediaElement.Position = TimeSpan.Zero;
                 _isPlaying = false;
                 PlayPauseBtn.Content = "▶";
+                SyncFocusOverlayLabels();
+                SyncManufakturNowPlayingDeck();
+                RenderManufakturLibrary();
                 ShowHudBars();
             }
         }
@@ -772,6 +820,11 @@ namespace FunkenwerkPlayer
 
         private void PlayerMediaElement_MediaFailed(object? sender, ExceptionRoutedEventArgs e)
         {
+            if (_isManufakturPlaybackActive && _currentManufakturQueue.Count > 1)
+            {
+                _ = HandleManufakturMediaFailedFallbackAsync();
+                return;
+            }
             ShowOsdToast($"⚠ Wiedergabefehler: {e.ErrorException?.Message ?? "Format"}");
         }
 
@@ -851,10 +904,16 @@ namespace FunkenwerkPlayer
             TimeElapsedTxt.Text = FormatTime(clamped);
         }
 
-        private void TogglePlayPause()
+        public void TogglePlayPause()
         {
             if (string.IsNullOrWhiteSpace(_currentFilePath))
             {
+                if (_playerMode == "playlists" || _isManufakturPlaybackActive || (_playlist.Count == 0 && _allManufakturTracks.Count > 0))
+                {
+                    _ = StartOrResumeManufakturPlaybackAsync();
+                    return;
+                }
+
                 if (_playlist.Count > 0)
                     PlayIndex(0);
                 else
@@ -879,6 +938,12 @@ namespace FunkenwerkPlayer
                     PlayPauseBtn.Content = "⏸";
                     ShowOsdToast("▶ Wiedergabe");
                     ResetHudAutoHideTimer();
+                }
+                SyncFocusOverlayLabels();
+                SyncManufakturNowPlayingDeck();
+                if (_playerMode == "playlists")
+                {
+                    RenderManufakturLibrary();
                 }
             }
             catch { }
@@ -918,6 +983,21 @@ namespace FunkenwerkPlayer
 
         public void StepPreviousTrack()
         {
+            if (_isManufakturPlaybackActive || (_playerMode == "playlists" && _playlist.Count == 0 && _allManufakturTracks.Count > 0))
+            {
+                try
+                {
+                    if (!string.IsNullOrWhiteSpace(_currentFilePath) && PlayerMediaElement.Position.TotalSeconds > 3.5)
+                    {
+                        CommitManualSeekSeconds(0.0);
+                        return;
+                    }
+                }
+                catch { }
+                _ = PlayPreviousManufakturTrackAsync();
+                return;
+            }
+
             if (_playlist.Count == 0) return;
             if (_currentIndex < 0 || _currentIndex >= _playlist.Count)
             {
@@ -930,10 +1010,23 @@ namespace FunkenwerkPlayer
 
         public void StepNextTrack()
         {
+            if (_isManufakturPlaybackActive || (_playerMode == "playlists" && _playlist.Count == 0 && _allManufakturTracks.Count > 0))
+            {
+                _ = PlayNextManufakturTrackAsync();
+                return;
+            }
+
             if (_playlist.Count == 0) return;
             if (_currentIndex < 0 || _currentIndex >= _playlist.Count)
             {
                 PlayIndex(0);
+                return;
+            }
+            if (_isShuffleEnabled && _playlist.Count > 1)
+            {
+                int rand = _vizRng.Next(_playlist.Count - 1);
+                if (rand >= _currentIndex) rand++;
+                PlayIndex(rand);
                 return;
             }
             int next = (_currentIndex + 1) % _playlist.Count;
@@ -1079,9 +1172,8 @@ namespace FunkenwerkPlayer
         private void LoopToggle_Click(object sender, RoutedEventArgs e)
         {
             _isLoopEnabled = !_isLoopEnabled;
-            LoopBtn.Content = _isLoopEnabled ? "🔁 Loop An" : "🔁 Loop Aus";
             UpdateDynamicControlBrushes();
-            ShowOsdToast(_isLoopEnabled ? "🔁 Endlosschleife Aktiv" : "🔁 Endlosschleife Aus");
+            ShowOsdToast(_isLoopEnabled ? "🔁 Repeat Aktiv (Einzelsong)" : "🔁 Repeat Aus (Playlist läuft durch)");
         }
 
         private void SpeedCycle_Click(object sender, RoutedEventArgs e)
@@ -1453,6 +1545,8 @@ namespace FunkenwerkPlayer
 
         public void ClearPlaylist()
         {
+            _isManufakturPlaybackActive = false;
+            _activeManufakturTrack = null;
             _playlist.Clear();
             ResetAndUnloadActiveMedia();
             RenderPlaylistUI();

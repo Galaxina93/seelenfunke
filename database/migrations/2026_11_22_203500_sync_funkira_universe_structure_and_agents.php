@@ -9,6 +9,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
         if (
             Schema::hasTable('ai_departments')
             && Schema::hasTable('ai_agents')

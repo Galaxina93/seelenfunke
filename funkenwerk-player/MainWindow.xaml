@@ -141,14 +141,15 @@
                         </StackPanel>
                     </Border>
                 </Border>
-
-                <!-- On-Screen Display (OSD) Pill Top-Right (Volume, Speed, Loop, Snapshot) -->
-                <Border x:Name="OsdToastBorder" Visibility="Collapsed" IsHitTestVisible="False"
-                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,20,24,0"
-                        Background="#D911131A" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="10" Padding="14,8">
-                    <TextBlock x:Name="OsdToastTxt" Text="🔊 80%" Foreground="#C5A059" FontSize="13.5" FontWeight="Bold"/>
-                </Border>
             </Grid>
+
+            <!-- On-Screen Display (OSD) Pill Top-Right (Visible in both Playlists & Media modes!) -->
+            <Border x:Name="OsdToastBorder" Grid.Column="0" Grid.ColumnSpan="2" Panel.ZIndex="120"
+                    Visibility="Collapsed" IsHitTestVisible="False"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,16,24,0"
+                    Background="#D911131A" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="10" Padding="14,8">
+                <TextBlock x:Name="OsdToastTxt" Text="🔊 85%" Foreground="#C5A059" FontSize="13.5" FontWeight="Bold"/>
+            </Border>
 
             <!-- Collapsible Playlist Sidebar -->
             <Border x:Name="PlaylistDrawerBorder" Grid.Column="1" Width="310" Visibility="Collapsed"
@@ -183,10 +184,10 @@
                 </Grid>
             </Border>
 
-            <!-- Manufaktur Playlists & Offline Music Library View -->
+            <!-- Manufaktur Playlists & Offline Music Library View (1:1 Android Music Logic) -->
             <Grid x:Name="ManufakturPlaylistsViewGrid" Grid.Column="0" Grid.ColumnSpan="2" Visibility="Collapsed" Background="#0F1117">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="250"/>
+                    <ColumnDefinition Width="260"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -200,13 +201,13 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Margin="0,0,0,10">
-                            <Border x:Name="ManufakturAllBtn" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="9" Padding="12,9" Margin="0,0,0,6" Cursor="Hand" MouseLeftButtonUp="SelectManufakturAll_Click">
+                            <Border x:Name="ManufakturAllBtn" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="9" Padding="12,9" Margin="0,0,0,6" Cursor="Hand" MouseLeftButtonUp="SelectManufakturAll_Click" ToolTip="Alle Songs auswählen &amp; direkt abspielen">
                                 <Grid>
                                     <TextBlock Text="🎵  Alle Songs" FontSize="12.5" FontWeight="Bold" Foreground="#F9FAFB"/>
                                     <TextBlock x:Name="ManufakturCountAllTxt" Text="0" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059" HorizontalAlignment="Right"/>
                                 </Grid>
                             </Border>
-                            <Border x:Name="ManufakturFavBtn" Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Padding="12,9" Cursor="Hand" MouseLeftButtonUp="SelectManufakturFavorites_Click">
+                            <Border x:Name="ManufakturFavBtn" Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Padding="12,9" Cursor="Hand" MouseLeftButtonUp="SelectManufakturFavorites_Click" ToolTip="Favoriten auswählen &amp; direkt abspielen">
                                 <Grid>
                                     <TextBlock Text="♥  Favoriten" FontSize="12.5" FontWeight="Bold" Foreground="#F9FAFB"/>
                                     <TextBlock x:Name="ManufakturCountFavTxt" Text="0" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059" HorizontalAlignment="Right"/>
@@ -221,37 +222,102 @@
                         <StackPanel Grid.Row="2" Margin="0,10,0,0">
                             <TextBlock x:Name="ManufakturCacheStatusTxt" Text="⚡ Lokal bereit" FontSize="11" FontWeight="SemiBold" Foreground="#9CA3AF" Margin="2,0,0,6" TextTrimming="CharacterEllipsis"/>
                             <Button x:Name="ManufakturCacheAllBtn" Click="ManufakturCacheAll_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
-                                    Padding="10,7" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="⚡ Offline cachen">
+                                    Padding="10,7" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="⚡ Offline cachen" ToolTip="Alle Songs der Bibliothek dauerhaft für Offline-Wiedergabe speichern">
                                 <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                             </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
 
-                <!-- Right Track List -->
-                <Grid Grid.Column="1" Margin="20,16,20,12">
+                <!-- Right Studio Deck + Search/Importer + Track List -->
+                <Grid Grid.Column="1" Margin="20,14,20,10">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                    <!-- Row 0: Studio Now Playing Deck Card (1:1 Android MusicTabContent) -->
+                    <Border x:Name="ManufakturNowPlayingCard" Grid.Row="0" Background="#11131A" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="14" Padding="16,12" Margin="0,0,0,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Width="48" Height="48" CornerRadius="12" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" Margin="0,0,14,0">
+                                <Image Source="pack://application:,,,/funkenwerk_player.png" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock x:Name="ManufakturNowTitleTxt" Text="Kein Song ausgewählt" FontSize="15" FontWeight="Bold" Foreground="#F9FAFB" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="ManufakturNowArtistTxt" Text="Klicke links eine Playlist oder unten einen Titel" FontSize="12" FontWeight="SemiBold" Foreground="#C5A059" Margin="0,1,0,2" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="ManufakturStatusLineTxt" Text="⚡ Bereit für Sofort-Wiedergabe" FontSize="10.5" FontWeight="SemiBold" Foreground="#34D399" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="ManufakturCurrentFavBtn" Click="ManufakturCurrentFav_Click" Focusable="False" Background="Transparent" Foreground="#9CA3AF" BorderThickness="0"
+                                        Padding="8,4" Margin="0,0,6,0" Cursor="Hand" FontSize="16" FontWeight="Bold" Content="♡" ToolTip="Favorit umschalten"/>
+                                <Button x:Name="ManufakturShuffleBtn" Click="ManufakturShuffle_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                        Padding="11,6" Margin="0,0,6,0" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="🔀 Zufall" ToolTip="Zufällige Wiedergabe umschalten">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                </Button>
+                                <Button x:Name="ManufakturRepeatBtn" Click="LoopToggle_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
+                                        Padding="11,6" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="🔁 Repeat" ToolTip="Aktuellen Song in Dauerschleife wiederholen">
+                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Row 1: Playlist Header + Search + YouTube/Playlist Importer -->
+                    <Grid Grid.Row="1" Margin="0,0,0,10">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="210"/>
                             <ColumnDefinition Width="240"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="ManufakturHeaderTitleTxt" Grid.Column="0" Text="Playlists" FontSize="18" FontWeight="Bold" Foreground="#F9FAFB" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                        <Border Grid.Column="1" Background="#11131A" BorderBrush="#262A36" BorderThickness="1" CornerRadius="8" Padding="10,6" Margin="10,0">
-                            <TextBox x:Name="ManufakturSearchBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="12.5" TextChanged="ManufakturSearchBox_TextChanged"/>
+
+                        <TextBlock x:Name="ManufakturHeaderTitleTxt" Grid.Column="0" Text="Playlists" FontSize="16.5" FontWeight="Bold" Foreground="#F9FAFB" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+
+                        <Border Grid.Column="1" Background="#11131A" BorderBrush="#262A36" BorderThickness="1" CornerRadius="8" Padding="10,5" Margin="8,0,6,0">
+                            <Grid>
+                                <TextBlock x:Name="ManufakturSearchPlaceholderTxt" Text="🔍 Songs suchen..." Foreground="#9CA3AF" FontSize="12" IsHitTestVisible="False" VerticalAlignment="Center"/>
+                                <TextBox x:Name="ManufakturSearchBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="12" TextChanged="ManufakturSearchBox_TextChanged"/>
+                            </Grid>
                         </Border>
-                        <Button x:Name="ManufakturShuffleBtn" Grid.Column="2" Click="ManufakturShuffle_Click" Focusable="False" Background="#181B24" Foreground="#F9FAFB" BorderBrush="#262A36" BorderThickness="1"
-                                Padding="12,6" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="🔀 Zufall">
+
+                        <Border Grid.Column="2" Background="#11131A" BorderBrush="#262A36" BorderThickness="1" CornerRadius="8" Padding="10,5" Margin="0,0,6,0">
+                            <Grid>
+                                <TextBlock x:Name="ManufakturImportPlaceholderTxt" Text="Neue Playlist / YouTube-Link..." Foreground="#9CA3AF" FontSize="11.5" IsHitTestVisible="False" VerticalAlignment="Center"/>
+                                <TextBox x:Name="ManufakturImportInputBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="12"
+                                         TextChanged="ManufakturImportInputBox_TextChanged" KeyDown="ManufakturImportInputBox_KeyDown"/>
+                            </Grid>
+                        </Border>
+
+                        <Button x:Name="ManufakturImportBtn" Grid.Column="3" Click="ManufakturImportOrCreate_Click" Focusable="False" Background="#C5A059" Foreground="#111827" BorderThickness="0"
+                                Padding="12,6" Cursor="Hand" FontSize="11.5" FontWeight="Bold" Content="⬇ Import" ToolTip="YouTube-Song/Playlist importieren oder neuen Playlist-Namen anlegen">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                         </Button>
                     </Grid>
 
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <!-- Row 2: Live Import Progress Bar -->
+                    <Border x:Name="ManufakturImportProgressCard" Grid.Row="2" Visibility="Collapsed" Background="#11131A" BorderBrush="#C5A059" BorderThickness="1.2" CornerRadius="10" Padding="12,8" Margin="0,0,0,10">
+                        <StackPanel>
+                            <Grid>
+                                <TextBlock x:Name="ManufakturImportLabelTxt" Text="Importiere..." FontSize="11.5" FontWeight="Bold" Foreground="#F9FAFB"/>
+                                <TextBlock x:Name="ManufakturImportPctTxt" Text="0 %" FontSize="11.5" FontWeight="Bold" Foreground="#C5A059" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <ProgressBar x:Name="ManufakturImportProgressBar" Minimum="0" Maximum="100" Value="0" Height="5" Margin="0,5,0,4" Foreground="#C5A059" Background="#232734" BorderThickness="0"/>
+                            <TextBlock x:Name="ManufakturImportSubTxt" Text="" FontSize="10.5" Foreground="#9CA3AF" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Row 3: Track List -->
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="ManufakturTracksStack"/>
                     </ScrollViewer>
                 </Grid>
@@ -291,8 +357,13 @@
                         <TextBlock Text=" / " Foreground="#9CA3AF" FontSize="12.5" VerticalAlignment="Center"/>
                         <TextBlock x:Name="TimeTotalTxt" Text="00:00" Foreground="#9CA3AF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0"/>
 
-                        <Button x:Name="LoopBtn" Click="LoopToggle_Click" Focusable="False" Background="#26231F" Foreground="#C5A059" BorderBrush="#C5A059" BorderThickness="1"
-                                Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" ToolTip="Endlosschleife (L)" Content="🔁 Loop An">
+                        <Button x:Name="ShuffleTransportBtn" Click="ManufakturShuffle_Click" Focusable="False" Background="#181B24" Foreground="#9CA3AF" BorderBrush="#262A36" BorderThickness="1"
+                                Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" ToolTip="Zufällige Wiedergabe" Content="🔀 Zufall">
+                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
+                        </Button>
+
+                        <Button x:Name="LoopBtn" Click="LoopToggle_Click" Focusable="False" Background="#181B24" Foreground="#9CA3AF" BorderBrush="#262A36" BorderThickness="1"
+                                Padding="9,4" Margin="0,0,6,0" Cursor="Hand" FontSize="11" FontWeight="Bold" ToolTip="Dauerschleife für aktuellen Titel (L)" Content="🔁 Loop Aus">
                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="6"/></Style></Button.Resources>
                         </Button>
 

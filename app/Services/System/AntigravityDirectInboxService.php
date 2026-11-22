@@ -405,7 +405,7 @@ class AntigravityDirectInboxService
      */
     public function enqueueMessage(array $payload, ?array $validatedAttachment = null): array
     {
-        return $this->withExclusiveLock(function (array $items) use ($payload, $validatedAttachment): array {
+        $result = $this->withExclusiveLock(function (array $items) use ($payload, $validatedAttachment): array {
             $clientUuid = isset($payload['client_uuid']) ? trim((string) $payload['client_uuid']) : '';
             $clientUuid = $clientUuid !== '' ? mb_substr($clientUuid, 0, 64) : null;
 
@@ -498,6 +498,12 @@ class AntigravityDirectInboxService
                 true,
             ];
         });
+
+        if (empty($payload['skip_universe_mirror']) && !empty($result['item'])) {
+            \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($result['item'], 'created');
+        }
+
+        return $result;
     }
 
     /**
@@ -567,7 +573,7 @@ class AntigravityDirectInboxService
             return false;
         }
 
-        return $this->withExclusiveLock(function (array $items) use ($id): array {
+        $deleted = $this->withExclusiveLock(function (array $items) use ($id): array {
             $remaining = [];
             $deleted = false;
 
@@ -582,6 +588,12 @@ class AntigravityDirectInboxService
 
             return [$deleted, $remaining, $deleted];
         });
+
+        if ($deleted) {
+            \App\Services\AI\AntigravityUniverseTicketBridge::archiveByAgItemId($id);
+        }
+
+        return $deleted;
     }
 
     /**
@@ -611,7 +623,7 @@ class AntigravityDirectInboxService
      */
     public function pullPending(bool $includeAttachmentBase64 = true): array
     {
-        return $this->withExclusiveLock(function (array $items) use ($includeAttachmentBase64): array {
+        $pulled = $this->withExclusiveLock(function (array $items) use ($includeAttachmentBase64): array {
             $ordered = $this->sortOldestFirst($items);
             $deliveredAt = now('Europe/Berlin')->toIso8601String();
             $pulled = [];
@@ -627,6 +639,12 @@ class AntigravityDirectInboxService
 
             return [$pulled, $ordered, count($pulled) > 0];
         });
+
+        foreach ($pulled as $pItem) {
+            \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($pItem, 'delivered');
+        }
+
+        return $pulled;
     }
 
     /**
@@ -676,7 +694,7 @@ class AntigravityDirectInboxService
             return null;
         }
 
-        return $this->withExclusiveLock(function (array $items) use ($id, $summary, $forceFinalComplete): array {
+        $found = $this->withExclusiveLock(function (array $items) use ($id, $summary, $forceFinalComplete): array {
             $cleanSummary = ($summary !== null && trim($summary) !== '')
                 ? mb_substr(trim($summary), 0, 5000)
                 : null;
@@ -708,6 +726,13 @@ class AntigravityDirectInboxService
 
             return [$foundItem, $items, $foundItem !== null];
         });
+
+        if ($found !== null) {
+            $evt = ($found['status'] ?? '') === 'awaiting_go' ? 'awaiting_go' : 'completed';
+            \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($found, $evt);
+        }
+
+        return $found;
     }
 
     /**
@@ -855,7 +880,7 @@ class AntigravityDirectInboxService
         $cleanAnswer = mb_substr(trim($answerText), 0, 4000);
         $actorLabel = trim((string) ($actor ?: 'Alina')) ?: 'Alina';
 
-        return $this->withExclusiveLock(function (array $items) use ($targetId, $normalizedDecision, $cleanAnswer, $actorLabel): array {
+        $resolution = $this->withExclusiveLock(function (array $items) use ($targetId, $normalizedDecision, $cleanAnswer, $actorLabel): array {
             $nowIso = now('Europe/Berlin')->toIso8601String();
             $targetIdx = null;
 
@@ -1003,6 +1028,18 @@ class AntigravityDirectInboxService
                 true,
             ];
         });
+
+        if ($resolution !== null && !empty($resolution['resolved_item'])) {
+            \App\Services\AI\AntigravityUniverseTicketBridge::syncResolvedBlockade(
+                $resolution['resolved_item'],
+                (string) ($resolution['decision'] ?? $normalizedDecision),
+                $cleanAnswer,
+                $actorLabel,
+                $resolution['followup_item'] ?? null
+            );
+        }
+
+        return $resolution;
     }
 
     /**
