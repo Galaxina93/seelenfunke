@@ -531,7 +531,7 @@ case "$1" in
             echo "🧠 Erneuere Caches & Projekt-Gehirn auf Stage..."
             php artisan optimize:clear
             php artisan system:brain:generate
-            php artisan ai:sync-reports --force 2>/dev/null || true
+            php artisan ai:sync-knowledge-reports --force 2>/dev/null || true
             chmod -R 775 storage/ bootstrap/cache/ 2>/dev/null || true
 
             echo "🔄 Synchronisiere Worker-Container (worker-stage-3)..."
