@@ -53,8 +53,14 @@ class FetchMailsCommand extends Command
             return self::SUCCESS;
         }
 
+        $settingsTable = (new \App\Models\System\SystemSetting())->getTable();
+        $hasSettingsTable = \Illuminate\Support\Facades\Schema::hasTable($settingsTable);
+        $isPreLaunch = $hasSettingsTable
+            && !filter_var(\App\Models\System\SystemSetting::where('key', 'shop_is_live')->value('value') ?? false, FILTER_VALIDATE_BOOLEAN);
+
         $isStageOrDev = !app()->environment('production')
-            || str_contains(strtolower((string) config('app.url')), 'stage.');
+            || str_contains(strtolower((string) config('app.url')), 'stage.')
+            || $isPreLaunch;
 
         $failedAccounts = 0;
         foreach ($accounts as $account) {
@@ -69,7 +75,7 @@ class FetchMailsCommand extends Command
             $settingKey = 'imap_auth_backoff_' . $account->id;
 
             $persistedBackoff = null;
-            if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+            if ($hasSettingsTable) {
                 $rawBackoff = \App\Models\System\SystemSetting::where('key', $settingKey)->value('value');
                 $persistedBackoff = is_string($rawBackoff) ? json_decode($rawBackoff, true) : null;
             }
@@ -327,7 +333,7 @@ class FetchMailsCommand extends Command
                 $client->disconnect();
 
                 $account->update(['status' => 'connected', 'last_sync_at' => now()]);
-                if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                if ($hasSettingsTable) {
                     \App\Models\System\SystemSetting::where('key', $settingKey)->delete();
                 }
 
@@ -353,13 +359,16 @@ class FetchMailsCommand extends Command
                 $isAuthFailure = stripos($errMsg, 'AUTHENTICATIONFAILED') !== false
                     || stripos($errMsg, 'Invalid credentials') !== false
                     || stripos($errMsg, 'LOGIN failed') !== false
+                    || stripos($errMsg, 'Application-specific password required') !== false
+                    || stripos($errMsg, 'Web login required') !== false
+                    || stripos($errMsg, 'Username and Password not accepted') !== false
                     || stripos($errMsg, 'AuthFailedException') !== false
                     || stripos($classChainStr, 'AuthFailedException') !== false;
 
                 if ($isAuthFailure) {
                     $backoffHours = $isStageOrDev ? 24 : 6;
                     \Illuminate\Support\Facades\Cache::put($authCooldownKey, true, now()->addHours($backoffHours));
-                    if (\Illuminate\Support\Facades\Schema::hasTable('system_settings')) {
+                    if ($hasSettingsTable) {
                         \App\Models\System\SystemSetting::updateOrCreate(
                             ['key' => $settingKey],
                             ['value' => json_encode(['pwd_fp' => $pwdFingerprint, 'until' => now()->addHours($backoffHours)->timestamp])]
