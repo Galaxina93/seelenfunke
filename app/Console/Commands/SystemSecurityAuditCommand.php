@@ -78,6 +78,10 @@ class SystemSecurityAuditCommand extends Command
             if ($overallStatus !== 'error') {
                 // Selbstheilung: frühere offene Paket-Warnungen nach erfolgreichem Audit (0 Prod-CVEs, 0 Schranken-Fehler) sauber heilen
                 $healSummary = 'Erneuter Sicherheits-Scan bestätigte 0 Produktions-CVEs und 0 Schranken-Verstöße.';
+                \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                    'security_audit:',
+                    $healSummary
+                );
                 SystemLog::query()
                     ->where('action_id', 'security:package_audit')
                     ->whereIn('status', ['error', 'warning'])
@@ -136,7 +140,7 @@ class SystemSecurityAuditCommand extends Command
             }
         }
 
-        if ($overallStatus === 'error' && !$this->option('no-alert') && !app()->runningUnitTests()) {
+        if ($overallStatus === 'error' && !$this->option('no-alert')) {
             $this->sendSecurityAlertIfNecessary($report);
         }
 
@@ -672,7 +676,7 @@ class SystemSecurityAuditCommand extends Command
         if (class_exists(SystemBlueprintService::class)) {
             try {
                 $bpAudit = app(SystemBlueprintService::class)->auditArchitecture();
-                $blueprintCompliant = (bool) ($bpAudit['is_compliant'] ?? empty($bpAudit['unmapped_models']));
+                $blueprintCompliant = (bool) ($bpAudit['is_fully_compliant'] ?? $bpAudit['is_compliant'] ?? empty($bpAudit['unmapped_models']));
                 if (!$blueprintCompliant) {
                     $blueprintDetail = 'Abweichung in SystemBlueprintService erkannt';
                 }
@@ -752,12 +756,7 @@ class SystemSecurityAuditCommand extends Command
 
     private function sendSecurityAlertIfNecessary(array $report): void
     {
-        if (Cache::has('security_audit_alert_sent_24h')) {
-            return;
-        }
-
         try {
-            $recipient = config('mail.from.address', 'kontakt@mein-seelenfunke.de');
             $cves = (int) ($report['cve_count'] ?? 0);
             $guardrailErrors = (int) ($report['guardrail_errors_count'] ?? 0);
 
@@ -771,15 +770,24 @@ class SystemSecurityAuditCommand extends Command
                 'Bitte öffne `/admin/dashboard` (Reiter **Sicherheit & Abwehr**) oder führe `./funki security update` im Terminal aus.',
             ];
 
-            Mail::to($recipient)->send(new AiAgentMessageMail(
-                agentName: 'Funkira Security Watchdog',
-                subjectLine: "⚠️ Sicherheitswarnung: {$report['summary']}",
-                markdownBody: implode("\n", $lines)
-            ));
-
-            Cache::put('security_audit_alert_sent_24h', true, now()->addHours(24));
+            \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                alertKey: 'security_audit:cves_or_guardrails',
+                title: "Sicherheitswarnung: {$report['summary']}",
+                markdownBody: implode("\n", $lines),
+                departmentName: 'System',
+                agentName: 'Systemi',
+                ticketType: 'security_audit',
+                priority: 'high',
+                assignToAntigravity: true,
+                extraPayload: [
+                    'cve_count' => $cves,
+                    'guardrail_errors_count' => $guardrailErrors,
+                    'summary' => $report['summary'] ?? '',
+                ],
+                followupCooldownMinutes: 1440
+            );
         } catch (\Throwable) {
-            // Mail-Fehler darf den Audit-Befehl niemals abbrechen
+            // Ticket-Fehler darf den Audit-Befehl niemals abbrechen
         }
     }
 }

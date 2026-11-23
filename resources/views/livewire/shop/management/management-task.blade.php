@@ -403,33 +403,33 @@
                 $isMyDayDetail = $selectedTask->relevant_from && $selectedTask->relevant_from->isToday();
                 $detailFiles = $selectedTask->file_paths ?? [];
             @endphp
-            <aside class="lg:col-span-4 xl:col-span-3 bg-gray-50/80 dark:bg-gray-950/50 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 flex flex-col justify-between p-4 sm:p-5 min-h-0 overflow-hidden">
-                <div class="space-y-4 overflow-y-auto pr-1 custom-scrollbar flex-1 min-h-0">
+            <aside class="lg:col-span-4 xl:col-span-3 bg-gray-50/80 dark:bg-gray-950/50 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 flex flex-col justify-between p-4 sm:p-5 min-h-0 min-w-0 overflow-hidden">
+                <div class="space-y-4 overflow-y-auto overflow-x-hidden pr-1 custom-scrollbar flex-1 min-h-0 min-w-0">
 
                     {{-- Top Bar --}}
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between gap-2 min-w-0">
                         <span class="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">Aufgabendetails</span>
-                        <button type="button" wire:click="closeDetailPanel" class="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-200/60 dark:hover:bg-gray-800 transition-colors">
+                        <button type="button" wire:click="closeDetailPanel" class="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-200/60 dark:hover:bg-gray-800 transition-colors cursor-pointer shrink-0">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>
                     </div>
 
                     {{-- Title + Steps Card --}}
-                    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 space-y-3 border border-gray-200 dark:border-gray-800 shadow-xs">
-                        <div class="flex items-start gap-3">
+                    <div class="bg-white dark:bg-gray-900 rounded-2xl p-4 space-y-3 border border-gray-200 dark:border-gray-800 shadow-xs min-w-0 overflow-hidden">
+                        <div class="flex items-start gap-3 min-w-0">
                             <button type="button"
                                     wire:click="toggleTask('{{ $selectedTask->id }}')"
-                                    class="mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 {{ $selectedTask->is_completed ? 'bg-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-400 dark:border-gray-500' }}">
+                                    class="mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 cursor-pointer {{ $selectedTask->is_completed ? 'bg-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-400 dark:border-gray-500' }}">
                                 @if($selectedTask->is_completed)
                                     <svg class="w-3.5 h-3.5 text-gray-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                 @endif
                             </button>
 
-                            <input type="text"
-                                   wire:model.blur="detailTitle"
-                                   class="w-full bg-transparent text-sm sm:text-base font-bold text-gray-900 dark:text-white focus:outline-none {{ $selectedTask->is_completed ? 'line-through text-gray-400 dark:text-gray-500' : '' }}">
+                            <textarea wire:model.blur="detailTitle"
+                                      rows="2"
+                                      class="flex-1 min-w-0 w-full bg-transparent text-sm sm:text-base font-bold leading-snug text-gray-900 dark:text-white focus:outline-none resize-none break-words [overflow-wrap:anywhere] {{ $selectedTask->is_completed ? 'line-through text-gray-400 dark:text-gray-500' : '' }}"></textarea>
 
-                            <button type="button" wire:click="toggleImportant('{{ $selectedTask->id }}')" class="mt-0.5 shrink-0">
+                            <button type="button" wire:click="toggleImportant('{{ $selectedTask->id }}')" class="mt-0.5 shrink-0 cursor-pointer">
                                 @if($isStarredDetail)
                                     <svg class="w-5 h-5 fill-current text-[var(--theme-color)]" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                                 @else
@@ -439,33 +439,33 @@
                         </div>
 
                         {{-- Subtasks / Steps --}}
-                        <div class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-800">
+                        <div class="space-y-2 pt-2 border-t border-gray-200 dark:border-gray-800 min-w-0">
                             @foreach($selectedTask->subtasks as $sub)
-                                <div wire:key="detail-sub-{{ $sub->id }}" class="flex items-start justify-between gap-2 py-1.5 group/sub">
+                                <div wire:key="detail-sub-{{ $sub->id }}" class="flex items-start justify-between gap-2 py-1.5 group/sub min-w-0">
                                     <div class="flex items-start gap-2.5 min-w-0 flex-1">
                                         <button type="button"
                                                 wire:click="toggleTask('{{ $sub->id }}')"
-                                                class="mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 {{ $sub->is_completed ? 'bg-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-400 dark:border-gray-500' }}">
+                                                class="mt-0.5 w-4 h-4 rounded-full border flex items-center justify-center shrink-0 cursor-pointer {{ $sub->is_completed ? 'bg-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-400 dark:border-gray-500' }}">
                                             @if($sub->is_completed)
                                                 <svg class="w-2.5 h-2.5 text-gray-950" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
                                             @endif
                                         </button>
-                                        <span class="text-xs sm:text-sm break-words leading-snug {{ $sub->is_completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200' }}">
+                                        <span class="flex-1 min-w-0 text-xs sm:text-sm break-words [overflow-wrap:anywhere] leading-snug {{ $sub->is_completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200' }}">
                                             {{ $sub->title }}
                                         </span>
                                     </div>
-                                    <button type="button" wire:click="deleteTask('{{ $sub->id }}')" class="opacity-0 group-hover/sub:opacity-100 text-gray-400 hover:text-red-500 p-1 shrink-0">
+                                    <button type="button" wire:click="deleteTask('{{ $sub->id }}')" class="opacity-0 group-hover/sub:opacity-100 text-gray-400 hover:text-red-500 p-1 shrink-0 cursor-pointer">
                                         <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                     </button>
                                 </div>
                             @endforeach
 
-                            <form wire:submit.prevent="addSubtask('{{ $selectedTask->id }}')" class="flex items-center gap-2 pt-1">
+                            <form wire:submit.prevent="addSubtask('{{ $selectedTask->id }}')" class="flex items-center gap-2 pt-1 min-w-0">
                                 <svg class="w-4 h-4 shrink-0 text-[var(--theme-color)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                                 <input type="text"
                                        wire:model="newSubtaskTitle"
                                        placeholder="{{ $selectedTask->subtasks->count() > 0 ? 'Nächster Schritt...' : 'Schritt hinzufügen...' }}"
-                                       class="w-full bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none">
+                                       class="flex-1 min-w-0 w-full bg-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none">
                             </form>
                         </div>
                     </div>
@@ -526,13 +526,13 @@
                         </div>
 
                         @if(count($detailFiles) > 0)
-                            <div class="space-y-1.5">
+                            <div class="space-y-1.5 min-w-0">
                                 @foreach($detailFiles as $filePath)
-                                    <div class="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 px-3 py-2 rounded-xl text-xs">
-                                        <button type="button" wire:click="downloadFile('{{ $filePath }}')" class="text-gray-700 dark:text-gray-300 hover:text-[var(--theme-color)] truncate text-left flex-1 font-medium">
+                                    <div class="flex items-center justify-between gap-2 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 px-3 py-2 rounded-xl text-xs min-w-0">
+                                        <button type="button" wire:click="downloadFile('{{ $filePath }}')" class="text-gray-700 dark:text-gray-300 hover:text-[var(--theme-color)] truncate text-left flex-1 min-w-0 font-medium cursor-pointer">
                                             📎 {{ basename($filePath) }}
                                         </button>
-                                        <button type="button" wire:click="removeFile('{{ $selectedTask->id }}', '{{ $filePath }}')" class="text-gray-400 hover:text-red-500">
+                                        <button type="button" wire:click="removeFile('{{ $selectedTask->id }}', '{{ $filePath }}')" class="text-gray-400 hover:text-red-500 shrink-0 cursor-pointer">
                                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                                         </button>
                                     </div>

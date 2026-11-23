@@ -556,7 +556,7 @@ class AppServiceProvider extends ServiceProvider
                         ->first();
                 }
 
-                $isOperationalCronCommand = $cronjob !== null || (bool) preg_match('/^(crm:|shop:|dhl:|funki:|backup:|gamification:|support:|system:|send-newsletters$)/', $cmdName);
+                $isOperationalCronCommand = $cronjob !== null || (bool) preg_match('/^(crm:|shop:|dhl:|funki:|backup:|gamification:|support:|system:|tickets:|send-newsletters$|generate-tax-export$)/', $cmdName);
 
                 $detailOutput = class_exists(\App\Services\System\SystemErrorLogger::class)
                     ? \App\Services\System\SystemErrorLogger::getCommandFailureDetail($cmdName)
@@ -602,14 +602,110 @@ class AppServiceProvider extends ServiceProvider
                             ]
                         );
                     }
+
+                    if ($isOperationalCronCommand && class_exists(\App\Services\System\SystemAlertTicketService::class)) {
+                        $jobTitle = $cronjob?->name ?? $cmdName;
+                        \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                            alertKey: 'cronjob_failed:' . $cmdName,
+                            title: "Cronjob fehlgeschlagen: {$jobTitle}",
+                            markdownBody: "Der Hintergrund-Job `{$cmdName}` wurde mit Fehler-Code `" . (int) $event->exitCode . "` beendet.\n\n"
+                                . ($detailOutput !== '' ? "**Ausgabe-Auszug:**\n```\n" . mb_substr($detailOutput, 0, 1200) . "\n```" : 'Keine Konsolenausgabe vorhanden.'),
+                            departmentName: 'System',
+                            agentName: 'Systemi',
+                            ticketType: 'cronjob_failure',
+                            priority: 'high',
+                            assignToAntigravity: true,
+                            extraPayload: [
+                                'command' => $cmdName,
+                                'exit_code' => (int) $event->exitCode,
+                                'cronjob_id' => $cronjob?->id,
+                            ]
+                        );
+                    }
                 } elseif ($cronjob) {
                     $cronjob->update([
                         'status' => 'success',
                         'last_run_at' => now(),
                     ]);
+                    if (class_exists(\App\Services\System\SystemAlertTicketService::class)) {
+                        \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                            'cronjob_failed:' . $cmdName,
+                            "Nachfolgender Lauf von `{$cmdName}` ({$cronjob->name}) wurde mit Exit-Code 0 erfolgreich abgeschlossen."
+                        );
+                    }
                 }
             } catch (\Throwable $ignore) {
             }
         });
+
+        // Spatie Backup Events zentral in SystemLog & Universum-Tickets statt E-Mail-Spam routen
+        if (class_exists(\Spatie\Backup\Events\BackupHasFailed::class)) {
+            \Illuminate\Support\Facades\Event::listen(\Spatie\Backup\Events\BackupHasFailed::class, function ($event) {
+                $errMsg = isset($event->exception) && $event->exception instanceof \Throwable
+                    ? $event->exception->getMessage()
+                    : 'Unbekannter Datenbank-/Speicher-Backup-Fehler';
+                if (class_exists(\App\Models\System\SystemLog::class) && Schema::hasTable('system_logs')) {
+                    \App\Models\System\SystemLog::create([
+                        'type' => 'system',
+                        'action_id' => 'backup:failed',
+                        'title' => 'Datenbank-Backup fehlgeschlagen',
+                        'message' => mb_substr($errMsg, 0, 1000),
+                        'status' => 'error',
+                        'started_at' => now(),
+                        'finished_at' => now(),
+                    ]);
+                }
+                \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                    alertKey: 'spatie_backup:backup_failed',
+                    title: 'Datenbank-Backup fehlgeschlagen',
+                    markdownBody: "Das automatische Datenbank-Backup (`backup:run`) ist fehlgeschlagen.\n\n**Fehler-Details:**\n" . $errMsg,
+                    departmentName: 'System',
+                    agentName: 'Systemi',
+                    ticketType: 'backup_alert',
+                    priority: 'high',
+                    assignToAntigravity: true
+                );
+            });
+        }
+
+        if (class_exists(\Spatie\Backup\Events\CleanupHasFailed::class)) {
+            \Illuminate\Support\Facades\Event::listen(\Spatie\Backup\Events\CleanupHasFailed::class, function ($event) {
+                $errMsg = isset($event->exception) && $event->exception instanceof \Throwable
+                    ? $event->exception->getMessage()
+                    : 'Backup-Bereinigung fehlgeschlagen';
+                \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                    alertKey: 'spatie_backup:cleanup_failed',
+                    title: 'Backup-Bereinigung fehlgeschlagen',
+                    markdownBody: "Die automatische Bereinigung alter Backups (`backup:clean`) meldete einen Fehler:\n\n" . $errMsg,
+                    departmentName: 'System',
+                    agentName: 'Systemi',
+                    ticketType: 'backup_alert',
+                    priority: 'normal'
+                );
+            });
+        }
+
+        if (class_exists(\Spatie\Backup\Events\UnhealthyBackupWasFound::class)) {
+            \Illuminate\Support\Facades\Event::listen(\Spatie\Backup\Events\UnhealthyBackupWasFound::class, function ($event) {
+                \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                    alertKey: 'spatie_backup:unhealthy_backup',
+                    title: 'Backup-Gesundheitsprüfung: Warnung erkannt',
+                    markdownBody: 'Die Spatie-Backup-Überwachung hat ein veraltetes oder zu großes Backup-Ziel gemeldet. Bitte `/admin/system-backups` prüfen.',
+                    departmentName: 'System',
+                    agentName: 'Systemi',
+                    ticketType: 'backup_alert',
+                    priority: 'high'
+                );
+            });
+        }
+
+        if (class_exists(\Spatie\Backup\Events\BackupWasSuccessful::class)) {
+            \Illuminate\Support\Facades\Event::listen(\Spatie\Backup\Events\BackupWasSuccessful::class, function () {
+                \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                    'spatie_backup:backup_failed',
+                    'Nachfolgendes Datenbank-Backup wurde erfolgreich und fehlerfrei erstellt.'
+                );
+            });
+        }
     }
 }

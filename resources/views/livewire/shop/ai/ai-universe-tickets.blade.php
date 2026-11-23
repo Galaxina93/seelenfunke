@@ -61,7 +61,7 @@
         }
      }"
      @keydown.escape.window="lightboxOpen = false; closeHologram(); $wire.closeConceptModal()"
-     class="w-full min-h-[calc(100dvh-5rem)] flex flex-col gap-3 px-3 sm:px-6 pb-6 pt-2 font-sans text-gray-900 dark:text-white">
+     class="w-full max-w-full overflow-x-clip min-h-[calc(100dvh-5rem)] flex flex-col gap-2.5 sm:gap-3 px-2.5 sm:px-6 pb-4 sm:pb-6 pt-1.5 sm:pt-2 font-sans text-gray-900 dark:text-white">
 
     @php
         $stats = $this->headerStats;
@@ -93,8 +93,10 @@
                     autoGrow(el) {
                         if (!el) return;
                         el.style.height = 'auto';
-                        const next = Math.min(Math.max(el.scrollHeight, 38), 152);
+                        const raw = el.scrollHeight;
+                        const next = Math.min(Math.max(raw, 38), 152);
                         el.style.height = next + 'px';
+                        el.style.overflowY = raw > 152 ? 'auto' : 'hidden';
                     },
 
                     detectMention(el) {
@@ -210,6 +212,7 @@
                             if (el) {
                                 el.value = '';
                                 el.style.height = '38px';
+                                el.style.overflowY = 'hidden';
                             }
                         });
                     }
@@ -219,22 +222,25 @@
     @endonce
 
     {{-- ZEILE 1: ULTRA-CLEANE BEFEHLS- & ANSICHTSLEISTE (0 Subtitles) --}}
-    <div class="bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-        <div class="flex items-center gap-2.5 flex-wrap">
-            <h1 class="text-lg sm:text-xl font-black tracking-tight text-gray-900 dark:text-white">Tickets</h1>
+    <div :class="$wire.mainView === 'tickets' && $wire.mobileTicketOpen ? 'hidden lg:flex' : 'flex'"
+         class="bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 shadow-xs flex-col xl:flex-row xl:items-center justify-between gap-2.5 sm:gap-3">
+        <div class="flex items-center justify-between sm:justify-start gap-1.5 sm:gap-2.5 flex-wrap min-w-0">
+            <div class="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+                <h1 class="text-base sm:text-xl font-black tracking-tight text-gray-900 dark:text-white">Tickets</h1>
 
-            <span class="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase border {{ $stats['environment_tier'] === 'LIVE' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700' }}"
-                  title="Aktive Systemumgebung">
-                {{ $stats['environment_tier'] }}
-            </span>
+                <span class="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold uppercase border {{ $stats['environment_tier'] === 'LIVE' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700' }}"
+                      title="Aktive Systemumgebung">
+                    {{ $stats['environment_tier'] }}
+                </span>
 
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[10px] font-bold border {{ $stats['notebook_online'] ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}"
-                  title="Kopplungsstatus der lokalen Antigravity-Entwicklereinheit">
-                <span class="w-1.5 h-1.5 rounded-full {{ $stats['notebook_online'] ? 'bg-emerald-500' : 'bg-gray-400' }}"></span>
-                Antigravity {{ $stats['notebook_online'] ? 'Online' : 'Standby' }}
-            </span>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10px] font-bold border {{ $stats['notebook_online'] ? 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700' }}"
+                      title="Kopplungsstatus der lokalen Antigravity-Entwicklereinheit">
+                    <span class="w-1.5 h-1.5 rounded-full {{ $stats['notebook_online'] ? 'bg-emerald-500' : 'bg-gray-400' }}"></span>
+                    <span class="hidden sm:inline">Antigravity</span><span class="sm:hidden">AG</span> {{ $stats['notebook_online'] ? 'Online' : 'Standby' }}
+                </span>
+            </div>
 
-            <span class="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700"
+            <span class="px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shrink-0"
                   title="Geschätzte Vertex AI Inferenzkosten im laufenden Monat (Budget-Richtwert: 50,00 €)">
                 {{ $stats['monthly_euro_formatted'] }} / 50 €
             </span>
@@ -244,20 +250,20 @@
         <form @submit.prevent="triggerSubmit()"
               x-data="sfTicketComposer('commandInput', 'submitCommand', @js($mentionAgents))"
               @click.outside="mentionOpen = false"
-              class="flex-1 max-w-2xl flex items-end gap-2">
-            <div class="relative flex-1 flex items-end">
+              class="w-full xl:flex-1 xl:max-w-2xl flex items-end gap-2 min-w-0">
+            <div class="relative flex-1 min-w-0 flex items-end">
                 <textarea rows="1"
                           x-ref="composerInput"
                           wire:model="commandInput"
                           @input="onInput($event)"
                           @keydown="onKeydown($event)"
                           @click="detectMention($event.target)"
-                          placeholder="Anweisung an Funkira oder @Agent..."
+                          placeholder="Anweisung..."
                           title="Enter zum Senden, Shift+Enter für Zeilenumbruch, @ für Agenten-Auswahl"
-                          style="height: 38px;"
-                          class="w-full resize-none overflow-y-auto bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl pl-3.5 pr-16 py-2 text-xs sm:text-sm leading-snug text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:bg-white dark:focus:bg-black focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-colors"></textarea>
+                          style="height: 38px; overflow-y: hidden;"
+                          class="w-full resize-none overflow-y-hidden bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl pl-3 pr-14 sm:pl-3.5 sm:pr-16 py-2 text-xs sm:text-sm leading-snug text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:bg-white dark:focus:bg-black focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-colors"></textarea>
 
-                <div class="absolute right-2.5 bottom-2 flex items-center gap-1.5">
+                <div class="absolute right-2 sm:right-2.5 bottom-2 flex items-center gap-1 sm:gap-1.5">
                     <button type="button"
                             @click="openMentionPicker()"
                             title="Agent oder @Antigravity einbeziehen"
@@ -292,39 +298,40 @@
             </div>
             <button type="submit"
                     wire:loading.attr="disabled"
-                    class="h-[38px] px-4 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all shrink-0 cursor-pointer">
+                    class="h-[38px] px-3 sm:px-4 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-[11px] sm:text-xs uppercase tracking-wider hover:brightness-105 transition-all shrink-0 cursor-pointer">
                 Senden
             </button>
         </form>
 
-        {{-- 1-Klick Umschalter: Tickets | Dateien | Organigramm | Wissen --}}
-        <div class="flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold shrink-0">
+        {{-- 1-Klick Umschalter: Tickets | Dateien | Organigramm | Wissen (Mobil voll ausgeschrieben ohne Abschneiden!) --}}
+        <div class="grid grid-cols-4 sm:flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px] sm:text-xs font-bold w-full xl:w-auto shrink-0">
             <button type="button"
                     wire:click="setMainView('tickets')"
-                    class="px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer {{ $mainView === 'tickets' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
-                <x-heroicon-m-ticket class="w-4 h-4 text-[var(--theme-color)]" />
+                    class="px-1.5 sm:px-3 py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 sm:gap-1.5 min-w-0 cursor-pointer {{ $mainView === 'tickets' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                <x-heroicon-m-ticket class="hidden sm:block w-4 h-4 text-[var(--theme-color)] shrink-0" />
                 <span>Tickets</span>
                 @if($stats['waiting_count'] > 0)
-                    <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-[var(--theme-color)] text-gray-900 font-black">{{ $stats['waiting_count'] }}</span>
+                    <span class="px-1 sm:px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] bg-[var(--theme-color)] text-gray-900 font-black leading-none shrink-0">{{ $stats['waiting_count'] }}</span>
                 @endif
             </button>
             <button type="button"
                     wire:click="setMainView('files')"
                     title="Zentrale Datei-, Konzept- & 3D-Übersicht (Auto-Archiv nach 28 Tagen)"
-                    class="px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer {{ $mainView === 'files' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
-                <x-heroicon-m-cube-transparent class="w-4 h-4 text-[var(--theme-color)]" />
+                    class="px-1.5 sm:px-3 py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 sm:gap-1.5 min-w-0 cursor-pointer {{ $mainView === 'files' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                <x-heroicon-m-cube-transparent class="hidden sm:block w-4 h-4 text-[var(--theme-color)] shrink-0" />
                 <span>Dateien</span>
             </button>
             <button type="button"
                     wire:click="setMainView('organigramm')"
-                    class="px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer {{ $mainView === 'organigramm' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
-                <x-heroicon-m-building-office-2 class="w-4 h-4 text-[var(--theme-color)]" />
-                <span>Organigramm</span>
+                    class="px-1.5 sm:px-3 py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 sm:gap-1.5 min-w-0 cursor-pointer {{ $mainView === 'organigramm' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                <x-heroicon-m-building-office-2 class="hidden sm:block w-4 h-4 text-[var(--theme-color)] shrink-0" />
+                <span class="sm:hidden">Orga</span>
+                <span class="hidden sm:inline">Organigramm</span>
             </button>
             <button type="button"
                     wire:click="setMainView('knowledge')"
-                    class="px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer {{ $mainView === 'knowledge' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
-                <x-heroicon-m-book-open class="w-4 h-4 text-[var(--theme-color)]" />
+                    class="px-1.5 sm:px-3 py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1 sm:gap-1.5 min-w-0 cursor-pointer {{ $mainView === 'knowledge' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                <x-heroicon-m-book-open class="hidden sm:block w-4 h-4 text-[var(--theme-color)] shrink-0" />
                 <span>Wissen</span>
             </button>
         </div>
@@ -346,12 +353,14 @@
     {{-- ANSICHT 1: ZENTRALES CHRONOLOGISCHES ABTEILUNGS-TICKETSYSTEM          --}}
     {{-- ===================================================================== --}}
     @if($mainView === 'tickets')
-        {{-- ZEILE 2: FLACHE ABTEILUNGS-TABS + MINI-AGENTEN-RINGE + STATUS-FILTER --}}
-        <div class="bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl px-3.5 py-2.5 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        {{-- ZEILE 2: ABTEILUNGS-TABS (ZEILE A) + AGENTEN-RINGE & STATUS-FILTER (ZEILE B) OHNE SCROLLBALKEN --}}
+        <div :class="$wire.mobileTicketOpen ? 'hidden lg:flex' : 'flex'"
+             class="bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl px-3 sm:px-4 py-2.5 shadow-xs flex-col gap-2.5 min-w-0">
+            {{-- Zeile A: Alle Abteilungen vollständig sichtbar ohne Abschneiden/Scrollbar --}}
+            <div class="flex flex-wrap items-center gap-1.5">
                 <button type="button"
                         wire:click="selectDepartment('all')"
-                        class="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all {{ $selectedDepartmentId === 'all' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
+                        class="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all cursor-pointer {{ $selectedDepartmentId === 'all' ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
                     Alle ({{ $stats['open_count'] }})
                 </button>
                 @foreach($this->departments as $dept)
@@ -360,7 +369,7 @@
                     @endphp
                     <button type="button"
                             wire:click="selectDepartment('{{ $dept->id }}')"
-                            class="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 {{ $selectedDepartmentId === $dept->id ? 'bg-[var(--theme-color)] text-gray-900 font-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
+                            class="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 cursor-pointer {{ $selectedDepartmentId === $dept->id ? 'bg-[var(--theme-color)] text-gray-900 font-black' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800' }}">
                         <span>{{ $dept->name }}</span>
                         @if($deptOpen > 0)
                             <span class="text-[10px] opacity-80">({{ $deptOpen }})</span>
@@ -369,9 +378,10 @@
                 @endforeach
             </div>
 
-            <div class="flex items-center justify-between lg:justify-end gap-3 flex-wrap">
+            {{-- Zeile B: Agenten-Ringe links + Status, Bereich & Suche rechts (0 Scrollbalken) --}}
+            <div class="pt-2.5 border-t border-gray-100 dark:border-gray-800/80 flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 min-w-0">
                 {{-- Kompakte 28px Agenten-Ringe mit Live-Statuspunkt --}}
-                <div class="flex items-center gap-1.5">
+                <div class="flex flex-wrap items-center gap-1.5 py-0.5">
                     @foreach($this->visibleAgents as $ag)
                         @php
                             $agState = $stats['agent_status_map'][$ag->id] ?? 'idle';
@@ -382,11 +392,11 @@
                             };
                             $isSelectedAg = ($selectedAgentId === $ag->id);
                         @endphp
-                        <div class="relative group">
+                        <div class="relative group shrink-0">
                             <button type="button"
                                     wire:click="toggleAgentFilter('{{ $ag->id }}')"
                                     title="{{ $ag->name }} ({{ $agState === 'waiting' ? 'Wartet auf dich' : ($agState === 'working' ? 'In Arbeit' : 'Bereit') }})"
-                                    class="w-7 h-7 rounded-full border flex items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-800 transition-transform hover:scale-105 {{ $isSelectedAg ? 'ring-2 ring-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-300 dark:border-gray-700' }}">
+                                    class="w-7 h-7 rounded-full border flex items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-800 transition-transform hover:scale-105 cursor-pointer {{ $isSelectedAg ? 'ring-2 ring-[var(--theme-color)] border-[var(--theme-color)]' : 'border-gray-300 dark:border-gray-700' }}">
                                 @if($ag->profile_picture)
                                     <img src="{{ \Illuminate\Support\Str::startsWith($ag->profile_picture, 'shop/') ? asset($ag->profile_picture) : \Illuminate\Support\Facades\Storage::url($ag->profile_picture) }}"
                                          alt="{{ $ag->name }}"
@@ -400,26 +410,43 @@
                     @endforeach
                 </div>
 
-                {{-- Status-Filter & Kompakt-Suche --}}
-                <div class="flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px] font-bold">
-                    <button type="button" wire:click="setStatusFilter('open')" class="px-2.5 py-1 rounded-lg transition-colors {{ $statusFilter === 'open' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Offen</button>
-                    <button type="button" wire:click="setStatusFilter('waiting')" class="px-2.5 py-1 rounded-lg transition-colors {{ $statusFilter === 'waiting' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Wartet auf mich</button>
-                    <button type="button" wire:click="setStatusFilter('completed')" class="px-2.5 py-1 rounded-lg transition-colors {{ $statusFilter === 'completed' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Erledigt</button>
-                    <button type="button" wire:click="setStatusFilter('archived')" class="px-2.5 py-1 rounded-lg transition-colors {{ $statusFilter === 'archived' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Archiv</button>
-                </div>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between lg:justify-end gap-2 flex-wrap min-w-0">
+                    {{-- Status-Filter (Mobil sauberes 4er-Raster ohne Umbruch) --}}
+                    <div class="grid grid-cols-4 sm:flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px] font-bold w-full sm:w-auto">
+                        <button type="button" wire:click="setStatusFilter('open')" class="px-1.5 sm:px-2.5 py-1 rounded-lg text-center truncate transition-colors cursor-pointer {{ $statusFilter === 'open' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Offen</button>
+                        <button type="button" wire:click="setStatusFilter('waiting')" class="px-1.5 sm:px-2.5 py-1 rounded-lg text-center truncate transition-colors cursor-pointer {{ $statusFilter === 'waiting' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">
+                            <span class="sm:hidden">Wartet</span>
+                            <span class="hidden sm:inline">Wartet auf mich</span>
+                        </button>
+                        <button type="button" wire:click="setStatusFilter('completed')" class="px-1.5 sm:px-2.5 py-1 rounded-lg text-center truncate transition-colors cursor-pointer {{ $statusFilter === 'completed' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Erledigt</button>
+                        <button type="button" wire:click="setStatusFilter('archived')" class="px-1.5 sm:px-2.5 py-1 rounded-lg text-center truncate transition-colors cursor-pointer {{ $statusFilter === 'archived' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Archiv</button>
+                    </div>
 
-                <input type="text"
-                       wire:model.live.debounce.250ms="search"
-                       placeholder="#SF-..."
-                       class="w-28 sm:w-36 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-[var(--theme-color)] outline-none" />
+                    <div class="flex items-center gap-2 w-full sm:w-auto min-w-0">
+                        @if($this->isAdminViewer())
+                            {{-- Bereichs-Filter: Alle | Gewerblich | Privat --}}
+                            <div data-testid="ticket-scope-filter" class="flex items-center gap-0.5 sm:gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px] font-bold shrink-0">
+                                <button type="button" wire:click="setBusinessFilter('all')" class="px-2 sm:px-2.5 py-1 rounded-lg transition-colors cursor-pointer {{ $businessFilter === 'all' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Alle</button>
+                                <button type="button" wire:click="setBusinessFilter('business')" class="px-2 sm:px-2.5 py-1 rounded-lg transition-colors cursor-pointer {{ $businessFilter === 'business' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Gewerblich</button>
+                                <button type="button" wire:click="setBusinessFilter('private')" class="px-2 sm:px-2.5 py-1 rounded-lg transition-colors cursor-pointer {{ $businessFilter === 'private' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white' }}">Privat</button>
+                            </div>
+                        @endif
+
+                        <input type="text"
+                               wire:model.live.debounce.250ms="search"
+                               placeholder="#SF-..."
+                               class="flex-1 min-w-0 sm:w-36 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-[var(--theme-color)] outline-none" />
+                    </div>
+                </div>
             </div>
         </div>
 
-        {{-- HAUPT-SPLIT: LINKS SCHLANKE CHRONIK, RECHTS AKTIVER TICKET-STREAM --}}
-        <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-[600px]">
+        {{-- HAUPT-SPLIT: LINKS SCHLANKE CHRONIK, RECHTS AKTIVER TICKET-STREAM (Mobil: echtes Master-Detail!) --}}
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 min-h-0 lg:min-h-[600px]">
             {{-- LINKE SPALTE: SCHLANKE TICKET-LISTE (0 Text-Overload) --}}
-            <div class="lg:col-span-4 bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden flex flex-col">
-                <div class="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/80 max-h-[calc(100dvh-15rem)]">
+            <div :class="$wire.mobileTicketOpen ? 'hidden lg:flex' : 'flex'"
+                 class="lg:col-span-4 bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden flex-col min-w-0">
+                <div class="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800/80 lg:max-h-[calc(100dvh-15rem)]">
                     @forelse($this->tickets as $item)
                         @php
                             $isSelected = ($activeTicketId === $item->id);
@@ -434,15 +461,19 @@
                         @endphp
                         <button type="button"
                                 wire:click="selectTicket('{{ $item->id }}')"
-                                class="w-full text-left px-4 py-3 transition-colors flex flex-col gap-1.5 cursor-pointer {{ $isSelected ? 'bg-[var(--theme-color-10)] border-l-4 border-l-[var(--theme-color)]' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60' }}">
-                            <div class="flex items-center justify-between gap-2">
-                                <div class="flex items-center gap-2 min-w-0">
+                                @click="$wire.mobileTicketOpen = true; window.scrollTo({ top: 0, behavior: 'smooth' })"
+                                class="w-full text-left px-3.5 sm:px-4 py-3 transition-colors flex flex-col gap-1.5 cursor-pointer min-w-0 {{ $isSelected ? 'lg:bg-[var(--theme-color-10)] lg:border-l-4 lg:border-l-[var(--theme-color)] bg-white dark:bg-transparent' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60' }}">
+                            <div class="flex items-center justify-between gap-2 min-w-0">
+                                <div class="flex items-center gap-1.5 sm:gap-2 min-w-0">
                                     <span class="font-mono text-[11px] font-black text-[var(--theme-color)] shrink-0">{{ $item->ticket_number }}</span>
+                                    @if(!($item->is_business ?? true))
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-gray-200/80 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300/70 dark:border-gray-700 shrink-0">Privat</span>
+                                    @endif
                                     @if($item->department)
                                         <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">{{ $item->department->name }}</span>
                                     @endif
                                     @if($item->occurrence_count > 1)
-                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-red-500/15 text-red-600 dark:text-red-400">{{ $item->occurrence_count }}x</span>
+                                        <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-red-500/15 text-red-600 dark:text-red-400 shrink-0">{{ $item->occurrence_count }}x</span>
                                     @endif
                                 </div>
                                 <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0 {{ $statusBadgeClass }}">
@@ -450,13 +481,13 @@
                                 </span>
                             </div>
 
-                            <div class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white truncate">
+                            <div class="text-xs sm:text-sm font-bold text-gray-900 dark:text-white line-clamp-2 lg:truncate break-words [overflow-wrap:anywhere]">
                                 {{ $item->title }}
                             </div>
 
-                            <div class="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400">
-                                <span class="font-semibold">{{ $item->agent?->name ?? 'Funkira' }} · {{ \App\Models\Ai\AiUniverseTicket::getChannelLabel($item->source_channel) }}</span>
-                                <span class="font-mono">{{ ($item->last_activity_at ?? $item->created_at)?->format('d.m. H:i') }}</span>
+                            <div class="flex items-center justify-between gap-2 text-[10px] text-gray-500 dark:text-gray-400 min-w-0">
+                                <span class="font-semibold truncate min-w-0">{{ $item->agent?->name ?? 'Funkira' }} · {{ \App\Models\Ai\AiUniverseTicket::getChannelLabel($item->source_channel) }}</span>
+                                <span class="font-mono shrink-0">{{ ($item->last_activity_at ?? $item->created_at)?->format('d.m. H:i') }}</span>
                             </div>
                         </button>
                     @empty
@@ -468,87 +499,52 @@
             </div>
 
             {{-- RECHTE SPALTE: CHRONOLOGISCHER TICKET-STREAM & 1-KLICK-FREIGABEN --}}
-            <div class="lg:col-span-8 bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden flex flex-col">
+            <div :class="$wire.mobileTicketOpen ? 'flex' : 'hidden lg:flex'"
+                 class="lg:col-span-8 bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden flex-col min-w-0 h-[calc(100dvh-6rem)] lg:h-auto">
                 @if($this->activeTicket)
                     @php
                         $ticket = $this->activeTicket;
                         $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
-                    @endphp
 
-                    {{-- Ticket-Kopf --}}
-                    <div class="px-5 py-3.5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3 bg-gray-50/60 dark:bg-gray-950/60">
-                        <div class="min-w-0">
-                            <div class="flex items-center gap-2 flex-wrap">
-                                <span class="font-mono text-xs font-black text-[var(--theme-color)]">{{ $ticket->ticket_number }}</span>
-                                <span class="text-xs font-bold text-gray-500 dark:text-gray-400">{{ $ticket->department?->name ?? 'Leitung' }} · {{ $ticket->agent?->name ?? 'Funkira' }}</span>
-                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-200/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300">{{ $ticket->environment_tier }}</span>
-                                @if(!empty($payload['ag_item_id']))
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">{{ $payload['ag_item_id'] }}</span>
-                                @endif
-                                @if(!empty($payload['dismissed']))
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300">Verworfen</span>
-                                @endif
-                                @if(!empty($ticket->compact_context))
-                                    <button type="button"
-                                            @click="showCompactSummary = !showCompactSummary"
-                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--theme-color-20)] text-[var(--theme-color)] cursor-pointer"
-                                            title="Automatisch komprimierter Gesprächskontext anzeigen">
-                                        Auto-Compact aktiv
-                                    </button>
-                                @endif
-                            </div>
-                            <h2 class="text-sm sm:text-base font-black text-gray-900 dark:text-white mt-0.5 truncate">{{ $ticket->title }}</h2>
-                        </div>
+                        $headerStatusClass = match ($ticket->status) {
+                            'waiting_for_alina' => 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30',
+                            'waiting_for_tresor' => 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
+                            'waiting_for_notebook' => 'bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border-indigo-500/30',
+                            'completed' => 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+                            'archived' => 'bg-gray-500/10 text-gray-500 border-gray-500/20',
+                            default => 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/30',
+                        };
 
-                        @php
-                            $headerStatusClass = match ($ticket->status) {
-                                'waiting_for_alina' => 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30',
-                                'waiting_for_tresor' => 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30',
-                                'waiting_for_notebook' => 'bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border-indigo-500/30',
-                                'completed' => 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
-                                'archived' => 'bg-gray-500/10 text-gray-500 border-gray-500/20',
-                                default => 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/30',
-                            };
-
-                            $ticketAllFiles = [];
-                            foreach ($ticket->messages as $tMsg) {
-                                if (!empty($tMsg->attachments) && is_array($tMsg->attachments)) {
-                                    foreach ($tMsg->attachments as $tIdx => $tAtt) {
-                                        if (is_array($tAtt) && empty($tAtt['purged'])) {
-                                            $tAtt['_msg_id'] = $tMsg->id;
-                                            $tAtt['_key'] = (string) ($tAtt['id'] ?? ($tAtt['rel_path'] ?? ($tAtt['url'] ?? $tIdx)));
-                                            $ticketAllFiles[] = $tAtt;
-                                        }
+                        $ticketAllFiles = [];
+                        foreach ($ticket->messages as $tMsg) {
+                            if (!empty($tMsg->attachments) && is_array($tMsg->attachments)) {
+                                foreach ($tMsg->attachments as $tIdx => $tAtt) {
+                                    if (is_array($tAtt) && empty($tAtt['purged'])) {
+                                        $tAtt['_msg_id'] = $tMsg->id;
+                                        $tAtt['_key'] = (string) ($tAtt['id'] ?? ($tAtt['rel_path'] ?? ($tAtt['url'] ?? $tIdx)));
+                                        $ticketAllFiles[] = $tAtt;
                                     }
                                 }
                             }
-                        @endphp
+                        }
+                    @endphp
 
-                        <div class="flex items-center gap-2 flex-wrap">
-                            @if(count($ticketAllFiles) > 0)
-                                <button type="button"
-                                        @click="showTicketFilesDrawer = !showTicketFilesDrawer"
-                                        title="Alle Dateien, Konzepte & 3D-Modelle dieses Tickets einblenden"
-                                        class="px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-[#C5A059] text-gray-900 dark:text-white flex items-center gap-1.5 transition-colors cursor-pointer">
-                                    <x-heroicon-m-cube-transparent class="w-4 h-4 text-[#C5A059]" />
-                                    <span>Dateien ({{ count($ticketAllFiles) }})</span>
-                                </button>
-                            @endif
+                    {{-- Ticket-Kopf (Mobil mit direkter Zurück-Navigation + sauberem Umbruch) --}}
+                    <div class="px-3.5 sm:px-5 py-2.5 sm:py-3.5 border-b border-gray-200 dark:border-gray-800 flex flex-col gap-2 bg-gray-50/60 dark:bg-gray-950/60 shrink-0 min-w-0">
+                        {{-- Mobile Zurück-Leiste (< lg) --}}
+                        <div class="flex lg:hidden items-center justify-between gap-2 pb-2 border-b border-gray-200/70 dark:border-gray-800">
+                            <button type="button"
+                                    @click="$wire.mobileTicketOpen = false; $wire.closeMobileTicket(); window.scrollTo({ top: 0, behavior: 'smooth' })"
+                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-black text-gray-900 dark:text-white cursor-pointer shrink-0">
+                                <x-heroicon-m-arrow-left class="w-3.5 h-3.5 text-[var(--theme-color)]" />
+                                <span>Alle Tickets</span>
+                            </button>
 
-                            @if(!$ticket->assigned_to_antigravity && $ticket->status !== 'completed' && $ticket->status !== 'archived')
-                                <button type="button"
-                                        wire:click="triggerTicketAction('handoff_antigravity')"
-                                        class="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer">
-                                    An Antigravity übergeben
-                                </button>
-                            @endif
-
-                            {{-- Synchroner Live-Status & Manuelle Status-Änderung in 1 Klick --}}
-                            <div class="relative flex items-center">
-                                <select wire:key="status-select-{{ $ticket->id }}-{{ $ticket->status }}"
+                            <div class="relative flex items-center min-w-0">
+                                <select wire:key="status-select-mobile-{{ $ticket->id }}-{{ $ticket->status }}"
                                         wire:change="changeTicketStatus($event.target.value)"
                                         aria-label="Ticket-Status manuell ändern"
-                                        class="appearance-none pl-3 pr-7 py-1.5 rounded-xl text-xs font-black border transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-[var(--theme-color-50)] {{ $headerStatusClass }}">
+                                        class="appearance-none pl-2.5 pr-6 py-1 rounded-xl text-[11px] font-black border transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-[var(--theme-color-50)] {{ $headerStatusClass }}">
                                     <option value="new" @selected($ticket->status === 'new') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Neu</option>
                                     <option value="in_progress" @selected($ticket->status === 'in_progress') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">In Arbeit</option>
                                     <option value="waiting_for_alina" @selected($ticket->status === 'waiting_for_alina') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Rückfrage / Go</option>
@@ -557,13 +553,84 @@
                                     <option value="completed" @selected($ticket->status === 'completed') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Erledigt</option>
                                     <option value="archived" @selected($ticket->status === 'archived') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Archiv</option>
                                 </select>
-                                <x-heroicon-m-chevron-down class="w-3.5 h-3.5 pointer-events-none absolute right-2 opacity-75" />
+                                <x-heroicon-m-chevron-down class="w-3.5 h-3.5 pointer-events-none absolute right-1.5 opacity-75" />
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2 min-w-0">
+                            <div class="min-w-0 w-full lg:flex-1">
+                                <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+                                    <span class="font-mono text-xs font-black text-[var(--theme-color)] shrink-0">{{ $ticket->ticket_number }}</span>
+                                    @if($this->isAdminViewer())
+                                        <button type="button"
+                                                wire:click="toggleTicketScope('{{ $ticket->id }}')"
+                                                data-testid="ticket-toggle-scope-btn"
+                                                title="Zwischen Gewerblich und Privat umschalten"
+                                                class="px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer shrink-0 {{ ($ticket->is_business ?? true) ? 'bg-[var(--theme-color-10)] text-gray-900 dark:text-white border-[var(--theme-color-30)] hover:bg-[var(--theme-color-20)]' : 'bg-gray-200/80 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700 hover:bg-gray-300/70 dark:hover:bg-gray-700' }}">
+                                            {{ ($ticket->is_business ?? true) ? 'Gewerblich' : 'Privat' }}
+                                        </button>
+                                    @endif
+                                    <span class="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 truncate max-w-full">{{ $ticket->department?->name ?? 'Leitung' }} · {{ $ticket->agent?->name ?? 'Funkira' }}</span>
+                                    <span class="px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-gray-200/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 shrink-0">{{ $ticket->environment_tier }}</span>
+                                    @if(!empty($payload['ag_item_id']))
+                                        <span class="px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 truncate max-w-[170px] sm:max-w-none">{{ $payload['ag_item_id'] }}</span>
+                                    @endif
+                                    @if(!empty($payload['dismissed']))
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 shrink-0">Verworfen</span>
+                                    @endif
+                                    @if(!empty($ticket->compact_context))
+                                        <button type="button"
+                                                @click="showCompactSummary = !showCompactSummary"
+                                                class="px-2 py-0.5 rounded text-[10px] font-bold bg-[var(--theme-color-20)] text-[var(--theme-color)] cursor-pointer shrink-0"
+                                                title="Automatisch komprimierter Gesprächskontext anzeigen">
+                                            Auto-Compact aktiv
+                                        </button>
+                                    @endif
+                                </div>
+                                <h2 class="text-xs sm:text-base font-black text-gray-900 dark:text-white mt-1 line-clamp-2 sm:truncate break-words [overflow-wrap:anywhere] leading-snug">{{ $ticket->title }}</h2>
+                            </div>
+
+                            <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+                                @if(count($ticketAllFiles) > 0)
+                                    <button type="button"
+                                            @click="showTicketFilesDrawer = !showTicketFilesDrawer"
+                                            title="Alle Dateien, Konzepte & 3D-Modelle dieses Tickets einblenden"
+                                            class="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-[#C5A059] text-gray-900 dark:text-white flex items-center gap-1.5 transition-colors cursor-pointer">
+                                        <x-heroicon-m-cube-transparent class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#C5A059]" />
+                                        <span>Dateien ({{ count($ticketAllFiles) }})</span>
+                                    </button>
+                                @endif
+
+                                @if(($ticket->is_business ?? true) && !$ticket->assigned_to_antigravity && $ticket->status !== 'completed' && $ticket->status !== 'archived' && !($ticket->status === 'waiting_for_alina' && ($payload['type'] ?? '') === 'antigravity_handoff'))
+                                    <button type="button"
+                                            wire:click="triggerTicketAction('handoff_antigravity')"
+                                            class="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 transition-colors cursor-pointer">
+                                        An Antigravity übergeben
+                                    </button>
+                                @endif
+
+                                {{-- Synchroner Live-Status auf Desktop (lg+) --}}
+                                <div class="hidden lg:flex relative items-center">
+                                    <select wire:key="status-select-{{ $ticket->id }}-{{ $ticket->status }}"
+                                            wire:change="changeTicketStatus($event.target.value)"
+                                            aria-label="Ticket-Status manuell ändern"
+                                            class="appearance-none pl-3 pr-7 py-1.5 rounded-xl text-xs font-black border transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-[var(--theme-color-50)] {{ $headerStatusClass }}">
+                                        <option value="new" @selected($ticket->status === 'new') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Neu</option>
+                                        <option value="in_progress" @selected($ticket->status === 'in_progress') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">In Arbeit</option>
+                                        <option value="waiting_for_alina" @selected($ticket->status === 'waiting_for_alina') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Rückfrage / Go</option>
+                                        <option value="waiting_for_notebook" @selected($ticket->status === 'waiting_for_notebook') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Wartet auf Notebook</option>
+                                        <option value="waiting_for_tresor" @selected($ticket->status === 'waiting_for_tresor') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Tresor bereit</option>
+                                        <option value="completed" @selected($ticket->status === 'completed') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Erledigt</option>
+                                        <option value="archived" @selected($ticket->status === 'archived') class="bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-semibold">Archiv</option>
+                                    </select>
+                                    <x-heroicon-m-chevron-down class="w-3.5 h-3.5 pointer-events-none absolute right-2 opacity-75" />
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     @if(count($ticketAllFiles) > 0)
-                        <div x-show="showTicketFilesDrawer" x-cloak class="px-5 py-3 bg-gray-50/90 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center gap-2">
+                        <div x-show="showTicketFilesDrawer" x-cloak class="px-3.5 sm:px-5 py-2.5 sm:py-3 bg-gray-50/90 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center gap-2 shrink-0 max-h-40 overflow-y-auto">
                             @foreach($ticketAllFiles as $tf)
                                 @php
                                     $tfExt = strtolower((string) ($tf['ext'] ?? pathinfo((string) ($tf['name'] ?? ''), PATHINFO_EXTENSION)));
@@ -572,39 +639,39 @@
                                     $tfRel = (string) ($tf['rel_path'] ?? '');
                                     $tfFw = (string) ($tf['funkenwerk_3d_uri'] ?? '');
                                 @endphp
-                                <div class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center gap-2 text-xs">
-                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-gray-100 dark:bg-gray-800 text-[#C5A059]">{{ $tfExt ?: 'FILE' }}</span>
-                                    <span class="font-bold truncate max-w-[180px]">{{ $tf['name'] ?? 'Datei' }}</span>
+                                <div class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center gap-2 text-xs max-w-full min-w-0">
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-gray-100 dark:bg-gray-800 text-[#C5A059] shrink-0">{{ $tfExt ?: 'FILE' }}</span>
+                                    <span class="font-bold truncate max-w-[140px] sm:max-w-[180px]">{{ $tf['name'] ?? 'Datei' }}</span>
                                     @if($tfCat === '3d' && empty($tf['archived']))
                                         <button type="button"
                                                 @click="openHologram('{{ $tfUrl }}', '{{ addslashes($tf['name'] ?? '3D') }}', '{{ $tfExt }}', '{{ $tfFw }}')"
-                                                class="px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 font-bold text-[10px] cursor-pointer">
+                                                class="px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-700 dark:text-sky-300 font-bold text-[10px] cursor-pointer shrink-0">
                                             Hologramm
                                         </button>
                                         @if($tfFw !== '')
                                             <a href="{{ $tfFw }}"
                                                title="Direkt in Funkenwerk 3D Desktop öffnen"
-                                               class="px-2 py-0.5 rounded-md bg-[#C5A059]/20 text-gray-900 dark:text-[#E8CB8E] font-bold text-[10px]">
+                                               class="hidden sm:inline-block px-2 py-0.5 rounded-md bg-[#C5A059]/20 text-gray-900 dark:text-[#E8CB8E] font-bold text-[10px] shrink-0">
                                                 Funkenwerk 3D
                                             </a>
                                         @endif
                                     @elseif($tfCat === 'concept' && $tfRel !== '')
                                         <button type="button"
                                                 wire:click="openConceptModal('{{ addslashes($tfRel) }}', '{{ addslashes($tf['name'] ?? 'Konzept') }}')"
-                                                class="px-2 py-0.5 rounded-md bg-[var(--theme-color-20)] text-gray-900 dark:text-white font-bold text-[10px] cursor-pointer">
+                                                class="px-2 py-0.5 rounded-md bg-[var(--theme-color-20)] text-gray-900 dark:text-white font-bold text-[10px] cursor-pointer shrink-0">
                                             Lesen
                                         </button>
                                     @elseif($tfCat === 'image')
                                         <button type="button"
                                                 @click="openLightbox('{{ $tfUrl }}', '{{ addslashes($tf['name'] ?? 'Bild') }}')"
-                                                class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 font-bold text-[10px] cursor-pointer">
+                                                class="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 font-bold text-[10px] cursor-pointer shrink-0">
                                             Vorschau
                                         </button>
                                     @endif
                                     <a href="{{ $tfUrl }}{{ str_contains($tfUrl, '?') ? '&download=1' : '?download=1' }}"
                                        download
                                        title="Herunterladen"
-                                       class="text-gray-500 hover:text-gray-900 dark:hover:text-white">
+                                       class="text-gray-500 hover:text-gray-900 dark:hover:text-white shrink-0">
                                         <x-heroicon-m-arrow-down-tray class="w-3.5 h-3.5" />
                                     </a>
                                 </div>
@@ -613,16 +680,16 @@
                     @endif
 
                     @if(!empty($ticket->compact_context))
-                        <div x-show="showCompactSummary" x-cloak class="px-5 py-3 bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 text-xs font-mono text-gray-600 dark:text-gray-300 whitespace-pre-line">
+                        <div x-show="showCompactSummary" x-cloak class="px-3.5 sm:px-5 py-2.5 sm:py-3 bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 text-xs font-mono text-gray-600 dark:text-gray-300 whitespace-pre-line break-words [overflow-wrap:anywhere] shrink-0 max-h-36 overflow-y-auto">
                             {{ $ticket->compact_context }}
                         </div>
                     @endif
 
                     {{-- 1-Klick Einkaufs- / Entscheidungs-Banner bei Status Wartet auf Alina --}}
                     @if($ticket->status === 'waiting_for_alina' && !empty($payload['type']))
-                        <div class="mx-5 mt-4 p-3.5 rounded-xl border border-[var(--theme-color-50)] bg-[var(--theme-color-10)] flex flex-wrap items-center justify-between gap-3">
+                        <div class="mx-3 sm:mx-5 mt-2.5 sm:mt-4 p-3 sm:p-3.5 rounded-xl border border-[var(--theme-color-50)] bg-[var(--theme-color-10)] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 shrink-0 min-w-0">
                             @if($payload['type'] === 'tresor_procurement')
-                                <div class="text-xs space-y-0.5">
+                                <div class="text-xs space-y-0.5 min-w-0 break-words">
                                     <div class="font-black text-gray-900 dark:text-white">
                                         Tresor-Bestellung bereit: {{ $payload['packs'] ?? 1 }}x {{ $payload['item_name'] ?? '' }} ({{ $payload['gross_total_formatted'] ?? '' }} Brutto inkl. Versand)
                                     </div>
@@ -630,15 +697,15 @@
                                         Händler: {{ $payload['supplier_name'] ?? '' }} · Zieladresse: {{ $payload['delivery_address_guard'] ?? '' }}
                                     </div>
                                 </div>
-                                <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-2 w-full sm:w-auto">
                                     <button type="button"
                                             wire:click="triggerTicketAction('approve_procurement')"
-                                            class="px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all cursor-pointer">
+                                            class="w-full sm:w-auto text-center px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all cursor-pointer">
                                         Kauf jetzt via Tresor ausführen
                                     </button>
                                 </div>
                             @elseif($payload['type'] === 'ag_inbox_blockade')
-                                <div class="text-xs space-y-0.5 min-w-0 flex-1">
+                                <div class="text-xs space-y-0.5 min-w-0 flex-1 break-words">
                                     <div class="font-black text-gray-900 dark:text-white">
                                         Antigravity wartet auf dein Go / deine Entscheidung ({{ $payload['ag_item_id'] ?? '' }})
                                     </div>
@@ -648,25 +715,25 @@
                                         </div>
                                     @endif
                                 </div>
-                                <div class="flex items-center gap-2 shrink-0">
+                                <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
                                     <button type="button"
                                             wire:click="triggerTicketAction('approve_ag_blockade')"
-                                            class="px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all cursor-pointer">
+                                            class="flex-1 sm:flex-initial text-center px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all cursor-pointer">
                                         Go erteilen
                                     </button>
                                     <button type="button"
                                             wire:click="triggerTicketAction('dismiss_ag_blockade')"
-                                            class="px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-xs font-bold text-rose-600 dark:text-rose-400 hover:border-rose-500 transition-colors cursor-pointer">
+                                            class="flex-1 sm:flex-initial text-center px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-xs font-bold text-rose-600 dark:text-rose-400 hover:border-rose-500 transition-colors cursor-pointer">
                                         Verwerfen
                                     </button>
                                 </div>
                             @elseif($payload['type'] === 'antigravity_handoff')
-                                <div class="text-xs font-bold text-gray-900 dark:text-white">
+                                <div class="text-xs font-bold text-gray-900 dark:text-white min-w-0 break-words">
                                     Bereit zur Übergabe an Antigravity{{ !empty($payload['missing_capability']) ? ': ' . $payload['missing_capability'] : '' }}
                                 </div>
                                 <button type="button"
                                         wire:click="triggerTicketAction('handoff_antigravity')"
-                                        class="px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all cursor-pointer">
+                                        class="w-full sm:w-auto text-center px-4 py-2 rounded-xl bg-[var(--theme-color)] text-gray-900 font-black text-xs uppercase tracking-wider hover:brightness-105 transition-all cursor-pointer shrink-0">
                                     Jetzt an Antigravity übergeben
                                 </button>
                             @elseif($payload['type'] === 'quick_choice' && !empty($payload['options']))
@@ -683,41 +750,52 @@
                         </div>
                     @endif
 
-                    {{-- Chronologische Nachrichtenliste mit edlen Gold-Rahmen-Profilbildern & Lightbox --}}
+                    {{-- Chronologische Nachrichtenliste: Mobil 100 % Breite mit Header-Avatar, Desktop seitlicher Gold-Avatar --}}
                     <div x-data="{ scrollBottom() { this.$el.scrollTop = this.$el.scrollHeight; } }"
                          x-init="$nextTick(() => scrollBottom())"
                          wire:key="ticket-stream-{{ $ticket->id }}-{{ $ticket->messages_count }}"
-                         class="flex-1 overflow-y-auto p-5 space-y-4 max-h-[calc(100dvh-23rem)]">
+                         class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 space-y-3 sm:space-y-4 lg:max-h-[calc(100dvh-23rem)]">
                         @foreach($ticket->messages as $msg)
                             @php
                                 $isAlina = ($msg->sender_role === 'alina');
                                 $avatarUrl = $this->resolveMessageAvatarUrl($msg);
                             @endphp
-                            <div class="flex items-start gap-3 {{ $isAlina ? 'flex-row-reverse' : 'flex-row' }}">
-                                {{-- Edles rundes Profilbild mit dezentem Seelenfunke-Goldrahmen (#C5A059) & Lightbox-Klick --}}
+                            <div class="flex items-start gap-2.5 sm:gap-3 min-w-0 {{ $isAlina ? 'sm:flex-row-reverse' : 'sm:flex-row' }}">
+                                {{-- Desktop (sm+): Seitliches Profilbild mit Seelenfunke-Goldrahmen (#C5A059) & Lightbox-Klick --}}
                                 <button type="button"
                                         @click="openLightbox('{{ $avatarUrl }}', '{{ addslashes($msg->sender_name) }}')"
                                         title="{{ $msg->sender_name }} vergrößern"
-                                        class="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border border-[#C5A059]/75 ring-2 ring-[#C5A059]/15 bg-white dark:bg-gray-900 shrink-0 shadow-xs hover:scale-105 hover:border-[#C5A059] transition-all cursor-pointer">
+                                        class="hidden sm:block w-10 h-10 rounded-full overflow-hidden border border-[#C5A059]/75 ring-2 ring-[#C5A059]/15 bg-white dark:bg-gray-900 shrink-0 shadow-xs hover:scale-105 hover:border-[#C5A059] transition-all cursor-pointer">
                                     <img src="{{ $avatarUrl }}"
                                          alt="{{ $msg->sender_name }}"
                                          class="w-full h-full object-cover" />
                                 </button>
 
-                                <div class="max-w-2xl rounded-2xl px-4 py-3 border {{ $isAlina ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-30)] text-gray-900 dark:text-white' : 'bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-gray-100' }}">
-                                    <div class="flex items-center justify-between gap-4 mb-1 text-[10px] text-gray-500 dark:text-gray-400">
-                                        <span class="font-black uppercase tracking-wider {{ $isAlina ? 'text-[var(--theme-color)]' : 'text-gray-700 dark:text-gray-300' }}">
-                                            {{ $msg->sender_name }} · {{ \App\Models\Ai\AiUniverseTicket::getChannelLabel($msg->channel) }}
-                                        </span>
-                                        <span class="font-mono">{{ $msg->created_at?->format('d.m. H:i') }}</span>
+                                <div class="w-full sm:w-auto sm:max-w-2xl min-w-0 rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 border {{ $isAlina ? 'bg-[var(--theme-color-10)] border-[var(--theme-color-30)] text-gray-900 dark:text-white' : 'bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-gray-100' }}">
+                                    <div class="flex items-center justify-between gap-2 sm:gap-4 mb-1.5 sm:mb-1 text-[10px] text-gray-500 dark:text-gray-400 min-w-0">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            {{-- Mobil (< sm): Kompaktes Goldrahmen-Profilbild direkt im Nachrichten-Kopf (spart 48px Breite!) --}}
+                                            <button type="button"
+                                                    @click="openLightbox('{{ $avatarUrl }}', '{{ addslashes($msg->sender_name) }}')"
+                                                    title="{{ $msg->sender_name }} vergrößern"
+                                                    class="sm:hidden w-6 h-6 rounded-full overflow-hidden border border-[#C5A059]/80 ring-1 ring-[#C5A059]/20 bg-white dark:bg-gray-900 shrink-0 cursor-pointer">
+                                                <img src="{{ $avatarUrl }}"
+                                                     alt="{{ $msg->sender_name }}"
+                                                     class="w-full h-full object-cover" />
+                                            </button>
+                                            <span class="font-black uppercase tracking-wider truncate {{ $isAlina ? 'text-[var(--theme-color)]' : 'text-gray-700 dark:text-gray-300' }}">
+                                                {{ $msg->sender_name }} · {{ \App\Models\Ai\AiUniverseTicket::getChannelLabel($msg->channel) }}
+                                            </span>
+                                        </div>
+                                        <span class="font-mono shrink-0">{{ $msg->created_at?->format('d.m. H:i') }}</span>
                                     </div>
 
-                                    <div class="text-xs sm:text-sm leading-relaxed whitespace-pre-line">{!! \App\Livewire\Shop\Ai\AiUniverseTickets::formatMessageHtml($msg->content) !!}</div>
+                                    <div class="text-[13px] sm:text-sm leading-relaxed whitespace-pre-line break-words [overflow-wrap:anywhere] min-w-0">{!! \App\Livewire\Shop\Ai\AiUniverseTickets::formatMessageHtml($msg->content) !!}</div>
 
                                     @if(!empty($msg->executed_tools))
-                                        <div class="mt-2 flex flex-wrap gap-1">
+                                        <div class="mt-2 flex flex-wrap gap-1 min-w-0">
                                             @foreach($msg->executed_tools as $toolName)
-                                                <span class="px-2 py-0.5 rounded text-[9px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                                <span class="px-2 py-0.5 rounded text-[9px] font-mono bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 break-all sm:break-normal max-w-full">
                                                     ✓ {{ $toolName }}
                                                 </span>
                                             @endforeach
@@ -725,7 +803,7 @@
                                     @endif
 
                                     @if(!empty($msg->attachments) && is_array($msg->attachments))
-                                        <div class="mt-2.5 flex flex-wrap gap-2">
+                                        <div class="mt-2.5 flex flex-wrap gap-2 min-w-0">
                                             @foreach($msg->attachments as $attIdx => $att)
                                                 @php
                                                     if (!is_array($att)) continue;
@@ -745,7 +823,7 @@
                                                 @endphp
 
                                                 @if($attPurged)
-                                                    <span class="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[10px] font-mono text-gray-400">
+                                                    <span class="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[10px] font-mono text-gray-400 break-all max-w-full">
                                                         {{ $attName }} (automatisch bereinigt)
                                                     </span>
                                                 @elseif(($att['is_image'] ?? '0') === '1' || $attCat === 'image')
@@ -763,8 +841,8 @@
                                                         </div>
                                                     </div>
                                                 @elseif($attCat === '3d')
-                                                    <div class="px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-[#C5A059]/60 shadow-2xs flex flex-col gap-1.5 min-w-[210px]">
-                                                        <div class="flex items-center justify-between gap-2">
+                                                    <div class="px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-[#C5A059]/60 shadow-2xs flex flex-col gap-1.5 w-full sm:w-auto sm:min-w-[210px] max-w-full min-w-0">
+                                                        <div class="flex items-center justify-between gap-2 min-w-0">
                                                             <span class="flex items-center gap-1.5 min-w-0">
                                                                 <x-heroicon-m-cube-transparent class="w-4 h-4 text-[#C5A059] shrink-0" />
                                                                 <span class="text-xs font-black text-gray-900 dark:text-white truncate">{{ $attName }}</span>
@@ -772,7 +850,7 @@
                                                             <button type="button"
                                                                     wire:click="toggleAttachmentPin('{{ $msg->id }}', '{{ addslashes($attKey) }}')"
                                                                     title="{{ $attPinned ? 'Dauerhaft geschützt (Pin lösen)' : 'Vor 4-Wochen-Archivierung schützen (Pin)' }}"
-                                                                    class="text-[10px] font-bold cursor-pointer {{ $attPinned ? 'text-[#C5A059]' : 'text-gray-400 hover:text-gray-700 dark:hover:text-white' }}">
+                                                                    class="text-[10px] font-bold cursor-pointer shrink-0 {{ $attPinned ? 'text-[#C5A059]' : 'text-gray-400 hover:text-gray-700 dark:hover:text-white' }}">
                                                                 {{ $attPinned ? '★ Pin' : '☆' }}
                                                             </button>
                                                         </div>
@@ -787,7 +865,7 @@
                                                                 <span class="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">Archiv</span>
                                                             @endif
                                                         </div>
-                                                        <div class="flex items-center gap-1.5 pt-0.5">
+                                                        <div class="flex items-center flex-wrap gap-1.5 pt-0.5">
                                                             @if(!$attArchived)
                                                                 <button type="button"
                                                                         @click="openHologram('{{ $attUrl }}', '{{ addslashes($attName) }}', '{{ $attExt }}', '{{ $attFwUri }}')"
@@ -797,7 +875,7 @@
                                                                 @if($attFwUri !== '')
                                                                     <a href="{{ $attFwUri }}"
                                                                        title="Projektdatei direkt in der Funkenwerk 3D Desktop-App öffnen"
-                                                                       class="px-2.5 py-1 rounded-lg bg-[#C5A059] text-gray-900 text-[10px] font-black uppercase tracking-wider hover:brightness-105">
+                                                                       class="hidden sm:inline-block px-2.5 py-1 rounded-lg bg-[#C5A059] text-gray-900 text-[10px] font-black uppercase tracking-wider hover:brightness-105">
                                                                         Funkenwerk 3D
                                                                     </a>
                                                                 @endif
@@ -817,36 +895,36 @@
                                                         </div>
                                                     </div>
                                                 @elseif($attCat === 'concept' && $attRel !== '')
-                                                    <div class="px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center gap-2 text-xs">
+                                                    <div class="px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center gap-2 text-xs max-w-full min-w-0">
                                                         <x-heroicon-m-document-text class="w-4 h-4 text-[var(--theme-color)] shrink-0" />
-                                                        <span class="font-bold text-gray-900 dark:text-white truncate max-w-[180px]">{{ $attName }}</span>
+                                                        <span class="font-bold text-gray-900 dark:text-white truncate max-w-[140px] sm:max-w-[180px]">{{ $attName }}</span>
                                                         <button type="button"
                                                                 wire:click="openConceptModal('{{ addslashes($attRel) }}', '{{ addslashes($attName) }}')"
-                                                                class="px-2 py-0.5 rounded-md bg-[var(--theme-color-20)] text-gray-900 dark:text-white font-bold text-[10px] cursor-pointer">
+                                                                class="px-2 py-0.5 rounded-md bg-[var(--theme-color-20)] text-gray-900 dark:text-white font-bold text-[10px] cursor-pointer shrink-0">
                                                             Öffnen
                                                         </button>
                                                         <a href="{{ $attUrl }}{{ str_contains($attUrl, '?') ? '&download=1' : '?download=1' }}"
                                                            download
                                                            title="Konzept herunterladen"
-                                                           class="text-gray-500 hover:text-gray-900 dark:hover:text-white">
+                                                           class="text-gray-500 hover:text-gray-900 dark:hover:text-white shrink-0">
                                                             <x-heroicon-m-arrow-down-tray class="w-3.5 h-3.5" />
                                                         </a>
                                                     </div>
                                                 @else
-                                                    <div class="px-3 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                                                    <div class="px-3 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 max-w-full min-w-0">
                                                         <x-heroicon-m-document-arrow-down class="w-4 h-4 text-[var(--theme-color)] shrink-0" />
                                                         <a href="{{ $attUrl }}{{ str_contains($attUrl, '?') ? '&download=1' : '?download=1' }}"
                                                            download
-                                                           class="hover:underline truncate max-w-[200px]">
+                                                           class="hover:underline truncate max-w-[140px] sm:max-w-[200px]">
                                                             {{ $attName }}
                                                         </a>
                                                         @if(!empty($att['size_human']))
-                                                            <span class="text-[10px] font-mono text-gray-400">{{ $att['size_human'] }}</span>
+                                                            <span class="text-[10px] font-mono text-gray-400 shrink-0">{{ $att['size_human'] }}</span>
                                                         @endif
                                                         <button type="button"
                                                                 wire:click="toggleAttachmentPin('{{ $msg->id }}', '{{ addslashes($attKey) }}')"
                                                                 title="{{ $attPinned ? 'Pin lösen' : 'Vor 4-Wochen-Archivierung schützen' }}"
-                                                                class="text-[10px] cursor-pointer {{ $attPinned ? 'text-[#C5A059]' : 'text-gray-400 hover:text-gray-700 dark:hover:text-white' }}">
+                                                                class="text-[10px] cursor-pointer shrink-0 {{ $attPinned ? 'text-[#C5A059]' : 'text-gray-400 hover:text-gray-700 dark:hover:text-white' }}">
                                                             {{ $attPinned ? '★' : '☆' }}
                                                         </button>
                                                     </div>
@@ -859,12 +937,12 @@
                         @endforeach
                     </div>
 
-                    {{-- Antwortzeile im Ticket (Enter = Senden, Shift+Enter = Umbruch, @ = Agenten inkl. Antigravity) --}}
+                    {{-- Antwortzeile im Ticket (Mobil Safe-Area-geschützt gegen Android-Navigationsleiste) --}}
                     <form @submit.prevent="triggerSubmit()"
                           x-data="sfTicketComposer('ticketReplyInput', 'submitTicketReply', @js($mentionAgents))"
                           @click.outside="mentionOpen = false"
-                          class="p-3.5 border-t border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-950/60 flex items-end gap-2">
-                        <div class="relative flex-1 flex items-end">
+                          class="px-3 sm:px-3.5 pt-2.5 sm:pt-3.5 pb-[max(0.65rem,env(safe-area-inset-bottom))] border-t border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/80 flex items-end gap-2 shrink-0 min-w-0">
+                        <div class="relative flex-1 min-w-0 flex items-end">
                             {{-- @-Mention Autocomplete Dropdown (nach oben öffnend) --}}
                             <div x-show="mentionOpen && filteredAgents.length > 0"
                                  x-cloak
@@ -891,12 +969,12 @@
                                       @input="onInput($event)"
                                       @keydown="onKeydown($event)"
                                       @click="detectMention($event.target)"
-                                      placeholder="Antwort zu {{ $ticket->ticket_number }} oder @Agent..."
+                                      placeholder="Antwort..."
                                       title="Enter zum Senden, Shift+Enter für Zeilenumbruch, @ für Agenten-Auswahl"
-                                      style="height: 38px;"
-                                      class="w-full resize-none overflow-y-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl pl-3.5 pr-16 py-2 text-xs sm:text-sm leading-snug text-gray-900 dark:text-white placeholder-gray-400 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-colors"></textarea>
+                                      style="height: 38px; overflow-y: hidden;"
+                                      class="w-full resize-none overflow-y-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl pl-3 pr-14 sm:pl-3.5 sm:pr-16 py-2 text-xs sm:text-sm leading-snug text-gray-900 dark:text-white placeholder-gray-400 focus:border-[var(--theme-color)] focus:ring-1 focus:ring-[var(--theme-color)] outline-none transition-colors"></textarea>
 
-                            <div class="absolute right-2.5 bottom-2 flex items-center gap-1.5">
+                            <div class="absolute right-2 sm:right-2.5 bottom-2 flex items-center gap-1 sm:gap-1.5">
                                 <button type="button"
                                         @click="openMentionPicker()"
                                         title="Agent oder @Antigravity einbeziehen"
@@ -911,7 +989,7 @@
                         </div>
                         <button type="submit"
                                 wire:loading.attr="disabled"
-                                class="h-[38px] px-4 rounded-xl bg-gray-900 text-white dark:bg-white dark:text-gray-900 font-bold text-xs uppercase tracking-wider hover:opacity-90 transition-opacity shrink-0 cursor-pointer">
+                                class="h-[38px] px-3 sm:px-4 rounded-xl bg-gray-900 text-white dark:bg-white dark:text-gray-900 font-bold text-[11px] sm:text-xs uppercase tracking-wider hover:opacity-90 transition-opacity shrink-0 cursor-pointer">
                             Antworten
                         </button>
                     </form>
@@ -934,49 +1012,147 @@
             $dStats = $deliv['stats'];
             $dItems = $deliv['items'];
         @endphp
-        <div class="space-y-3">
-            <div class="bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl px-4 py-3 shadow-xs flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <div class="flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold">
-                        <button type="button" wire:click="setFileStateFilter('active')" class="px-2.5 py-1 rounded-lg cursor-pointer {{ $fileStateFilter === 'active' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500' }}">
+        <div class="space-y-3 min-w-0">
+            <div class="bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap min-w-0">
+                    <div class="flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px] sm:text-xs font-bold max-w-full">
+                        <button type="button" wire:click="setFileStateFilter('active')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $fileStateFilter === 'active' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500' }}">
                             Aktiv ({{ $dStats['active_count'] }} · {{ $dStats['active_human'] }})
                         </button>
-                        <button type="button" wire:click="setFileStateFilter('pinned')" class="px-2.5 py-1 rounded-lg cursor-pointer {{ $fileStateFilter === 'pinned' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500' }}">
+                        <button type="button" wire:click="setFileStateFilter('pinned')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $fileStateFilter === 'pinned' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500' }}">
                             ★ Geschützt ({{ $dStats['pinned_count'] }})
                         </button>
-                        <button type="button" wire:click="setFileStateFilter('archived')" class="px-2.5 py-1 rounded-lg cursor-pointer {{ $fileStateFilter === 'archived' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500' }}">
+                        <button type="button" wire:click="setFileStateFilter('archived')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $fileStateFilter === 'archived' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500' }}">
                             Archiv ({{ $dStats['archived_count'] }} · {{ $dStats['archived_human'] }})
                         </button>
                     </div>
 
-                    <div class="flex items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-xs font-bold">
-                        <button type="button" wire:click="setFileTypeFilter('all')" class="px-2.5 py-1 rounded-lg cursor-pointer {{ $fileTypeFilter === 'all' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-500' }}">Alle</button>
-                        <button type="button" wire:click="setFileTypeFilter('3d')" class="px-2.5 py-1 rounded-lg cursor-pointer {{ $fileTypeFilter === '3d' ? 'bg-white dark:bg-gray-800 text-[#C5A059]' : 'text-gray-500' }}">3D-Modelle</button>
-                        <button type="button" wire:click="setFileTypeFilter('concept')" class="px-2.5 py-1 rounded-lg cursor-pointer {{ $fileTypeFilter === 'concept' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-500' }}">Konzepte</button>
-                        <button type="button" wire:click="setFileTypeFilter('document')" class="px-2.5 py-1 rounded-lg cursor-pointer {{ $fileTypeFilter === 'document' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-500' }}">Dokumente</button>
-                        <button type="button" wire:click="setFileTypeFilter('image')" class="px-2.5 py-1 rounded-lg cursor-pointer {{ $fileTypeFilter === 'image' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-500' }}">Bilder</button>
+                    <div class="flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px] sm:text-xs font-bold max-w-full">
+                        <button type="button" wire:click="setFileTypeFilter('all')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $fileTypeFilter === 'all' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-500' }}">Alle</button>
+                        <button type="button" wire:click="setFileTypeFilter('3d')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $fileTypeFilter === '3d' ? 'bg-white dark:bg-gray-800 text-[#C5A059]' : 'text-gray-500' }}">3D-Modelle</button>
+                        <button type="button" wire:click="setFileTypeFilter('concept')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $fileTypeFilter === 'concept' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-500' }}">Konzepte</button>
+                        <button type="button" wire:click="setFileTypeFilter('document')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $fileTypeFilter === 'document' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-500' }}">Dokumente</button>
+                        <button type="button" wire:click="setFileTypeFilter('image')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $fileTypeFilter === 'image' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white' : 'text-gray-500' }}">Bilder</button>
                     </div>
+
+                    @if($fileTypeFilter === 'concept')
+                        <div class="flex flex-wrap items-center gap-1 bg-gray-100 dark:bg-gray-950 p-1 rounded-xl border border-gray-200 dark:border-gray-800 text-[11px] sm:text-xs font-bold max-w-full">
+                            <button type="button" wire:click="setConceptStatusFilter('all')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $conceptStatusFilter === 'all' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-2xs' : 'text-gray-500' }}">Alle</button>
+                            <button type="button" wire:click="setConceptStatusFilter('open')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $conceptStatusFilter === 'open' ? 'bg-white dark:bg-gray-800 text-[#C5A059] shadow-2xs' : 'text-gray-500' }}">Offen ({{ $dStats['concept_open_count'] ?? 0 }})</button>
+                            <button type="button" wire:click="setConceptStatusFilter('completed_verified')" class="px-2.5 py-1 rounded-lg whitespace-nowrap shrink-0 cursor-pointer {{ $conceptStatusFilter === 'completed_verified' ? 'bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 shadow-2xs' : 'text-gray-500' }}">Fertig &amp; Geprüft ({{ $dStats['concept_verified_count'] ?? 0 }})</button>
+                        </div>
+                    @endif
                 </div>
 
-                <div class="flex items-center gap-2.5">
-                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
+                <div class="flex items-center gap-2 w-full lg:w-auto min-w-0">
+                    <span class="hidden sm:inline-block px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 shrink-0"
                           title="Täglicher Cronjob um 04:10 Uhr verschiebt ungeschützte Dateien nach 28 Tagen automatisch komprimiert ins Archiv und löscht Altlasten nach 180 Tagen.">
                         Autopilot: 28 Tage -> Archiv
                     </span>
                     <input type="text"
                            wire:model.live.debounce.250ms="fileSearch"
                            placeholder="Datei oder #SF-..."
-                           class="w-44 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-[var(--theme-color)] outline-none" />
+                           class="flex-1 lg:w-44 min-w-0 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-1.5 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-[var(--theme-color)] outline-none" />
                 </div>
             </div>
 
             <div class="bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-xs">
                 @if(count($dItems) === 0)
-                    <div class="p-12 text-center text-xs font-bold text-gray-400">
+                    <div class="p-10 sm:p-12 text-center text-xs font-bold text-gray-400">
                         Keine hinterlegten Dateien in diesem Filter.
                     </div>
                 @else
-                    <div class="overflow-x-auto">
+                    {{-- MOBILE KARTEN-LISTE (< md, kein horizontales Tabellen-Scrollen nötig!) --}}
+                    <div class="md:hidden divide-y divide-gray-100 dark:divide-gray-800/80">
+                        @foreach($dItems as $item)
+                            <div class="p-3.5 flex flex-col gap-2 min-w-0">
+                                <div class="flex items-start justify-between gap-2 min-w-0">
+                                    <div class="flex items-start gap-2 min-w-0">
+                                        <span class="mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-gray-100 dark:bg-gray-800 text-[#C5A059] shrink-0">{{ $item['ext'] ?: 'FILE' }}</span>
+                                        <span class="font-bold text-xs text-gray-900 dark:text-white break-words [overflow-wrap:anywhere] line-clamp-2">{{ $item['concept_title'] ?? $item['name'] }}</span>
+                                    </div>
+                                    <button type="button"
+                                            wire:click="toggleAttachmentPin('{{ $item['message_id'] }}', '{{ addslashes($item['key']) }}')"
+                                            class="text-xs font-bold shrink-0 cursor-pointer {{ $item['pinned'] ? 'text-[#C5A059]' : 'text-gray-400' }}">
+                                        {{ $item['pinned'] ? '★' : '☆' }}
+                                    </button>
+                                </div>
+
+                                <div class="flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                    <div class="flex items-center gap-1.5 min-w-0 truncate">
+                                        <button type="button"
+                                                wire:click="jumpToTicketFromFiles('{{ $item['ticket_id'] }}')"
+                                                class="font-mono font-black text-[var(--theme-color)] hover:underline cursor-pointer shrink-0">
+                                            {{ $item['ticket_number'] }}
+                                        </button>
+                                        <span>·</span>
+                                        <span class="font-semibold truncate">{{ $item['sender_name'] }}</span>
+                                        <span>·</span>
+                                        <span class="font-mono shrink-0">{{ $item['size_human'] }}</span>
+                                    </div>
+
+                                    @if(($item['category'] ?? '') === 'concept')
+                                        @if(($item['concept_status'] ?? 'open') === 'completed_verified')
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 shrink-0">✓ Geprüft</span>
+                                        @else
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C5A059]/20 text-gray-900 dark:text-[#E8CB8E] shrink-0">Offen</span>
+                                        @endif
+                                    @endif
+                                </div>
+
+                                <div class="flex items-center flex-wrap gap-1.5 pt-0.5">
+                                    @if($item['category'] === '3d' && !$item['archived'])
+                                        <button type="button"
+                                                @click="openHologram('{{ $item['url'] }}', '{{ addslashes($item['name']) }}', '{{ $item['ext'] }}', '{{ $item['funkenwerk_3d_uri'] ?? '' }}')"
+                                                class="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-800 dark:text-sky-300 font-bold text-[10px] cursor-pointer">
+                                            3D Hologramm
+                                        </button>
+                                    @elseif($item['category'] === 'concept' && $item['rel_path'] !== '')
+                                        <button type="button"
+                                                wire:click="openConceptModal('{{ addslashes($item['rel_path']) }}', '{{ addslashes($item['concept_title'] ?? $item['name']) }}', '{{ $item['message_id'] }}', '{{ addslashes($item['key']) }}', '{{ $item['concept_status'] ?? 'open' }}')"
+                                                class="px-2.5 py-1 rounded-lg bg-[var(--theme-color-20)] text-gray-900 dark:text-white font-bold text-[10px] cursor-pointer">
+                                            Lesen
+                                        </button>
+                                        <button type="button"
+                                                wire:click="toggleConceptStatus('{{ $item['message_id'] }}', '{{ addslashes($item['key']) }}', '{{ $item['concept_status'] ?? 'open' }}')"
+                                                class="px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer {{ ($item['concept_status'] ?? 'open') === 'completed_verified' ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' }}">
+                                            {{ ($item['concept_status'] ?? 'open') === 'completed_verified' ? 'Auf Offen' : '✓ Geprüft' }}
+                                        </button>
+                                    @elseif($item['category'] === 'image')
+                                        <button type="button"
+                                                @click="openLightbox('{{ $item['url'] }}', '{{ addslashes($item['name']) }}')"
+                                                class="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 font-bold text-[10px] cursor-pointer">
+                                            Vorschau
+                                        </button>
+                                    @endif
+
+                                    @if($item['archived'])
+                                        <button type="button"
+                                                wire:click="restoreArchivedFile('{{ $item['message_id'] }}', '{{ addslashes($item['key']) }}')"
+                                                class="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 font-bold text-[10px] cursor-pointer">
+                                            Reaktivieren
+                                        </button>
+                                    @endif
+
+                                    <a href="{{ $item['url'] }}{{ str_contains($item['url'], '?') ? '&download=1' : '?download=1' }}"
+                                       download
+                                       class="ml-auto p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+                                        <x-heroicon-m-arrow-down-tray class="w-3.5 h-3.5" />
+                                    </a>
+
+                                    <button type="button"
+                                            wire:click="deleteDeliverableFile('{{ $item['message_id'] }}', '{{ addslashes($item['key']) }}')"
+                                            wire:confirm="Diese Datei bzw. dieses Konzept endgültig löschen?"
+                                            class="p-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 cursor-pointer">
+                                        <x-heroicon-m-trash class="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    {{-- DESKTOP HAUPTTABELLE (md+) --}}
+                    <div class="hidden md:block overflow-x-auto">
                         <table class="w-full text-left text-xs">
                             <thead class="bg-gray-50 dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
                                 <tr>
@@ -994,7 +1170,10 @@
                                         <td class="px-4 py-3">
                                             <div class="flex items-center gap-2">
                                                 <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-gray-100 dark:bg-gray-800 text-[#C5A059]">{{ $item['ext'] ?: 'FILE' }}</span>
-                                                <span class="font-bold text-gray-900 dark:text-white truncate max-w-[260px]">{{ $item['name'] }}</span>
+                                                <span class="font-bold text-gray-900 dark:text-white truncate max-w-[260px]">{{ $item['concept_title'] ?? $item['name'] }}</span>
+                                                @if(($item['category'] ?? '') === 'concept' && ($item['concept_version'] ?? 1) > 1)
+                                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-gray-100 dark:bg-gray-800 text-gray-500">v{{ $item['concept_version'] }}</span>
+                                                @endif
                                             </div>
                                         </td>
                                         <td class="px-4 py-3">
@@ -1008,7 +1187,13 @@
                                         <td class="px-4 py-3 font-bold text-gray-700 dark:text-gray-300">{{ $item['sender_name'] }}</td>
                                         <td class="px-4 py-3 font-mono text-gray-600 dark:text-gray-400">{{ $item['size_human'] }}</td>
                                         <td class="px-4 py-3">
-                                            @if($item['pinned'])
+                                            @if(($item['category'] ?? '') === 'concept')
+                                                @if(($item['concept_status'] ?? 'open') === 'completed_verified')
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">✓ Fertig &amp; Geprüft</span>
+                                                @else
+                                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C5A059]/20 text-gray-900 dark:text-[#E8CB8E] border border-[#C5A059]/40">Offen</span>
+                                                @endif
+                                            @elseif($item['pinned'])
                                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C5A059]/20 text-gray-900 dark:text-[#E8CB8E]">★ Dauerhaft geschützt</span>
                                             @elseif($item['archived'])
                                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300">Archiviert</span>
@@ -1032,9 +1217,15 @@
                                                     @endif
                                                 @elseif($item['category'] === 'concept' && $item['rel_path'] !== '')
                                                     <button type="button"
-                                                            wire:click="openConceptModal('{{ addslashes($item['rel_path']) }}', '{{ addslashes($item['name']) }}')"
+                                                            wire:click="openConceptModal('{{ addslashes($item['rel_path']) }}', '{{ addslashes($item['concept_title'] ?? $item['name']) }}', '{{ $item['message_id'] }}', '{{ addslashes($item['key']) }}', '{{ $item['concept_status'] ?? 'open' }}')"
                                                             class="px-2.5 py-1 rounded-lg bg-[var(--theme-color-20)] text-gray-900 dark:text-white font-bold text-[10px] cursor-pointer">
                                                         Lesen
+                                                    </button>
+                                                    <button type="button"
+                                                            wire:click="toggleConceptStatus('{{ $item['message_id'] }}', '{{ addslashes($item['key']) }}', '{{ $item['concept_status'] ?? 'open' }}')"
+                                                            title="{{ ($item['concept_status'] ?? 'open') === 'completed_verified' ? 'Wieder auf Offen setzen' : 'Als Fertig & Geprüft markieren' }}"
+                                                            class="px-2.5 py-1 rounded-lg font-bold text-[10px] cursor-pointer {{ ($item['concept_status'] ?? 'open') === 'completed_verified' ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25' }}">
+                                                        {{ ($item['concept_status'] ?? 'open') === 'completed_verified' ? 'Auf Offen' : '✓ Geprüft' }}
                                                     </button>
                                                 @elseif($item['category'] === 'image')
                                                     <button type="button"
@@ -1065,6 +1256,14 @@
                                                    class="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700">
                                                     <x-heroicon-m-arrow-down-tray class="w-3.5 h-3.5" />
                                                 </a>
+
+                                                <button type="button"
+                                                        wire:click="deleteDeliverableFile('{{ $item['message_id'] }}', '{{ addslashes($item['key']) }}')"
+                                                        wire:confirm="Diese Datei bzw. dieses Konzept endgültig löschen?"
+                                                        title="Endgültig löschen"
+                                                        class="p-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 cursor-pointer">
+                                                    <x-heroicon-m-trash class="w-3.5 h-3.5" />
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -1220,27 +1419,52 @@
         </div>
     </div>
 
-    {{-- INLINE KONZEPT- & MARKDOWN-READER MODAL (Kein Tab-Wechsel nötig) --}}
+    {{-- INLINE KONZEPT- & MARKDOWN-READER MODAL (Kein Tab-Wechsel nötig, mobil umbruchsstabil) --}}
     @if($conceptModalHtml !== null)
-        <div class="fixed inset-0 z-[125] bg-black/75 flex items-center justify-center p-4"
+        <div class="fixed inset-0 z-[125] bg-black/75 flex items-center justify-center p-2.5 sm:p-4"
              wire:click.self="closeConceptModal">
-            <div class="relative max-w-3xl w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
-                <div class="px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-950">
-                    <span class="text-xs sm:text-sm font-black text-gray-900 dark:text-white truncate">{{ $conceptModalTitle }}</span>
-                    <div class="flex items-center gap-2">
+            <div class="relative max-w-3xl w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[88dvh]">
+                <div class="px-3.5 sm:px-5 py-3 border-b border-gray-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-gray-50 dark:bg-gray-950">
+                    <div class="flex items-start justify-between gap-2 min-w-0 flex-1">
+                        <div class="flex items-center gap-2 flex-wrap min-w-0">
+                            <span class="text-xs sm:text-sm font-black text-gray-900 dark:text-white line-clamp-2 sm:truncate break-words [overflow-wrap:anywhere]">{{ $conceptModalTitle }}</span>
+                            @if($conceptModalStatus === 'completed_verified')
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0">✓ Fertig &amp; Geprüft</span>
+                            @elseif($conceptModalStatus !== null)
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C5A059]/20 text-gray-900 dark:text-[#E8CB8E] border border-[#C5A059]/40 shrink-0">Offen</span>
+                            @endif
+                        </div>
+                        <button type="button" wire:click="closeConceptModal" class="sm:hidden p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer shrink-0">
+                            <x-heroicon-m-x-mark class="w-5 h-5" />
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+                        @if($conceptModalMessageId && $conceptModalAttachmentKey)
+                            <button type="button"
+                                    wire:click="toggleConceptStatus('{{ $conceptModalMessageId }}', '{{ addslashes($conceptModalAttachmentKey) }}', '{{ $conceptModalStatus ?? 'open' }}')"
+                                    class="px-2.5 sm:px-3 py-1 rounded-lg text-[11px] sm:text-xs font-bold cursor-pointer {{ ($conceptModalStatus ?? 'open') === 'completed_verified' ? 'bg-gray-200/80 dark:bg-gray-800 text-gray-700 dark:text-gray-200' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' }}">
+                                {{ ($conceptModalStatus ?? 'open') === 'completed_verified' ? 'Auf Offen setzen' : '✓ Fertig & Geprüft' }}
+                            </button>
+                            <button type="button"
+                                    wire:click="deleteDeliverableFile('{{ $conceptModalMessageId }}', '{{ addslashes($conceptModalAttachmentKey) }}')"
+                                    wire:confirm="Dieses Konzept wirklich endgültig löschen?"
+                                    class="px-2.5 sm:px-3 py-1 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-[11px] sm:text-xs font-bold cursor-pointer">
+                                Löschen
+                            </button>
+                        @endif
                         @if($conceptModalDownloadUrl)
                             <a href="{{ $conceptModalDownloadUrl }}"
                                download
-                               class="px-3 py-1 rounded-lg bg-gray-200/80 dark:bg-gray-800 text-xs font-bold text-gray-900 dark:text-white">
+                               class="px-2.5 sm:px-3 py-1 rounded-lg bg-gray-200/80 dark:bg-gray-800 text-[11px] sm:text-xs font-bold text-gray-900 dark:text-white">
                                 Download
                             </a>
                         @endif
-                        <button type="button" wire:click="closeConceptModal" class="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer">
+                        <button type="button" wire:click="closeConceptModal" class="hidden sm:inline-flex p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer">
                             <x-heroicon-m-x-mark class="w-5 h-5" />
                         </button>
                     </div>
                 </div>
-                <div class="p-6 overflow-y-auto prose prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-100">
+                <div class="p-4 sm:p-6 overflow-y-auto prose prose-xs sm:prose-sm dark:prose-invert max-w-none text-gray-800 dark:text-gray-100 break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:break-all sm:[&_code]:break-words">
                     {!! $conceptModalHtml !!}
                 </div>
             </div>

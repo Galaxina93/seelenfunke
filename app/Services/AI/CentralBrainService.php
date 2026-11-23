@@ -410,10 +410,14 @@ class CentralBrainService
         $toolsUsed = array_values(array_unique(array_filter($toolsUsed)));
         $deliverableNames = array_values(array_unique(array_filter($deliverableNames)));
 
+        $isBusinessTicket = (bool) ($ticket->is_business ?? true);
+        $scopeLabel = AiUniverseTicket::getScopeLabel($isBusinessTicket);
+
         $mdLines = [
             "# [{$ticket->ticket_number}] {$ticket->title}",
             '',
             "- **Datum:** " . $completedAt->format('d.m.Y H:i') . ' Uhr',
+            "- **Bereich:** {$scopeLabel}",
             "- **Abteilung & Einheit:** {$deptName} · {$agentName}",
             "- **Kanal & Umgebung:** " . AiUniverseTicket::getChannelLabel((string) $ticket->source_channel) . " (`{$ticket->environment_tier}`)",
         ];
@@ -432,6 +436,7 @@ class CentralBrainService
 
         $tags = array_values(array_unique(array_filter([
             'Ticket-Abschlussbericht',
+            $scopeLabel,
             strtolower($ticket->ticket_number),
             $deptName,
             $agentName,
@@ -494,6 +499,14 @@ class CentralBrainService
                     $lines[] = "- {$p->subject_label}: {$p->rule_summary}";
                 }
                 $blocks[] = implode("\n", $lines);
+            }
+        }
+
+        // 2b. Offene Konzepte aus der zentralen Konzept-Verwaltung (/admin/tickets?view=files&ftype=concept)
+        if (AiAuthHelper::isAdmin() && class_exists(ConceptLifecycleService::class)) {
+            $openConceptBlock = ConceptLifecycleService::buildCompactOpenConceptsContext();
+            if ($openConceptBlock !== '') {
+                $blocks[] = $openConceptBlock;
             }
         }
 
@@ -729,5 +742,94 @@ class CentralBrainService
         }
 
         return Carbon::createFromTimestamp($fallbackTimestamp);
+    }
+
+    /**
+     * Speichert einen Meilenstein- oder Abteilungs-Abschlussbericht logisch und dublettenfrei
+     * direkt in der zentralen Wissensdatenbank (`AiKnowledgeBase`) UND synchronisiert ihn
+     * persistent in `knowledge_brain_reports_snapshot.json` (kein loser Ordner `Abschlussberichte/` nötig).
+     *
+     * @param array<int, string> $tags
+     */
+    public static function saveMilestoneReport(
+        string $title,
+        string $content,
+        string $categoryName = 'System',
+        array $tags = [],
+        ?string $logicalReportPath = null,
+        bool $syncSnapshot = true
+    ): ?AiKnowledgeBase {
+        $cleanCategory = trim($categoryName) !== '' ? trim($categoryName) : 'System';
+        $relPath = $logicalReportPath !== null && trim($logicalReportPath) !== ''
+            ? ltrim(str_replace('\\', '/', trim($logicalReportPath)), '/')
+            : ($cleanCategory . '/Abschlussbericht_' . Str::slug($title, '_') . '.md');
+
+        if (str_starts_with($relPath, KnowledgeReportSyncService::SOURCE_PREFIX)) {
+            $relPath = substr($relPath, strlen(KnowledgeReportSyncService::SOURCE_PREFIX));
+        }
+
+        $sourcePath = KnowledgeReportSyncService::SOURCE_PREFIX . $relPath;
+        $mergedTags = array_values(array_unique(array_filter(array_merge(['abschlussbericht', Str::slug($cleanCategory)], $tags))));
+
+        $kb = self::upsertDeduplicatedKnowledge(
+            title: $title,
+            content: $content,
+            categoryName: $cleanCategory,
+            tags: $mergedTags,
+            sourcePath: $sourcePath,
+            visibilityScope: AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE,
+            chronologicalDate: now()
+        );
+
+        if ($kb && $syncSnapshot && !app()->runningUnitTests()) {
+            try {
+                $snapshotAbs = database_path(self::SNAPSHOT_GIT_REL);
+                $existingData = [];
+                if (is_file($snapshotAbs)) {
+                    $decoded = json_decode((string) @file_get_contents($snapshotAbs), true);
+                    if (is_array($decoded) && is_array($decoded['entries'] ?? null)) {
+                        $existingData = $decoded['entries'];
+                    }
+                }
+
+                $newEntry = [
+                    'source_path' => $sourcePath,
+                    'rel_path' => $relPath,
+                    'category' => $cleanCategory,
+                    'title' => $kb->title,
+                    'tags' => $mergedTags,
+                    'content' => $kb->content,
+                    'date' => now()->toIso8601String(),
+                ];
+
+                $replaced = false;
+                foreach ($existingData as $idx => $row) {
+                    if (is_array($row) && (($row['source_path'] ?? '') === $sourcePath || ($row['title'] ?? '') === $kb->title)) {
+                        $existingData[$idx] = $newEntry;
+                        $replaced = true;
+                        break;
+                    }
+                }
+                if (!$replaced) {
+                    $existingData[] = $newEntry;
+                }
+
+                $payload = json_encode([
+                    'generated_at' => now()->toIso8601String(),
+                    'count' => count($existingData),
+                    'entries' => array_values($existingData),
+                ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+                foreach ([$snapshotAbs, storage_path('app/' . self::SNAPSHOT_STORAGE_REL)] as $dest) {
+                    if (!is_dir(dirname($dest))) {
+                        @mkdir(dirname($dest), 0775, true);
+                    }
+                    @file_put_contents($dest, $payload);
+                }
+            } catch (\Throwable) {
+            }
+        }
+
+        return $kb;
     }
 }

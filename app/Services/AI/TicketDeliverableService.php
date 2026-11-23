@@ -267,6 +267,23 @@ class TicketDeliverableService
         if (!empty($extraMeta['printer_profile'])) {
             $meta['printer_profile'] = (string) $extraMeta['printer_profile'];
         }
+        if ($category === 'concept') {
+            $cStatus = in_array(($extraMeta['concept_status'] ?? ''), ['open', 'completed_verified'], true)
+                ? (string) $extraMeta['concept_status']
+                : 'open';
+            $meta['concept_status'] = $cStatus;
+            $meta['concept_title'] = isset($extraMeta['concept_title']) && trim((string) $extraMeta['concept_title']) !== ''
+                ? trim((string) $extraMeta['concept_title'])
+                : null;
+            $meta['concept_slug'] = (string) ($extraMeta['concept_slug'] ?? Str::slug($meta['concept_title'] ?: pathinfo($displayName, PATHINFO_FILENAME)));
+            $meta['concept_version'] = max(1, (int) ($extraMeta['concept_version'] ?? 1));
+            $meta['verified_at'] = $cStatus === 'completed_verified'
+                ? ($extraMeta['verified_at'] ?? now()->toIso8601String())
+                : null;
+            if ($cStatus === 'open' && !array_key_exists('pinned', $extraMeta)) {
+                $meta['pinned'] = true;
+            }
+        }
 
         return $meta;
     }
@@ -370,6 +387,106 @@ class TicketDeliverableService
     }
 
     /**
+     * Aktualisiert den Konzept-Status (`open` vs. `completed_verified`) eines Konzept-Anhangs.
+     */
+    public static function setConceptStatusOnAttachment(string $messageId, string $attachmentKey, string $status): bool
+    {
+        if (!Schema::hasTable('ai_universe_ticket_messages')) {
+            return false;
+        }
+        $normStatus = $status === 'completed_verified' ? 'completed_verified' : 'open';
+
+        $msg = AiUniverseTicketMessage::find($messageId);
+        if (!$msg || !is_array($msg->attachments)) {
+            return false;
+        }
+
+        $attachments = $msg->attachments;
+        $changed = false;
+        foreach ($attachments as &$att) {
+            if (!is_array($att)) {
+                continue;
+            }
+            $matches = (($att['id'] ?? '') !== '' && ($att['id'] ?? '') === $attachmentKey)
+                || (($att['rel_path'] ?? '') !== '' && ($att['rel_path'] ?? '') === $attachmentKey)
+                || (($att['url'] ?? '') !== '' && ($att['url'] ?? '') === $attachmentKey);
+
+            if ($matches) {
+                $att['concept_status'] = $normStatus;
+                $att['verified_at'] = $normStatus === 'completed_verified' ? now()->toIso8601String() : null;
+                if ($normStatus === 'open') {
+                    $att['pinned'] = true;
+                }
+                $changed = true;
+                break;
+            }
+        }
+        unset($att);
+
+        if ($changed) {
+            $msg->update(['attachments' => $attachments]);
+        }
+
+        return $changed;
+    }
+
+    /**
+     * Löscht eine hinterlegte Ticket-Datei bzw. ein Konzept per 1-Klick rückstandsfrei von der Platte und aus der Nachricht.
+     */
+    public static function deleteAttachment(string $messageId, string $attachmentKey): bool
+    {
+        if (!Schema::hasTable('ai_universe_ticket_messages')) {
+            return false;
+        }
+
+        $msg = AiUniverseTicketMessage::find($messageId);
+        if (!$msg || !is_array($msg->attachments)) {
+            return false;
+        }
+
+        $disk = Storage::disk(self::DISK);
+        $remaining = [];
+        $deleted = false;
+
+        foreach ($msg->attachments as $idx => $att) {
+            if (!is_array($att)) {
+                continue;
+            }
+            $matches = (($att['id'] ?? '') !== '' && ($att['id'] ?? '') === $attachmentKey)
+                || (($att['rel_path'] ?? '') !== '' && ($att['rel_path'] ?? '') === $attachmentKey)
+                || (($att['url'] ?? '') !== '' && ($att['url'] ?? '') === $attachmentKey)
+                || ((string) $idx === $attachmentKey);
+
+            if ($matches && !$deleted) {
+                foreach (['rel_path', 'archive_rel_path'] as $pKey) {
+                    $p = trim((string) ($att[$pKey] ?? ''));
+                    if ($p !== '' && !str_contains($p, '..') && str_starts_with($p, self::ACTIVE_DIR . '/')) {
+                        if ($disk->exists($p)) {
+                            $disk->delete($p);
+                        }
+                        if ($disk->exists($p . '.gz')) {
+                            $disk->delete($p . '.gz');
+                        }
+                    }
+                }
+                if (!empty($att['concept_slug']) && Schema::hasTable('ai_knowledge_bases')) {
+                    \App\Models\Ai\AiKnowledgeBase::where('source_path', 'concept:' . $att['concept_slug'])->delete();
+                }
+                $deleted = true;
+                continue;
+            }
+
+            $remaining[] = $att;
+        }
+
+        if ($deleted) {
+            $msg->update(['attachments' => array_values($remaining)]);
+        }
+
+        return $deleted;
+    }
+
+    /**
      * Stellt eine archivierte Datei bei Bedarf per 1-Klick wieder in den aktiven Direktzugriff her.
      */
     public static function restoreArchivedAttachment(string $messageId, string $attachmentKey): bool
@@ -447,12 +564,15 @@ class TicketDeliverableService
     public static function collectAllTicketDeliverables(
         string $stateFilter = 'active', // 'active' | 'archived' | 'pinned' | 'all'
         string $typeFilter = 'all',     // 'all' | '3d' | 'concept' | 'document' | 'image'
-        string $search = ''
+        string $search = '',
+        string $conceptStatusFilter = 'all' // 'all' | 'open' | 'completed_verified'
     ): array {
         $emptyStats = [
             'active_count' => 0,
             'archived_count' => 0,
             'pinned_count' => 0,
+            'concept_open_count' => 0,
+            'concept_verified_count' => 0,
             'active_bytes' => 0,
             'archived_bytes' => 0,
             'active_human' => '0 B',
@@ -474,9 +594,12 @@ class TicketDeliverableService
         $activeCount = 0;
         $archivedCount = 0;
         $pinnedCount = 0;
+        $conceptOpenCount = 0;
+        $conceptVerifiedCount = 0;
         $activeBytes = 0;
         $archivedBytes = 0;
 
+        $isAdminViewer = \App\Models\Ai\AiUniverseTicket::isStrictAdminActor();
         $searchLower = mb_strtolower(trim($search));
 
         foreach ($messages as $msg) {
@@ -485,6 +608,9 @@ class TicketDeliverableService
             }
             $ticket = $msg->ticket;
             if (!$ticket) {
+                continue;
+            }
+            if (!$isAdminViewer && !((bool) ($ticket->is_business ?? true))) {
                 continue;
             }
 
@@ -528,6 +654,18 @@ class TicketDeliverableService
                     $sizeBytes = (int) $disk->size($relPath);
                 }
 
+                $conceptStatus = $category === 'concept'
+                    ? (in_array(($att['concept_status'] ?? ''), ['open', 'completed_verified'], true) ? (string) $att['concept_status'] : 'open')
+                    : null;
+
+                if ($category === 'concept') {
+                    if ($conceptStatus === 'completed_verified') {
+                        $conceptVerifiedCount++;
+                    } else {
+                        $conceptOpenCount++;
+                    }
+                }
+
                 if ($isArchived) {
                     $archivedCount++;
                     $archivedBytes += max(0, (int) ($att['archived_size_bytes'] ?? $sizeBytes));
@@ -552,16 +690,20 @@ class TicketDeliverableService
                 if ($typeFilter !== 'all' && $category !== $typeFilter) {
                     continue;
                 }
+                if ($category === 'concept' && $conceptStatusFilter !== 'all' && $conceptStatus !== $conceptStatusFilter) {
+                    continue;
+                }
 
                 if ($searchLower !== '') {
-                    $haystack = mb_strtolower($name . ' ' . $ticket->ticket_number . ' ' . $ticket->title . ' ' . $msg->sender_name);
+                    $haystack = mb_strtolower($name . ' ' . ($att['concept_title'] ?? '') . ' ' . $ticket->ticket_number . ' ' . $ticket->title . ' ' . $msg->sender_name);
                     if (!str_contains($haystack, $searchLower)) {
                         continue;
                     }
                 }
 
                 $createdAt = !empty($att['created_at']) ? Carbon::parse((string) $att['created_at']) : ($msg->created_at ?? now());
-                $daysUntilArchive = $isPinned || $isArchived
+                $isOpenConceptProtected = ($category === 'concept' && $conceptStatus === 'open');
+                $daysUntilArchive = $isPinned || $isArchived || $isOpenConceptProtected
                     ? null
                     : max(0, self::ARCHIVE_AFTER_DAYS - (int) $createdAt->diffInDays(now()));
 
@@ -578,6 +720,11 @@ class TicketDeliverableService
                     'department_name' => (string) ($ticket->department?->name ?? 'Leitung'),
                     'sender_name' => (string) $msg->sender_name,
                     'name' => $name,
+                    'concept_title' => $att['concept_title'] ?? null,
+                    'concept_slug' => $att['concept_slug'] ?? null,
+                    'concept_status' => $conceptStatus,
+                    'concept_version' => $att['concept_version'] ?? 1,
+                    'verified_at' => $att['verified_at'] ?? null,
                     'ext' => $ext,
                     'mime' => $mime,
                     'category' => $category,
@@ -601,6 +748,8 @@ class TicketDeliverableService
                 'active_count' => $activeCount,
                 'archived_count' => $archivedCount,
                 'pinned_count' => $pinnedCount,
+                'concept_open_count' => $conceptOpenCount,
+                'concept_verified_count' => $conceptVerifiedCount,
                 'active_bytes' => $activeBytes,
                 'archived_bytes' => $archivedBytes,
                 'active_human' => self::formatBytes($activeBytes),
@@ -665,8 +814,10 @@ class TicketDeliverableService
                         ? Carbon::parse((string) $att['created_at'])
                         : ($msg->created_at ?? now());
 
-                    // Stufe 1: > 28 Tage alt & nicht angepinnt -> ins Archiv verschieben (+ Gzip bei Rohdaten)
-                    if (!$isArchived && !$isPinned && $createdAt->lte($archiveCutoff) && $relPath !== '' && $disk->exists($relPath)) {
+                    $isOpenConcept = (($att['category'] ?? '') === 'concept' && ($att['concept_status'] ?? 'open') === 'open');
+
+                    // Stufe 1: > 28 Tage alt & nicht angepinnt & kein offenes Konzept -> ins Archiv verschieben (+ Gzip bei Rohdaten)
+                    if (!$isArchived && !$isPinned && !$isOpenConcept && $createdAt->lte($archiveCutoff) && $relPath !== '' && $disk->exists($relPath)) {
                         $origSize = (int) $disk->size($relPath);
                         $rawBytes = (string) $disk->get($relPath);
                         $ext = strtolower((string) pathinfo($relPath, PATHINFO_EXTENSION));

@@ -28,6 +28,10 @@ return new class extends Migration
             $table->text('content_preview')->nullable();
             $table->longText('full_text')->nullable();
             $table->timestamps();
+
+            if (Schema::getConnection()->getDriverName() !== 'sqlite') {
+                $table->fullText(['title', 'filename', 'purpose', 'summary', 'category'], 'awd_fulltext_search');
+            }
         });
     }
 

@@ -564,6 +564,7 @@ class MasterNextBestActionService
             ->with(['list', 'subtasks'])
             ->orderByRaw("CASE COALESCE(priority, 'niedrig') WHEN 'hoch' THEN 1 WHEN 'mittel' THEN 2 WHEN 'niedrig' THEN 3 ELSE 4 END")
             ->orderByRaw('CASE WHEN relevant_from IS NOT NULL AND relevant_from <= ? THEN 0 WHEN relevant_from IS NULL THEN 1 ELSE 2 END', [$todayDate])
+            ->orderBy('position', 'asc')
             ->orderBy('created_at', 'asc')
             ->limit($limit)
             ->get();

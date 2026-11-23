@@ -1958,6 +1958,10 @@ class SentinelTriageService
             }
 
             Cache::forget(self::BRIDGE_ALERT_COOLDOWN_PREFIX . $normalizedKey);
+            SystemAlertTicketService::autoResolveByAlertPrefix(
+                'bridge_outage:' . $normalizedKey,
+                $meta['label'] . ' antwortet wieder regulär mit HTTP 200 (status: ok).'
+            );
         } else {
             $actionId = (string) $meta['action_id'];
             $fingerprint = hash('sha256', 'sentinel|bridge_down|' . $normalizedKey);
@@ -2209,32 +2213,43 @@ class SentinelTriageService
         $log->payload = $payload;
         $log->save();
 
-        $subject = 'WARNUNG: ' . $meta['short_label'] . ' ausgefallen';
+        $subject = 'Warnung: ' . $meta['short_label'] . ' ausgefallen';
         $statusLabel = $httpStatus !== null ? "HTTP {$httpStatus}" : 'Timeout / Verbindungsfehler';
         $bodyLines = [
             'Funkira Sentinel hat nach erneutem Prüfversuch (1500ms Retry) einen Ausfall einer Echtzeit-Bridge festgestellt:',
             '',
-            'Dienst: ' . $meta['label'],
-            'Container: ' . $meta['container_id'],
-            'Health-URL: ' . $targetUrl,
-            'Befund: ' . $statusLabel . ($errorDetail !== '' ? ' (' . $errorDetail . ')' : ''),
-            'Zeitpunkt: ' . now()->format('d.m.Y H:i:s') . ' Uhr',
+            '- **Dienst:** ' . $meta['label'],
+            '- **Container:** `' . $meta['container_id'] . '`',
+            '- **Health-URL:** `' . $targetUrl . '`',
+            '- **Befund:** ' . $statusLabel . ($errorDetail !== '' ? ' (' . $errorDetail . ')' : ''),
+            '- **Zeitpunkt:** ' . now()->format('d.m.Y H:i:s') . ' Uhr',
             '',
-            'Mittwald Notfallbefehl zum sofortigen Container-Neustart:',
-            $meta['ssh_restart_cmd'],
+            '**Mittwald Notfallbefehl zum sofortigen Container-Neustart:**',
+            '`' . $meta['ssh_restart_cmd'] . '`',
             '',
-            'Sobald der Health-Endpunkt wieder HTTP 200 (status: ok) meldet, schließt der Sentinel den Vorgang automatisch als [AUTO-GEHEILT].',
+            'Sobald der Health-Endpunkt wieder HTTP 200 (`status: ok`) meldet, schließt der Sentinel das SystemLog und dieses Ticket automatisch als `[AUTO-GEHEILT]`.',
         ];
 
         try {
-            Mail::to(self::BRIDGE_ALERT_EMAIL)->send(new AiAgentMessageMail(
-                $subject,
-                implode("\n", $bodyLines),
-                'Funkira Sentinel',
-                [],
-                'generic'
-            ));
-        } catch (\Throwable $ignoreMailError) {
+            SystemAlertTicketService::upsertSystemTicket(
+                alertKey: 'bridge_outage:' . $bridgeKey,
+                title: $subject,
+                markdownBody: implode("\n", $bodyLines),
+                departmentName: 'System',
+                agentName: 'Systemi',
+                ticketType: 'infrastructure_alert',
+                priority: 'high',
+                assignToAntigravity: true,
+                extraPayload: [
+                    'bridge_key' => $bridgeKey,
+                    'container_id' => $meta['container_id'],
+                    'target_url' => $targetUrl,
+                    'http_status' => $httpStatus,
+                    'ssh_restart_cmd' => $meta['ssh_restart_cmd'],
+                    'system_log_id' => $log->id,
+                ]
+            );
+        } catch (\Throwable $ignoreTicketError) {
         }
 
         try {

@@ -82,4 +82,105 @@ class InvoiceServiceSecurityTest extends TestCase
         $num2 = $this->invoiceService->generateInvoiceNumber('%_hack');
         $this->assertStringStartsWith('HACK-', $num2);
     }
+
+    public function test_generate_invoice_number_respects_soft_deleted_records_and_starts_at_1000_after_prelive_purge(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $year = date('Y');
+
+        $this->assertSame("RE-{$year}-1000", $this->invoiceService->generateInvoiceNumber('RE'));
+
+        $customer = Customer::factory()->create();
+        $inv = AccountingInvoice::create([
+            'customer_id' => $customer->id,
+            'invoice_number' => "RE-{$year}-1000",
+            'type' => 'invoice',
+            'status' => 'draft',
+            'invoice_date' => now(),
+            'due_date' => now()->addDays(7),
+            'subtotal' => 4200,
+            'tax_amount' => 798,
+            'total' => 4998,
+            'billing_address' => [],
+            'shipping_address' => [],
+        ]);
+        $inv->delete(); // SoftDelete
+
+        // Even when soft-deleted, UNIQUE constraint requires advancing to 1001
+        $this->assertSame("RE-{$year}-1001", $this->invoiceService->generateInvoiceNumber('RE'));
+
+        // Seed real expense & contract + fake archive files + xTool calibration to prove selective purge
+        $admin = \App\Models\Admin\Admin::factory()->create();
+        $group = \App\Models\Accounting\AccountingGroup::create([
+            'admin_id' => $admin->id,
+            'name' => 'Betriebsausgaben',
+            'position' => 1,
+        ]);
+        \App\Models\Accounting\AccountingCostItem::create([
+            'accounting_group_id' => $group->id,
+            'name' => 'Serververtrag',
+            'amount' => -2900,
+            'interval_months' => 1,
+            'first_payment_date' => now()->startOfMonth(),
+            'is_business' => true,
+        ]);
+        \App\Models\Accounting\AccountingSpecialIssue::create([
+            'admin_id' => $admin->id,
+            'title' => 'Echter Rohling-Einkauf',
+            'amount' => -15000,
+            'execution_date' => now(),
+            'is_business' => true,
+        ]);
+
+        \Illuminate\Support\Facades\Storage::disk('local')->put("buchhaltung/invoices/RE-{$year}-1000.pdf", 'dummy');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('buchhaltung/receipts/echter-beleg.pdf', 'keep');
+        \Illuminate\Support\Facades\Storage::disk('local')->put('buchhaltung/incoming_einvoices/RE2613298.xml', '<xml/>');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('bestellungen/xtool/fl_calib_uv.json', '{}');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('bestellungen/xtool/previews/test_preview.png', 'tmp');
+
+        $order = OrderOrder::create([
+            'order_number' => "ORD-{$year}-TEST01",
+            'customer_id' => $customer->id,
+            'email' => $customer->email,
+            'status' => 'processing',
+            'payment_status' => 'paid',
+            'subtotal_price' => 4990,
+            'tax_amount' => 797,
+            'shipping_price' => 0,
+            'total_price' => 4990,
+            'billing_address' => [],
+            'shipping_address' => [],
+        ]);
+        $this->assertNotNull($order);
+
+        $summary = app(\App\Services\Accounting\PreLiveOrderAndInvoiceCleanupService::class)->purge();
+
+        $this->assertSame("RE-{$year}-1000", $summary['next_invoice_number']);
+        $this->assertSame(0, OrderOrder::withTrashed()->count());
+        $this->assertSame(0, AccountingInvoice::withTrashed()->count());
+        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('local')->exists("buchhaltung/invoices/RE-{$year}-1000.pdf"));
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('local')->exists('buchhaltung/receipts/echter-beleg.pdf'));
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('local')->exists('buchhaltung/incoming_einvoices/RE2613298.xml'));
+        $this->assertTrue(\Illuminate\Support\Facades\Storage::disk('public')->exists('bestellungen/xtool/fl_calib_uv.json'));
+        $this->assertFalse(\Illuminate\Support\Facades\Storage::disk('public')->exists('bestellungen/xtool/previews/test_preview.png'));
+        $this->assertSame(1, \App\Models\Accounting\AccountingSpecialIssue::count());
+        $this->assertSame(1, \App\Models\Accounting\AccountingCostItem::count());
+    }
+
+    public function test_prelive_cleanup_service_blocks_deletion_when_production_shop_is_live(): void
+    {
+        \App\Models\System\SystemSetting::updateOrCreate(['key' => 'shop_is_live'], ['value' => 'true']);
+        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+
+        $originalEnv = $this->app['env'];
+        $this->app['env'] = 'production';
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('GoBD-Schutz aktiv');
+            app(\App\Services\Accounting\PreLiveOrderAndInvoiceCleanupService::class)->purge();
+        } finally {
+            $this->app['env'] = $originalEnv;
+        }
+    }
 }

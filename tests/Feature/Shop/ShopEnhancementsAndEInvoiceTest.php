@@ -145,6 +145,8 @@ class ShopEnhancementsAndEInvoiceTest extends TestCase
 
     public function test_point_3_einvoice_xml_generation_and_parser_validation(): void
     {
+        \Illuminate\Support\Facades\Storage::fake('local');
+
         SystemSetting::updateOrCreate(['key' => 'owner_iban'], ['value' => 'DE89370400440532013000']);
         SystemSetting::updateOrCreate(['key' => 'owner_bic'], ['value' => 'COBADEFFXXX']);
         SystemSetting::updateOrCreate(['key' => 'company_name'], ['value' => 'Mein Seelenfunke']);

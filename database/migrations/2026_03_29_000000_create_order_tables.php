@@ -36,6 +36,7 @@ return new class extends Migration
             $table->integer('subtotal_price');
             $table->integer('tax_amount');
             $table->boolean('is_small_business')->nullable()->comment('Status der Kleinunternehmerregelung (§ 19 UStG) zum Bestellzeitpunkt');
+            $table->timestamp('digital_waiver_accepted_at')->nullable();
             $table->integer('shipping_price')->default(0);
             $table->integer('total_price');
 
@@ -45,6 +46,10 @@ return new class extends Migration
             $table->integer('express_price')->default(0); // NEU: Speichert den berechneten Express-Aufpreis in Cent
 
             $table->text('notes')->nullable(); // Für interne Notizen im Backend
+            $table->text('workshop_note')->nullable();
+            $table->timestamp('workshop_note_updated_at')->nullable();
+            $table->timestamp('workshop_next_check_at')->nullable();
+            $table->boolean('workshop_checkin_paused')->default(false);
 
             $table->text('cancellation_reason')->nullable();
 

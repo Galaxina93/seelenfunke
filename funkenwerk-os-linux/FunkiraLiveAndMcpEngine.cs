@@ -48,6 +48,7 @@ namespace FunkenwerkOSLinux
             s_consecutiveVisitorHits = 0;
             s_consecutiveEmptyFaceHits = 0;
             s_consecutiveKnownCompanionHits = 0;
+            s_consecutiveNearOwnerHits = 0;
 
             if (string.Equals(normFace, "unverified", StringComparison.OrdinalIgnoreCase))
             {
@@ -124,6 +125,7 @@ namespace FunkenwerkOSLinux
         private static int s_consecutiveVisitorHits;
         private static int s_consecutiveEmptyFaceHits;
         private static int s_consecutiveKnownCompanionHits;
+        private static int s_consecutiveNearOwnerHits;
         private static bool s_forceOwnerEnrolledForSelfTest;
         private static bool s_cachedOwnerEnrolled;
         private static DateTime s_cachedOwnerEnrolledAtUtc = DateTime.MinValue;
@@ -589,6 +591,12 @@ namespace FunkenwerkOSLinux
                     CurrentCompanionsCount = 0;
                     CurrentCompanionBadgeLabel = "";
                     CurrentCompanionSummary = "";
+                    if (obj["faceDetected"]?.GetValue<bool>() == true)
+                    {
+                        s_consecutiveEmptyFaceHits = 0;
+                        LastOwnerVisualVerifiedAtUtc = DateTime.UtcNow;
+                        LastOwnerClearanceRenewedAtUtc = DateTime.UtcNow;
+                    }
                     obj.Remove("companionEmbedding");
                     obj.Remove("companionPortraitBase64");
                 }
@@ -601,6 +609,7 @@ namespace FunkenwerkOSLinux
                         s_consecutiveVisitorHits = 0;
                         s_consecutiveEmptyFaceHits = 0;
                         s_consecutiveKnownCompanionHits = 0;
+                        s_consecutiveNearOwnerHits = 0;
                         CurrentFaceIdentity = "alina";
                         LastOwnerVisualVerifiedAtUtc = DateTime.UtcNow;
                         LastOwnerClearanceRenewedAtUtc = DateTime.UtcNow;
@@ -615,6 +624,7 @@ namespace FunkenwerkOSLinux
                         s_consecutiveVisitorHits = 0;
                         s_consecutiveEmptyFaceHits = 0;
                         s_consecutiveKnownCompanionHits = 0;
+                        s_consecutiveNearOwnerHits = 0;
                         CurrentFaceIdentity = "alina_with_companion";
                         LastOwnerVisualVerifiedAtUtc = DateTime.UtcNow;
                         LastOwnerClearanceRenewedAtUtc = DateTime.UtcNow;
@@ -664,6 +674,7 @@ namespace FunkenwerkOSLinux
                     {
                         s_consecutiveVisitorHits = 0;
                         s_consecutiveEmptyFaceHits = 0;
+                        s_consecutiveNearOwnerHits = 0;
                         s_consecutiveKnownCompanionHits++;
                         obj.Remove("companionEmbedding");
                         obj.Remove("companionPortraitBase64");
@@ -702,6 +713,7 @@ namespace FunkenwerkOSLinux
                         CacheUnknownPersonFromSenseResult(obj);
                         s_consecutiveEmptyFaceHits = 0;
                         s_consecutiveKnownCompanionHits = 0;
+                        s_consecutiveNearOwnerHits = 0;
                         s_consecutiveVisitorHits++;
                         if (s_consecutiveVisitorHits >= 2)
                         {
@@ -715,18 +727,37 @@ namespace FunkenwerkOSLinux
                     }
                     else
                     {
-                        // "uncertain"
+                        // "uncertain" - allow 2-frame illumination/distance confirmation for solo owner (>= 0.295 cosine)
                         obj.Remove("companionEmbedding");
                         obj.Remove("companionPortraitBase64");
                         s_consecutiveVisitorHits = 0;
                         s_consecutiveKnownCompanionHits = 0;
-                        s_consecutiveEmptyFaceHits++;
-                        if (s_consecutiveEmptyFaceHits >= 2 || string.Equals(CurrentFaceIdentity, "unenrolled", StringComparison.OrdinalIgnoreCase))
+                        int facesCnt = obj["facesCount"]?.GetValue<int>() ?? 1;
+                        if (facesCnt == 1 && LastFaceCosine >= 0.295)
                         {
-                            CurrentFaceIdentity = "uncertain";
-                            CurrentCompanionsCount = 0;
-                            CurrentCompanionBadgeLabel = "";
-                            CurrentCompanionSummary = "";
+                            s_consecutiveEmptyFaceHits = 0;
+                            s_consecutiveNearOwnerHits++;
+                            if (s_consecutiveNearOwnerHits >= 2)
+                            {
+                                CurrentFaceIdentity = "alina";
+                                LastOwnerVisualVerifiedAtUtc = DateTime.UtcNow;
+                                LastOwnerClearanceRenewedAtUtc = DateTime.UtcNow;
+                                CurrentCompanionsCount = 0;
+                                CurrentCompanionBadgeLabel = "";
+                                CurrentCompanionSummary = "";
+                            }
+                        }
+                        else
+                        {
+                            s_consecutiveNearOwnerHits = 0;
+                            s_consecutiveEmptyFaceHits++;
+                            if (s_consecutiveEmptyFaceHits >= 2 || string.Equals(CurrentFaceIdentity, "unenrolled", StringComparison.OrdinalIgnoreCase))
+                            {
+                                CurrentFaceIdentity = "uncertain";
+                                CurrentCompanionsCount = 0;
+                                CurrentCompanionBadgeLabel = "";
+                                CurrentCompanionSummary = "";
+                            }
                         }
                     }
                 }
@@ -737,6 +768,7 @@ namespace FunkenwerkOSLinux
                     obj.Remove("companionPortraitBase64");
                     s_consecutiveVisitorHits = 0;
                     s_consecutiveKnownCompanionHits = 0;
+                    s_consecutiveNearOwnerHits = 0;
                     s_consecutiveEmptyFaceHits++;
                     if (s_consecutiveEmptyFaceHits >= 2 || string.Equals(CurrentFaceIdentity, "unenrolled", StringComparison.OrdinalIgnoreCase))
                     {
@@ -1044,6 +1076,7 @@ namespace FunkenwerkOSLinux
             s_consecutiveVisitorHits = 0;
             s_consecutiveEmptyFaceHits = 0;
             s_consecutiveKnownCompanionHits = 0;
+            s_consecutiveNearOwnerHits = 0;
             s_cachedOwnerEnrolled = true;
             s_cachedOwnerEnrolledAtUtc = DateTime.UtcNow;
             CurrentFaceIdentity = "alina";
@@ -1059,6 +1092,7 @@ namespace FunkenwerkOSLinux
             s_consecutiveVisitorHits = 0;
             s_consecutiveEmptyFaceHits = 0;
             s_consecutiveKnownCompanionHits = 0;
+            s_consecutiveNearOwnerHits = 0;
             s_cachedOwnerEnrolled = false;
             s_cachedOwnerEnrolledAtUtc = DateTime.UtcNow;
             RevokeOwnerVisualClearance();
@@ -5119,41 +5153,67 @@ namespace FunkenwerkOSLinux
 
                     if (action == "verify_camera_presence")
                     {
-                        byte[]? frameBytes = null;
-                        if (requestBrowserHighResFrameAsync != null)
-                        {
-                            try { frameBytes = await requestBrowserHighResFrameAsync().ConfigureAwait(false); } catch { }
-                        }
-                        frameBytes ??= fallbackLatestFrame;
-
+                        bool hasOwnerProfile = LocalSenseBridge.HasOwnerFaceEnrolledCached();
                         JsonObject? liveCheck = null;
-                        if (frameBytes != null && frameBytes.Length > 200)
-                        {
-                            liveCheck = await LocalSenseBridge.AnalyzeFaceFrameAsync(
-                                Convert.ToBase64String(frameBytes),
-                                settings,
-                                includeEmbedding: false).ConfigureAwait(false);
-                        }
-
                         string effAfter = LocalSenseBridge.EffectivePrivacyIdentity;
-                        bool ownerOk = IsOwnerClearanceVerified(effAfter) &&
-                                       (LocalSenseBridge.HasActiveVisualOwnerClearance ||
-                                        string.Equals(LocalSenseBridge.CurrentFaceIdentity, "alina", StringComparison.OrdinalIgnoreCase) ||
-                                        string.Equals(LocalSenseBridge.CurrentFaceIdentity, "alina_with_companion", StringComparison.OrdinalIgnoreCase));
+                        bool ownerOk = false;
+
+                        for (int attempt = 0; attempt < 2; attempt++)
+                        {
+                            if (attempt > 0)
+                                await Task.Delay(260).ConfigureAwait(false);
+
+                            byte[]? frameBytes = null;
+                            if (requestBrowserHighResFrameAsync != null)
+                            {
+                                try { frameBytes = await requestBrowserHighResFrameAsync().ConfigureAwait(false); } catch { }
+                            }
+                            if (attempt == 0)
+                                frameBytes ??= fallbackLatestFrame;
+
+                            if (frameBytes != null && frameBytes.Length > 200)
+                            {
+                                liveCheck = await LocalSenseBridge.AnalyzeFaceFrameAsync(
+                                    Convert.ToBase64String(frameBytes),
+                                    settings,
+                                    includeEmbedding: false).ConfigureAwait(false);
+                                hasOwnerProfile = LocalSenseBridge.HasOwnerFaceEnrolledCached();
+                            }
+
+                            effAfter = LocalSenseBridge.EffectivePrivacyIdentity;
+                            bool faceSeenNow = liveCheck?["faceDetected"]?.GetValue<bool>() == true;
+                            ownerOk = hasOwnerProfile
+                                ? (IsOwnerClearanceVerified(effAfter) &&
+                                   (LocalSenseBridge.HasActiveVisualOwnerClearance ||
+                                    string.Equals(LocalSenseBridge.CurrentFaceIdentity, "alina", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(LocalSenseBridge.CurrentFaceIdentity, "alina_with_companion", StringComparison.OrdinalIgnoreCase)))
+                                : (IsOwnerClearanceVerified(effAfter) &&
+                                   (faceSeenNow || LocalSenseBridge.HasActiveVisualOwnerClearance));
+
+                            if (ownerOk ||
+                                string.Equals(effAfter, "visitor", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(effAfter, "known_companion", StringComparison.OrdinalIgnoreCase) ||
+                                requestBrowserHighResFrameAsync == null)
+                            {
+                                break;
+                            }
+                        }
 
                         if (ownerOk)
                         {
+                            string uiFaceId = hasOwnerProfile ? effAfter : "unenrolled";
                             var verifyUiEvt = new JsonObject
                             {
                                 ["type"] = "funkiraLocalCommand",
                                 ["command"] = "ownerPresenceVerified",
-                                ["faceIdentity"] = effAfter,
+                                ["faceIdentity"] = uiFaceId,
                                 ["companionBadge"] = LocalSenseBridge.CurrentCompanionBadgeLabel
                             };
                             return (new JsonObject
                             {
                                 ["status"] = "verified_alina",
                                 ["owner_present"] = true,
+                                ["owner_face_enrolled"] = hasOwnerProfile,
                                 ["effective_identity"] = effAfter,
                                 ["companion_summary"] = LocalSenseBridge.CurrentCompanionSummary,
                                 ["note"] = "Alina hat in die Kamera geschaut und ist eindeutig visuell verifiziert! Du darfst ihr ab sofort alle gewünschten tiefgehenden Geschäfts-, Bestell-, Kunden-, Finanz-, Mail- und Privatdaten verraten."

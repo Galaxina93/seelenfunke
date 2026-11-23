@@ -7,12 +7,9 @@
             <div class="flex flex-wrap items-center gap-2.5">
                 <h1 class="text-3xl sm:text-4xl font-serif font-bold text-gray-900 dark:text-white tracking-tight">Produktkonfigurator</h1>
                 <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
-                    Zentrale Steuerung
+                    Laser-Studio &amp; Bibliotheken
                 </span>
             </div>
-            <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm font-medium">
-                Verwalte das Konfigurator-Anleitungsvideo, die animierten 3D-Bühnenhintergründe, die Symbol-Bibliothek sowie die Spruch- & Widmungs-Bibliothek („Kreativ-Starthilfe“ inkl. KI-Generator) an einem zentralen Ort.
-            </p>
         </div>
         <div class="relative z-10 flex flex-wrap gap-3">
             <a href="{{ route('admin.products', ['section' => 'templates']) }}" wire:navigate class="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:text-[var(--theme-color)] px-5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border border-gray-200 dark:border-gray-700 shadow-xs">
@@ -23,55 +20,68 @@
     </div>
 
     {{-- ========================================================================= --}}
-    {{-- 1. TUTORIAL-VIDEO VERWALTUNG (DRAG & DROP + 1-KLICK AUSTAUSCH)            --}}
+    {{-- 0. HAUPTFUNKTION GANZ OBEN: BACKEND LASER-STUDIO (KONFIGURATOR + KAMERA)  --}}
     {{-- ========================================================================= --}}
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-gray-100 dark:border-gray-800">
-            <div>
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2">
-                        <x-heroicon-o-video-camera class="w-6 h-6 text-[var(--theme-color)]" />
-                        Anleitungsvideo („Wie möchtest du starten?“)
-                    </h2>
-                    @if(!empty($tutorialConfig['enabled']))
-                        <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            Im Shop aktiv (Lazy-Load)
-                        </span>
-                    @else
-                        <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-gray-500/10 text-gray-500 border border-gray-500/20">
-                            Im Shop ausgeblendet
-                        </span>
-                    @endif
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Wird im Produkt unterhalb von „Vorlage nutzen / Selber Konfigurieren“ angezeigt und erst beim Klick auf „Tutorial ansehen“ geladen (0 Bytes Vorab-Traffic).
-                </p>
-            </div>
+    <livewire:shop.product.laser-studio-workspace />
+
+    {{-- ========================================================================= --}}
+    {{-- 1. TUTORIAL-VIDEO VERWALTUNG (STANDARDMÄSSIG EINGEKLAPPT)                 --}}
+    {{-- ========================================================================= --}}
+    <div x-data="{ open: false }" class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <button type="button"
+                    @click="open = !open"
+                    class="flex flex-wrap items-center gap-2.5 text-left cursor-pointer group">
+                <x-heroicon-m-chevron-right class="w-5 h-5 text-[var(--theme-color)] transition-transform duration-200" ::class="open ? 'rotate-90' : ''" />
+                <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2 group-hover:text-[var(--theme-color)] transition-colors">
+                    <x-heroicon-o-video-camera class="w-6 h-6 text-[var(--theme-color)]" />
+                    Anleitungsvideo („Wie möchtest du starten?“)
+                </h2>
+                @if(!empty($tutorialConfig['enabled']))
+                    <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        Im Shop aktiv (Lazy-Load)
+                    </span>
+                @else
+                    <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-gray-500/10 text-gray-500 border border-gray-500/20">
+                        Im Shop ausgeblendet
+                    </span>
+                @endif
+            </button>
 
             <div class="flex flex-wrap items-center gap-2.5">
                 <button type="button"
-                        wire:click="toggleTutorialEnabled"
-                        class="px-4 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer {{ !empty($tutorialConfig['enabled']) ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-[var(--theme-color)]' : 'bg-[var(--theme-color)] text-gray-900 border-[var(--theme-color)]' }}">
-                    @if(!empty($tutorialConfig['enabled']))
-                        <x-heroicon-o-eye-slash class="w-4 h-4 text-gray-400" />
-                        <span>Button im Shop ausblenden</span>
-                    @else
-                        <x-heroicon-o-eye class="w-4 h-4" />
-                        <span>Button im Shop einblenden</span>
-                    @endif
+                        @click="open = !open"
+                        class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-bold text-gray-700 dark:text-gray-300 cursor-pointer"
+                        x-text="open ? 'Einklappen' : 'Ausklappen'">
+                    Ausklappen
                 </button>
-
-                @if(!empty($tutorialConfig['is_custom']) && !empty($tutorialConfig['has_default']))
+                <div x-show="open" x-cloak class="flex flex-wrap items-center gap-2.5">
                     <button type="button"
-                            wire:click="resetTutorialToDefault"
-                            wire:confirm="Möchtest du das eigene Video entfernen und wieder das Standard-Tutorial-Video aktivieren?"
-                            class="px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer">
-                        <x-heroicon-o-arrow-path class="w-4 h-4" />
-                        <span>Standard-Video wiederherstellen</span>
+                            wire:click="toggleTutorialEnabled"
+                            class="px-4 py-2.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 cursor-pointer {{ !empty($tutorialConfig['enabled']) ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:border-[var(--theme-color)]' : 'bg-[var(--theme-color)] text-gray-900 border-[var(--theme-color)]' }}">
+                        @if(!empty($tutorialConfig['enabled']))
+                            <x-heroicon-o-eye-slash class="w-4 h-4 text-gray-400" />
+                            <span>Button im Shop ausblenden</span>
+                        @else
+                            <x-heroicon-o-eye class="w-4 h-4" />
+                            <span>Button im Shop einblenden</span>
+                        @endif
                     </button>
-                @endif
+
+                    @if(!empty($tutorialConfig['is_custom']) && !empty($tutorialConfig['has_default']))
+                        <button type="button"
+                                wire:click="resetTutorialToDefault"
+                                wire:confirm="Möchtest du das eigene Video entfernen und wieder das Standard-Tutorial-Video aktivieren?"
+                                class="px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer">
+                            <x-heroicon-o-arrow-path class="w-4 h-4" />
+                            <span>Standard-Video wiederherstellen</span>
+                        </button>
+                    @endif
+                </div>
             </div>
         </div>
+
+        <div x-show="open" x-cloak class="pt-6 mt-6 border-t border-gray-100 dark:border-gray-800">
 
         @if(session()->has('tutorial_success'))
             <div class="mt-4 px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
@@ -190,37 +200,46 @@
                 </div>
             </div>
         </div>
+        </div>
     </div>
 
     {{-- ========================================================================= --}}
-    {{-- 2. KONFIGURATOR-BÜHNENHINTERGRÜNDE & ANIMIERTE THEMEN-VIDEOS (.MP4 / .JPG) --}}
+    {{-- 2. KONFIGURATOR-BÜHNENHINTERGRÜNDE & ANIMIERTE THEMEN-VIDEOS (EINGEKLAPPT)--}}
     {{-- ========================================================================= --}}
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl space-y-6">
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-gray-100 dark:border-gray-800">
-            <div>
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2">
-                        <x-heroicon-o-film class="w-6 h-6 text-[var(--theme-color)]" />
-                        Konfigurator-Hintergrundvideos & 3D-Bühnenbilder (Jahreszeiten & Feiertage)
-                    </h2>
-                    <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                        Aktuell im Konfigurator: {{ $currentActiveTheme['theme']['icon'] ?? '✨' }} {{ $currentActiveTheme['theme']['label'] ?? 'Manufaktur' }} ({{ $currentActiveTheme['event_name'] ?? 'Automatisch' }})
-                    </span>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Diese kurzen, nahtlos geloopten <strong>.mp4 Videos</strong> (z. B. brodelndes Kaminfeuer, Schneefall, Herbstlaub) und hochauflösenden <strong>3D-Bühnenbilder (.jpg)</strong> laufen automatisch im Hintergrund der 2D- & 3D-Produktkonfiguration ab. Du kannst hier jede Themen-Welt live betrachten, per Klick sofort im Shop aktivieren oder eigene Dateien hinterlegen.
-                </p>
-            </div>
+    <div x-data="{ open: false }" class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <button type="button"
+                    @click="open = !open"
+                    class="flex flex-wrap items-center gap-2.5 text-left cursor-pointer group">
+                <x-heroicon-m-chevron-right class="w-5 h-5 text-[var(--theme-color)] transition-transform duration-200" ::class="open ? 'rotate-90' : ''" />
+                <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2 group-hover:text-[var(--theme-color)] transition-colors">
+                    <x-heroicon-o-film class="w-6 h-6 text-[var(--theme-color)]" />
+                    Konfigurator-Hintergrundvideos &amp; 3D-Bühnenbilder (Jahreszeiten &amp; Feiertage)
+                </h2>
+                <span class="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    Aktuell: {{ $currentActiveTheme['theme']['icon'] ?? '✨' }} {{ $currentActiveTheme['theme']['label'] ?? 'Manufaktur' }}
+                </span>
+            </button>
 
-            @if(!empty($manualAnimKey))
+            <div class="flex flex-wrap items-center gap-2.5">
                 <button type="button"
-                        wire:click="pinThemeAnimation('{{ $manualAnimKey }}')"
-                        class="px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0">
-                    <x-heroicon-o-arrow-path class="w-4 h-4" />
-                    <span>Auf Kalender-Automatik zurücksetzen</span>
+                        @click="open = !open"
+                        class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-bold text-gray-700 dark:text-gray-300 cursor-pointer"
+                        x-text="open ? 'Einklappen' : 'Ausklappen'">
+                    Ausklappen
                 </button>
-            @endif
+                @if(!empty($manualAnimKey))
+                    <button x-show="open" x-cloak type="button"
+                            wire:click="pinThemeAnimation('{{ $manualAnimKey }}')"
+                            class="px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shrink-0">
+                        <x-heroicon-o-arrow-path class="w-4 h-4" />
+                        <span>Auf Kalender-Automatik zurücksetzen</span>
+                    </button>
+                @endif
+            </div>
         </div>
+
+        <div x-show="open" x-cloak class="pt-6 mt-6 border-t border-gray-100 dark:border-gray-800 space-y-6">
 
         @if(session()->has('themes_success'))
             <div class="px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
@@ -307,15 +326,17 @@
                 </div>
             @endforeach
         </div>
+        </div>
     </div>
 
     {{-- ========================================================================= --}}
-    {{-- 3. SYMBOL-BIBLIOTHEK VERWALTUNG (MINIMALISTISCH, KLAR & ÜBERSICHTLICH)    --}}
+    {{-- 3. SYMBOL-BIBLIOTHEK VERWALTUNG (STANDARDMÄSSIG EINGEKLAPPT)              --}}
     {{-- ========================================================================= --}}
     @php
         $currentSymbolLayout = in_array($layoutMode ?? 'medium', ['small', 'medium', 'large', 'table'], true) ? $layoutMode : 'medium';
     @endphp
     <div x-data="{
+            open: false,
             syncSymbolLayout() {
                 try {
                     const saved = localStorage.getItem('admin_configurator_symbols_layout_mode');
@@ -328,26 +349,31 @@
             }
          }"
          x-init="syncSymbolLayout()"
-         class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl space-y-6">
+         class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl">
 
         {{-- KOPFZEILE & SCHNELLSTATISTIK --}}
-        <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-6 border-b border-gray-100 dark:border-gray-800">
-            <div>
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2">
-                        <x-heroicon-o-sparkles class="w-6 h-6 text-[var(--theme-color)]" />
-                        Symbol-Bibliothek Verwaltung
-                    </h2>
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
-                        {{ $symbolStats['active'] ?? 0 }} aktiv • {{ $symbolStats['archived'] ?? 0 }} archiviert
-                    </span>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Neue SVG-Motive per Drag & Drop hinzufügen, kategorisieren, umbenennen oder archivieren (archivierte Motive bleiben für bestehende Bestellungen erhalten).
-                </p>
-            </div>
+        <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+            <button type="button"
+                    @click="open = !open"
+                    class="flex flex-wrap items-center gap-2.5 text-left cursor-pointer group">
+                <x-heroicon-m-chevron-right class="w-5 h-5 text-[var(--theme-color)] transition-transform duration-200" ::class="open ? 'rotate-90' : ''" />
+                <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2 group-hover:text-[var(--theme-color)] transition-colors">
+                    <x-heroicon-o-sparkles class="w-6 h-6 text-[var(--theme-color)]" />
+                    Symbol-Bibliothek Verwaltung
+                </h2>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[var(--theme-color-15)] text-[var(--theme-color)] border border-[var(--theme-color-30)]">
+                    {{ $symbolStats['active'] ?? 0 }} aktiv • {{ $symbolStats['archived'] ?? 0 }} archiviert
+                </span>
+            </button>
 
             <div class="flex flex-wrap items-center gap-2.5">
+                <button type="button"
+                        @click="open = !open"
+                        class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-bold text-gray-700 dark:text-gray-300 cursor-pointer"
+                        x-text="open ? 'Einklappen' : 'Ausklappen'">
+                    Ausklappen
+                </button>
+                <div x-show="open" x-cloak class="flex flex-wrap items-center gap-2.5">
                 {{-- ANSICHTSAUSWAHL (Klein / Mittel / Groß / Tabelle) analog zu "Deine Kollektion" --}}
                 <div class="inline-flex items-center p-1 rounded-xl bg-gray-100 dark:bg-gray-950 border border-gray-200 dark:border-gray-800" role="group" aria-label="Ansichtsauswahl">
                     {{-- Klein --}}
@@ -448,8 +474,11 @@
                     <x-heroicon-o-folder-plus class="w-4 h-4" />
                     <span>Kategorien ({{ count($categories) }})</span>
                 </button>
+                </div>
             </div>
         </div>
+
+        <div x-show="open" x-cloak class="pt-6 mt-6 border-t border-gray-100 dark:border-gray-800 space-y-6">
 
         @if(session()->has('symbols_success'))
             <div class="px-4 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
@@ -936,38 +965,46 @@
                 <p class="text-xs text-gray-400 mt-1">Wähle eine andere Kategorie oder lade oben neue SVG-Dateien per Drag & Drop hoch.</p>
             </div>
         @endif
+        </div>
     </div>
 
     {{-- ========================================================================= --}}
-    {{-- 4. SPRUCH- & WIDMUNGS-BIBLIOTHEK („KREATIV-STARTHILFE“) + KI-GENERATOR    --}}
+    {{-- 4. SPRUCH- & WIDMUNGS-BIBLIOTHEK (STANDARDMÄSSIG EINGEKLAPPT)             --}}
     {{-- ========================================================================= --}}
-    <div class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl space-y-6">
+    <div x-data="{ open: false }" class="bg-white dark:bg-gray-900/80 backdrop-blur-xl rounded-[2.5rem] border border-gray-200 dark:border-gray-800 p-6 sm:p-8 shadow-sm dark:shadow-2xl">
 
         {{-- Sektion-Header + Statistik-Badges --}}
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-gray-100 dark:border-gray-800">
-            <div>
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2">
-                        <x-heroicon-o-chat-bubble-bottom-center-text class="w-6 h-6 text-[var(--theme-color)]" />
-                        Spruch- & Widmungs-Bibliothek
-                    </h2>
-                    <span title="Gravurfähige Sprüche und Widmungen im Konfigurator-Reiter Sprüche (manuell oder per KI-Vorschlag pflegbar)."
-                          class="w-5 h-5 rounded-full border border-[var(--theme-color-40)] bg-[var(--theme-color-10)] text-[var(--theme-color)] text-[11px] font-black inline-flex items-center justify-center cursor-help select-none">
-                        !
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <button type="button"
+                    @click="open = !open"
+                    class="flex flex-wrap items-center gap-2.5 text-left cursor-pointer group">
+                <x-heroicon-m-chevron-right class="w-5 h-5 text-[var(--theme-color)] transition-transform duration-200" ::class="open ? 'rotate-90' : ''" />
+                <h2 class="text-gray-900 dark:text-white font-serif font-bold text-xl tracking-wide flex items-center gap-2 group-hover:text-[var(--theme-color)] transition-colors">
+                    <x-heroicon-o-chat-bubble-bottom-center-text class="w-6 h-6 text-[var(--theme-color)]" />
+                    Spruch- &amp; Widmungs-Bibliothek
+                </h2>
+                <span title="Gravurfähige Sprüche und Widmungen im Konfigurator-Reiter Sprüche (manuell oder per KI-Vorschlag pflegbar)."
+                      class="w-5 h-5 rounded-full border border-[var(--theme-color-40)] bg-[var(--theme-color-10)] text-[var(--theme-color)] text-[11px] font-black inline-flex items-center justify-center cursor-help select-none">
+                    !
+                </span>
+                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    {{ $quoteStats['active'] ?? 0 }} aktiv im Konfigurator
+                </span>
+                @if(($quoteStats['archived'] ?? 0) > 0)
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                        {{ $quoteStats['archived'] }} archiviert
                     </span>
-                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                        {{ $quoteStats['active'] ?? 0 }} aktiv im Konfigurator
-                    </span>
-                    @if(($quoteStats['archived'] ?? 0) > 0)
-                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                            {{ $quoteStats['archived'] }} archiviert
-                        </span>
-                    @endif
-                </div>
-            </div>
+                @endif
+            </button>
 
             <div class="flex flex-wrap items-center gap-2.5">
                 <button type="button"
+                        @click="open = !open"
+                        class="px-3.5 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-xs font-bold text-gray-700 dark:text-gray-300 cursor-pointer"
+                        x-text="open ? 'Einklappen' : 'Ausklappen'">
+                    Ausklappen
+                </button>
+                <button x-show="open" x-cloak type="button"
                         wire:click="$toggle('showQuoteCategoryManager')"
                         class="px-4 py-2 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer {{ $showQuoteCategoryManager ? 'bg-[var(--theme-color-15)] border-[var(--theme-color)] text-[var(--theme-color)]' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)]' }}">
                     <x-heroicon-o-folder-plus class="w-4 h-4" />
@@ -975,6 +1012,8 @@
                 </button>
             </div>
         </div>
+
+        <div x-show="open" x-cloak class="pt-6 mt-6 border-t border-gray-100 dark:border-gray-800 space-y-6">
 
         @if (session()->has('quotes_success'))
             <div class="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
@@ -1436,5 +1475,6 @@
                 <p class="text-xs text-gray-400 mt-1">Nutze oben das Formular oder den KI-Generator, um neue Sprüche anzulegen.</p>
             </div>
         @endif
+        </div>
     </div>
 </div>

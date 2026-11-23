@@ -132,12 +132,20 @@ return new class extends Migration
         if (!Schema::hasTable('ai_knowledge_bases')) {
             Schema::create('ai_knowledge_bases', function (Blueprint $table) {
                 $table->uuid('id')->primary();
-                $table->string('title');
+                $table->string('title')->index('akb_title');
                 $table->string('slug')->unique();
+                $table->string('source_path', 191)->nullable()->unique('uk_akb_source_path');
+                $table->string('content_sha256', 64)->nullable()->index('idx_akb_content_sha256');
                 $table->longText('content');
                 $table->boolean('is_published')->default(true);
+                $table->string('visibility_scope', 32)->default('admin_executive')->index('idx_akb_visibility_scope');
                 $table->foreignUuid('ai_knowledge_base_category_id')->nullable()->constrained(table: 'ai_knowledge_base_categories', indexName: 'fk_akb_cat_id')->nullOnDelete();
                 $table->timestamps();
+
+                $table->index(['is_published', 'ai_knowledge_base_category_id'], 'akb_published_cat');
+                if (Schema::getConnection()->getDriverName() !== 'sqlite') {
+                    $table->fullText(['title', 'content'], 'akb_fulltext_title_content');
+                }
             });
         }
 

@@ -11,7 +11,7 @@ class AgentSkillBudgetGuard
      * Verbindliche Werkzeug-Obergrenzen je Rolle (Kontext-Schutz gegen Token-Aufblähung).
      */
     public const MAX_SPECIALIST_ROLE_TOOLS = 35;
-    public const MAX_FUNKIRA_CORE_TOOLS = 54;
+    public const MAX_FUNKIRA_CORE_TOOLS = 56;
     public const MAX_SUPPORT_AIRGAP_TOOLS = 25;
     public const ESTIMATED_TOKENS_PER_TOOL_SCHEMA = 95;
 

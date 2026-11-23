@@ -1137,11 +1137,19 @@ class FileDownloadService
 
     protected function resolveAndAuthorizeLaserItem($itemId, bool $skipAuthCheck = false)
     {
-        if ($itemId instanceof OrderOrderItem || $itemId instanceof \App\Models\Order\OrderQuoteRequestItem) {
+        if ($itemId instanceof OrderOrderItem
+            || $itemId instanceof \App\Models\Order\OrderQuoteRequestItem
+            || $itemId instanceof \App\Models\Product\LaserStudioProject) {
             $item = $itemId;
         } else {
             $item = OrderOrderItem::with(['product', 'order'])->find($itemId)
-                ?? \App\Models\Order\OrderQuoteRequestItem::with(['product', 'quoteRequest'])->findOrFail($itemId);
+                ?? \App\Models\Order\OrderQuoteRequestItem::with(['product', 'quoteRequest'])->find($itemId)
+                ?? (\Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')
+                    ? \App\Models\Product\LaserStudioProject::with('product')->find($itemId)
+                    : null);
+            if (!$item) {
+                throw (new \Illuminate\Database\Eloquent\ModelNotFoundException())->setModel(OrderOrderItem::class, [$itemId]);
+            }
         }
 
         if (!$skipAuthCheck) {
@@ -1153,10 +1161,19 @@ class FileDownloadService
 
     protected function authorizeLaserExportAccess($itemOrId): void
     {
-        $item = ($itemOrId instanceof OrderOrderItem || $itemOrId instanceof \App\Models\Order\OrderQuoteRequestItem)
+        $item = ($itemOrId instanceof OrderOrderItem
+            || $itemOrId instanceof \App\Models\Order\OrderQuoteRequestItem
+            || $itemOrId instanceof \App\Models\Product\LaserStudioProject)
             ? $itemOrId
             : (OrderOrderItem::with('order')->find($itemOrId)
-                ?? \App\Models\Order\OrderQuoteRequestItem::with('quoteRequest')->findOrFail($itemOrId));
+                ?? \App\Models\Order\OrderQuoteRequestItem::with('quoteRequest')->find($itemOrId)
+                ?? (\Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')
+                    ? \App\Models\Product\LaserStudioProject::find($itemOrId)
+                    : null));
+
+        if (!$item) {
+            abort(404);
+        }
 
         $isAdminOrEmployee = \Illuminate\Support\Facades\Auth::guard('admin')->check()
             || \App\Services\AI\AiAuthHelper::isAdmin()
@@ -1217,10 +1234,32 @@ class FileDownloadService
             ]];
         }
 
-        $productConfig = $product
+        $productConfig = ($product && empty($config['is_laser_studio_project']))
             ? (is_string($product->configurator_settings) ? (json_decode($product->configurator_settings, true) ?: []) : ($product->configurator_settings ?? []))
-            : [];
-        $productConfig = $this->applyBackSideMirrorToProductConfig(is_array($productConfig) ? $productConfig : [], $side);
+            : (!empty($config['is_laser_studio_project'])
+                ? (function () use ($item, $product, $config, $side): array {
+                    if ($item instanceof \App\Models\Product\LaserStudioProject && $item->mode !== 'product_blank') {
+                        return $item->toVirtualConfiguratorProduct($side)->configurator_settings ?? [];
+                    }
+                    if ($product) {
+                        $pCfg = is_string($product->configurator_settings) ? (json_decode($product->configurator_settings, true) ?: []) : ($product->configurator_settings ?? []);
+                        return is_array($pCfg) ? $pCfg : [];
+                    }
+                    return [
+                        'overlay_type' => 'plane',
+                        'area_shape' => (($config['studio_contour_shape'] ?? 'rect') === 'circle') ? 'circle' : 'rect',
+                        'area_left' => 0.0,
+                        'area_top' => 0.0,
+                        'area_width' => 100.0,
+                        'area_height' => 100.0,
+                        'xtool_plane_width' => (float) ($config['studio_width_mm'] ?? 200.0),
+                        'xtool_plane_height' => (float) ($config['studio_height_mm'] ?? 200.0),
+                    ];
+                })()
+                : []);
+        if (empty($config['is_laser_studio_project']) || (($item->mode ?? '') === 'product_blank')) {
+            $productConfig = $this->applyBackSideMirrorToProductConfig(is_array($productConfig) ? $productConfig : [], $side);
+        }
 
         // Aufbereitung für Schnell-Personalisierung / Neuling-Modus (custom_fields_data)
         $hasNonEmptyTexts = collect($texts)->contains(fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== '');
@@ -1712,7 +1751,7 @@ class FileDownloadService
             $contourShape = 'circle';
         } elseif ($areaShape === 'custom') {
             $contourShape = 'custom_polygon';
-        } elseif (in_array($blankContourShape, ['rounded_card', 'rounded_bar'], true) && $spanXPct >= 98.0 && $spanYPct >= 98.0) {
+        } elseif (in_array($blankContourShape, ['rounded_card', 'rounded_bar'], true) && ($spanXPct >= 98.0 && $spanYPct >= 98.0 || !empty($itemConfig['is_laser_studio_project']))) {
             $contourShape = $blankContourShape;
         } else {
             $contourShape = 'rect';
@@ -1756,6 +1795,28 @@ class FileDownloadService
         array $itemConfig = [],
         bool $unrollCylinder = false
     ): array {
+        if (!empty($itemConfig['is_laser_studio_project'])
+            && !$product
+            && !empty($itemConfig['studio_width_mm'])
+            && !empty($itemConfig['studio_height_mm'])) {
+            $studioShape = (string) ($itemConfig['studio_contour_shape'] ?? 'rect');
+            if (!in_array($studioShape, ['rect', 'rounded_card', 'circle'], true)) {
+                $studioShape = 'rect';
+            }
+            $sW = round(max(3.0, min(200.0, (float) $itemConfig['studio_width_mm'])), 2);
+            $sH = round(max(3.0, min(200.0, (float) $itemConfig['studio_height_mm'])), 2);
+            $areaW = (float) ($productConfig['area_width'] ?? 100.0);
+            $areaH = (float) ($productConfig['area_height'] ?? 100.0);
+            $isSubBoxOnBed = ($sW < 198.0 || $sH < 198.0) && ($areaW < 99.5 || $areaH < 99.5);
+
+            return [
+                'widthMm' => $isSubBoxOnBed ? 200.0 : $sW,
+                'heightMm' => $isSubBoxOnBed ? 200.0 : $sH,
+                'plateBoxPct' => null,
+                'contourShape' => $studioShape,
+            ];
+        }
+
         $overlayType = (string) ($productConfig['overlay_type'] ?? 'plane');
         $slug = strtolower(trim((string) ($product->slug ?? '')));
         $templatePkg = strtolower(trim((string) ($productConfig['template_package'] ?? '')));
@@ -3176,8 +3237,23 @@ class FileDownloadService
         }
 
         if (str_contains($urlPath, '/storage/')) {
-            $relativePath = substr($urlPath, strpos($urlPath, '/storage/') + 9);
-            $localPath = storage_path('app/public/' . ltrim($relativePath, '/'));
+            $relativePath = ltrim(substr($urlPath, strpos($urlPath, '/storage/') + 9), '/');
+            if ($relativePath !== '' && !str_contains($relativePath, '..') && Storage::disk('public')->exists($relativePath)) {
+                $ext = strtolower(pathinfo($relativePath, PATHINFO_EXTENSION));
+                if (in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+                    return [(string) Storage::disk('public')->get($relativePath), $ext];
+                }
+            }
+            $localPath = storage_path('app/public/' . $relativePath);
+        } elseif (str_starts_with(ltrim($urlPath, '/'), 'laser-studio/') || str_starts_with(ltrim($urlPath, '/'), 'bestellungen/') || str_starts_with(ltrim($urlPath, '/'), 'produkte/')) {
+            $relativePath = ltrim($urlPath, '/');
+            if (!str_contains($relativePath, '..') && Storage::disk('public')->exists($relativePath)) {
+                $ext = strtolower(pathinfo($relativePath, PATHINFO_EXTENSION));
+                if (in_array($ext, ['svg', 'png', 'jpg', 'jpeg', 'webp'], true)) {
+                    return [(string) Storage::disk('public')->get($relativePath), $ext];
+                }
+            }
+            $localPath = storage_path('app/public/' . $relativePath);
         } elseif (str_contains($urlPath, '/images/')) {
             $relativePath = substr($urlPath, strpos($urlPath, '/images/') + 8);
             $localPath = public_path('shopverwaltung/images/' . ltrim($relativePath, '/'));

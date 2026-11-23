@@ -514,4 +514,102 @@ class FunkiraSkillPoolService
             'message' => 'Fähigkeitspool(s) [' . implode(', ', $equipped) . '] für diesen Moment aktiviert. Du kannst die freigeschalteten Spezial-Werkzeuge jetzt sofort aufrufen.',
         ];
     }
+
+    /**
+     * Stellt idempotent sicher, dass alle Executive- und Admin-Führungsrollen Zugriff auf
+     * system_get_server_status & system_get_health besitzen (Funki / Supporter bleibt 100 % isoliert).
+     */
+    public static function ensureExecutiveServerStatusTools(): void
+    {
+        if (
+            !\Illuminate\Support\Facades\Schema::hasTable('ai_roles')
+            || !\Illuminate\Support\Facades\Schema::hasTable('ai_tools')
+            || !\Illuminate\Support\Facades\Schema::hasTable('ai_role_tool')
+        ) {
+            return;
+        }
+
+        $serverStatusIdentifiers = [
+            'system_get_server_status',
+            'system_get_health',
+        ];
+
+        $executiveIdentifiers = array_values(array_unique(array_merge(
+            self::getCoreToolIdentifiers(),
+            $serverStatusIdentifiers,
+            [
+                'system_get_error_sentinel',
+                'master_get_next_best_actions',
+                self::EQUIP_TOOL_NAME,
+            ]
+        )));
+
+        $toolIdMap = [];
+        foreach ($executiveIdentifiers as $identifier) {
+            $tool = \App\Models\Ai\AiTool::updateOrCreate(
+                ['identifier' => $identifier],
+                [
+                    'name' => ucwords(str_replace('_', ' ', $identifier)),
+                    'description' => 'System- & Server-Monitoring-Werkzeug',
+                ]
+            );
+            $toolIdMap[$identifier] = $tool->id;
+        }
+
+        $serverStatusToolIds = array_values(array_intersect_key($toolIdMap, array_flip($serverStatusIdentifiers)));
+        $executiveToolIds = array_values($toolIdMap);
+
+        $teamleiterRole = \App\Models\Ai\AiRole::firstOrCreate(
+            ['name' => 'Teamleiter'],
+            ['description' => 'Zuständig für Systemsteuerung, Aufgabenverteilung, strategische Entscheidungen über alle Agenten hinweg.']
+        );
+
+        $executiveRoleIds = [$teamleiterRole->id];
+        if (\Illuminate\Support\Facades\Schema::hasTable('ai_agents')) {
+            $execAgents = \App\Models\Ai\AiAgent::whereRaw('LOWER(name) IN (?, ?, ?)', ['falcone', 'falcon', 'funkira'])->get();
+            foreach ($execAgents as $execAgent) {
+                if (empty($execAgent->ai_role_id)) {
+                    $execAgent->update(['ai_role_id' => $teamleiterRole->id]);
+                    $executiveRoleIds[] = $teamleiterRole->id;
+                } else {
+                    $executiveRoleIds[] = $execAgent->ai_role_id;
+                }
+            }
+        }
+
+        foreach (\App\Models\Ai\AiRole::whereIn('id', array_values(array_unique($executiveRoleIds)))->get() as $execRole) {
+            if (strcasecmp($execRole->name, 'Supporter') === 0) {
+                continue;
+            }
+            $execRole->tools()->syncWithoutDetaching($executiveToolIds);
+        }
+
+        $adminLeadershipRoleNames = [
+            'teamleiter',
+            'systemadmin',
+            'agentenmanager',
+            'leiter globale planung',
+        ];
+
+        foreach (\App\Models\Ai\AiRole::all() as $role) {
+            $lowerName = mb_strtolower(trim((string) $role->name), 'UTF-8');
+            if ($lowerName === 'supporter') {
+                continue;
+            }
+
+            $isAdminOrLeadershipRole = in_array($lowerName, $adminLeadershipRoleNames, true)
+                || str_contains($lowerName, 'leitung')
+                || str_contains($lowerName, 'admin')
+                || str_contains($lowerName, 'ceo')
+                || str_contains($lowerName, 'executive')
+                || str_contains($lowerName, 'mitgründer')
+                || str_contains($lowerName, 'mitgruender');
+
+            if ($isAdminOrLeadershipRole && $serverStatusToolIds !== []) {
+                $role->tools()->syncWithoutDetaching($serverStatusToolIds);
+            }
+        }
+
+        \Illuminate\Support\Facades\Cache::forget('ai_agent_capabilities_map');
+    }
 }

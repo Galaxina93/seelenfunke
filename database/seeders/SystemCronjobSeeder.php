@@ -149,6 +149,13 @@ class SystemCronjobSeeder extends Seeder
                 'schedule' => '10 4 * * *',
                 'is_active' => true,
             ],
+            [
+                'name' => 'Architektur- & DSGVO-Blueprint Prüfung',
+                'description' => 'Prüft täglich um 04:25 Uhr alle Eloquent-Models auf vollständige Architektur-, KI-Guardrail- & DSGVO-Typenschilder und legt bei Abweichungen ein Ticket an',
+                'command' => 'system:blueprint:audit',
+                'schedule' => '25 4 * * *',
+                'is_active' => true,
+            ],
         ];
     }
 

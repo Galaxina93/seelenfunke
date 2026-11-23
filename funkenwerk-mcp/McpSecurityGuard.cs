@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -13,6 +14,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -3665,6 +3667,293 @@ unset($rawPayload);
             }
 
             return null;
+        }
+
+        public const int AutoCompactMaxTranscriptSteps = 160;
+        public const long AutoCompactMaxTranscriptBytes = 450L * 1024L;
+        public const long AutoCompactMaxFullTranscriptBytes = 2L * 1024L * 1024L;
+        public static readonly TimeSpan AutoCompactActiveStreamQuietWindow = TimeSpan.FromSeconds(90);
+
+        public readonly record struct AgChannelAutoCompactDecision(
+            bool ShouldRotate,
+            string Reason,
+            int TranscriptSteps,
+            long TranscriptBytes,
+            long FullTranscriptBytes);
+
+        private static readonly Regex ReferenceTicketExtractRegex = new(
+            @"Referenz-Ticket:\s*(ag_[0-9]{8}_[0-9]{6}_[a-f0-9]{8})",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        public static AgChannelAutoCompactDecision EvaluateAgChannelAutoCompact(
+            string existingConversationId,
+            string? channel,
+            string? incomingTitle,
+            string? incomingBody,
+            IEnumerable<JsonObject>? allInboxItems = null,
+            string? incomingItemId = null,
+            string? customBrainRootDir = null,
+            DateTimeOffset? nowOverrideUtc = null)
+        {
+            string safeConvId = ValidateAgConversationId(existingConversationId);
+            string normChannel = NormalizeAgChannel(channel);
+            DateTimeOffset nowUtc = (nowOverrideUtc ?? DateTimeOffset.UtcNow).ToUniversalTime();
+
+            string trimTitle = (incomingTitle ?? "").Trim();
+            string trimBody = (incomingBody ?? "").Trim();
+            if (trimBody.Contains("Referenz-Ticket:", StringComparison.OrdinalIgnoreCase)
+                || trimTitle.StartsWith("GO & Antwort zu:", StringComparison.OrdinalIgnoreCase)
+                || trimTitle.StartsWith("Antwort zu:", StringComparison.OrdinalIgnoreCase)
+                || trimTitle.StartsWith("FREIGABE", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimTitle, "go", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimTitle, "ok", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(trimTitle, "ja", StringComparison.OrdinalIgnoreCase))
+            {
+                return new AgChannelAutoCompactDecision(false, "followup_or_go_reply", 0, 0L, 0L);
+            }
+
+            string brainRoot = !string.IsNullOrWhiteSpace(customBrainRootDir)
+                ? Path.GetFullPath(customBrainRootDir)
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "antigravity", "brain");
+
+            string logsDir = Path.Combine(brainRoot, safeConvId, ".system_generated", "logs");
+            if (!Directory.Exists(logsDir) || HasReparsePointInAncestry(logsDir))
+            {
+                return new AgChannelAutoCompactDecision(false, "below_threshold", 0, 0L, 0L);
+            }
+
+            string transcriptPath = Path.Combine(logsDir, "transcript.jsonl");
+            string fullPath = Path.Combine(logsDir, "transcript_full.jsonl");
+
+            bool hasCompact = File.Exists(transcriptPath) && !HasReparsePointInAncestry(transcriptPath);
+            bool hasFull = File.Exists(fullPath) && !HasReparsePointInAncestry(fullPath);
+            if (!hasCompact && !hasFull)
+            {
+                return new AgChannelAutoCompactDecision(false, "below_threshold", 0, 0L, 0L);
+            }
+
+            long compactBytes = 0L;
+            long fullBytes = 0L;
+            DateTime latestWriteUtc = DateTime.MinValue;
+
+            if (hasCompact)
+            {
+                var fi = new FileInfo(transcriptPath);
+                compactBytes = fi.Length;
+                if (fi.LastWriteTimeUtc > latestWriteUtc) latestWriteUtc = fi.LastWriteTimeUtc;
+            }
+
+            if (hasFull)
+            {
+                var fiFull = new FileInfo(fullPath);
+                fullBytes = fiFull.Length;
+                if (fiFull.LastWriteTimeUtc > latestWriteUtc) latestWriteUtc = fiFull.LastWriteTimeUtc;
+            }
+
+            if (latestWriteUtc > DateTime.MinValue && (nowUtc.UtcDateTime - latestWriteUtc) < AutoCompactActiveStreamQuietWindow)
+            {
+                return new AgChannelAutoCompactDecision(false, "conversation_actively_streaming", 0, compactBytes, fullBytes);
+            }
+
+            int steps = hasCompact ? CountJsonlLinesFast(transcriptPath, AutoCompactMaxTranscriptSteps + 1) : 0;
+
+            string? rotateReason = compactBytes >= AutoCompactMaxTranscriptBytes ? "rotate_bytes_exceeded"
+                : fullBytes >= AutoCompactMaxFullTranscriptBytes ? "rotate_full_bytes_exceeded"
+                : steps >= AutoCompactMaxTranscriptSteps ? "rotate_steps_exceeded"
+                : null;
+
+            if (rotateReason == null)
+            {
+                return new AgChannelAutoCompactDecision(false, "below_threshold", steps, compactBytes, fullBytes);
+            }
+
+            if (allInboxItems != null)
+            {
+                var itemList = allInboxItems as IList<JsonObject> ?? allInboxItems.ToList();
+                var resolvedRefTicketIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var obj in itemList)
+                {
+                    string st = obj["status"]?.GetValue<string>() ?? "";
+                    if (!string.Equals(st, "completed", StringComparison.OrdinalIgnoreCase)) continue;
+                    string b = obj["body"]?.GetValue<string>() ?? "";
+                    var m = ReferenceTicketExtractRegex.Match(b);
+                    if (m.Success)
+                    {
+                        resolvedRefTicketIds.Add(m.Groups[1].Value);
+                    }
+                }
+
+                foreach (var obj in itemList)
+                {
+                    string id = obj["id"]?.GetValue<string>() ?? "";
+                    if (!string.IsNullOrWhiteSpace(incomingItemId) && string.Equals(id, incomingItemId, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string itemChannel = NormalizeAgChannel(obj["channel"]?.GetValue<string>());
+                    if (!string.Equals(itemChannel, normChannel, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string status = (obj["status"]?.GetValue<string>() ?? "").Trim().ToLowerInvariant();
+                    if (status == "awaiting_go")
+                    {
+                        return new AgChannelAutoCompactDecision(false, "channel_has_active_or_awaiting_go", steps, compactBytes, fullBytes);
+                    }
+
+                    if (status == "delivered")
+                    {
+                        string? delIso = obj["delivered_at"]?.GetValue<string>();
+                        if (string.IsNullOrWhiteSpace(delIso)
+                            || (DateTimeOffset.TryParse(delIso, out var delTs) && (nowUtc - delTs.ToUniversalTime()) < TimeSpan.FromMinutes(45)))
+                        {
+                            return new AgChannelAutoCompactDecision(false, "channel_has_active_or_awaiting_go", steps, compactBytes, fullBytes);
+                        }
+                    }
+                    else if (status == "completed" && !string.IsNullOrWhiteSpace(id) && !resolvedRefTicketIds.Contains(id))
+                    {
+                        string summary = obj["ag_response_summary"]?.GetValue<string>() ?? "";
+                        if (summary.Contains("dein go", StringComparison.OrdinalIgnoreCase)
+                            || summary.Contains("warte auf go", StringComparison.OrdinalIgnoreCase))
+                        {
+                            string? compIso = obj["completed_at"]?.GetValue<string>();
+                            if (string.IsNullOrWhiteSpace(compIso)
+                                || (DateTimeOffset.TryParse(compIso, out var compTs) && (nowUtc - compTs.ToUniversalTime()) < TimeSpan.FromHours(24)))
+                            {
+                                return new AgChannelAutoCompactDecision(false, "channel_has_active_or_awaiting_go", steps, compactBytes, fullBytes);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new AgChannelAutoCompactDecision(true, rotateReason, steps, compactBytes, fullBytes);
+        }
+
+        private static int CountJsonlLinesFast(string filePath, int stopAtLines)
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(16384);
+            try
+            {
+                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 16384, FileOptions.SequentialScan);
+                int lines = 0;
+                long totalRead = 0L;
+                const long maxScanBytes = 4L * 1024L * 1024L;
+                bool lastByteWasNewline = true;
+
+                int read;
+                while (totalRead < maxScanBytes && (read = fs.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    totalRead += read;
+                    for (int i = 0; i < read; i++)
+                    {
+                        if (buffer[i] == (byte)'\n')
+                        {
+                            lines++;
+                            if (lines >= stopAtLines)
+                                return lines;
+                        }
+                    }
+                    lastByteWasNewline = buffer[read - 1] == (byte)'\n';
+                }
+
+                if (!lastByteWasNewline && totalRead > 0 && lines < stopAtLines)
+                {
+                    lines++;
+                }
+
+                return lines;
+            }
+            catch
+            {
+                return 0;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
+
+        public static string PrependAgAutoCompactHandoffContext(
+            string promptText,
+            string channelTitle,
+            string previousConversationId,
+            AgChannelAutoCompactDecision decision,
+            string? channel,
+            IEnumerable<JsonObject>? allInboxItems)
+        {
+            string safePrevUuid = ValidateAgConversationId(previousConversationId);
+            string normChannel = NormalizeAgChannel(channel);
+            string safeChannelTitle = SanitizeAgConversationTitle(channelTitle);
+
+            var recentCompleted = new List<(string Id, string Title, string Summary, DateTimeOffset SortTs, int Index)>();
+            if (allInboxItems != null)
+            {
+                int idx = 0;
+                foreach (var obj in allInboxItems)
+                {
+                    idx++;
+                    string itemChannel = NormalizeAgChannel(obj["channel"]?.GetValue<string>());
+                    if (!string.Equals(itemChannel, normChannel, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string status = obj["status"]?.GetValue<string>() ?? "";
+                    if (!string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string t = obj["title"]?.GetValue<string>() ?? "";
+                    if (t.StartsWith("GO & Antwort zu:", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string id = obj["id"]?.GetValue<string>() ?? "";
+                    string sum = obj["ag_response_summary"]?.GetValue<string>() ?? "";
+                    if (string.IsNullOrWhiteSpace(id) && string.IsNullOrWhiteSpace(t))
+                        continue;
+
+                    DateTimeOffset ts = DateTimeOffset.MinValue;
+                    string? compIso = obj["completed_at"]?.GetValue<string>() ?? obj["delivered_at"]?.GetValue<string>();
+                    if (!string.IsNullOrWhiteSpace(compIso) && DateTimeOffset.TryParse(compIso, out var parsedTs))
+                    {
+                        ts = parsedTs;
+                    }
+
+                    recentCompleted.Add((id, t, sum, ts, idx));
+                }
+            }
+
+            var topRecent = recentCompleted
+                .OrderByDescending(x => x.SortTs)
+                .ThenByDescending(x => x.Index)
+                .Take(4)
+                .Reverse()
+                .ToList();
+
+            var sb = new StringBuilder(promptText.Length + 768);
+            long kb = Math.Max(1L, Math.Max(decision.TranscriptBytes, decision.FullTranscriptBytes) / 1024L);
+            sb.AppendLine($"[AUTO-COMPACT KANAL-ROTATION | KANAL: {safeChannelTitle} | Vorheriger Chat: conversation://{safePrevUuid} ({decision.TranscriptSteps} Steps / {kb} KB automatisch rotiert)]");
+
+            if (topRecent.Count > 0)
+            {
+                sb.AppendLine("Kurz-Gedaechtnis (letzte erledigte Punkte in diesem Kanal):");
+                foreach (var entry in topRecent)
+                {
+                    string cleanT = CollapseOneLine(ScrubSecrets(entry.Title), 70);
+                    string cleanS = CollapseOneLine(ScrubSecrets(entry.Summary), 175);
+                    string label = !string.IsNullOrWhiteSpace(entry.Id) ? $"{entry.Id} ({cleanT})" : cleanT;
+                    sb.AppendLine(string.IsNullOrWhiteSpace(cleanS) ? $"- {label}" : $"- {label}: {cleanS}");
+                }
+            }
+
+            sb.AppendLine();
+            sb.Append(promptText);
+            return sb.ToString();
+        }
+
+        private static string CollapseOneLine(string? input, int maxChars)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return "";
+            string collapsed = Regex.Replace(input.Replace('\0', ' '), @"\s+", " ").Trim();
+            if (collapsed.Length <= maxChars) return collapsed;
+            return collapsed.Substring(0, Math.Max(1, maxChars - 3)).TrimEnd() + "...";
         }
 
         public static ProcessStartInfo BuildAgentApiSendMessageStartInfo(

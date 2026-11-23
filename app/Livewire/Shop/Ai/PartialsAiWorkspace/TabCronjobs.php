@@ -121,7 +121,10 @@ class TabCronjobs extends Component
             $commandClean = preg_replace('/^(?:(?:\S+)?artisan)\s+/', '', $commandClean);
             $commandClean = trim((string) $commandClean);
 
-            $blockedCommands = ['reverb:start', 'queue:work', 'queue:listen', 'websockets:serve', 'migrate:fresh', 'migrate:reset', 'db:wipe', 'tinker'];
+            $blockedCommands = [
+                'reverb:start', 'reverb:twilio-bridge', 'queue:work', 'queue:listen', 'websockets:serve',
+                'migrate:fresh', 'migrate:reset', 'migrate:rollback', 'db:wipe', 'tinker', 'key:generate', 'down', 'system:prepare-live',
+            ];
             if ($commandClean === '' || !preg_match('/^[a-zA-Z0-9:_-]+$/', $commandClean) || in_array($commandClean, $blockedCommands, true)) {
                 $this->dispatch('notify', [
                     'type' => 'error',
@@ -137,10 +140,13 @@ class TabCronjobs extends Component
                 $blockedOpts = ['--env', '--database', '--path', '--realpath', '--bootstrap'];
                 if (!empty($job->parameters)) {
                     foreach (preg_split('/\s+/', trim((string) $job->parameters), -1, PREG_SPLIT_NO_EMPTY) as $token) {
+                        if (preg_match('/[;&|`$<>\\\\\x00-\x1F]/', $token)) {
+                            continue;
+                        }
                         if (str_starts_with($token, '--')) {
                             if (str_contains($token, '=')) {
                                 [$optKey, $optVal] = explode('=', $token, 2);
-                                if (preg_match('/^--[a-zA-Z0-9_-]+$/', $optKey) && !in_array(strtolower($optKey), $blockedOpts, true)) {
+                                if (preg_match('/^--[a-zA-Z0-9_-]+$/', $optKey) && preg_match('/^[a-zA-Z0-9_:.,\/-]+$/', $optVal) && !in_array(strtolower($optKey), $blockedOpts, true)) {
                                     $parameters[$optKey] = $optVal;
                                 }
                             } elseif (preg_match('/^--[a-zA-Z0-9_-]+$/', $token) && !in_array(strtolower($token), $blockedOpts, true)) {
@@ -163,6 +169,13 @@ class TabCronjobs extends Component
                     'status' => 'success',
                     'last_run_at' => now(),
                 ]);
+
+                if (class_exists(\App\Services\System\SystemAlertTicketService::class)) {
+                    \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                        'cronjob_failed:' . $commandClean,
+                        "Manueller Prüflauf von `{$commandClean}` ({$job->name}) im Admin-Workspace erfolgreich abgeschlossen."
+                    );
+                }
 
                 $this->dispatch('notify', [
                     'type' => 'success',
@@ -191,6 +204,19 @@ class TabCronjobs extends Component
                     );
                 } else {
                     Log::error("Manuelle Cronjob-Ausführung fehlgeschlagen ({$job->name}): " . $e->getMessage());
+                }
+
+                if (class_exists(\App\Services\System\SystemAlertTicketService::class)) {
+                    \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                        alertKey: 'cronjob_failed:' . $commandClean,
+                        title: 'Cronjob fehlgeschlagen: ' . $job->name,
+                        markdownBody: "Manuelle Ausführung von `{$commandClean}` fehlgeschlagen:\n\n" . $e->getMessage(),
+                        departmentName: 'System',
+                        agentName: 'Systemi',
+                        ticketType: 'cronjob_failure',
+                        priority: 'high',
+                        assignToAntigravity: true
+                    );
                 }
 
                 $this->dispatch('notify', [

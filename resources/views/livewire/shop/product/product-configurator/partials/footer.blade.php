@@ -3,7 +3,7 @@
          class="border-t z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 {{ $isDark ? 'bg-gray-950 border-gray-800' : 'bg-white border-gray-200' }}">
         <div :class="isMaximized ? 'max-w-6xl mx-auto space-y-2' : 'max-w-4xl mx-auto space-y-3.5'">
             {{-- VERPACKUNGS-UPGRADES FÜR NICHT-PERSONALISIERBARE PHYSISCHE PRODUKTE SOWIE SCHNELL-PERSONALISIERUNG IM FOOTER (BEI STUDIO LIEGEN SIE IN DER RECHTEN STUDIO-SPALTE) --}}
-            @if((!$this->product->isPersonalizable() || $this->isUsingCustomFieldsMode()) && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
+            @if((!$this->product->isPersonalizable() || $this->isUsingCustomFieldsMode()) && !in_array($context, ['template_admin', 'laser_freehand', 'order_edit'], true) && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
                 <div class="space-y-2 animate-fade-in-up"
                      x-data="{ previewAddon: null }"
                      @keydown.escape.window="if (previewAddon) previewAddon = null">
@@ -200,9 +200,10 @@
 
             @php
                 $isAdminOrderEditFooter = ($context === 'order_edit') && auth()->guard('admin')->check();
+                $isBackendFreehandFooter = ($context === 'laser_freehand');
             @endphp
             <div :class="isMaximized ? 'flex flex-col lg:flex-row lg:items-center gap-2' : 'space-y-3'">
-                @if($context !== 'calculator' && !$isAdminOrderEditFooter)
+                @if(!in_array($context, ['calculator', 'laser_freehand'], true) && !$isAdminOrderEditFooter)
                     <div x-ref="confirmBox"
                          :class="[
                              (confirmWarning || {{ $errors->has('config_confirmed') ? 'true' : 'false' }})
@@ -239,7 +240,7 @@
                                 @else
                                     Ich habe meine Texte, Logos und Positionen geprüft. Die Vorschau ist eine <strong>Visualisierung</strong>; handwerkliche Abweichungen sind möglich. Individualisierte Artikel sind vom <strong>Widerrufsrecht ausgeschlossen</strong>.@if(count($uploaded_files ?? []) > 0) Zudem bestätige ich, dass ich alle erforderlichen Rechte an meinen hochgeladenen Motiven besitze (<a href="/agb#urheberrecht-freistellung" target="_blank" class="underline font-semibold">§ 3 AGB</a>).@endif
                                 @endif
-                                @if($context !== 'template_admin' && !$isAdminOrderEditFooter)
+                                @if(!in_array($context, ['template_admin', 'laser_freehand'], true) && !$isAdminOrderEditFooter)
                                     <a href="{{ route('agb') }}" target="_blank" class="text-primary underline font-bold ml-1">AGB</a> &amp; <a href="{{ route('widerruf') }}" target="_blank" class="text-primary underline font-bold">Widerrufsbelehrung</a>.
                                 @endif
                             </span>
@@ -257,7 +258,7 @@
                     </div>
                 @endif
 
-                @if($context !== 'template_admin' && !$isAdminOrderEditFooter && ($this->product->type ?? 'physical') !== 'geschenkgutschein')
+                @if(!in_array($context, ['template_admin', 'laser_freehand'], true) && !$isAdminOrderEditFooter && ($this->product->type ?? 'physical') !== 'geschenkgutschein')
                     @php
                         $configuratorBonusSparks = \App\Services\Gamification\GameConfig::calculateSparksForCents((int) $totalPrice);
                     @endphp
@@ -277,7 +278,7 @@
             </div>
 
             <div class="flex flex-col sm:flex-row gap-3 h-auto sm:h-12">
-                @if($context !== 'template_admin' && $context !== 'order_edit')
+                @if(!in_array($context, ['template_admin', 'laser_freehand', 'order_edit'], true))
                         <div class="relative w-full sm:w-28 h-12 rounded-xl border transition-all flex items-center {{ $isDark ? 'bg-gray-900 border-gray-800 hover:border-gray-700 focus-within:border-primary focus-within:bg-gray-950' : 'bg-gray-100 border-transparent hover:border-gray-300 focus-within:border-primary focus-within:bg-white' }}">
                             <label class="absolute left-3 text-[9px] font-bold uppercase tracking-wider pointer-events-none {{ $isDark ? 'text-gray-500' : 'text-gray-500' }}">Menge</label>
 
@@ -322,7 +323,7 @@
                           x-transition:leave-start="opacity-100"
                           x-transition:leave-end="opacity-0"
                           class="sf-magic-thin-aura-ring"></span>
-                    @if($context !== 'template_admin' && !$isAdminOrderEditFooter)
+                    @if(!in_array($context, ['template_admin', 'laser_freehand'], true) && !$isAdminOrderEditFooter)
                         <div :class="isCtaMuted
                                 ? '{{ $isDark ? 'bg-gray-900/50 border-gray-700 text-gray-500' : 'bg-gray-300/45 border-gray-300/80 text-gray-500' }}'
                                 : 'bg-black/10 border-black/10'"
@@ -350,7 +351,7 @@
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                             </svg>
-                            <span>{{ in_array($context, ['template_admin', 'order_edit', 'edit'], true) ? 'Gespeichert!' : 'Hinzugefügt!' }}</span>
+                            <span>{{ $context === 'laser_freehand' ? 'Erfolgreich gespeichert!' : (in_array($context, ['template_admin', 'order_edit', 'edit'], true) ? 'Gespeichert!' : 'Hinzugefügt!') }}</span>
                         </div>
 
                         {{-- STATUS: LADEN --}}
@@ -371,6 +372,8 @@
                                     Wird hinzugefügt...
                                 @elseif($context === 'template_admin')
                                     Vorlage wird gespeichert...
+                                @elseif($context === 'laser_freehand')
+                                    Projekt wird gespeichert...
                                 @else
                                     Wird gespeichert...
                                 @endif
@@ -394,6 +397,8 @@
                                     Übernehmen
                                 @elseif($context === 'template_admin')
                                     Vorlage speichern
+                                @elseif($context === 'laser_freehand')
+                                    Projekt speichern
                                 @endif
                             </span>
                             @if($context === 'calculator')
@@ -406,7 +411,7 @@
                 </button>
             </div>
 
-            @if($context !== 'template_admin' && !$isAdminOrderEditFooter)
+            @if(!in_array($context, ['template_admin', 'laser_freehand'], true) && !$isAdminOrderEditFooter)
                 <div class="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] {{ $isDark ? 'text-gray-400' : 'text-gray-500' }}">
                     <span>
                         @if(!empty($this->priceBreakdown['compare_at_cents']))
@@ -428,7 +433,7 @@
                 </div>
             @endif
 
-            @if($context !== 'template_admin' && $context !== 'calculator')
+            @if(!in_array($context, ['template_admin', 'laser_freehand', 'calculator'], true))
                 <div x-show="hasAddedToCart"
                      x-cloak
                      x-collapse.duration.400ms

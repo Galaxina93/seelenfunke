@@ -59,6 +59,7 @@
             baseWidth: 500,
             showGuideX: false,
             showGuideY: false,
+            isShiftPressed: false,
             showImageEditor: false,
             fileRobotInstance: null,
             isCapturing: false, // UI-Status während Snapshot
@@ -102,12 +103,12 @@
             // Emoji Warnung & Hinweise
             showEmojiWarning: false,
             _emojiWarningTimeout: null,
-            showNotice: true,
+            showNotice: params.context !== 'laser_freehand',
             confirmWarning: false,
             configConfirmed: (params.wireModels && params.wireModels.configConfirmed !== undefined)
                 ? params.wireModels.configConfirmed
-                : (params.context === 'calculator'),
-            ctaAuraArrived: (params.context === 'calculator')
+                : (params.context === 'calculator' || params.context === 'laser_freehand'),
+            ctaAuraArrived: (params.context === 'calculator' || params.context === 'laser_freehand')
                 ? true
                 : Boolean(params.wireModels && params.wireModels.configConfirmed),
             _sparkFlightActive: false,
@@ -118,7 +119,7 @@
             _awaitingSaveToCartSpark: false,
 
             get requiresConfirm() {
-                return this.context !== 'calculator';
+                return this.context !== 'calculator' && this.context !== 'laser_freehand';
             },
 
             get isCtaReady() {
@@ -527,6 +528,10 @@
             },
 
             analyzeOverlayContrast(overrideUrl = null) {
+                if (this.context === 'laser_freehand') {
+                    this.hasTransparentOverlay = false;
+                    return;
+                }
                 const targetUrl = overrideUrl || this.activeOverlayImg || (this.config ? this.config.fallbackImg : '');
                 if (!targetUrl) return;
                 const img = new Image();
@@ -2684,6 +2689,14 @@
                     };
 
                     await $wire.saveWithSnapshot(payload, syncedStageState);
+                    if (['laser_freehand', 'template_admin', 'order_edit', 'edit'].includes(this.context)) {
+                        this.saved = true;
+                        if (this._savedResetTimer) clearTimeout(this._savedResetTimer);
+                        this._savedResetTimer = setTimeout(() => { this.saved = false; }, 2500);
+                    }
+                    if (this.context === 'laser_freehand') {
+                        window.dispatchEvent(new CustomEvent('laser-freehand-stage-saved'));
+                    }
                     if (this.saved && this._awaitingSaveToCartSpark && window.sfSparkFlow && this.$refs && this.$refs.addToCartBtn) {
                         this._awaitingSaveToCartSpark = false;
                         window.sfSparkFlow.fly(this.$refs.addToCartBtn, '[data-sf-cart-header-icon], a[aria-label="Warenkorb"]', {
@@ -2976,12 +2989,27 @@
                     let rawLogos = JSON.parse(JSON.stringify(this.normalizeArray(this[lName])));
                     let newLogos = Array.isArray(rawLogos) ? rawLogos : Object.values(rawLogos || {});
                     const idx = Number(this.selectedIndex);
+                    let removedLogo = null;
                     if (!isNaN(idx) && idx >= 0 && idx < newLogos.length) {
+                        removedLogo = newLogos[idx] || null;
                         newLogos.splice(idx, 1);
                     }
                     this[lName] = newLogos;
                     this.selectedType = null;
                     this.selectedIndex = null;
+
+                    if (removedLogo && removedLogo.value && !String(removedLogo.value).startsWith('vectors/')) {
+                        const otherName = this.activeSide === 'front' ? 'logos_back' : 'logos';
+                        const otherLogos = this.normalizeArray(this[otherName]);
+                        const stillUsed = newLogos.some(l => l && l.value === removedLogo.value)
+                            || otherLogos.some(l => l && l.value === removedLogo.value);
+                        if (!stillUsed && this.$wire && typeof this.$wire.pruneUnusedUploadedFileSilent === 'function') {
+                            try {
+                                const p = this.$wire.pruneUnusedUploadedFileSilent(String(removedLogo.value));
+                                if (p && typeof p.catch === 'function') p.catch(() => {});
+                            } catch (e) {}
+                        }
+                    }
                 }
                 this.updateTexture();
                 this.recordHistory();
@@ -3025,9 +3053,11 @@
                 const item = list ? list[this.selectedIndex] : null;
                 const num = Number(rawVal);
                 if (!item || !isFinite(num)) return;
+                const minText = this.context === 'laser_freehand' ? 0.06 : 0.1;
+                const minLogo = this.context === 'laser_freehand' ? 6 : 10;
                 item.size = this.selectedType === 'text'
-                    ? Math.max(0.1, Math.min(5, num))
-                    : Math.max(10, Math.min(500, num));
+                    ? Math.max(minText, Math.min(5, num))
+                    : Math.max(minLogo, Math.min(500, num));
             },
 
             // Symbol sofort clientseitig (0 ms, ohne Livewire-Re-Render/Morph) auf die Bühne legen; Tracking läuft still im Hintergrund
@@ -3523,6 +3553,54 @@
                 this.setStageZoom(1.0);
             },
 
+            handleStageWheel(event) {
+                if (!event || this.context === 'preview' || (!this.showDrawingBoard && this.config.modelPath)) {
+                    return;
+                }
+                if (event.cancelable) {
+                    event.preventDefault();
+                }
+                event.stopPropagation();
+
+                const container = this.$refs.container;
+                if (!container) return;
+
+                const rect = container.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) return;
+
+                const oldZ = Math.max(1.0, Number(this.stageZoom || 1.0));
+                const rawDeltaY = Number(event.deltaY || 0);
+                if (rawDeltaY === 0) return;
+
+                const factor = event.deltaMode === 1 ? 32 : (event.deltaMode === 2 ? 320 : 1);
+                const normY = rawDeltaY * factor;
+                const step = -Math.sign(normY) * Math.min(0.24, Math.max(0.06, Math.abs(normY) * 0.0014));
+                const nextZ = Math.max(1.0, Math.min(3.0, Number((oldZ + step).toFixed(3))));
+
+                if (nextZ <= 1.01) {
+                    this.setStageZoom(1.0);
+                    return;
+                }
+
+                const sx = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+                const sy = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
+
+                const oldPanX = Number(this.stagePanX || 0);
+                const oldPanY = Number(this.stagePanY || 0);
+                const stagePointX = 50 + (sx - 50 - oldPanX) / oldZ;
+                const stagePointY = 50 + (sy - 50 - oldPanY) / oldZ;
+
+                const maxPan = 50 * (nextZ - 1);
+                const newPanX = Math.max(-maxPan, Math.min(maxPan, sx - 50 - (stagePointX - 50) * nextZ));
+                const newPanY = Math.max(-maxPan, Math.min(maxPan, sy - 50 - (stagePointY - 50) * nextZ));
+
+                this.stageZoom = nextZ;
+                this.stagePanX = Number(newPanX.toFixed(2));
+                this.stagePanY = Number(newPanY.toFixed(2));
+                this._zoomFocusX = Number((50 - this.stagePanX / nextZ).toFixed(2));
+                this._zoomFocusY = Number((50 - this.stagePanY / nextZ).toFixed(2));
+            },
+
             getMinimapViewportStyle() {
                 const z = Math.max(1.0, Number(this.stageZoom || 1.0));
                 const vw = 100 / z;
@@ -3700,6 +3778,8 @@
                     }
                 }
 
+                const suppressGuides = Boolean((event && event.shiftKey) || this.isShiftPressed);
+
                 if(this.isDragging) {
                     this.hasDraggedDistance = true;
                     let pX = ((clientX - rect.left - this.dragOffsetX) / rect.width) * 100;
@@ -3708,11 +3788,13 @@
                     this.showGuideX = false;
                     this.showGuideY = false;
 
-                    const snapX = this.areaCenterX;
-                    const snapY = this.areaCenterY;
+                    if (!suppressGuides) {
+                        const snapX = this.areaCenterX;
+                        const snapY = this.areaCenterY;
 
-                    if(Math.abs(pX - snapX) < 2) { pX = snapX; this.showGuideX = true; }
-                    if(Math.abs(pY - snapY) < 2) { pY = snapY; this.showGuideY = true; }
+                        if(Math.abs(pX - snapX) < 2) { pX = snapX; this.showGuideX = true; }
+                        if(Math.abs(pY - snapY) < 2) { pY = snapY; this.showGuideY = true; }
+                    }
 
                     const clampToBoundaries = (nx, ny, c) => {
                         let res = { x: nx, y: ny };
@@ -3777,7 +3859,10 @@
                         clientX - (rect.left + Number(item.x ?? this.areaCenterX) / 100 * rect.width),
                         clientY - (rect.top + Number(item.y ?? this.areaCenterY) / 100 * rect.height)
                     ));
-                    const nextSize = Math.max(0.1, this.initialSize * (dist / this.initialDist));
+                    const minScale = this.currentElement && this.currentElement.type === 'text'
+                        ? (this.context === 'laser_freehand' ? 0.06 : 0.1)
+                        : (this.context === 'laser_freehand' ? 6.0 : 10.0);
+                    const nextSize = Math.max(minScale, this.initialSize * (dist / this.initialDist));
                     // Mikro-Schwankungen der Maus (< 0,5 %) ignorieren, damit das Feld beim langsamen Ziehen nicht flackert
                     if (Math.abs(nextSize - Number(item.size || 0)) >= Math.max(0.0005, Number(item.size || 0) * 0.005)) {
                         item.size = this.currentElement.type === 'text'
@@ -3800,7 +3885,7 @@
                     this.showGuideX = false;
                     this.showGuideY = false;
 
-                    if(modAngle < snapTol || modAngle > 90 - snapTol) {
+                    if (!suppressGuides && (modAngle < snapTol || modAngle > 90 - snapTol)) {
                         newRot = Math.round(newRot / 90) * 90;
                         this.showGuideX = true;
                         this.showGuideY = true;
@@ -4078,6 +4163,31 @@
                     this.history.shift();
                 }
                 this.historyIndex = this.history.length - 1;
+                if (!force) {
+                    this.scheduleFreehandSilentSync();
+                }
+            },
+
+            scheduleFreehandSilentSync() {
+                if (this.context !== 'laser_freehand') return;
+                window.dispatchEvent(new CustomEvent('laser-freehand-stage-dirty'));
+                if (this._freehandSyncTimer) clearTimeout(this._freehandSyncTimer);
+                this._freehandSyncTimer = setTimeout(() => {
+                    try {
+                        this.syncStageTextareasToState();
+                        const stagePayload = {
+                            texts: JSON.parse(JSON.stringify(this.normalizeArray(this.texts))),
+                            logos: JSON.parse(JSON.stringify(this.normalizeArray(this.logos))),
+                            texts_back: JSON.parse(JSON.stringify(this.normalizeArray(this.texts_back))),
+                            logos_back: JSON.parse(JSON.stringify(this.normalizeArray(this.logos_back))),
+                            active_side: this.activeSide,
+                        };
+                        if (this.$wire && typeof this.$wire.syncFreehandStageSilent === 'function') {
+                            const p = this.$wire.syncFreehandStageSilent(stagePayload);
+                            if (p && typeof p.catch === 'function') p.catch(() => {});
+                        }
+                    } catch (e) {}
+                }, 220);
             },
 
             scheduleDebouncedHistory() {
@@ -4218,6 +4328,11 @@
             },
 
             handleKeyDown(e) {
+                if (e && (e.key === 'Shift' || e.shiftKey)) {
+                    this.isShiftPressed = true;
+                    this.showGuideX = false;
+                    this.showGuideY = false;
+                }
                 if (this.context === 'preview') return;
 
                 if (e.key === 'Escape' && this.isMaximized) {
@@ -4274,6 +4389,12 @@
                             this.scheduleDebouncedHistory();
                         }
                     }
+                }
+            },
+
+            handleKeyUp(e) {
+                if (!e || e.key === 'Shift' || !e.shiftKey) {
+                    this.isShiftPressed = false;
                 }
             },
 

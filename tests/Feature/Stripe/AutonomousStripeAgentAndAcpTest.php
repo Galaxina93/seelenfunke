@@ -55,8 +55,7 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
 
         $this->seed(SystemSettingSeeder::class);
 
-        $migration = require base_path('database/migrations/2026_11_16_190500_seed_stripe_agent_autonomy_settings_and_tools.php');
-        $migration->applyUpgrade();
+        app(\App\Services\StripeAgentExecutionService::class)->ensureAutonomyDefaultsAndTools();
     }
 
     private function createAdmin(): Admin
@@ -124,8 +123,7 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
     {
         $this->seed(AiAgentSeeder::class);
 
-        $migration = require base_path('database/migrations/2026_11_16_190500_seed_stripe_agent_autonomy_settings_and_tools.php');
-        $migration->applyUpgrade();
+        app(\App\Services\StripeAgentExecutionService::class)->ensureAutonomyDefaultsAndTools();
 
         $this->assertSame('true', SystemSetting::get('stripe_agent_autonomy_enabled'));
         $this->assertSame('25000', SystemSetting::get('stripe_agent_auto_refund_limit_cents'));
@@ -159,8 +157,7 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
     public function test_strict_air_gap_and_role_isolation_blocks_funki_guest_customer_employee_influencer_and_tax_advisor_on_all_stripe_tools(): void
     {
         $this->seed(AiAgentSeeder::class);
-        $migration = require base_path('database/migrations/2026_11_16_190500_seed_stripe_agent_autonomy_settings_and_tools.php');
-        $migration->applyUpgrade();
+        app(\App\Services\StripeAgentExecutionService::class)->ensureAutonomyDefaultsAndTools();
 
         $falcone = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->with('role.tools')->firstOrFail();
@@ -236,8 +233,7 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
     public function test_falcone_executes_all_six_autonomous_stripe_tools_with_gobd_credit_note_and_refund_guardrails(): void
     {
         $this->seed(AiAgentSeeder::class);
-        $migration = require base_path('database/migrations/2026_11_16_190500_seed_stripe_agent_autonomy_settings_and_tools.php');
-        $migration->applyUpgrade();
+        app(\App\Services\StripeAgentExecutionService::class)->ensureAutonomyDefaultsAndTools();
 
         $this->setupGermanShippingZone();
 
@@ -884,8 +880,7 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
     public function test_autonomous_webhook_self_healing_missed_event_sync_maintenance_passthrough_and_zero_token_mail_ticket(): void
     {
         $this->seed(AiAgentSeeder::class);
-        $migration = require base_path('database/migrations/2026_11_16_190500_seed_stripe_agent_autonomy_settings_and_tools.php');
-        $migration->applyUpgrade();
+        app(\App\Services\StripeAgentExecutionService::class)->ensureAutonomyDefaultsAndTools();
 
         // 1. Alle Agenten bleiben strikt im AgentSkillBudgetGuard-Limit & Funki bleibt 100 % Air-Gapped
         foreach (AiAgent::where('is_active', true)->get() as $agentItem) {

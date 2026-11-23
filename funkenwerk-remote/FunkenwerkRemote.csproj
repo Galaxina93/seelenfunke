@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>FunkenwerkRemote</AssemblyName>
+    <RootNamespace>FunkenwerkRemote</RootNamespace>
+    <ApplicationTitle>Funkenwerk Remote</ApplicationTitle>
+    <Product>Funkenwerk Remote</Product>
+    <Company>Mein-Seelenfunke</Company>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.1</AssemblyVersion>
+    <FileVersion>1.0.0.1</FileVersion>
+    <InformationalVersion>1.0.0+b1</InformationalVersion>
+    <ApplicationIcon>funkenwerk_remote.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <NoWarn>CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SSH.NET" Version="2026.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
+    <Compile Include="..\funkenwerk\FunkenwerkSharedSession.cs" Link="Shared\FunkenwerkSharedSession.cs" />
+    <Resource Include="funkenwerk_remote.ico" />
+    <Resource Include="funkenwerk_remote.png" />
+    <None Include="funkenwerk_remote.ico" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="funkenwerk_remote.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

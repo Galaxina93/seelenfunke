@@ -330,6 +330,19 @@ class ProductTemplateSeeder extends Seeder
             'uploaded_files' => [],
         ];
 
+        $templateManagedSlugs = [
+            'seelen-kristall',
+            'goldenes-seelen-herz',
+            'seelen-anhaenger',
+            'seelen-pfote-hundemarke',
+            'seelen-talisman',
+        ];
+        $candidatePreview = "produkte/product-templates/{$slug}-{$holidayKey}.jpg";
+        $previewImage = in_array($slug, $templateManagedSlugs, true)
+            && \Illuminate\Support\Facades\Storage::disk('public')->exists($candidatePreview)
+            ? $candidatePreview
+            : null;
+
         ProductTemplate::create([
             'product_id' => $product->id,
             'name' => $name,
@@ -337,7 +350,7 @@ class ProductTemplateSeeder extends Seeder
             'is_active' => true,
             'is_ai_generated' => false,
             'holiday' => $holidayLabel,
-            'preview_image' => null,
+            'preview_image' => $previewImage,
         ]);
     }
 

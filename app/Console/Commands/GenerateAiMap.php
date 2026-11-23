@@ -98,9 +98,13 @@ class GenerateAiMap extends Command
 
         // Sync embedded AI_MAP block in project GEMINI.md and global Windows GEMINI.md if present
         $this->syncEmbeddedAiMap(base_path('GEMINI.md'), $markdown);
-        $globalGeminiPath = '/mnt/c/Users/konta/.gemini/config/GEMINI.md';
-        if (File::exists($globalGeminiPath)) {
-            $this->syncEmbeddedAiMap($globalGeminiPath, $markdown);
+        foreach ([
+            '/mnt/c/Users/AlinaUltra2/.gemini/config/GEMINI.md',
+            '/mnt/c/Users/konta/.gemini/config/GEMINI.md',
+        ] as $globalGeminiPath) {
+            if (File::exists($globalGeminiPath)) {
+                $this->syncEmbeddedAiMap($globalGeminiPath, $markdown);
+            }
         }
 
         // Synchronisiere fehlertolerant alle Abschlussberichte/ in AiKnowledgeBase, sofern Tabelle & Sync-Spalte existieren

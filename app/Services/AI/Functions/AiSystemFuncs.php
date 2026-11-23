@@ -898,7 +898,7 @@ trait AiSystemFuncs
             ],
             [
                 'name' => 'ag_send_to_antigravity',
-                'description' => 'Sendet genau wie Falcone ein technisches Problem, einen Bug-Bericht, eine Systemdiagnose oder einen konkreten Entwicklungs-/Konzept-Auftrag direkt in das Antigravity-Entwickler-Postfach (inkl. Abteilungs-Kanal und optionalem Chat-/Kamera-Screenshot).',
+                'description' => 'Sendet AUSSCHLIESSLICH technische Software-, Code-, UI-, Server-, App- oder Mini-PC-Entwicklungsaufträge und Bugs direkt in das Antigravity-Entwickler-Postfach. NIEMALS verwenden für physische Haus-/Wohnungsprobleme (z. B. Wasserschaden, Dachfenster, Heizung), Gesundheit, Rente, Familie oder private Alltagsthemen (diese bleiben strikt als privates Ticket is_business=false in Leitung/Buchhaltung)!',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -4818,6 +4818,75 @@ trait AiSystemFuncs
 
             $safeTitle = \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($rawTitle);
             $safeBody = $rawBody !== '' ? \App\Services\System\SystemErrorLogger::sanitizeSensitiveText($rawBody) : '';
+
+            // Harter Schutz gegen Fehl-Eskalation physischer/privater Haus- & Alltagsthemen an das Entwickler-Postfach
+            $combinedCheckText = trim($safeTitle . ' ' . $safeBody);
+            if (empty($args['force_antigravity'])
+                && \App\Services\AI\FunkiraTicketRouter::isPhysicalOrPrivateNonCodeTopic($combinedCheckText)) {
+                $privateTicket = null;
+                if (\Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')) {
+                    $triage = \App\Services\AI\FunkiraTicketRouter::classifyIntent($combinedCheckText);
+                    $dept = \App\Models\Ai\AiDepartment::where('name', $triage['department_name'])->first()
+                        ?? \App\Models\Ai\AiDepartment::where('name', 'Leitung')->first();
+                    $agent = \App\Models\Ai\AiAgent::where('name', $triage['agent_name'])->where('is_active', true)->first()
+                        ?? \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
+
+                    $activeId = app()->bound('active_universe_ticket_id') ? (string) app('active_universe_ticket_id') : '';
+                    $privateTicket = $activeId !== '' ? \App\Models\Ai\AiUniverseTicket::find($activeId) : null;
+
+                    $hasBizCol = \Illuminate\Support\Facades\Schema::hasColumn('ai_universe_tickets', 'is_business');
+                    if ($privateTicket) {
+                        $upd = [
+                            'ai_department_id' => $dept?->id ?? $privateTicket->ai_department_id,
+                            'assigned_agent_id' => $agent?->id ?? $privateTicket->assigned_agent_id,
+                            'assigned_to_antigravity' => false,
+                            'ticket_type' => $triage['ticket_type'],
+                            'last_activity_at' => now(),
+                        ];
+                        if ($hasBizCol) {
+                            $upd['is_business'] = false;
+                        }
+                        $privateTicket->update($upd);
+                    } else {
+                        $createPayload = [
+                            'ticket_number' => \App\Models\Ai\AiUniverseTicket::generateNextTicketNumber(),
+                            'title' => \Illuminate\Support\Str::limit($safeTitle, 180),
+                            'status' => \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
+                            'priority' => $triage['priority'],
+                            'ticket_type' => $triage['ticket_type'],
+                            'ai_department_id' => $dept?->id,
+                            'assigned_agent_id' => $agent?->id,
+                            'assigned_to_antigravity' => false,
+                            'source_channel' => 'android_live_call',
+                            'environment_tier' => \App\Services\AI\FunkiraPresenceContext::resolveEnvironmentTier(),
+                            'messages_count' => 1,
+                            'last_activity_at' => now(),
+                        ];
+                        if ($hasBizCol) {
+                            $createPayload['is_business'] = false;
+                        }
+                        $privateTicket = \App\Models\Ai\AiUniverseTicket::create($createPayload);
+
+                        if (\Illuminate\Support\Facades\Schema::hasTable('ai_universe_ticket_messages')) {
+                            \App\Models\Ai\AiUniverseTicketMessage::create([
+                                'ticket_id' => $privateTicket->id,
+                                'sender_role' => 'alina',
+                                'sender_name' => 'Alina',
+                                'channel' => 'android_live_call',
+                                'content' => $safeBody !== '' ? "{$safeTitle}\n{$safeBody}" : $safeTitle,
+                            ]);
+                        }
+                    }
+                }
+
+                return [
+                    'status' => 'redirected_to_private_ticket',
+                    'sent_live' => false,
+                    'is_business' => false,
+                    'ticket_number' => $privateTicket?->ticket_number,
+                    'message' => 'STOPP FEHL-ESKALATION: Dies ist ein physisches/privates Anliegen und KEIN Software-Auftrag für Antigravity. Es wurde automatisch als privates Ticket (' . ($privateTicket?->ticket_number ?? 'Privat') . ', is_business=false) in der Abteilung Leitung erfasst. Bitte zeige Alina jetzt ehrliches Mitgefühl und gib ihr direkt praktische Soforthilfe anhand ihrer gespeicherten Haus- und Vertragsdaten!',
+                ];
+            }
 
             $rawChannel = strtolower(trim((string) ($args['channel'] ?? 'leitung')));
             $mappedChannel = match ($rawChannel) {

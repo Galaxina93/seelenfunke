@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <Compile Include="..\funkenwerk\FunkenwerkVersioning.cs" Link="Shared\FunkenwerkVersioning.cs" />
+    <Compile Include="..\funkenwerk\FunkenwerkSharedSession.cs" Link="Shared\FunkenwerkSharedSession.cs" />
     <Resource Include="funkenwerk_tresor.ico" />
     <Resource Include="funkenwerk_tresor.png" />
     <None Include="funkenwerk_tresor.ico" CopyToOutputDirectory="PreserveNewest" />

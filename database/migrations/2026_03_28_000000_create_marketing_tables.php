@@ -181,6 +181,7 @@ return new class extends Migration
             $table->string('headline')->nullable();
             $table->text('sales_copy')->nullable();
             $table->string('cta_text')->nullable();
+            $table->json('seasonal_profiles')->nullable();
             $table->string('status')->default('active'); // active, draft
             $table->timestamps();
 

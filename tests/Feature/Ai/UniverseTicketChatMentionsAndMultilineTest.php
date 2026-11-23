@@ -189,4 +189,40 @@ class UniverseTicketChatMentionsAndMultilineTest extends TestCase
         $this->assertNotSame($firstAgItemId, $secondAgItemId);
         $this->assertContains($firstAgItemId, $ticket->action_payload['ag_history_ids'] ?? []);
     }
+
+    public function test_mobile_master_detail_navigation_and_long_path_chat_formatting(): void
+    {
+        $this->seed(AiCompanyStructureSeeder::class);
+        $this->seed(AiAgentSeeder::class);
+
+        $admin = $this->createAdmin();
+        $this->actingAs($admin, 'admin');
+
+        $initial = FunkiraTicketRouter::dispatchMessage('Systemdiagnose StreamFactory prüfen', [
+            'channel' => 'web_portal',
+        ]);
+        /** @var AiUniverseTicket $ticket */
+        $ticket = $initial['ticket'];
+
+        // Standard-Einstieg auf Mobile zeigt zuerst die Ticket-Liste (mobileTicketOpen = false), Auswahl öffnet Detail
+        Livewire::actingAs($admin, 'admin')
+            ->test(AiUniverseTickets::class)
+            ->assertSet('mobileTicketOpen', false)
+            ->call('selectTicket', $ticket->id)
+            ->assertSet('mobileTicketOpen', true)
+            ->call('closeMobileTicket')
+            ->assertSet('mobileTicketOpen', false);
+
+        // Lange Linux-Pfade, Listenpunkte und mehrzeilige Codeblöcke brechen mobil sauber um
+        $diagMessage = "**0-Token System-Diagnose (`Systemi`)**\n"
+            . "- **Umgebung:** `STAGE`\n"
+            . "- **Ort:** `/home/p-g27wim/html/seelenfunke-stage/vendor/guzzlehttp/psr7/src/StreamFactory.php:241`\n"
+            . "```php\nthrow new RuntimeException('php_network_getaddresses');\n```";
+
+        $html = AiUniverseTickets::formatMessageHtml($diagMessage);
+        $this->assertStringContainsString('break-all sm:break-words [overflow-wrap:anywhere]', $html);
+        $this->assertStringContainsString('<pre class="', $html);
+        $this->assertStringContainsString('StreamFactory.php:241', $html);
+        $this->assertStringContainsString('•</span>', $html);
+    }
 }

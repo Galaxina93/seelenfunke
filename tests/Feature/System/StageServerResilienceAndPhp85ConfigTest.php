@@ -112,12 +112,16 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
             $this->assertArrayHasKey('server_environment', $log->payload);
             $this->assertSame('model_or_protocol_entity_not_found', $log->payload['diagnosis']['category']);
 
-            Mail::assertSent(AiAgentMessageMail::class, function (AiAgentMessageMail $mail) {
-                return str_contains($mail->messageSubject, 'Code 1008')
-                    && str_contains($mail->messageContent, 'Automatische Ursachen-Analyse (Diagnose)')
-                    && str_contains($mail->messageContent, 'Sitzungs- & Client-Telemetrie')
-                    && str_contains($mail->messageContent, 'Letzte Ereignisse vor dem Ausfall');
-            });
+            Mail::assertNothingSent();
+            $wsTicket = \App\Models\Ai\AiUniverseTicket::where('error_fingerprint', 'like', 'sys_alert:ws_bridge_error:%')
+                ->latest('created_at')
+                ->first();
+            $this->assertNotNull($wsTicket);
+            $this->assertStringContainsString('Code 1008', (string) $wsTicket->title);
+            $firstMsg = (string) ($wsTicket->messages()->first()?->content ?? '');
+            $this->assertStringContainsString('Automatische Ursachen-Analyse (Diagnose)', $firstMsg);
+            $this->assertStringContainsString('Sitzungs- & Client-Telemetrie', $firstMsg);
+            $this->assertStringContainsString('Letzte Ereignisse vor dem Ausfall', $firstMsg);
         } finally {
             SystemLog::where('action_id', $actionId)->delete();
         }

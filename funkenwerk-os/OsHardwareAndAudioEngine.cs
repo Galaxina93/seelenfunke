@@ -3110,7 +3110,10 @@ namespace FunkenwerkOS
                     RegisterExt(".pdf", "FunkenwerkOS.PDF", "Funkenwerk PDF", pdfExe);
 
                 if (apps.TryGetValue("tresor", out string? tresorExe))
-                    RegisterExt(".kdbx", "FunkenwerkOS.KDBX", "Funkenwerk Tresor", tresorExe);
+                {
+                    RegisterExt(".kdbx", "FunkenwerkTresor.Vault", "Funkenwerk Tresor", tresorExe);
+                    RegisterExt(".keyx", "FunkenwerkTresor.Vault", "Funkenwerk Tresor", tresorExe);
+                }
 
                 if (settings.DefaultPrograms.TryGetValue("audio", out string? audApp) && apps.TryGetValue(audApp, out string? audExe))
                 {

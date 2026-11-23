@@ -17,6 +17,7 @@ return new class extends Migration
                 $table->string('status', 32)->default('new')->index();
                 $table->string('priority', 20)->default('normal')->index();
                 $table->string('ticket_type', 40)->default('general')->index();
+                $table->boolean('is_business')->default(true)->index();
                 $table->foreignUuid('ai_department_id')->nullable()->constrained('ai_departments')->nullOnDelete();
                 $table->foreignUuid('assigned_agent_id')->nullable()->constrained('ai_agents')->nullOnDelete();
                 $table->boolean('assigned_to_antigravity')->default(false)->index();

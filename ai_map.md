@@ -1,5 +1,5 @@
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-23 01:22)
+> Generiert via `php artisan ai:generate-map` (2026-11-23 20:46)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -46,7 +46,7 @@
 - **Management\Mail**: `MailAccount, MailAttachment, MailFolder, MailMessage, MailRule`
 - **Marketing**: `MarketingBlogCategory, MarketingBlogPost, MarketingCoupon, MarketingGiftVoucher, MarketingGiftVoucherLog, MarketingHerzensprojektAction, MarketingHerzensprojektTransaction, MarketingInfluencer, MarketingInfluencerCommission, MarketingInfluencerPayout, MarketingLandingPage, MarketingLinktree, MarketingLinktreeClick, MarketingLinktreeVisit, MarketingNewsletter, MarketingNewsletterSubscriber, MarketingReferral, MarketingTrackingLink, MarketingTrackingLinkHit, MarketingVoucher`
 - **Order**: `OrderOrder, OrderOrderItem, OrderQuoteRequest, OrderQuoteRequestItem, OrderRevocation, OrderShipment`
-- **Product**: `Product, ProductAnalyticsEvent, ProductAttribute, ProductCategory, ProductIdea, ProductLoss, ProductNicheCrawlerRun, ProductNicheItem, ProductPackaging, ProductPackagingItem, ProductReview, ProductSupplier, ProductTemplate, ProductTierPrice`
+- **Product**: `LaserStudioProject, Product, ProductAnalyticsEvent, ProductAttribute, ProductCategory, ProductIdea, ProductLoss, ProductNicheCrawlerRun, ProductNicheItem, ProductPackaging, ProductPackagingItem, ProductReview, ProductSupplier, ProductTemplate, ProductTierPrice`
 - **Root**: `SupportTelephonyCall`
 - **Support**: `SupportContactRequest, SupportContactRequestMessage, SupportCustomerChat, SupportCustomerChatMessage, SupportExperienceReview, SupportTicket, SupportTicketMessage`
 - **System**: `PersonalAccessToken, SystemAiHostingPlan, SystemBlockedIp, SystemCheckConfig, SystemCronjob, SystemDirectory, SystemLog, SystemLoginAttempt, SystemNeuralNode, SystemPasswordResetToken, SystemSchedulerLog, SystemSetting, SystemUser, SystemUserDevice`
@@ -78,7 +78,7 @@
 - **Shop\Order**: `OrderAnalytics, OrderOverview, OrderQuoteAcceptance, OrderQuoteRequests, OrderRevocationForm, OrderRevocations, OrderShoppingCarts`
 - **Shop\Order\OrderCheckout**: `OrderCheckout, OrderCheckoutSuccess`
 - **Shop\Order\OrderCheckout\Traits**: `HandlesOrderCreation, HandlesStripePayment`
-- **Shop\Product**: `ProductAnalytics, ProductAttributes, ProductCategories, ProductConfiguratorSettings, ProductControlReviews, ProductCrawler, ProductCreate, ProductFracture, ProductFrontendFilterArea, ProductIdeas, ProductPackagingConfigurator, ProductReviews, ProductShow, ProductSuppliers, ProductTax, ProductTemplates, ProductTierPricing, ProductVariants`
+- **Shop\Product**: `LaserStudioWorkspace, ProductAnalytics, ProductAttributes, ProductCategories, ProductConfiguratorSettings, ProductControlReviews, ProductCrawler, ProductCreate, ProductFracture, ProductFrontendFilterArea, ProductIdeas, ProductPackagingConfigurator, ProductReviews, ProductShow, ProductSuppliers, ProductTax, ProductTemplates, ProductTierPricing, ProductVariants`
 - **Shop\Product\ProductCalculator**: `ProductCalculator`
 - **Shop\Product\ProductConfigurator**: `ProductConfigurator`
 - **Shop\Product\ProductConfigurator\Traits**: `HandlesConfiguratorLogic`
@@ -96,16 +96,16 @@
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 
 ## 7. Services & Geschäftslogik (`app/Services/<Domain>/*.php`)
-- **AI**: `AIFunctionsRegistry, AgentSkillBudgetGuard, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiOutputQualityGate, AiPromptService, AiSupportService, AntigravityUniverseTicketBridge, BuchiReceiptPipelineService, CentralBrainService, ContextDossierBuilder, FunkiraPresenceContext, FunkiraSkillPoolService, FunkiraTicketRouter, GeminiAgent, GeminiTtsService, KnowledgeReportSyncService, MasterNextBestActionService, ProcurementSafetyGuard, ReceiptAiScannerService, SfInternalOrchestrator, TicketAutoCompactService, TicketDeliverableService, VertexAiService, WebSearchCascadeService`
+- **AI**: `AIFunctionsRegistry, AgentSkillBudgetGuard, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiOutputQualityGate, AiPromptService, AiSupportService, AntigravityUniverseTicketBridge, BuchiReceiptPipelineService, CentralBrainService, ConceptLifecycleService, ContextDossierBuilder, FunkiraPresenceContext, FunkiraSkillPoolService, FunkiraTicketRouter, GeminiAgent, GeminiTtsService, KnowledgeReportSyncService, MasterNextBestActionService, ProcurementSafetyGuard, ReceiptAiScannerService, SfInternalOrchestrator, TicketAutoCompactService, TicketDeliverableService, VertexAiService, WebSearchCascadeService`
 - **AI\Contracts**: `AiProviderInterface`
 - **AI\Functions**: `AiAgentsFuncs, AiBrainFuncs, AiCalendarFuncs, AiContactFuncs, AiFinanceFuncs, AiHealthFuncs, AiHolidayPlannerFuncs, AiLaserFuncs, AiMailFuncs, AiMapControlFuncs, AiMapNewsFuncs, AiMarketingBlogFuncs, AiMarketingFuncs, AiMarketingNewsletterFuncs, AiMarketingVoucherFuncs, AiMasterFuncs, AiNewsFuncs, AiOrderFuncs, AiPersonaFuncs, AiProductFuncs, AiRoutineFuncs, AiScoutFuncs, AiShoppingListFuncs, AiSmartHomeFuncs, AiStripeFuncs, AiSuppliersFuncs, AiSupportFuncs, AiSystemFuncs, AiTaskFuncs, AiTelefonyFuncs, AiUniverseTicketFuncs`
 - **AI\Mails**: `AiAgentMessageMail, AiHolidayPlanMail, AiMapSummaryMail`
 - **AI\Workspace**: `AbschlussberichteIndexerService, DateitrichterService`
-- **Accounting**: `ContractDocumentService`
+- **Accounting**: `ContractDocumentService, PreLiveOrderAndInvoiceCleanupService`
 - **Employee**: `EmployeeHrService`
 - **Export**: `FileDownloadService`
 - **Gamification**: `FunkenreichSsoBridgeService, GameConfig, GamificationService, LavaParkourService, LobbyInstanceService, PlayerNameValidator`
-- **Laser**: `LaserPhotoPreprocessor, XtoolLaserCockpitService`
+- **Laser**: `LaserPhotoPreprocessor, LaserQrCodeService, XtoolLaserCockpitService`
 - **Management**: `MailAiSortService, MailAttachmentFunnelService`
 - **Marketing**: `HolidayOfferAutopilotService, InfluencerService`
 - **Navigation**: `BackendNavigationService`
@@ -114,6 +114,6 @@
 - **Shipping**: `GrossbriefLabelService`
 - **Shop**: `ShowroomChatGuardService, ShowroomMultiplayerService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, KdriveTrichterRelayService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory, ZeroTokenSelfHealer`
+- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, KdriveTrichterRelayService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemAlertTicketService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory, ZeroTokenSelfHealer`
 - **Tax**: `TaxSettingService`
 

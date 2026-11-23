@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
-use App\Models\Order\Order;
 use App\Models\System\SystemSetting;
 use App\Models\Delivery\DeliveryTime;
 
@@ -150,6 +149,27 @@ class ShopCapacityEngine extends Command
             $this->warn("Autopilot is OFF. No data mutated.");
         }
 
+        if ($level >= 4) {
+            \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                alertKey: 'shop_capacity:lockdown_level_4',
+                title: "Werkstatt-Kapazität am Limit (100 % Auslastung / Stufe 4)",
+                markdownBody: "Die `ShopCapacityEngine` meldet aktuell **{$percentage} % Manufaktur-Auslastung** ({$activeOrders} Auftrags-Äquivalente bei Tageslimit {$maxCapacity}). Express-Optionen sind gedrosselt"
+                    . ($autoPilot ? ' und die Lieferzeit wurde automatisch auf **Extreme Auslastung (16 bis 21 Tage)** angepasst.' : ' (Lieferzeit-Autopilot ist aktuell deaktiviert).'),
+                departmentName: 'Bestellungen',
+                agentName: 'Bestelli',
+                ticketType: 'capacity_alert',
+                priority: 'high',
+                assignToAntigravity: false
+            );
+        } else {
+            \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                'shop_capacity:lockdown_level_4',
+                "Werkstatt-Auslastung wieder unter 100 % gesunken (aktuell {$percentage} %, Stufe {$level}).",
+                'Bestelli'
+            );
+        }
+
         $this->info("Shop Capacity Engine run completed.");
+        return self::SUCCESS;
     }
 }

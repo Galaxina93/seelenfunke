@@ -241,9 +241,8 @@ class LiveServerHealthPulseTest extends TestCase
             ->assertJsonPath('result.live_domains.domain', 'mein-seelenfunke.de')
             ->assertJsonPath('result.live_domains.reachable', false);
 
-        // Migration 2026_11_16_171500 verknüpft system_get_server_status & system_get_health idempotent mit allen Executive-/Admin-Rollen
-        $migration = require base_path('database/migrations/2026_11_16_171500_ensure_server_status_tools_for_all_executive_agents.php');
-        $migration->applyUpgrade();
+        // FunkiraSkillPoolService verknüpft system_get_server_status & system_get_health idempotent mit allen Executive-/Admin-Rollen
+        \App\Services\AI\FunkiraSkillPoolService::ensureExecutiveServerStatusTools();
 
         $falconeTools = $falcone->fresh(['role.tools'])->tools->pluck('identifier')->all();
         $funkiraTools = $funkira->fresh(['role.tools'])->tools->pluck('identifier')->all();

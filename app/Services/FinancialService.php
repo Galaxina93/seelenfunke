@@ -1329,19 +1329,22 @@ class FinancialService
 
         foreach ($businessSpecials as $s) {
             $rawRate = $s->tax_rate ?? 0;
-            $amt = abs((float) $s->amount);
+            $rawSigned = (float) $s->amount;
+            $amt = abs($rawSigned);
+            // Positive Beträge in Sonderausgaben sind Lieferanten-Gutschriften/Retouren-Erstattungen -> mindern Betriebsausgabe & Vorsteuer
+            $expenseSign = $rawSigned > 0.0 ? -1.0 : 1.0;
 
             if (!$isYearSmallBusiness && self::isEligibleGermanInputVatRate($rawRate)) {
                 $rate = (int) round((float) $rawRate);
                 $net = $amt / (1 + ($rate / 100));
-                $vorsteuerSpecial += ($amt - $net);
-                $expensesNet += $net;
+                $vorsteuerSpecial += $expenseSign * ($amt - $net);
+                $expensesNet += $expenseSign * $net;
             } else {
                 $net = $amt;
-                $expensesNet += $amt;
+                $expensesNet += $expenseSign * $amt;
             }
 
-            if ($this->isCapitalAssetIssue($s, round($net, 2))) {
+            if ($expenseSign > 0 && $this->isCapitalAssetIssue($s, round($net, 2))) {
                 $capitalAdditionsGross += $amt;
                 $capitalAdditionsNet += $net;
             }
@@ -2193,7 +2196,7 @@ class FinancialService
             "Jahres-AfA {$year} (EUR)",
             'Kumulierte AfA (EUR)',
             'Restbuchwert (EUR)',
-        ], ';');
+        ], ';', '"', '');
 
         foreach ($schedule['assets'] ?? [] as $asset) {
             fputcsv($handle, [
@@ -2210,7 +2213,7 @@ class FinancialService
                 number_format($asset['year_afa'], 2, ',', '.'),
                 number_format($asset['accumulated_afa'], 2, ',', '.'),
                 number_format($asset['book_value'], 2, ',', '.'),
-            ], ';');
+            ], ';', '"', '');
         }
 
         foreach ($schedule['gwg_items'] ?? [] as $gwg) {
@@ -2228,7 +2231,7 @@ class FinancialService
                 number_format($gwg['net_cost'], 2, ',', '.'),
                 number_format($gwg['net_cost'], 2, ',', '.'),
                 '0,00',
-            ], ';');
+            ], ';', '"', '');
         }
 
         if (\Illuminate\Support\Facades\Schema::hasTable('accounting_investment_plans') && $resolvedAdminId) {
@@ -2256,7 +2259,7 @@ class FinancialService
                     '0,00',
                     number_format((float) $plan->saved_initial, 2, ',', '.'),
                     '0,00',
-                ], ';');
+                ], ';', '"', '');
             }
         }
 

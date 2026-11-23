@@ -39,11 +39,23 @@ class AiAgentFactory
             $errorMsg = "Kritischer Fehler der Provider-Infrastruktur: " . $e->getMessage();
             
             try {
-                $email = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
-                $body = "Der KI-Agent '{$agent->name}' konnte nicht antworten. Die gesamte KI-Infrastruktur oder API ist abgestürzt.\n\nFehler-Details:\n" . $e->getMessage();
-                \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Services\AI\Mails\AiAgentMessageMail("SYSTEM-NOTFALL: KI-Infrastruktur down", $body, "System"));
-            } catch (\Exception $mailErr) {
-                \Illuminate\Support\Facades\Log::error("Failed to send AI fallback crash email: " . $mailErr->getMessage());
+                $body = "Der KI-Agent `{$agent->name}` konnte nicht antworten. Die KI-Infrastruktur oder externe Modell-API meldete eine kritische Störung.\n\n**Fehler-Details:**\n" . $e->getMessage();
+                \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                    alertKey: 'ai_provider_down:' . ($agent->slug ?: $agent->name),
+                    title: "KI-Infrastruktur Störung ({$agent->name})",
+                    markdownBody: $body,
+                    departmentName: 'Agenten',
+                    agentName: 'Agenti',
+                    ticketType: 'ai_infrastructure_alert',
+                    priority: 'high',
+                    assignToAntigravity: false,
+                    extraPayload: [
+                        'agent_name' => $agent->name,
+                        'exception' => get_class($e),
+                    ]
+                );
+            } catch (\Exception $ticketErr) {
+                \Illuminate\Support\Facades\Log::error("Failed to create AI fallback crash ticket: " . $ticketErr->getMessage());
             }
 
             return $errorMsg;

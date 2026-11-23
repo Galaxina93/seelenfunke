@@ -31,10 +31,11 @@
         fonts: @js($fonts),
         context: '{{$context}}',
         @php
-            $effectiveMode = $this->effectivePersonalizationMode ?? $this->product->getPersonalizationMode();
-            $isEffectiveCustomFields = !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'custom_fields';
-            $isEffectiveStudio = !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'studio';
-            $isBeginnerStudioMode = $isEffectiveCustomFields && $this->product->usesStudioConfigurator();
+            $isLaserFreehand = ($context === 'laser_freehand');
+            $effectiveMode = $isLaserFreehand ? 'studio' : ($this->effectivePersonalizationMode ?? $this->product->getPersonalizationMode());
+            $isEffectiveCustomFields = !$isLaserFreehand && !$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'custom_fields';
+            $isEffectiveStudio = $isLaserFreehand || (!$isDigital && !$isService && ($this->product->isPersonalizable() || $context === 'preview') && $effectiveMode === 'studio');
+            $isBeginnerStudioMode = !$isLaserFreehand && $isEffectiveCustomFields && $this->product->usesStudioConfigurator();
             $hasBackBeginnerOption = false;
             if ($isBeginnerStudioMode && !empty($configSettings['has_back_side'])) {
                 foreach ($this->customFieldsDefinition as $cfSideCheck) {
@@ -44,7 +45,7 @@
                     }
                 }
             }
-            $glbDiskPath = (($isEffectiveStudio || $isBeginnerStudioMode) && $product->three_d_active && $product->three_d_model_path)
+            $glbDiskPath = (!$isLaserFreehand && ($isEffectiveStudio || $isBeginnerStudioMode) && $product->three_d_active && $product->three_d_model_path)
                 ? storage_path('app/public/' . ltrim($product->three_d_model_path, '/'))
                 : null;
             $resolvedModelUrl = ($glbDiskPath && is_file($glbDiskPath))
@@ -58,15 +59,15 @@
             hasBackBeginnerOption: {{ $hasBackBeginnerOption ? 'true' : 'false' }},
             beginnerCoords: @js($this->getBeginnerPositionCoordinates($configSettings ?? [])),
             modelPath: '{{ $resolvedModelUrl }}',
-            bgPath: '{{ $this->resolvedBackgroundPath }}',
+            bgPath: '{{ $isLaserFreehand ? "" : $this->resolvedBackgroundPath }}',
             fallbackImg: '{{ $this->previewImage }}',
-            isDarkSurface: {{ $isDarkSurface ? 'true' : 'false' }},
-            hasTransparentOverlay: {{ $hasTransparentOverlay ? 'true' : 'false' }},
+            isDarkSurface: {{ ($isLaserFreehand || $isDarkSurface) ? 'true' : 'false' }},
+            hasTransparentOverlay: {{ (!$isLaserFreehand && $hasTransparentOverlay) ? 'true' : 'false' }},
             surfaceLuminance: {{ (float) ($overlayAnalysis['surface_luminance'] ?? 140) }},
             templatePackage: '{{ $configSettings["template_package"] ?? "custom" }}',
-            enableBgVideo: {{ (!isset($configSettings['enable_background_video']) || $configSettings['enable_background_video']) ? 'true' : 'false' }},
-            customBgVideo: '{{ !empty($configSettings["background_video_path"]) ? asset("storage/".$configSettings["background_video_path"]) : "" }}',
-            themes: @js(collect($backgroundThemes ?? [])->map(function($t) use ($product, $configSettings) {
+            enableBgVideo: {{ (!$isLaserFreehand && (!isset($configSettings['enable_background_video']) || $configSettings['enable_background_video'])) ? 'true' : 'false' }},
+            customBgVideo: '{{ (!$isLaserFreehand && !empty($configSettings["background_video_path"])) ? asset("storage/".$configSettings["background_video_path"]) : "" }}',
+            themes: @js($isLaserFreehand ? [] : collect($backgroundThemes ?? [])->map(function($t) use ($product, $configSettings) {
                 $vDisk = storage_path('app/public/' . $t['video']);
                 $iDisk = storage_path('app/public/' . $t['image']);
                 $vVer = is_file($vDisk) ? '?v=' . filemtime($vDisk) : '';
@@ -134,7 +135,11 @@
          @mouseup.window="handleMouseUp($event)"
          @touchmove.window="handleMouseMove($event)"
          @touchend.window="handleMouseUp($event)"
-         @keydown.window="handleKeyDown($event)">
+         @keydown.window="handleKeyDown($event)"
+         @keyup.window="handleKeyUp($event)"
+         @blur.window="isShiftPressed = false; showGuideX = false; showGuideY = false"
+         @laser-camera-updated.window="if (context === 'laser_freehand' && $event.detail) { if ($event.detail.cameraUrl) { config.fallbackImg = $event.detail.cameraUrl; } if ($event.detail.areaBox) { config.area_left = Number($event.detail.areaBox.left ?? 0); config.area_top = Number($event.detail.areaBox.top ?? 0); config.area_width = Number($event.detail.areaBox.width ?? 100); config.area_height = Number($event.detail.areaBox.height ?? 100); config.area_shape = $event.detail.areaBox.shape || 'rect'; } if ($event.detail.hasBackSide !== undefined) { config.has_back_side = Boolean($event.detail.hasBackSide); } }"
+         @laser-freehand-photo-edited.window="if (context === 'laser_freehand' && $event.detail && $event.detail.fileKey && $event.detail.previewUrl) { const fk = String($event.detail.fileKey); const pu = String($event.detail.previewUrl); logos = normalizeArray(logos).map(l => (l && String(l.value || '') === fk) ? Object.assign({}, l, { url: pu, studio_edited: true }) : l); logos_back = normalizeArray(logos_back).map(l => (l && String(l.value || '') === fk) ? Object.assign({}, l, { url: pu, studio_edited: true }) : l); }">
 
     <style>
         /* Studio Fullscreen Mode Scoped Styles */
@@ -446,37 +451,48 @@
             {{-- Hinweis & Animation (Mobil in sauberer 2. Zeile ohne Überlappung, ab sm: in einer Zeile rechts) --}}
             @if(!$isDigital && !$isService)
                 <div class="order-3 sm:order-2 w-full sm:w-auto sm:ml-auto flex items-center gap-2 pt-1.5 sm:pt-0 border-t sm:border-t-0 {{ $isDark ? 'border-gray-800/70' : 'border-gray-200/70' }}">
-                    <button type="button"
-                            @click="toggleNotice()"
-                            :class="showNotice
-                                ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
-                                : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
-                            class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
-                            :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
-                        <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
-                            <x-heroicon-o-eye class="w-3.5 h-3.5" />
-                        </span>
-                        <span x-show="!showNotice" x-cloak class="flex items-center text-gray-400 shrink-0">
-                            <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
-                        </span>
-                        <span>Hinweis</span>
-                    </button>
+                    @if($context === 'laser_freehand')
+                        <button type="button"
+                                @click="isDarkSurface = !isDarkSurface"
+                                class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0 {{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:border-[#C5A059]' : 'bg-white border-gray-200 text-gray-700 hover:border-[#C5A059] shadow-2xs' }}"
+                                title="Gravur-Vorschaukontrast auf dem Kamerabild umschalten">
+                            <span class="w-2.5 h-2.5 rounded-full border shrink-0"
+                                  :class="isDarkSurface ? 'bg-white border-gray-400' : 'bg-gray-900 border-gray-600'"></span>
+                            <span x-text="isDarkSurface ? 'Kontrast: Hell' : 'Kontrast: Dunkel'">Kontrast: Hell</span>
+                        </button>
+                    @else
+                        <button type="button"
+                                @click="toggleNotice()"
+                                :class="showNotice
+                                    ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
+                                    : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
+                                class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
+                                :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
+                            <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
+                                <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                            </span>
+                            <span x-show="!showNotice" x-cloak class="flex items-center text-gray-400 shrink-0">
+                                <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                            </span>
+                            <span>Hinweis</span>
+                        </button>
 
-                    <button type="button"
-                            @click="toggleAnimation()"
-                            :class="videoEnabled
-                                ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
-                                : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
-                            class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
-                            :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
-                        <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
-                            <x-heroicon-o-eye class="w-3.5 h-3.5" />
-                        </span>
-                        <span x-show="!videoEnabled" x-cloak class="flex items-center text-gray-400 shrink-0">
-                            <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
-                        </span>
-                        <span>Animation</span>
-                    </button>
+                        <button type="button"
+                                @click="toggleAnimation()"
+                                :class="videoEnabled
+                                    ? '{{ $isDark ? 'bg-gray-900 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200 text-gray-700 hover:text-gray-900 shadow-2xs' }}'
+                                    : '{{ $isDark ? 'bg-gray-900/50 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600' }}'"
+                                class="px-2.5 py-1.5 rounded-xl border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
+                                :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
+                            <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
+                                <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                            </span>
+                            <span x-show="!videoEnabled" x-cloak class="flex items-center text-gray-400 shrink-0">
+                                <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                            </span>
+                            <span>Animation</span>
+                        </button>
+                    @endif
                 </div>
             @endif
 
@@ -535,42 +551,53 @@
         {{-- GESTALTUNGS-LEISTE (direkt im Alpine-Scope des Konfigurators für Produktseite, Warenkorb & Bestell-Bearbeitung) --}}
         @if($context !== 'preview' && !$isDigital && !$isService && ($isEffectiveStudio || $isBeginnerStudioMode))
             <div x-show="!isMaximized" class="px-3.5 sm:px-6 py-2.5 border-b flex flex-wrap sm:flex-nowrap items-center justify-between gap-y-2 gap-x-2 shrink-0 {{ $isDark ? 'bg-gray-900/80 border-gray-800' : 'bg-gray-50 border-gray-200' }}">
-                <div class="order-1 flex items-center shrink-0">
-                    <span class="text-sm font-medium mr-0.5 shrink-0 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">{{ $isBeginnerStudioMode ? 'Vorschau' : 'Gestaltung' }}</span>
+                <div class="order-1 flex items-center gap-2 shrink-0">
+                    <span class="text-sm font-medium mr-0.5 shrink-0 {{ $isDark ? 'text-gray-300' : 'text-gray-600' }}">{{ $context === 'laser_freehand' ? 'Free-Hand Laser-Ansicht' : ($isBeginnerStudioMode ? 'Vorschau' : 'Gestaltung') }}</span>
                 </div>
 
                 <div class="order-3 sm:order-2 w-full sm:w-auto flex items-center gap-2 pt-1.5 sm:pt-0 border-t sm:border-t-0 {{ $isDark ? 'border-gray-800/70' : 'border-gray-200/70' }}">
-                    <button type="button"
-                            @click="toggleNotice()"
-                            :class="showNotice
-                                ? '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-gray-300 hover:text-gray-900' }}'
-                                : '{{ $isDark ? 'bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}'"
-                            class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
-                            :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
-                        <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
-                            <x-heroicon-o-eye class="w-3.5 h-3.5" />
-                        </span>
-                        <span x-show="!showNotice" x-cloak class="flex items-center text-gray-400 shrink-0">
-                            <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
-                        </span>
-                        <span>Hinweis</span>
-                    </button>
+                    @if($context === 'laser_freehand')
+                        <button type="button"
+                                @click="isDarkSurface = !isDarkSurface"
+                                class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0 {{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:border-[#C5A059]' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-[#C5A059]' }}"
+                                title="Gravur-Vorschaukontrast auf dem Kamerabild umschalten">
+                            <span class="w-2.5 h-2.5 rounded-full border shrink-0"
+                                  :class="isDarkSurface ? 'bg-white border-gray-400' : 'bg-gray-900 border-gray-600'"></span>
+                            <span x-text="isDarkSurface ? 'Kontrast: Helle Gravur' : 'Kontrast: Dunkle Gravur'">Kontrast: Helle Gravur</span>
+                        </button>
+                    @else
+                        <button type="button"
+                                @click="toggleNotice()"
+                                :class="showNotice
+                                    ? '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-gray-300 hover:text-gray-900' }}'
+                                    : '{{ $isDark ? 'bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}'"
+                                class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
+                                :title="showNotice ? 'Hinweis ausblenden' : 'Hinweis einblenden'">
+                            <span x-show="showNotice" class="flex items-center text-blue-500 shrink-0">
+                                <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                            </span>
+                            <span x-show="!showNotice" x-cloak class="flex items-center text-gray-400 shrink-0">
+                                <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                            </span>
+                            <span>Hinweis</span>
+                        </button>
 
-                    <button type="button"
-                            @click="toggleAnimation()"
-                            :class="videoEnabled
-                                ? '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-gray-300 hover:text-gray-900' }}'
-                                : '{{ $isDark ? 'bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}'"
-                            class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
-                            :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
-                        <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
-                            <x-heroicon-o-eye class="w-3.5 h-3.5" />
-                        </span>
-                        <span x-show="!videoEnabled" x-cloak class="flex items-center text-gray-400 shrink-0">
-                            <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
-                        </span>
-                        <span>Animation</span>
-                    </button>
+                        <button type="button"
+                                @click="toggleAnimation()"
+                                :class="videoEnabled
+                                    ? '{{ $isDark ? 'bg-gray-800 border-gray-700 text-gray-200 hover:text-white' : 'bg-white border-gray-200/90 text-gray-700 shadow-2xs hover:border-gray-300 hover:text-gray-900' }}'
+                                    : '{{ $isDark ? 'bg-gray-900/60 border-gray-800 text-gray-500 hover:text-gray-300' : 'bg-gray-100/80 border-gray-200/60 text-gray-400 hover:text-gray-600 hover:bg-gray-100' }}'"
+                                class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all flex items-center gap-1.5 cursor-pointer select-none shrink-0"
+                                :title="videoEnabled ? 'Jahreszeiten-Animation ausblenden' : 'Jahreszeiten-Animation einblenden'">
+                            <span x-show="videoEnabled" class="flex items-center text-primary shrink-0">
+                                <x-heroicon-o-eye class="w-3.5 h-3.5" />
+                            </span>
+                            <span x-show="!videoEnabled" x-cloak class="flex items-center text-gray-400 shrink-0">
+                                <x-heroicon-o-eye-slash class="w-3.5 h-3.5" />
+                            </span>
+                            <span>Animation</span>
+                        </button>
+                    @endif
                 </div>
 
                 {{-- RECHTS AM RAND: Andere Vorlage wählen + Design laden + Design Sichern (Diskette ganz außen rechts, ohne Springen) --}}

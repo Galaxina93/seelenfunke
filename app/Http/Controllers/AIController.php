@@ -927,6 +927,12 @@ class AIController extends Controller
                     $systemInstruction .= "\n\n" . implode("\n", $scanLines);
                 }
             }
+            if (class_exists(\App\Services\AI\ConceptLifecycleService::class)) {
+                $openConceptsLive = \App\Services\AI\ConceptLifecycleService::buildCompactOpenConceptsContext();
+                if ($openConceptsLive !== '') {
+                    $systemInstruction .= "\n\n" . $openConceptsLive;
+                }
+            }
         }
 
         $voiceAllowedTools = [
@@ -954,7 +960,7 @@ class AIController extends Controller
                 'contact_search', 'contact_get_all',
                 'finance_get_liquidity_status', 'finance_get_fixed_costs', 'finance_create_expense',
                 'order_get_current_express_status', 'order_get_urgent_tasks', 'order_get_details',
-                'product_check_inventory', 'brain_search', 'workspace_get_latest_uploads',
+                'product_check_inventory', 'brain_search', 'concept_manage', 'workspace_get_latest_uploads',
             ]);
         }
 
@@ -1439,22 +1445,26 @@ class AIController extends Controller
      */
     public function saveLiveTranscript(Request $request)
     {
-        if (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request)) {
+        $sanctumAdmin = auth('sanctum')->user();
+        $isAuthorizedAdminClient = ($sanctumAdmin instanceof \App\Models\Admin\Admin)
+            || \App\Services\AI\AiAuthHelper::isAdmin();
+
+        if (!\App\Services\System\SystemSecurityService::isTrustedBridgeRequest($request) && !$isAuthorizedAdminClient) {
             \App\Services\System\SystemSecurityService::logEvent(
                 'security:bridge_transcript_unauthorized',
                 'Unautorisierter Transcript-Injection-Versuch blockiert',
                 'Externer Zugriffsversuch auf /api/ai/save-live-transcript von IP ' . $request->ip() . ' abgewehrt.',
-                'error'
+                'warning'
             );
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
-        $sessionId = (string) $request->input('session_id', '');
+        $sessionId = (string) ($request->input('session_id') ?: $request->input('chat_session_id', ''));
         $role = (string) $request->input('role', 'assistant');
         $content = trim((string) $request->input('content', ''));
         $agentId = $request->input('agent_id');
         $agentName = $request->input('agent_name');
-        $userId = $request->input('user_id');
+        $userId = $request->input('user_id') ?: ($sanctumAdmin instanceof \App\Models\Admin\Admin ? $sanctumAdmin->id : null);
 
         if (empty($content) || empty($sessionId)) {
             return response()->json(['error' => 'Missing session_id or content'], 400);
@@ -1753,8 +1763,21 @@ class AIController extends Controller
             ]);
         }
 
+        $isAdmin = \App\Models\Ai\AiUniverseTicket::isStrictAdminActor();
         $status = (string) $request->query('status', 'open');
-        $query = \App\Models\Ai\AiUniverseTicket::with(['department:id,name,color', 'agent:id,name,color', 'messages']);
+        $scope = (string) $request->query('scope', 'all');
+        $hasBizCol = \Illuminate\Support\Facades\Schema::hasColumn('ai_universe_tickets', 'is_business');
+
+        $query = \App\Models\Ai\AiUniverseTicket::with(['department:id,name,color', 'agent:id,name,color', 'messages'])
+            ->visibleToCurrentActor();
+
+        if ($hasBizCol && $isAdmin) {
+            if ($scope === 'business') {
+                $query->where('is_business', true);
+            } elseif ($scope === 'private') {
+                $query->where('is_business', false);
+            }
+        }
 
         if ($status === 'waiting') {
             $query->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA);
@@ -1774,14 +1797,20 @@ class AIController extends Controller
             'environment_tier' => \App\Services\AI\FunkiraPresenceContext::resolveEnvironmentTier(null, $request),
             'notebook_online' => \App\Services\AI\FunkiraPresenceContext::isAntigravityNotebookOnline(),
             'counts' => [
-                'waiting_for_alina' => \App\Models\Ai\AiUniverseTicket::where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA)->count(),
-                'in_progress' => \App\Models\Ai\AiUniverseTicket::whereIn('status', [
+                'waiting_for_alina' => \App\Models\Ai\AiUniverseTicket::visibleToCurrentActor()->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA)->count(),
+                'in_progress' => \App\Models\Ai\AiUniverseTicket::visibleToCurrentActor()->whereIn('status', [
                     \App\Models\Ai\AiUniverseTicket::STATUS_NEW,
                     \App\Models\Ai\AiUniverseTicket::STATUS_IN_PROGRESS,
                     \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_TRESOR,
                     \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_NOTEBOOK,
                 ])->count(),
-                'completed' => \App\Models\Ai\AiUniverseTicket::where('status', \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED)->count(),
+                'completed' => \App\Models\Ai\AiUniverseTicket::visibleToCurrentActor()->where('status', \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED)->count(),
+                'private_open' => ($hasBizCol && $isAdmin)
+                    ? \App\Models\Ai\AiUniverseTicket::where('is_business', false)->whereNotIn('status', [
+                        \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED,
+                        \App\Models\Ai\AiUniverseTicket::STATUS_ARCHIVED,
+                    ])->count()
+                    : 0,
             ],
             'tickets' => $tickets,
         ]);

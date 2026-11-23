@@ -1048,7 +1048,10 @@ trait AiFinanceFuncs
 
             $amount = (float) str_replace(',', '.', (string) $args['amount']);
             $intervalMonths = isset($args['interval_months']) ? max(1, (int)$args['interval_months']) : 1;
-            $isBusiness = isset($args['is_business']) ? (bool)$args['is_business'] : true;
+            $isBusiness = self::resolveTicketAwareIsBusiness(
+                isset($args['is_business']) ? (bool) $args['is_business'] : true,
+                $args
+            );
             $firstPaymentDate = !empty($args['first_payment_date']) 
                 ? \Carbon\Carbon::parse($args['first_payment_date'])->format('Y-m-d')
                 : now()->format('Y-m-d');
@@ -2073,6 +2076,7 @@ trait AiFinanceFuncs
             $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
             $defaultTaxRate = $isSmallBusiness ? 0.0 : (float) shop_setting('default_tax_rate', 19.0);
             $amountCents = (int) round($amount * 100);
+            $effectiveIsBusiness = self::resolveTicketAwareIsBusiness(!empty($args['is_business']), $args);
 
             if (!$isIncome && empty($args['allow_duplicate_override'])) {
                 $dup = \App\Services\AI\BuchiReceiptPipelineService::checkDuplicate(
@@ -2081,7 +2085,7 @@ trait AiFinanceFuncs
                     merchant: (string) ($args['location'] ?? $args['title'] ?? ''),
                     date: (string) ($args['execution_date'] ?? date('Y-m-d')),
                     amountCents: $amountCents,
-                    invoiceNumber: !empty($args['is_business']) ? (string) ($args['invoice_number'] ?? '') : ''
+                    invoiceNumber: $effectiveIsBusiness ? (string) ($args['invoice_number'] ?? '') : ''
                 );
                 if (!empty($dup['is_duplicate'])) {
                     return [
@@ -2098,14 +2102,14 @@ trait AiFinanceFuncs
                 'category' => $categoryName,
                 'amount' => round($amountCents / 100, 2),
                 'execution_date' => $args['execution_date'],
-                'is_business' => $args['is_business'],
-                'tax_rate' => $args['is_business'] ? ($args['tax_rate'] ?? $defaultTaxRate) : null,
-                'invoice_number' => $args['is_business'] ? ($args['invoice_number'] ?? null) : null,
+                'is_business' => $effectiveIsBusiness,
+                'tax_rate' => $effectiveIsBusiness ? ($args['tax_rate'] ?? $defaultTaxRate) : null,
+                'invoice_number' => $effectiveIsBusiness ? ($args['invoice_number'] ?? null) : null,
                 'location' => $args['location'] ?? 'KI-Schnellerfassung',
                 'note' => \App\Services\AI\BuchiReceiptPipelineService::withLiveMarker($args['note'] ?? null),
             ]);
 
-            \App\Services\AI\BuchiReceiptPipelineService::trackCategoryUsage($adminId, $categoryName, (bool) $args['is_business']);
+            \App\Services\AI\BuchiReceiptPipelineService::trackCategoryUsage($adminId, $categoryName, $effectiveIsBusiness);
 
             $typeStr = $amount < 0 ? 'Ausgabe' : 'Einnahme';
 
@@ -2176,6 +2180,12 @@ trait AiFinanceFuncs
 
             if (!$analysis) {
                 return ['status' => 'error', 'message' => 'Der Beleg konnte nicht ausgelesen werden.'];
+            }
+
+            // Stammt der Beleg aus einem privaten Universum-Ticket (is_business = false), wird er automatisch privat zugeordnet
+            $analysis['is_business'] = self::resolveTicketAwareIsBusiness((bool) ($analysis['is_business'] ?? true), $args);
+            if (!$analysis['is_business']) {
+                $analysis['tax_rate'] = null;
             }
 
             $dup = $analysis['duplicate_check'] ?? ['is_duplicate' => false];
@@ -2412,5 +2422,30 @@ trait AiFinanceFuncs
         } catch (\Throwable $e) {
             return ['status' => 'error', 'message' => 'Kategorien konnten nicht geladen werden.'];
         }
+    }
+
+    /**
+     * Übernimmt automatisch `is_business = false`, wenn Buchi innerhalb eines privaten Universum-Tickets
+     * (z. B. Privathaus, Bad/Dachfenster, Gesundheit, Familie) arbeitet, sofern kein expliziter Override vorliegt.
+     */
+    protected static function resolveTicketAwareIsBusiness(bool $defaultValue, array $args = []): bool
+    {
+        if (!empty($args['explicit_business_override'])) {
+            return $defaultValue;
+        }
+
+        $ticketId = trim((string) ($args['ticket_id'] ?? (app()->bound('active_universe_ticket_id') ? app('active_universe_ticket_id') : '')));
+        if ($ticketId !== ''
+            && \Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')
+            && \Illuminate\Support\Facades\Schema::hasColumn('ai_universe_tickets', 'is_business')) {
+            $ticket = \App\Models\Ai\AiUniverseTicket::where('id', $ticketId)
+                ->orWhere('ticket_number', strtoupper($ticketId))
+                ->first(['id', 'is_business']);
+            if ($ticket && $ticket->is_business === false) {
+                return false;
+            }
+        }
+
+        return $defaultValue;
     }
 }

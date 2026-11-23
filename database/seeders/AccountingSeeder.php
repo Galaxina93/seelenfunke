@@ -677,10 +677,11 @@ class AccountingSeeder extends Seeder
                 'date'           => '2026-11-22',
                 'category'       => 'Verpackungen',
                 'tax_rate'       => 19,
-                'invoice_number' => '306-3879066-2697958',
-                'note'           => "Bestellnummer: 306-3879066-2697958 | Bestellt am: 22.11.2026 | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000 | Zustellung: Do., 26.11.2026\nPosition:\n- 1x 100 Stück Frau WUNDERVoll® Papiertüten / Papierflachbeutel Schwarz, 13 x 16,5 cm (+ 2 cm Umfaltlasche), 45 g/m² unbeschichtetes Papier (ASIN: B0CPJT35H8, Verkauf durch: frauwundervoll): 9,99 € brutto\nZwischensumme / Gesamt vor USt. (Netto): 8,39 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 1,60 € | Gesamtsumme (Brutto): 9,99 €\nEinsatzzweck: 100 % plastikfreie, schwarze Papierflachbeutel für längliche Schmuckstücke ohne Geschenkbox (insbesondere 18,5 cm ID-Seelenarmbänder, die nicht ungeknickt in 10x6 cm passen, sowie Mehrfach-Anhänger).\nProdukt-Link: https://www.amazon.de/dp/B0CPJT35H8\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=306-3879066-2697958",
+                'invoice_number' => 'R505615 (Bestellnr. 306-3879066-2697958)',
+                'note'           => "Rechnungsnummer: R505615 (Frau Wundervoll GmbH, Lemgo) | Bestellnummer: 306-3879066-2697958 | Bestellt am: 22.11.2026 | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000 | Zustellung: Do., 26.11.2026\nPosition:\n- 1x 100 Stück Frau WUNDERVoll® Papiertüten / Papierflachbeutel Schwarz, 13 x 16,5 cm (+ 2 cm Umfaltlasche), 45 g/m² unbeschichtetes Papier (ASIN: B0CPJT35H8, Verkauf durch: frauwundervoll): 9,99 € brutto\nZwischensumme / Gesamt vor USt. (Netto): 8,39 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 1,60 € | Gesamtsumme (Brutto): 9,99 €\nEinsatzzweck: 100 % plastikfreie, schwarze Papierflachbeutel für längliche Schmuckstücke ohne Geschenkbox (insbesondere 18,5 cm ID-Seelenarmbänder, die nicht ungeknickt in 10x6 cm passen, sowie Mehrfach-Anhänger).\nProdukt-Link: https://www.amazon.de/dp/B0CPJT35H8\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=306-3879066-2697958",
                 'file_paths'     => [
-                    'buchhaltung/receipts/2026/11/2026-11-22_Amazon_100x-Frau-WUNDERVoll-Schwarze-Papierflachbeutel-13x16-5cm_Order-306-3879066-2697958.pdf'
+                    'buchhaltung/receipts/2026/11/2026-11-22_Amazon_100x-Frau-WUNDERVoll-Schwarze-Papierflachbeutel-13x16-5cm_Order-306-3879066-2697958.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-23_Frau-Wundervoll-GmbH_Frau-Wundervoll-Papiertueten.pdf',
                 ]
             ],
             [

@@ -495,17 +495,31 @@ class AIFunctionsRegistry
                 }
 
                 try {
-                    $email = shop_setting('company_email') ?: shop_setting('owner_email') ?: config('mail.from.address') ?: 'kontakt@mein-seelenfunke.de';
-                    $body = "Das KI-Werkzeug '{$name}' ist abgestürzt.\n\nFehler-Details:\n" . $e->getMessage() . "\n\n" . ($markdownPath ? "Die neuronale Struktur der fehlerhaften Datei liegt im Anhang bei." : "Die Dateistruktur konnte nicht generiert werden.");
-                    $attachments = $markdownPath ? [$markdownPath] : [];
-                    $agentName = $agent ? $agent->name : 'System';
-                    
-                    \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Services\AI\Mails\AiAgentMessageMail("SYSTEM-NOTFALL: Tool-Absturz ({$name})", $body, $agentName, $attachments));
-                    
-                    $errorMessage .= "\n\n[SYSTEM-INFO: Ein Fehlerbericht " . ($markdownPath ? "inklusive der Dateistruktur " : "") . "wurde bereits automatisch an den Administrator gesendet. Du musst keine weitere E-Mail schreiben!]";
-                } catch (\Exception $mailErr) {
-                    \Illuminate\Support\Facades\Log::error("Failed to send AI tool fallback email: " . $mailErr->getMessage());
-                    // Fallback, wenn die Mail nicht rausging
+                    $agentName = $agent ? $agent->name : 'Agenti';
+                    $body = "Das KI-Werkzeug `{$name}` ist abgestürzt.\n\n**Fehler-Details:**\n" . $e->getMessage() . "\n\n"
+                        . "**Ort:** `" . $e->getFile() . ':' . $e->getLine() . "`\n"
+                        . ($markdownPath ? "Die neuronale Struktur der fehlerhaften Datei wurde ans Ticket angehängt." : "Die Dateistruktur konnte nicht generiert werden.");
+
+                    \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                        alertKey: 'ai_tool_crash:' . $name . ':' . md5($e->getFile() . ':' . $e->getLine()),
+                        title: "KI-Tool-Absturz: {$name}",
+                        markdownBody: $body,
+                        departmentName: 'Agenten',
+                        agentName: $agentName,
+                        ticketType: 'ai_tool_crash',
+                        priority: 'high',
+                        assignToAntigravity: true,
+                        extraPayload: [
+                            'tool_name' => $name,
+                            'file' => $e->getFile(),
+                            'line' => $e->getLine(),
+                        ],
+                        attachmentAbsolutePath: $markdownPath
+                    );
+
+                    $errorMessage .= "\n\n[SYSTEM-INFO: Ein zentrales Fehler-Ticket " . ($markdownPath ? "inklusive der Dateistruktur " : "") . "wurde automatisch im Ticketsystem angelegt. Du musst keine E-Mail schreiben!]";
+                } catch (\Exception $ticketErr) {
+                    \Illuminate\Support\Facades\Log::error("Failed to create AI tool crash ticket: " . $ticketErr->getMessage());
                     if ($markdownPath) {
                         $errorMessage .= "\n\n[SYSTEM-INFO: Eine Struktur-Analyse der fehlerhaften Datei wurde generiert. Sie liegt unter: {$markdownPath}.]";
                     }

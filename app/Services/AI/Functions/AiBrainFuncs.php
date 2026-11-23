@@ -56,22 +56,30 @@ trait AiBrainFuncs
         return [
             [
                 'name' => 'brain_save_entry',
-                'description' => 'Speichert eine Tatsache, Notiz, generelles Wissen, App-Einstellung oder Passwort in deinem zentralen Langzeit-Gehirn (Wiki). Stichworte: Merke dir das, Notiere, Speicher das für immer, Neues Wissen.',
+                'description' => 'Speichert eine Tatsache, Notiz, generelles Wissen oder einen offiziellen Meilenstein-/Abteilungs-Abschlussbericht dublettenfrei in deinem zentralen Langzeit-Gehirn (Wissensdatenbank /admin/tickets?view=knowledge). Stichworte: Merke dir das, Notiere, Speicher das für immer, Abschlussbericht in Wissensdatenbank schreiben.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'title' => [
                             'type' => 'string',
-                            'description' => 'Kurzer, prägnanter Titel (z.B. "WLAN Passwort").',
+                            'description' => 'Kurzer, prägnanter Titel (z.B. "Abschlussbericht: Cronjob-Härtung & Ticket-Routing").',
                         ],
                         'content' => [
                             'type' => 'string',
-                            'description' => 'Die eigentliche Information, die du dir merken sollst.',
+                            'description' => 'Die eigentliche Information bzw. der vollständige Markdown-Bericht.',
                         ],
                         'tags' => [
                             'type' => 'array',
                             'items' => ['type' => 'string'],
                             'description' => 'Relevante Tags zur Kategorisierung.',
+                        ],
+                        'category' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Ziel-Kategorie in der Wissensdatenbank (z.B. "System", "Prüfprotokoll", "Produkte", "Buchhaltung", "Bestellungen", "Marketing", "Agenten", "Workflows", "Konzepte" oder Standard "AI Memory").',
+                        ],
+                        'is_completion_report' => [
+                            'type' => 'boolean',
+                            'description' => 'Auf true setzen, wenn es sich um einen offiziellen Abschlussbericht, Prüfbericht, Workflow oder ein Konzept handelt (synchronisiert den Eintrag zusätzlich revisionssicher im Brain-Snapshot).',
                         ],
                     ],
                     'required' => ['title', 'content', 'tags'],
@@ -137,7 +145,160 @@ trait AiBrainFuncs
                 ],
                 'callable' => [self::class, 'executeDeleteBrainEntry'],
             ],
+            [
+                'name' => 'concept_manage',
+                'description' => 'Zentrale globale Konzept-Verwaltung unter /admin/tickets?view=files&ftype=concept. Verwaltet alle Fach- und Architektur-Konzepte dublettenfrei über alle Kanäle (Web, Live-Call, Mini-PC). Aktionen: "list" (Konzepte auflisten), "read" (Volltext eines Konzepts lesen), "save" (neues Konzept mit Status Offen anlegen oder bestehendes Konzept zum selben Thema dublettenfrei fortschreiben), "set_status" (auf "open" = Offen oder "completed_verified" = Fertig & Geprüft setzen), "delete" (Konzept endgültig löschen).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'action' => [
+                            'type' => 'string',
+                            'enum' => ['list', 'read', 'save', 'set_status', 'delete'],
+                            'description' => 'Auszuführende Konzept-Aktion.',
+                        ],
+                        'title_or_identifier' => [
+                            'type' => 'string',
+                            'description' => 'Titel, Suchbegriff, Slug oder ID des Konzepts (Pflicht bei read, save, set_status, delete).',
+                        ],
+                        'markdown_content' => [
+                            'type' => 'string',
+                            'description' => 'Vollständiger Markdown-Inhalt des Konzepts (bei action="save").',
+                        ],
+                        'status' => [
+                            'type' => 'string',
+                            'enum' => ['all', 'open', 'completed_verified'],
+                            'description' => 'Filter bei "list" bzw. Ziel-Status bei "save"/"set_status" ("open" = Offen, "completed_verified" = Fertig & Geprüft).',
+                        ],
+                        'department' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Fachabteilung (z.B. Produkte, Leitung, System, Laser).',
+                        ],
+                    ],
+                    'required' => ['action'],
+                ],
+                'callable' => [self::class, 'executeManageConcept'],
+            ],
         ];
+    }
+
+    public static function executeManageConcept(array $args): array
+    {
+        if (!AiAuthHelper::isAdmin()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Die zentrale Konzept-Verwaltung ist ausschließlich der Geschäftsführung (Admin) vorbehalten.',
+            ];
+        }
+
+        try {
+            $action = strtolower(trim((string) ($args['action'] ?? 'list')));
+            $identifier = trim((string) ($args['title_or_identifier'] ?? ''));
+            $status = strtolower(trim((string) ($args['status'] ?? '')));
+
+            return match ($action) {
+                'list' => (static function () use ($status, $identifier): array {
+                    $filter = in_array($status, ['open', 'completed_verified'], true) ? $status : 'all';
+                    $items = \App\Services\AI\ConceptLifecycleService::listConcepts($filter, $identifier);
+                    return [
+                        'status' => 'success',
+                        'count' => count($items),
+                        'url' => '/admin/tickets?view=files&ftype=concept',
+                        'concepts' => array_map(static fn (array $c): array => [
+                            'id' => $c['key'],
+                            'title' => $c['concept_title'] ?? $c['name'],
+                            'filename' => $c['name'],
+                            'concept_status' => $c['concept_status'] ?? 'open',
+                            'concept_status_label' => ($c['concept_status'] ?? 'open') === 'completed_verified' ? 'Fertig & Geprüft' : 'Offen',
+                            'version' => $c['concept_version'] ?? 1,
+                            'ticket_number' => $c['ticket_number'] ?? null,
+                            'created_at' => $c['created_at_formatted'] ?? null,
+                        ], $items),
+                    ];
+                })(),
+
+                'read' => (static function () use ($identifier): array {
+                    if ($identifier === '') {
+                        return ['status' => 'error', 'message' => 'Bitte Titel oder ID des Konzepts angeben.'];
+                    }
+                    $found = \App\Services\AI\ConceptLifecycleService::findExistingConcept($identifier);
+                    if ($found === null) {
+                        return ['status' => 'empty', 'message' => "Kein Konzept zu '{$identifier}' gefunden."];
+                    }
+                    $att = $found['attachment'];
+                    $text = !empty($att['rel_path'])
+                        ? \App\Services\AI\TicketDeliverableService::readConceptText((string) $att['rel_path'])
+                        : null;
+                    return [
+                        'status' => 'success',
+                        'title' => $att['concept_title'] ?? $att['name'] ?? 'Konzept',
+                        'concept_status' => $att['concept_status'] ?? 'open',
+                        'version' => $att['concept_version'] ?? 1,
+                        'content' => $text ?? '',
+                    ];
+                })(),
+
+                'save' => (static function () use ($identifier, $args, $status): array {
+                    $content = trim((string) ($args['markdown_content'] ?? ''));
+                    if ($identifier === '' || $content === '') {
+                        return ['status' => 'error', 'message' => 'Titel und Markdown-Inhalt sind zum Anlegen/Aktualisieren eines Konzepts erforderlich.'];
+                    }
+                    $targetStatus = $status === 'completed_verified' ? 'completed_verified' : 'open';
+                    $dept = trim((string) ($args['department'] ?? 'Leitung')) ?: 'Leitung';
+                    $res = \App\Services\AI\ConceptLifecycleService::createOrUpdateConcept(
+                        title: $identifier,
+                        markdown: $content,
+                        ticketId: null,
+                        status: $targetStatus,
+                        authorName: 'Funkira',
+                        departmentName: $dept
+                    );
+                    $verb = ($res['action'] ?? '') === 'updated_existing'
+                        ? 'dublettenfrei aktualisiert'
+                        : 'neu mit Status Offen angelegt';
+                    return [
+                        'status' => 'success',
+                        'action' => $res['action'],
+                        'message' => "Konzept '{$identifier}' wurde unter /admin/tickets?view=files&ftype=concept {$verb} (Ticket {$res['ticket_number']}).",
+                        'concept' => $res['concept'],
+                    ];
+                })(),
+
+                'set_status' => (static function () use ($identifier, $status): array {
+                    if ($identifier === '') {
+                        return ['status' => 'error', 'message' => 'Bitte Titel oder ID des Konzepts angeben.'];
+                    }
+                    $targetStatus = $status === 'completed_verified' ? 'completed_verified' : 'open';
+                    $updated = \App\Services\AI\ConceptLifecycleService::setConceptStatus($identifier, $targetStatus);
+                    if ($updated === null) {
+                        return ['status' => 'error', 'message' => "Kein passendes Konzept zu '{$identifier}' gefunden."];
+                    }
+                    $label = $targetStatus === 'completed_verified' ? 'Fertig & Geprüft' : 'Offen';
+                    return [
+                        'status' => 'success',
+                        'message' => "Konzept '" . ($updated['concept_title'] ?? $identifier) . "' steht jetzt auf '{$label}'.",
+                        'concept' => $updated,
+                    ];
+                })(),
+
+                'delete' => (static function () use ($identifier): array {
+                    if ($identifier === '') {
+                        return ['status' => 'error', 'message' => 'Bitte Titel oder ID des zu löschenden Konzepts angeben.'];
+                    }
+                    $ok = \App\Services\AI\ConceptLifecycleService::deleteConcept($identifier);
+                    if (!$ok) {
+                        return ['status' => 'error', 'message' => "Kein passendes Konzept zu '{$identifier}' gefunden."];
+                    }
+                    return [
+                        'status' => 'success',
+                        'message' => "Das Konzept '{$identifier}' wurde rückstandsfrei gelöscht.",
+                    ];
+                })(),
+
+                default => ['status' => 'error', 'message' => "Unbekannte Konzept-Aktion '{$action}'."],
+            };
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'message' => 'Fehler in der Konzept-Verwaltung: ' . $e->getMessage()];
+        }
     }
 
     public static function executeUpdateBrainEntry(array $args): array
@@ -248,15 +409,28 @@ trait AiBrainFuncs
             $title = trim(mb_substr((string) $args['title'], 0, 255));
             $content = trim(mb_substr((string) $args['content'], 0, 50000));
             $tags = is_array($args['tags'] ?? null) ? $args['tags'] : [];
+            $category = trim((string) ($args['category'] ?? ''));
+            $isReport = !empty($args['is_completion_report'])
+                || stripos($title, 'Abschlussbericht') !== false
+                || stripos($title, 'Prüfprotokoll') !== false;
 
-            $kb = \App\Services\AI\CentralBrainService::upsertDeduplicatedKnowledge(
-                title: $title,
-                content: $content,
-                categoryName: 'AI Memory',
-                tags: array_merge(['ai_memory', 'auto_saved'], $tags),
-                sourcePath: null,
-                visibilityScope: AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE
-            );
+            if ($isReport) {
+                $kb = \App\Services\AI\CentralBrainService::saveMilestoneReport(
+                    title: $title,
+                    content: $content,
+                    categoryName: $category !== '' ? $category : 'System',
+                    tags: $tags
+                );
+            } else {
+                $kb = \App\Services\AI\CentralBrainService::upsertDeduplicatedKnowledge(
+                    title: $title,
+                    content: $content,
+                    categoryName: $category !== '' ? $category : 'AI Memory',
+                    tags: array_merge(['ai_memory', 'auto_saved'], $tags),
+                    sourcePath: null,
+                    visibilityScope: AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE
+                );
+            }
 
             if (!$kb) {
                 return ['status' => 'error', 'message' => 'Wissenseintrag konnte nicht gespeichert werden.'];

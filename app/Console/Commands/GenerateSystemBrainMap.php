@@ -346,6 +346,11 @@ class GenerateSystemBrainMap extends Command
                 $audit = $bpService->auditArchitecture();
                 if (!$audit['is_fully_compliant']) {
                     $bpService->reportArchitectureAuditViolations($audit);
+                } else {
+                    \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                        'blueprint_audit:',
+                        'Erneuter Brain-Map- & Blueprint-Scan bestätigte 100 % Konformität aller Models.'
+                    );
                 }
                 $bpService->generateGdprArt30VvtMarkdown(true);
                 $this->info('Living VVT (Art. 30 DSGVO) synchronized with Model Blueprints.');

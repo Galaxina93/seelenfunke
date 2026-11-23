@@ -164,7 +164,7 @@ class SystemBlueprintArchitectureTest extends TestCase
             ->assertExitCode(0);
     }
 
-    public function test_guardrail_violation_logs_security_event_and_sends_throttled_admin_alert_mail(): void
+    public function test_guardrail_violation_logs_security_event_and_creates_deduplicated_universe_ticket(): void
     {
         Mail::fake();
         Cache::flush();
@@ -183,17 +183,23 @@ class SystemBlueprintArchitectureTest extends TestCase
         $this->assertSame('error', $log->status);
         $this->assertStringContainsString('AccountingInvoice', $log->title);
 
-        // Verify AiAgentMessageMail was sent once (and throttled on immediate repeat)
-        Mail::assertSent(AiAgentMessageMail::class, function (AiAgentMessageMail $mail) {
-            return str_contains($mail->messageSubject, 'BLUEPRINT KI-GUARDRAIL ALARM')
-                && str_contains($mail->messageContent, 'AccountingInvoice');
-        });
+        // Verify NO spam email was sent and a central UniverseTicket was created instead
+        Mail::assertNothingSent();
+
+        $ticket = \App\Models\Ai\AiUniverseTicket::where('error_fingerprint', 'like', 'sys_alert:blueprint_guardrail:%')
+            ->latest('created_at')
+            ->first();
+        $this->assertNotNull($ticket);
+        $this->assertStringContainsString('AccountingInvoice', $ticket->title);
+        $this->assertSame(1, (int) $ticket->occurrence_count);
 
         try {
             AccountingInvoice::assertAiWriteAllowed();
         } catch (BlueprintSecurityException) {
         }
 
-        Mail::assertSentCount(1);
+        Mail::assertNothingSent();
+        $this->assertSame(1, \App\Models\Ai\AiUniverseTicket::where('error_fingerprint', 'like', 'sys_alert:blueprint_guardrail:%')->count());
+        $this->assertSame(2, (int) $ticket->fresh()->occurrence_count);
     }
 }

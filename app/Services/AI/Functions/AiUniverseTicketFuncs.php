@@ -17,11 +17,13 @@ trait AiUniverseTicketFuncs
         return [
             [
                 'name' => 'ticket_set_status_or_ask',
-                'description' => 'Aktualisiert den Status des aktiven Universum-Tickets oder stellt Alina exakt 1 präzise Rückfrage bzw. 1-Klick-Freigabekarte.',
+                'description' => 'Aktualisiert Status und Bereich (Gewerblich vs. Privat) des aktiven Universum-Tickets, legt bei fehlendem aktivem Ticket optional ein neues Ticket an oder stellt Alina exakt 1 präzise Rückfrage.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'ticket_id' => ['type' => 'string', 'description' => 'UUID oder Ticket-Nummer (z. B. SF-0001) des Tickets.'],
+                        'title' => ['type' => 'string', 'description' => 'Optionaler Titel, falls im Live-Call ein neues Ticket angelegt werden soll.'],
+                        'is_business' => ['type' => 'boolean', 'description' => 'true = Gewerblich (Mein-Seelenfunke Betrieb), false = Privat (Haus, Bad, Gesundheit, Rente, Familie, private Versicherungen).'],
                         'status' => [
                             'type' => 'string',
                             'enum' => ['in_progress', 'waiting_for_alina', 'completed'],
@@ -147,11 +149,16 @@ trait AiUniverseTicketFuncs
 
     public static function executeTicketSetStatusOrAsk(array $args): array
     {
-        if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+        $isAdmin = AiUniverseTicket::isStrictAdminActor();
+        if (!$isAdmin && !AiAuthHelper::isEmployee()) {
             return ['error' => true, 'message' => 'Zugriff verweigert.'];
         }
 
         $ticket = self::resolveActiveUniverseTicket($args['ticket_id'] ?? null);
+        if ($ticket && !$ticket->is_business && !$isAdmin) {
+            return ['error' => true, 'message' => 'Zugriff verweigert: Private Tickets sind ausschließlich Administratoren vorbehalten.'];
+        }
+
         $status = (string) ($args['status'] ?? AiUniverseTicket::STATUS_WAITING_FOR_ALINA);
         if (!in_array($status, [
             AiUniverseTicket::STATUS_IN_PROGRESS,
@@ -163,6 +170,41 @@ trait AiUniverseTicketFuncs
 
         $options = array_values(array_filter(array_map('strval', (array) ($args['options'] ?? []))));
         $cleanReason = \App\Services\AI\AiOutputQualityGate::sanitizeText(Str::limit(trim((string) ($args['question_or_summary'] ?? '')), 360));
+        $cleanTitle = \App\Services\AI\AiOutputQualityGate::sanitizeText(Str::limit(trim((string) ($args['title'] ?? '')), 180));
+        $hasBizCol = \Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')
+            && \Illuminate\Support\Facades\Schema::hasColumn('ai_universe_tickets', 'is_business');
+
+        // Optionales Neu-Anlegen eines Tickets (z. B. privates Nachverfolgungs-Ticket direkt aus dem Live-Call)
+        if (!$ticket && $cleanTitle !== '' && \Illuminate\Support\Facades\Schema::hasTable('ai_universe_tickets')) {
+            $triage = \App\Services\AI\FunkiraTicketRouter::classifyIntent($cleanTitle . ' ' . $cleanReason);
+            $resolvedBiz = $isAdmin
+                ? (array_key_exists('is_business', $args) && $args['is_business'] !== null ? (bool) $args['is_business'] : $triage['is_business'])
+                : true;
+            $dept = AiDepartment::where('name', $triage['department_name'])->first()
+                ?? AiDepartment::where('name', 'Leitung')->first();
+            $agent = \App\Models\Ai\AiAgent::where('name', $triage['agent_name'])->where('is_active', true)->first()
+                ?? \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
+
+            $createPayload = [
+                'ticket_number' => AiUniverseTicket::generateNextTicketNumber(),
+                'title' => $cleanTitle,
+                'status' => $status,
+                'priority' => $triage['priority'],
+                'ticket_type' => $resolvedBiz ? $triage['ticket_type'] : ($triage['ticket_type'] === 'management' ? 'private_household' : $triage['ticket_type']),
+                'ai_department_id' => $dept?->id,
+                'assigned_agent_id' => $agent?->id,
+                'assigned_to_antigravity' => false,
+                'source_channel' => 'android_live_call',
+                'environment_tier' => FunkiraPresenceContext::resolveEnvironmentTier(),
+                'messages_count' => 0,
+                'last_activity_at' => now(),
+                'completed_at' => $status === AiUniverseTicket::STATUS_COMPLETED ? now() : null,
+            ];
+            if ($hasBizCol) {
+                $createPayload['is_business'] = $resolvedBiz;
+            }
+            $ticket = AiUniverseTicket::create($createPayload);
+        }
 
         if ($ticket) {
             $oldStatusLabel = AiUniverseTicket::getStatusLabel($ticket->status);
@@ -172,12 +214,16 @@ trait AiUniverseTicketFuncs
                 $payload['type'] = 'quick_choice';
                 $payload['options'] = array_slice($options, 0, 5);
             }
-            $ticket->update([
+            $updates = [
                 'status' => $status,
                 'action_payload' => $payload ?: null,
                 'last_activity_at' => now(),
                 'completed_at' => $status === AiUniverseTicket::STATUS_COMPLETED ? now() : $ticket->completed_at,
-            ]);
+            ];
+            if ($hasBizCol && $isAdmin && array_key_exists('is_business', $args) && $args['is_business'] !== null) {
+                $updates['is_business'] = (bool) $args['is_business'];
+            }
+            $ticket->update($updates);
 
             if ($cleanReason !== '' && \Illuminate\Support\Facades\Schema::hasTable('ai_universe_ticket_messages')) {
                 $closingInfo = $status === AiUniverseTicket::STATUS_COMPLETED

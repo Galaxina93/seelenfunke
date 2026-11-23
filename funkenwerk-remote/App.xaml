@@ -1,0 +1,19 @@
+<Application x:Class="FunkenwerkRemote.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <SolidColorBrush x:Key="RdpBgRoot" Color="#0F1117"/>
+        <SolidColorBrush x:Key="RdpBgBar" Color="#12151E"/>
+        <SolidColorBrush x:Key="RdpBgSidebar" Color="#141821"/>
+        <SolidColorBrush x:Key="RdpBgCard" Color="#1A1F2C"/>
+        <SolidColorBrush x:Key="RdpBgCardHover" Color="#24C5A059"/>
+        <SolidColorBrush x:Key="RdpBgCardSelected" Color="#33C5A059"/>
+        <SolidColorBrush x:Key="RdpBgInput" Color="#181C26"/>
+        <SolidColorBrush x:Key="RdpBgButton" Color="#1B1F2B"/>
+        <SolidColorBrush x:Key="RdpBorderSubtle" Color="#232734"/>
+        <SolidColorBrush x:Key="RdpBorderStrong" Color="#2D3343"/>
+        <SolidColorBrush x:Key="RdpFgPrimary" Color="#F9FAFB"/>
+        <SolidColorBrush x:Key="RdpFgSecondary" Color="#9CA3AF"/>
+        <SolidColorBrush x:Key="RdpAccentGold" Color="#C5A059"/>
+    </Application.Resources>
+</Application>

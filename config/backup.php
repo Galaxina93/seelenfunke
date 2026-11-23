@@ -202,9 +202,9 @@ return [
      */
     'notifications' => [
         'notifications' => [
-            \Spatie\Backup\Notifications\Notifications\BackupHasFailedNotification::class => env('BACKUP_MAIL_NOTIFICATIONS', env('APP_ENV') === 'production' && !str_contains(strtolower((string) env('APP_URL', '')), 'stage.')) ? ['mail'] : [],
-            \Spatie\Backup\Notifications\Notifications\UnhealthyBackupWasFoundNotification::class => env('BACKUP_MAIL_NOTIFICATIONS', env('APP_ENV') === 'production' && !str_contains(strtolower((string) env('APP_URL', '')), 'stage.')) ? ['mail'] : [],
-            \Spatie\Backup\Notifications\Notifications\CleanupHasFailedNotification::class => env('BACKUP_MAIL_NOTIFICATIONS', env('APP_ENV') === 'production' && !str_contains(strtolower((string) env('APP_URL', '')), 'stage.')) ? ['mail'] : [],
+            \Spatie\Backup\Notifications\Notifications\BackupHasFailedNotification::class => [],
+            \Spatie\Backup\Notifications\Notifications\UnhealthyBackupWasFoundNotification::class => [],
+            \Spatie\Backup\Notifications\Notifications\CleanupHasFailedNotification::class => [],
             \Spatie\Backup\Notifications\Notifications\BackupWasSuccessfulNotification::class => [],
             \Spatie\Backup\Notifications\Notifications\HealthyBackupWasFoundNotification::class => [],
             \Spatie\Backup\Notifications\Notifications\CleanupWasSuccessfulNotification::class => [],

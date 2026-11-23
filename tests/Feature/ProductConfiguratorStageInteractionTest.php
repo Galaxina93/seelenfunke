@@ -32,10 +32,16 @@ class ProductConfiguratorStageInteractionTest extends TestCase
         $js = $this->partial('scripts_frontend_1.blade.php');
         $markup = $this->partial('preview.blade.php') . $this->partial('formluar.blade.php');
 
-        foreach (['applySymbolToStage', 'getInteractiveStageZIndex', 'setSelectedElementSize'] as $fn) {
-            $this->assertStringContainsString($fn . '(', $markup, "{$fn} wird im Markup genutzt");
+        foreach (['applySymbolToStage', 'getInteractiveStageZIndex', 'setSelectedElementSize', 'handleStageWheel', 'handleKeyUp'] as $fn) {
+            $fullMarkup = $markup . (string) file_get_contents(resource_path('views/livewire/shop/product/product-configurator/product-configurator.blade.php'));
+            $this->assertStringContainsString($fn . '(', $fullMarkup, "{$fn} wird im Markup genutzt");
             $this->assertMatchesRegularExpression('/^\s+' . $fn . '\(/m', $js, "{$fn} muss in der Alpine-Engine definiert sein");
         }
+
+        // Shift-Taste deaktiviert horizontale & vertikale Korrektur-Hilfslinien sowie Winkel-Snapping
+        $this->assertStringContainsString('const suppressGuides = Boolean((event && event.shiftKey) || this.isShiftPressed);', $js);
+        $this->assertStringContainsString('if (!suppressGuides) {', $js);
+        $this->assertStringContainsString('if (!suppressGuides && (modAngle < snapTol || modAngle > 90 - snapTol)) {', $js);
 
         $this->assertStringNotContainsString('wire:click="addStandardVector', $this->partial('formluar.blade.php'));
     }

@@ -106,11 +106,15 @@ class SystemSettingSeeder extends Seeder
             'skip_shipping_for_digital'     => 'true', // false = Digitale Produkte haben auch Versandkosten / true = Versand fällt weg bei D. Produkten
 
             // Stripe Konfiguration & Gebühren-Kalkulation
-            'stripe_publishable_key'    => '',
-            'stripe_secret_key'         => '',
-            'stripe_webhook_secret'     => '',
-            'stripe_fee_percent'        => '2.50',
-            'stripe_fee_fixed_cents'    => '30',
+            'stripe_publishable_key'             => '',
+            'stripe_secret_key'                  => '',
+            'stripe_webhook_secret'              => '',
+            'stripe_fee_percent'                 => '2.50',
+            'stripe_fee_fixed_cents'             => '30',
+            'stripe_agent_autonomy_enabled'      => 'true',
+            'stripe_agent_auto_refund_limit_cents' => '25000',
+            'stripe_agent_daily_refund_cap_cents'  => '100000',
+            'showroom_multiplayer_enabled'       => '1',
 
             // Sonstiges, Herzensprojekt & Marketing-Autopilot
             'order_quote_validity_days'          => '14',

@@ -39,7 +39,7 @@
      @cart-updated.window="if ($event.detail?.openPreview && !isCartOrCheckoutPage()) { previewOpen = true; clearTimeout(_timer); _timer = setTimeout(() => { previewOpen = false; _timer = null; }, 4500); } else { closePreview(); }"
      @payment-processed.window="closePreview()"
      class="relative group z-50">
-    <a href="{{ route('cart') }}" data-sf-cart-header-icon @click="closePreview()" class="text-white hover:text-primary transition-colors duration-300 p-1 block relative" aria-label="Warenkorb">
+    <a href="{{ route('cart') }}" data-sf-cart-header-icon @click="closePreview()" class="text-white hover:text-primary transition-colors duration-300 p-1 block relative" aria-label="Warenkorb" title="Mein Warenkorb">
         {{-- Icon --}}
         <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 transform group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />

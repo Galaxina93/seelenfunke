@@ -560,6 +560,11 @@ trait HandlesConfiguratorLogic
                 }
             }
         }
+
+        if ($this->context === 'laser_freehand' && method_exists($this, 'syncFreehandStageSilent')) {
+            $this->syncFreehandStageSilent();
+            $this->dispatch('laser-freehand-files-updated', projectId: $this->laserStudioProjectId ?? null);
+        }
     }
 
     protected function registerSessionOwnedUploads(array $paths): void

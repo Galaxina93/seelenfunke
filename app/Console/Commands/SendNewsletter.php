@@ -131,6 +131,11 @@ class SendNewsletter extends Command
                             ['template_id' => $template->id, 'sent_count' => $count]
                         );
                     }
+                    \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                        'newsletter_send_failed:' . $template->id,
+                        "Newsletter-Kampagne '{$template->title}' wurde erfolgreich an {$count} Abonnenten eingereiht.",
+                        'Marketi'
+                    );
 
                 } catch (\Throwable $e) {
                     $hasErrors = true;
@@ -139,6 +144,16 @@ class SendNewsletter extends Command
                     if (isset($log)) {
                         $log->finish('error', 'Fehler beim Versand: ' . $e->getMessage());
                     }
+                    \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                        alertKey: 'newsletter_send_failed:' . $template->id,
+                        title: "Newsletter-Versand fehlgeschlagen: {$template->title}",
+                        markdownBody: "Beim automatischen Versand der Kampagne `{$template->title}` ist ein Fehler aufgetreten:\n\n" . $e->getMessage(),
+                        departmentName: 'Marketing',
+                        agentName: 'Marketi',
+                        ticketType: 'marketing_alert',
+                        priority: 'high',
+                        assignToAntigravity: true
+                    );
                 }
             } else {
                 $this->line("   ⏭️ Wird übersprungen (Datum stimmt nicht überein).");
@@ -150,7 +165,7 @@ class SendNewsletter extends Command
     }
 
     /**
-     * Versendet den Newsletter an alle verifizierten Abonnenten über die Queue.
+     * Versendet den Newsletter speicherschonend in 200er-Chunks an alle verifizierten Abonnenten über die Queue.
      */
     private function sendBatch(MarketingNewsletter $template): int
     {
@@ -162,54 +177,35 @@ class SendNewsletter extends Command
                 $q->where('receive_newsletter', true)->orWhereNull('receive_newsletter');
             });
         }
-        $subscribers = $query->get();
-        $count = 0;
 
-        foreach ($subscribers as $subscriber) {
-            // Die Mail wird via ->queue() asynchron im Hintergrund versendet!
-            Mail::to($subscriber->email)->queue(new NewsletterAutomaticMail($template, $subscriber));
-            $count++;
-        }
+        $count = 0;
+        $query->chunkById(200, function ($subscribers) use ($template, &$count) {
+            foreach ($subscribers as $subscriber) {
+                $email = trim((string) ($subscriber->email ?? ''));
+                if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    continue;
+                }
+                try {
+                    Mail::to($email)->queue(new NewsletterAutomaticMail($template, $subscriber));
+                    $count++;
+                } catch (\Throwable $mailEx) {
+                    Log::warning("Newsletter-Queue für {$email} übersprungen: " . $mailEx->getMessage());
+                }
+            }
+        });
 
         return $count;
     }
 
     /**
-     * Gibt das Datum für ein bestimmtes Ereignis in einem bestimmten Jahr zurück.
+     * Nutzt zentral den HolidayOfferAutopilotService als Single Source of Truth für alle Feiertags- & Sale-Daten.
      */
     private function getHolidayDate($key, $year): ?Carbon
     {
-        switch ($key) {
-            case 'valentines': return Carbon::create($year, 2, 14);
-            case 'womens_day': return Carbon::create($year, 3, 8);
-            case 'halloween': return Carbon::create($year, 10, 31);
-            case 'christmas': return Carbon::create($year, 12, 24);
-            case 'new_year': return Carbon::create($year, 1, 1);
-            case 'sale_summer': return Carbon::create($year, 7, 1);
-            case 'sale_winter': return Carbon::create($year, 1, 15);
-            case 'easter': return $this->getEasterDate($year);
-            case 'mothers_day': return Carbon::create($year, 5, 1)->nthOfMonth(2, Carbon::SUNDAY);
-            case 'fathers_day': return $this->getEasterDate($year)->addDays(39);
-            case 'advent_1': return Carbon::create($year, 11, 26)->next(Carbon::SUNDAY);
-            default: return null;
+        if (!is_string($key) || trim($key) === '') {
+            return null;
         }
-    }
 
-    /**
-     * Berechnet den Ostersonntag für ein gegebenes Jahr (ohne PHP Calendar Extension)
-     */
-    private function getEasterDate($year): Carbon
-    {
-        $K = (int)($year / 100);
-        $M = 15 + (int)((3 * $K + 3) / 4) - (int)((8 * $K + 13) / 25);
-        $S = 2 - (int)((3 * $K + 3) / 4);
-        $A = $year % 19;
-        $D = (19 * $A + $M) % 30;
-        $R = (int)($D / 29) + ((int)($D / 28) - (int)($D / 29)) * (int)($A / 11);
-        $OG = 21 + $D - $R;
-        $SZ = 7 - ($year + (int)($year / 4) + $S) % 7;
-        $OE = 7 - ($OG - $SZ) % 7;
-
-        return Carbon::createFromDate($year, 3, 1)->addDays($OG + $OE - 1);
+        return app(\App\Services\Marketing\HolidayOfferAutopilotService::class)->getHolidayDate(trim($key), (int) $year);
     }
 }

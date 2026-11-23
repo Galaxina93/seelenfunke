@@ -2598,14 +2598,7 @@ SVG,
             return;
         }
 
-        // Hinweis: Standard-/Saisonbilder stammen aus verifizierten Manufaktur-Dateien und werden hier nicht nachgefaerbt.
-        $tplDir = dirname($publicProductsPath) . '/product-templates';
-        foreach (['weihnachten', 'ostern', 'hochzeit', 'geburtstag', 'valentinstag', 'halloween', 'muttertag', 'vatertag'] as $hSlug) {
-            $tplPath = $tplDir . '/seelen-pfote-hundemarke-' . $hSlug . '.jpg';
-            if (file_exists($tplPath)) {
-                $this->convertPfoteSceneToGold($tplPath, 'closeup');
-            }
-        }
+        // Hinweis: Standard-, Saison- & Vorlagenbilder stammen aus verifizierten Manufaktur-Dateien und werden hier nicht nachgefaerbt.
     }
 
     /**

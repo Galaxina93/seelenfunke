@@ -523,6 +523,25 @@ case "$1" in
 
             echo "🗄️ Führe nicht-destruktive Migrationen aus (migrate --force)..."
             php artisan migrate --force
+            php -r '
+                require "vendor/autoload.php";
+                $app = require "bootstrap/app.php";
+                $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+                \Illuminate\Support\Facades\DB::table("migrations")->where("migration", "not like", "%_create_%")->delete();
+                if (\Illuminate\Support\Facades\Schema::hasTable("ai_universe_tickets") && !\Illuminate\Support\Facades\Schema::hasColumn("ai_universe_tickets", "is_business")) {
+                    \Illuminate\Support\Facades\Schema::table("ai_universe_tickets", function ($t) { $t->boolean("is_business")->default(true)->after("ticket_type")->index(); });
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable("mail_attachments") && !\Illuminate\Support\Facades\Schema::hasColumn("mail_attachments", "funnel_type")) {
+                    \Illuminate\Support\Facades\Schema::table("mail_attachments", function ($t) {
+                        $t->string("funnel_type", 32)->nullable()->index()->after("content_id");
+                        $t->string("funnel_status", 32)->default("open")->index()->after("funnel_type");
+                        $t->uuid("accounting_issue_id")->nullable()->index()->after("funnel_status");
+                        $t->unsignedBigInteger("workspace_document_id")->nullable()->index()->after("accounting_issue_id");
+                        $t->string("sha256_hash", 64)->nullable()->index()->after("workspace_document_id");
+                        $t->json("funnel_meta")->nullable()->after("sha256_hash");
+                    });
+                }
+            ' || true
 
             if [ ! -L "$STAGE_DIR/public/storage" ]; then
                 php artisan storage:link || true

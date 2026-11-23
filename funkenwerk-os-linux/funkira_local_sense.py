@@ -84,6 +84,23 @@ class LocalSenseEngine:
         "funken kira",
         "von kira",
         "vom kira",
+        "vor kira",
+        "für kira",
+        "frau kira",
+        "von ihre",
+        "von ihrer",
+        "vom ihre",
+        "vom ihrer",
+        "fand kira",
+        "fand ihre",
+        "fängt kira",
+        "fängt ihre",
+        "punkt kira",
+        "punkt ihre",
+        "punk kira",
+        "und kira",
+        "um kira",
+        "ruf kira",
         "funk ira",
         "funk tiere",
         "funky",
@@ -91,16 +108,20 @@ class LocalSenseEngine:
         "hey kira",
         "hallo kira",
         "hi kira",
+        "na kira",
         "komm her",
         "komm mal her",
         "aufwachen",
     )
+    SINGLE_WAKE_TOKENS = frozenset(("funkira", "funki", "funky", "kira", "kiara", "chiara"))
     WAKE_REGEX = re.compile(
         r"\b("
-        r"funk\w*\s*(ihr\w*|kir\w*|ir\w*|tier\w*|klar\w*|chiar\w*|mir\w*|hier)"
-        r"|vo[nm]\s+kir\w*"
+        r"funk\w*\s*(ihr\w*|kir\w*|ir\w*|tier\w*|klar\w*|chiar\w*|mir\w*|hier|ja|da)"
+        r"|vo[nmr]\s+(kir\w*|ihr\w*)"
+        r"|f[üu]r\s+kir\w*"
+        r"|(fand|fäng\w*|punkt|punk|und|um|ruf)\s+(kir\w*|ihr\w*)"
         r"|funkir\w*"
-        r"|(hey|hallo|hi|na)\s+(kir\w*|funk\w*)"
+        r"|(hey|hallo|hi|na|du|ey|ach|oh)\s+(kir\w*|funk\w*)"
         r")\b"
     )
 
@@ -128,11 +149,13 @@ class LocalSenseEngine:
         self.parec_proc = None
         self.active_mic_source = ""
         self.last_heard = ""
+        self.last_mic_gain_sync_ts = 0.0
         self.last_owner_cx = -1.0
         self.last_owner_cy = -1.0
         self.last_owner_ts = 0.0
 
         self._init_models()
+        self._ensure_workshop_mic_gain(force=True)
         self.worker = threading.Thread(target=self._audio_loop, daemon=True)
         self.worker.start()
 
@@ -204,6 +227,11 @@ class LocalSenseEngine:
                 self.wake_phrase = ""
             else:
                 self._stop_parec_locked()
+        if active:
+            self._ensure_workshop_mic_gain(force=True)
+        else:
+            # Restore C920 PipeWire gain shortly after Chrome WebRTC opens the stream so WebRTC AGC cannot leave it at -12 dB
+            threading.Timer(1.2, lambda: self._ensure_workshop_mic_gain(force=True)).start()
 
     def _stop_parec_locked(self):
         proc = self.parec_proc
@@ -239,10 +267,93 @@ class LocalSenseEngine:
                 "timestamp": ts
             }
 
+    def _audio_env(self) -> dict:
+        env = os.environ.copy()
+        if "XDG_RUNTIME_DIR" not in env:
+            uid_dir = f"/run/user/{os.getuid()}" if hasattr(os, "getuid") else "/run/user/1000"
+            if os.path.isdir(uid_dir):
+                env["XDG_RUNTIME_DIR"] = uid_dir
+        return env
+
+    def _ensure_workshop_mic_gain(self, mic_src: str = "", force: bool = False):
+        now = time.time()
+        if not force and (now - self.last_mic_gain_sync_ts) < 8.0:
+            return
+        self.last_mic_gain_sync_ts = now
+        env = self._audio_env()
+        try:
+            src = mic_src or self._find_preferred_mic_source()
+            if src:
+                subprocess.run(["pactl", "set-source-mute", src, "0"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1.2)
+                subprocess.run(["pactl", "set-source-volume", src, "100%"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=1.2)
+        except Exception:
+            pass
+        try:
+            cards_path = "/proc/asound/cards"
+            if os.path.isfile(cards_path):
+                txt = open(cards_path, "r", encoding="utf-8", errors="ignore").read()
+                for line in txt.splitlines():
+                    low = line.lower()
+                    if "c920" in low or "webcam" in low or "logitech" in low:
+                        m = re.match(r"^\s*(\d+)\s*\[", line)
+                        if m:
+                            card_idx = m.group(1)
+                            subprocess.run(
+                                ["amixer", "-c", card_idx, "cset", "numid=3", "13"],
+                                env=env,
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                timeout=1.2
+                            )
+                            break
+        except Exception:
+            pass
+
+    @staticmethod
+    def _apply_far_field_agc(pcm_bytes: bytes, agc_state: dict) -> tuple[bytes, float]:
+        if not CV2_AVAILABLE or len(pcm_bytes) < 64:
+            return pcm_bytes, 0.0
+        usable = len(pcm_bytes) - (len(pcm_bytes) % 2)
+        if usable <= 0:
+            return pcm_bytes, 0.0
+        x = np.frombuffer(pcm_bytes[:usable], dtype=np.int16).astype(np.float32)
+        # Fast vectorized <100 Hz rumble / inline-fan high-pass via 112-sample (~7ms @ 16kHz) boxcar subtraction
+        n = x.shape[0]
+        win = min(112, n)
+        if win >= 8:
+            pad = np.pad(x, (win // 2, win - 1 - win // 2), mode="edge")
+            csum = np.concatenate(([0.0], np.cumsum(pad, dtype=np.float64)))
+            low_rumble = ((csum[win:] - csum[:-win]) / float(win)).astype(np.float32)
+            hp = x - low_rumble
+        else:
+            hp = x - float(np.mean(x))
+
+        rms = float(np.sqrt(np.mean(hp * hp)) + 1e-3)
+        noise_rms = float(agc_state.get("noise_rms", 95.0))
+        cur_gain = float(agc_state.get("gain", 1.8))
+
+        if rms < noise_rms * 1.35:
+            noise_rms = max(35.0, min(650.0, 0.92 * noise_rms + 0.08 * rms))
+        else:
+            noise_rms = max(35.0, min(650.0, 0.995 * noise_rms + 0.005 * rms))
+
+        if rms > max(70.0, noise_rms * 1.50):
+            target_gain = min(7.5, max(1.0, 2900.0 / rms))
+            cur_gain = 0.50 * cur_gain + 0.50 * target_gain
+        else:
+            cur_gain = max(1.0, cur_gain * 0.88)
+
+        agc_state["noise_rms"] = noise_rms
+        agc_state["gain"] = cur_gain
+
+        boosted = 29500.0 * np.tanh((hp * cur_gain) / 29500.0)
+        return boosted.astype(np.int16).tobytes(), rms
+
     def _find_preferred_mic_source(self) -> str:
         try:
             res = subprocess.run(
                 ["pactl", "list", "short", "sources"],
+                env=self._audio_env(),
                 capture_output=True,
                 text=True,
                 timeout=1.5
@@ -269,7 +380,7 @@ class LocalSenseEngine:
         except Exception:
             return ""
 
-    def _check_text_for_wake(self, text: str) -> str:
+    def _check_text_for_wake(self, text: str, update_last_heard: bool = True) -> str:
         raw = (text or "").strip().lower()
         if not raw or raw == "[unk]":
             return ""
@@ -277,8 +388,9 @@ class LocalSenseEngine:
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
         if not cleaned:
             return ""
-        with self.lock:
-            self.last_heard = cleaned[:80]
+        if update_last_heard:
+            with self.lock:
+                self.last_heard = cleaned[:80]
 
         for tok in self.DIRECT_WAKE_PHRASES:
             if tok in cleaned:
@@ -286,7 +398,8 @@ class LocalSenseEngine:
         if self.WAKE_REGEX.search(cleaned):
             return cleaned
         words = cleaned.split()
-        if len(words) <= 3 and ("kira" in words or "kiara" in words or "chiara" in words):
+        tail_words = words[-6:] if len(words) > 6 else words
+        if any(w in self.SINGLE_WAKE_TOKENS for w in tail_words):
             return cleaned
         return ""
 
@@ -300,22 +413,28 @@ class LocalSenseEngine:
                 should_listen = self.want_listening
 
             if not should_listen:
+                time.sleep(0.12)
+                continue
+
+            if (time.time() - self.last_trigger_ts) < 1.1:
                 time.sleep(0.18)
                 continue
 
-            if (time.time() - self.last_trigger_ts) < 2.2:
-                time.sleep(0.25)
-                continue
-
-            # Unconstrained German recognizer so OOV names like 'Funkira' are phonetically decoded instead of stripped to [unk]!
+            # Unconstrained German recognizer + top-4 lattice alternatives so OOV 'Funkira' decodes reliably from 3-4m workshop distance!
             rec = vosk.KaldiRecognizer(self.vosk_model, 16000)
             rec.SetWords(False)
+            try:
+                rec.SetMaxAlternatives(4)
+            except Exception:
+                pass
 
             proc = None
             try:
                 mic_src = self._find_preferred_mic_source()
+                self._ensure_workshop_mic_gain(mic_src=mic_src, force=False)
+                audio_env = self._audio_env()
                 if os.path.isfile("/usr/bin/parec"):
-                    cmd = ["/usr/bin/parec", "--rate=16000", "--channels=1", "--format=s16le", "--latency-msec=80"]
+                    cmd = ["/usr/bin/parec", "--rate=16000", "--channels=1", "--format=s16le", "--latency-msec=45"]
                     if mic_src:
                         cmd.append(f"--device={mic_src}")
                 else:
@@ -326,9 +445,10 @@ class LocalSenseEngine:
 
                 proc = subprocess.Popen(
                     cmd,
+                    env=audio_env,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
-                    bufsize=3200
+                    bufsize=1600
                 )
                 with self.lock:
                     if not self.want_listening:
@@ -338,22 +458,52 @@ class LocalSenseEngine:
                     self.active_mic_source = mic_src or "default"
                     self.is_listening = True
 
+                agc_state = {"noise_rms": 95.0, "gain": 2.0}
+                utterance_started_ts = 0.0
+
                 while True:
                     with self.lock:
                         if not self.want_listening or self.parec_proc is not proc:
                             break
-                    chunk = proc.stdout.read(3200) if proc.stdout else b""
+                    chunk = proc.stdout.read(1600) if proc.stdout else b""
                     if not chunk:
-                        time.sleep(0.05)
+                        time.sleep(0.04)
                         break
 
+                    proc_chunk, _ = self._apply_far_field_agc(chunk, agc_state)
                     matched = ""
-                    if rec.AcceptWaveform(chunk):
+                    now_loop = time.time()
+
+                    if rec.AcceptWaveform(proc_chunk):
+                        utterance_started_ts = 0.0
                         res = json.loads(rec.Result() or "{}")
-                        matched = self._check_text_for_wake(res.get("text", ""))
+                        top_txt = res.get("text", "")
+                        if top_txt:
+                            matched = self._check_text_for_wake(top_txt, update_last_heard=True)
+                        if not matched:
+                            alts = res.get("alternatives") or []
+                            for idx_a, alt in enumerate(alts):
+                                if isinstance(alt, dict):
+                                    alt_txt = alt.get("text", "")
+                                    m_alt = self._check_text_for_wake(alt_txt, update_last_heard=(idx_a == 0 and not top_txt))
+                                    if m_alt:
+                                        matched = m_alt
+                                        break
                     else:
                         pres = json.loads(rec.PartialResult() or "{}")
-                        matched = self._check_text_for_wake(pres.get("partial", ""))
+                        part_txt = pres.get("partial", "")
+                        if part_txt:
+                            if utterance_started_ts == 0.0:
+                                utterance_started_ts = now_loop
+                            matched = self._check_text_for_wake(part_txt, update_last_heard=True)
+                            if not matched and ((now_loop - utterance_started_ts) > 6.5 or len(part_txt) > 95):
+                                try:
+                                    rec.Reset()
+                                except Exception:
+                                    pass
+                                utterance_started_ts = 0.0
+                        else:
+                            utterance_started_ts = 0.0
 
                     if matched:
                         now_ts = time.time()
@@ -432,6 +582,9 @@ class LocalSenseEngine:
             with self.face_lock:
                 self.detector.setInputSize((w, h))
                 _, faces = self.detector.detect(img)
+                if faces is None or len(faces) == 0:
+                    clahe_track = self._normalize_lighting_clahe(img, clip_limit=2.2, grid_size=6)
+                    _, faces = self.detector.detect(clahe_track)
                 if faces is None or len(faces) == 0:
                     return {"ok": True, "faceReady": True, "faceDetected": False, "faceCount": 0}
 
@@ -545,6 +698,25 @@ class LocalSenseEngine:
             return ""
         return base64.b64encode(enc_buf.tobytes()).decode("ascii")
 
+    @staticmethod
+    def _normalize_lighting_clahe(bgr_img, clip_limit: float = 2.0, grid_size: int = 4):
+        if not CV2_AVAILABLE or bgr_img is None or bgr_img.size == 0:
+            return bgr_img
+        try:
+            lab = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2LAB)
+            l_ch, a_ch, b_ch = cv2.split(lab)
+            clahe = cv2.createCLAHE(clipLimit=float(clip_limit), tileGridSize=(int(grid_size), int(grid_size)))
+            l_eq = clahe.apply(l_ch)
+            return cv2.cvtColor(cv2.merge((l_eq, a_ch, b_ch)), cv2.COLOR_LAB2BGR)
+        except Exception:
+            return bgr_img
+
+    @staticmethod
+    def _l2_normalize_vec(vec) -> "np.ndarray":
+        flat = vec.flatten().astype(np.float32)
+        nrm = float(np.linalg.norm(flat))
+        return (flat / nrm) if nrm > 1e-6 else flat
+
     def analyze_face(self, jpeg_b64: str, owner_embedding: list | None, include_embedding: bool, known_companions: list | None = None) -> dict:
         if not CV2_AVAILABLE or self.detector is None or self.recognizer is None:
             return {"ok": False, "faceReady": False, "faceDetected": False, "identity": "unavailable"}
@@ -566,6 +738,9 @@ class LocalSenseEngine:
             if w0 > 640:
                 scale = 640.0 / float(w0)
                 img = cv2.resize(orig_img, (640, max(32, int(round(h0 * scale)))), interpolation=cv2.INTER_AREA)
+            elif w0 < 480:
+                scale = 480.0 / float(w0)
+                img = cv2.resize(orig_img, (480, max(32, int(round(h0 * scale)))), interpolation=cv2.INTER_CUBIC)
             else:
                 img = orig_img
 
@@ -576,6 +751,9 @@ class LocalSenseEngine:
             with self.face_lock:
                 self.detector.setInputSize((w, h))
                 _, faces = self.detector.detect(img)
+                if faces is None or len(faces) == 0:
+                    clahe_track = self._normalize_lighting_clahe(img, clip_limit=2.2, grid_size=6)
+                    _, faces = self.detector.detect(clahe_track)
 
                 if faces is None or len(faces) == 0:
                     return {"ok": True, "faceReady": True, "faceDetected": False, "faceCount": 0, "identity": "none"}
@@ -591,10 +769,10 @@ class LocalSenseEngine:
                     is_frontal, yaw_asym, roll_tilt = self.evaluate_frontal_metrics(f, w, h)
 
                     aligned = self.recognizer.alignCrop(img, f)
-                    feat = self.recognizer.feature(aligned).flatten().astype(np.float32)
-                    norm = float(np.linalg.norm(feat))
-                    if norm > 1e-6:
-                        feat = feat / norm
+                    feat = self._l2_normalize_vec(self.recognizer.feature(aligned))
+                    aligned_clahe = self._normalize_lighting_clahe(aligned, clip_limit=1.8, grid_size=4)
+                    feat_clahe = self._l2_normalize_vec(self.recognizer.feature(aligned_clahe))
+                    feat_flip = self._l2_normalize_vec(self.recognizer.feature(cv2.flip(aligned_clahe, 1)))
                     extracted_faces.append({
                         "cx": cx,
                         "cy": cy,
@@ -606,7 +784,9 @@ class LocalSenseEngine:
                         "yawAsym": yaw_asym,
                         "rollTilt": roll_tilt,
                         "rawFace": f.copy() if hasattr(f, "copy") else list(f),
-                        "feat": feat
+                        "feat": feat,
+                        "featClahe": feat_clahe,
+                        "featFlip": feat_flip
                     })
 
             if not extracted_faces:
@@ -637,16 +817,43 @@ class LocalSenseEngine:
                                 "vec": cv / cn
                             })
 
+            for fd in extracted_faces:
+                best_cc = -1.0
+                best_cref = None
+                for cref in comp_refs:
+                    cc = max(
+                        float(np.dot(fd["feat"], cref["vec"])),
+                        float(np.dot(fd["featClahe"], cref["vec"]))
+                    )
+                    if cc > best_cc:
+                        best_cc = cc
+                        best_cref = cref
+                fd["bestCompCos"] = best_cc
+                fd["bestCompRef"] = best_cref if best_cc >= 0.370 else None
+
             owner_face_idx = -1
             best_owner_cos = -1.0
             if ref_owner is not None:
                 for i, fd in enumerate(extracted_faces):
-                    cval = float(np.dot(fd["feat"], ref_owner))
+                    cval = max(
+                        float(np.dot(fd["feat"], ref_owner)),
+                        float(np.dot(fd["featClahe"], ref_owner)),
+                        float(np.dot(fd["featFlip"], ref_owner)) - 0.015
+                    )
                     fd["ownerCos"] = cval
+                    is_clear_owner_match = (
+                        cval >= 0.355
+                        or (
+                            cval >= 0.312
+                            and fd["score"] >= 0.70
+                            and fd["relWidth"] >= 0.048
+                            and fd["bestCompCos"] < (cval - 0.025)
+                        )
+                    )
                     if cval > best_owner_cos:
                         best_owner_cos = cval
-                        if cval >= 0.363:
-                            owner_face_idx = i
+                    if is_clear_owner_match and (owner_face_idx < 0 or cval > extracted_faces[owner_face_idx]["ownerCos"]):
+                        owner_face_idx = i
             else:
                 best_owner_cos = 0.0
 
@@ -659,13 +866,8 @@ class LocalSenseEngine:
             for i, fd in enumerate(extracted_faces):
                 if i == owner_face_idx:
                     continue
-                matched_comp = None
-                best_comp_cos = -1.0
-                for cref in comp_refs:
-                    cc = float(np.dot(fd["feat"], cref["vec"]))
-                    if cc >= 0.375 and cc > best_comp_cos:
-                        best_comp_cos = cc
-                        matched_comp = cref
+                matched_comp = fd["bestCompRef"]
+                best_comp_cos = fd["bestCompCos"]
                 if matched_comp is not None:
                     entry = {
                         "matched": True,

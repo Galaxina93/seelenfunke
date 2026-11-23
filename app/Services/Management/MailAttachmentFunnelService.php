@@ -3,12 +3,14 @@
 namespace App\Services\Management;
 
 use App\Models\Accounting\AccountingCategory;
+use App\Models\Accounting\AccountingCostItem;
 use App\Models\Accounting\AccountingSpecialIssue;
 use App\Models\Admin\Admin;
 use App\Models\Ai\AiWorkspaceDocument;
 use App\Models\Management\Mail\MailAccount;
 use App\Models\Management\Mail\MailAttachment;
 use App\Models\Management\Mail\MailMessage;
+use App\Services\AccountingEInvoiceParserService;
 use App\Services\AI\BuchiReceiptPipelineService;
 use App\Services\AI\Workspace\DateitrichterService;
 use Carbon\Carbon;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Smalot\PdfParser\Parser as PdfParser;
 
 class MailAttachmentFunnelService
 {
@@ -29,10 +32,23 @@ class MailAttachmentFunnelService
         'print equipment',
         'karton.eu',
         'kartonfritze',
+        'frau wundervoll',
+        'frauwundervoll',
+        'natürlich verpacken',
+        'natuerlich-verpacken',
+        'parterremedia',
+        'rapidpack',
+        'verpacking',
+        'schaumstoffonline',
+        'bambulab',
+        'bambu lab',
+        'munbyn',
         'xtool',
         'makeblock',
         'mittwald',
         'google cloud',
+        'hiscox',
+        'interzero',
         'stripe',
         'fyrst',
         'smartsteuer',
@@ -141,15 +157,15 @@ class MailAttachmentFunnelService
             $lowerName
         );
 
-        // 2. AGB / Widerruf / Datenschutz-Beilagen niemals als Rechnung oder Dateitrichter-Ballast werten
+        // 2. AGB / Widerruf / Retouren- & Gewährleistungs-Beilagen niemals als Rechnung oder Dateitrichter-Ballast werten
         if (
             !$hasInvoiceWordInFilename
-            && preg_match('/(agb|allgemeine[\s_\-]*geschaeftsbedingungen|allgemeine[\s_\-]*geschäftsbedingungen|widerruf|widerrufsbelehrung|widerrufsformular|muster-widerruf|datenschutz|privacy[\s_\-]*policy|terms[\s_\-]*and[\s_\-]*conditions|terms[\s_\-]*of[\s_\-]*service|impressum)/iu', $lowerName)
+            && preg_match('/(agb|allgemeine[\s_\-]*geschaeftsbedingungen|allgemeine[\s_\-]*geschäftsbedingungen|widerruf|widerrufsbelehrung|widerrufsformular|muster-widerruf|retourformular|retourenformular|retourenschein|ruecksendeformular|rücksendeformular|gewaehrleistung|gewährleistung|garantiebedingungen|datenschutz|privacy[\s_\-]*policy|terms[\s_\-]*and[\s_\-]*conditions|terms[\s_\-]*of[\s_\-]*service|impressum)/iu', $lowerName)
         ) {
             return [
                 'funnel_type' => 'legal_notice',
                 'initial_status' => 'ignored',
-                'reason' => 'Rechtstext / AGB / Widerruf',
+                'reason' => 'Rechtstext / AGB / Retourenbeilage',
             ];
         }
 
@@ -175,7 +191,7 @@ class MailAttachmentFunnelService
         $receiptExts = ['pdf', 'xml', 'jpg', 'jpeg', 'png', 'webp'];
         if (in_array($ext, $receiptExts, true)) {
             $isShippingLabelOnly = !$hasInvoiceWordInFilename && (bool) preg_match(
-                '/(lieferschein|versandetikett|versandmarke|retourenlabel|retourenschein|paketschein|dhl[\s_\-]*label|anleitung|handbuch|manual)/iu',
+                '/(lieferschein|versandetikett|versandmarke|retourenlabel|retourenschein|retourformular|paketschein|dhl[\s_\-]*label|anleitung|handbuch|manual)/iu',
                 $lowerName
             );
 
@@ -190,7 +206,10 @@ class MailAttachmentFunnelService
                     $fullPath = $this->resolveSafeLocalAttachmentPath($attachment);
                     if ($fullPath && is_file($fullPath) && filesize($fullPath) <= 5 * 1024 * 1024) {
                         $head = (string) @file_get_contents($fullPath, false, null, 0, 4096);
-                        $isXmlEInvoice = str_contains($head, 'CrossIndustryInvoice') || str_contains($head, '<Invoice') || str_contains($head, ':Invoice');
+                        $isXmlEInvoice = str_contains($head, 'CrossIndustryInvoice')
+                            || str_contains($head, '<Invoice')
+                            || str_contains($head, ':Invoice')
+                            || str_contains($head, 'CreditNote');
                     }
                 }
 
@@ -215,7 +234,8 @@ class MailAttachmentFunnelService
     }
 
     /**
-     * Verarbeitet einen Rechnungs-/Beleg-Anhang dublettensicher in die Buchhaltung (AccountingSpecialIssue).
+     * Verarbeitet einen Rechnungs-/Beleg-Anhang dublettensicher in die Buchhaltung (AccountingSpecialIssue)
+     * und zieht fehlende Rechnungsdateien / Rechnungsnummern auf bereits angelegten Sonderausgaben automatisch nach.
      */
     public function processInvoiceToAccounting(MailAttachment $attachment, bool $isManualAction = false): array
     {
@@ -234,7 +254,7 @@ class MailAttachmentFunnelService
         $adminId = Auth::guard('admin')->id() ?? Admin::value('id');
         $sha256 = @hash_file('sha256', $fullPath) ?: null;
 
-        // Vorab-Check über SHA-256 auf bereits gebuchte Belege (spart KI-Tokens bei Weiterleitungen/Dubletten)
+        // Vorab-Check über SHA-256 auf bereits gebuchte Belegdateien (spart KI-Tokens bei Weiterleitungen/Dubletten)
         $preDup = BuchiReceiptPipelineService::checkDuplicate(
             adminId: $adminId,
             title: '',
@@ -259,6 +279,10 @@ class MailAttachmentFunnelService
                 ],
             ]);
 
+            if ($message && !empty($preDup['existing_id'])) {
+                $this->stampMessageBookedTag($message, (string) $preDup['existing_id']);
+            }
+
             return [
                 'success' => true,
                 'status' => 'already_booked',
@@ -271,10 +295,11 @@ class MailAttachmentFunnelService
             ? AccountingCategory::where('admin_id', $adminId)->orderByDesc('usage_count')->pluck('name')->all()
             : [];
 
+        $rawPdfText = $ext === 'pdf' ? $this->extractPdfTextSafe($fullPath) : '';
         $analysis = BuchiReceiptPipelineService::analyzeAndVerify($fullPath, $categories, $adminId);
 
-        if ((!$analysis || empty($analysis['amount_abs'])) && $ext === 'pdf') {
-            $fallbackRaw = $this->tryExtractDeterministicPdfInvoice($fullPath, $attachment, $message);
+        if ((!$analysis || empty($analysis['amount_abs'])) && in_array($ext, ['pdf', 'xml'], true)) {
+            $fallbackRaw = $this->tryExtractDeterministicPdfInvoice($fullPath, $attachment, $message, $rawPdfText);
             if ($fallbackRaw !== null) {
                 $enriched = BuchiReceiptPipelineService::enrichScanResult($fallbackRaw, $fullPath);
                 $enriched['duplicate_check'] = BuchiReceiptPipelineService::checkDuplicate(
@@ -305,48 +330,62 @@ class MailAttachmentFunnelService
             return [
                 'success' => false,
                 'status' => 'needs_review',
-                'message' => 'Beleg konnte nicht eindeutig ausgelesen werden und wurde als „Prüfung nötig“ markiert.',
+                'message' => 'Beleg konnte nicht eindeutig ausgelesen werden und wurde als Prüfung nötig markiert.',
             ];
         }
 
         // Gewerblich vs. Privat sauber anhand Postfach + Seelenfunke-Kontext entscheiden
         $isBusiness = $this->resolveBusinessFlag($analysis, $attachment, $message, $account);
         $taxRate = $isBusiness ? (int) ($analysis['tax_rate'] ?? 19) : null;
-        $invoiceNumber = $isBusiness ? ((string) ($analysis['invoice_number'] ?? '') ?: null) : null;
+        $extractedInvoiceNumber = trim((string) ($analysis['invoice_number'] ?? ''));
+        $invoiceNumber = $isBusiness ? ($extractedInvoiceNumber !== '' ? $extractedInvoiceNumber : null) : null;
 
-        // Vollständiger 3-Stufen-Dublettenschutz nach der Datenextraktion
+        // Vollständiger 3-Stufen-Dublettenschutz + intelligenter Abgleich gegen bestehende Sonderausgaben (z. B. Vorab-Bestellung ohne PDF)
         $dupCheck = $analysis['duplicate_check'] ?? BuchiReceiptPipelineService::checkDuplicate(
             adminId: $adminId,
             title: (string) $analysis['title'],
             merchant: (string) ($analysis['merchant'] ?? $analysis['location'] ?? ''),
             date: (string) $analysis['date'],
             amountCents: (int) $analysis['amount_cents'],
-            invoiceNumber: (string) ($invoiceNumber ?? ''),
+            invoiceNumber: $extractedInvoiceNumber,
             file: $fullPath
         );
 
-        if (!empty($dupCheck['is_duplicate'])) {
-            $attachment->update([
-                'funnel_type' => 'invoice',
-                'funnel_status' => 'already_booked',
-                'accounting_issue_id' => $dupCheck['existing_id'],
-                'sha256_hash' => $sha256,
-                'funnel_meta' => [
-                    'title' => $dupCheck['existing_title'] ?: $analysis['title'],
-                    'amount' => $analysis['amount'],
-                    'date' => $dupCheck['existing_date'] ?: $analysis['date'],
-                    'is_business' => $isBusiness,
-                    'note' => $dupCheck['reason'],
-                    'processed_at' => now()->toIso8601String(),
-                ],
-            ]);
+        $matchedExistingIssue = $this->findMatchingSpecialIssueForReconciliation(
+            adminId: $adminId,
+            analysis: $analysis,
+            invoiceNumber: $extractedInvoiceNumber,
+            attachment: $attachment,
+            message: $message,
+            rawPdfText: $rawPdfText,
+            dupCheck: is_array($dupCheck) ? $dupCheck : []
+        );
 
-            return [
-                'success' => true,
-                'status' => 'already_booked',
-                'message' => (string) ($dupCheck['reason'] ?? 'Beleg existiert bereits in der Buchhaltung.'),
-                'accounting_issue_id' => $dupCheck['existing_id'],
-            ];
+        if ($matchedExistingIssue) {
+            return $this->backfillInvoiceOntoExistingIssue(
+                attachment: $attachment,
+                existingIssue: $matchedExistingIssue,
+                fullPath: $fullPath,
+                sha256: $sha256,
+                analysis: $analysis,
+                invoiceNumber: $extractedInvoiceNumber,
+                isBusiness: $isBusiness,
+                message: $message
+            );
+        }
+
+        // Abgleich gegen laufende Fixkosten / Verträge (z. B. Mittwald Hosting, Google AI Pro), damit keine doppelte Sonderausgabe entsteht
+        $fixCostMatch = $this->reconcileWithFixCostItem(
+            adminId: $adminId,
+            attachment: $attachment,
+            fullPath: $fullPath,
+            sha256: $sha256,
+            analysis: $analysis,
+            invoiceNumber: $extractedInvoiceNumber,
+            message: $message
+        );
+        if ($fixCostMatch !== null) {
+            return $fixCostMatch;
         }
 
         $storedReceiptPath = BuchiReceiptPipelineService::storeReceiptFile(
@@ -394,10 +433,7 @@ class MailAttachmentFunnelService
         ]);
 
         if ($message) {
-            $tags = is_array($message->tags) ? $message->tags : [];
-            $tags['ai_receipt_booked_id'] = (string) $issue->id;
-            unset($tags['ai_receipt_draft']);
-            $message->update(['tags' => $tags]);
+            $this->stampMessageBookedTag($message, (string) $issue->id);
         }
 
         $formattedEuro = number_format(abs((float) $issue->amount), 2, ',', '.');

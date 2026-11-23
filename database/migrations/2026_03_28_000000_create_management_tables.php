@@ -10,6 +10,7 @@ return new class extends Migration {
         Schema::create('management_contacts', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->boolean('is_favorite')->default(false);
+            $table->boolean('funkira_call_whitelist')->default(false)->index();
             $table->string('first_name');
             $table->string('last_name')->nullable();
             $table->string('nickname')->nullable();
@@ -226,6 +227,12 @@ return new class extends Migration {
                 $table->integer('size')->default(0); // in bytes
                 $table->string('path'); // actual file path on storage
                 $table->string('content_id')->nullable(); // for inline cid attachments
+                $table->string('funnel_type', 32)->nullable()->index();
+                $table->string('funnel_status', 32)->default('open')->index();
+                $table->uuid('accounting_issue_id')->nullable()->index();
+                $table->unsignedBigInteger('workspace_document_id')->nullable()->index();
+                $table->string('sha256_hash', 64)->nullable()->index();
+                $table->json('funnel_meta')->nullable();
                 $table->timestamps();
             });
         }

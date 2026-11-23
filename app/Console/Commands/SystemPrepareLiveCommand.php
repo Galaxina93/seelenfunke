@@ -224,9 +224,12 @@ class SystemPrepareLiveCommand extends Command
         $this->purgeRetiredDigitalDomainArtifacts();
         Cache::forget('global_shop_settings');
 
-        // b) Reiner Admin-Account (Alina) + Bereinigung jeglicher Test-Accounts
+        // b) Reiner Admin-Account (Alina) + Bereinigung jeglicher Test-Accounts & Vorab-Testbestellungen/Archivrechnungen
         $admin = $this->ensureAlinaAdminAccount();
         $this->purgeForbiddenTestAccounts();
+        if (!$expectedShopIsLiveState) {
+            app(\App\Services\Accounting\PreLiveOrderAndInvoiceCleanupService::class)->purge();
+        }
 
         // c) Geordnetes Produktions-Seeding (--force kompatibel in APP_ENV=production)
         $seedingFailed = $this->runProductionSeeders($admin);
@@ -657,6 +660,20 @@ class SystemPrepareLiveCommand extends Command
                 'passed' => $forbiddenVoucherCount === 0 && $forbiddenCustomerCount === 0,
             ],
         ];
+
+        if (!$expectedShopIsLiveState) {
+            $preLiveCounts = app(\App\Services\Accounting\PreLiveOrderAndInvoiceCleanupService::class)->inspectCounts();
+            $cleanPreLiveAccounting = $preLiveCounts['orders_count'] === 0
+                && $preLiveCounts['invoices_count'] === 0
+                && $preLiveCounts['archive_files_count'] === 0;
+
+            $checks[] = [
+                'Prüfpunkt' => '0 Testbestellungen & 0 Archivrechnungen (Start ab RE-' . date('Y') . '-1000)',
+                'Ist-Wert' => "{$preLiveCounts['orders_count']} Bestellungen / {$preLiveCounts['invoices_count']} Rechnungen / {$preLiveCounts['archive_files_count']} Archiv-PDFs",
+                'Status' => $cleanPreLiveAccounting ? 'OK' : 'FEHLER',
+                'passed' => $cleanPreLiveAccounting,
+            ];
+        }
 
         $this->table(
             ['Prüfpunkt', 'Ist-Wert', 'Status'],

@@ -26,21 +26,28 @@ class ProcessMailsAiCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(): int
     {
-        $this->info('Suche nach dem KI-Mail-Agenten...');
-        
-        // Dynamisch den Agenten mit der Rolle "Supporter" suchen
-        $role = \App\Models\Ai\AiRole::where('name', 'Supporter')->first();
-        if (!$role) {
-            $this->error('Keine Supporter-Rolle gefunden.');
-            return;
+        $this->info('Suche nach dem internen KI-Mail-Agenten...');
+
+        // WICHTIG: Niemals den isolierten Frontend-Kundenchat-Agenten 'Funki' verwenden!
+        $agent = AiAgent::query()
+            ->where('is_active', true)
+            ->where('name', '!=', 'Funki')
+            ->whereIn('name', ['Funkira', 'Dr. Funki'])
+            ->orderByRaw("CASE WHEN name = 'Funkira' THEN 0 ELSE 1 END")
+            ->first();
+
+        if (!$agent) {
+            $agent = AiAgent::query()
+                ->where('is_active', true)
+                ->where('name', '!=', 'Funki')
+                ->first();
         }
 
-        $agent = AiAgent::where('ai_role_id', $role->id)->first();
         if (!$agent) {
-            $this->error('Kein Agent mit der Supporter-Rolle gefunden.');
-            return;
+            $this->error('Kein aktiver interner KI-Agent für die E-Mail-Verarbeitung gefunden.');
+            return self::FAILURE;
         }
 
         $this->info("Nutze Agent {$agent->name} für die E-Mail-Verarbeitung.");
@@ -121,5 +128,7 @@ Formuliere nur das 'updates' Array, rufe das Tool 'mail_bulk_update' exakt 1x au
         if ($cycle > $maxCycles) {
             $this->warn('Maximales Zyklus-Limit erreicht. Es sind womöglich noch ungelöste Mails übrig.');
         }
+
+        return self::SUCCESS;
     }
 }

@@ -671,13 +671,20 @@
                                                 </Grid>
                                             </Border>
 
-                                            <Border Background="{DynamicResource CardGlassBrush}" BorderBrush="{DynamicResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,14">
+                                            <Border Background="{DynamicResource CardGlassBrush}" BorderBrush="{DynamicResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,7">
                                                 <Grid>
                                                     <TextBlock Text="Bilder (.png, .jpg, .webp)" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                         <Button x:Name="DefImgInternalBtn" Content="Bildvorschau" Style="{StaticResource NobleGoldBtn}" Padding="11,4" Margin="0,0,6,0" Tag="image|internal_image" Click="SelectDefaultProgram_Click"/>
                                                         <Button x:Name="DefImgDruckerBtn" Content="Drucker" Style="{StaticResource GlassBtn}" Padding="11,4" Tag="image|drucker" Click="SelectDefaultProgram_Click"/>
                                                     </StackPanel>
+                                                </Grid>
+                                            </Border>
+
+                                            <Border Background="{DynamicResource CardGlassBrush}" BorderBrush="{DynamicResource SubtleBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="14,9" Margin="0,0,0,14">
+                                                <Grid>
+                                                    <TextBlock Text="Passwort-Tresore (.kdbx, .keyx)" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                    <Button Content="Funkenwerk Tresor" Style="{StaticResource NobleGoldBtn}" Padding="11,4" HorizontalAlignment="Right" IsHitTestVisible="False"/>
                                                 </Grid>
                                             </Border>
 

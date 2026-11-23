@@ -70,6 +70,7 @@ return new class extends Migration
                 $table->timestamp('email_verified_at')->nullable();
                 $table->string('password');
                 $table->boolean('needs_password_change')->default(false);
+                $table->boolean('mmorpg_access_enabled')->default(false)->index();
                 $table->string('temporary_password')->nullable();
                 $table->string('google_id')->nullable();
                 $table->rememberToken();

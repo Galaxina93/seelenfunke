@@ -431,6 +431,18 @@ namespace Funkenwerk
             },
             new CollectionModuleSpec
             {
+                Key = "remote",
+                ShortTitle = "Remote",
+                FullName = "Funkenwerk Remote",
+                FolderName = "Funkenwerk Remote",
+                ExeName = "FunkenwerkRemote.exe",
+                ProcessName = "FunkenwerkRemote",
+                IconFileName = "funkenwerk_remote.ico",
+                VectorPathData = "M2 5a2 2 0 012-2h11a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm7 12h11a2 2 0 002-2V8a2 2 0 00-2-2h-2M12 19v2m-4 0h8",
+                Keywords = new[] { "remote", "rdp", "remotedesktop", "mstsc", "minipc", "mini-pc", "werkstatt", "bildschirm", "fernwartung", "fernsteuerung", "xrdp", "vnc" }
+            },
+            new CollectionModuleSpec
+            {
                 Key = "smarthome",
                 ShortTitle = "SmartHome",
                 FullName = "Funkenwerk SmartHome",
@@ -451,7 +463,7 @@ namespace Funkenwerk
                 ProcessName = "FunkenwerkSsh",
                 IconFileName = "funkenwerk_ssh.ico",
                 VectorPathData = "M4 17l6-6-6-6M12 19h8",
-                Keywords = new[] { "ssh", "putty", "terminal", "konsole", "shell", "linux", "befehl", "kommandozeile", "remote" }
+                Keywords = new[] { "ssh", "putty", "terminal", "konsole", "shell", "linux", "befehl", "kommandozeile" }
             },
             new CollectionModuleSpec
             {
@@ -1008,6 +1020,29 @@ namespace Funkenwerk
                         icoPath: druckerIco,
                         extensions: new[] { ".pdf", ".png", ".jpg", ".jpeg" },
                         setDefaultProgIdOnExt: false);
+                }
+
+                string tresorDir = CollectionModuleRegistry.ResolveModuleDirectory("Funkenwerk Tresor");
+                string tresorExe = Path.Combine(tresorDir, "FunkenwerkTresor.exe");
+                string tresorIco = Path.Combine(tresorDir, "funkenwerk_tresor.ico");
+                if (File.Exists(tresorExe))
+                {
+                    RegisterModuleAppAssociation(
+                        progId: "FunkenwerkTresor.Vault",
+                        friendlyTypeName: "Passwort-Tresor (Funkenwerk Tresor)",
+                        friendlyAppName: "Funkenwerk Tresor",
+                        description: "Funkenwerk Tresor · Lokaler Passwort- & TOTP-Tresor (.kdbx / .keyx)",
+                        capabilitiesSubPath: @"Software\Funkenwerk\FunkenwerkTresor\Capabilities",
+                        exeName: "FunkenwerkTresor.exe",
+                        exePath: tresorExe,
+                        icoPath: tresorIco,
+                        extensions: new[] { ".kdbx", ".keyx" },
+                        setDefaultProgIdOnExt: true);
+
+                    using var kdbxOwp = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.kdbx\OpenWithProgids");
+                    kdbxOwp?.SetValue("FunkenwerkTresor.Vault", Array.Empty<byte>(), RegistryValueKind.Binary);
+                    using var keyxOwp = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.keyx\OpenWithProgids");
+                    keyxOwp?.SetValue("FunkenwerkTresor.Vault", Array.Empty<byte>(), RegistryValueKind.Binary);
                 }
 
                 // Prevent main launcher Funkenwerk.exe from cluttering file OpenWith dialogs

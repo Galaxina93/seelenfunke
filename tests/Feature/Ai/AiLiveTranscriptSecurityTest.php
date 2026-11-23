@@ -75,4 +75,28 @@ class AiLiveTranscriptSecurityTest extends TestCase
         // Both snapshots must have unique randomized filenames even if created within the same second
         $this->assertNotEquals($path1, $path2);
     }
+
+    public function test_save_live_transcript_accepts_authenticated_admin_bearer_token_and_chat_session_id()
+    {
+        $admin = Admin::create([
+            'email' => 'admin-minipc@example.com',
+            'password' => bcrypt('password123'),
+            'first_name' => 'Alina',
+            'last_name' => 'Steinhauer',
+        ]);
+        $token = $admin->createToken('minipc-kiosk', ['*'])->plainTextToken;
+        $sessionId = (string) Str::uuid();
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token,
+            'X-Forwarded-For' => '84.180.11.63',
+        ])->postJson('/api/ai/save-live-transcript', [
+            'chat_session_id' => $sessionId,
+            'role' => 'user',
+            'content' => 'Hallo Funkira aus der Werkstatt.',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertNotNull(AiChatMemory::where('session_id', $sessionId)->first());
+    }
 }

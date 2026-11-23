@@ -51,6 +51,7 @@ class ProductConfigurator extends Component
     public $totalPrice = 0;
     public $config_confirmed = false;
     public $is_express = false;
+    public bool $saved = false;
     #[Locked]
     public $snapshot_path = [];
 
@@ -81,8 +82,12 @@ class ProductConfigurator extends Component
     #[Locked]
     public array $savedCustomFieldsSnapshot = [];
     public string $effectivePersonalizationMode = 'studio';
+    #[Locked]
+    public ?string $laserStudioProjectId = null;
+    public string $qrTargetUrl = 'https://mein-seelenfunke.de/links';
+    public string $qrSubtitle = '';
 
-    public function mount(ConfiguratorService $configService, $product, $context = 'add', $cartItem = null, $initialData = [], $qty = null)
+    public function mount(ConfiguratorService $configService, $product = null, $context = 'add', $cartItem = null, $initialData = [], $qty = null)
     {
         $this->fonts = $configService->getFonts();
         $this->vectors = $configService->getStandardVectors();
@@ -96,16 +101,53 @@ class ProductConfigurator extends Component
             || \App\Services\AI\AiAuthHelper::isAdmin()
             || \App\Services\AI\AiAuthHelper::isEmployee();
 
-        if ($context === 'template_admin' && !$isStaff) {
-            abort(403, 'Zugriff auf den Vorlagen-Editor verweigert.');
+        if (in_array($context, ['template_admin', 'laser_freehand'], true) && !$isStaff) {
+            abort(403, 'Zugriff auf den Backend-Konfigurator verweigert.');
         }
 
         if ($context === 'preview' && !$isStaff && !auth()->guard('customer')->check()) {
             abort(403, 'Zugriff auf den Vorschaumodus verweigert.');
         }
 
-        $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
-        if (!in_array($context, ['template_admin', 'preview'], true) && !$isStaff && $this->product->status !== 'active') {
+        if ($context === 'laser_freehand') {
+            $studioProject = null;
+            if ($product instanceof \App\Models\Product\LaserStudioProject) {
+                $studioProject = $product;
+            } elseif (!empty($initialData['laser_studio_project_id'])) {
+                $studioProject = \App\Models\Product\LaserStudioProject::with('product')->find($initialData['laser_studio_project_id']);
+            } elseif (is_string($product) && \Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')) {
+                $studioProject = \App\Models\Product\LaserStudioProject::with('product')->find($product);
+            }
+
+            if ($studioProject) {
+                $this->laserStudioProjectId = (string) $studioProject->id;
+                $this->product = ($studioProject->mode === 'product_blank' && $studioProject->product)
+                    ? $studioProject->product
+                    : $studioProject->toVirtualConfiguratorProduct();
+                if (empty($initialData)) {
+                    $initialData = is_array($studioProject->configuration) ? $studioProject->configuration : [];
+                }
+            } elseif ($product instanceof Product) {
+                $this->product = $product;
+            } elseif ($product !== null) {
+                $this->product = Product::findOrFail($product);
+            } else {
+                $fallbackProj = new \App\Models\Product\LaserStudioProject([
+                    'id' => (string) Str::uuid(),
+                    'title' => 'Laser-Studio Free-Hand',
+                    'mode' => 'free_bed',
+                    'width_mm' => 200.0,
+                    'height_mm' => 200.0,
+                    'contour_shape' => 'rect',
+                    'has_back_side' => false,
+                ]);
+                $this->product = $fallbackProj->toVirtualConfiguratorProduct();
+            }
+        } else {
+            $this->product = ($product instanceof Product) ? $product : Product::findOrFail($product);
+        }
+
+        if (!in_array($context, ['template_admin', 'laser_freehand', 'preview'], true) && !$isStaff && $this->product->status !== 'active') {
             abort(404);
         }
 
@@ -146,7 +188,7 @@ class ProductConfigurator extends Component
             }
         }
 
-        if ($this->context === 'calculator') {
+        if (in_array($this->context, ['calculator', 'laser_freehand'], true)) {
             $this->config_confirmed = true;
         }
 
@@ -168,6 +210,24 @@ class ProductConfigurator extends Component
             'custom_points' => [['x'=>10,'y'=>10], ['x'=>90,'y'=>10], ['x'=>90,'y'=>90], ['x'=>10,'y'=>90]]
         ], $dbSettings ?? []);
         unset($this->configSettings['seasonal_images']);
+
+        if ($this->context === 'laser_freehand') {
+            $this->configSettings['personalization_mode'] = 'studio';
+            $this->configSettings['allow_logo'] = true;
+            $this->configSettings['enable_background_video'] = false;
+            $this->configSettings['overlay_type'] = 'plane';
+            if ($this->laserStudioProjectId && \Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')) {
+                $projForCfg = \App\Models\Product\LaserStudioProject::find($this->laserStudioProjectId);
+                if ($projForCfg && $projForCfg->mode !== 'product_blank') {
+                    $vCfg = $projForCfg->toVirtualConfiguratorProduct()->configurator_settings;
+                    if (is_array($vCfg)) {
+                        $this->configSettings = array_merge($this->configSettings, $vCfg);
+                    }
+                } elseif ($projForCfg) {
+                    $this->configSettings['has_back_side'] = (bool) $projForCfg->has_back_side;
+                }
+            }
+        }
 
         if ($this->isDigital) {
             $this->configSettings['allow_logo'] = false;
@@ -224,7 +284,9 @@ class ProductConfigurator extends Component
         $hasStudioPayload = !empty($source['texts']) || !empty($source['logos']) || !empty($source['texts_back']) || !empty($source['logos_back']) || !empty($source['snapshot_path']);
         $sourceMode = $source['personalization_mode'] ?? null;
 
-        if ($sourceMode === 'custom_fields' || !empty($this->savedCustomFieldsSnapshot)) {
+        if ($this->context === 'laser_freehand') {
+            $this->effectivePersonalizationMode = 'studio';
+        } elseif ($sourceMode === 'custom_fields' || !empty($this->savedCustomFieldsSnapshot)) {
             $this->effectivePersonalizationMode = 'custom_fields';
         } elseif ($sourceMode === 'studio' || $hasStudioPayload) {
             $this->effectivePersonalizationMode = 'studio';
@@ -359,7 +421,7 @@ class ProductConfigurator extends Component
                 'rotation' => 0
             ];
         } else {
-            if (!$this->isDigital && $this->context !== 'preview' && empty($source['logos']) && empty($source['logo_path'])) {
+            if (!$this->isDigital && !in_array($this->context, ['preview', 'laser_freehand'], true) && empty($source['logos']) && empty($source['logo_path'])) {
                 $this->addText($centerX, $centerY, $studioTextSize);
             }
         }
@@ -439,6 +501,19 @@ class ProductConfigurator extends Component
         }
         unset($logo);
 
+        if ($this->context === 'laser_freehand') {
+            $activeMountValues = [];
+            foreach (array_merge($this->logos, $this->logos_back) as $ml) {
+                if (is_array($ml) && !empty($ml['value']) && is_string($ml['value'])) {
+                    $activeMountValues[] = $ml['value'];
+                }
+            }
+            $this->uploaded_files = array_values(array_filter(
+                is_array($this->uploaded_files) ? $this->uploaded_files : [],
+                static fn ($f) => is_string($f) && (str_ends_with(strtolower($f), '.pdf') || in_array($f, $activeMountValues, true))
+            ));
+        }
+
         if (!empty($this->raw_files) && $this->cartItem && empty($initialData)) {
             $this->registerSessionOwnedUploads(array_values($this->raw_files));
         }
@@ -457,10 +532,39 @@ class ProductConfigurator extends Component
 
     public function hydrate(): void
     {
+        if ($this->context === 'laser_freehand' && $this->laserStudioProjectId && (!$this->product || !$this->product->exists)) {
+            $studioProject = \Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')
+                ? \App\Models\Product\LaserStudioProject::with('product')->find($this->laserStudioProjectId)
+                : null;
+            if ($studioProject) {
+                $this->product = ($studioProject->mode === 'product_blank' && $studioProject->product)
+                    ? $studioProject->product
+                    : $studioProject->toVirtualConfiguratorProduct();
+            } else {
+                $fallbackProj = new \App\Models\Product\LaserStudioProject([
+                    'id' => $this->laserStudioProjectId,
+                    'title' => 'Laser-Studio Free-Hand',
+                    'mode' => 'free_bed',
+                    'width_mm' => 200.0,
+                    'height_mm' => 200.0,
+                    'contour_shape' => 'rect',
+                    'has_back_side' => false,
+                ]);
+                $this->product = $fallbackProj->toVirtualConfiguratorProduct();
+            }
+        }
+
         $this->texts = $this->normalizeStageItemsList($this->texts, 'txt');
         $this->texts_back = $this->normalizeStageItemsList($this->texts_back, 'txt');
         $this->logos = $this->normalizeStageItemsList($this->logos, 'logo');
         $this->logos_back = $this->normalizeStageItemsList($this->logos_back, 'logo');
+    }
+
+    public function dehydrate(): void
+    {
+        if ($this->context === 'laser_freehand' && $this->laserStudioProjectId && $this->product instanceof Product && !$this->product->exists) {
+            $this->product = null;
+        }
     }
 
     protected function normalizeStageItemsList($items, string $prefix = 'item'): array
@@ -1016,6 +1120,10 @@ class ProductConfigurator extends Component
             if (!empty($newPaths)) {
                 $this->registerSessionOwnedUploads(array_merge($newPaths, $newRawPaths));
                 $this->addFilesToStage($newPaths);
+                if ($this->context === 'laser_freehand') {
+                    $this->syncFreehandStageSilent();
+                    $this->dispatch('laser-freehand-files-updated', projectId: $this->laserStudioProjectId);
+                }
             }
         }
     }
@@ -1322,6 +1430,11 @@ class ProductConfigurator extends Component
             Storage::disk('public')->delete($oldValue);
         }
 
+        if ($this->context === 'laser_freehand') {
+            $this->syncFreehandStageSilent();
+            $this->dispatch('laser-freehand-files-updated', projectId: $this->laserStudioProjectId);
+        }
+
         return [
             'value'     => $finalPath,
             'url'       => $finalUrl,
@@ -1472,6 +1585,11 @@ class ProductConfigurator extends Component
             Storage::disk('public')->delete($oldValue);
         }
 
+        if ($this->context === 'laser_freehand') {
+            $this->syncFreehandStageSilent();
+            $this->dispatch('laser-freehand-files-updated', projectId: $this->laserStudioProjectId);
+        }
+
         return [
             'value'     => $finalPath,
             'url'       => $finalUrl,
@@ -1533,6 +1651,11 @@ class ProductConfigurator extends Component
         $resolvedUrl = str_starts_with($originalValue, 'vectors/')
             ? app(\App\Services\ProductConfiguratorService::class)->resolveVectorUrl($originalValue)
             : asset('storage/' . $originalValue);
+
+        if ($this->context === 'laser_freehand') {
+            $this->syncFreehandStageSilent();
+            $this->dispatch('laser-freehand-files-updated', projectId: $this->laserStudioProjectId);
+        }
 
         return [
             'value' => $originalValue,
@@ -1606,8 +1729,10 @@ class ProductConfigurator extends Component
     {
         if ($this->context === 'preview') return;
 
-        $isAdminOrderEdit = $this->context === 'order_edit'
-            && (auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin());
+        $isAdminOrderEdit = ($this->context === 'order_edit'
+            && (auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin()))
+            || ($this->context === 'laser_freehand'
+            && (auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin() || \App\Services\AI\AiAuthHelper::isEmployee()));
         if ($isAdminOrderEdit) {
             $this->config_confirmed = true;
         }
@@ -1619,7 +1744,7 @@ class ProductConfigurator extends Component
             return;
         }
 
-        if ($this->context !== 'calculator' && !$isAdminOrderEdit && !$this->config_confirmed) {
+        if (!in_array($this->context, ['calculator', 'laser_freehand'], true) && !$isAdminOrderEdit && !$this->config_confirmed) {
             $this->addError('config_confirmed', 'Bitte setze noch diesen Haken zur Bestätigung deiner Angaben, um fortzufahren.');
             return;
         }
@@ -1697,8 +1822,10 @@ class ProductConfigurator extends Component
     {
         if ($this->context === 'preview') return;
 
-        $isAdminOrderEdit = $this->context === 'order_edit'
-            && (auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin());
+        $isAdminOrderEdit = ($this->context === 'order_edit'
+            && (auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin()))
+            || ($this->context === 'laser_freehand'
+            && (auth()->guard('admin')->check() || \App\Services\AI\AiAuthHelper::isAdmin() || \App\Services\AI\AiAuthHelper::isEmployee()));
         if ($isAdminOrderEdit) {
             $this->config_confirmed = true;
         }
@@ -1710,18 +1837,18 @@ class ProductConfigurator extends Component
             return;
         }
 
-        if ($this->context !== 'calculator' && !$isAdminOrderEdit && !$this->config_confirmed) {
+        if (!in_array($this->context, ['calculator', 'laser_freehand'], true) && !$isAdminOrderEdit && !$this->config_confirmed) {
             $this->addError('config_confirmed', 'Bitte bestätigen Sie Ihre Angaben.');
             return;
         }
 
-        if ($this->context !== 'template_admin') {
+        if (!in_array($this->context, ['template_admin', 'laser_freehand'], true)) {
             $this->validate(['qty' => 'required|integer|min:1']);
         }
 
         $customFieldsData = [];
         if ($this->isUsingCustomFieldsMode()) {
-            $validateReq = !in_array($this->context, ['template_admin', 'calculator'], true);
+            $validateReq = !in_array($this->context, ['template_admin', 'laser_freehand', 'calculator'], true);
             $customFieldsData = $this->buildCustomFieldsData($validateReq);
             if ($this->product->usesStudioConfigurator()) {
                 $this->syncBeginnerPositionToCanvas(true);
@@ -1783,7 +1910,8 @@ class ProductConfigurator extends Component
                                 || \App\Services\AI\AiAuthHelper::isEmployee();
                             $allowedCartUpload = str_starts_with($val, 'bestellungen/cart-uploads/')
                                 && ($isStaff || in_array($val, $ownedUploads, true) || in_array($val, $this->uploaded_files, true) || app(\App\Services\CartFileCleanupService::class)->isFileUsedInTemplates(basename($val)));
-                            if (!$allowedCartUpload && !in_array($val, $this->uploaded_files, true)) {
+                            $allowedLaserStudio = $isStaff && str_starts_with($val, 'laser-studio/');
+                            if (!$allowedCartUpload && !$allowedLaserStudio && !in_array($val, $this->uploaded_files, true)) {
                                 continue;
                             }
                         }
@@ -2035,6 +2163,49 @@ class ProductConfigurator extends Component
                         abort(403);
                     }
                     $this->dispatch('save-template-data', configData: $configData, previewImagePath: $this->product->preview_image_path);
+                } elseif ($this->context === 'laser_freehand') {
+                    if (!auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+                        abort(403);
+                    }
+                    if ($this->laserStudioProjectId && \Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')) {
+                        $studioProject = \App\Models\Product\LaserStudioProject::find($this->laserStudioProjectId);
+                        if ($studioProject) {
+                            $activeSaveValues = [];
+                            foreach (array_merge(is_array($this->logos) ? $this->logos : [], is_array($this->logos_back) ? $this->logos_back : []) as $sl) {
+                                if (is_array($sl) && !empty($sl['value']) && is_string($sl['value'])) {
+                                    $activeSaveValues[] = $sl['value'];
+                                }
+                            }
+                            $this->uploaded_files = array_values(array_filter(
+                                is_array($this->uploaded_files) ? $this->uploaded_files : [],
+                                static fn ($f) => is_string($f) && (str_ends_with(strtolower($f), '.pdf') || in_array($f, $activeSaveValues, true))
+                            ));
+                            $configData['files'] = $this->uploaded_files;
+
+                            $existingStudioConf = is_array($studioProject->configuration) ? $studioProject->configuration : [];
+                            $existingStudioConf['texts'] = $cleanTexts;
+                            $existingStudioConf['logos'] = $this->logos;
+                            $existingStudioConf['texts_back'] = $cleanTextsBack;
+                            $existingStudioConf['logos_back'] = $this->logos_back;
+                            $existingStudioConf['files'] = $this->uploaded_files;
+                            $existingStudioConf['raw_files'] = $cleanRawFiles;
+                            $existingStudioConf['notes'] = $this->notes;
+                            $existingStudioConf['has_unsaved_freehand_changes'] = false;
+                            if (!empty($finalSnapshotPath)) {
+                                $existingStudioConf['snapshot_path'] = $finalSnapshotPath;
+                            }
+                            $studioProject->configuration = $existingStudioConf;
+                            $studioProject->syncStudioDimensionsToConfig();
+                            $studioProject->save();
+                        }
+                    }
+                    $this->saved = true;
+                    $this->dispatch(
+                        'save-laser-freehand-data',
+                        projectId: $this->laserStudioProjectId,
+                        configData: $configData,
+                        activeSide: $this->activeSide
+                    );
                 } elseif ($this->context === 'order_edit') {
                     $orderItem = \App\Models\Order\OrderOrderItem::with('order')->find($this->cartItem->id ?? null);
 
@@ -2191,6 +2362,14 @@ class ProductConfigurator extends Component
 
     public function getPreviewImageProperty()
     {
+        if ($this->context === 'laser_freehand') {
+            $camDiskPath = storage_path('app/public/bestellungen/xtool/background.jpg');
+            if (is_file($camDiskPath)) {
+                return asset('storage/bestellungen/xtool/background.jpg') . '?v=' . filemtime($camDiskPath);
+            }
+            return self::buildLaserBedGridSvgDataUrl();
+        }
+
         $pkgKey = $this->configSettings['template_package'] ?? 'custom';
         $packages = app(ConfiguratorService::class)->getTemplatePackages();
         $pkgOverlay = ($pkgKey !== 'custom' && isset($packages[$pkgKey]['preview_image_path']))
@@ -2204,6 +2383,253 @@ class ProductConfigurator extends Component
         $diskPath = storage_path('app/public/' . $path);
         $ver = is_file($diskPath) ? '?v=' . filemtime($diskPath) : '';
         return asset('storage/' . $path) . $ver;
+    }
+
+    public static function buildLaserBedGridSvgDataUrl(): string
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">'
+            . '<defs>'
+            . '<pattern id="mm10" width="40" height="40" patternUnits="userSpaceOnUse">'
+            . '<path d="M 40 0 L 0 0 0 40" fill="none" stroke="#26282e" stroke-width="1"/>'
+            . '</pattern>'
+            . '<pattern id="mm50" width="200" height="200" patternUnits="userSpaceOnUse">'
+            . '<rect width="200" height="200" fill="url(#mm10)"/>'
+            . '<path d="M 200 0 L 0 0 0 200" fill="none" stroke="#3a3d46" stroke-width="1.8"/>'
+            . '</pattern>'
+            . '</defs>'
+            . '<rect width="800" height="800" fill="#16181c"/>'
+            . '<rect width="800" height="800" fill="url(#mm50)"/>'
+            . '<line x1="400" y1="0" x2="400" y2="800" stroke="#C5A059" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 6"/>'
+            . '<line x1="0" y1="400" x2="800" y2="400" stroke="#C5A059" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="6 6"/>'
+            . '<circle cx="400" cy="400" r="5" fill="#C5A059" fill-opacity="0.65"/>'
+            . '<text x="16" y="28" fill="#8b92a0" font-family="monospace" font-size="15" font-weight="bold">xTool F2 Ultra UV · 200 × 200 mm Arbeitsfläche</text>'
+            . '</svg>';
+
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
+    }
+
+    /**
+     * Erzeugt direkt im `laser_freehand`-Konfigurator einen scharfen 1-Bit Vektor-QR-Code (SVG)
+     * und legt ihn sofort dreh- und skalierbar auf die aktive Seite.
+     */
+    public function addQrCodeInFreehand(?string $presetKey = null): void
+    {
+        if ($this->context !== 'laser_freehand') {
+            return;
+        }
+        if (!auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            abort(403);
+        }
+
+        $url = trim($this->qrTargetUrl);
+        $subtitle = trim($this->qrSubtitle);
+
+        if ($presetKey !== null) {
+            $templates = \App\Services\Laser\LaserQrCodeService::getQuickLinkTemplates();
+            if (isset($templates[$presetKey])) {
+                $url = $templates[$presetKey]['url'];
+                $this->qrTargetUrl = $url;
+                // 1-Klick-Vorlagen legen standardmäßig nur den reinen QR-Code an (Untertitel nur, falls manuell eingetragen)
+            }
+        }
+
+        if ($url === '') {
+            return;
+        }
+
+        $qr = \App\Services\Laser\LaserQrCodeService::generateLaserReadyQrSvg($url);
+        if (!in_array($qr['storage_path'], $this->uploaded_files, true)) {
+            $this->uploaded_files[] = $qr['storage_path'];
+        }
+
+        $spawn = $this->resolveStudioSpawnCenter();
+        $cx = (float) ($spawn['x'] ?? 50.0);
+        $cy = (float) ($spawn['y'] ?? 50.0);
+        $areaH = (float) ($this->configSettings['area_height'] ?? 100.0);
+        $areaW = (float) ($this->configSettings['area_width'] ?? 100.0);
+        $qrSize = round(max(28.0, min(140.0, min($areaW, $areaH) * 1.45)), 1);
+
+        $logoEntry = [
+            'id' => 'qr_' . Str::lower(Str::random(8)),
+            'type' => 'saved',
+            'value' => $qr['storage_path'],
+            'url' => asset('storage/' . $qr['storage_path']),
+            'x' => $cx,
+            'y' => $subtitle !== '' ? round($cy - ($areaH * 0.08), 2) : $cy,
+            'size' => $qrSize,
+            'rotation' => 0,
+            'is_qr' => true,
+            'qr_target' => $url,
+        ];
+
+        if ($this->activeSide === 'back') {
+            $this->logos_back = array_values(is_array($this->logos_back) ? $this->logos_back : []);
+            $this->logos_back[] = $logoEntry;
+        } else {
+            $this->logos = array_values(is_array($this->logos) ? $this->logos : []);
+            $this->logos[] = $logoEntry;
+        }
+
+        if ($subtitle !== '') {
+            $subEntry = [
+                'id' => 'txt_' . Str::lower(Str::random(8)),
+                'text' => $this->sanitizeLaserText($subtitle),
+                'font' => 'Arial',
+                'align' => 'center',
+                'x' => $cx,
+                'y' => round(min(96.0, $cy + ($areaH * 0.16)), 2),
+                'size' => round(max(0.32, min(0.85, $areaW / 120.0)), 2),
+                'rotation' => 0,
+            ];
+            if ($this->activeSide === 'back') {
+                $this->texts_back = array_values(is_array($this->texts_back) ? $this->texts_back : []);
+                $this->texts_back[] = $subEntry;
+            } else {
+                $this->texts = array_values(is_array($this->texts) ? $this->texts : []);
+                $this->texts[] = $subEntry;
+            }
+        }
+
+        $this->syncFreehandStageSilent([
+            'texts' => $this->texts,
+            'logos' => $this->logos,
+            'texts_back' => $this->texts_back,
+            'logos_back' => $this->logos_back,
+            'active_side' => $this->activeSide,
+        ]);
+        $this->dispatch('laser-freehand-files-updated', projectId: $this->laserStudioProjectId);
+    }
+
+    /**
+     * Stiller Live-Sync (Renderless) zwischen der 2D-Freehand-Arbeitsfläche und dem `LaserStudioProject`,
+     * damit `Rahmen leuchten` und `An Laser senden` im Laser-Cockpit sofort den aktuellen Canvas-Stand kennen,
+     * selbst ohne vorherigen Klick auf "Projekt speichern".
+     */
+    #[\Livewire\Attributes\Renderless]
+    public function syncFreehandStageSilent(array $stagePayload = []): void
+    {
+        if ($this->context !== 'laser_freehand' || !$this->laserStudioProjectId) {
+            return;
+        }
+        if (!auth()->guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isAdmin() && !\App\Services\AI\AiAuthHelper::isEmployee()) {
+            return;
+        }
+        if (!\Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')) {
+            return;
+        }
+
+        $project = \App\Models\Product\LaserStudioProject::find($this->laserStudioProjectId);
+        if (!$project) {
+            return;
+        }
+
+        $textsIn = isset($stagePayload['texts']) && is_array($stagePayload['texts']) ? $stagePayload['texts'] : $this->texts;
+        $logosIn = isset($stagePayload['logos']) && is_array($stagePayload['logos']) ? $stagePayload['logos'] : $this->logos;
+        $textsBackIn = isset($stagePayload['texts_back']) && is_array($stagePayload['texts_back']) ? $stagePayload['texts_back'] : $this->texts_back;
+        $logosBackIn = isset($stagePayload['logos_back']) && is_array($stagePayload['logos_back']) ? $stagePayload['logos_back'] : $this->logos_back;
+
+        $cleanTexts = array_values(array_filter(array_map(function ($t) {
+            if (is_array($t) && isset($t['text'])) {
+                $t['text'] = $this->sanitizeLaserText((string) $t['text']);
+            }
+            return $t;
+        }, is_array($textsIn) ? $textsIn : []), fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== ''));
+
+        $cleanTextsBack = array_values(array_filter(array_map(function ($t) {
+            if (is_array($t) && isset($t['text'])) {
+                $t['text'] = $this->sanitizeLaserText((string) $t['text']);
+            }
+            return $t;
+        }, is_array($textsBackIn) ? $textsBackIn : []), fn ($t) => is_array($t) && trim((string) ($t['text'] ?? '')) !== ''));
+
+        $conf = is_array($project->configuration) ? $project->configuration : [];
+        $cleanLogos = array_values(is_array($logosIn) ? $logosIn : []);
+        $cleanLogosBack = array_values(is_array($logosBackIn) ? $logosBackIn : []);
+
+        // Halte uploaded_files & conf['files'] 1:1 synchron zu den tatsächlich noch platzierten Logos/QR-Codes
+        $activeValues = [];
+        foreach (array_merge($cleanLogos, $cleanLogosBack) as $al) {
+            if (is_array($al) && !empty($al['value']) && is_string($al['value'])) {
+                $activeValues[] = $al['value'];
+            }
+        }
+        $this->uploaded_files = array_values(array_filter(
+            is_array($this->uploaded_files) ? $this->uploaded_files : [],
+            static fn ($f) => is_string($f) && (str_ends_with(strtolower($f), '.pdf') || in_array($f, $activeValues, true))
+        ));
+
+        $conf['texts'] = $cleanTexts;
+        $conf['logos'] = $cleanLogos;
+        $conf['texts_back'] = $cleanTextsBack;
+        $conf['logos_back'] = $cleanLogosBack;
+        $conf['files'] = $this->uploaded_files;
+        $conf['raw_files'] = is_array($this->raw_files) ? $this->raw_files : [];
+        $conf['notes'] = (string) $this->notes;
+        $conf['has_unsaved_freehand_changes'] = true;
+
+        $project->configuration = $conf;
+        $project->syncStudioDimensionsToConfig();
+        $project->save();
+        $this->dispatch('laser-freehand-project-dirty', projectId: $this->laserStudioProjectId);
+        $this->dispatch('laser-freehand-files-updated', projectId: $this->laserStudioProjectId);
+    }
+
+    #[\Livewire\Attributes\Renderless]
+    public function pruneUnusedUploadedFileSilent(string $filePath): void
+    {
+        if ($this->context === 'preview') {
+            return;
+        }
+        $clean = trim($filePath);
+        if ($clean === '' || str_contains($clean, '..') || str_contains($clean, "\0")) {
+            return;
+        }
+        $this->uploaded_files = array_values(array_filter(
+            is_array($this->uploaded_files) ? $this->uploaded_files : [],
+            static fn ($f) => is_string($f) && $f !== $clean
+        ));
+
+        if ($this->context === 'laser_freehand' && $this->laserStudioProjectId && \Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')) {
+            $project = \App\Models\Product\LaserStudioProject::find($this->laserStudioProjectId);
+            if ($project && is_array($project->configuration)) {
+                $conf = $project->configuration;
+                $conf['files'] = array_values(array_filter(
+                    is_array($conf['files'] ?? null) ? $conf['files'] : [],
+                    static fn ($f) => is_string($f) && $f !== $clean
+                ));
+                $project->configuration = $conf;
+                $project->save();
+            }
+            $this->dispatch('laser-freehand-files-updated', projectId: $this->laserStudioProjectId);
+        }
+    }
+
+    #[\Livewire\Attributes\On('laser-freehand-remove-uploaded-file')]
+    public function handleExternalRemoveUploadedFile(?string $projectId = null, string $fileKey = ''): void
+    {
+        if ($this->context !== 'laser_freehand' || !$this->laserStudioProjectId) {
+            return;
+        }
+        if ($projectId !== null && $projectId !== '' && $projectId !== $this->laserStudioProjectId) {
+            return;
+        }
+        $clean = trim($fileKey);
+        if ($clean === '') {
+            return;
+        }
+
+        $this->logos = array_values(array_filter(
+            is_array($this->logos) ? $this->logos : [],
+            static fn ($l) => is_array($l) && ($l['value'] ?? '') !== $clean
+        ));
+        $this->logos_back = array_values(array_filter(
+            is_array($this->logos_back) ? $this->logos_back : [],
+            static fn ($l) => is_array($l) && ($l['value'] ?? '') !== $clean
+        ));
+        $this->uploaded_files = array_values(array_filter(
+            is_array($this->uploaded_files) ? $this->uploaded_files : [],
+            static fn ($f) => is_string($f) && $f !== $clean
+        ));
     }
 
     public function getResolvedBackgroundPathProperty()

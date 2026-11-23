@@ -2,6 +2,57 @@
   'use strict';
 
   // =========================================================================
+  // 0a. AUTOMATIC KIOSK SESSION SELF-HEALING (AFTER DAEMON RESTART)
+  // =========================================================================
+  const nativeFetch = window.fetch.bind(window);
+  let kioskSessionRefreshPromise = null;
+
+  async function refreshKioskSessionCookieOnce() {
+    if (!kioskSessionRefreshPromise) {
+      kioskSessionRefreshPromise = nativeFetch('/', {
+        method: 'HEAD',
+        cache: 'no-store',
+        credentials: 'same-origin'
+      }).catch(() => null).finally(() => {
+        kioskSessionRefreshPromise = null;
+      });
+    }
+    return kioskSessionRefreshPromise;
+  }
+
+  function triggerGuardedKioskReload() {
+    try {
+      const now = Date.now();
+      const prev = Number(sessionStorage.getItem('fw_kiosk_auto_reload_ts') || '0');
+      if (now - prev > 15000) {
+        sessionStorage.setItem('fw_kiosk_auto_reload_ts', String(now));
+        window.location.reload();
+      }
+    } catch {
+      window.location.reload();
+    }
+  }
+
+  window.fetch = async function (input, init) {
+    const res = await nativeFetch(input, init);
+    if (res.status === 401 && typeof input === 'string' && (input === '/api' || input.startsWith('/api/'))) {
+      let errObj = null;
+      try {
+        errObj = await res.clone().json();
+      } catch { }
+      if (errObj && errObj.error === 'unauthorized_kiosk_session') {
+        await refreshKioskSessionCookieOnce();
+        const retryRes = await nativeFetch(input, init);
+        if (retryRes.status === 401) {
+          triggerGuardedKioskReload();
+        }
+        return retryRes;
+      }
+    }
+    return res;
+  };
+
+  // =========================================================================
   // 0. PROACTIVE CLIENT ERROR SENTINEL -> CENTRAL PORTAL LOGGING
   // =========================================================================
   let lastClientErrorSentAt = 0;
@@ -383,7 +434,7 @@
         document.getElementById('funkira-eye-target')?.classList.add('hidden');
       }
       if (window.Funkira3D && window.Funkira3D.running) {
-        window.Funkira3D.setVoiceState(fkMouthOpenSmooth, fkIsSpeaking || fkActiveSources.length > 0);
+        window.Funkira3D.setVoiceState(fkMouthOpenSmooth, fkIsSpeaking || fkStreamPlaying || fkActiveSources.length > 0);
         window.Funkira3D.setLookTarget(fkLookX, fkLookY, fkPersonDetected);
         window.Funkira3D.renderFrame(now);
       } else {
@@ -571,16 +622,20 @@
   let fkPendingUiAfterSpeech = null;
   let fkPendingUiSafetyTimer = null;
 
-  // Unified WebAudio Engine (Single AudioContext for 24 kHz Voice + 60-FPS Lip-Sync + 16 kHz Mic)
+  // Decoupled Dual-Clock WebAudio Engine (48 kHz Continuous Ring-Buffer Voice Player + Isolated Mic Capture Context)
   let fkPlayCtx = null;
   let fkPlayGain = null;
   let fkPlayAnalyser = null;
+  let fkPlayerNode = null;
+  let fkStreamPlaying = false;
+  let fkStreamEndPerfMs = 0;
   let fkFreqBins = null;
   let fkTimeBins = null;
   let fkNextPlayTime = 0;
   let fkActiveSources = [];
   let fkTurnDrainTimeout = null;
 
+  let fkMicCtx = null;
   let fkMicStream = null;
   let fkMediaStream = null;
   let fkMicSource = null;
@@ -1192,7 +1247,7 @@
     let targetOpen = 0;
     let targetWide = 0.45;
 
-    const hasPlayingAudio = fkActiveSources.length > 0 && fkPlayAnalyser && fkFreqBins && fkTimeBins;
+    const hasPlayingAudio = (fkStreamPlaying || fkActiveSources.length > 0) && fkPlayAnalyser && fkFreqBins && fkTimeBins;
     if (hasPlayingAudio) {
       fkPlayAnalyser.getByteTimeDomainData(fkTimeBins);
       let sumSq = 0;
@@ -2541,9 +2596,35 @@
     dot.classList.toggle('offline', dotState === 'offline');
   }
 
+  function isFunkiraAudioCurrentlyPlaying() {
+    return fkStreamPlaying || fkActiveSources.length > 0;
+  }
+
+  function finishFunkiraSpeechTurn() {
+    fkNextPlayTime = 0;
+    fkStreamPlaying = false;
+    fkStreamEndPerfMs = 0;
+    fkIsSpeaking = false;
+    fkIsAiTurn = false;
+    fkGenComplete = false;
+    fkLastSpeechEndMs = Date.now();
+    fkLastInteractionMs = Date.now();
+    if (fkIdlePromptAsked && fkIdlePromptFinishMs === 0) {
+      fkIdlePromptFinishMs = Date.now();
+    }
+    if (funkiraStageOpen && !fkIdleAtelierMode) {
+      setFunkiraStatusUi(
+        fkPhoneCallActive ? `📞 Telefonat mit ${fkPhoneCallerLabel || 'Anrufer'}` : `Funkira hört zu · Atelier Stufe ${fkLatestShopLevel}`,
+        'online'
+      );
+    }
+    calmFunkiraEmotionAfterTurn(false);
+    flushPendingUiAfterSpeech();
+  }
+
   function isFunkiraOutputProtected() {
     const now = Date.now();
-    const hasSources = fkActiveSources.length > 0;
+    const hasSources = isFunkiraAudioCurrentlyPlaying();
     const btAcousticHold = now < (fkExpectedAudioEndMs + 480);
     const reverbTail = (now - fkLastSpeechEndMs) < 950;
     const aiGenerating = fkIsAiTurn && !fkGenComplete && (now - fkLastAiPacketMs) < 3600;
@@ -2555,10 +2636,15 @@
       clearTimeout(fkTurnDrainTimeout);
       fkTurnDrainTimeout = null;
     }
+    if (fkPlayerNode) {
+      try { fkPlayerNode.port.postMessage({ type: 'clear' }); } catch { }
+    }
     for (const src of fkActiveSources) {
       try { src.onended = null; src.stop(); src.disconnect(); } catch { }
     }
     fkActiveSources = [];
+    fkStreamPlaying = false;
+    fkStreamEndPerfMs = 0;
     fkNextPlayTime = 0;
     fkExpectedAudioEndMs = 0;
     fkIsSpeaking = false;
@@ -2632,7 +2718,18 @@
     const f32 = new Float32Array(pcm16.length);
     for (let i = 0; i < pcm16.length; i++) f32[i] = pcm16[i] / 32768.0;
 
-    // 220 ms Bluetooth-A2DP Jitter Cushion on stream start / underrun + 2.5 ms raised-cosine edge de-click
+    // Primary Studio Path: Single Persistent AudioWorklet Ring-Buffer Streamer (zero chunk-boundary vocoder/roboter artifacts!)
+    if (fkPlayerNode) {
+      const nowPerf = performance.now();
+      const basePerf = fkStreamEndPerfMs > nowPerf ? fkStreamEndPerfMs : (nowPerf + 180);
+      fkStreamEndPerfMs = basePerf + (f32.length / 24.0);
+      fkExpectedAudioEndMs = Math.max(fkExpectedAudioEndMs, Date.now() + Math.max(0, fkStreamEndPerfMs - nowPerf));
+      fkStreamPlaying = true;
+      fkPlayerNode.port.postMessage({ type: 'push', samples: f32 }, [f32.buffer]);
+      return;
+    }
+
+    // Fallback Path (only if AudioWorklet unavailable)
     const nowCtx = fkPlayCtx.currentTime;
     const isFreshStreamStart = fkNextPlayTime < (nowCtx + 0.008);
     if (isFreshStreamStart) {
@@ -2649,7 +2746,6 @@
 
     const src = fkPlayCtx.createBufferSource();
     src.buffer = buf;
-    // Direct hardware path (GainNode -> destination) + parallel tap into AnalyserNode for lip-sync
     src.connect(fkPlayGain || fkPlayCtx.destination);
 
     fkActiveSources.push(src);
@@ -2663,31 +2759,12 @@
     src.onended = () => {
       fkActiveSources = fkActiveSources.filter(s => s !== src);
       fkLastSpeechEndMs = Date.now();
-      if (fkActiveSources.length === 0) {
-        const finishTurn = () => {
-          fkNextPlayTime = 0;
-          fkIsSpeaking = false;
-          fkIsAiTurn = false;
-          fkGenComplete = false;
-          fkLastInteractionMs = Date.now();
-          if (fkIdlePromptAsked && fkIdlePromptFinishMs === 0) {
-            fkIdlePromptFinishMs = Date.now();
-          }
-          if (funkiraStageOpen && !fkIdleAtelierMode) {
-            setFunkiraStatusUi(
-              fkPhoneCallActive ? `📞 Telefonat mit ${fkPhoneCallerLabel || 'Anrufer'}` : `Funkira hört zu · Atelier Stufe ${fkLatestShopLevel}`,
-              'online'
-            );
-          }
-          calmFunkiraEmotionAfterTurn(false);
-          flushPendingUiAfterSpeech();
-        };
-
+      if (!isFunkiraAudioCurrentlyPlaying()) {
         if (fkGenComplete) {
-          finishTurn();
+          finishFunkiraSpeechTurn();
         } else {
           fkTurnDrainTimeout = setTimeout(() => {
-            if (fkActiveSources.length === 0) finishTurn();
+            if (!isFunkiraAudioCurrentlyPlaying()) finishFunkiraSpeechTurn();
           }, 1800);
         }
       }
@@ -2695,7 +2772,7 @@
   }
 
   async function initFunkiraCameraAndMic(useSystemDefaultAudioForHfp = false) {
-    // 1. Unified AudioContext (Playback-buffered 48 kHz PipeWire -> BlueZ A2DP / HFP Sink + Lip-Sync + Mic)
+    // 1. Dedicated 48 kHz Playback AudioContext (isolated from USB C920 mic clock crystal so zero clock-drift warp occurs!)
     const AudioCtxCtor = window.AudioContext || window.webkitAudioContext;
     try {
       fkPlayCtx = new AudioCtxCtor({ latencyHint: 'playback', sampleRate: 48000 });
@@ -2706,7 +2783,7 @@
       await fkPlayCtx.setSinkId('').catch(() => {});
     }
     fkPlayGain = fkPlayCtx.createGain();
-    fkPlayGain.gain.value = 0.96; // Unclipped headroom for Teufel Bluetooth SBC/AAC encoder
+    fkPlayGain.gain.value = 0.96; // Unclipped headroom for USB Speaker Bar & Teufel Bluetooth SBC/AAC
     fkPlayGain.connect(fkPlayCtx.destination);
 
     fkPlayAnalyser = fkPlayCtx.createAnalyser();
@@ -2717,7 +2794,169 @@
     fkTimeBins = new Uint8Array(fkPlayAnalyser.fftSize);
     if (fkPlayCtx.state === 'suspended') await fkPlayCtx.resume().catch(() => {});
 
-    // 2. Select Logitech HD Pro Webcam C920 explicitly (except during real Bluetooth HFP phone calls where PipeWire Default Source is the smartphone!)
+    // Mount Single Persistent 24 kHz -> 48 kHz Catmull-Rom Ring-Buffer Streamer Worklet (eliminates 250+ AudioBufferSourceNode boundary ringing!)
+    fkPlayerNode = null;
+    fkStreamPlaying = false;
+    fkStreamEndPerfMs = 0;
+    if (fkPlayCtx.audioWorklet && window.AudioWorkletNode) {
+      try {
+        const playerWorkletCode = `
+          class FkPcm24StreamPlayerProcessor extends AudioWorkletProcessor {
+            constructor() {
+              super();
+              this._cap = 24000 * 75;
+              this._ring = new Float32Array(this._cap);
+              this._writeIdx = 0;
+              this._avail = 0.0;
+              this._readPos = 0.0;
+              this._playing = false;
+              this._flushed = false;
+              this._fadeGain = 0.0;
+              this._prebufferSamples = 4320; // 180 ms smooth network-jitter cushion
+              this._step = 24000 / sampleRate;
+              this._lastSample = 0.0;
+              this._reportTick = 0;
+              this.port.onmessage = (ev) => {
+                const msg = ev.data;
+                if (!msg) return;
+                if (msg.type === 'push' && msg.samples) {
+                  const src = msg.samples;
+                  const free = this._cap - Math.ceil(this._avail) - 8;
+                  const n = Math.min(src.length, Math.max(0, free));
+                  for (let i = 0; i < n; i++) {
+                    this._ring[this._writeIdx] = src[i];
+                    this._writeIdx = (this._writeIdx + 1) % this._cap;
+                  }
+                  this._avail += n;
+                  this._flushed = false;
+                } else if (msg.type === 'flush') {
+                  this._flushed = true;
+                } else if (msg.type === 'clear') {
+                  this._writeIdx = 0;
+                  this._avail = 0.0;
+                  this._readPos = 0.0;
+                  this._playing = false;
+                  this._flushed = false;
+                  this._fadeGain = 0.0;
+                  this._lastSample = 0.0;
+                  this._ring[this._cap - 1] = 0.0;
+                  this.port.postMessage({ type: 'state', playing: false, availSec: 0 });
+                }
+              };
+            }
+            _at(idx) {
+              let k = idx % this._cap;
+              if (k < 0) k += this._cap;
+              return this._ring[k];
+            }
+            process(inputs, outputs) {
+              const out = outputs[0] && outputs[0][0];
+              if (!out) return true;
+              const frames = out.length;
+
+              if (!this._playing) {
+                if (this._avail >= this._prebufferSamples || (this._flushed && this._avail >= 1.0)) {
+                  this._playing = true;
+                  this._fadeGain = 0.0;
+                  this.port.postMessage({ type: 'state', playing: true, availSec: this._avail / 24000 });
+                } else {
+                  out.fill(0);
+                  return true;
+                }
+              }
+
+              const fadeStep = 1.0 / Math.max(32, Math.round(sampleRate * 0.004));
+              for (let i = 0; i < frames; i++) {
+                if (this._avail >= 1.0) {
+                  const base = Math.floor(this._readPos);
+                  const t = this._readPos - base;
+                  const y0 = this._at(base - 1);
+                  const y1 = this._at(base);
+                  const y2 = this._avail >= 2.0 ? this._at(base + 1) : y1;
+                  const y3 = this._avail >= 3.0 ? this._at(base + 2) : y2;
+                  const c0 = y1;
+                  const c1 = 0.5 * (y2 - y0);
+                  const c2 = y0 - 2.5 * y1 + 2.0 * y2 - 0.5 * y3;
+                  const c3 = 0.5 * (y3 - y0) + 1.5 * (y1 - y2);
+                  let s = ((c3 * t + c2) * t + c1) * t + c0;
+                  if (this._fadeGain < 1.0) {
+                    this._fadeGain = Math.min(1.0, this._fadeGain + fadeStep);
+                  }
+                  s *= this._fadeGain;
+                  if (s > 0.98 || s < -0.98) s = Math.tanh(s);
+                  out[i] = s;
+                  this._lastSample = s;
+                  this._readPos += this._step;
+                  if (this._readPos >= this._cap) this._readPos -= this._cap;
+                  this._avail -= this._step;
+                } else {
+                  this._lastSample *= 0.90;
+                  if (Math.abs(this._lastSample) < 1e-5) this._lastSample = 0.0;
+                  out[i] = this._lastSample;
+                  this._fadeGain = 0.0;
+                }
+              }
+
+              if (this._avail < 1.0) {
+                this._avail = 0.0;
+                this._ring[(this._writeIdx - 1 + this._cap) % this._cap] = 0.0;
+                this._readPos = this._writeIdx;
+                this._playing = false;
+                this._flushed = false;
+                this.port.postMessage({ type: 'drained' });
+              } else {
+                this._reportTick++;
+                if (this._reportTick >= 45) {
+                  this._reportTick = 0;
+                  this.port.postMessage({ type: 'state', playing: true, availSec: this._avail / 24000 });
+                }
+              }
+              return true;
+            }
+          }
+          registerProcessor('fk-pcm24-player', FkPcm24StreamPlayerProcessor);
+        `;
+        const playerBlobUrl = URL.createObjectURL(new Blob([playerWorkletCode], { type: 'application/javascript' }));
+        try {
+          await fkPlayCtx.audioWorklet.addModule(playerBlobUrl);
+        } finally {
+          URL.revokeObjectURL(playerBlobUrl);
+        }
+        const pNode = new AudioWorkletNode(fkPlayCtx, 'fk-pcm24-player', {
+          numberOfInputs: 0,
+          numberOfOutputs: 1,
+          outputChannelCount: [1]
+        });
+        pNode.port.onmessage = (ev) => {
+          const d = ev.data;
+          if (!d) return;
+          if (d.type === 'state') {
+            fkStreamPlaying = !!d.playing;
+            if (d.playing && typeof d.availSec === 'number') {
+              fkExpectedAudioEndMs = Date.now() + Math.max(0, d.availSec * 1000) + 80;
+            }
+          } else if (d.type === 'drained') {
+            fkStreamPlaying = false;
+            fkStreamEndPerfMs = 0;
+            fkLastSpeechEndMs = Date.now();
+            if (!isFunkiraAudioCurrentlyPlaying()) {
+              if (fkGenComplete) {
+                finishFunkiraSpeechTurn();
+              } else {
+                if (fkTurnDrainTimeout) clearTimeout(fkTurnDrainTimeout);
+                fkTurnDrainTimeout = setTimeout(() => {
+                  if (!isFunkiraAudioCurrentlyPlaying()) finishFunkiraSpeechTurn();
+                }, 1800);
+              }
+            }
+          }
+        };
+        pNode.connect(fkPlayGain);
+        fkPlayerNode = pNode;
+      } catch { }
+    }
+
+    // 2. Select Logitech HD Pro Webcam C920 explicitly (disable WebRTC hardware AGC so Chrome never drags PipeWire mic down to -12.6 dB!)
     let preferredVideoId = undefined;
     let preferredAudioId = undefined;
     try {
@@ -2748,14 +2987,14 @@
           channelCount: { ideal: 1 },
           echoCancellation: { ideal: true },
           noiseSuppression: { ideal: true },
-          autoGainControl: { ideal: true }
+          autoGainControl: { ideal: false }
         };
 
     try {
       fkMediaStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: audioConstraints });
     } catch {
       try {
-        fkMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: { echoCancellation: true } });
+        fkMediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: { echoCancellation: true, autoGainControl: false } });
       } catch {
         fkMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
@@ -2764,6 +3003,7 @@
     const vidEl = document.getElementById('funkira-cam-video');
     if (fkMediaStream.getVideoTracks().length > 0) {
       vidEl.srcObject = fkMediaStream;
+      await vidEl.play().catch(() => {});
       const vLabel = fkMediaStream.getVideoTracks()[0].label || 'Logitech C920';
       document.getElementById('funkira-eye-label').textContent = vLabel.replace(/\s*\([0-9a-f]{4}:[0-9a-f]{4}\)\s*/i, '');
       document.getElementById('funkira-eye-dot').classList.remove('off');
@@ -2773,10 +3013,17 @@
       document.getElementById('funkira-eye-dot').classList.add('off');
     }
 
-    // 3. 16 kHz Microphone Capture Pipeline on the SAME Unified AudioContext (keeps A2DP sink warm & bound!)
-    if (fkPlayCtx.state === 'suspended') await fkPlayCtx.resume().catch(() => {});
+    // 3. Dedicated Microphone Capture AudioContext (decoupled from playback sink clock!)
+    try {
+      fkMicCtx = new AudioCtxCtor({ sampleRate: 48000 });
+    } catch {
+      fkMicCtx = new AudioCtxCtor();
+    }
+    if (fkMicCtx.state === 'suspended') await fkMicCtx.resume().catch(() => {});
 
-    fkMicSource = fkPlayCtx.createMediaStreamSource(fkMediaStream);
+    fkMicSource = fkMicCtx.createMediaStreamSource(fkMediaStream);
+    const micRate = fkMicCtx.sampleRate || 48000;
+    const micPreampGain = useSystemDefaultAudioForHfp ? 1.0 : 1.85;
 
     const bytesToBase64Fast = (bytes) => {
       const parts = [];
@@ -2788,8 +3035,8 @@
 
     const resampleFloatToPcm16Bytes = (floatSamples) => {
       let samples = floatSamples;
-      if (fkPlayCtx && fkPlayCtx.sampleRate !== 16000) {
-        const ratio = fkPlayCtx.sampleRate / 16000;
+      if (micRate !== 16000) {
+        const ratio = micRate / 16000;
         const outLen = Math.round(samples.length / ratio);
         const resampled = new Float32Array(outLen);
         for (let i = 0; i < outLen; i++) {
@@ -2802,13 +3049,14 @@
       }
       const pcm16 = new Int16Array(samples.length);
       for (let i = 0; i < samples.length; i++) {
-        const s = Math.max(-1, Math.min(1, samples[i]));
+        const boosted = Math.tanh(samples[i] * micPreampGain);
+        const s = Math.max(-1, Math.min(1, boosted));
         pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
       }
       return new Uint8Array(pcm16.buffer);
     };
 
-    const silentFrameLen = Math.max(256, Math.round(2048 * (16000 / (fkPlayCtx.sampleRate || 48000))));
+    const silentFrameLen = Math.max(256, Math.round(2048 * (16000 / micRate)));
     const fkSilentPcm16B64 = bytesToBase64Fast(new Uint8Array(silentFrameLen * 2));
 
     const handleMicPcmFrame = (pcmBytes, rms) => {
@@ -2865,20 +3113,20 @@
       let sendSilent = false;
       if (Date.now() < fkPostProtectQuietUntilMs && rms < 0.032) {
         sendSilent = true;
-      } else if (rms > 0.013) {
+      } else if (rms > 0.0045) {
         fkLastUserVoiceMs = Date.now();
         fkLastInteractionMs = Date.now();
         fkIdlePromptAsked = false;
         fkIdlePromptFinishMs = 0;
         fkHasSpokenInTurn = true;
-      } else if (fkHasSpokenInTurn && (Date.now() - fkLastUserVoiceMs) > 120) {
+      } else if (fkHasSpokenInTurn && (Date.now() - fkLastUserVoiceMs) > 380) {
         sendSilent = true;
-      } else if (!fkHasSpokenInTurn && rms < 0.010) {
+      } else if (!fkHasSpokenInTurn && rms < 0.0028) {
         sendSilent = true;
       }
 
       const b64Payload = sendSilent ? fkSilentPcm16B64 : bytesToBase64Fast(pcmBytes);
-      if (!sendSilent && rms > 0.015 && !fkPhoneCallActive) {
+      if (!sendSilent && rms > 0.008 && !fkPhoneCallActive) {
         const nowMs = Date.now();
         if ((nowMs - fkLastVoiceChunkAtMs) > 750) {
           fkRecentVoicePcmChunks = [];
@@ -2932,38 +3180,45 @@
       }));
     };
 
-    // Prefer dedicated off-main-thread AudioWorkletNode (0.0 ms UI render-thread stall!), with graceful fallback
+    // Prefer dedicated off-main-thread AudioWorkletNode on isolated fkMicCtx (0.0 ms UI render-thread stall!), with graceful fallback
     let workletMounted = false;
-    if (fkPlayCtx.audioWorklet && window.AudioWorkletNode) {
+    if (fkMicCtx && fkMicCtx.audioWorklet && window.AudioWorkletNode) {
       try {
         const workletCode = `
           class FkPcm16CaptureProcessor extends AudioWorkletProcessor {
             constructor() {
               super();
               this._buf = new Float32Array(2048);
+              this._frameTarget = Math.max(640, Math.min(2048, Math.round(sampleRate * 0.042)));
               this._pos = 0;
+              this._preamp = ${micPreampGain.toFixed(2)};
             }
             process(inputs) {
               const ch = inputs[0] && inputs[0][0];
               if (!ch) return true;
+              const target = this._frameTarget;
               let offset = 0;
               while (offset < ch.length) {
-                const take = Math.min(2048 - this._pos, ch.length - offset);
+                const take = Math.min(target - this._pos, ch.length - offset);
                 this._buf.set(ch.subarray(offset, offset + take), this._pos);
                 this._pos += take;
                 offset += take;
-                if (this._pos >= 2048) {
+                if (this._pos >= target) {
                   let sumSq = 0;
-                  for (let i = 0; i < 2048; i++) sumSq += this._buf[i] * this._buf[i];
-                  const rms = Math.sqrt(sumSq / 2048);
+                  for (let i = 0; i < target; i++) {
+                    const b = Math.tanh(this._buf[i] * this._preamp);
+                    this._buf[i] = b;
+                    sumSq += b * b;
+                  }
+                  const rms = Math.sqrt(sumSq / target);
                   const ratio = sampleRate / 16000;
-                  const outLen = Math.round(2048 / ratio);
+                  const outLen = Math.round(target / ratio);
                   const pcm16 = new Int16Array(outLen);
                   for (let i = 0; i < outLen; i++) {
                     const pos = i * ratio;
                     const idx = Math.floor(pos);
                     const frac = pos - idx;
-                    const sRaw = (idx + 1 < 2048) ? this._buf[idx] * (1 - frac) + this._buf[idx + 1] * frac : this._buf[idx];
+                    const sRaw = (idx + 1 < target) ? this._buf[idx] * (1 - frac) + this._buf[idx + 1] * frac : this._buf[idx];
                     const s = Math.max(-1, Math.min(1, sRaw));
                     pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                   }
@@ -2978,11 +3233,11 @@
         `;
         const blobUrl = URL.createObjectURL(new Blob([workletCode], { type: 'application/javascript' }));
         try {
-          await fkPlayCtx.audioWorklet.addModule(blobUrl);
+          await fkMicCtx.audioWorklet.addModule(blobUrl);
         } finally {
           URL.revokeObjectURL(blobUrl);
         }
-        const wn = new AudioWorkletNode(fkPlayCtx, 'fk-pcm16-capture', { numberOfInputs: 1, numberOfOutputs: 0, channelCount: 1 });
+        const wn = new AudioWorkletNode(fkMicCtx, 'fk-pcm16-capture', { numberOfInputs: 1, numberOfOutputs: 0, channelCount: 1 });
         wn.port.onmessage = (ev) => {
           if (ev.data && ev.data.buf) {
             handleMicPcmFrame(new Uint8Array(ev.data.buf), ev.data.rms || 0);
@@ -2994,8 +3249,8 @@
       } catch { }
     }
 
-    if (!workletMounted && fkPlayCtx) {
-      fkMicProcessor = fkPlayCtx.createScriptProcessor(2048, 1, 1);
+    if (!workletMounted && fkMicCtx) {
+      fkMicProcessor = fkMicCtx.createScriptProcessor(2048, 1, 1);
       fkMicProcessor.onaudioprocess = (e) => {
         if (e.outputBuffer) {
           for (let ch = 0; ch < e.outputBuffer.numberOfChannels; ch++) {
@@ -3004,12 +3259,15 @@
         }
         const rawInput = e.inputBuffer.getChannelData(0);
         let sumSq = 0;
-        for (let i = 0; i < rawInput.length; i++) sumSq += rawInput[i] * rawInput[i];
+        for (let i = 0; i < rawInput.length; i++) {
+          const b = Math.tanh(rawInput[i] * micPreampGain);
+          sumSq += b * b;
+        }
         const rms = Math.sqrt(sumSq / rawInput.length);
         handleMicPcmFrame(resampleFloatToPcm16Bytes(rawInput), rms);
       };
       fkMicSource.connect(fkMicProcessor);
-      fkMicProcessor.connect(fkPlayCtx.destination);
+      fkMicProcessor.connect(fkMicCtx.destination);
     }
 
     const encodeCanvasJpegAsync = (canvas, quality) => new Promise((resolve) => {
@@ -3066,25 +3324,24 @@
     // 5. Async Off-Thread Local YuNet + SFace Owner/Companion/Visitor Face Check
     let faceCheckBusy = false;
     let lastVerifiedFaceCheckMs = 0;
-    if (fkFaceCheckInterval) clearInterval(fkFaceCheckInterval);
-    fkFaceCheckInterval = setInterval(async () => {
+    const runSingleFunkiraFaceCheck = async () => {
       if (faceCheckBusy || !funkiraStageOpen || fkIdleAtelierMode || fkTikTokLiveMode || fkPhoneCallActive || !fkCamEnabled) return;
-      const fastCheckNeeded = (fkFaceIdentity === 'unverified' || fkFaceIdentity === 'visitor' || fkFaceIdentity === 'none');
+      const fastCheckNeeded = (fkFaceIdentity === 'unverified' || fkFaceIdentity === 'visitor' || fkFaceIdentity === 'none' || fkFaceIdentity === 'uncertain');
       if (!fastCheckNeeded && (Date.now() - lastVerifiedFaceCheckMs) < 4600) return;
       if (!vidEl || vidEl.videoWidth <= 0 || vidEl.videoHeight <= 0) return;
       faceCheckBusy = true;
       try {
-        const wantPortraitRes = (fkFaceIdentity === 'visitor' || fkFaceIdentity === 'alina_with_companion');
-        let b64 = (!wantPortraitRes && fkLatestTrackJpegB64 && (Date.now() - fkLatestTrackJpegAtMs) < 950) ? fkLatestTrackJpegB64 : '';
+        const wantHighRes = (fkFaceIdentity === 'unverified' || fkFaceIdentity === 'none' || fkFaceIdentity === 'uncertain' || fkFaceIdentity === 'visitor' || fkFaceIdentity === 'alina_with_companion');
+        let b64 = (!wantHighRes && fkLatestTrackJpegB64 && (Date.now() - fkLatestTrackJpegAtMs) < 950) ? fkLatestTrackJpegB64 : '';
         if (!b64) {
-          const w = Math.min(wantPortraitRes ? 560 : 360, vidEl.videoWidth);
+          const w = Math.min(wantHighRes ? 640 : 420, vidEl.videoWidth);
           const h = Math.round(vidEl.videoHeight * (w / vidEl.videoWidth));
           if (fkSnapCanvas.width !== w || fkSnapCanvas.height !== h) {
             fkSnapCanvas.width = w;
             fkSnapCanvas.height = h;
           }
           fkSnapCtx.drawImage(vidEl, 0, 0, w, h);
-          b64 = await encodeCanvasJpegAsync(fkSnapCanvas, wantPortraitRes ? 0.84 : 0.68);
+          b64 = await encodeCanvasJpegAsync(fkSnapCanvas, wantHighRes ? 0.88 : 0.72);
         }
         if (!b64) return;
         lastVerifiedFaceCheckMs = Date.now();
@@ -3104,7 +3361,10 @@
       } catch { } finally {
         faceCheckBusy = false;
       }
-    }, 1800);
+    };
+    if (fkFaceCheckInterval) clearInterval(fkFaceCheckInterval);
+    setTimeout(runSingleFunkiraFaceCheck, 380);
+    fkFaceCheckInterval = setInterval(runSingleFunkiraFaceCheck, 950);
   }
 
   function captureHighResVideoJpegBase64() {
@@ -3194,7 +3454,7 @@
       fkPendingUiAfterSpeech = hangupCmd;
       if (fkPendingUiSafetyTimer) clearTimeout(fkPendingUiSafetyTimer);
       fkPendingUiSafetyTimer = setTimeout(() => {
-        if (fkPendingUiAfterSpeech === hangupCmd && !fkIsSpeaking && fkActiveSources.length === 0) {
+        if (fkPendingUiAfterSpeech === hangupCmd && !fkIsSpeaking && !isFunkiraAudioCurrentlyPlaying()) {
           flushPendingUiAfterSpeech();
         } else if (fkPhoneCallActive) {
           endFunkiraPhoneCallSession(true);
@@ -3303,7 +3563,7 @@
         if (fkPendingUiSafetyTimer) clearTimeout(fkPendingUiSafetyTimer);
         // Safety fallback only if Gemini finishes without emitting audio chunks
         fkPendingUiSafetyTimer = setTimeout(() => {
-          if (fkPendingUiAfterSpeech === data && !fkIsSpeaking && fkActiveSources.length === 0) {
+          if (fkPendingUiAfterSpeech === data && !fkIsSpeaking && !isFunkiraAudioCurrentlyPlaying()) {
             flushPendingUiAfterSpeech();
           }
         }, 7500);
@@ -3555,6 +3815,12 @@
 
     if (fkMicSource) { try { fkMicSource.disconnect(); } catch { } fkMicSource = null; }
     if (fkMicProcessor) { try { fkMicProcessor.disconnect(); } catch { } fkMicProcessor = null; }
+    if (fkMicCtx) {
+      const micToClose = fkMicCtx;
+      fkMicCtx = null;
+      setTimeout(() => { try { micToClose.close(); } catch { } }, 280);
+    }
+    if (fkPlayerNode) { try { fkPlayerNode.port.postMessage({ type: 'clear' }); fkPlayerNode.disconnect(); } catch { } fkPlayerNode = null; }
     if (fkPlayGain) { try { fkPlayGain.disconnect(); } catch { } fkPlayGain = null; }
     if (fkPlayAnalyser) { try { fkPlayAnalyser.disconnect(); } catch { } fkPlayAnalyser = null; }
     if (fkPlayCtx) {
@@ -3564,6 +3830,7 @@
     }
   }
 
+  let fkWakeRearmInFlight = false;
   async function armOfflineWakeWordListener() {
     try {
       await fetch('/api/funkira/wake-mode', {
@@ -3581,6 +3848,15 @@
       try {
         const r = await fetch('/api/funkira/wake-poll');
         const d = await r.json();
+        // Self-healing auto-rearm if local Sense daemon restarted and lost wantListening=true!
+        if (d && d.ok && d.wantListening === false && !d.triggered && !fkTikTokLiveMode && !fkWakeRearmInFlight) {
+          fkWakeRearmInFlight = true;
+          fetch('/api/funkira/wake-mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: true })
+          }).catch(() => {}).finally(() => { fkWakeRearmInFlight = false; });
+        }
         if (funkiraStageOpen && fkIdleAtelierMode && window.Funkira3D?.currentRoom) {
           const rm = window.Funkira3D.currentRoom;
           const ws = window.Funkira3D.worldState || {};
@@ -3616,7 +3892,7 @@
           }
         }
       } catch { }
-    }, 420);
+    }, 260);
   }
 
   async function enterFunkiraZeroTokenAtelierMode() {
@@ -3639,11 +3915,11 @@
     document.getElementById('funkira-ai-line').textContent = 'Ich gehe gerade gemütlich meinen kleinen Dingen im Haus nach und bin jederzeit sofort für dich da, sobald du mich ansprichst!';
     reportStageStateToBackend();
 
-    // 3. Arm local German wake-word listener
+    // 3. Arm local German wake-word listener immediately after releasing PipeWire capture
     setTimeout(() => {
       if (!funkiraStageOpen || !fkIdleAtelierMode) return;
       armOfflineWakeWordListener();
-    }, 480);
+    }, 180);
   }
 
   async function wakeFunkiraFromAtelier(reason = 'wake_word', pendingTextPrompt = '') {
@@ -3973,27 +4249,15 @@
 
         if (sc.turnComplete || sc.generationComplete) {
           fkGenComplete = true;
+          if (fkPlayerNode) {
+            try { fkPlayerNode.port.postMessage({ type: 'flush' }); } catch { }
+          }
           if (fkCurrentUserText) {
             maybeTriggerReflexMoveFromUserTurn(fkCurrentUserText);
           }
           fkCurrentUserText = '';
-          if (fkActiveSources.length === 0) {
-            fkGenComplete = false;
-            fkIsSpeaking = false;
-            fkIsAiTurn = false;
-            fkLastSpeechEndMs = Math.max(fkLastSpeechEndMs, Date.now());
-            fkLastInteractionMs = Date.now();
-            if (fkIdlePromptAsked && fkIdlePromptFinishMs === 0) {
-              fkIdlePromptFinishMs = Date.now();
-            }
-            if (!fkIdleAtelierMode) {
-              setFunkiraStatusUi(
-                fkPhoneCallActive ? `📞 Telefonat mit ${fkPhoneCallerLabel || 'Anrufer'}` : `Funkira hört zu · Atelier Stufe ${fkLatestShopLevel}`,
-                'online'
-              );
-            }
-            calmFunkiraEmotionAfterTurn(false);
-            flushPendingUiAfterSpeech();
+          if (!isFunkiraAudioCurrentlyPlaying()) {
+            finishFunkiraSpeechTurn();
           }
         }
       }
@@ -4096,7 +4360,7 @@
     if (fkIdleMonitorInterval) clearInterval(fkIdleMonitorInterval);
     fkIdleMonitorInterval = setInterval(() => {
       if (!funkiraStageOpen || fkIdleAtelierMode || fkTikTokLiveMode || fkPhoneCallActive || !fkSetupComplete) return;
-      if (fkIsSpeaking || fkIsAiTurn || fkActiveSources.length > 0 || fkToolRunning) return;
+      if (fkIsSpeaking || fkIsAiTurn || isFunkiraAudioCurrentlyPlaying() || fkToolRunning) return;
 
       const now = Date.now();
       if (!fkIdlePromptAsked && (now - fkLastInteractionMs) >= 60000) {
@@ -4206,7 +4470,11 @@
       document.getElementById('funkira-ai-line').textContent = replyText;
       inferFunkiraExpressFromText(replyText, false);
       if (data.audio) {
+        fkGenComplete = true;
         playFunkiraPcm24k(data.audio);
+        if (fkPlayerNode) {
+          try { fkPlayerNode.port.postMessage({ type: 'flush' }); } catch { }
+        }
       }
     } catch (e) {
       document.getElementById('funkira-ai-line').textContent = 'Netzwerkfehler: ' + e.message;
@@ -5691,7 +5959,9 @@
   async function pollPortalPulse() {
     try {
       const res = await fetch('/api/pulse');
+      if (!res.ok) return;
       const data = await res.json();
+      if (!data || !data.pulse) return;
       latestPulseData = data;
       if (!focusInitApplied) {
         focusInitApplied = true;
@@ -5815,7 +6085,7 @@
             || (!fkOwnerFaceEnrolled && !fkOwnerVoiceEnrolled);
 
           if (funkiraStageOpen && !fkIdleAtelierMode && fkSetupComplete && fkWs && fkWs.readyState === WebSocket.OPEN) {
-            const quietLongEnough = !fkIsSpeaking && !fkIsAiTurn && fkActiveSources.length === 0 && !fkToolRunning && ((nowMs - fkLastInteractionMs) >= 9000);
+            const quietLongEnough = !fkIsSpeaking && !fkIsAiTurn && !isFunkiraAudioCurrentlyPlaying() && !fkToolRunning && ((nowMs - fkLastInteractionMs) >= 9000);
             if (ownerVerified && quietLongEnough) {
               fkLastClientOrderCheckinKey = stKey;
               fkLastClientOrderCheckinMs = nowMs;
@@ -5968,36 +6238,42 @@
   document.getElementById('btn-submit-login').addEventListener('click', async () => {
     const statusEl = document.getElementById('login-status-msg');
     statusEl.textContent = 'Verbinde...';
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        env: document.getElementById('login-env').value,
-        email: document.getElementById('login-email').value,
-        password: document.getElementById('login-password').value,
-        twoFactorCode: document.getElementById('login-2fa').value
-      })
-    });
-    const out = await res.json();
-    if (out.twoFactorRequired) {
-      document.getElementById('login-2fa').classList.remove('hidden');
-      statusEl.textContent = out.message;
-      return;
-    }
-    if (out.success) {
-      statusEl.textContent = '✓ Verbunden';
-      modalOverlay.classList.add('hidden');
-      fkLocalResilientMode = false;
-      fkLocalResilientAuthError = false;
-      await pollPortalPulse();
-      if (funkiraStageOpen && !fkIdleAtelierMode) {
-        connectFunkiraLiveWebSocket('manual', 'Ich habe mich gerade frisch im Portal angemeldet. Bestätige mir in einem kurzen Satz, dass du wieder voll online verbunden bist!');
-      } else if (pendingOpenFunkiraAfterLogin) {
-        pendingOpenFunkiraAfterLogin = false;
-        openFunkiraStage();
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          env: document.getElementById('login-env').value,
+          email: document.getElementById('login-email').value,
+          password: document.getElementById('login-password').value,
+          twoFactorCode: document.getElementById('login-2fa').value
+        })
+      });
+      const out = await res.json();
+      if (out.twoFactorRequired) {
+        document.getElementById('login-2fa').classList.remove('hidden');
+        statusEl.textContent = out.message;
+        return;
       }
-    } else {
-      statusEl.textContent = out.message || 'Fehler';
+      if (out.success) {
+        statusEl.textContent = '✓ Verbunden';
+        modalOverlay.classList.add('hidden');
+        fkLocalResilientMode = false;
+        fkLocalResilientAuthError = false;
+        await pollPortalPulse();
+        if (funkiraStageOpen && !fkIdleAtelierMode) {
+          connectFunkiraLiveWebSocket('manual', 'Ich habe mich gerade frisch im Portal angemeldet. Bestätige mir in einem kurzen Satz, dass du wieder voll online verbunden bist!');
+        } else if (pendingOpenFunkiraAfterLogin) {
+          pendingOpenFunkiraAfterLogin = false;
+          openFunkiraStage();
+        }
+      } else {
+        statusEl.textContent = out.message || (out.error === 'unauthorized_kiosk_session'
+          ? 'Lokale Sitzung erneuert, bitte noch einmal klicken.'
+          : (out.error || 'Anmeldung fehlgeschlagen.'));
+      }
+    } catch (err) {
+      statusEl.textContent = 'Verbindungsfehler: ' + (err?.message || 'Unbekannt');
     }
   });
 

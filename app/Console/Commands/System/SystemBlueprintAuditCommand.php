@@ -11,7 +11,9 @@ class SystemBlueprintAuditCommand extends Command
                             {--export-vvt : Generiert das aktuelle Art. 30 DSGVO Verarbeitungsverzeichnis als Markdown}
                             {--json : Gibt das Audit-Ergebnis als JSON aus}';
 
-    protected $description = 'Prüft alle Eloquent-Models auf ein gültiges Architektur- & Compliance-Typenschild (ModelBlueprint), alarmiert bei Verstößen per SystemLog/Mail und erstellt auf Wunsch das DSGVO-Verarbeitungsverzeichnis (Art. 30).';
+    protected $aliases = ['system:blueprint-audit'];
+
+    protected $description = 'Prüft alle Eloquent-Models auf ein gültiges Architektur- & Compliance-Typenschild (ModelBlueprint), erzeugt bei Verstößen ein zentrales Ticket und erstellt auf Wunsch das DSGVO-Verarbeitungsverzeichnis (Art. 30).';
 
     public function handle(SystemBlueprintService $blueprintService): int
     {
@@ -19,6 +21,11 @@ class SystemBlueprintAuditCommand extends Command
 
         if (!$audit['is_fully_compliant']) {
             $blueprintService->reportArchitectureAuditViolations($audit);
+        } else {
+            \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                'blueprint_audit:',
+                'Erneuter Architektur-Blueprint-Scan bestätigte 100 % Konformität aller ' . ($audit['total_models'] ?? 0) . ' Models.'
+            );
         }
 
         if ($this->option('json')) {
@@ -47,7 +54,7 @@ class SystemBlueprintAuditCommand extends Command
         );
 
         if (!empty($audit['violations'])) {
-            $this->error('Folgende Architektur-Verstöße wurden festgestellt (SystemLog & Admin-Mail wurden ausgelöst):');
+            $this->error('Folgende Architektur-Verstöße wurden festgestellt (SystemLog & Universum-Ticket wurden ausgelöst):');
             foreach ($audit['violations'] as $violation) {
                 $this->line("  - {$violation}");
             }

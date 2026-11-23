@@ -59,6 +59,66 @@ class StripeAgentExecutionService
     }
 
     /**
+     * Stellt idempotent sicher, dass alle Stripe-Autonomie-Einstellungen und Executive-Tools
+     * (mit harter Supporter/Funki Air-Gap-Trennung) in der Datenbank registriert sind.
+     */
+    public function ensureAutonomyDefaultsAndTools(): void
+    {
+        if (Schema::hasTable('shop_settings')) {
+            $defaultSettings = [
+                'stripe_agent_autonomy_enabled' => 'true',
+                'stripe_agent_auto_refund_limit_cents' => '25000',
+                'stripe_agent_daily_refund_cap_cents' => '100000',
+            ];
+
+            foreach ($defaultSettings as $key => $value) {
+                SystemSetting::firstOrCreate(
+                    ['key' => $key],
+                    ['value' => $value]
+                );
+            }
+
+            \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+        }
+
+        if (Schema::hasTable('ai_tools') && class_exists(\App\Services\AI\AIFunctionsRegistry::class)) {
+            $stripeSchemas = \App\Services\AI\AIFunctionsRegistry::getAiStripeFuncsSchema();
+            $stripeToolIds = [];
+
+            foreach ($stripeSchemas as $fn) {
+                $identifier = (string) ($fn['name'] ?? '');
+                if ($identifier === '') {
+                    continue;
+                }
+
+                $tool = \App\Models\Ai\AiTool::updateOrCreate(
+                    ['identifier' => $identifier],
+                    [
+                        'name' => ucwords(str_replace('_', ' ', $identifier)),
+                        'description' => (string) ($fn['description'] ?? 'Autonomes Stripe-Werkzeug'),
+                    ]
+                );
+
+                $stripeToolIds[] = $tool->id;
+            }
+
+            if (!empty($stripeToolIds) && Schema::hasTable('ai_roles') && Schema::hasTable('ai_role_tool')) {
+                $executiveRoles = \App\Models\Ai\AiRole::whereIn('name', ['Teamleiter'])->get();
+                foreach ($executiveRoles as $role) {
+                    $role->tools()->syncWithoutDetaching($stripeToolIds);
+                }
+
+                $supporterRole = \App\Models\Ai\AiRole::where('name', 'Supporter')->first();
+                if ($supporterRole) {
+                    $supporterRole->tools()->detach($stripeToolIds);
+                }
+            }
+
+            \Illuminate\Support\Facades\Cache::forget('ai_agent_capabilities_map');
+        }
+    }
+
+    /**
      * Liest eine Systemeinstellung frisch aus shop_settings (mit Fallback auf shop_setting),
      * damit Änderungen an Sicherheitslimits sofort ohne Cache-Verzögerung greifen.
      */

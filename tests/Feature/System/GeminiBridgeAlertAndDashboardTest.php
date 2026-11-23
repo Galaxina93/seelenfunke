@@ -177,19 +177,19 @@ class GeminiBridgeAlertAndDashboardTest extends TestCase
                 (string) ($outageLog->payload['ssh_restart_cmd'] ?? '')
             );
 
-            // 2. Warn-Mail ging exakt 1x an kontakt@mein-seelenfunke.de raus
-            Mail::assertSent(AiAgentMessageMail::class, 1);
-            Mail::assertSent(AiAgentMessageMail::class, function (AiAgentMessageMail $mail): bool {
-                return $mail->hasTo('kontakt@mein-seelenfunke.de')
-                    && str_contains((string) $mail->messageSubject, 'a-yeq7el')
-                    && str_contains((string) $mail->messageContent, 'mittnitectl job restart');
-            });
+            // 2. Kein E-Mail-Spam; stattdessen exakt 1 dublettenfreies Universum-Ticket angelegt
+            Mail::assertNothingSent();
+            $bridgeTicket = \App\Models\Ai\AiUniverseTicket::where('error_fingerprint', 'sys_alert:bridge_outage:gemini_live')->first();
+            $this->assertNotNull($bridgeTicket);
+            $this->assertStringContainsString('a-yeq7el', (string) $bridgeTicket->title);
+            $this->assertStringContainsString('mittnitectl job restart', (string) $bridgeTicket->messages()->first()?->content);
 
-            // Zweiter Triage-Zyklus während derselben Ausfall-Episode: occurrences_count steigt, aber KEIN Mail-/Push-Spam!
+            // Zweiter Triage-Zyklus während derselben Ausfall-Episode: occurrences_count steigt, aber KEIN Mail-/Ticket-Spam!
             $sentinel->runTriageCycle(probeBridges: true, allowAiEnrichment: false);
             $outageLog->refresh();
             $this->assertSame(2, (int) ($outageLog->payload['occurrences_count'] ?? 0));
-            Mail::assertSent(AiAgentMessageMail::class, 1);
+            Mail::assertNothingSent();
+            $this->assertSame(1, \App\Models\Ai\AiUniverseTicket::where('error_fingerprint', 'sys_alert:bridge_outage:gemini_live')->count());
 
             // 3. MasterAnalytics zeigt sofort die rote Warn-Kachel ganz oben im Operativen Status
             $admin = Admin::factory()->create();
@@ -217,6 +217,7 @@ class GeminiBridgeAlertAndDashboardTest extends TestCase
             $this->assertSame('auto_healed', $outageLog->triageState());
             $this->assertStringStartsWith('[AUTO-GEHEILT]', (string) $outageLog->title);
             $this->assertSame(0, SystemLog::openIssues()->where('action_id', 'like', 'sentinel:bridge_down:%')->count());
+            $this->assertSame(\App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED, $bridgeTicket->fresh()->status);
 
             $recoveredDashboard = Livewire::actingAs($admin, 'admin')
                 ->test(MasterAnalytics::class);
@@ -282,6 +283,10 @@ class GeminiBridgeAlertAndDashboardTest extends TestCase
             'ssh kontakt@mein-seelenfunke.de@a-iurgq8@ssh.altgemeinde.project.host "mittnitectl job restart"',
             (string) ($twilioLog->payload['ssh_restart_cmd'] ?? '')
         );
-        Mail::assertSent(AiAgentMessageMail::class, 1);
+        Mail::assertNothingSent();
+        $this->assertSame(
+            1,
+            \App\Models\Ai\AiUniverseTicket::where('error_fingerprint', 'sys_alert:bridge_outage:twilio_reverb')->count()
+        );
     }
 }

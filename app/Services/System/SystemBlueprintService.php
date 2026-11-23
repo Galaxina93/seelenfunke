@@ -465,38 +465,46 @@ class SystemBlueprintService
                 $payload
             );
 
-            $throttleKey = 'blueprint_guardrail_mail_throttle_' . md5($modelClass . '_' . $opLabel);
-            $subject = "⚠️ BLUEPRINT KI-GUARDRAIL ALARM: {$opLabel}-Blockade auf {$shortModel}";
+            $alertKey = 'blueprint_guardrail:' . md5($modelClass . '_' . $opLabel);
+            $subject = "Blueprint KI-Guardrail Alarm: {$opLabel}-Blockade auf {$shortModel}";
 
-            $body = "Hallo Admin,\n\n";
-            $body .= "Das Architektur-Blueprint-Schutzschild hat einen unzulässigen KI-Zugriffsversuch im System sofort abgefangen und blockiert.\n\n";
-            $body .= "--- Details des Vorfalls ---\n";
-            $body .= "Blockierte Aktion: KI-" . $opLabel . "\n";
-            $body .= "Betroffenes Model: {$modelClass} ({$blueprint->label})\n";
-            $body .= "Fachabteilung: {$blueprint->department->label()}\n";
-            $body .= "KI-Guardrail-Richtlinie: {$blueprint->aiAccess->label()}\n";
-            $body .= "Aufbewahrungsregel: {$blueprint->retention->label()}\n";
-            $body .= "GoBD-Festschreibung: " . ($blueprint->isGoBdProtected() ? 'JA (10 Jahre geschützt)' : 'Nein') . "\n";
-            $body .= "Zeitpunkt: " . now()->format('d.m.Y H:i:s') . " Uhr\n\n";
+            $body = "Das Architektur-Blueprint-Schutzschild hat einen unzulässigen KI-Zugriffsversuch im System sofort abgefangen und blockiert.\n\n";
+            $body .= "**Details des Vorfalls**\n";
+            $body .= "- **Blockierte Aktion:** KI-{$opLabel}\n";
+            $body .= "- **Betroffenes Model:** `{$modelClass}` ({$blueprint->label})\n";
+            $body .= "- **Fachabteilung:** {$blueprint->department->label()}\n";
+            $body .= "- **KI-Guardrail-Richtlinie:** {$blueprint->aiAccess->label()}\n";
+            $body .= "- **Aufbewahrungsregel:** {$blueprint->retention->label()}\n";
+            $body .= "- **GoBD-Festschreibung:** " . ($blueprint->isGoBdProtected() ? 'JA (10 Jahre geschützt)' : 'Nein') . "\n";
+            $body .= "- **Zeitpunkt:** " . now()->format('d.m.Y H:i:s') . " Uhr\n\n";
 
-            $body .= "--- Automatische Ursachen-Analyse (Diagnose) ---\n";
-            $body .= "Kategorie: " . ($diagnosis['category'] ?? 'blueprint_guardrail_or_compliance') . "\n";
-            $body .= "Wahrscheinliche Ursache: " . ($diagnosis['probable_cause'] ?? '-') . "\n";
-            $body .= "Empfohlene Maßnahme: " . ($diagnosis['recommended_action'] ?? '-') . "\n\n";
+            $body .= "**Automatische Ursachen-Analyse**\n";
+            $body .= "- **Kategorie:** " . ($diagnosis['category'] ?? 'blueprint_guardrail_or_compliance') . "\n";
+            $body .= "- **Wahrscheinliche Ursache:** " . ($diagnosis['probable_cause'] ?? '-') . "\n";
+            $body .= "- **Empfohlene Maßnahme:** " . ($diagnosis['recommended_action'] ?? '-') . "\n\n";
 
-            $body .= "--- Ausführungskontext & Server-Umgebung ---\n";
-            $body .= "Modus: " . strtoupper((string) ($execContext['mode'] ?? 'cli')) . "\n";
+            $body .= "**Ausführungskontext & Server-Umgebung**\n";
+            $body .= "- **Modus:** " . strtoupper((string) ($execContext['mode'] ?? 'cli')) . "\n";
             if (($execContext['mode'] ?? '') === 'http') {
-                $body .= "URL / Route: " . ($execContext['url'] ?? '-') . " (" . ($execContext['route'] ?? '-') . ")\n";
-                $body .= "Client-IP: " . ($execContext['ip'] ?? '-') . "\n";
+                $body .= "- **URL / Route:** `" . ($execContext['url'] ?? '-') . "` (" . ($execContext['route'] ?? '-') . ")\n";
+                $body .= "- **Client-IP:** `" . ($execContext['ip'] ?? '-') . "`\n";
             } else {
-                $body .= "Befehl: " . ($execContext['command'] ?? '-') . "\n";
+                $body .= "- **Befehl:** `" . ($execContext['command'] ?? '-') . "`\n";
             }
-            $body .= "Laravel Env: " . ($serverEnv['app_env'] ?? '-') . " | PHP: " . ($serverEnv['php_version'] ?? PHP_VERSION) . "\n\n";
-            $body .= "Der Schreib-/Lesevorgang wurde vor einer Datenbankänderung hart abgebrochen. Es sind keine Daten beschädigt worden.\n\n";
-            $body .= "Herzliche Grüße,\nFunkira ✨ (System-Überwachung)";
+            $body .= "- **Laravel Env:** `" . ($serverEnv['app_env'] ?? '-') . "` | **PHP:** `" . ($serverEnv['php_version'] ?? PHP_VERSION) . "`\n\n";
+            $body .= "Der Schreib-/Lesevorgang wurde vor einer Datenbankänderung hart abgebrochen. Es sind keine Daten beschädigt worden.";
 
-            $this->sendThrottledAdminAlertMail($throttleKey, $subject, $body);
+            $this->dispatchSystemAlertTicket(
+                alertKey: $alertKey,
+                title: $subject,
+                body: $body,
+                ticketType: 'security_guardrail',
+                assignToAntigravity: true,
+                extraPayload: [
+                    'model_class' => $modelClass,
+                    'blocked_operation' => $opLabel,
+                ]
+            );
         } catch (\Throwable $e) {
             Log::error('Failed to report Blueprint guardrail violation: ' . $e->getMessage());
         }
@@ -504,7 +512,7 @@ class SystemBlueprintService
 
     /**
      * Protokolliert festgestellte Architektur- oder Compliance-Verstöße beim Blueprint-Scan
-     * im SystemLog und benachrichtigt den Admin per E-Mail (analog zum WebSocket-Monitor).
+     * im SystemLog und legt zentral ein dublettenfreies Universum-Ticket an (kein E-Mail-Spam).
      */
     public function reportArchitectureAuditViolations(array $audit): void
     {
@@ -534,61 +542,65 @@ class SystemBlueprintService
                 'finished_at' => now(),
             ]);
 
-            $throttleKey = 'blueprint_audit_mail_throttle_' . md5(implode('|', $violations));
-            $subject = "⚠️ ARCHITEKTUR-BLUEPRINT VERSTOSS: {$violationCount} Abweichung(en) erkannt";
+            $alertKey = 'blueprint_audit:' . md5(implode('|', $violations));
+            $subject = "Architektur-Blueprint Verstoß: {$violationCount} Abweichung(en) erkannt";
 
-            $body = "Hallo Admin,\n\n";
-            $body .= "Beim automatischen Architektur- & Compliance-Scan des Projekt-Gehirns wurden Abweichungen vom Seelenfunke-Blueprint-Standard festgestellt.\n\n";
-            $body .= "--- Zusammenfassung ---\n";
-            $body .= "Konforme Models: " . ($audit['compliant_models'] ?? 0) . " / " . ($audit['total_models'] ?? 0) . "\n";
-            $body .= "Festgestellte Verstöße: {$violationCount}\n";
-            $body .= "Zeitpunkt: " . now()->format('d.m.Y H:i:s') . " Uhr\n\n";
+            $body = "Beim automatischen Architektur- und Compliance-Scan des Projekt-Gehirns wurden Abweichungen vom Seelenfunke-Blueprint-Standard festgestellt.\n\n";
+            $body .= "**Zusammenfassung**\n";
+            $body .= "- **Konforme Models:** " . ($audit['compliant_models'] ?? 0) . " / " . ($audit['total_models'] ?? 0) . "\n";
+            $body .= "- **Festgestellte Verstöße:** {$violationCount}\n";
+            $body .= "- **Zeitpunkt:** " . now()->format('d.m.Y H:i:s') . " Uhr\n\n";
 
-            $body .= "--- Details der Verstöße ---\n";
+            $body .= "**Details der Verstöße**\n";
             foreach ($violations as $idx => $v) {
                 $body .= ($idx + 1) . ". {$v}\n";
             }
-            $body .= "\nBitte ergänze das fehlende oder fehlerhafte blueprint()-Typenschild in den betroffenen Models und führe `php artisan system:blueprint:audit` aus.\n\n";
-            $body .= "Herzliche Grüße,\nFunkira ✨ (System-Überwachung)";
+            $body .= "\nBitte ergänze das fehlende oder fehlerhafte `blueprint()`-Typenschild in den betroffenen Models und führe `php artisan system:blueprint:audit` aus.";
 
-            $this->sendThrottledAdminAlertMail($throttleKey, $subject, $body);
+            $this->dispatchSystemAlertTicket(
+                alertKey: $alertKey,
+                title: $subject,
+                body: $body,
+                ticketType: 'architecture_audit',
+                assignToAntigravity: true,
+                extraPayload: [
+                    'violation_count' => $violationCount,
+                    'missing_blueprints' => $missing,
+                    'violations' => $violations,
+                ]
+            );
         } catch (\Throwable $e) {
             Log::error('Failed to report Blueprint architecture audit violations: ' . $e->getMessage());
         }
     }
 
     /**
-     * Versendet eine System-Warnmail an die hinterlegte Admin-Adresse mit 15-Minuten-Throttling
-     * gegen Mail-Bombing (identische Projektlogik wie beim WebSocket-Monitor).
+     * Erzeugt oder aktualisiert ein dublettenfreies zentrales Universum-Ticket statt E-Mails zu versenden.
+     *
+     * @param array<string, mixed> $extraPayload
      */
-    protected function sendThrottledAdminAlertMail(string $throttleKey, string $subject, string $body): void
-    {
-        $shouldSendMail = true;
+    protected function dispatchSystemAlertTicket(
+        string $alertKey,
+        string $title,
+        string $body,
+        string $ticketType = 'architecture_audit',
+        bool $assignToAntigravity = true,
+        array $extraPayload = []
+    ): void {
         try {
-            if (Cache::has($throttleKey)) {
-                $shouldSendMail = false;
-            } else {
-                Cache::put($throttleKey, true, now()->addMinutes(15));
-            }
-        } catch (\Throwable) {
-            $shouldSendMail = true;
-        }
-
-        if (!$shouldSendMail) {
-            return;
-        }
-
-        try {
-            $recipient = 'kontakt@mein-seelenfunke.de';
-            if (function_exists('shop_setting')) {
-                $recipient = shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
-            }
-
-            Mail::to($recipient)->send(
-                new AiAgentMessageMail($subject, $body, 'Funkira', [], 'generic')
+            SystemAlertTicketService::upsertSystemTicket(
+                alertKey: $alertKey,
+                title: $title,
+                markdownBody: $body,
+                departmentName: 'System',
+                agentName: 'Systemi',
+                ticketType: $ticketType,
+                priority: 'high',
+                assignToAntigravity: $assignToAntigravity,
+                extraPayload: $extraPayload
             );
-        } catch (\Throwable $mailEx) {
-            Log::error('Failed to send Blueprint alert mail: ' . $mailEx->getMessage());
+        } catch (\Throwable $ticketEx) {
+            Log::error('Failed to dispatch Blueprint alert ticket: ' . $ticketEx->getMessage());
         }
     }
 }

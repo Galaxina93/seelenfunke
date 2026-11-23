@@ -54,8 +54,12 @@ class FunkiraTicketRouter
             ];
         }
 
+        $isAdminActor = AiUniverseTicket::isStrictAdminActor()
+            || ($presence['environment_tier'] === FunkiraPresenceContext::ENV_TESTING && !auth()->check());
+
+        $negatesAntigravity = self::mentionsNegatedAntigravity($cleanPrompt);
         $mentionedAgents = self::extractMentionedAgents($cleanPrompt);
-        $mentionsAntigravity = $mentionedAgents->contains(
+        $mentionsAntigravity = !$negatesAntigravity && $mentionedAgents->contains(
             static fn (AiAgent $ag): bool => strcasecmp((string) $ag->name, 'Antigravity') === 0
         );
         $mentionedSpecialists = $mentionedAgents
@@ -64,6 +68,15 @@ class FunkiraTicketRouter
 
         // 2. Falls kein explizites Ticket übergeben wurde: Prüfe, ob eine 1-Wort-Bestätigung ("Ja", "Go", "Freigeben") zu einem offenen Rückfrage-Ticket gehört
         $targetTicket = self::resolveExistingOrPendingReplyTicket($existingTicketId, $cleanPrompt);
+        if ($targetTicket && !$targetTicket->is_business && !$isAdminActor) {
+            return [
+                'status' => 'forbidden_private_ticket',
+                'mode' => 'noop',
+                'reply' => 'Zugriff verweigert: Private Tickets sind ausschließlich für die Geschäftsführung sichtbar.',
+                'ticket' => null,
+                'presence' => $presence,
+            ];
+        }
         if ($targetTicket && $targetTicket->status === AiUniverseTicket::STATUS_WAITING_FOR_ALINA) {
             $tp = is_array($targetTicket->action_payload) ? $targetTicket->action_payload : [];
             $isOnlySpecialistMention = $mentionedSpecialists->isNotEmpty() && !$mentionsAntigravity;
@@ -119,10 +132,15 @@ class FunkiraTicketRouter
         }
 
         $isNewTicket = ($targetTicket === null);
+        $hasIsBusinessCol = Schema::hasTable('ai_universe_tickets') && Schema::hasColumn('ai_universe_tickets', 'is_business');
+        $resolvedIsBusiness = $isAdminActor ? (bool) ($triage['is_business'] ?? true) : true;
+
         if ($isNewTicket) {
             $titlePrefix = $presence['environment_tier'] === FunkiraPresenceContext::ENV_STAGE ? '[STAGE] ' : '';
-            $assignAgInitially = $mentionsAntigravity || ($triage['assign_antigravity'] && $mentionedSpecialists->isEmpty());
-            $targetTicket = AiUniverseTicket::create([
+            $assignAgInitially = $resolvedIsBusiness
+                && !$negatesAntigravity
+                && ($mentionsAntigravity || ($triage['assign_antigravity'] && $mentionedSpecialists->isEmpty()));
+            $createData = [
                 'ticket_number' => AiUniverseTicket::generateNextTicketNumber(),
                 'title' => Str::limit($titlePrefix . self::buildCleanTitle($cleanPrompt, $triage['ticket_type']), 180),
                 'status' => AiUniverseTicket::STATUS_IN_PROGRESS,
@@ -136,12 +154,19 @@ class FunkiraTicketRouter
                 'messages_count' => 0,
                 'presence_snapshot' => $presence,
                 'last_activity_at' => now(),
-            ]);
+            ];
+            if ($hasIsBusinessCol) {
+                $createData['is_business'] = $resolvedIsBusiness;
+            }
+            $targetTicket = AiUniverseTicket::create($createData);
         } else {
             $updates = [
                 'presence_snapshot' => $presence,
                 'last_activity_at' => now(),
             ];
+            if ($hasIsBusinessCol && $isAdminActor && self::explicitlyMarksAsPrivate($cleanPrompt)) {
+                $updates['is_business'] = false;
+            }
 
             if ($primaryMentioned !== null) {
                 $updates['assigned_agent_id'] = $primaryMentioned->id;
@@ -258,6 +283,8 @@ class FunkiraTicketRouter
             'complete' => self::setManualTicketStatus($ticket, AiUniverseTicket::STATUS_COMPLETED, $channel),
             'archive' => self::setManualTicketStatus($ticket, AiUniverseTicket::STATUS_ARCHIVED, $channel),
             'reopen' => self::setManualTicketStatus($ticket, AiUniverseTicket::STATUS_IN_PROGRESS, $channel),
+            'toggle_business_scope' => self::setTicketBusinessScope($ticket, !((bool) ($ticket->is_business ?? true)), $channel),
+            'set_business_scope' => self::setTicketBusinessScope($ticket, (bool) ($params['is_business'] ?? true), $channel),
             default => [
                 'status' => 'error',
                 'reply' => "Unbekannte Ticket-Aktion '{$action}'.",
@@ -342,9 +369,78 @@ class FunkiraTicketRouter
     }
 
     /**
-     * Deterministische 0-Token Klassifizierung für Abteilung & zuständigen Agenten.
+     * Erkennt explizite Verneinungen wie "nicht an Antigravity melden" oder "ohne Antigravity".
+     */
+    public static function mentionsNegatedAntigravity(string $prompt): bool
+    {
+        return (bool) preg_match(
+            '/\b(nicht|kein\w*|ohne|niemals|bitte\s+nicht)\b[^.!?\n]{0,45}\bantigravity\b/iu',
+            $prompt
+        );
+    }
+
+    /**
+     * Prüft, ob eine Nachricht explizit als privat deklariert wird.
+     */
+    public static function explicitlyMarksAsPrivate(string $prompt): bool
+    {
+        return (bool) preg_match(
+            '/\b(privat(?:es|er|en)?\s+ticket|als\s+privat|rein\s+privat|nicht\s+im\s+gewerbebereich|nicht\s+gewerblich|privatbereich|privathaushalt)\b/iu',
+            $prompt
+        );
+    }
+
+    /**
+     * Prüft in 0 Tokens, ob es sich um ein physisches Haus-/Wohn-/Gesundheits-/Alltagsthema handelt,
+     * das KEIN Software-, Code-, Shop-, App-, Server- oder Mini-PC-Entwicklungsauftrag für Antigravity ist.
+     */
+    public static function isPhysicalOrPrivateNonCodeTopic(string $text): bool
+    {
+        $lower = mb_strtolower($text);
+
+        // Wenn explizit Code/Software/Systemarchitektur gefordert wird, ist es ein echter Technik-Auftrag
+        if (preg_match('/\b(code|livewire|blade|migration|seeder|phpunit|bugfix|komponente|ticketlogik|datenbank|endpoint|controller|css|javascript|three\.js|apk|kotlin|csharp|wpf|cronjob|nginx|ssh)\b/iu', $lower)) {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/\b(wasserschaden|wasserfleck|durch\s+die\s+decke|dachfenster|dachboden|schimmel|rohrbruch|wasseruhr|heizungsdruck|badezimmer|\bim\s+bad\b|dachrinne|ziegel|dampfbremse|sicherungskasten|wohngebäude\w*|barmenia|hausrat\w*|mieterin|frau\s+keller|heike\s+janny|grundsteuer|schmutzwasser|zahnarzt\w*|zahnzusatz\w*|arzttermin\w*|medikament\w*|krankenkasse|bkk\s+firmus|renteninfo\w*|arbeitslosenversicherung|gründungszuschuss|unterhalt|\bnoah\b)\b/iu',
+            $lower
+        );
+    }
+
+    /**
+     * Erkennt in 0 Tokens, ob eine Anfrage in den privaten Lebensbereich (is_business = false)
+     * statt in den Gewerbebetrieb Mein-Seelenfunke (is_business = true) gehört.
+     */
+    public static function detectIsBusinessScope(string $prompt): bool
+    {
+        if (self::explicitlyMarksAsPrivate($prompt)) {
+            return false;
+        }
+
+        $lower = mb_strtolower($prompt);
+
+        // Explizit gewerblicher Kontext hat Vorrang (sofern nicht als privat markiert)
+        if (preg_match('/\b(gewerblich\w*|betriebsausgabe\w*|mein-seelenfunke|manufaktur|kundenbestellung\w*|shop-bestellung\w*|konfigurator|xtool|lasergravur|produktseite|influencer|steuerberater-export|ustva|fyrst\s+geschäftskonto|hiscox|betriebshaftpflicht|verpackungslizenz)\b/iu', $lower)) {
+            return true;
+        }
+
+        if (self::isPhysicalOrPrivateNonCodeTopic($lower)) {
+            return false;
+        }
+
+        if (preg_match('/\b(privat(?:e|er|es|en)?\s+(?:ausgabe|rechnung|versicherung|termin|aufgabe|steuer|auto|haus)|alg\s*1|eltern\s+kommen|familienfeier|kinderarzt|schulferien|urlaubsplanung|reiseplanung)\b/iu', $lower)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Deterministische 0-Token Klassifizierung für Abteilung, zuständigen Agenten & Bereich (Gewerblich vs. Privat).
      *
-     * @return array{department_name: string, agent_name: string, ticket_type: string, priority: string, assign_antigravity: bool}
+     * @return array{department_name: string, agent_name: string, ticket_type: string, priority: string, assign_antigravity: bool, is_business: bool}
      */
     public static function classifyIntent(string $prompt, ?AiUniverseTicket $existingTicket = null): array
     {
@@ -355,19 +451,59 @@ class FunkiraTicketRouter
                 'ticket_type' => $existingTicket->ticket_type,
                 'priority' => $existingTicket->priority,
                 'assign_antigravity' => (bool) $existingTicket->assigned_to_antigravity,
+                'is_business' => (bool) ($existingTicket->is_business ?? true),
             ];
         }
 
         $lower = mb_strtolower($prompt);
+        $negatesAg = self::mentionsNegatedAntigravity($prompt);
+        $isBusiness = self::detectIsBusinessScope($prompt);
 
-        // Expliziter Antigravity-/Code-/Entwicklungs-Auftrag
-        if (preg_match('/\b(antigravity|programmier\w*|code\s+änder\w*|livewire|migration|seeder|bugfix|komponente\s+bauen)\b/iu', $lower)) {
+        // 1. Private Vorsorge-, Versicherungs-, Hausfinanz- & Steuer-Themen -> Buchi (Privat)
+        if (!$isBusiness && preg_match('/\b(wohngebäude\w*|barmenia|devk|hausrat\w*|privathaftpflicht|axa|zahnzusatz\w*|arbeitslosenversicherung|gründungszuschuss|alg\s*1|renteninfo\w*|rente\w*|mieterin|mieteinnahme\w*|frau\s+keller|heike\s+janny|grundsteuer|schmutzwasser|abfallgebühr\w*|rundfunkbeitrag|volksbank\s+kredit|unterhalt|autoversicherung|adac|beleg\w*|rechnung\w*)\b/iu', $lower)) {
+            return [
+                'department_name' => 'Buchhaltung',
+                'agent_name' => 'Buchi',
+                'ticket_type' => 'private_finance',
+                'priority' => 'normal',
+                'assign_antigravity' => false,
+                'is_business' => false,
+            ];
+        }
+
+        // 2. Private Gesundheit, Ärzte, Medikation & Tagesroutine -> Dr. Funki (Privat)
+        if (preg_match('/\b(medikament\w*|dosis|arzt\w*|zahnarzt\w*|praxis|krankenkasse|bkk\s+firmus|krankengeld|ga-op|lubos|eau\b|tagesroutine|pause\w*)\b/iu', $lower)) {
+            return [
+                'department_name' => 'Leitung',
+                'agent_name' => 'Dr. Funki',
+                'ticket_type' => $isBusiness ? 'management' : 'private_health',
+                'priority' => 'normal',
+                'assign_antigravity' => false,
+                'is_business' => false,
+            ];
+        }
+
+        // 3. Privathaus, Bad/Dachfenster/Wasserschaden, Familie & privater Alltag -> Funkira (Privat, KEIN Antigravity!)
+        if (!$isBusiness) {
+            return [
+                'department_name' => 'Leitung',
+                'agent_name' => 'Funkira',
+                'ticket_type' => 'private_household',
+                'priority' => preg_match('/\b(wasserschaden|rohrbruch|stromkabel|notfall|leck)\b/iu', $lower) ? 'high' : 'normal',
+                'assign_antigravity' => false,
+                'is_business' => false,
+            ];
+        }
+
+        // 4. Expliziter Antigravity-/Code-/Entwicklungs-Auftrag (nur wenn nicht verneint und gewerblich/technisch)
+        if (!$negatesAg && preg_match('/\b(antigravity|programmier\w*|code\s+änder\w*|ticketlogik|livewire|migration|seeder|bugfix|komponente\s+bauen)\b/iu', $lower)) {
             return [
                 'department_name' => 'System',
                 'agent_name' => 'Antigravity',
                 'ticket_type' => 'antigravity_dev',
                 'priority' => 'normal',
                 'assign_antigravity' => true,
+                'is_business' => true,
             ];
         }
 
@@ -379,6 +515,7 @@ class FunkiraTicketRouter
                 'ticket_type' => 'procurement',
                 'priority' => 'normal',
                 'assign_antigravity' => false,
+                'is_business' => true,
             ];
         }
 
@@ -390,6 +527,7 @@ class FunkiraTicketRouter
                 'ticket_type' => 'finance',
                 'priority' => 'normal',
                 'assign_antigravity' => false,
+                'is_business' => true,
             ];
         }
 
@@ -401,6 +539,7 @@ class FunkiraTicketRouter
                 'ticket_type' => 'laser',
                 'priority' => 'normal',
                 'assign_antigravity' => false,
+                'is_business' => true,
             ];
         }
 
@@ -413,6 +552,7 @@ class FunkiraTicketRouter
                 'ticket_type' => 'general',
                 'priority' => 'normal',
                 'assign_antigravity' => false,
+                'is_business' => true,
             ];
         }
 
@@ -424,6 +564,7 @@ class FunkiraTicketRouter
                 'ticket_type' => 'order',
                 'priority' => str_contains($lower, 'express') ? 'express' : 'normal',
                 'assign_antigravity' => false,
+                'is_business' => true,
             ];
         }
 
@@ -435,28 +576,19 @@ class FunkiraTicketRouter
                 'ticket_type' => 'marketing',
                 'priority' => 'normal',
                 'assign_antigravity' => false,
-            ];
-        }
-
-        // Gesundheit & Tagesroutine (Dr. Funki in Leitung)
-        if (preg_match('/\b(medikament\w*|dosis|arzt\w*|praxis|krankenkasse|bkk\s+firmus|krankengeld|tagesroutine|pause\w*)\b/iu', $lower)) {
-            return [
-                'department_name' => 'Leitung',
-                'agent_name' => 'Dr. Funki',
-                'ticket_type' => 'management',
-                'priority' => 'normal',
-                'assign_antigravity' => false,
+                'is_business' => true,
             ];
         }
 
         // Marktrecherche & Strategie (Globi in Leitung)
-        if (preg_match('/\b(marktrecherche|nischen\w*|wettbewerb\w*|konkurrenz|reiseplanung|urlaub)\b/iu', $lower)) {
+        if (preg_match('/\b(marktrecherche|nischen\w*|wettbewerb\w*|konkurrenz)\b/iu', $lower)) {
             return [
                 'department_name' => 'Leitung',
                 'agent_name' => 'Globi',
                 'ticket_type' => 'management',
                 'priority' => 'normal',
                 'assign_antigravity' => false,
+                'is_business' => true,
             ];
         }
 
@@ -468,6 +600,7 @@ class FunkiraTicketRouter
                 'ticket_type' => 'system_error',
                 'priority' => 'normal',
                 'assign_antigravity' => false,
+                'is_business' => true,
             ];
         }
 
@@ -478,6 +611,7 @@ class FunkiraTicketRouter
             'ticket_type' => 'management',
             'priority' => 'normal',
             'assign_antigravity' => false,
+            'is_business' => true,
         ];
     }
 
@@ -622,16 +756,21 @@ class FunkiraTicketRouter
             $openAi = VertexAiService::resolveOpenAiEndpoint();
             $hasLiveApiCredentials = !empty($openAi['token']) && ($presence['environment_tier'] !== FunkiraPresenceContext::ENV_TESTING);
 
+            $isBusinessTicket = (bool) ($ticket->is_business ?? true);
+
             if ($hasLiveApiCredentials && $activeAgent) {
                 $gemini = new GeminiAgent($activeAgent);
                 $header = FunkiraPresenceContext::toPromptHeader($presence);
+                $scopeHeader = $isBusinessTicket
+                    ? "\n[TICKET-KLASSIFIZIERUNG: GEWERBLICH (is_business=true) | Mein-Seelenfunke Betriebsvorgang.]"
+                    : "\n[TICKET-KLASSIFIZIERUNG: PRIVAT (is_business=false) | Privates Anliegen von Alina (Haus/Gesundheit/Familie/Vorsorge). NIEMALS ag_send_to_antigravity aufrufen! Antworte herzlich-empathisch und praxisnah anhand ihrer Vertrags- und Wissensdaten. Etwaige Belege/Ausgaben hieraus strikt mit is_business=false buchen!]";
                 $flatKnowledge = self::loadFlatDepartmentKnowledge($ticket->ai_department_id, $prompt, $activeAgent);
 
                 $voiceDirective = !empty($presence['is_voice_mode'])
                     ? "\n[SPRACHMODUS AKTIV]: Antworte in 1 bis 2 kurzen, natürlich sprechbaren Sätzen ohne Markdown-Tabellen."
                     : '';
 
-                $gemini->setDynamicSystemPrompt(trim($header . $voiceDirective . "\n\n" . $flatKnowledge));
+                $gemini->setDynamicSystemPrompt(trim($header . $scopeHeader . $voiceDirective . "\n\n" . $flatKnowledge));
 
                 $history = TicketAutoCompactService::buildPromptHistory($ticket);
                 if (empty($history)) {
@@ -649,16 +788,32 @@ class FunkiraTicketRouter
                     : (string) $askResult;
             } else {
                 // Deterministischer Offline-/Test-Fallback ohne unkontrollierte Token-Kosten
-                $rawReply = "Ticket {$ticket->ticket_number} ist in der Abteilung "
-                    . ($ticket->department?->name ?? 'Leitung')
-                    . " bei " . ($activeAgent?->name ?? 'Funkira')
-                    . " erfasst ({$presence['environment_tier']}). Soll ich den Punkt direkt ausführen oder an Antigravity übergeben?";
-                $executedTools[] = 'ticket_set_status_or_ask';
-                $prevPayload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
-                $ticket->update([
-                    'status' => AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
-                    'action_payload' => array_merge($prevPayload, ['type' => 'antigravity_handoff']),
-                ]);
+                if ($isBusinessTicket) {
+                    $rawReply = "Ticket {$ticket->ticket_number} ist in der Abteilung "
+                        . ($ticket->department?->name ?? 'Leitung')
+                        . " bei " . ($activeAgent?->name ?? 'Funkira')
+                        . " erfasst ({$presence['environment_tier']}). Soll ich den Punkt direkt ausführen oder an Antigravity übergeben?";
+                    $executedTools[] = 'ticket_set_status_or_ask';
+                    $prevPayload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+                    $ticket->update([
+                        'status' => AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
+                        'action_payload' => array_merge($prevPayload, ['type' => 'antigravity_handoff']),
+                    ]);
+                } else {
+                    $rawReply = "Privates Ticket {$ticket->ticket_number} ist in der Abteilung "
+                        . ($ticket->department?->name ?? 'Leitung')
+                        . " bei " . ($activeAgent?->name ?? 'Funkira')
+                        . " als Privat erfasst ({$presence['environment_tier']}). Sollen wir eine Erinnerung setzen oder den Punkt beobachten?";
+                    $executedTools[] = 'ticket_set_status_or_ask';
+                    $prevPayload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+                    $ticket->update([
+                        'status' => AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
+                        'action_payload' => array_merge($prevPayload, [
+                            'type' => 'private_followup',
+                            'options' => ['Beobachten', 'Erledigt'],
+                        ]),
+                    ]);
+                }
             }
         } finally {
             app()->forgetInstance('active_universe_ticket_id');
@@ -672,7 +827,7 @@ class FunkiraTicketRouter
         $ticket->refresh();
         $previousStatus = $ticket->status;
         $actionCard = null;
-        if (!empty($gate['suggest_antigravity_handoff']) && !AgentSkillBudgetGuard::isFunkiAgent($activeAgent)) {
+        if (!empty($gate['suggest_antigravity_handoff']) && (bool) ($ticket->is_business ?? true) && !AgentSkillBudgetGuard::isFunkiAgent($activeAgent)) {
             $budget = AgentSkillBudgetGuard::evaluateAgentSkillBudget($activeAgent);
             $dossier = AgentSkillBudgetGuard::formatAntigravitySkillGapDossier(
                 $budget,
@@ -1020,6 +1175,53 @@ class FunkiraTicketRouter
         ];
     }
 
+    public static function setTicketBusinessScope(AiUniverseTicket $ticket, bool $isBusiness, string $channel = 'web_portal'): array
+    {
+        if (!Schema::hasTable('ai_universe_tickets') || !Schema::hasColumn('ai_universe_tickets', 'is_business')) {
+            return [
+                'status' => 'noop',
+                'reply' => 'Bereichs-Spalte ist noch nicht aktiv.',
+                'ticket' => $ticket,
+            ];
+        }
+
+        $oldScope = (bool) ($ticket->is_business ?? true);
+        if ($oldScope === $isBusiness) {
+            return [
+                'status' => 'ok',
+                'reply' => 'Bereich ist bereits auf ' . AiUniverseTicket::getScopeLabel($isBusiness) . ' gesetzt.',
+                'ticket' => $ticket->fresh(['department', 'agent', 'messages']),
+            ];
+        }
+
+        $newLabel = AiUniverseTicket::getScopeLabel($isBusiness);
+        $note = "**Bereich -> {$newLabel}:** Ticket-Zuordnung manuell durch Alina umgestellt.";
+
+        AiUniverseTicketMessage::create([
+            'ticket_id' => $ticket->id,
+            'sender_role' => 'system',
+            'sender_name' => 'Alina',
+            'channel' => $channel,
+            'content' => $note,
+        ]);
+
+        $ticket->update([
+            'is_business' => $isBusiness,
+            'messages_count' => $ticket->messages()->count(),
+            'last_activity_at' => now(),
+        ]);
+
+        if ($ticket->status === AiUniverseTicket::STATUS_COMPLETED) {
+            CentralBrainService::recordTicketCompletionReport($ticket);
+        }
+
+        return [
+            'status' => 'ok',
+            'reply' => $note,
+            'ticket' => $ticket->fresh(['department', 'agent', 'messages']),
+        ];
+    }
+
     protected static function resolveExistingOrPendingReplyTicket(?string $existingTicketId, string $prompt): ?AiUniverseTicket
     {
         if (!Schema::hasTable('ai_universe_tickets')) {
@@ -1029,13 +1231,15 @@ class FunkiraTicketRouter
         if ($existingTicketId !== null && trim($existingTicketId) !== '') {
             $clean = trim($existingTicketId);
             return AiUniverseTicket::with(['department', 'agent'])
-                ->where('id', $clean)
-                ->orWhere('ticket_number', strtoupper($clean))
+                ->where(function ($q) use ($clean) {
+                    $q->where('id', $clean)->orWhere('ticket_number', strtoupper($clean));
+                })
                 ->first();
         }
 
         if (self::isShortConfirmation($prompt)) {
             return AiUniverseTicket::with(['department', 'agent'])
+                ->visibleToCurrentActor()
                 ->where('status', AiUniverseTicket::STATUS_WAITING_FOR_ALINA)
                 ->orderByDesc('last_activity_at')
                 ->first();

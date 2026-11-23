@@ -110,6 +110,7 @@ namespace FunkenwerkMcp
                 ("os", "Funkenwerk OS", "Funkenwerk OS", "FunkenwerkOS.exe", "FunkenwerkOS"),
                 ("pdf", "Funkenwerk PDF", "Funkenwerk PDF", "FunkenwerkPdf.exe", "FunkenwerkPdf"),
                 ("player", "Funkenwerk Player", "Funkenwerk Player", "FunkenwerkPlayer.exe", "FunkenwerkPlayer"),
+                ("remote", "Funkenwerk Remote", "Funkenwerk Remote", "FunkenwerkRemote.exe", "FunkenwerkRemote"),
                 ("smarthome", "Funkenwerk SmartHome", "Funkenwerk SmartHome", "FunkenwerkSmartHome.exe", "FunkenwerkSmartHome"),
                 ("ssh", "Funkenwerk SSH", "Funkenwerk SSH", "FunkenwerkSsh.exe", "FunkenwerkSsh"),
                 ("tresor", "Funkenwerk Tresor", "Funkenwerk Tresor", "FunkenwerkTresor.exe", "FunkenwerkTresor"),

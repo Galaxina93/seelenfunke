@@ -80,8 +80,33 @@ class GenerateTaxExport extends Command
         $data = $financialService->getUstvaPeriodData($year, $periodNum, $mode, $adminId);
         $this->line("Zeitraum: {$data['month_name']} {$year}");
 
-        if (($data['missing_receipts_count'] ?? 0) > 0 && !$this->option('force')) {
-            $this->warn("Hinweis: Es fehlen {$data['missing_receipts_count']} gewerbliche Belege für diesen Zeitraum.");
+        $missingCount = (int) ($data['missing_receipts_count'] ?? 0);
+        $missingAlertKey = "tax_export_missing_receipts:{$year}_{$mode}_{$periodNum}";
+
+        if ($missingCount > 0 && !$this->option('force')) {
+            $this->warn("Hinweis: Es fehlen {$missingCount} gewerbliche Belege für diesen Zeitraum.");
+            \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                alertKey: $missingAlertKey,
+                title: "UStVA-Export ({$data['month_name']} {$year}): {$missingCount} fehlende gewerbliche Belege",
+                markdownBody: "Der automatische DATEV-/Steuer-Export für **{$data['month_name']} {$year}** wurde im Tresor erstellt, jedoch fehlen aktuell noch **{$missingCount} gewerbliche Belegdateien** unter `/admin/financial-variable-costs` bzw. `/admin/financial-fix-costs`.\n\nBitte fehlende Belege nachreichen und den Export vor der Weitergabe an die Steuerberatung unter `/admin/financial-tax-exports` neu erzeugen.",
+                departmentName: 'Buchhaltung',
+                agentName: 'Buchi',
+                ticketType: 'accounting_reminder',
+                priority: 'normal',
+                assignToAntigravity: false,
+                extraPayload: [
+                    'year' => $year,
+                    'mode' => $mode,
+                    'period' => $periodNum,
+                    'missing_receipts_count' => $missingCount,
+                ]
+            );
+        } elseif ($missingCount === 0) {
+            \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                $missingAlertKey,
+                "Alle gewerblichen Belege für {$data['month_name']} {$year} liegen vollständig vor.",
+                'Buchi'
+            );
         }
 
         $result = $financialService->generateDatevExportZip($data);

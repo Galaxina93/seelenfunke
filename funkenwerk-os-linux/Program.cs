@@ -3284,8 +3284,9 @@ async Task<int> RunLinuxSelfTestsAsync()
                     jsApp.Contains("act === 'open_login'", StringComparison.Ordinal) &&
                     jsApp.Contains("isCannedRefusalClientText", StringComparison.Ordinal) &&
                     jsApp.Contains("projectRawVideoBoxToPip", StringComparison.Ordinal) &&
+                    jsApp.Contains("unauthorized_kiosk_session", StringComparison.Ordinal) &&
                     !jsApp.Contains("safetySettings", StringComparison.Ordinal) &&
-                    htmlIdx.Contains("/app.js?v=20261119v60", StringComparison.Ordinal);
+                    htmlIdx.Contains("/app.js?v=20261123v63", StringComparison.Ordinal);
 
                 return detectOk && diagAndLoginOk && historyCleanOk && promptHygieneOk && jsOk;
             }).ConfigureAwait(false);
@@ -4242,7 +4243,7 @@ async Task<int> RunLinuxSelfTestsAsync()
                     "/admin/financial-analytics",
                     "/admin/marketing/analytics",
                     "/admin/support-tickets",
-                    "/admin/organigramm",
+                    "/admin/tickets",
                     "/admin/settings"
                 };
                 bool allRoutesOk = requiredPortalRoutes.All(r => combinedFrontend.Contains(r, StringComparison.Ordinal));
@@ -4849,8 +4850,13 @@ async Task<int> RunLinuxSelfTestsAsync()
                     LinuxVaultAndStorage.GetCompanionFaces(LinuxVaultAndStorage.LoadSettings()).Count == 0;
 
                 LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
+                LocalSenseBridge.SimulateVisualCheckTimestampForSelfTest(DateTime.UtcNow);
+                var (unenrolledVerifyRes, _) = await FunkiraLiveAndMcpEngine.ExecuteLocalMiniPcToolAsync("minipc_companion_memory", verifyArgsDoc.RootElement).ConfigureAwait(false);
+                bool unenrolledVerifyOk = unenrolledVerifyRes["status"]?.GetValue<string>() == "verified_alina";
+                LocalSenseBridge.SetIdentityForSelfTest("unenrolled");
 
                 return unverifiedEffOk &&
+                       unenrolledVerifyOk &&
                        deepToolsBlockedBeforeVisual &&
                        verifyToolAllowedWhileUnverified &&
                        promptHidesDeepInfoOk &&
@@ -4942,13 +4948,35 @@ async Task<int> RunLinuxSelfTestsAsync()
                     trimmedDesc != null &&
                     trimmedDesc.Length <= 170;
 
-                // 5. Verify 2048-sample (~42ms) AudioWorklet & 120ms fast silence gate in app.js
+                // 5. Verify 2048-sample (~42ms) AudioWorklet & 380ms far-field syllable-safe silence gate in app.js
                 string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
                 bool audioWorkletFastOk =
                     jsApp.Contains("new Float32Array(2048)", StringComparison.Ordinal) &&
-                    jsApp.Contains("(Date.now() - fkLastUserVoiceMs) > 120", StringComparison.Ordinal);
+                    jsApp.Contains("(Date.now() - fkLastUserVoiceMs) > 380", StringComparison.Ordinal);
 
                 return vadAndThinkingOk && normSetupOk && fastLaneCacheOk && toolCapAndTrimOk && audioWorkletFastOk;
+            }).ConfigureAwait(false);
+
+            await AssertCheckAsync(55, "Studio-Stimmqualität (FkPcm24StreamPlayerProcessor Catmull-Rom Ring-Buffer + Dual-Clock-Isolation) & Werkstatt-Fernfeld-Aktivierungswort (AGC, SetMaxAlternatives, Auto-Rearm)", async () =>
+            {
+                await Task.CompletedTask.ConfigureAwait(false);
+                string jsApp = File.ReadAllText(Path.Combine(resolvedWebRoot, "app.js"), Encoding.UTF8);
+                string pySense = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "funkira_local_sense.py"), Encoding.UTF8);
+
+                bool studioVoicePlayerOk =
+                    jsApp.Contains("class FkPcm24StreamPlayerProcessor extends AudioWorkletProcessor", StringComparison.Ordinal) &&
+                    jsApp.Contains("registerProcessor('fk-pcm24-player', FkPcm24StreamPlayerProcessor)", StringComparison.Ordinal) &&
+                    jsApp.Contains("let fkMicCtx = null;", StringComparison.Ordinal) &&
+                    jsApp.Contains("autoGainControl: { ideal: false }", StringComparison.Ordinal);
+
+                bool farFieldWakeOk =
+                    jsApp.Contains("d.wantListening === false && !d.triggered", StringComparison.Ordinal) &&
+                    pySense.Contains("def _ensure_workshop_mic_gain", StringComparison.Ordinal) &&
+                    pySense.Contains("def _apply_far_field_agc", StringComparison.Ordinal) &&
+                    pySense.Contains("SetMaxAlternatives(4)", StringComparison.Ordinal) &&
+                    pySense.Contains("SINGLE_WAKE_TOKENS", StringComparison.Ordinal);
+
+                return studioVoicePlayerOk && farFieldWakeOk;
             }).ConfigureAwait(false);
         }
         finally

@@ -4152,6 +4152,27 @@ dennoch Belege einzureichen, kreuzen Sie bitte das nachfolge`
 
         // 5. Workspace-Dokumentenkatalog (ai_workspace_documents) direkt anlegen
         $this->seedWorkspaceDocuments();
+
+        // 6. Alle Meilenstein- & Abteilungs-Abschlussberichte aus knowledge_brain_reports_snapshot.json dublettenfrei mitseeden
+        $this->seedMilestoneCompletionReports();
+    }
+
+    /**
+     * Synchronisiert alle im Git-Snapshot (`database/seeders/data/knowledge_brain_reports_snapshot.json`)
+     * hinterlegten Abschlussberichte, Prüfprotokolle, Workflows und Konzepte automatisch beim Seeden
+     * in `ai_knowledge_bases` (entscheidend für `migrate:fresh --seed` und `system:prepare-live` in der Aufbauphase).
+     */
+    protected function seedMilestoneCompletionReports(): void
+    {
+        if (
+            !Schema::hasTable('ai_knowledge_bases')
+            || !Schema::hasColumn('ai_knowledge_bases', 'source_path')
+            || !class_exists(\App\Services\AI\KnowledgeReportSyncService::class)
+        ) {
+            return;
+        }
+
+        app(\App\Services\AI\KnowledgeReportSyncService::class)->sync();
     }
 
     /**

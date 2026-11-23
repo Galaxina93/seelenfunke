@@ -40,10 +40,16 @@ class AiUniverseTickets extends Component
     #[Url(as: 'ftype')]
     public string $fileTypeFilter = 'all'; // 'all' | '3d' | 'concept' | 'document' | 'image'
 
+    #[Url(as: 'cstatus')]
+    public string $conceptStatusFilter = 'all'; // 'all' | 'open' | 'completed_verified'
+
     public string $fileSearch = '';
     public ?string $conceptModalTitle = null;
     public ?string $conceptModalHtml = null;
     public ?string $conceptModalDownloadUrl = null;
+    public ?string $conceptModalMessageId = null;
+    public ?string $conceptModalAttachmentKey = null;
+    public ?string $conceptModalStatus = null;
 
     #[Url(as: 'dept')]
     public string $selectedDepartmentId = 'all';
@@ -54,6 +60,9 @@ class AiUniverseTickets extends Component
     #[Url(as: 'status')]
     public string $statusFilter = 'open'; // 'open' | 'waiting' | 'completed' | 'archived'
 
+    #[Url(as: 'scope')]
+    public string $businessFilter = 'all'; // 'all' | 'business' | 'private'
+
     public string $search = '';
     public string $commandInput = '';
     public string $ticketReplyInput = '';
@@ -61,6 +70,7 @@ class AiUniverseTickets extends Component
     public $replyUploads = [];
 
     public ?string $fastLaneFeedback = null;
+    public bool $mobileTicketOpen = false;
 
     #[Locked]
     public ?string $activeTicketId = null;
@@ -73,9 +83,14 @@ class AiUniverseTickets extends Component
         }
     }
 
+    public function isAdminViewer(): bool
+    {
+        return AiUniverseTicket::isStrictAdminActor();
+    }
+
     public function mount(): void
     {
-        if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+        if (!$this->isAdminViewer() && !AiAuthHelper::isEmployee()) {
             abort(403, 'Zugriff auf das zentrale Ticketsystem verweigert.');
         }
 
@@ -95,13 +110,25 @@ class AiUniverseTickets extends Component
             $this->statusFilter = 'open';
         }
 
+        if (!in_array($this->businessFilter, ['all', 'business', 'private'], true)) {
+            $this->businessFilter = 'all';
+        }
+        if (!$this->isAdminViewer()) {
+            $this->businessFilter = 'business';
+        }
+
         $requestedTicket = trim((string) request()->query('ticket', ''));
         if ($requestedTicket !== '' && Schema::hasTable('ai_universe_tickets')) {
-            $found = AiUniverseTicket::where('id', $requestedTicket)
-                ->orWhere('ticket_number', strtoupper($requestedTicket))
+            $found = AiUniverseTicket::query()
+                ->visibleToCurrentActor()
+                ->where(function ($q) use ($requestedTicket) {
+                    $q->where('id', $requestedTicket)
+                        ->orWhere('ticket_number', strtoupper($requestedTicket));
+                })
                 ->first();
             if ($found) {
                 $this->activeTicketId = $found->id;
+                $this->mobileTicketOpen = true;
             }
         }
 
@@ -112,7 +139,15 @@ class AiUniverseTickets extends Component
     {
         if (in_array($view, ['tickets', 'files', 'organigramm', 'knowledge'], true)) {
             $this->mainView = $view;
+            if ($view !== 'tickets') {
+                $this->mobileTicketOpen = false;
+            }
         }
+    }
+
+    public function closeMobileTicket(): void
+    {
+        $this->mobileTicketOpen = false;
     }
 
     public function setFileStateFilter(string $state): void
@@ -126,24 +161,65 @@ class AiUniverseTickets extends Component
     {
         if (in_array($type, ['all', '3d', 'concept', 'document', 'image'], true)) {
             $this->fileTypeFilter = $type;
+            if ($type !== 'concept') {
+                $this->conceptStatusFilter = 'all';
+            }
         }
+    }
+
+    public function setConceptStatusFilter(string $status): void
+    {
+        if (in_array($status, ['all', 'open', 'completed_verified'], true)) {
+            $this->conceptStatusFilter = $status;
+        }
+    }
+
+    public function toggleConceptStatus(string $messageId, string $attachmentKey, string $currentStatus = 'open'): void
+    {
+        if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        $next = $currentStatus === 'completed_verified' ? 'open' : 'completed_verified';
+        \App\Services\AI\ConceptLifecycleService::setConceptStatus($attachmentKey, $next, $messageId);
+        if ($this->conceptModalMessageId === $messageId && $this->conceptModalAttachmentKey === $attachmentKey) {
+            $this->conceptModalStatus = $next;
+        }
+        unset($this->ticketDeliverables);
+    }
+
+    public function deleteDeliverableFile(string $messageId, string $attachmentKey): void
+    {
+        if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        \App\Services\AI\ConceptLifecycleService::deleteConcept($attachmentKey, $messageId);
+        if ($this->conceptModalMessageId === $messageId && $this->conceptModalAttachmentKey === $attachmentKey) {
+            $this->closeConceptModal();
+        }
+        unset($this->ticketDeliverables);
     }
 
     public function jumpToTicketFromFiles(string $ticketId): void
     {
-        $ticket = AiUniverseTicket::find($ticketId);
+        $ticket = AiUniverseTicket::query()->visibleToCurrentActor()->find($ticketId);
         if (!$ticket) {
             return;
         }
         $this->mainView = 'tickets';
         $this->selectedDepartmentId = 'all';
         $this->selectedAgentId = 'all';
+        if ($this->isAdminViewer()) {
+            $this->businessFilter = 'all';
+        }
         $this->statusFilter = match ($ticket->status) {
             AiUniverseTicket::STATUS_COMPLETED => 'completed',
             AiUniverseTicket::STATUS_ARCHIVED => 'archived',
             default => 'open',
         };
         $this->activeTicketId = $ticket->id;
+        $this->mobileTicketOpen = true;
     }
 
     public function toggleAttachmentPin(string $messageId, string $attachmentKey): void
@@ -164,8 +240,13 @@ class AiUniverseTickets extends Component
         TicketDeliverableService::restoreArchivedAttachment($messageId, $attachmentKey);
     }
 
-    public function openConceptModal(string $relPath, string $title = 'Konzept'): void
-    {
+    public function openConceptModal(
+        string $relPath,
+        string $title = 'Konzept',
+        ?string $messageId = null,
+        ?string $attachmentKey = null,
+        ?string $conceptStatus = null
+    ): void {
         if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
             abort(403);
         }
@@ -178,6 +259,9 @@ class AiUniverseTickets extends Component
         $this->conceptModalTitle = $title;
         $this->conceptModalHtml = Str::markdown($markdown, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
         $this->conceptModalDownloadUrl = route('admin.ai.workspace.file', ['path' => $relPath, 'download' => 1], false);
+        $this->conceptModalMessageId = $messageId;
+        $this->conceptModalAttachmentKey = $attachmentKey ?: $relPath;
+        $this->conceptModalStatus = $conceptStatus;
     }
 
     public function closeConceptModal(): void
@@ -185,12 +269,16 @@ class AiUniverseTickets extends Component
         $this->conceptModalTitle = null;
         $this->conceptModalHtml = null;
         $this->conceptModalDownloadUrl = null;
+        $this->conceptModalMessageId = null;
+        $this->conceptModalAttachmentKey = null;
+        $this->conceptModalStatus = null;
     }
 
     public function selectDepartment(string $deptId): void
     {
         $this->selectedDepartmentId = $deptId;
         $this->selectedAgentId = 'all';
+        $this->mobileTicketOpen = false;
         if ($deptId === 'all') {
             $this->themingDepartment = 'Leitung';
         } else {
@@ -205,6 +293,7 @@ class AiUniverseTickets extends Component
     public function toggleAgentFilter(string $agentId): void
     {
         $this->selectedAgentId = ($this->selectedAgentId === $agentId) ? 'all' : $agentId;
+        $this->mobileTicketOpen = false;
         $this->ensureInitialSelection();
     }
 
@@ -212,7 +301,51 @@ class AiUniverseTickets extends Component
     {
         if (in_array($filter, ['open', 'waiting', 'completed', 'archived'], true)) {
             $this->statusFilter = $filter;
+            $this->mobileTicketOpen = false;
             $this->ensureInitialSelection();
+        }
+    }
+
+    public function setBusinessFilter(string $scope): void
+    {
+        if (!$this->isAdminViewer()) {
+            $this->businessFilter = 'business';
+            return;
+        }
+
+        if (in_array($scope, ['all', 'business', 'private'], true)) {
+            $this->businessFilter = $scope;
+            $this->mobileTicketOpen = false;
+            $this->ensureInitialSelection();
+        }
+    }
+
+    public function toggleTicketScope(?string $ticketId = null): void
+    {
+        if (!$this->isAdminViewer()) {
+            abort(403, 'Nur Administratoren dürfen die Ticket-Zuordnung (Gewerblich/Privat) ändern.');
+        }
+
+        if (!Schema::hasTable('ai_universe_tickets') || !Schema::hasColumn('ai_universe_tickets', 'is_business')) {
+            return;
+        }
+
+        $targetId = $ticketId ?: $this->activeTicketId;
+        if (!$targetId) {
+            return;
+        }
+
+        $ticket = AiUniverseTicket::find($targetId);
+        if (!$ticket) {
+            return;
+        }
+
+        $nextIsBusiness = !((bool) ($ticket->is_business ?? true));
+        FunkiraTicketRouter::setTicketBusinessScope($ticket, $nextIsBusiness, 'web_portal');
+
+        if (($this->businessFilter === 'business' && !$nextIsBusiness)
+            || ($this->businessFilter === 'private' && $nextIsBusiness)) {
+            $this->businessFilter = 'all';
         }
     }
 
@@ -221,9 +354,10 @@ class AiUniverseTickets extends Component
         if (!Schema::hasTable('ai_universe_tickets')) {
             return;
         }
-        $ticket = AiUniverseTicket::find($ticketId);
+        $ticket = AiUniverseTicket::query()->visibleToCurrentActor()->find($ticketId);
         if ($ticket) {
             $this->activeTicketId = $ticket->id;
+            $this->mobileTicketOpen = true;
             $this->fastLaneFeedback = null;
         }
     }
@@ -261,8 +395,15 @@ class AiUniverseTickets extends Component
         $this->mainView = 'tickets';
         $this->selectedDepartmentId = 'all';
         $this->selectedAgentId = 'all';
+        if ($this->isAdminViewer()) {
+            $isBiz = (bool) ($ticket->is_business ?? true);
+            if (($this->businessFilter === 'business' && !$isBiz) || ($this->businessFilter === 'private' && $isBiz)) {
+                $this->businessFilter = 'all';
+            }
+        }
         $this->statusFilter = ($ticket->status === AiUniverseTicket::STATUS_COMPLETED) ? 'completed' : 'open';
         $this->activeTicketId = $ticket->id;
+        $this->mobileTicketOpen = true;
     }
 
     public function submitTicketReply(): void
@@ -271,7 +412,7 @@ class AiUniverseTickets extends Component
             return;
         }
 
-        $ticket = AiUniverseTicket::find($this->activeTicketId);
+        $ticket = AiUniverseTicket::query()->visibleToCurrentActor()->find($this->activeTicketId);
         if (!$ticket) {
             return;
         }
@@ -321,7 +462,7 @@ class AiUniverseTickets extends Component
             return;
         }
 
-        $ticket = AiUniverseTicket::find($this->activeTicketId);
+        $ticket = AiUniverseTicket::query()->visibleToCurrentActor()->find($this->activeTicketId);
         if (!$ticket) {
             return;
         }
@@ -335,7 +476,7 @@ class AiUniverseTickets extends Component
             return;
         }
 
-        if (!AiAuthHelper::isAdmin() && in_array($action, ['approve_procurement', 'handoff_antigravity', 'archive'], true)) {
+        if (!$this->isAdminViewer() && in_array($action, ['approve_procurement', 'handoff_antigravity', 'archive', 'toggle_business_scope', 'set_business_scope'], true)) {
             abort(403, 'Nur Administratoren dürfen Freigaben oder Übergaben auslösen.');
         }
 
@@ -348,11 +489,11 @@ class AiUniverseTickets extends Component
             return;
         }
 
-        if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+        if (!$this->isAdminViewer() && !AiAuthHelper::isEmployee()) {
             abort(403);
         }
 
-        $ticket = AiUniverseTicket::find($this->activeTicketId);
+        $ticket = AiUniverseTicket::query()->visibleToCurrentActor()->find($this->activeTicketId);
         if (!$ticket) {
             return;
         }
@@ -417,21 +558,61 @@ class AiUniverseTickets extends Component
     }
 
     /**
-     * Formatiert kompaktes Ticket-Markdown (**Fett**, `Code`, @Agent) XSS-sicher und mehrzeilig ohne rohe Sternchen.
+     * Formatiert kompaktes Ticket-Markdown (**Fett**, `Code`, ```Codeblöcke```, Listen, Überschriften, @Agent)
+     * XSS-sicher, umbruchsstabil für Mobile (lange Pfade/Stacktraces) und mehrzeilig ohne rohe Sternchen.
      */
     public static function formatMessageHtml(?string $content): string
     {
         $normalized = str_replace(["\r\n", "\r"], "\n", (string) $content);
         $escaped = e($normalized);
-        $formatted = preg_replace('/\*\*(.+?)\*\*/s', '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>', $escaped) ?? $escaped;
-        $formatted = preg_replace('/`([^`\n]+)`/', '<code class="px-1.5 py-0.5 rounded bg-gray-200/70 dark:bg-gray-800 font-mono text-[11px]">$1</code>', $formatted) ?? $formatted;
 
+        // 1. Mehrzeilige Codeblöcke (```...```) vorab isolieren, damit Inline-Regeln sie nicht zerreißen
+        $codeBlocks = [];
+        $formatted = preg_replace_callback('/```(?:[A-Za-z0-9_+\-]+)?\n?([\s\S]*?)```/', static function (array $m) use (&$codeBlocks): string {
+            $idx = count($codeBlocks);
+            $token = "\x02SFCODEBLOCK{$idx}\x03";
+            $body = trim($m[1], "\n");
+            $codeBlocks[$token] = '<pre class="my-1.5 p-2.5 rounded-xl bg-gray-900 dark:bg-black/80 text-gray-100 border border-gray-800 font-mono text-[11px] leading-relaxed overflow-x-auto max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]"><code>' . $body . '</code></pre>';
+            return $token;
+        }, $escaped) ?? $escaped;
+
+        // 2. Fett (**...**) & Inline-Code (`...` mit mobilem Pfad-/Identifier-Umbruch)
+        $formatted = preg_replace('/\*\*(.+?)\*\*/s', '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>', $formatted) ?? $formatted;
+        $formatted = preg_replace(
+            '/`([^`\n]+)`/',
+            '<code class="px-1.5 py-0.5 rounded bg-gray-200/75 dark:bg-gray-800 font-mono text-[11px] break-all sm:break-words [overflow-wrap:anywhere]">$1</code>',
+            $formatted
+        ) ?? $formatted;
+
+        // 3. @Agent-Mentions
         $mentionRegex = '/(?:^|(?<=[\s(\[{"\',;:]))@(Antigravity|Dr\.\s*Funki|DrFunki|Bestelli|Einkaufi|Produkti|Funkira|Marketi|Systemi|Buchi|Globi|Lasi)(?=$|[\s.,!?:;)\]}"\'\-])/iu';
         $formatted = preg_replace(
             $mentionRegex,
             '<span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-[var(--theme-color-20)] text-gray-900 dark:text-white border border-[var(--theme-color-30)]">@$1</span>',
             $formatted
         ) ?? $formatted;
+
+        // 4. Kompakte Markdown-Überschriften & sauber eingerückte Aufzählungspunkte für Mobile
+        $formatted = preg_replace(
+            '/^[ \t]*#{1,4}[ \t]+(.+)$/m',
+            '<strong class="block font-black text-gray-900 dark:text-white mt-1.5 mb-0.5">$1</strong>',
+            $formatted
+        ) ?? $formatted;
+
+        $formatted = preg_replace(
+            '/^[ \t]*[-*][ \t]+(.+)$/m',
+            '<span class="flex items-start gap-1.5 my-0.5"><span class="text-[#C5A059] font-black select-none shrink-0">•</span><span class="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">$1</span></span>',
+            $formatted
+        ) ?? $formatted;
+
+        // Verhindert doppelte Zeilenabstände durch whitespace-pre-line zwischen Block-Elementen
+        $formatted = preg_replace('/(<\/span>|<\/strong>)\n(?=<span class="flex items-start|<strong class="block)/', '$1', $formatted) ?? $formatted;
+
+        if (!empty($codeBlocks)) {
+            foreach ($codeBlocks as $token => $htmlBlock) {
+                $formatted = str_replace(["\n{$token}\n", "\n{$token}", "{$token}\n", $token], $htmlBlock, $formatted);
+            }
+        }
 
         return $formatted;
     }
@@ -536,7 +717,13 @@ class AiUniverseTickets extends Component
             return collect();
         }
 
+        $hasBizCol = Schema::hasColumn('ai_universe_tickets', 'is_business');
+        $effectiveScope = $this->isAdminViewer() ? $this->businessFilter : 'business';
+
         return AiUniverseTicket::with(['department', 'agent'])
+            ->visibleToCurrentActor()
+            ->when($hasBizCol && $effectiveScope === 'business', fn ($q) => $q->where('is_business', true))
+            ->when($hasBizCol && $effectiveScope === 'private', fn ($q) => $q->where('is_business', false))
             ->when($this->selectedDepartmentId !== 'all', fn ($q) => $q->where('ai_department_id', $this->selectedDepartmentId))
             ->when($this->selectedAgentId !== 'all', fn ($q) => $q->where('assigned_agent_id', $this->selectedAgentId))
             ->when($this->statusFilter === 'open', function ($q) {
@@ -572,7 +759,9 @@ class AiUniverseTickets extends Component
             return null;
         }
 
-        return AiUniverseTicket::with(['department', 'agent', 'messages'])->find($this->activeTicketId);
+        return AiUniverseTicket::with(['department', 'agent', 'messages'])
+            ->visibleToCurrentActor()
+            ->find($this->activeTicketId);
     }
 
     #[Computed]
@@ -598,13 +787,32 @@ class AiUniverseTickets extends Component
         $agentStatusMap = [];
 
         if (Schema::hasTable('ai_universe_tickets')) {
-            $waitingCount = AiUniverseTicket::where('status', AiUniverseTicket::STATUS_WAITING_FOR_ALINA)->count();
-            $openCount = AiUniverseTicket::whereNotIn('status', [
-                AiUniverseTicket::STATUS_COMPLETED,
-                AiUniverseTicket::STATUS_ARCHIVED,
-            ])->count();
+            $hasBizCol = Schema::hasColumn('ai_universe_tickets', 'is_business');
+            $effectiveScope = $this->isAdminViewer() ? $this->businessFilter : 'business';
 
-            $deptOpenCounts = AiUniverseTicket::query()
+            $applyScope = function ($q) use ($hasBizCol, $effectiveScope) {
+                $q->visibleToCurrentActor();
+                if ($hasBizCol) {
+                    if ($effectiveScope === 'business') {
+                        $q->where('is_business', true);
+                    } elseif ($effectiveScope === 'private') {
+                        $q->where('is_business', false);
+                    }
+                }
+                return $q;
+            };
+
+            $waitingCount = $applyScope(AiUniverseTicket::query())
+                ->where('status', AiUniverseTicket::STATUS_WAITING_FOR_ALINA)
+                ->count();
+
+            $openCount = $applyScope(AiUniverseTicket::query())
+                ->whereNotIn('status', [
+                    AiUniverseTicket::STATUS_COMPLETED,
+                    AiUniverseTicket::STATUS_ARCHIVED,
+                ])->count();
+
+            $deptOpenCounts = $applyScope(AiUniverseTicket::query())
                 ->whereNotIn('status', [AiUniverseTicket::STATUS_COMPLETED, AiUniverseTicket::STATUS_ARCHIVED])
                 ->whereNotNull('ai_department_id')
                 ->selectRaw('ai_department_id, COUNT(*) as cnt')
@@ -612,7 +820,7 @@ class AiUniverseTickets extends Component
                 ->pluck('cnt', 'ai_department_id')
                 ->all();
 
-            $openByAgent = AiUniverseTicket::query()
+            $openByAgent = $applyScope(AiUniverseTicket::query())
                 ->whereNotIn('status', [AiUniverseTicket::STATUS_COMPLETED, AiUniverseTicket::STATUS_ARCHIVED])
                 ->whereNotNull('assigned_agent_id')
                 ->get(['assigned_agent_id', 'status']);
@@ -673,7 +881,8 @@ class AiUniverseTickets extends Component
         return TicketDeliverableService::collectAllTicketDeliverables(
             $this->fileStateFilter,
             $this->fileTypeFilter,
-            $this->fileSearch
+            $this->fileSearch,
+            $this->conceptStatusFilter
         );
     }
 

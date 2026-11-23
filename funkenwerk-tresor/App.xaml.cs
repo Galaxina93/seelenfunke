@@ -83,6 +83,8 @@ namespace FunkenwerkTresor
                 !a.StartsWith("-", StringComparison.Ordinal) &&
                 File.Exists(a));
 
+            _ = System.Threading.Tasks.Task.Run(Funkenwerk.CollectionFileAssociationHealer.EnsureCollectionAssociationsRegistered);
+
             try
             {
                 var win = new MainWindow(initialKdbxPath);

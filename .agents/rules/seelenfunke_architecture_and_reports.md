@@ -1,17 +1,22 @@
-# Seelenfunke Architecture, Theme, Clean-Design & Abschlussberichte Rule
+# Seelenfunke Architecture, Theme, Clean-Design, Central Brain & Concept Rules
 
-1. **Always check `Abschlussberichte/` and `GEMINI.md` / `ai_map.md` first**:
-   - Before implementing or modifying features, check `Abschlussberichte/README.md` and the corresponding report in `Abschlussberichte/<Abteilung>/` or `Abschlussberichte/Workflows/`.
-   - Keep the corresponding report in `Abschlussberichte/<Abteilung>/` updated after architectural, security, or feature changes.
+1. **Always use the Central Knowledge Brain (`/admin/tickets?view=knowledge`) & `ai_map.md` (NO `Abschlussberichte/` folder!)**:
+   - The legacy root folder `Abschlussberichte/` is permanently retired and migrated into the Central Knowledge Brain (`AiKnowledgeBase` via `App\Services\AI\CentralBrainService`). **NEVER** create or recreate an `Abschlussberichte/` directory in the project root!
+   - Before implementing or modifying features, check `ai_map.md` and query `AiKnowledgeBase` / `CentralBrainService` (`brain_search`) for instant millisecond context.
+   - Write all new architectural, security, and milestone completion reports ("Abschlussberichte") directly and deduplicated into `AiKnowledgeBase` via `CentralBrainService::upsertDeduplicatedKnowledge()` (completed tickets `STATUS_COMPLETED` also auto-sync as `source_path = ticket:SF-XXXX`).
    - Run `php artisan ai:generate-map` whenever Models, Livewire components, Controllers, Services, or Seeders are added or renamed (auto-syncs `ai_map.md` and `GEMINI.md`).
-2. **Enforce Theme, Clean-Design & UX Standards**:
+2. **Enforce Central Concept Lifecycle Management (`/admin/tickets?view=files&ftype=concept`)**:
+   - Every new architectural or feature concept MUST be stored centrally under `/admin/tickets?view=files&ftype=concept` via `App\Services\AI\ConceptLifecycleService` (`TicketDeliverableService`, `category = concept`).
+   - **Lifecycle:** Newly created concepts start with status **`Offen`** (`concept_status = open`, protected against 28-day auto-archiving). Once implemented and verified with green tests, transition the concept to **`Fertig & Geprüft`** (`concept_status = completed_verified`). Concepts can be deleted at any time via 1-click button or Funkira command.
+   - **Zero Duplicates & Global Funkira Sync:** Always run the canonical slug/topic deduplication check before creating a concept (update the existing concept in-place instead of creating duplicates). Funkira accesses the exact same concept registry across Web, Live-Widget, Android Live-Call, and Workshop Mini-PC (`Funki` frontend support remains 100% isolated and frozen).
+3. **Enforce Theme, Clean-Design & UX Standards**:
    - **Shop-Frontend & Modals:** Always friendly Light-Mode (no dark boxes in frontend), noble matte Black-Gold (`#C5A059`), no artificial glow, no `bg-amber` boxes or purple checkmarks on product extras (use clean surface + golden `✓` + max 3 short benefits).
    - **Backend & Funkenwerk:** Always use `var(--theme-color)` (`-10`..`-50`) and 100% consistent Light & Dark mode (`bg-white dark:bg-gray-900/80`, `text-gray-900 dark:text-white`, white icons in Dark mode, eye icon on password fields).
    - **Zero Text-Overload:** Never put explanatory sub-sentences below switches, buttons, or headings (use `!` hover tooltip or modal instead). Hide descriptions/tags in main overview tables. Never use AI en-dashes (` – `) in frontend/SEO/marketing texts. Open images in a Lightbox slider (never new tab).
-3. **Enforce Project Architecture & Native Seeder Pipeline**:
+4. **Enforce Project Architecture & Native Seeder Pipeline**:
    - Follow the domain structure (`Accounting`, `Ai`, `Management`, `Marketing`, `Order`, `Product`, `Support`, `System`).
-   - Integrate all accounting purchases/contracts directly into `database/seeders/AccountingSeeder.php` (in cents, exact dates, Business vs. Private) and all product data, templates, suppliers, packaging, and 3D/2D assets directly into `database/seeders/Product*Seeder.php` (`Workflow_KI_Automatisierte_Produkterstellung.md`), never as standalone one-off scripts.
-4. **Enforce Gamification Clean-Design Workflow (`Abschlussberichte/Workflows/Workflow_Gamification_Clean_Design.md`)**:
+   - Integrate all accounting purchases/contracts directly into `database/seeders/AccountingSeeder.php` (in cents, exact dates, Business vs. Private) and all product data, templates, suppliers, packaging, and 3D/2D assets directly into `database/seeders/Product*Seeder.php` (Knowledge Brain workflow `Workflow: KI-Automatisierte Produkterstellung`), never as standalone one-off scripts.
+5. **Enforce Gamification Clean-Design Workflow (Knowledge Brain `Workflow: Gamification Clean Design` / Skill `gamification-clean-design`)**:
    - **No unnecessary sentences:** Never add instructional banners, sub-headers, or status texts for things that are already visually obvious.
    - **No artificial/weird headings:** Use short, natural labels (`Inventar`, `Rucksack`, `KLASSE C/B/A/S`, `Profil`, `In die Schlacht`).
    - **No overloaded views:** Keep cards, headers, and modals minimal and progressive (details on hover/modal/expand, never stacked badge walls).

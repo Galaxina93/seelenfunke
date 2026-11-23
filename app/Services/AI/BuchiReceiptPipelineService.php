@@ -20,17 +20,30 @@ class BuchiReceiptPipelineService
      * Ordnet bekannte Händler deterministisch Kategorie, Gewerblich-Flag und Steuersatz zu.
      */
     private const SUPPLIER_RULES = [
-        'westpack' => ['merchant' => 'Westpack', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'westpack' => ['merchant' => 'Westpack', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 0],
         'glücksfieber' => ['merchant' => 'Glücksfieber', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 19],
         'gluecksfieber' => ['merchant' => 'Glücksfieber', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 19],
         'printequipment' => ['merchant' => 'PrintEquipment', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 19],
         'print equipment' => ['merchant' => 'PrintEquipment', 'category' => 'Rohmaterial', 'is_business' => true, 'tax_rate' => 19],
         'karton.eu' => ['merchant' => 'Karton.eu', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
         'kartonfritze' => ['merchant' => 'Kartonfritze', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'frau wundervoll' => ['merchant' => 'Frau Wundervoll GmbH', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'frauwundervoll' => ['merchant' => 'Frau Wundervoll GmbH', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'natürlich verpacken' => ['merchant' => 'Natürlich verpacken', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'natuerlich-verpacken' => ['merchant' => 'Natürlich verpacken', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'parterremedia' => ['merchant' => 'Natürlich verpacken', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'rapidpack' => ['merchant' => 'RAPIDPACK GmbH', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'verpacking' => ['merchant' => 'RAPIDPACK GmbH', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'schaumstoffonline' => ['merchant' => 'Schaumstoffonline DE', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
+        'bambulab' => ['merchant' => 'Bambu Lab EU', 'category' => 'Arbeitsmaterial', 'is_business' => true, 'tax_rate' => 19],
+        'bambu lab' => ['merchant' => 'Bambu Lab EU', 'category' => 'Arbeitsmaterial', 'is_business' => true, 'tax_rate' => 19],
+        'munbyn' => ['merchant' => 'MUNBYN', 'category' => 'Arbeitsmaterial', 'is_business' => true, 'tax_rate' => 19],
         'xtool' => ['merchant' => 'xTool', 'category' => 'Arbeitsmaterial', 'is_business' => true, 'tax_rate' => 19],
         'makeblock' => ['merchant' => 'xTool', 'category' => 'Arbeitsmaterial', 'is_business' => true, 'tax_rate' => 19],
         'mittwald' => ['merchant' => 'Mittwald', 'category' => 'Software & Lizenzen', 'is_business' => true, 'tax_rate' => 19],
         'google cloud' => ['merchant' => 'Google Cloud', 'category' => 'Software & Lizenzen', 'is_business' => true, 'tax_rate' => 19],
+        'hiscox' => ['merchant' => 'Hiscox', 'category' => 'Beratung & Gründung', 'is_business' => true, 'tax_rate' => 0],
+        'interzero' => ['merchant' => 'Interzero / Lizenzero', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
         'stripe' => ['merchant' => 'Stripe', 'category' => 'Software & Lizenzen', 'is_business' => true, 'tax_rate' => 0],
         'fyrst' => ['merchant' => 'FYRST', 'category' => 'Beratung & Gründung', 'is_business' => true, 'tax_rate' => 0],
         'smartsteuer' => ['merchant' => 'Smartsteuer', 'category' => 'Steuer', 'is_business' => true, 'tax_rate' => 19],
@@ -42,6 +55,7 @@ class BuchiReceiptPipelineService
 
     private const PRIVATE_MERCHANT_HINTS = [
         'rewe', 'edeka', 'lidl', 'aldi', 'kaufland', 'netto', 'penny', 'rossmann', 'dm-drogerie', 'apotheke', 'lieferando',
+        'badeland', 'einmalig events', 'anny.co',
     ];
 
     /**
@@ -98,7 +112,10 @@ class BuchiReceiptPipelineService
             ? abs((float) $raw['amount_abs'])
             : abs((float) str_replace(',', '.', (string) ($raw['amount'] ?? 0)));
 
-        $amountCents = -abs((int) round($amountFloat * 100));
+        $isCreditNote = !empty($raw['is_credit_note']);
+        $amountCents = $isCreditNote
+            ? abs((int) round($amountFloat * 100))
+            : -abs((int) round($amountFloat * 100));
         $amountDecimal = round($amountCents / 100, 2);
         $amountFormatted = number_format($amountDecimal, 2, '.', '');
 
@@ -112,7 +129,9 @@ class BuchiReceiptPipelineService
         $isBusiness = (bool) ($raw['is_business'] ?? true);
         $isSmallBusiness = app(\App\Services\Tax\TaxSettingService::class)->isCurrentSmallBusiness();
         $defaultTax = $isSmallBusiness ? 0 : (int) round((float) shop_setting('default_tax_rate', 19));
-        $taxRate = isset($raw['tax_rate']) ? (int) round((float) $raw['tax_rate']) : $defaultTax;
+        $hasExplicitTaxRate = array_key_exists('tax_rate', $raw) && $raw['tax_rate'] !== null && $raw['tax_rate'] !== '';
+        $explicitTaxRate = $hasExplicitTaxRate ? (int) round((float) $raw['tax_rate']) : null;
+        $taxRate = $explicitTaxRate ?? $defaultTax;
 
         $origFilename = '';
         if ($file instanceof UploadedFile) {
@@ -132,7 +151,7 @@ class BuchiReceiptPipelineService
                 }
                 $category = $rule['category'];
                 $isBusiness = $rule['is_business'];
-                $taxRate = $isSmallBusiness ? 0 : $rule['tax_rate'];
+                $taxRate = $isSmallBusiness ? 0 : ($explicitTaxRate ?? $rule['tax_rate']);
                 $matchedSupplierRule = true;
                 break;
             }
@@ -253,12 +272,35 @@ class BuchiReceiptPipelineService
             }
         }
 
-        // 2. Exakte Rechnungsnummer
+        // 2. Exakte Rechnungsnummer (inkl. zusammengesetzter Einträge wie "R505615 (Bestellnr. 306-...)")
         $cleanInv = trim($invoiceNumber);
         if (mb_strlen($cleanInv) >= 3) {
             $invMatch = (clone $query)
                 ->where('invoice_number', $cleanInv)
                 ->first();
+
+            if (!$invMatch && mb_strlen($cleanInv) >= 4) {
+                $likeVal = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $cleanInv) . '%';
+                $tokenRegex = '/(?:^|[^A-Za-z0-9\-])' . preg_quote($cleanInv, '/') . '(?:$|[^A-Za-z0-9\-])/iu';
+                $tokenCandidates = (clone $query)
+                    ->where(function ($sub) use ($likeVal) {
+                        $sub->where('invoice_number', 'like', $likeVal)
+                            ->orWhere('note', 'like', $likeVal);
+                    })
+                    ->latest('execution_date')
+                    ->limit(25)
+                    ->get();
+
+                foreach ($tokenCandidates as $tc) {
+                    $invField = (string) ($tc->invoice_number ?? '');
+                    $noteField = (string) ($tc->note ?? '');
+                    if (preg_match($tokenRegex, $invField) || preg_match($tokenRegex, $noteField)) {
+                        $invMatch = $tc;
+                        break;
+                    }
+                }
+            }
+
             if ($invMatch) {
                 $dateStr = $invMatch->execution_date instanceof Carbon
                     ? $invMatch->execution_date->format('Y-m-d')
@@ -273,43 +315,81 @@ class BuchiReceiptPipelineService
             }
         }
 
-        // 3. Gleiches Datum + exakter Cent-Betrag + Händler-/Titel-Übereinstimmung
+        // 3. Bestell-zu-Rechnungs-Zeitfenster (-21 bis +5 Tage) + Cent-Betrag (±2 Cent Shop-Rundung) + Händler-/Titel-Übereinstimmung
         if ($date !== '' && $amountCents !== 0) {
-            $sameDayCandidates = (clone $query)
-                ->whereDate('execution_date', $date)
-                ->get();
+            try {
+                $parsedDate = Carbon::parse($date);
+                $winStart = $parsedDate->copy()->subDays(21)->format('Y-m-d');
+                $winEnd = $parsedDate->copy()->addDays(5)->format('Y-m-d');
+            } catch (\Throwable) {
+                $winStart = $date;
+                $winEnd = $date;
+            }
+
+            $windowCandidates = (clone $query)
+                ->whereBetween('execution_date', [$winStart, $winEnd])
+                ->get()
+                ->sortBy(function ($cand) use ($date) {
+                    $cDate = $cand->execution_date instanceof Carbon
+                        ? $cand->execution_date->format('Y-m-d')
+                        : substr((string) $cand->execution_date, 0, 10);
+                    return abs(strtotime($cDate) - strtotime($date));
+                });
 
             $needleMerchant = mb_strtolower(trim($merchant));
             $needleTitle = mb_strtolower(trim($title));
+            $stopWords = ['gmbh', 'rechnung', 'invoice', 'bestellung', 'order', 'shop', 'store', 'deutschland', 'online', 'service', 'noreply', 'no-reply', 'verkauf', 'sales'];
+            $merchantTokens = array_values(array_filter(
+                preg_split('/[^a-z0-9äöüß]+/iu', $needleMerchant . ' ' . $needleTitle) ?: [],
+                fn ($tok) => mb_strlen($tok) >= 4 && !in_array($tok, $stopWords, true) && !ctype_digit($tok)
+            ));
 
-            foreach ($sameDayCandidates as $cand) {
+            foreach ($windowCandidates as $cand) {
                 $candCents = (int) round(((float) $cand->amount) * 100);
-                if (abs($candCents) !== abs($amountCents)) {
+                if (($candCents < 0) !== ($amountCents < 0)) {
+                    continue;
+                }
+                if (abs(abs($candCents) - abs($amountCents)) > 2) {
                     continue;
                 }
 
                 $candTitle = mb_strtolower(trim((string) $cand->title));
                 $candLoc = mb_strtolower(trim((string) $cand->location));
+                $candNote = mb_strtolower(mb_substr((string) ($cand->note ?? ''), 0, 1200));
+                $candHaystack = "{$candLoc} {$candTitle} {$candNote}";
 
                 $sameMerchant = $needleMerchant !== '' && (
                     str_contains($candLoc, $needleMerchant)
-                    || str_contains($needleMerchant, $candLoc !== '' ? $candLoc : '__none__')
+                    || ($candLoc !== '' && str_contains($needleMerchant, $candLoc))
                     || str_contains($candTitle, $needleMerchant)
                 );
                 $sameTitle = $needleTitle !== '' && (
                     $candTitle === $needleTitle
                     || str_contains($candTitle, $needleTitle)
-                    || str_contains($needleTitle, $candTitle !== '' ? $candTitle : '__none__')
+                    || ($candTitle !== '' && str_contains($needleTitle, $candTitle))
                 );
 
-                if ($sameMerchant || $sameTitle) {
+                $tokenHit = false;
+                if (!$sameMerchant && !$sameTitle && !empty($merchantTokens)) {
+                    foreach ($merchantTokens as $tok) {
+                        if ($tok === 'amazon' || $tok === 'paypal' || $tok === 'ebay') {
+                            continue;
+                        }
+                        if (str_contains($candHaystack, $tok)) {
+                            $tokenHit = true;
+                            break;
+                        }
+                    }
+                }
+
+                if ($sameMerchant || $sameTitle || $tokenHit) {
                     $dateStr = $cand->execution_date instanceof Carbon
                         ? $cand->execution_date->format('Y-m-d')
                         : (string) $cand->execution_date;
                     $euro = number_format($candCents / 100, 2, ',', '.');
                     return [
                         'is_duplicate' => true,
-                        'reason' => "Möglicher Doppelbeleg: Am {$dateStr} existiert bereits '{$cand->title}' über {$euro} €.",
+                        'reason' => "Zugehöriger Eintrag gefunden: Am {$dateStr} existiert bereits '{$cand->title}' über {$euro} €.",
                         'existing_id' => (string) $cand->id,
                         'existing_title' => (string) $cand->title,
                         'existing_date' => $dateStr,

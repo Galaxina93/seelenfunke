@@ -4,6 +4,7 @@
      x-ref="stage">
 
     {{-- BLAUER HINWEIS (2D / 3D WECHSEL IN EINEM EINZIGEN CONTAINER, MOBIL VOLLE BREITE & KOMPAKT) --}}
+    @if($context !== 'laser_freehand')
     <div x-show="showNotice"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0 -translate-y-2 scale-98"
@@ -56,6 +57,7 @@
             </button>
         </div>
     </div>
+    @endif
 
     {{-- EMOJI- & SONDERZEICHEN-WARNUNG --}}
     <div x-show="showEmojiWarning"
@@ -215,6 +217,18 @@
                     <span class="text-[10px] sm:text-xs font-bold tracking-tight pointer-events-none whitespace-nowrap">Sprüche</span>
                 </button>
             @endif
+
+            @if($context === 'laser_freehand')
+                <div class="w-px h-5 {{ $isDark ? 'bg-gray-800' : 'bg-gray-200/80' }}"></div>
+                <button type="button"
+                        @mousedown.stop @click.stop="toggleTab('qrcode')"
+                        :class="activeTab === 'qrcode' ? '{{ $isDark ? 'bg-primary/20 text-primary' : 'bg-[#C5A059]/15 text-[#7A5E28]' }}' : '{{ $isDark ? 'text-gray-300 hover:text-primary hover:bg-primary/10' : 'text-gray-700 hover:text-[#9A7B3E] hover:bg-[#C5A059]/12' }}'"
+                        class="flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 cursor-pointer transition-all px-2 py-1.5 sm:py-2 rounded-xl group select-none"
+                        title="Vektor-QR-Code erzeugen & einfügen">
+                    <x-heroicon-o-qr-code class="w-4 h-4 sm:w-5 sm:h-5 pointer-events-none text-[#C5A059] shrink-0" />
+                    <span class="text-[10px] sm:text-xs font-bold tracking-tight pointer-events-none whitespace-nowrap">+ QR-Code</span>
+                </button>
+            @endif
         </div>
 
         {{-- REIHE 2: ZOOM-REGLER AUSSERHALB OBERHALB DER VORSCHAU ÜBER DIE VOLLE BREITE --}}
@@ -267,6 +281,7 @@
              ? 'width: min(90vw, min(58vh, 600px)); height: min(90vw, min(58vh, 600px)); aspect-ratio: 1 / 1; flex-shrink: 0;' + (activeBgImage ? ` background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')
              : (activeBgImage ? `background-image: url('${activeBgImage}'); background-size: cover; background-position: center;` : '')"
          x-ref="container"
+         @wheel="handleStageWheel($event)"
          @mousedown="deselectAll($event)"
          @touchstart="deselectAll($event)">
 
@@ -468,6 +483,16 @@
                                 <span>Sprüche</span>
                             </button>
                         @endif
+                        @if($context === 'laser_freehand')
+                            <button type="button"
+                                    @mousedown.stop
+                                    @touchstart.stop
+                                    @click.stop="activeTab = 'qrcode'"
+                                    class="px-3 py-1.5 backdrop-blur-md border rounded-full text-[9px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 whitespace-nowrap cursor-pointer {{ $isDark ? 'bg-gray-900/75 text-gray-300 border-gray-700 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white/80 text-gray-600 border-gray-200/80 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-2xs' }}">
+                                <x-heroicon-o-qr-code class="w-3 h-3 text-[#C5A059]" />
+                                <span>+ QR-Code</span>
+                            </button>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -524,9 +549,9 @@
                                 <img :src="resolveLogoUrl(currentLogos[index])"
                                      decoding="sync"
                                      :class="(isCropping && selectedType==='logo' && selectedIndex===index && context!=='preview') ? 'absolute inset-0 w-full h-full object-contain pointer-events-none rounded-lg' : 'w-full h-auto pointer-events-none rounded-lg'"
-                                     :style="(isDarkSurface
+                                     :style="(isDarkSurface && !(currentLogos[index] && currentLogos[index].studio_edited)
                                          ? 'filter: brightness(0) invert(1) opacity(0.93) drop-shadow(0px 1px 3px rgba(0,0,0,0.85)) drop-shadow(0px 0px 5px rgba(255,255,255,0.2));'
-                                         : 'opacity: 0.92; filter: drop-shadow(0px 0px 3px rgba(255,255,255,0.75)) drop-shadow(0px 1px 2px rgba(0,0,0,0.25));')
+                                         : 'opacity: 0.94; filter: drop-shadow(0px 1px 3px rgba(0,0,0,0.45));')
                                          + ((isCropping && selectedType==='logo' && selectedIndex===index && context!=='preview') ? (' clip-path: ' + getLogoClipPath() + ';') : '')">
                             </div>
 
@@ -839,14 +864,14 @@
                             <div class="flex justify-between text-[10px] font-black tracking-widest text-gray-400 uppercase mb-2.5"><span>Klein</span><span>Groß</span></div>
                             <input x-show="selectedType === 'text' && Boolean(currentTexts[selectedIndex])"
                                    x-cloak
-                                   type="range" min="0.1" max="5" step="0.05"
+                                   type="range" :min="context === 'laser_freehand' ? 0.06 : 0.1" max="5" step="0.02"
                                    :value="currentTexts[selectedIndex]?.size ?? 1"
                                    @input="setSelectedElementSize($event.target.value)"
                                    @change="recordHistory()"
                                    class="w-full accent-primary h-2 rounded-lg appearance-none cursor-pointer {{ $isDark ? 'bg-gray-800' : 'bg-gray-100' }}">
                             <input x-show="selectedType === 'logo' && Boolean(currentLogos[selectedIndex])"
                                    x-cloak
-                                   type="range" min="10" max="500" step="1"
+                                   type="range" :min="context === 'laser_freehand' ? 6 : 10" max="500" step="1"
                                    :value="currentLogos[selectedIndex]?.size ?? 100"
                                    @input="setSelectedElementSize($event.target.value)"
                                    @change="recordHistory()"

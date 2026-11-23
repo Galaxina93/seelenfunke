@@ -1795,7 +1795,11 @@ namespace FunkenwerkMcp
                     }
                     catch { }
 
-                    // 2. Deliver each pending item with strict 2-phase commit
+                    // 2. Deliver each pending item with strict 2-phase commit (+ automatic O(1) channel auto-compact rotation)
+                    List<JsonObject>? allLocalInboxHistory = pendingEntries.Count > 0
+                        ? ReadLocalDirectInboxItems(onlyPending: false)
+                        : null;
+
                     foreach (var (itemObj, fromStage, fromLocal) in pendingEntries)
                     {
                         if (cts.IsCancellationRequested) break;
@@ -1837,10 +1841,10 @@ namespace FunkenwerkMcp
                             channel);
 
                         // Phase 1: Route to target channel conversation via agentapi (UseShellExecute = false, ArgumentList)
-                        bool sentOk;
-                        int exitCode;
-                        string errOut;
-                        string deliveredTargetDesc;
+                        bool sentOk = false;
+                        int exitCode = -1;
+                        string errOut = "";
+                        string deliveredTargetDesc = "";
 
                         if (channel == "new")
                         {
@@ -1853,8 +1857,49 @@ namespace FunkenwerkMcp
                         }
                         else if (channel == "leitung")
                         {
-                            (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(targetConversationId, promptText, cts.Token);
-                            deliveredTargetDesc = $"Kanal 'Leitung' ({targetConversationId})";
+                            var leitungCompact = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                                targetConversationId,
+                                "leitung",
+                                title,
+                                body,
+                                allLocalInboxHistory,
+                                incomingItemId: safeId);
+
+                            if (leitungCompact.ShouldRotate)
+                            {
+                                string rotatedPrompt = McpSecurityGuard.PrependAgAutoCompactHandoffContext(
+                                    promptText,
+                                    channelTitle,
+                                    targetConversationId,
+                                    leitungCompact,
+                                    "leitung",
+                                    allLocalInboxHistory);
+
+                                var rotateRes = await StartNewAgentConversationSafeAsync(channelTitle, rotatedPrompt, captureUuid: true, cts.Token);
+                                if (rotateRes.Success && rotateRes.ExitCode == 0)
+                                {
+                                    sentOk = true;
+                                    exitCode = 0;
+                                    errOut = "";
+                                    string oldMaster = targetConversationId;
+                                    if (!string.IsNullOrWhiteSpace(rotateRes.ExtractedUuid))
+                                    {
+                                        cfg = McpSecurityGuard.LoadAgBridgeConfig();
+                                        cfg.MasterConversationId = rotateRes.ExtractedUuid!;
+                                        McpSecurityGuard.SaveAgBridgeConfig(cfg);
+                                        targetConversationId = rotateRes.ExtractedUuid!;
+                                        cliConvId = rotateRes.ExtractedUuid!;
+                                        startupConfigWriteUtc = DateTime.MinValue;
+                                    }
+                                    deliveredTargetDesc = $"Auto-Compact Kanal 'Leitung' ({oldMaster} -> {rotateRes.ExtractedUuid ?? "auto"}, {leitungCompact.TranscriptSteps} Steps)";
+                                }
+                            }
+
+                            if (!sentOk || exitCode != 0)
+                            {
+                                (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(targetConversationId, promptText, cts.Token);
+                                deliveredTargetDesc = $"Kanal 'Leitung' ({targetConversationId})";
+                            }
                         }
                         else
                         {
@@ -1866,25 +1911,62 @@ namespace FunkenwerkMcp
                             if (hasExistingDeptUuid)
                             {
                                 string validDeptUuid = McpSecurityGuard.ValidateAgConversationId(deptUuid);
-                                (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(validDeptUuid, promptText, cts.Token);
-                                deliveredTargetDesc = $"Abteilungs-Kanal '{channelTitle}' ({validDeptUuid})";
+                                var deptCompact = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                                    validDeptUuid,
+                                    channel,
+                                    title,
+                                    body,
+                                    allLocalInboxHistory,
+                                    incomingItemId: safeId);
 
-                                if (!sentOk || exitCode != 0)
+                                if (deptCompact.ShouldRotate)
                                 {
-                                    // Fallback if department chat was deleted by user: attempt clean auto-recreation
-                                    var recreateRes = await StartNewAgentConversationSafeAsync(channelTitle, promptText, captureUuid: true, cts.Token);
-                                    if (recreateRes.Success && recreateRes.ExitCode == 0)
+                                    string rotatedPrompt = McpSecurityGuard.PrependAgAutoCompactHandoffContext(
+                                        promptText,
+                                        channelTitle,
+                                        validDeptUuid,
+                                        deptCompact,
+                                        channel,
+                                        allLocalInboxHistory);
+
+                                    var rotateRes = await StartNewAgentConversationSafeAsync(channelTitle, rotatedPrompt, captureUuid: true, cts.Token);
+                                    if (rotateRes.Success && rotateRes.ExitCode == 0)
                                     {
                                         sentOk = true;
                                         exitCode = 0;
                                         errOut = "";
-                                        if (!string.IsNullOrWhiteSpace(recreateRes.ExtractedUuid))
+                                        if (!string.IsNullOrWhiteSpace(rotateRes.ExtractedUuid))
                                         {
-                                            cfg.ChannelConversationIds[channel] = recreateRes.ExtractedUuid!;
+                                            cfg.ChannelConversationIds[channel] = rotateRes.ExtractedUuid!;
                                             McpSecurityGuard.SaveAgBridgeConfig(cfg);
                                             startupConfigWriteUtc = DateTime.MinValue;
                                         }
-                                        deliveredTargetDesc = $"Neu angelegter Abteilungs-Kanal '{channelTitle}' ({recreateRes.ExtractedUuid ?? "auto"})";
+                                        deliveredTargetDesc = $"Auto-Compact Abteilungs-Kanal '{channelTitle}' ({validDeptUuid} -> {rotateRes.ExtractedUuid ?? "auto"}, {deptCompact.TranscriptSteps} Steps)";
+                                    }
+                                }
+
+                                if (!sentOk || exitCode != 0)
+                                {
+                                    (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(validDeptUuid, promptText, cts.Token);
+                                    deliveredTargetDesc = $"Abteilungs-Kanal '{channelTitle}' ({validDeptUuid})";
+
+                                    if (!sentOk || exitCode != 0)
+                                    {
+                                        // Fallback if department chat was deleted by user: attempt clean auto-recreation
+                                        var recreateRes = await StartNewAgentConversationSafeAsync(channelTitle, promptText, captureUuid: true, cts.Token);
+                                        if (recreateRes.Success && recreateRes.ExitCode == 0)
+                                        {
+                                            sentOk = true;
+                                            exitCode = 0;
+                                            errOut = "";
+                                            if (!string.IsNullOrWhiteSpace(recreateRes.ExtractedUuid))
+                                            {
+                                                cfg.ChannelConversationIds[channel] = recreateRes.ExtractedUuid!;
+                                                McpSecurityGuard.SaveAgBridgeConfig(cfg);
+                                                startupConfigWriteUtc = DateTime.MinValue;
+                                            }
+                                            deliveredTargetDesc = $"Neu angelegter Abteilungs-Kanal '{channelTitle}' ({recreateRes.ExtractedUuid ?? "auto"})";
+                                        }
                                     }
                                 }
                             }
@@ -1926,6 +2008,7 @@ namespace FunkenwerkMcp
 
                         await SyncItemsToLocalPortalBestEffortAsync(new JsonArray(sanitizedCopy), markDeliveredId: fromLocal ? safeId : null);
                         await UpsertOrUpdateLocalDirectInboxJsonAsync(sanitizedCopy, safeId, "delivered", null);
+                        allLocalInboxHistory?.Add(sanitizedCopy);
 
                         Console.Error.WriteLine($"[AG-Sidecar] Direktnachricht '{safeId}' verlustfrei an {deliveredTargetDesc} zugestellt.");
                     }
@@ -4466,6 +4549,7 @@ namespace FunkenwerkMcp
                 "os" => ("Funkenwerk OS", "FunkenwerkOS.exe"),
                 "pdf" => ("Funkenwerk PDF", "FunkenwerkPdf.exe"),
                 "player" => ("Funkenwerk Player", "FunkenwerkPlayer.exe"),
+                "remote" => ("Funkenwerk Remote", "FunkenwerkRemote.exe"),
                 "smarthome" => ("Funkenwerk SmartHome", "FunkenwerkSmartHome.exe"),
                 "ssh" => ("Funkenwerk SSH", "FunkenwerkSsh.exe"),
                 "tresor" => ("Funkenwerk Tresor", "FunkenwerkTresor.exe"),
@@ -7104,6 +7188,107 @@ namespace FunkenwerkMcp
                         && warpOk
                         && vaultRoundtripOk
                         && failoverFlowOk);
+                }
+
+                // 64. AG-Sidecar Auto-Compact Kanal-Rotation (O(1) Transcript-Threshold, Streaming-Guard, Go-Ticket-Schutz & Kurz-Gedaechtnis)
+                {
+                    string mockBrainRoot = Path.Combine(tempRoot, "ag_autocompact_brain");
+                    string convSmall = "11111111-2222-4333-8444-555555555555";
+                    string convLarge = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+
+                    string smallLogs = Path.Combine(mockBrainRoot, convSmall, ".system_generated", "logs");
+                    string largeLogs = Path.Combine(mockBrainRoot, convLarge, ".system_generated", "logs");
+                    Directory.CreateDirectory(smallLogs);
+                    Directory.CreateDirectory(largeLogs);
+
+                    DateTimeOffset fixedNow = new DateTimeOffset(2026, 11, 23, 20, 30, 0, TimeSpan.Zero);
+
+                    string smallTranscript = Path.Combine(smallLogs, "transcript.jsonl");
+                    File.WriteAllText(smallTranscript, string.Join("\n", Enumerable.Range(1, 25).Select(i => $"{{\"step_index\":{i}}}")));
+                    File.SetLastWriteTimeUtc(smallTranscript, fixedNow.AddMinutes(-10).UtcDateTime);
+
+                    string largeTranscript = Path.Combine(largeLogs, "transcript.jsonl");
+                    File.WriteAllText(largeTranscript, string.Join("\n", Enumerable.Range(1, 185).Select(i => $"{{\"step_index\":{i}}}")));
+                    File.SetLastWriteTimeUtc(largeTranscript, fixedNow.AddMinutes(-10).UtcDateTime);
+
+                    // a) Below threshold -> do not rotate
+                    var decSmall = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                        convSmall, "android", "Neuer Wunsch", "Bitte Icon anpassen", null, null, mockBrainRoot, fixedNow);
+
+                    // b) Above threshold, idle, no open Go -> rotate!
+                    var completedHistory = new List<JsonObject>
+                    {
+                        new JsonObject
+                        {
+                            ["id"] = "ag_20261123_152016_456f0679",
+                            ["channel"] = "android",
+                            ["status"] = "completed",
+                            ["title"] = "Mehrfachscan Fingerprint Fix",
+                            ["ag_response_summary"] = "Live ausgerollt in v1.9.3 Build 44.",
+                            ["completed_at"] = fixedNow.AddHours(-2).ToString("O")
+                        }
+                    };
+                    var decRotate = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                        convLarge, "android", "Neuer Wunsch", "Bitte Kamera pruefen", completedHistory, "ag_20261123_203000_12345678", mockBrainRoot, fixedNow);
+
+                    // c) Above threshold, BUT incoming message is a GO reply -> NEVER rotate!
+                    var decGoReply = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                        convLarge, "android", "GO & Antwort zu: Kamera", "Referenz-Ticket: ag_20261123_152016_456f0679\nGo erteilt", completedHistory, null, mockBrainRoot, fixedNow);
+
+                    // d) Above threshold, BUT channel has an unresolved 'auf dein Go' summary -> NEVER rotate!
+                    var awaitingGoHistory = new List<JsonObject>
+                    {
+                        new JsonObject
+                        {
+                            ["id"] = "ag_20261123_190000_deadbeef",
+                            ["channel"] = "android",
+                            ["status"] = "completed",
+                            ["title"] = "Konzept Upload",
+                            ["ag_response_summary"] = "Lokal fertig, bereit auf dein Go.",
+                            ["completed_at"] = fixedNow.AddMinutes(-30).ToString("O")
+                        }
+                    };
+                    var decBlockedByOpenGo = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                        convLarge, "android", "Andere Frage", "Kurzer Check", awaitingGoHistory, null, mockBrainRoot, fixedNow);
+
+                    // e) Once that Go ticket IS resolved by a completed Referenz-Ticket -> rotation unlocked again!
+                    awaitingGoHistory.Add(new JsonObject
+                    {
+                        ["id"] = "ag_20261123_191500_cafebabe",
+                        ["channel"] = "android",
+                        ["status"] = "completed",
+                        ["title"] = "GO & Antwort zu: Konzept Upload",
+                        ["body"] = "Referenz-Ticket: ag_20261123_190000_deadbeef\nGo erteilt",
+                        ["ag_response_summary"] = "Live ausgerollt.",
+                        ["completed_at"] = fixedNow.AddMinutes(-15).ToString("O")
+                    });
+                    var decUnlockedAfterGo = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                        convLarge, "android", "Naechstes Thema", "Bitte pruefen", awaitingGoHistory, null, mockBrainRoot, fixedNow);
+
+                    // f) Active streaming guard (< 90s since last transcript write) -> NEVER rotate!
+                    File.SetLastWriteTimeUtc(largeTranscript, fixedNow.AddSeconds(-20).UtcDateTime);
+                    var decStreaming = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                        convLarge, "android", "Naechstes Thema", "Bitte pruefen", completedHistory, null, mockBrainRoot, fixedNow);
+
+                    // g) Handoff prompt contains compact memory + conversation:// link + scrubs secrets
+                    string handoffPrompt = McpSecurityGuard.PrependAgAutoCompactHandoffContext(
+                        "ORIGINAL_PROMPT",
+                        "Android & Funkenwerk",
+                        convLarge,
+                        decRotate,
+                        "android",
+                        completedHistory);
+
+                    AssertTest("64. AG-Sidecar Auto-Compact Kanal-Rotation (O(1) Transcript-Threshold, Streaming-Guard, Go-Ticket-Schutz & Kurz-Gedaechtnis)",
+                        !decSmall.ShouldRotate && decSmall.Reason == "below_threshold"
+                        && decRotate.ShouldRotate && decRotate.Reason == "rotate_steps_exceeded" && decRotate.TranscriptSteps >= 160
+                        && !decGoReply.ShouldRotate && decGoReply.Reason == "followup_or_go_reply"
+                        && !decBlockedByOpenGo.ShouldRotate && decBlockedByOpenGo.Reason == "channel_has_active_or_awaiting_go"
+                        && decUnlockedAfterGo.ShouldRotate
+                        && !decStreaming.ShouldRotate && decStreaming.Reason == "conversation_actively_streaming"
+                        && handoffPrompt.Contains($"conversation://{convLarge}", StringComparison.Ordinal)
+                        && handoffPrompt.Contains("ag_20261123_152016_456f0679", StringComparison.Ordinal)
+                        && handoffPrompt.EndsWith("ORIGINAL_PROMPT", StringComparison.Ordinal));
                 }
 
                 Console.WriteLine($"=== RESULT: {passed} PASSED, {failed} FAILED ===");

@@ -86,16 +86,33 @@ class CheckDhlDeliveryStatus extends Command
                 $isDelivered = false;
                 $apiFailed = false;
                 $trackingNumber = trim((string) ($shipment->tracking_number ?? ''));
-                $dhlApiKey = config('services.dhl.tracking_api_key', config('services.dhl.api_key', env('DHL_API_KEY', '')));
-                $dhlConfigured = !empty($dhlApiKey);
+                $dhlApiKey = trim((string) (config('services.dhl.tracking_api_key') ?: config('services.dhl.api_key') ?: ''));
+                $dhlConfigured = $dhlApiKey !== '';
 
                 if ($trackingNumber !== '' && $dhlConfigured) {
                     try {
                         $isDelivered = $this->checkDhlTracking($trackingNumber);
+                        \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                            'dhl:tracking_auth_error',
+                            'DHL Parcel DE Tracking API antwortet wieder mit gültiger Authentifizierung.',
+                            'Bestelli'
+                        );
                     } catch (\Exception $e) {
                         $apiFailed = true;
                         $this->warn("   -> DHL Tracking Info: " . $e->getMessage());
                         Log::warning("DHL Tracking Warning für Sendung {$trackingNumber}: " . $e->getMessage());
+                        if (str_contains($e->getMessage(), 'Unauthorized (401)')) {
+                            \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                                alertKey: 'dhl:tracking_auth_error',
+                                title: 'DHL Tracking API: Schlüssel ungültig oder ohne Berechtigung (HTTP 401)',
+                                markdownBody: "Der Cronjob `dhl:check-delivery-status` erhielt HTTP 401 von `api-eu.dhl.com/track/shipments`.\n\n**Details:**\n" . $e->getMessage(),
+                                departmentName: 'Bestellungen',
+                                agentName: 'Bestelli',
+                                ticketType: 'logistics_alert',
+                                priority: 'normal',
+                                assignToAntigravity: false
+                            );
+                        }
                     }
                 } elseif ($trackingNumber === '') {
                     $this->line("   -> Keine gültige Sendungsnummer hinterlegt. Nutze Alters-Fallback.");
@@ -144,8 +161,8 @@ class CheckDhlDeliveryStatus extends Command
      */
     private function checkDhlTracking(string $trackingNumber): bool
     {
-        $apiKey = config('services.dhl.tracking_api_key', config('services.dhl.api_key', env('DHL_API_KEY', '')));
-        if (empty($apiKey)) {
+        $apiKey = trim((string) (config('services.dhl.tracking_api_key') ?: config('services.dhl.api_key') ?: ''));
+        if ($apiKey === '') {
             throw new \Exception('Kein DHL API Key hinterlegt.');
         }
 
@@ -171,8 +188,11 @@ class CheckDhlDeliveryStatus extends Command
             if ($response->status() === 429) {
                 throw new \Exception("Rate Limit überschritten (429).");
             }
-            
-            throw new \Exception('API Fehler (' . $response->status() . '): ' . $response->body());
+
+            $safeExcerpt = class_exists(\App\Services\System\SystemErrorLogger::class)
+                ? \App\Services\System\SystemErrorLogger::sanitizeSensitiveText(mb_substr((string) $response->body(), 0, 240))
+                : mb_substr((string) $response->body(), 0, 240);
+            throw new \Exception('API Fehler (' . $response->status() . '): ' . $safeExcerpt);
         }
 
         $data = $response->json();

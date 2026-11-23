@@ -36,6 +36,14 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->reportable(function (\Throwable $e) {
             if (
+                $e instanceof \Symfony\Component\Console\Exception\CommandNotFoundException
+                && app()->runningInConsole()
+                && !in_array('schedule:run', $_SERVER['argv'] ?? [], true)
+            ) {
+                return false;
+            }
+
+            if (
                 class_exists(\App\Services\System\SystemErrorLogger::class)
                 && (
                     \App\Services\System\SystemErrorLogger::isTransientLocalMigrationTableMissing($e)

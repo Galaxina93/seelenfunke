@@ -687,7 +687,7 @@ Route::post('/funki/minipc-trichter/enqueue', function (Request $request) {
 });
 
 // 12. Verschlüsselte kDrive Eingang-Trichter Schleuse (Android Massenscanner -> Windows Funkenwerk -> kDrive\Meine Daten\00_Eingang_Trichter)
-Route::prefix('funki/kdrive-trichter')->group(function () {
+Route::prefix('funki/kdrive-trichter')->withoutMiddleware('throttle:api')->group(function () {
     $ensureAdminOwner = static function (Request $request): void {
         $user = $request->user();
         if (!$user instanceof \App\Models\Admin\Admin) {
@@ -876,5 +876,5 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
             'success' => true,
             'data' => $result,
         ]);
-    });
+    })->middleware('throttle:60,1,kdrive_classify');
 });

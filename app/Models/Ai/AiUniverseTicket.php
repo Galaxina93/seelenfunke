@@ -58,6 +58,7 @@ class AiUniverseTicket extends Model implements HasSystemBlueprint
         'status',
         'priority',
         'ticket_type',
+        'is_business',
         'ai_department_id',
         'assigned_agent_id',
         'assigned_to_antigravity',
@@ -75,6 +76,7 @@ class AiUniverseTicket extends Model implements HasSystemBlueprint
     ];
 
     protected $casts = [
+        'is_business' => 'boolean',
         'assigned_to_antigravity' => 'boolean',
         'occurrence_count' => 'integer',
         'messages_count' => 'integer',
@@ -84,6 +86,33 @@ class AiUniverseTicket extends Model implements HasSystemBlueprint
         'last_activity_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
+
+    public static function isStrictAdminActor(): bool
+    {
+        $activeDefaultUser = \Illuminate\Support\Facades\Auth::user();
+        if ($activeDefaultUser instanceof \App\Models\Employee\Employee
+            || $activeDefaultUser instanceof \App\Models\Customer\Customer) {
+            return false;
+        }
+
+        return ($activeDefaultUser instanceof \App\Models\Admin\Admin)
+            || \Illuminate\Support\Facades\Auth::guard('admin')->check()
+            || \App\Services\AI\AiAuthHelper::isAdmin();
+    }
+
+    public function scopeVisibleToCurrentActor($query)
+    {
+        if (!self::isStrictAdminActor() && \Illuminate\Support\Facades\Schema::hasColumn($this->getTable(), 'is_business')) {
+            $query->where('is_business', true);
+        }
+
+        return $query;
+    }
+
+    public static function getScopeLabel(bool $isBusiness): string
+    {
+        return $isBusiness ? 'Gewerblich' : 'Privat';
+    }
 
     public static function generateNextTicketNumber(): string
     {

@@ -398,10 +398,73 @@
                         @endif
                     </div>
                 @endif
+
+                {{-- 3. VEKTOR-QR-CODE GENERATOR (EXKLUSIV IM LASER-FREEHAND-MODUS) --}}
+                @if($context === 'laser_freehand')
+                    <div x-show="activeTab === 'qrcode'"
+                         x-transition:enter="transition-opacity ease-out duration-150"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         class="space-y-4">
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="text-sm font-black uppercase tracking-widest flex items-center gap-2 {{ $isDark ? 'text-gray-200' : 'text-slate-900' }}">
+                                <x-heroicon-o-qr-code class="w-4 h-4 text-[#C5A059]" />
+                                <span>Vektor-QR-Code Generator</span>
+                            </h3>
+                            <button type="button" @click="activeTab = null" class="text-xs font-bold text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2.5 py-1 rounded-xl border border-transparent hover:border-gray-200 dark:hover:border-gray-800 transition-colors cursor-pointer">
+                                Schließen ✕
+                            </button>
+                        </div>
+
+                        <div class="border rounded-[1.5rem] p-4 sm:p-5 space-y-4 {{ $isDark ? 'bg-gray-900 border-gray-800' : 'bg-slate-50 border-slate-200' }}">
+                            <div>
+                                <span class="block text-[10px] font-black uppercase tracking-widest mb-2 {{ $isDark ? 'text-gray-400' : 'text-slate-500' }}">1-Klick Vorlagen</span>
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    @foreach(\App\Services\Laser\LaserQrCodeService::getQuickLinkTemplates() as $qKey => $qTpl)
+                                        <button type="button"
+                                                wire:click="addQrCodeInFreehand('{{ $qKey }}')"
+                                                @click="activeTab = null"
+                                                class="px-3 py-2 rounded-xl border text-[11px] font-bold transition-all cursor-pointer {{ $isDark ? 'bg-gray-950 border-gray-800 text-gray-200 hover:border-[#C5A059] hover:text-[#C5A059]' : 'bg-white border-slate-200 text-slate-800 hover:border-[#C5A059] hover:text-[#9A7B3E] shadow-2xs' }}">
+                                            {{ $qTpl['label'] }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t {{ $isDark ? 'border-gray-800' : 'border-slate-200' }}">
+                                <div>
+                                    <label class="block text-[10px] font-black uppercase tracking-widest mb-1.5 {{ $isDark ? 'text-gray-400' : 'text-slate-500' }}">Ziel-Link / Text</label>
+                                    <input type="text"
+                                           wire:model="qrTargetUrl"
+                                           placeholder="https://mein-seelenfunke.de/links"
+                                           class="w-full rounded-xl border px-3 py-2 text-xs font-medium outline-none focus:border-[#C5A059] {{ $isDark ? 'bg-gray-950 border-gray-800 text-white placeholder-gray-600' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400' }}" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black uppercase tracking-widest mb-1.5 {{ $isDark ? 'text-gray-400' : 'text-slate-500' }}">Untertitel (Optional)</label>
+                                    <input type="text"
+                                           wire:model="qrSubtitle"
+                                           placeholder="@meinseelenfunke"
+                                           class="w-full rounded-xl border px-3 py-2 text-xs font-medium outline-none focus:border-[#C5A059] {{ $isDark ? 'bg-gray-950 border-gray-800 text-white placeholder-gray-600' : 'bg-white border-slate-200 text-slate-900 placeholder-slate-400' }}" />
+                                </div>
+                            </div>
+
+                            <div class="flex justify-end">
+                                <button type="button"
+                                        wire:click="addQrCodeInFreehand"
+                                        @click="activeTab = null"
+                                        class="px-5 py-2.5 rounded-xl bg-[#C5A059] hover:bg-[#b08d48] text-gray-950 text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5">
+                                    <x-heroicon-m-qr-code class="w-4 h-4" />
+                                    <span>QR-Code auf Fläche legen</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                @endif
             </div>
         </div>
     @endif
 
+    @if($context !== 'laser_freehand')
     {{-- BESONDERE WÜNSCHE AN DIE MANUFAKTUR --}}
     <div class="mt-0!" x-data="{ count: @entangle('notes').live?.length || 0 }">
         <label class="text-[10px] font-black uppercase tracking-[0.2em] mb-2 flex justify-between {{ $isDark ? 'text-gray-500' : 'text-slate-400' }}">
@@ -417,9 +480,10 @@
                   placeholder="Geben Sie hier Details zu Ihrer gewünschten Gravur an..."
                   {{ $context === 'preview' ? 'readonly' : '' }}></textarea>
     </div>
+    @endif
 
     {{-- VERPACKUNGS-UPGRADES & BUNDLE-EXTRAS (IN DER RECHTEN STUDIO-SPALTE BZW. UNTER DEN WÜNSCHEN) --}}
-    @if($context !== 'preview' && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
+    @if(!in_array($context, ['preview', 'template_admin', 'laser_freehand', 'order_edit'], true) && $this->type === 'physical' && !$isDigital && !$isService && count($this->availableAddons) > 0)
         <div class="pt-5 border-t space-y-2.5 animate-fade-in-up {{ $isDark ? 'border-gray-800' : 'border-slate-100' }}"
              x-data="{ previewAddon: null }"
              @keydown.escape.window="if (previewAddon) previewAddon = null">
@@ -619,7 +683,7 @@
     @endif
 
     {{-- EXPRESS-OPTION (IN DER RECHTEN STUDIO-SPALTE BZW. UNTER VERPACKUNG & EXTRAS) --}}
-    @if($context !== 'preview' && $context !== 'template_admin' && $context !== 'order_edit' && $this->type === 'physical' && $this->product->isPersonalizable())
+    @if(!in_array($context, ['preview', 'template_admin', 'laser_freehand', 'order_edit'], true) && $this->type === 'physical' && $this->product->isPersonalizable())
         @php
             $expressPercent = (float)shop_setting('express_surcharge_percent', 20.0);
             $expressMin = (int)shop_setting('express_surcharge_min', 500);

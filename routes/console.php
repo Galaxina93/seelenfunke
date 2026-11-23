@@ -51,7 +51,10 @@ try {
                 // Commands wie 'reverb:start' oder 'queue:work' laufen unendlich.
                 // Auch mit runInBackground() wartet der Mittwald-Docker-Container auf das Ende ALLER Kind-Prozesse.
                 // Wenn diese hier geladen werden, bleibt der gesamte schedule:run hängen!
-                $daemonCommands = ['reverb:start', 'queue:work', 'queue:listen', 'websockets:serve', 'migrate:fresh', 'migrate:reset', 'db:wipe', 'tinker', 'key:generate', 'down'];
+                $daemonCommands = [
+                    'reverb:start', 'reverb:twilio-bridge', 'queue:work', 'queue:listen', 'websockets:serve',
+                    'migrate:fresh', 'migrate:reset', 'migrate:rollback', 'db:wipe', 'tinker', 'key:generate', 'down', 'system:prepare-live',
+                ];
                 
                 $commandBase = explode(' ', $commandClean)[0];
                 if ($commandBase === '' || !preg_match('/^[a-zA-Z0-9:_-]+$/', $commandBase) || in_array($commandBase, $daemonCommands, true)) {
@@ -67,6 +70,17 @@ try {
                             'started_at' => now(),
                             'finished_at' => now(),
                         ]);
+                    }
+                    if (class_exists(\App\Services\System\SystemAlertTicketService::class)) {
+                        \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                            alertKey: 'cronjob_blocked:' . ($commandBase !== '' ? $commandBase : $job->id),
+                            title: 'Gesperrter Cronjob automatisch deaktiviert: ' . $job->name,
+                            markdownBody: "Der eingetragene Cronjob-Befehl `{$job->command}` ist als Daemon- oder Destruktiv-Befehl für den internen Scheduler gesperrt und wurde zum Schutz vor Server-Blockaden automatisch pausiert.",
+                            departmentName: 'System',
+                            agentName: 'Systemi',
+                            ticketType: 'scheduler_security',
+                            priority: 'high'
+                        );
                     }
                     
                     // Job automatisch deaktivieren, um zukünftige Hänger zu vermeiden
@@ -151,11 +165,18 @@ try {
                     $event->sendOutputTo($outputLogFile);
                 }
 
-                $event->onSuccess(function () use ($job, $outputLogFile) {
+                $event->onSuccess(function () use ($job, $commandBase, $outputLogFile) {
                     $job->update([
                         'last_run_at' => now(),
                         'status' => 'success'
                     ]);
+
+                    if (class_exists(\App\Services\System\SystemAlertTicketService::class)) {
+                        \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
+                            'cronjob_failed:' . $commandBase,
+                            "Geplanter Lauf von `{$job->command}` ({$job->name}) wurde wieder fehlerfrei abgeschlossen."
+                        );
+                    }
 
                     // Temporäre cron-*.log nach fehlerfreiem Lauf konsistent auf 0 Bytes halten (echte Fehlerzeilen bleiben für Sentinel erhalten)
                     if (is_string($outputLogFile)
@@ -206,6 +227,25 @@ try {
                             'started_at' => now(),
                             'finished_at' => now(),
                         ]);
+                    }
+
+                    if (class_exists(\App\Services\System\SystemAlertTicketService::class)) {
+                        \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                            alertKey: 'cronjob_failed:' . $commandBase,
+                            title: 'Cronjob fehlgeschlagen: ' . $job->name,
+                            markdownBody: "Der geplante Cronjob `{$job->command}` (`{$job->schedule}`) ist fehlgeschlagen.\n\n"
+                                . ($outputExcerpt !== '' ? "**Ausgabe-Auszug:**\n```\n" . $outputExcerpt . "\n```" : 'Keine Konsolenausgabe vorhanden.'),
+                            departmentName: 'System',
+                            agentName: 'Systemi',
+                            ticketType: 'cronjob_failure',
+                            priority: 'high',
+                            assignToAntigravity: true,
+                            extraPayload: [
+                                'cronjob_id' => $job->id,
+                                'command' => $job->command,
+                                'schedule' => $job->schedule,
+                            ]
+                        );
                     }
                 });
             } catch (\Throwable $jobEx) {
@@ -287,24 +327,29 @@ try {
             ->withoutOverlapping();
     }
 } catch (\Throwable $e) {
-    // Fange DB-Verbindungsfehler oder ähnliche globale Ausnahmen ab
+    // Fange DB-Verbindungsfehler oder ähnliche globale Ausnahmen ab (ignoriere lokale Host-CLI Aufrufe außerhalb des Docker-Netzwerks)
     try {
-        \Illuminate\Support\Facades\Cache::put('scheduler_last_exception', [
-            'message' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine(),
-            'timestamp' => now()->toDateTimeString(),
-        ], now()->addMinutes(60));
+        $isHostDockerDnsMismatch = class_exists(\App\Services\System\SystemErrorLogger::class)
+            && \App\Services\System\SystemErrorLogger::isTransientLocalDatabaseColdBoot($e);
 
-        if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
-            \App\Services\System\SystemErrorLogger::recordException(
-                $e,
-                'scheduler',
-                'scheduler:boot_exception',
-                'Scheduler Boot-Fehler'
-            );
-        } else {
-            \Illuminate\Support\Facades\Log::error("Scheduler globaler Boot-Fehler: " . $e->getMessage());
+        if (!$isHostDockerDnsMismatch && in_array('schedule:run', $argv ?? [], true)) {
+            \Illuminate\Support\Facades\Cache::put('scheduler_last_exception', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'timestamp' => now()->toDateTimeString(),
+            ], now()->addMinutes(60));
+
+            if (class_exists(\App\Services\System\SystemErrorLogger::class)) {
+                \App\Services\System\SystemErrorLogger::recordException(
+                    $e,
+                    'scheduler',
+                    'scheduler:boot_exception',
+                    'Scheduler Boot-Fehler'
+                );
+            } else {
+                \Illuminate\Support\Facades\Log::error("Scheduler globaler Boot-Fehler: " . $e->getMessage());
+            }
         }
     } catch (\Throwable $innerEx) {
         // Falls DB/Cache blockiert

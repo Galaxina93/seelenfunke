@@ -19,6 +19,10 @@ return new class extends Migration
                 $table->unsignedInteger('astral_crystals')->default(0);
                 $table->integer('funkenflug_highscore')->default(0);
                 $table->integer('level')->default(1);
+                $table->unsignedTinyInteger('magma_unlocked_level')->default(1);
+                $table->unsignedTinyInteger('magma_hearts')->default(6);
+                $table->string('magma_active_run_id', 64)->nullable();
+                $table->boolean('magma_run_committed')->default(false);
                 $table->integer('sparks_collected_today')->default(0);
                 $table->date('last_spark_collection_date')->nullable();
 

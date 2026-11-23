@@ -15,25 +15,29 @@ class ApiLoggingAndReceiptSecurityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_websocket_error_mail_is_throttled_to_prevent_inbox_bombing(): void
+    public function test_websocket_error_creates_throttled_universe_ticket_without_mail_spam(): void
     {
         Mail::fake();
 
-        // 1. First error request -> should trigger mail
+        // 1. First error request -> creates central UniverseTicket, zero email
         $response1 = $this->postJson('/api/log/websocket', [
             'type' => 'error',
             'message' => 'Connection dropped unexpectedly',
         ]);
         $response1->assertOk();
 
-        // 2. Second immediate error request with identical message -> should be throttled, no second mail
+        // 2. Second immediate error request with identical message -> throttled & deduplicated
         $response2 = $this->postJson('/api/log/websocket', [
             'type' => 'error',
             'message' => 'Connection dropped unexpectedly',
         ]);
         $response2->assertOk();
 
-        Mail::assertSent(AiAgentMessageMail::class, 1);
+        Mail::assertNothingSent();
+        $this->assertSame(
+            1,
+            \App\Models\Ai\AiUniverseTicket::where('error_fingerprint', 'like', 'sys_alert:ws_bridge_error:%')->count()
+        );
     }
 
     public function test_unauthorized_user_cannot_access_funki_financials_receipt(): void

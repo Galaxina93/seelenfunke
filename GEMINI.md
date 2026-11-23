@@ -29,7 +29,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
    - **Schlanke Haupttabellen:** In Übersichten (Fixkosten, Sonderausgaben, Lieferanten, Bestellungen, Influencer-Produkte, Verpackung) Beschreibungen & Tags in der Haupttabelle ausblenden.
    - **Keine KI-Gedankenstriche:** Niemals ` – ` in Frontend-, Produkt-, Blog-, SEO- oder Marketing-Texten verwenden.
    - **Lightbox statt neuer Tab:** Bild-Großansichten (Produktbilder, Kunden-Uploads, Belege) immer als Lightbox-Slider im selben Fenster öffnen.
-   - **Gamification Clean-Design:** Strikte Einhaltung von `Abschlussberichte/Workflows/Workflow_Gamification_Clean_Design.md` (`Inventar`, `Rucksack`, `KLASSE C/B/A/S`, `Profil`, `In die Schlacht` ohne Rollenspiel-Sätze).
+   - **Gamification Clean-Design:** Strikte Einhaltung des Workflows `Workflow_Gamification_Clean_Design` in der zentralen Wissensdatenbank (`Inventar`, `Rucksack`, `KLASSE C/B/A/S`, `Profil`, `In die Schlacht` ohne Rollenspiel-Sätze).
 2. **Farbwelt, Light-/Darkmode-Disziplin & „Matt statt KI-Glow“:**
    - **Shop-Frontend & Kunden-Modals = Immer Light-Mode:** Shop-Frontend (inkl. Konfigurator-Tutorial, Lightbox, Linktree `/links`, Produkt-Extras) immer im freundlichen, hellen **Light-Mode** halten (kein Darkmode-Switch, keine dunklen Boxen im Frontend).
    - **Schwarz-Gold (`#C5A059`) & Matt statt Glow/Lila/Amber:** Keine künstlichen KI-Glow-Effekte. Bei Produkt-Extras/Vorteilen niemals gelbe `bg-amber`-Boxen oder lila Häkchen nutzen, sondern cleanen Hintergrund + goldenen Haken (`✓` in `#C5A059`) + exakt **3 kurze Vorteile**.
@@ -42,7 +42,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
    - Betriebliche Anschaffungen (**Sonderausgaben** `/admin/financial-variable-costs`) und Verträge/Versicherungen (**Fixkosten** `/admin/financial-fix-costs`) immer direkt in `database/seeders/AccountingSeeder.php` pflegen (Cent-Integer `int`, exaktes Kaufdatum, saubere Trennung **Gewerblich vs. Privat**).
    - Belege/Verträge logisch benennen, in `storage/app/buchhaltung/receipts/` bzw. `contracts/` ablegen, im Seeder zuordnen und zwingend auf Dubletten prüfen.
 5. **Produkterstellung, 2D/3D-Assets, Verpackung & Ehrliche Materialangaben:**
-   - Strikte Einhaltung von `Abschlussberichte/Workflows/Workflow_KI_Automatisierte_Produkterstellung.md`: Keine losen Einmal-Skripte! Alle Produktdaten, Vorlagen, Lieferanten, Verpackungen und Assets fließen nativ in `ProductSeeder`, `ProductAssetSeeder`, `ProductPackagingSeeder`, `ProductSupplierSeeder` und `ProductTemplateSeeder`.
+   - Strikte Einhaltung des Workflows `Workflow_KI_Automatisierte_Produkterstellung` in der zentralen Wissensdatenbank: Keine losen Einmal-Skripte! Alle Produktdaten, Vorlagen, Lieferanten, Verpackungen und Assets fließen nativ in `ProductSeeder`, `ProductAssetSeeder`, `ProductPackagingSeeder`, `ProductSupplierSeeder` und `ProductTemplateSeeder`.
    - **Maßtreue & Ehrlichkeit:** 2D-Overlays, `.glb`-3D-Modelle und **Maßbild (letzte Bildposition mit exakten mm-Maßen)** exakt nach realen Rohling-Maßen. KI-Bilder erhalten Flag `KI-Generiert`; Produktvideos leer lassen, bis echte Videos vorliegen; neue Produkte starten mit **Bestand `0`**.
    - **Abmahnsichere Angaben:** *„Handveredelt in Deutschland (Manufaktur Gifhorn)“* statt pauschal „Made in Germany“ bei Import-Rohlingen; *„14 Karat vergoldeter Edelstahl (Ion-Plating)“* statt „Echtgold“; keine nicht vorhandenen „Samtbeutel“ versprechen (Standard: Luftpolster-Versand bzw. optionale schwarze Westpack-Geschenkbox +4,90 € / Schwarz-Gold-Geschenkpapier).
 6. **Zentralisierung im „Operativen Status“ & „To-Do Liste“ (`/admin/dashboard`):**
@@ -57,9 +57,12 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
    - Rollen `influencer` und `tax_advisor` strikt über `EnsureEmployeeRole` / `EmployeeRoleIsolationHook` / `AiAuthHelper` isolieren; kritische Livewire-Properties mit `#[Locked]` schützen.
 9. **Nebensysteme im Feature-Freeze (`funkenwerk*/`, `android-app/`, `funkenwerk-os-linux/`):**
    - Mini-PC (`192.168.188.151`), Desktop-Collection und Android-App sind bis zum Shop-Livegang eingefroren (nur echte Blocker auf expliziten Wunsch fixen; kein Auto-APK-Build, kein Mini-PC-Umbau).
-10. **Token-Spar-Modus, Lokal-First & Gebündelte Berichte:**
+10. **Token-Spar-Modus, Lokal-First, Wissensdatenbank-Berichte & Ticket-Pflicht statt Mail-Spam:**
     - Strikt lokal entwickeln (`http://127.0.0.1`). Kein `git push` oder `--stage-deploy` ohne explizite Freigabe von Alina.
-    - Direkt mit kleinen Datei-Ausschnitten arbeiten statt Subagenten-Ketten; keine losen Test-Skripte im Projekt-Root. `Abschlussberichte/` und `php artisan ai:generate-map` nur gebündelt bei Meilensteinen pflegen.
+    - Direkt mit kleinen Datei-Ausschnitten arbeiten statt Subagenten-Ketten; keine losen Test-Skripte im Projekt-Root.
+    - **Abschlussberichte in die Wissensdatenbank (`AiKnowledgeBase`):** Abschlussberichte, Prüfprotokolle und Workflows werden **niemals** in einen losen Dateiordner `Abschlussberichte/` geschrieben, sondern gebündelt bei Meilensteinen logisch und dublettenfrei direkt in die zentrale Wissensdatenbank (`/admin/tickets?view=knowledge`, via `CentralBrainService::saveMilestoneReport(...)` inkl. `database/seeders/data/knowledge_brain_reports_snapshot.json`) sowie `php artisan ai:generate-map` gepflegt.
+    - **Zentrale Konzept-Verwaltung (`/admin/tickets?view=files&ftype=concept`):** Neue Konzepte landen über `ConceptLifecycleService` zentral unter `/admin/tickets?view=files&ftype=concept` mit Initial-Status **`Offen`** (`open`, geschützt vor Auto-Archivierung), 4-Stufen-Dublettenschutz, 1-Klick-Löschung und globaler Funkira-Synchronität (`concept_manage`), und wechseln nach Umsetzung & grüner Prüfung auf **`Fertig & Geprüft`** (`completed_verified`).
+    - **Zentrale Tickets statt interner Warn-Mails:** Kein Cronjob und kein System-Wächter darf interne Warn- oder Fehlermails ans E-Mail-Postfach senden; alle internen System-, Sicherheits-, Blueprint- und Cronjob-Meldungen laufen ausschließlich dublettenfrei über `SystemAlertTicketService` als `AiUniverseTicket` (`/admin/tickets`).
 11. **Live-Screen „Augen & Hände“-Brücke (`C:\Users\konta\Desktop\AgyLiveBridge\`):**
     - Für Live-Sprachführung und direkte Steuerung von Desktop-Apps (insb. **xTool Studio** am F2 Ultra UV) liegt auf dem Desktop die Direkt-Schnittstelle `C:\Users\konta\Desktop\AgyLiveBridge\invoke_hands.ps1` (gekoppelt an den Hintergrund-Task `AgyLiveScreen`).
     - **Sofort-Blick (Augen, `< 1,5 Sek.`):** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\konta\Desktop\AgyLiveBridge\invoke_hands.ps1" -Action capture` -> liefert sofort das unverdeckte `xTool Studio`-Fenster unter `C:\Users\konta\Desktop\AgyLiveBridge\xtool_live.png` sowie den Gesamtdesktop unter `desktop_live.png`.
@@ -69,7 +72,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-23 01:22)
+> Generiert via `php artisan ai:generate-map` (2026-11-23 20:46)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -116,7 +119,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Management\Mail**: `MailAccount, MailAttachment, MailFolder, MailMessage, MailRule`
 - **Marketing**: `MarketingBlogCategory, MarketingBlogPost, MarketingCoupon, MarketingGiftVoucher, MarketingGiftVoucherLog, MarketingHerzensprojektAction, MarketingHerzensprojektTransaction, MarketingInfluencer, MarketingInfluencerCommission, MarketingInfluencerPayout, MarketingLandingPage, MarketingLinktree, MarketingLinktreeClick, MarketingLinktreeVisit, MarketingNewsletter, MarketingNewsletterSubscriber, MarketingReferral, MarketingTrackingLink, MarketingTrackingLinkHit, MarketingVoucher`
 - **Order**: `OrderOrder, OrderOrderItem, OrderQuoteRequest, OrderQuoteRequestItem, OrderRevocation, OrderShipment`
-- **Product**: `Product, ProductAnalyticsEvent, ProductAttribute, ProductCategory, ProductIdea, ProductLoss, ProductNicheCrawlerRun, ProductNicheItem, ProductPackaging, ProductPackagingItem, ProductReview, ProductSupplier, ProductTemplate, ProductTierPrice`
+- **Product**: `LaserStudioProject, Product, ProductAnalyticsEvent, ProductAttribute, ProductCategory, ProductIdea, ProductLoss, ProductNicheCrawlerRun, ProductNicheItem, ProductPackaging, ProductPackagingItem, ProductReview, ProductSupplier, ProductTemplate, ProductTierPrice`
 - **Root**: `SupportTelephonyCall`
 - **Support**: `SupportContactRequest, SupportContactRequestMessage, SupportCustomerChat, SupportCustomerChatMessage, SupportExperienceReview, SupportTicket, SupportTicketMessage`
 - **System**: `PersonalAccessToken, SystemAiHostingPlan, SystemBlockedIp, SystemCheckConfig, SystemCronjob, SystemDirectory, SystemLog, SystemLoginAttempt, SystemNeuralNode, SystemPasswordResetToken, SystemSchedulerLog, SystemSetting, SystemUser, SystemUserDevice`
@@ -148,7 +151,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Shop\Order**: `OrderAnalytics, OrderOverview, OrderQuoteAcceptance, OrderQuoteRequests, OrderRevocationForm, OrderRevocations, OrderShoppingCarts`
 - **Shop\Order\OrderCheckout**: `OrderCheckout, OrderCheckoutSuccess`
 - **Shop\Order\OrderCheckout\Traits**: `HandlesOrderCreation, HandlesStripePayment`
-- **Shop\Product**: `ProductAnalytics, ProductAttributes, ProductCategories, ProductConfiguratorSettings, ProductControlReviews, ProductCrawler, ProductCreate, ProductFracture, ProductFrontendFilterArea, ProductIdeas, ProductPackagingConfigurator, ProductReviews, ProductShow, ProductSuppliers, ProductTax, ProductTemplates, ProductTierPricing, ProductVariants`
+- **Shop\Product**: `LaserStudioWorkspace, ProductAnalytics, ProductAttributes, ProductCategories, ProductConfiguratorSettings, ProductControlReviews, ProductCrawler, ProductCreate, ProductFracture, ProductFrontendFilterArea, ProductIdeas, ProductPackagingConfigurator, ProductReviews, ProductShow, ProductSuppliers, ProductTax, ProductTemplates, ProductTierPricing, ProductVariants`
 - **Shop\Product\ProductCalculator**: `ProductCalculator`
 - **Shop\Product\ProductConfigurator**: `ProductConfigurator`
 - **Shop\Product\ProductConfigurator\Traits**: `HandlesConfiguratorLogic`
@@ -166,16 +169,16 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 
 ## 7. Services & Geschäftslogik (`app/Services/<Domain>/*.php`)
-- **AI**: `AIFunctionsRegistry, AgentSkillBudgetGuard, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiOutputQualityGate, AiPromptService, AiSupportService, AntigravityUniverseTicketBridge, BuchiReceiptPipelineService, CentralBrainService, ContextDossierBuilder, FunkiraPresenceContext, FunkiraSkillPoolService, FunkiraTicketRouter, GeminiAgent, GeminiTtsService, KnowledgeReportSyncService, MasterNextBestActionService, ProcurementSafetyGuard, ReceiptAiScannerService, SfInternalOrchestrator, TicketAutoCompactService, TicketDeliverableService, VertexAiService, WebSearchCascadeService`
+- **AI**: `AIFunctionsRegistry, AgentSkillBudgetGuard, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiOutputQualityGate, AiPromptService, AiSupportService, AntigravityUniverseTicketBridge, BuchiReceiptPipelineService, CentralBrainService, ConceptLifecycleService, ContextDossierBuilder, FunkiraPresenceContext, FunkiraSkillPoolService, FunkiraTicketRouter, GeminiAgent, GeminiTtsService, KnowledgeReportSyncService, MasterNextBestActionService, ProcurementSafetyGuard, ReceiptAiScannerService, SfInternalOrchestrator, TicketAutoCompactService, TicketDeliverableService, VertexAiService, WebSearchCascadeService`
 - **AI\Contracts**: `AiProviderInterface`
 - **AI\Functions**: `AiAgentsFuncs, AiBrainFuncs, AiCalendarFuncs, AiContactFuncs, AiFinanceFuncs, AiHealthFuncs, AiHolidayPlannerFuncs, AiLaserFuncs, AiMailFuncs, AiMapControlFuncs, AiMapNewsFuncs, AiMarketingBlogFuncs, AiMarketingFuncs, AiMarketingNewsletterFuncs, AiMarketingVoucherFuncs, AiMasterFuncs, AiNewsFuncs, AiOrderFuncs, AiPersonaFuncs, AiProductFuncs, AiRoutineFuncs, AiScoutFuncs, AiShoppingListFuncs, AiSmartHomeFuncs, AiStripeFuncs, AiSuppliersFuncs, AiSupportFuncs, AiSystemFuncs, AiTaskFuncs, AiTelefonyFuncs, AiUniverseTicketFuncs`
 - **AI\Mails**: `AiAgentMessageMail, AiHolidayPlanMail, AiMapSummaryMail`
 - **AI\Workspace**: `AbschlussberichteIndexerService, DateitrichterService`
-- **Accounting**: `ContractDocumentService`
+- **Accounting**: `ContractDocumentService, PreLiveOrderAndInvoiceCleanupService`
 - **Employee**: `EmployeeHrService`
 - **Export**: `FileDownloadService`
 - **Gamification**: `FunkenreichSsoBridgeService, GameConfig, GamificationService, LavaParkourService, LobbyInstanceService, PlayerNameValidator`
-- **Laser**: `LaserPhotoPreprocessor, XtoolLaserCockpitService`
+- **Laser**: `LaserPhotoPreprocessor, LaserQrCodeService, XtoolLaserCockpitService`
 - **Management**: `MailAiSortService, MailAttachmentFunnelService`
 - **Marketing**: `HolidayOfferAutopilotService, InfluencerService`
 - **Navigation**: `BackendNavigationService`
@@ -184,6 +187,6 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Shipping**: `GrossbriefLabelService`
 - **Shop**: `ShowroomChatGuardService, ShowroomMultiplayerService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, KdriveTrichterRelayService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory, ZeroTokenSelfHealer`
+- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, KdriveTrichterRelayService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemAlertTicketService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory, ZeroTokenSelfHealer`
 - **Tax**: `TaxSettingService`
 <!-- AI_MAP_END -->

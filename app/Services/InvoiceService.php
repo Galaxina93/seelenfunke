@@ -291,24 +291,27 @@ class InvoiceService
     {
         $prefix = preg_replace('/[^A-Za-z0-9]/', '', strtoupper((string)$prefix)) ?: 'RE';
         $year = date('Y');
-        return DB::transaction(function() use ($prefix, $year) {
+        return DB::transaction(function () use ($prefix, $year) {
             $escapedPrefix = addcslashes($prefix, '%_\\');
-            $latest = AccountingInvoice::where('invoice_number', 'like', "{$escapedPrefix}-$year-%")
+            $candidates = AccountingInvoice::withTrashed()
+                ->where('invoice_number', 'like', "{$escapedPrefix}-{$year}-%")
                 ->lockForUpdate()
-                ->orderByRaw('LENGTH(invoice_number) DESC')
-                ->orderBy('invoice_number', 'desc')
-                ->first();
+                ->pluck('invoice_number');
 
-            if (!$latest) {
-                $next = 1000;
-            } else {
-                // FIX: Explode Ergebnis erst in Variable speichern, da end() eine Referenz erwartet
-                $parts = explode('-', $latest->invoice_number);
-                $lastPart = end($parts);
-                $next = intval($lastPart) + 1;
+            $maxSeq = 999;
+            $pattern = '/^' . preg_quote("{$prefix}-{$year}-", '/') . '(\d+)$/';
+            foreach ($candidates as $candidate) {
+                if (preg_match($pattern, (string) $candidate, $m)) {
+                    $seq = (int) $m[1];
+                    if ($seq > $maxSeq) {
+                        $maxSeq = $seq;
+                    }
+                }
             }
 
-            return "$prefix-$year-$next";
+            $next = $maxSeq + 1;
+
+            return "{$prefix}-{$year}-{$next}";
         });
     }
 

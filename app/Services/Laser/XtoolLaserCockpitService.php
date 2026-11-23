@@ -230,7 +230,7 @@ class XtoolLaserCockpitService
 
             // 1. Direkter Live-Kamera-Abruf vom xTool F2 Ultra UV über das native V2-WebSocket-Protokoll (TLS Port 28900)
             if ($forceCheck && !$isCloud && (!app()->runningUnitTests() || $this->allowV2SocketInTests)) {
-                if ($this->captureAndCalibrateLiveCameraFromLaserV2($safeIp, $targetFullPath, true, $resolvedLightMode)) {
+                if ($this->captureAndCalibrateLiveCameraFromLaserV2($safeIp, $targetFullPath, true, $resolvedLightMode, $focusMm)) {
                     $source = 'laser_live_v2_ws';
                     $hasLocalFile = true;
                     $laserOnline = true;
@@ -276,6 +276,7 @@ class XtoolLaserCockpitService
                     $relayJob = $this->enqueueRelayJob('capture_camera', [
                         'laser_ip'   => $safeIp,
                         'light_mode' => $resolvedLightMode,
+                        'focus_mm'   => $focusMm,
                     ]);
                     $relayResult = $this->waitForRelayJobCompletion($relayJob['job_id'], $this->relayCameraWaitSeconds);
                     clearstatcache(true, $targetFullPath);
@@ -500,7 +501,8 @@ class XtoolLaserCockpitService
         string $ip = self::DEFAULT_LASER_IP,
         ?string $targetBackgroundPath = null,
         bool $directSocketOnly = false,
-        ?string $lightMode = null
+        ?string $lightMode = null,
+        ?float $focusMm = null
     ): bool {
         if (!function_exists('imagecreatefromstring') || !function_exists('imagecreatetruecolor')) {
             return false;
@@ -595,6 +597,27 @@ class XtoolLaserCockpitService
                         $restoreBackBri = 255;
                     }
                 } catch (\Throwable) {
+                }
+            }
+
+            // 0b. Falls eine Fokus-Höhe übergeben wurde, Z-Achse VOR dem Kamera-Foto exakt auf die Arbeitsebene fahren!
+            // Dadurch verschwindet jeder Höhen-Parallaxe-Versatz bei dickeren Objekten (z. B. Schere mit 23,6 mm Höhe).
+            if ($focusMm !== null && $focusMm > 0.0) {
+                $camFocusCmd = self::buildZAxisFocusControlCommand($focusMm, 'engrave', 'flatbed_standard');
+                if ($camFocusCmd !== null) {
+                    try {
+                        $this->v2SendJsonCmd(
+                            $mainWs,
+                            $txId,
+                            $sessionToken,
+                            $camFocusCmd['method'],
+                            $camFocusCmd['url'],
+                            $camFocusCmd['params'],
+                            $camFocusCmd['data']
+                        );
+                        $this->waitForCameraExposureSettleUs(350000);
+                    } catch (\Throwable) {
+                    }
                 }
             }
 
@@ -1553,10 +1576,21 @@ class XtoolLaserCockpitService
         array $itemConfig = [],
         string $side = 'front',
         bool $forceCameraSync = false,
-        ?string $lightMode = null
+        ?string $lightMode = null,
+        ?float $focusMm = null
     ): array {
         $resolvedLightMode = self::normalizeCameraLightMode($lightMode, $itemConfig);
-        $camInfo = $this->syncCameraFromHostOrLaser(null, $forceCameraSync, self::DEFAULT_LASER_IP, $resolvedLightMode);
+        if ($focusMm === null) {
+            $effSide = ($side === 'back') ? 'back' : 'front';
+            $candFocus = $itemConfig['laser_cockpit_parameters'][$effSide]['focus_mm']
+                ?? $itemConfig['laser_parameter_overrides'][$effSide]['focus_mm']
+                ?? $itemConfig['laser_cockpit_parameters']['front']['focus_mm']
+                ?? null;
+            if (is_numeric($candFocus) && (float) $candFocus > 0.0) {
+                $focusMm = (float) $candFocus;
+            }
+        }
+        $camInfo = $this->syncCameraFromHostOrLaser($focusMm, $forceCameraSync, self::DEFAULT_LASER_IP, $resolvedLightMode);
         [$blankWidthMm, $blankHeightMm] = $this->resolvePhysicalBlankDimensionsMm($product, $itemConfig);
 
         $productConfig = $product
@@ -1972,9 +2006,15 @@ class XtoolLaserCockpitService
                 ? (float) $savedSide['h_mm']
                 : $defaultHeightMm);
 
+        $isFullBedStudio = false;
+        if (is_object($item) && isset($item->configuration) && is_array($item->configuration)) {
+            $isFullBedStudio = !empty($item->configuration['is_laser_studio_project']);
+        }
+        $maxAllowedDimMm = $isFullBedStudio ? self::BED_WIDTH_MM : 195.0;
+
         return [
-            round(max(3.0, min(195.0, $w)), 3),
-            round(max(3.0, min(195.0, $h)), 3),
+            round(max(3.0, min($maxAllowedDimMm, $w)), 3),
+            round(max(3.0, min($maxAllowedDimMm, $h)), 3),
         ];
     }
 
@@ -3464,7 +3504,7 @@ class XtoolLaserCockpitService
     /**
      * Speichert und normalisiert alle xTool-Laserparameter direkt auf der Bestellposition.
      */
-    public function persistItemLaserParameters(OrderOrderItem $item, string $side, array $rawParams): array
+    public function persistItemLaserParameters(OrderOrderItem|OrderQuoteRequestItem|\App\Models\Product\LaserStudioProject $item, string $side, array $rawParams): array
     {
         return $this->saveOrderItemLaserParameterOverrides($item, $side, $rawParams, false);
     }
@@ -3474,7 +3514,7 @@ class XtoolLaserCockpitService
      * (synchron in configuration['laser_cockpit_parameters'][$side] und configuration['laser_parameter_overrides'][$side]).
      */
     public function saveOrderItemLaserParameterOverrides(
-        OrderOrderItem $item,
+        OrderOrderItem|OrderQuoteRequestItem|\App\Models\Product\LaserStudioProject $item,
         string $side,
         array $rawParams,
         bool $onlyIfChangedFromCurrent = false,
@@ -3554,7 +3594,7 @@ class XtoolLaserCockpitService
     /**
      * Setzt die Laserparameter-Overrides einer Bestellposition wieder auf die Produkt-Standardwerte zurück.
      */
-    public function resetItemLaserParameters(OrderOrderItem $item, string $side = 'front'): array
+    public function resetItemLaserParameters(OrderOrderItem|OrderQuoteRequestItem|\App\Models\Product\LaserStudioProject $item, string $side = 'front'): array
     {
         return $this->resetOrderItemLaserParameterOverrides($item, $side);
     }
@@ -3562,7 +3602,7 @@ class XtoolLaserCockpitService
     /**
      * Setzt die Laserparameter-Overrides einer Bestellposition für die gewählte Seite wieder auf die Produkt-Standardwerte zurück.
      */
-    public function resetOrderItemLaserParameterOverrides(OrderOrderItem $item, string $side = 'front'): array
+    public function resetOrderItemLaserParameterOverrides(OrderOrderItem|OrderQuoteRequestItem|\App\Models\Product\LaserStudioProject $item, string $side = 'front'): array
     {
         $effectiveSide = ($side === 'back') ? 'back' : 'front';
         $item->loadMissing('product');
@@ -4872,26 +4912,39 @@ class XtoolLaserCockpitService
         ?string $framingMode = null
     ): array {
         $exportService = app(FileDownloadService::class);
-        $item = ($itemId instanceof OrderOrderItem || $itemId instanceof OrderQuoteRequestItem)
+        $item = ($itemId instanceof OrderOrderItem
+            || $itemId instanceof OrderQuoteRequestItem
+            || $itemId instanceof \App\Models\Product\LaserStudioProject)
             ? $itemId
-            : OrderOrderItem::with('product')->find($itemId);
+            : (OrderOrderItem::with('product')->find($itemId)
+                ?? (\Illuminate\Support\Facades\Schema::hasTable('laser_studio_projects')
+                    ? \App\Models\Product\LaserStudioProject::with('product')->find($itemId)
+                    : null));
 
         if (!$item || !$item->product) {
-            $w = max(2.0, (float) ($widthMm ?: 40.0));
-            $h = max(2.0, (float) ($heightMm ?: 40.0));
-            $cx = (float) ($centerXMm ?? 100.0);
-            $cy = (float) ($centerYMm ?? 100.0);
-            $mode = self::normalizeFramingMode($framingMode);
+            $itemConf = ($item && is_array($item->configuration ?? null)) ? $item->configuration : [];
+            $savedCoords = is_array($itemConf['laser_cockpit_coordinates'][$side] ?? null) ? $itemConf['laser_cockpit_coordinates'][$side] : [];
+            $w = max(2.0, (float) ($widthMm ?: ($savedCoords['width_mm'] ?? ($itemConf['studio_width_mm'] ?? 40.0))));
+            $h = max(2.0, (float) ($heightMm ?: ($savedCoords['height_mm'] ?? ($itemConf['studio_height_mm'] ?? 40.0))));
+            $cx = (float) ($centerXMm ?? ($savedCoords['center_x_mm'] ?? 100.0));
+            $cy = (float) ($centerYMm ?? ($savedCoords['center_y_mm'] ?? 100.0));
+            $ang = ($angleDeg !== 0.0) ? $angleDeg : (float) ($savedCoords['angle_deg'] ?? 0.0);
+            $cShape = (string) ($itemConf['studio_contour_shape'] ?? 'rect');
+            $mode = self::normalizeFramingMode($framingMode, $itemConf);
+            $effectiveShape = ($mode === 'rect') ? 'rect' : (in_array($cShape, ['circle', 'rounded_card'], true) ? $cShape : 'rect');
+            $ghostD = $effectiveShape !== 'rect'
+                ? $exportService->buildSingleOuterBlankContourDPath($effectiveShape, $w, $h, [], [])
+                : null;
 
             return [
-                'gcode'         => $this->generateBorderGcode($cx, $cy, $w, $h, $angleDeg, null, $w, $h, 'rect'),
+                'gcode'         => $this->generateBorderGcode($cx, $cy, $w, $h, $ang, $ghostD, $w, $h, $effectiveShape),
                 'framing_mode'  => $mode,
-                'contour_shape' => 'rect',
+                'contour_shape' => $effectiveShape,
                 'center_x_mm'   => $cx,
                 'center_y_mm'   => $cy,
                 'width_mm'      => $w,
                 'height_mm'     => $h,
-                'angle_deg'     => $angleDeg,
+                'angle_deg'     => $ang,
             ];
         }
 

@@ -32,6 +32,21 @@ class FetchMailsCommand extends Command
      */
     public function handle()
     {
+        $rawMem = trim((string) @ini_get('memory_limit'));
+        if ($rawMem !== '-1') {
+            $unit = strtolower(substr($rawMem, -1));
+            $num = (int) $rawMem;
+            $bytes = match ($unit) {
+                'g' => $num * 1024 * 1024 * 1024,
+                'm' => $num * 1024 * 1024,
+                'k' => $num * 1024,
+                default => $num,
+            };
+            if ($bytes > 0 && $bytes < 512 * 1024 * 1024) {
+                @ini_set('memory_limit', '512M');
+            }
+        }
+
         $accounts = MailAccount::all();
         if ($accounts->isEmpty()) {
             $this->info("Keine aktiven Mail-Konten gefunden.");
@@ -107,8 +122,8 @@ class FetchMailsCommand extends Command
                 // Get Posteingang/INBOX
                 $folder = $client->getFolder('INBOX');
 
-                // Get All Messages from the last 7 days (ignoring Seen status to avoid race conditions with Mail Clients)
-                $messages = $folder->query()->since(now()->subDays(7))->get();
+                // Fetch headers first to skip already-stored large MIME bodies without loading 25 MB attachments into RAM
+                $messages = $folder->query()->since(now()->subDays(7))->setFetchBody(false)->get();
                 $count = 0;
 
                 foreach ($messages as $message) {
@@ -138,7 +153,7 @@ class FetchMailsCommand extends Command
                             $normalizedMessageId = 'fallback_' . sha1($account->id . '|' . $fromAddress . '|' . $subject . '|' . ($receivedAt ? $receivedAt->toIso8601String() : ''));
                         }
 
-                        // Skip if we already stored it for this account
+                        // Skip if we already stored it for this account BEFORE parsing full body/attachments
                         if ($normalizedMessageId !== '') {
                             $existingMsg = MailMessage::where('mail_account_id', $account->id)
                                 ->where('message_id', $normalizedMessageId)
@@ -149,6 +164,11 @@ class FetchMailsCommand extends Command
                                 }
                                 continue;
                             }
+                        }
+
+                        // Only load the full MIME body & attachments for genuinely new messages
+                        if (method_exists($message, 'parseBody')) {
+                            $message->parseBody();
                         }
 
                         $bodyHtml = $message->hasHTMLBody() ? $message->getHTMLBody() : null;

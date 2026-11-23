@@ -75,6 +75,14 @@ class LogArchiveService
                 || str_contains($msgBody, 'at Command line code:')
                 || str_contains($msgBody, 'in Command line code:')
                 || str_contains($msgBody, 'called in Command line code on line')
+                || (
+                    $baseName === 'laravel.log'
+                    && (
+                        str_contains($msgBody, 'CommandNotFoundException')
+                        || str_contains($msgBody, 'NamespaceNotFoundException')
+                        || str_contains($msgBody, 'There are no commands defined in the')
+                    )
+                )
             ) {
                 return null;
             }

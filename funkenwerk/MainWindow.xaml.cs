@@ -16879,19 +16879,21 @@ namespace Funkenwerk
                 return doc.RootElement.TryGetProperty("ok", out var okEl) && okEl.GetBoolean();
             });
 
-            // 12. Kachel-Deck 14-Module Registry & Fuzzy Synonym/Typo Search
-            Check("CollectionModuleRegistry 14 GUI modules & intelligent fuzzy search", () =>
+            // 12. Kachel-Deck 15-Module Registry & Fuzzy Synonym/Typo Search
+            Check("CollectionModuleRegistry 15 GUI modules & intelligent fuzzy search", () =>
             {
-                bool countOk = CollectionModuleRegistry.Modules.Count == 14;
+                bool countOk = CollectionModuleRegistry.Modules.Count == 15;
                 var hitShutter = CollectionModuleRegistry.FilterAndRankModules("rollladen");
                 var hitSign = CollectionModuleRegistry.FilterAndRankModules("unterschrift");
                 var hit2Fa = CollectionModuleRegistry.FilterAndRankModules("2fa");
                 var hitTypo = CollectionModuleRegistry.FilterAndRankModules("smrthome");
+                var hitRdp = CollectionModuleRegistry.FilterAndRankModules("rdp");
                 return countOk &&
                        hitShutter.Count > 0 && hitShutter[0].Key == "smarthome" &&
                        hitSign.Count > 0 && hitSign[0].Key == "pdf" &&
                        hit2Fa.Count > 0 && hit2Fa[0].Key == "tresor" &&
-                       hitTypo.Count > 0 && hitTypo[0].Key == "smarthome";
+                       hitTypo.Count > 0 && hitTypo[0].Key == "smarthome" &&
+                       hitRdp.Count > 0 && hitRdp[0].Key == "remote";
             });
 
             // 13. SharedSession Offline PBKDF2-SHA512 Verifier + DPAPI Vault roundtrip
