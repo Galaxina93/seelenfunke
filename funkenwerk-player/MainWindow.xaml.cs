@@ -726,9 +726,15 @@ namespace FunkenwerkPlayer
 
             try
             {
-                PlayerMediaElement.Stop();
+                // CRITICAL: Do NOT set SpeedRatio before MediaOpened and keep ScrubbingEnabled=False for audio!
+                // Setting SpeedRatio before MediaOpened freezes WPF MediaElement's clock at 00:00 on AAC .m4a tracks.
+                PlayerMediaElement.Close();
+                PlayerMediaElement.Source = null;
+                PlayerMediaElement.ScrubbingEnabled = !isAudio;
+                TimelineSlider.Value = 0;
+                TimeElapsedTxt.Text = "00:00";
+
                 PlayerMediaElement.Source = new Uri(path, UriKind.Absolute);
-                PlayerMediaElement.SpeedRatio = _speedPresets[_speedIndex];
                 PlayerMediaElement.Play();
                 _isPlaying = true;
                 PlayPauseBtn.Content = "⏸";
@@ -748,6 +754,20 @@ namespace FunkenwerkPlayer
                 TimelineSlider.Maximum = Math.Max(0.1, total.TotalSeconds);
                 TimeTotalTxt.Text = FormatTime(total);
             }
+
+            try
+            {
+                double targetSpeed = _speedPresets[_speedIndex];
+                if (Math.Abs(targetSpeed - 1.0) > 0.001 || Math.Abs(PlayerMediaElement.SpeedRatio - targetSpeed) > 0.001)
+                {
+                    PlayerMediaElement.SpeedRatio = targetSpeed;
+                }
+                if (_isPlaying)
+                {
+                    PlayerMediaElement.Play();
+                }
+            }
+            catch { }
 
             int vw = PlayerMediaElement.NaturalVideoWidth;
             int vh = PlayerMediaElement.NaturalVideoHeight;
@@ -1376,6 +1396,12 @@ namespace FunkenwerkPlayer
 
         private void Window_MouseWheel(object sender, MouseWheelEventArgs e)
         {
+            // Never hijack mouse-wheel scrolling inside the Playlists & Songs view unless hovering the bottom transport bar!
+            if (_playerMode == "playlists" && (BottomHudBar == null || !BottomHudBar.IsMouseOver))
+            {
+                return;
+            }
+
             double step = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? 1.0 : 5.0;
             double delta = e.Delta > 0 ? step : -step;
             AdjustVolumeByDelta(delta);

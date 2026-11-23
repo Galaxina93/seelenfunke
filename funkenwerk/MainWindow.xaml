@@ -905,6 +905,10 @@
                                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                                         <TextBlock x:Name="SpamActionBtnTxt" Text="🛡 Spam" FontSize="12" FontWeight="SemiBold"/>
                                     </Button>
+                                    <Button x:Name="ReaderViewModeToggleBtn" Click="ToggleMailReaderViewMode_Click" Background="#1F2430" Foreground="#D1D5DB" BorderThickness="0" Padding="10,6" Margin="0,0,6,0" Cursor="Hand" ToolTip="Zwischen schicker Original-Ansicht und reiner Text-Ansicht wechseln">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                        <TextBlock x:Name="ReaderViewModeToggleTxt" Text="📄 Nur Text" FontSize="12" FontWeight="SemiBold"/>
+                                    </Button>
                                     <Button Click="DeleteMail_Click" Visibility="Collapsed" Background="#2D161B" Foreground="#F87171" BorderThickness="0" Padding="10,6" Cursor="Hand">
                                         <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
                                         <TextBlock Text="📦 Archivieren" FontSize="12" FontWeight="SemiBold"/>
@@ -943,8 +947,11 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Width="38" Height="38" CornerRadius="19" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" HorizontalAlignment="Left">
-                                            <TextBlock x:Name="ReaderAvatarTxt" Text="A" Foreground="#C5A059" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <Border Width="38" Height="38" CornerRadius="19" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" HorizontalAlignment="Left" ClipToBounds="True">
+                                            <Grid>
+                                                <TextBlock x:Name="ReaderAvatarTxt" Text="A" Foreground="#C5A059" FontSize="15" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                <Ellipse x:Name="ReaderAvatarEllipse" Width="36" Height="36" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            </Grid>
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
                                             <TextBox x:Name="ReaderFromNameTxt" Style="{StaticResource SelectableHeaderTextBox}" Text="Absender" Foreground="#F3F4F6" FontSize="13.5" FontWeight="SemiBold" TextWrapping="Wrap"/>
@@ -959,12 +966,13 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Message Body (RichTextBox with Safe Clickable Hyperlinks + Hidden Plain Sync Box) -->
-                            <Border Background="#13161F" BorderBrush="#1E222D" BorderThickness="1" CornerRadius="14" Padding="20,18">
+                            <!-- Message Body (Hardened Stylish HTML WebView2 + Safe RichTextBox Fallback) -->
+                            <Border x:Name="ReaderBodyOuterBorder" Background="#13161F" BorderBrush="#1E222D" BorderThickness="1" CornerRadius="14" Padding="0" ClipToBounds="True">
                                 <Grid>
                                     <RichTextBox x:Name="ReaderBodyRichBox" IsReadOnly="True" IsDocumentEnabled="True" IsReadOnlyCaretVisible="False"
-                                                 Background="Transparent" BorderThickness="0" Foreground="#F3F4F6" FontSize="14" Padding="2"
+                                                 Background="Transparent" BorderThickness="0" Foreground="#F3F4F6" FontSize="14" Padding="20,18"
                                                  SelectionBrush="#66C5A059" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"/>
+                                    <Border x:Name="ReaderBodyWebViewHost" Visibility="Collapsed" Background="Transparent" ClipToBounds="True"/>
                                     <TextBox x:Name="ReaderBodyTxt" Visibility="Collapsed" IsReadOnly="True" Background="Transparent" BorderThickness="0"/>
                                 </Grid>
                             </Border>
@@ -1014,7 +1022,40 @@
                 <Border Grid.Column="2" Background="#0F1117" Padding="32,24">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel x:Name="ContactDetailPanel" MaxWidth="620" HorizontalAlignment="Left">
-                            <TextBox x:Name="ContactFormHeader" Style="{StaticResource SelectableHeaderTextBox}" Text="Kontakt bearbeiten" Foreground="#F9FAFB" FontSize="22" FontWeight="Bold" Margin="0,0,0,18" TextWrapping="Wrap"/>
+                            <Grid Margin="0,0,0,20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Circular Contact Profile Photo + Favorite Star Badge -->
+                                <Grid Width="74" Height="74" Margin="0,0,18,0" VerticalAlignment="Center">
+                                    <Border x:Name="ContactDetailAvatarHost" Width="70" Height="70" CornerRadius="35"
+                                            Background="#232734" BorderBrush="#C5A059" BorderThickness="1.5"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="Hand" AllowDrop="True"
+                                            MouseLeftButtonUp="ContactDetailAvatar_Click" Drop="ContactDetailAvatar_Drop"
+                                            ToolTip="Profilbild ändern (Klicken oder Bilddatei hineinziehen)">
+                                        <Grid>
+                                            <TextBlock x:Name="ContactDetailAvatarInitialsTxt" Text="+" Foreground="#C5A059" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <Ellipse x:Name="ContactDetailAvatarEllipse" Width="67" Height="67" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        </Grid>
+                                    </Border>
+                                    <Button x:Name="ContactDetailFavBtn" Width="24" Height="24" Padding="0"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="Hand"
+                                            Background="#181B24" BorderBrush="#2E3545" BorderThickness="1"
+                                            Click="ContactDetailFavorite_Click" ToolTip="Favorit umschalten">
+                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="12"/></Style></Button.Resources>
+                                        <TextBlock x:Name="ContactDetailFavStarTxt" Text="★" FontSize="12.5" Foreground="#6B7280" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Button>
+                                </Grid>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBox x:Name="ContactFormHeader" Style="{StaticResource SelectableHeaderTextBox}" Text="Kontakt bearbeiten" Foreground="#F9FAFB" FontSize="23" FontWeight="Bold" TextWrapping="Wrap"/>
+                                    <Border x:Name="ContactDetailRoleBadge" Visibility="Collapsed" Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="10" Padding="10,3" Margin="0,6,0,0" HorizontalAlignment="Left">
+                                        <TextBlock x:Name="ContactDetailRoleBadgeTxt" Text="" Foreground="#D1D5DB" FontSize="12" FontWeight="SemiBold"/>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>

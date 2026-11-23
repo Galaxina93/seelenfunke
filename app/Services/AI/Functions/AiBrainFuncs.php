@@ -239,62 +239,22 @@ trait AiBrainFuncs
             $content = trim(mb_substr((string) $args['content'], 0, 50000));
             $tags = is_array($args['tags'] ?? null) ? $args['tags'] : [];
 
-            $existingKb = AiKnowledgeBase::where('title', $title)
-                ->orWhere(function ($q) use ($content) {
-                    if (strlen($content) > 30) {
-                        $q->where('content', $content);
-                    }
-                })->exists();
+            $kb = \App\Services\AI\CentralBrainService::upsertDeduplicatedKnowledge(
+                title: $title,
+                content: $content,
+                categoryName: 'AI Memory',
+                tags: array_merge(['ai_memory', 'auto_saved'], $tags),
+                sourcePath: null,
+                visibilityScope: AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE
+            );
 
-            if ($existingKb) {
-                return [
-                    'status' => 'success',
-                    'message' => 'Dieser identische Fakten-Eintrag existiert bereits in meinem generellen Wiki. Ich habe ihn nicht doppelt gespeichert.',
-                ];
+            if (!$kb) {
+                return ['status' => 'error', 'message' => 'Wissenseintrag konnte nicht gespeichert werden.'];
             }
-
-            $catId = AiKnowledgeBaseCategory::firstOrCreate(
-                ['slug' => 'ai-memory'],
-                ['name' => 'AI Memory']
-            )->id;
-
-            $payload = [
-                'title' => $title,
-                'slug' => Str::slug($title) . '-' . random_int(1000, 9999),
-                'ai_knowledge_base_category_id' => $catId,
-                'content' => $content,
-                'is_published' => true,
-            ];
-            if (Schema::hasColumn('ai_knowledge_bases', 'visibility_scope')) {
-                $payload['visibility_scope'] = AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE;
-            }
-
-            $kb = AiKnowledgeBase::create($payload);
-
-            $tagList = array_merge(['ai_memory', 'auto_saved'], $tags);
-            $syncTags = [];
-            foreach ($tagList as $t) {
-                $tagLabel = trim((string) $t);
-                $tagSlug = Str::slug($tagLabel);
-                if ($tagLabel === '' || $tagSlug === '') {
-                    continue;
-                }
-                $existingTag = AiKnowledgeBaseTag::where('slug', $tagSlug)
-                    ->orWhereRaw('LOWER(name) = ?', [mb_strtolower($tagLabel)])
-                    ->first();
-                if (!$existingTag) {
-                    $existingTag = AiKnowledgeBaseTag::create([
-                        'name' => $tagLabel,
-                        'slug' => $tagSlug,
-                    ]);
-                }
-                $syncTags[] = $existingTag->id;
-            }
-            $kb->tags()->sync(array_values(array_unique($syncTags)));
 
             return [
                 'status' => 'success',
-                'message' => "Die Information '{$kb->title}' wurde erfolgreich im allgemeinen Langzeitgedächtnis (Wiki) gespeichert.",
+                'message' => "Die Information '{$kb->title}' wurde dublettenfrei im zentralen Langzeitgedächtnis gespeichert.",
             ];
         } catch (\Throwable $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Speichern: ' . $e->getMessage()];

@@ -102,7 +102,9 @@ class FunkiraLiveViewModel : ViewModel() {
     @Volatile private var isRecordingActive = false
     @Volatile private var isAiSpeaking = false
     @Volatile private var playbackActiveUntilUptimeMs = 0L
+    @Volatile private var lastAiServerPacketUptimeMs = 0L
     @Volatile private var setupCompletedForCurrentSocket = false
+    @Volatile private var sessionEverSetupComplete = false
     @Volatile private var currentSocketSetupAtUptimeMs = 0L
     @Volatile private var userInitiatedHangup = false
     @Volatile private var userMutedMic = false
@@ -156,7 +158,18 @@ class FunkiraLiveViewModel : ViewModel() {
     }
 
     private fun isAiEffectivelySpeaking(): Boolean {
-        return isAiSpeaking || android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs
+        val now = android.os.SystemClock.uptimeMillis()
+        if (now < playbackActiveUntilUptimeMs) {
+            return true
+        }
+        if (isAiSpeaking) {
+            if (lastAiServerPacketUptimeMs > 0L && (now - lastAiServerPacketUptimeMs) > 4200L) {
+                setAiSpeakingState(false)
+                return false
+            }
+            return true
+        }
+        return false
     }
 
     fun loadAgents() {
@@ -261,7 +274,9 @@ class FunkiraLiveViewModel : ViewModel() {
         userInitiatedHangup = false
         userMutedMic = false
         midCallReconnectCount = 0
+        sessionEverSetupComplete = false
         currentSocketSetupAtUptimeMs = 0L
+        lastAiServerPacketUptimeMs = 0L
         _isConnecting.value = true
         _error.value = null
         shouldEndCall = false
@@ -705,7 +720,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 }
                 refreshReconnectBudgetIfStable(wasSetupComplete)
                 if (shouldAutoReconnectMidCall(
-                        wasSetupComplete = wasSetupComplete,
+                        wasSetupComplete = wasSetupComplete || sessionEverSetupComplete,
                         userInitiatedHangup = userInitiatedHangup,
                         shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
                         reconnectAttemptCount = midCallReconnectCount
@@ -743,7 +758,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 }
                 refreshReconnectBudgetIfStable(wasSetupComplete)
                 if (shouldAutoReconnectMidCall(
-                        wasSetupComplete = wasSetupComplete,
+                        wasSetupComplete = wasSetupComplete || sessionEverSetupComplete,
                         userInitiatedHangup = userInitiatedHangup,
                         shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
                         reconnectAttemptCount = midCallReconnectCount
@@ -768,7 +783,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 val wasSetupComplete = setupCompletedForCurrentSocket
                 refreshReconnectBudgetIfStable(wasSetupComplete)
                 if (shouldAutoReconnectMidCall(
-                        wasSetupComplete = wasSetupComplete,
+                        wasSetupComplete = wasSetupComplete || sessionEverSetupComplete,
                         userInitiatedHangup = userInitiatedHangup,
                         shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
                         reconnectAttemptCount = midCallReconnectCount
@@ -866,12 +881,27 @@ class FunkiraLiveViewModel : ViewModel() {
                 return
             }
 
-            // Check for server-side error
-            if (root.has("error")) {
-                val errorObj = root.getAsJsonObject("error")
-                val errMsg = errorObj.get("message")?.asString ?: "Unbekannter Serverfehler"
-                val errCode = errorObj.get("code")?.asInt ?: 0
+            // Check for server-side error (supports both JsonObject and JsonPrimitive string frames)
+            if (root.has("error") && !root.get("error").isJsonNull) {
+                val parsedErr = parseServerErrorElement(root.get("error"))
+                val errCode = parsedErr.first
+                val errMsg = parsedErr.second
                 addLog("[System-Fehler]: Server-Fehler ($errCode): $errMsg")
+                val wasSetupComplete = setupCompletedForCurrentSocket
+                if (!wasSetupComplete && tryFailoverToDirectGemini("Bridge-Fehler ($errMsg)", null)) {
+                    return
+                }
+                refreshReconnectBudgetIfStable(wasSetupComplete)
+                if (shouldAutoReconnectMidCall(
+                        wasSetupComplete = wasSetupComplete || sessionEverSetupComplete,
+                        userInitiatedHangup = userInitiatedHangup,
+                        shouldEndCall = shouldEndCall || shouldEnterStandbyAfterTurn,
+                        reconnectAttemptCount = midCallReconnectCount
+                    )
+                ) {
+                    tryScheduleMidCallReconnect("Server-Fehler: $errMsg")
+                    return
+                }
                 handleDisconnect("Server-Fehler: $errMsg")
                 return
             }
@@ -894,10 +924,14 @@ class FunkiraLiveViewModel : ViewModel() {
             // Check setupComplete response
             if (root.has("setupComplete")) {
                 setupCompletedForCurrentSocket = true
+                sessionEverSetupComplete = true
+                val wasReconnect = currentSocketSetupAtUptimeMs > 0L
                 currentSocketSetupAtUptimeMs = android.os.SystemClock.uptimeMillis()
                 _error.value = null
                 activeToolCallCount.set(0)
-                inactivityTracker.onSessionStarted(currentSocketSetupAtUptimeMs)
+                if (!wasReconnect) {
+                    inactivityTracker.onSessionStarted(currentSocketSetupAtUptimeMs)
+                }
                 addLog("[System]: Setup vollständig abgeschlossen. Gespräch bereit.")
                 if (!userMutedMic) {
                     startRecording()
@@ -978,10 +1012,13 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (serverContent.has("turnComplete") && serverContent.get("turnComplete").asBoolean) {
                     hasOutputTranscriptionInTurn = false
                     val remainingPlaybackMs = (playbackActiveUntilUptimeMs - android.os.SystemClock.uptimeMillis())
-                        .coerceIn(280L, 6000L)
+                        .coerceIn(280L, 60_000L)
                     turnCompleteSettleJob?.cancel()
                     turnCompleteSettleJob = viewModelScope.launch {
                         delay(remainingPlaybackMs)
+                        while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs) {
+                            delay(150L)
+                        }
                         setAiSpeakingState(false)
                         inactivityTracker.onAiSpeechFinished(android.os.SystemClock.uptimeMillis())
                     }
@@ -1004,10 +1041,16 @@ class FunkiraLiveViewModel : ViewModel() {
                         musicStandbyFallbackJob = null
                         viewModelScope.launch(Dispatchers.Main) {
                             if (!isMusicStandby) {
+                                delay(maxOf(1200L, remainingPlaybackMs + 350L))
+                                while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs) {
+                                    delay(150L)
+                                }
                                 de.meinseelenfunke.app.util.SoundManager.playSound(de.meinseelenfunke.app.R.raw.click_file_in_project_brain)
-                                delay(maxOf(1200L, remainingPlaybackMs))
                             } else {
-                                delay(remainingPlaybackMs + 220L)
+                                delay(remainingPlaybackMs + 250L)
+                                while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs) {
+                                    delay(150L)
+                                }
                                 addLog("[System]: Musiksteuerung abgeschlossen. Wechsel in den Ruhemodus.")
                             }
                             disconnectLiveChat()
@@ -1018,9 +1061,10 @@ class FunkiraLiveViewModel : ViewModel() {
 
                 if (serverContent.has("modelTurn")) {
                     turnCompleteSettleJob?.cancel()
-                    setAiSpeakingState(true)
-                    inactivityTracker.onAiActivity(android.os.SystemClock.uptimeMillis())
+                    val nowUptime = android.os.SystemClock.uptimeMillis()
+                    lastAiServerPacketUptimeMs = nowUptime
                     val modelTurn = serverContent.getAsJsonObject("modelTurn")
+                    var hasPlayableOrSpokenContent = false
                     if (modelTurn.has("parts")) {
                         val parts = modelTurn.getAsJsonArray("parts")
                         parts.forEach { part ->
@@ -1028,22 +1072,30 @@ class FunkiraLiveViewModel : ViewModel() {
                             
                             // Check text transcript (ignore Gemini internal thoughts and avoid duplicating outputTranscription)
                             val isThoughtPart = partObj.has("thought") && partObj.get("thought").isJsonPrimitive && partObj.get("thought").asBoolean
-                            if (partObj.has("text") && !isThoughtPart && !hasOutputTranscriptionInTurn) {
-                                val textPart = partObj.get("text").asString
-                                if (!aiTurnTranscript.contains(textPart)) {
-                                    aiTurnTranscript.append(textPart)
-                                    _liveSubtitle.value = "$agentName: ${aiTurnTranscript.toString().trim()}"
+                            if (partObj.has("text") && !isThoughtPart) {
+                                hasPlayableOrSpokenContent = true
+                                if (!hasOutputTranscriptionInTurn) {
+                                    val textPart = partObj.get("text").asString
+                                    if (!aiTurnTranscript.contains(textPart)) {
+                                        aiTurnTranscript.append(textPart)
+                                        _liveSubtitle.value = "$agentName: ${aiTurnTranscript.toString().trim()}"
+                                    }
                                 }
                             }
 
                             // Check audio data
                             if (partObj.has("inlineData")) {
+                                hasPlayableOrSpokenContent = true
                                 val inlineData = partObj.getAsJsonObject("inlineData")
                                 val dataBase64 = inlineData.get("data").asString
                                 val rawPcm = android.util.Base64.decode(dataBase64, android.util.Base64.NO_WRAP)
                                 writeAudioPlayback(rawPcm)
                             }
                         }
+                    }
+                    if (hasPlayableOrSpokenContent) {
+                        setAiSpeakingState(true)
+                        inactivityTracker.onAiActivity(nowUptime)
                     }
                 }
             }
@@ -1067,13 +1119,19 @@ class FunkiraLiveViewModel : ViewModel() {
                                 })
                             }
                             sendToolResponse(callId, name, resultObj)
-                            // Backup timeout to prevent hanging if turnComplete is missed
+                            // Backup timeout to prevent hanging if turnComplete is missed, WITHOUT ever cutting off active speech!
                             viewModelScope.launch(Dispatchers.Main) {
-                                delay(3500)
+                                delay(3500L)
+                                var guardWaitedMs = 0L
+                                while (shouldEndCall && isAiEffectivelySpeaking() && guardWaitedMs < 25_000L) {
+                                    delay(300L)
+                                    guardWaitedMs += 300L
+                                }
                                 if (shouldEndCall) {
                                     shouldEndCall = false
+                                    delay(600L)
                                     de.meinseelenfunke.app.util.SoundManager.playSound(de.meinseelenfunke.app.R.raw.click_file_in_project_brain)
-                                    delay(1000)
+                                    delay(500L)
                                     disconnectLiveChat()
                                     _shouldCloseScreen.value = true
                                 }
@@ -1653,11 +1711,47 @@ class FunkiraLiveViewModel : ViewModel() {
 
     private fun startInactivityWatchdog() {
         inactivityWatchJob?.cancel()
+        val notifiedBedtimeKeys = mutableSetOf<String>()
+        val initCal = java.util.Calendar.getInstance()
+        val initDateKey = String.format(
+            java.util.Locale.ROOT,
+            "%04d-%02d-%02d",
+            initCal.get(java.util.Calendar.YEAR),
+            initCal.get(java.util.Calendar.MONTH) + 1,
+            initCal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+        val initMins = initCal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + initCal.get(java.util.Calendar.MINUTE)
+        if (initMins > 22 * 60 + 5) notifiedBedtimeKeys.add("${initDateKey}_2200")
+        if (initMins > 22 * 60 + 35 || initMins < 5 * 60) notifiedBedtimeKeys.add("${initDateKey}_2230")
+
         inactivityWatchJob = viewModelScope.launch(Dispatchers.IO) {
             while (_isConnected.value && setupCompletedForCurrentSocket) {
                 delay(500L)
                 if (!_isConnected.value || !setupCompletedForCurrentSocket) break
                 refreshReconnectBudgetIfStable(setupCompletedForCurrentSocket)
+
+                // Live-Check für 22:00 (Bettfertig) & 22:30 (Nachtruhe) - aktiv an 7 Tagen inkl. Wochenende
+                if (!isAiEffectivelySpeaking() && activeToolCallCount.get() == 0 && inactivityTracker.stage == de.meinseelenfunke.app.util.FalconInactivityStage.ACTIVE) {
+                    val cal = java.util.Calendar.getInstance()
+                    val dKey = String.format(
+                        java.util.Locale.ROOT,
+                        "%04d-%02d-%02d",
+                        cal.get(java.util.Calendar.YEAR),
+                        cal.get(java.util.Calendar.MONTH) + 1,
+                        cal.get(java.util.Calendar.DAY_OF_MONTH)
+                    )
+                    val mins = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+                    if (mins in (22 * 60) until (22 * 60 + 30) && notifiedBedtimeKeys.add("${dKey}_2200")) {
+                        inactivityTracker.onUserSpeech(android.os.SystemClock.uptimeMillis())
+                        addLog("[Routine]: 22:00 Uhr Bettfertig-Erinnerung gesendet.")
+                        sendRealtimeSystemPrompt(de.meinseelenfunke.app.util.FalconClientTools.BEDTIME_2200_PROMPT)
+                    } else if ((mins >= 22 * 60 + 30 || mins < 5 * 60) && notifiedBedtimeKeys.add("${dKey}_2230")) {
+                        inactivityTracker.onUserSpeech(android.os.SystemClock.uptimeMillis())
+                        addLog("[Routine]: 22:30 Uhr Nachtruhe-Erinnerung gesendet.")
+                        sendRealtimeSystemPrompt(de.meinseelenfunke.app.util.FalconClientTools.BEDTIME_2230_PROMPT)
+                    }
+                }
+
                 val action = inactivityTracker.evaluate(
                     nowMs = android.os.SystemClock.uptimeMillis(),
                     isAiSpeaking = isAiEffectivelySpeaking(),
@@ -1666,7 +1760,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 when (action) {
                     de.meinseelenfunke.app.util.FalconInactivityAction.NONE -> {}
                     de.meinseelenfunke.app.util.FalconInactivityAction.SEND_STAGE1_CHECK -> {
-                        addLog("[Inaktivität]: 2 Minuten Stille erkannt. Funkira fragt kurz nach...")
+                        addLog("[Inaktivität]: 60 Sekunden Stille erkannt. Funkira fragt kurz nach...")
                         sendRealtimeSystemPrompt(de.meinseelenfunke.app.util.FalconClientTools.STAGE1_INACTIVITY_PROMPT)
                     }
                     de.meinseelenfunke.app.util.FalconInactivityAction.SEND_STAGE2_FAREWELL -> {
@@ -1941,6 +2035,35 @@ class FunkiraLiveViewModel : ViewModel() {
     companion object {
         val RECONNECT_BACKOFF_MS = longArrayOf(350L, 800L, 1500L, 2500L)
         const val STABLE_CONNECTION_RESET_MS = 10_000L
+
+        fun parseServerErrorElement(errEl: com.google.gson.JsonElement?): Pair<Int, String> {
+            if (errEl == null || errEl.isJsonNull) {
+                return Pair(0, "Unbekannter Serverfehler")
+            }
+            if (errEl.isJsonPrimitive) {
+                val msg = errEl.asString.trim().ifEmpty { "Unbekannter Serverfehler" }
+                return Pair(1011, msg)
+            }
+            if (errEl.isJsonObject) {
+                val obj = errEl.asJsonObject
+                val code = try {
+                    if (obj.has("code") && obj.get("code").isJsonPrimitive) obj.get("code").asInt else 0
+                } catch (_: Exception) {
+                    0
+                }
+                val msg = try {
+                    if (obj.has("message") && obj.get("message").isJsonPrimitive) {
+                        obj.get("message").asString.trim().ifEmpty { "Unbekannter Serverfehler" }
+                    } else {
+                        obj.toString()
+                    }
+                } catch (_: Exception) {
+                    "Unbekannter Serverfehler"
+                }
+                return Pair(code, msg)
+            }
+            return Pair(0, errEl.toString())
+        }
 
         fun shouldAutoReconnectMidCall(
             wasSetupComplete: Boolean,

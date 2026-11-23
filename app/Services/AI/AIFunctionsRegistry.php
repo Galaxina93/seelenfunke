@@ -404,10 +404,10 @@ class AIFunctionsRegistry
             }
         }
 
-        // Panzerglas-Isolation für den externen Support-Agenten 'Funki':
-        // Selbst wenn ein Administrator parallel eingeloggt ist, darf 'Funki' NIEMALS interne System-, Finanz-, Brain- oder Pool-Werkzeuge ausführen.
-        if ($agent && strcasecmp(trim((string) ($agent->name ?? '')), 'Funki') === 0) {
-            $isFunkiAllowed = str_starts_with($name, 'support_') || $name === 'system_get_current_time';
+        // Panzerglas-Isolation & Unveränderlichkeits-Sperre für den externen Support-Agenten 'Funki':
+        // Funki bleibt exakt auf seinem eingefrorenen Frontend-Support-Katalog und darf niemals neue oder interne Tools ausführen.
+        if ($agent && \App\Services\AI\AgentSkillBudgetGuard::isFunkiAgent($agent)) {
+            $isFunkiAllowed = in_array($name, \App\Services\AI\AgentSkillBudgetGuard::getImmutableFunkiToolIdentifiers(), true);
             if (!$isFunkiAllowed) {
                 \App\Services\System\SystemSecurityService::logEvent(
                     'security:ai_funki_airgap_blocked',

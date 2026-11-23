@@ -122,12 +122,21 @@ Route::prefix('funki/emails')->group(function () {
 
         $processedBase = MailMessage::where('folder', 'Processed')->where('is_archived', false);
         $archivedBase = MailMessage::where(fn($q) => $q->where('folder', 'Archive')->orWhere('is_archived', true));
+
+        $visibleFilesBase = \App\Models\Management\Mail\MailAttachment::query()
+            ->whereHas('message', fn($q) => $q->where('folder', '!=', 'Junk'))
+            ->where(function ($q) {
+                $q->whereNull('funnel_type')->orWhere('funnel_type', '!=', 'inline_signature');
+            });
+
         $processedSummary = [
             'total_count' => (clone $processedBase)->count(),
             'important_count' => (clone $processedBase)->where('priority', 'high')->count(),
             'normal_count' => (clone $processedBase)->where('priority', '!=', 'high')->count(),
             'unread_count' => (clone $processedBase)->where('is_read', false)->count(),
             'archived_count' => (clone $archivedBase)->count(),
+            'files_total_count' => (clone $visibleFilesBase)->count(),
+            'files_needs_review_count' => (clone $visibleFilesBase)->where('funnel_status', 'needs_review')->count(),
         ];
 
         return response()->json([
@@ -1579,6 +1588,139 @@ Route::prefix('funki/emails')->group(function () {
     // 19. AI Sort & Actionable Task Extraction ("KI-Sortierung")
     Route::post('/ai-sort', function (\App\Services\Management\MailAiSortService $sortService) {
         return response()->json($sortService->sortAllMailsAndSubfolders());
+    });
+
+    // 20. Mail Dateien Übersicht (Strukturierte E-Mail-Anhänge + Buchhaltungs-/Dateitrichter-Status)
+    Route::get('/files', function (Request $request, \App\Services\Management\MailAttachmentFunnelService $funnelService) {
+        $funnelService->backfillMetadataAndAutoProcessNew(false);
+
+        $typeFilter = strtolower(trim((string) $request->query('type', 'all')));
+        $scopeFilter = strtolower(trim((string) $request->query('scope', 'all')));
+        $search = trim((string) $request->query('search', ''));
+        $includeInline = filter_var($request->query('include_inline', false), FILTER_VALIDATE_BOOLEAN);
+
+        $accounts = MailAccount::all()->keyBy('id');
+
+        $baseQuery = \App\Models\Management\Mail\MailAttachment::query()
+            ->with(['message' => fn($q) => $q->select('id', 'mail_account_id', 'folder', 'subject', 'from_name', 'from_email', 'received_at', 'is_archived')])
+            ->whereHas('message', function ($q) use ($scopeFilter, $accounts) {
+                $q->where('folder', '!=', 'Junk');
+                if ($scopeFilter === 'commercial') {
+                    $commIds = $accounts->filter(fn($a) => (bool) ($a->is_commercial ?? true))->keys()->all();
+                    $q->whereIn('mail_account_id', $commIds);
+                } elseif ($scopeFilter === 'private') {
+                    $privIds = $accounts->filter(fn($a) => !($a->is_commercial ?? true))->keys()->all();
+                    $q->whereIn('mail_account_id', $privIds);
+                }
+            });
+
+        if (!$includeInline) {
+            $baseQuery->where(function ($q) {
+                $q->whereNull('funnel_type')->orWhere('funnel_type', '!=', 'inline_signature');
+            });
+        }
+
+        $summary = [
+            'total' => (clone $baseQuery)->count(),
+            'invoices' => (clone $baseQuery)->where('funnel_type', 'invoice')->count(),
+            'documents' => (clone $baseQuery)->whereIn('funnel_type', ['document', 'legal_notice', 'archive'])->count(),
+            'images' => (clone $baseQuery)->where('funnel_type', 'image')->count(),
+            'booked' => (clone $baseQuery)->whereIn('funnel_status', ['booked', 'already_booked'])->count(),
+            'workspace' => (clone $baseQuery)->where('funnel_status', 'workspace')->count(),
+            'needs_review' => (clone $baseQuery)->where('funnel_status', 'needs_review')->count(),
+        ];
+
+        $query = clone $baseQuery;
+        if ($typeFilter === 'invoice' || $typeFilter === 'invoices') {
+            $query->where('funnel_type', 'invoice');
+        } elseif ($typeFilter === 'document' || $typeFilter === 'documents') {
+            $query->whereIn('funnel_type', ['document', 'legal_notice', 'archive']);
+        } elseif ($typeFilter === 'image' || $typeFilter === 'images') {
+            $query->where('funnel_type', 'image');
+        } elseif ($typeFilter === 'needs_review') {
+            $query->where('funnel_status', 'needs_review');
+        } elseif ($typeFilter === 'booked') {
+            $query->whereIn('funnel_status', ['booked', 'already_booked']);
+        } elseif ($typeFilter === 'workspace') {
+            $query->where('funnel_status', 'workspace');
+        }
+
+        if ($search !== '') {
+            $escaped = addcslashes($search, '%_\\');
+            $like = '%' . $escaped . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('filename', 'like', $like)
+                    ->orWhereHas('message', function ($mq) use ($like) {
+                        $mq->where('subject', 'like', $like)
+                            ->orWhere('from_email', 'like', $like)
+                            ->orWhere('from_name', 'like', $like);
+                    });
+            });
+        }
+
+        $items = $query
+            ->orderByDesc('id')
+            ->limit(250)
+            ->get()
+            ->map(function (\App\Models\Management\Mail\MailAttachment $att) use ($accounts) {
+                $msg = $att->message;
+                $acc = $msg ? $accounts->get($msg->mail_account_id) : null;
+                $ext = strtolower((string) pathinfo((string) ($att->filename ?: $att->path), PATHINFO_EXTENSION));
+                $meta = is_array($att->funnel_meta) ? $att->funnel_meta : [];
+
+                return [
+                    'id' => $att->id,
+                    'mail_message_id' => $att->mail_message_id,
+                    'filename' => $att->filename,
+                    'extension' => $ext,
+                    'content_type' => $att->content_type,
+                    'size' => (int) $att->size,
+                    'funnel_type' => $att->funnel_type ?: 'document',
+                    'funnel_status' => $att->funnel_status ?: 'open',
+                    'accounting_issue_id' => $att->accounting_issue_id,
+                    'workspace_document_id' => $att->workspace_document_id,
+                    'funnel_meta' => $meta,
+                    'subject' => $msg?->subject ?: '(Kein Betreff)',
+                    'from_name' => $msg?->from_name ?: '',
+                    'from_email' => $msg?->from_email ?: '',
+                    'received_at' => $msg?->received_at ? \Carbon\Carbon::parse($msg->received_at)->toIso8601String() : ($att->created_at?->toIso8601String() ?? ''),
+                    'mail_folder' => $msg?->folder ?: 'INBOX',
+                    'account_id' => $acc?->id ?? 0,
+                    'account_email' => $acc?->email ?? '',
+                    'is_commercial' => (bool) ($acc?->is_commercial ?? true),
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'summary' => $summary,
+            'data' => $items,
+        ]);
+    });
+
+    // 21. Einzelne Mail-Datei in die Buchhaltung buchen
+    Route::post('/attachments/{id}/book', function ($id, \App\Services\Management\MailAttachmentFunnelService $funnelService) {
+        $att = \App\Models\Management\Mail\MailAttachment::with('message')->findOrFail($id);
+        $res = $funnelService->processInvoiceToAccounting($att, isManualAction: true);
+        return response()->json($res, !empty($res['success']) || ($res['status'] ?? '') === 'needs_review' ? 200 : 422);
+    });
+
+    // 22. Einzelne Mail-Datei an den Dateitrichter senden
+    Route::post('/attachments/{id}/trichter', function ($id, \App\Services\Management\MailAttachmentFunnelService $funnelService) {
+        $att = \App\Models\Management\Mail\MailAttachment::with('message')->findOrFail($id);
+        $res = $funnelService->sendToDateitrichter($att);
+        return response()->json($res, !empty($res['success']) ? 200 : 422);
+    });
+
+    // 23. Alle offenen Eingangsrechnungen automatisch prüfen & buchen
+    Route::post('/attachments/scan-invoices', function (\App\Services\Management\MailAttachmentFunnelService $funnelService) {
+        $stats = $funnelService->backfillMetadataAndAutoProcessNew(autoBookInvoices: true, maxInvoiceScans: 15);
+        return response()->json([
+            'success' => true,
+            'stats' => $stats,
+            'message' => "Rechnungsprüfung abgeschlossen: {$stats['booked']} neu verbucht, {$stats['already_booked']} bereits erfasst, {$stats['needs_review']} zur Prüfung markiert.",
+        ]);
     });
 });
 

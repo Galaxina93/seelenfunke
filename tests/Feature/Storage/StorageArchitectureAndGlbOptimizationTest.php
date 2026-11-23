@@ -93,9 +93,9 @@ class StorageArchitectureAndGlbOptimizationTest extends TestCase
             'target_action' => 'download',
         ]);
         $this->assertEquals('success', $dossierRes['status']);
-        $this->assertStringContainsString('/storage/agenten/exports/dossiers/', $dossierRes['pdf_url']);
+        $this->assertStringContainsString('/api/ai/top-secret/file/dossiers/', $dossierRes['pdf_url']);
         if (!empty($dossierRes['file_name'])) {
-            @unlink(storage_path('app/public/agenten/exports/dossiers/' . $dossierRes['file_name']));
+            @unlink(storage_path('app/private/top_secret/dossiers/' . $dossierRes['file_name']));
         }
 
         $holidayRes = AiHolidayPlannerFuncs::executeHolidayGeneratePdfPlan([
@@ -145,10 +145,9 @@ class StorageArchitectureAndGlbOptimizationTest extends TestCase
         ]);
         $this->assertEquals('success', $reportRes['status']);
         $reportUrl = $reportRes['_event']['detail']['url'] ?? '';
-        $reportFilename = $reportRes['_event']['detail']['filename'] ?? '';
-        $this->assertStringContainsString('/storage/agenten/exports/reports/', $reportUrl);
-        if (!empty($reportFilename)) {
-            @unlink(storage_path('app/public/agenten/exports/reports/' . $reportFilename));
+        $this->assertStringContainsString('/admin/ai/workspace/file?path=agenten%2Fworkspace%2Ftickets%2F', $reportUrl);
+        if (preg_match('/path=([^&]+)/', $reportUrl, $pm)) {
+            @unlink(storage_path('app/' . rawurldecode($pm[1])));
         }
     }
 

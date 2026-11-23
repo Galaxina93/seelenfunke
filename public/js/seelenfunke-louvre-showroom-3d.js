@@ -4,7 +4,7 @@
  * On-Demand ES-Modul: 0 KB Initial-Last auf /shop & /mein-konto, 0 % CPU/GPU nach dem Schliessen.
  */
 
-import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261118v9';
+import { getLobbyAudioInstance, SeelenfunkeLobbyAudio, forceStopAllLobbyAudio } from './seelenfunke-lobby-audio.js?v=20261122v1';
 
 const TWO_PI = Math.PI * 2;
 const PROXIMITY_FOCUS_ENTER = 3.4;
@@ -24,7 +24,7 @@ export const DEFAULT_LOBBY_KEYBINDINGS = {
 };
 
 export const DEFAULT_LOBBY_USER_SETTINGS = {
-    volume: 5,
+    volume: 15,
     cameraSensitivity: 100,
     useRealName: false,
     graphicsQuality: 'high',
@@ -36,12 +36,20 @@ export function loadLobbyUserSettings() {
     const out = Object.assign({}, DEFAULT_LOBBY_USER_SETTINGS);
     if (typeof localStorage === 'undefined') return out;
     try {
+        const migratedV3 = localStorage.getItem('sf_lobby_vol_v3_u_init') === '1';
+        const explicitMuted = localStorage.getItem('sf_lobby_bgm_explicit_muted') === '1'
+            || localStorage.getItem('sf_lobby_bgm_explicit_muted') === 'true';
         const raw = localStorage.getItem(LOBBY_SETTINGS_STORAGE_KEY);
         if (raw) {
             const parsed = JSON.parse(raw);
             if (parsed && typeof parsed === 'object') {
                 if (Number.isFinite(Number(parsed.volume))) {
                     out.volume = Math.max(0, Math.min(100, Math.round(Number(parsed.volume))));
+                }
+                if (!migratedV3 && out.volume === 5 && !explicitMuted) {
+                    out.volume = 15;
+                    parsed.volume = 15;
+                    localStorage.setItem(LOBBY_SETTINGS_STORAGE_KEY, JSON.stringify(parsed));
                 }
                 if (Number.isFinite(Number(parsed.cameraSensitivity))) {
                     out.cameraSensitivity = Math.max(50, Math.min(150, Math.round(Number(parsed.cameraSensitivity))));
@@ -60,13 +68,16 @@ export function loadLobbyUserSettings() {
                 }
             }
         }
+        if (!migratedV3) {
+            localStorage.setItem('sf_lobby_vol_v3_u_init', '1');
+        }
     } catch (e) {}
     return out;
 }
 
 export function saveLobbyUserSettings(partial) {
     const merged = Object.assign(loadLobbyUserSettings(), partial || {});
-    merged.volume = Math.max(0, Math.min(100, Math.round(Number(merged.volume ?? 5))));
+    merged.volume = Math.max(0, Math.min(100, Math.round(Number(merged.volume ?? 15))));
     merged.cameraSensitivity = Math.max(50, Math.min(150, Math.round(Number(merged.cameraSensitivity ?? 100))));
     merged.useRealName = Boolean(merged.useRealName);
     merged.graphicsQuality = merged.graphicsQuality === 'balanced' ? 'balanced' : 'high';
@@ -272,8 +283,8 @@ export { getLobbyAudioInstance, SeelenfunkeLobbyAudio };
 export const FUNKI_GLB_FRONT_ROTATION_Y = -Math.PI * 0.5;
 
 export const RIGGED_AVATAR_GLB_URLS = {
-    male: '/shop/customer/gamification/models/char_starter_male_rigged.glb?v=20261120v36',
-    female: '/shop/customer/gamification/models/char_starter_female_rigged.glb?v=20261120v36',
+    male: '/shop/customer/gamification/models/char_starter_male_rigged.glb?v=20261122v2',
+    female: '/shop/customer/gamification/models/char_starter_female_rigged.glb?v=20261122v2',
 };
 
 export const ARMORY_SHOWCASE_ITEMS = {
@@ -281,37 +292,37 @@ export const ARMORY_SHOWCASE_ITEMS = {
         key: 'helm',
         slot: 'head',
         label: 'Kristall-Helm',
-        url: '/shop/customer/gamification/models/armory/armor_crystal_helm.glb?v=20261120v36',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_helm.glb?v=20261122v2',
     },
     chest: {
         key: 'chest',
         slot: 'chest',
         label: 'Kristall-Brustpanzer',
-        url: '/shop/customer/gamification/models/armory/armor_crystal_chest.glb?v=20261120v36',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_chest.glb?v=20261122v2',
     },
     gauntlets: {
         key: 'gauntlets',
         slot: 'hands',
         label: 'Kristall-Handschuhe',
-        url: '/shop/customer/gamification/models/armory/armor_crystal_gauntlets.glb?v=20261120v36',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_gauntlets.glb?v=20261122v2',
     },
     boots: {
         key: 'boots',
         slot: 'feet',
         label: 'Kristall-Stiefel',
-        url: '/shop/customer/gamification/models/armory/armor_crystal_boots.glb?v=20261120v36',
+        url: '/shop/customer/gamification/models/armory/armor_crystal_boots.glb?v=20261122v2',
     },
     lance: {
         key: 'lance',
         slot: 'weapon',
         label: 'Kristall-Lanze',
-        url: '/shop/customer/gamification/models/armory/weapon_crystal_lance.glb?v=20261120v36',
+        url: '/shop/customer/gamification/models/armory/weapon_crystal_lance.glb?v=20261122v2',
     },
     spear: {
         key: 'spear',
         slot: 'weapon',
         label: 'Kristall-Speer',
-        url: '/shop/customer/gamification/models/armory/weapon_crystal_spear.glb?v=20261120v36',
+        url: '/shop/customer/gamification/models/armory/weapon_crystal_spear.glb?v=20261122v2',
     },
 };
 
@@ -7010,50 +7021,12 @@ class SeelenfunkeLouvreShowroom3D {
 
     _playWeaponSwingSfx(comboStep = 1) {
         if (!this.userSettings || (this.userSettings.volume || 0) <= 0) return;
-        if (this.audio && this.audio.sfxMuted) return;
-        try {
-            const Ctx = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext);
-            if (!Ctx) return;
-            if (!this._weaponAudioCtx) {
-                this._weaponAudioCtx = new Ctx();
-            }
-            const ctx = this._weaponAudioCtx;
-            if (ctx.state === 'suspended') {
-                ctx.resume().catch(() => {});
-            }
-            const now = ctx.currentTime;
-            const volScale = clamp((this.userSettings.volume || 5) / 100, 0, 1) * 0.22;
-
-            // Mattes Luft-Swoosh (gefiltertes Rauschen + tiefer Schwung-Impuls, kein schrilles Piepsen)
-            const dur = 0.20;
-            const bufLen = Math.max(1, Math.floor(ctx.sampleRate * dur));
-            const noiseBuf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
-            const ch = noiseBuf.getChannelData(0);
-            for (let i = 0; i < bufLen; i++) {
-                const env = Math.sin((i / bufLen) * Math.PI);
-                ch[i] = (Math.random() * 2 - 1) * env;
-            }
-            const src = ctx.createBufferSource();
-            src.buffer = noiseBuf;
-
-            const filter = ctx.createBiquadFilter();
-            filter.type = 'bandpass';
-            const startHz = comboStep === 3 ? 520 : (comboStep === 2 ? 420 : 360);
-            filter.frequency.setValueAtTime(startHz, now);
-            filter.frequency.exponentialRampToValueAtTime(160, now + dur);
-            filter.Q.value = 1.6;
-
-            const gain = ctx.createGain();
-            gain.gain.setValueAtTime(0.001, now);
-            gain.gain.linearRampToValueAtTime(Math.max(0.002, volScale), now + 0.035);
-            gain.gain.exponentialRampToValueAtTime(0.0008, now + dur);
-
-            src.connect(filter);
-            filter.connect(gain);
-            gain.connect(ctx.destination);
-            src.start(now);
-            src.stop(now + dur + 0.02);
-        } catch (e) {}
+        if (!this.audio || this.audio.sfxMuted) return;
+        if (typeof this.audio.playWeaponSwing === 'function') {
+            this.audio.playWeaponSwing(comboStep);
+        } else if (typeof this.audio.playComboStrike === 'function') {
+            this.audio.playComboStrike(comboStep);
+        }
     }
 
     _spawnWeaponSlashArc(comboStep = 1) {
@@ -10837,7 +10810,7 @@ class SeelenfunkeLouvreShowroom3D {
                 else this._trackDisposable(hMat);
             }
             if (hMat && 'envMapIntensity' in hMat) {
-                hMat.envMapIntensity = 0.34;
+                hMat.envMapIntensity = 0.86;
                 hMat.needsUpdate = true;
             }
             starterHairInstance = new THREE.Mesh(tpl.starterHairGeo, hMat);
@@ -10876,7 +10849,7 @@ class SeelenfunkeLouvreShowroom3D {
             }
             matInstance.skinning = true;
             if ('envMapIntensity' in matInstance) {
-                matInstance.envMapIntensity = tpl.isStarterCharacter ? 0.68 : (tpl.level === 1 ? 0.96 : 1.24);
+                matInstance.envMapIntensity = tpl.isStarterCharacter ? 0.86 : (tpl.level === 1 ? 0.96 : 1.24);
             }
             if (tpl.level === 1 && !matInstance.map && matInstance.color) {
                 matInstance.color.set('#A8947B');
@@ -10960,6 +10933,7 @@ class SeelenfunkeLouvreShowroom3D {
             restPelvisY,
             height: H,
             level: tpl.level,
+            gender: tpl.gender || 'male',
         };
     }
 
@@ -11028,107 +11002,107 @@ class SeelenfunkeLouvreShowroom3D {
     _syncSkinnedFunkiBones(skinnedRig, j, somersaultTuck = 0, kinMeta = null) {
         if (!skinnedRig || !skinnedRig.bones || !j) return;
         const b = skinnedRig.bones;
-        const legSync = 0.84;
-        const armSync = 0.84;
+        const legSync = 0.90;
+        const armSync = 0.88;
         const tuck = clamp(somersaultTuck || 0, 0, 1);
         const wallClingBlend = (kinMeta && typeof kinMeta.wallClingBlend === 'number')
             ? clamp(kinMeta.wallClingBlend, 0, 1)
             : 0;
-        const minShoulderRx = -1.15 - 0.22 * wallClingBlend;
-        const maxShoulderRx = 0.78;
-        const maxHeadRy = 0.52 + 0.12 * wallClingBlend;
+        const minShoulderRx = -1.35 - 0.18 * wallClingBlend;
+        const maxShoulderRx = 0.88;
+        const maxHeadRy = 0.56 + 0.12 * wallClingBlend;
 
-        // 1: pelvis
-        const pelvisDy = Math.max(-0.02, (j.pelvisPivot.position.y - 0.776));
+        // 1: pelvis (0.75 Beinlaengen-Ratio haelt Sohlen bei Landung, Lauf & Sitzen 100 % bodenbuendig!)
+        const pelvisDy = clamp((j.pelvisPivot.position.y - 0.776) * 0.75, -0.44, 0.28);
         b[1].position.y = skinnedRig.restPelvisY + pelvisDy;
-        b[1].position.x = (j.pelvisPivot.position.x || 0) * 0.88;
-        b[1].position.z = (j.pelvisPivot.position.z || 0) * 0.88;
+        b[1].position.x = (j.pelvisPivot.position.x || 0) * 0.92;
+        b[1].position.z = (j.pelvisPivot.position.z || 0) * 0.92;
         b[1].rotation.set(
             j.pelvisPivot.rotation.x,
-            clamp(j.pelvisPivot.rotation.y * 0.85, -0.65, 0.65),
-            clamp(j.pelvisPivot.rotation.z * 0.82, -0.45, 0.45)
+            clamp(j.pelvisPivot.rotation.y * 0.92, -0.72, 0.72),
+            clamp(j.pelvisPivot.rotation.z * 0.90, -0.48, 0.48)
         );
 
-        // 2: spine & 3: chest
+        // 2: spine & 3: chest (organische S-Kurve & lebendige Gegenrotation)
         const torsoRx = j.torsoPivot.rotation.x + 0.18 * tuck;
         b[2].rotation.set(
-            clamp(torsoRx * 0.46, -0.58, 0.72),
-            clamp(j.torsoPivot.rotation.y * 0.46, -0.52, 0.52),
-            clamp(j.torsoPivot.rotation.z * 0.46, -0.36, 0.36)
+            clamp(torsoRx * 0.52, -0.62, 0.76),
+            clamp(j.torsoPivot.rotation.y * 0.52, -0.58, 0.58),
+            clamp(j.torsoPivot.rotation.z * 0.52, -0.40, 0.40)
         );
         b[3].rotation.set(
-            clamp(torsoRx * 0.50, -0.58, 0.72),
-            clamp(j.torsoPivot.rotation.y * 0.50, -0.58, 0.58),
-            clamp(j.torsoPivot.rotation.z * 0.50, -0.38, 0.38)
+            clamp(torsoRx * 0.58, -0.62, 0.76),
+            clamp(j.torsoPivot.rotation.y * 0.58, -0.62, 0.62),
+            clamp(j.torsoPivot.rotation.z * 0.58, -0.42, 0.42)
         );
 
-        // 4: head (sanft geklemmt fuer 100 % verzerrungsfreies Chibi-Gesicht)
+        // 4: head (ausdrucksstark & zugleich 100 % verzerrungsfrei fuer das Chibi-Visier)
         b[4].rotation.set(
-            clamp(j.headPivot.rotation.x * 0.62 + 0.14 * tuck, -0.34, 0.42),
-            clamp(j.headPivot.rotation.y * (0.68 + 0.14 * wallClingBlend), -maxHeadRy, maxHeadRy),
-            clamp(j.headPivot.rotation.z * 0.55, -0.22, 0.22)
+            clamp(j.headPivot.rotation.x * 0.76 + 0.14 * tuck, -0.38, 0.44),
+            clamp(j.headPivot.rotation.y * (0.78 + 0.12 * wallClingBlend), -maxHeadRy, maxHeadRy),
+            clamp(j.headPivot.rotation.z * 0.72, -0.26, 0.26)
         );
 
         // 5..8: Left Arm + Hand + Fingers
         b[5].rotation.set(
-            clamp(j.shoulderPivotL.rotation.x * (0.68 + 0.12 * wallClingBlend), minShoulderRx, maxShoulderRx),
-            clamp(j.shoulderPivotL.rotation.y * 0.68, -0.48, 0.48),
-            clamp(j.shoulderPivotL.rotation.z * 0.64, -0.58, 0.58)
+            clamp(j.shoulderPivotL.rotation.x * (armSync + 0.08 * wallClingBlend), minShoulderRx, maxShoulderRx),
+            clamp(j.shoulderPivotL.rotation.y * 0.85, -0.58, 0.58),
+            clamp(j.shoulderPivotL.rotation.z * 0.82, -0.68, 0.68)
         );
-        b[6].rotation.set(clamp(j.elbowPivotL.rotation.x * 0.68, -1.10, 0.36), 0, 0);
+        b[6].rotation.set(clamp(j.elbowPivotL.rotation.x * armSync, -1.32, 0.36), 0, 0);
         if (b[7] && j.wristPivotL) {
             b[7].rotation.set(
-                clamp(j.wristPivotL.rotation.x * 0.85, -0.65, 0.65),
-                clamp((j.wristPivotL.rotation.y || 0) * 0.85, -0.55, 0.55),
-                clamp(j.wristPivotL.rotation.z * 0.85, -0.65, 0.65)
+                clamp(j.wristPivotL.rotation.x * 0.92, -0.72, 0.72),
+                clamp((j.wristPivotL.rotation.y || 0) * 0.90, -0.58, 0.58),
+                clamp(j.wristPivotL.rotation.z * 0.92, -0.72, 0.72)
             );
         }
         if (b[8] && j.fingerCurlL) {
             b[8].rotation.set(
-                clamp((j.fingerCurlL.rotation.x || 0) * 0.88, -0.85, 0.85),
+                clamp((j.fingerCurlL.rotation.x || 0) * 0.92, -0.88, 0.88),
                 0,
-                clamp(j.fingerCurlL.rotation.z * 0.88, -0.92, 0.92)
+                clamp(j.fingerCurlL.rotation.z * 0.92, -0.96, 0.96)
             );
         }
 
         // 9..12: Right Arm + Hand + Fingers
         b[9].rotation.set(
-            clamp(j.shoulderPivotR.rotation.x * (0.68 + 0.12 * wallClingBlend), minShoulderRx, maxShoulderRx),
-            clamp(j.shoulderPivotR.rotation.y * 0.68, -0.48, 0.48),
-            clamp(j.shoulderPivotR.rotation.z * 0.64, -0.58, 0.58)
+            clamp(j.shoulderPivotR.rotation.x * (armSync + 0.08 * wallClingBlend), minShoulderRx, maxShoulderRx),
+            clamp(j.shoulderPivotR.rotation.y * 0.85, -0.58, 0.58),
+            clamp(j.shoulderPivotR.rotation.z * 0.82, -0.68, 0.68)
         );
-        b[10].rotation.set(clamp(j.elbowPivotR.rotation.x * 0.68, -1.10, 0.36), 0, 0);
+        b[10].rotation.set(clamp(j.elbowPivotR.rotation.x * armSync, -1.32, 0.36), 0, 0);
         if (b[11] && j.wristPivotR) {
             b[11].rotation.set(
-                clamp(j.wristPivotR.rotation.x * 0.85, -0.65, 0.65),
-                clamp((j.wristPivotR.rotation.y || 0) * 0.85, -0.55, 0.55),
-                clamp(j.wristPivotR.rotation.z * 0.85, -0.65, 0.65)
+                clamp(j.wristPivotR.rotation.x * 0.92, -0.72, 0.72),
+                clamp((j.wristPivotR.rotation.y || 0) * 0.90, -0.58, 0.58),
+                clamp(j.wristPivotR.rotation.z * 0.92, -0.72, 0.72)
             );
         }
         if (b[12] && j.fingerCurlR) {
             b[12].rotation.set(
-                clamp((j.fingerCurlR.rotation.x || 0) * 0.88, -0.85, 0.85),
+                clamp((j.fingerCurlR.rotation.x || 0) * 0.92, -0.88, 0.88),
                 0,
-                clamp(j.fingerCurlR.rotation.z * 0.88, -0.92, 0.92)
+                clamp((j.fingerCurlR.rotation.z || 0) * 0.92, -0.96, 0.96)
             );
         }
 
         // 13..15: Left Leg & 16..18: Right Leg
         b[13].rotation.set(
-            clamp(j.hipPivotL.rotation.x * legSync - 0.22 * tuck, -1.55, 0.85),
+            clamp(j.hipPivotL.rotation.x * legSync - 0.22 * tuck, -1.62, 0.92),
             0,
-            clamp(j.hipPivotL.rotation.z * 0.72, -0.28, 0.28)
+            clamp(j.hipPivotL.rotation.z * 0.84, -0.32, 0.32)
         );
-        b[14].rotation.set(clamp(j.kneePivotL.rotation.x * legSync + 0.25 * tuck, 0, 1.85), 0, 0);
-        b[15].rotation.set(clamp(j.anklePivotL.rotation.x * 0.76, -0.58, 0.52), 0, 0);
+        b[14].rotation.set(clamp(j.kneePivotL.rotation.x * legSync + 0.25 * tuck, 0, 1.92), 0, 0);
+        b[15].rotation.set(clamp(j.anklePivotL.rotation.x * 0.86, -0.64, 0.58), 0, 0);
 
         b[16].rotation.set(
-            clamp(j.hipPivotR.rotation.x * legSync - 0.22 * tuck, -1.55, 0.85),
+            clamp(j.hipPivotR.rotation.x * legSync - 0.22 * tuck, -1.62, 0.92),
             0,
-            clamp(j.hipPivotR.rotation.z * 0.72, -0.28, 0.28)
+            clamp(j.hipPivotR.rotation.z * 0.84, -0.32, 0.32)
         );
-        b[17].rotation.set(clamp(j.kneePivotR.rotation.x * legSync + 0.25 * tuck, 0, 1.85), 0, 0);
-        b[18].rotation.set(clamp(j.anklePivotR.rotation.x * 0.76, -0.58, 0.52), 0, 0);
+        b[17].rotation.set(clamp(j.kneePivotR.rotation.x * legSync + 0.25 * tuck, 0, 1.92), 0, 0);
+        b[18].rotation.set(clamp(j.anklePivotR.rotation.x * 0.86, -0.64, 0.58), 0, 0);
 
         const dt = (kinMeta && kinMeta.dt) ? kinMeta.dt : 0.016;
         const speed = (kinMeta && kinMeta.speed) ? kinMeta.speed : 0;
@@ -13113,38 +13087,47 @@ class SeelenfunkeLouvreShowroom3D {
 
         const mb = this.player.moveBlend * (1.0 - airBlend * 0.65);
         const idleWeight = (1.0 - mb) * (1.0 - airBlend);
-        const idleSway = Math.sin(this.elapsedTime * 1.18) * idleWeight;
+        const isFemChar = this.characterGender === 'female';
+        const femGrace = isFemChar ? 1.32 : 0.92;
+        const idleSway = Math.sin(this.elapsedTime * 1.32) * idleWeight;
+        const breathWave = Math.sin(this.elapsedTime * 2.12);
+        const breathChest = Math.sin(this.elapsedTime * 2.12 - 0.42);
+        const vyNorm = clamp((this.player.vy || 0) / 5.4, -1.0, 1.0);
+        const jumpRise = Math.max(0, vyNorm) * airBlend;
+        const jumpFall = Math.max(0, -vyNorm) * airBlend;
         const phaseL = this.player.walkPhase;
         const phaseR = phaseL + Math.PI;
-        const strideAmpScale = 1.0 + 0.18 * sprintBoost;
+        const strideAmpScale = (isFemChar ? 0.95 : 1.02) + 0.24 * sprintBoost;
 
         const applyLegGait = (hipPivot, kneePivot, anklePivot, p, sideSign) => {
             const sinP = Math.sin(p);
-            const swingForward = Math.max(0, Math.cos(p - 0.16));
+            const swingForward = Math.max(0, Math.cos(p - 0.18));
             const stanceWeight = Math.max(0, -Math.cos(p));
-            const idleKneeRelax = Math.max(0, sideSign * idleSway) * 0.045;
+            const idleKneeRelax = Math.max(0, sideSign * idleSway) * (0.068 * femGrace);
+            const airLead = sideSign < 0;
 
-            const hipPitch = -0.56 * strideAmpScale * sinP * mb
-                - (sideSign < 0 ? 0.38 : 0.20) * airBlend
-                - squash * 0.46
-                - idleKneeRelax * 0.5;
+            const hipPitch = -0.58 * strideAmpScale * sinP * mb
+                - (airLead ? (0.46 + 0.18 * jumpRise) : (0.18 + 0.12 * jumpFall)) * airBlend
+                - squash * 0.52
+                - idleKneeRelax * 0.55;
             const kneeBend = Math.max(
                 0,
-                (Math.pow(swingForward, 1.28) * 0.76 * strideAmpScale + stanceWeight * 0.07) * mb
-                    + (sideSign < 0 ? 0.66 : 0.46) * airBlend
-                    + squash * 0.90
+                (Math.pow(swingForward, 1.24) * (0.82 + 0.24 * sprintBoost) * strideAmpScale + stanceWeight * 0.08) * mb
+                    + (airLead ? (0.78 + 0.22 * jumpRise) : (0.44 + 0.20 * jumpFall)) * airBlend
+                    + squash * 0.96
                     + idleKneeRelax
             );
 
-            const heelStrike = Math.max(0, sinP - 0.45) * 0.22;
-            const toePushOff = Math.max(0, -sinP - 0.32) * (0.32 + 0.14 * sprintBoost);
-            const swingToeLift = -swingForward * 0.26;
+            const heelStrike = Math.max(0, sinP - 0.42) * 0.26;
+            const toePushOff = Math.max(0, -sinP - 0.28) * (0.34 + 0.16 * sprintBoost);
+            const swingToeLift = -swingForward * 0.28;
             const anklePitch = (swingToeLift + heelStrike + toePushOff - stanceWeight * 0.04) * mb
-                + 0.24 * airBlend
-                - squash * 0.38;
+                + (0.28 * jumpRise + 0.16 * (airBlend - jumpRise))
+                - squash * 0.42
+                - idleKneeRelax * 0.42;
 
             hipPivot.rotation.x = hipPitch;
-            hipPivot.rotation.z = sideSign * (0.018 * idleWeight + 0.024 * mb + 0.032 * airBlend) - idleSway * 0.018;
+            hipPivot.rotation.z = sideSign * ((isFemChar ? 0.016 : 0.024) * idleWeight + 0.026 * mb + 0.036 * airBlend) - idleSway * (0.028 * femGrace);
             kneePivot.rotation.x = kneeBend;
             anklePivot.rotation.x = anklePitch;
         };
@@ -13164,56 +13147,77 @@ class SeelenfunkeLouvreShowroom3D {
         }
 
         const applyArmGait = (shoulderPivot, elbowPivot, wristPivot, thumbPivot, fingerCurl, oppositeLegPhase, sideSign) => {
-            const sinArm = Math.sin(oppositeLegPhase);
-            const cosArm = Math.cos(oppositeLegPhase);
-            const forwardAmt = Math.max(0, sinArm);
-            const idleBreathArm = Math.sin(this.elapsedTime * 1.95 + sideSign * 0.45) * 0.024 * idleWeight;
-            const idleFingerWave = Math.sin(this.elapsedTime * 2.15 + sideSign * 0.7) * 0.065 * idleWeight;
-            const armSwingScale = 1.0 - 0.58 * sprintBoost;
-            const ninjaSweepBack = 0.56 * sprintBoost * mb;
+            // Echtes Pixar/Blizzard Overlapping Action & Follow-Through (Phasenverzug Schulter -> Ellbogen -> Handgelenk -> Finger)
+            const sinSh = Math.sin(oppositeLegPhase);
+            const sinEl = Math.sin(oppositeLegPhase - 0.48);
+            const sinWr = Math.sin(oppositeLegPhase - 0.92);
+            const sinFg = Math.sin(oppositeLegPhase - 1.25);
+            const forwardEl = Math.max(0, sinEl);
 
-            shoulderPivot.rotation.x = (-0.44 * armSwingScale * sinArm * mb) + ninjaSweepBack + idleBreathArm - 0.42 * airBlend - squash * 0.14;
-            shoulderPivot.rotation.z = sideSign * (0.072 + (0.036 + 0.145 * sprintBoost) * mb + Math.max(0, -sinArm) * 0.028 * mb + 0.18 * airBlend + Math.sin(this.elapsedTime * 2.05) * 0.012 * idleWeight);
-            shoulderPivot.rotation.y = -sideSign * (0.075 * armSwingScale * sinArm - 0.08 * sprintBoost) * mb;
+            const idleBreathArm = Math.sin(this.elapsedTime * 2.12 - 0.82 + sideSign * 0.35) * 0.036 * idleWeight;
+            const idleWristTrail = Math.sin(this.elapsedTime * 2.12 - 1.35 + sideSign * 0.45) * 0.068 * idleWeight;
+            const idleSwayArmZ = Math.max(0, breathChest) * 0.024 * idleWeight;
+            const armDriveScale = (isFemChar ? 0.94 : 1.04) + 0.36 * sprintBoost;
+            const restSplay = isFemChar ? 0.078 : 0.102;
+            const restElbow = isFemChar ? -0.24 : -0.20;
 
-            elbowPivot.rotation.x = -0.18 - ((0.14 + 0.36 * forwardAmt) * armSwingScale + 0.08 * sprintBoost) * mb - 0.32 * airBlend - squash * 0.18;
+            shoulderPivot.rotation.x = (-0.48 * armDriveScale * sinSh + 0.07 * sprintBoost) * mb
+                + idleBreathArm
+                - (0.52 + 0.18 * jumpRise - 0.12 * jumpFall) * airBlend
+                - squash * 0.18;
+            shoulderPivot.rotation.z = sideSign * (
+                restSplay
+                + idleSwayArmZ
+                + (0.032 + 0.065 * sprintBoost + Math.max(0, -sinSh) * 0.032) * mb
+                + (0.20 + 0.14 * jumpFall) * airBlend
+            ) - idleSway * 0.018;
+            shoulderPivot.rotation.y = -sideSign * (0.095 * armDriveScale * sinSh * mb - 0.03 * idleWeight);
 
-            wristPivot.rotation.x = ((-0.09 * cosArm - 0.06 * forwardAmt) * armSwingScale + 0.14 * sprintBoost) * mb + 0.10 * airBlend + idleFingerWave * 0.45;
-            wristPivot.rotation.z = sideSign * (0.04 + 0.05 * armSwingScale * sinArm * mb - 0.06 * airBlend);
-            fingerCurl.rotation.x = (-0.12 * airBlend) + (0.20 * forwardAmt * armSwingScale * mb) + idleFingerWave;
-            fingerCurl.rotation.z = sideSign * (0.14 + idleFingerWave + (0.18 * forwardAmt * armSwingScale + 0.06 * sprintBoost) * mb - 0.08 * airBlend);
+            elbowPivot.rotation.x = restElbow
+                - ((0.14 + 0.38 * forwardEl) + 0.44 * sprintBoost) * mb
+                - 0.045 * Math.sin(this.elapsedTime * 2.12 - 1.05) * idleWeight
+                - (0.40 + 0.12 * jumpRise) * airBlend
+                - squash * 0.24;
+
+            wristPivot.rotation.x = (-0.16 * sinWr * armDriveScale + 0.10 * sprintBoost) * mb
+                + 0.12 * airBlend
+                + idleWristTrail;
+            wristPivot.rotation.z = sideSign * (0.05 + 0.06 * sinWr * mb - 0.08 * airBlend) + idleWristTrail * 0.35 * sideSign;
+            fingerCurl.rotation.x = (-0.10 * airBlend) + (0.18 * Math.max(0, sinFg) * mb) + idleWristTrail * 0.85;
+            fingerCurl.rotation.z = sideSign * (0.18 + idleWristTrail * 0.9 + (0.18 * forwardEl + 0.38 * sprintBoost) * mb - 0.06 * airBlend);
             if (thumbPivot) {
-                thumbPivot.rotation.x = 0.16 * forwardAmt * armSwingScale * mb - 0.10 * airBlend + idleFingerWave * 0.6;
+                thumbPivot.rotation.x = 0.18 * forwardEl * mb - 0.10 * airBlend + idleWristTrail * 0.65;
             }
         };
 
         applyArmGait(j.shoulderPivotL, j.elbowPivotL, j.wristPivotL, j.thumbPivotL, j.fingerCurlL, phaseR, -1);
         applyArmGait(j.shoulderPivotR, j.elbowPivotR, j.wristPivotR, j.thumbPivotR, j.fingerCurlR, phaseL, 1);
 
-        const doubleStepBounce = Math.cos(2.0 * phaseL) * (0.026 + 0.012 * sprintBoost) * mb;
-        const stanceSink = -(0.016 + 0.022 * sprintBoost) * mb - squash * 0.18;
-        const idleBreath = Math.sin(this.elapsedTime * 2.05) * 0.011 * idleWeight;
+        const doubleStepBounce = Math.cos(2.0 * phaseL) * (0.028 + 0.016 * sprintBoost) * mb;
+        const stanceSink = -(0.018 + 0.028 * sprintBoost) * mb - squash * 0.22;
+        const idleBreath = breathWave * 0.014 * idleWeight;
 
         // Dynamischer Vorwaerts- (+1) & Wall-Cling-Rueckwaertssalto (-1)
         const somersaultDir = this.player.somersaultDir || 1;
         j.pelvisPivot.position.y = 0.776 + doubleStepBounce + stanceSink + idleBreath;
-        j.pelvisPivot.position.x = -Math.sin(phaseL) * 0.020 * mb + idleSway * 0.016;
-        j.pelvisPivot.position.z = 0.032 * sprintBoost * mb;
+        j.pelvisPivot.position.x = -Math.sin(phaseL) * (isFemChar ? 0.026 : 0.020) * mb + idleSway * (0.022 * femGrace);
+        j.pelvisPivot.position.z = 0.034 * sprintBoost * mb;
         j.pelvisPivot.rotation.x = (this.player.isSomersault && heightAboveSupport > 0.24)
             ? ((this.player.somersaultDir || 1) * this.player.somersaultProgress * TWO_PI)
-            : 0;
-        j.pelvisPivot.rotation.y = Math.sin(phaseL) * 0.075 * mb + idleSway * 0.025;
-        j.pelvisPivot.rotation.z = -Math.sin(phaseL) * 0.036 * mb - idleSway * 0.020;
+            : (0.012 * breathWave * idleWeight + 0.04 * sprintBoost * mb);
+        j.pelvisPivot.rotation.y = Math.sin(phaseL) * (0.088 + 0.032 * sprintBoost) * mb + idleSway * (0.048 * femGrace);
+        j.pelvisPivot.rotation.z = -Math.sin(phaseL) * (isFemChar ? 0.052 : 0.038) * mb - idleSway * (0.038 * femGrace);
 
-        const targetBank = clamp(-turnRate * 0.052, -0.11, 0.11) * mb;
+        const targetBank = clamp(-turnRate * 0.058, -0.13, 0.13) * mb;
         this.player.turnBank = lerp(this.player.turnBank, targetBank, blendFactor);
 
-        j.torsoPivot.rotation.x = (0.095 + 0.215 * sprintBoost) * mb
-            + Math.sin(this.elapsedTime * 2.05 - 0.35) * 0.018 * idleWeight
-            + squash * 0.18
+        j.torsoPivot.rotation.x = (0.10 + 0.22 * sprintBoost) * mb
+            + breathChest * 0.034 * idleWeight
+            - 0.08 * jumpRise + 0.06 * jumpFall
+            + squash * 0.22
             + (somersaultDir >= 0 ? 1.35 : 0.85) * somersaultTuck;
-        j.torsoPivot.rotation.y = -Math.sin(phaseL) * (0.095 + 0.035 * sprintBoost) * mb - idleSway * 0.032;
-        j.torsoPivot.rotation.z = this.player.turnBank + Math.sin(phaseL) * 0.024 * mb + idleSway * 0.016;
+        j.torsoPivot.rotation.y = -Math.sin(phaseL) * (0.115 + 0.055 * sprintBoost) * mb - idleSway * (0.052 * femGrace);
+        j.torsoPivot.rotation.z = this.player.turnBank + Math.sin(phaseL) * 0.032 * mb + idleSway * (0.034 * femGrace);
 
         // Echte Ninja Wall-Cling-Pose (beide Haende schulterhoch flach an der Wand, Knie athletisch abgestuetzt)
         if (wc > 0.002) {
@@ -13406,8 +13410,10 @@ class SeelenfunkeLouvreShowroom3D {
             this.player.bubbleSprite.visible = showOwnBubble;
         }
 
-        let desiredHeadYaw = 0;
-        let desiredHeadPitch = (-0.02 - 0.11 * sprintBoost) * mb;
+        const idleCuriosityYaw = (Math.sin(this.elapsedTime * 0.68) * 0.065 + Math.sin(this.elapsedTime * 1.43) * 0.032) * idleWeight;
+        const idleCuriosityPitch = -breathChest * 0.026 * idleWeight;
+        let desiredHeadYaw = idleCuriosityYaw;
+        let desiredHeadPitch = (-0.03 - 0.13 * sprintBoost) * mb + idleCuriosityPitch - 0.10 * jumpRise + 0.08 * jumpFall;
 
         if (wc > 0.35) {
             desiredHeadYaw = 0.54 * wc;
@@ -13418,7 +13424,7 @@ class SeelenfunkeLouvreShowroom3D {
             const gazeStrength = clamp(1.0 - mb * 2.5, 0, 1);
 
             if (Math.abs(relYaw) < 1.35 && gazeStrength > 0.005) {
-                desiredHeadYaw = clamp(relYaw * 0.68, -0.56, 0.56) * gazeStrength;
+                desiredHeadYaw = lerp(desiredHeadYaw, clamp(relYaw * 0.68, -0.56, 0.56), gazeStrength);
                 desiredHeadPitch = lerp(desiredHeadPitch, -0.06, gazeStrength);
             }
         }
@@ -13426,9 +13432,10 @@ class SeelenfunkeLouvreShowroom3D {
         const headSmooth = 1.0 - Math.exp(-dt * 8.5);
         this.player.headYaw = lerp(this.player.headYaw, desiredHeadYaw, headSmooth);
         this.player.headPitch = lerp(this.player.headPitch, desiredHeadPitch, headSmooth);
+        const idleHeadTilt = Math.sin(this.elapsedTime * 1.32 + 0.35) * (isFemChar ? 0.045 : 0.022) * idleWeight;
         j.headPivot.rotation.y = this.player.headYaw;
         j.headPivot.rotation.x = this.player.headPitch;
-        j.headPivot.rotation.z = -this.player.headYaw * 0.12;
+        j.headPivot.rotation.z = -this.player.headYaw * 0.14 + idleHeadTilt;
 
         const isAwakening = Boolean((this.player.awakenPoseWeight || 0) > 0.05);
         const animState = isAwakening
@@ -13690,9 +13697,7 @@ class SeelenfunkeLouvreShowroom3D {
             settingsPatch.volume = vol;
             if (this.audio) {
                 if (typeof this.audio.setBgmVolume === 'function') this.audio.setBgmVolume(vol, true);
-                if (typeof this.audio.setBgmMuted === 'function') this.audio.setBgmMuted(vol === 0, true);
                 if (typeof this.audio.setSfxVolume === 'function') this.audio.setSfxVolume(vol);
-                if (typeof this.audio.setSfxMuted === 'function') this.audio.setSfxMuted(vol === 0);
             }
         }
         if (partial.cameraSensitivity !== undefined) {
@@ -17172,8 +17177,12 @@ class SeelenfunkeLouvreShowroom3D {
                 const p = toUv(this.steles[i].x, this.steles[i].z);
                 markers.push({ type: 'exhibit', u: p.u, v: p.v, active: i === this.focusedSteleIndex });
             }
+            const np = toUv(0.0, this.hallNorthZ + 0.55);
+            markers.push({ type: 'portal', u: np.u, v: np.v, active: Boolean(this.canEnterSanctums) });
             const wg = toUv(-11.92, 0.0);
             markers.push({ type: 'gate', u: wg.u, v: wg.v, active: Boolean(this.mmorpgCanEnter) });
+            const arm = toUv(-10.74, -3.68);
+            markers.push({ type: 'armory', u: arm.u, v: arm.v, active: Boolean(this.armoryFocusKey) });
             if (this.atelierStarStation) {
                 const sp = toUv(this.atelierStarStation.x, this.atelierStarStation.z);
                 markers.push({ type: 'star_station', u: sp.u, v: sp.v, active: Boolean(this.atelierStarStationFocused) });
@@ -17184,12 +17193,31 @@ class SeelenfunkeLouvreShowroom3D {
                 const p = toUv(ped.worldX, ped.worldZ);
                 markers.push({ type: 'hero', u: p.u, v: p.v, active: ped.slot === this.focusedHeroSlot });
             }
+            const sp = toUv(0.0, this.heroesEntryZ + 0.25);
+            markers.push({ type: 'portal', u: sp.u, v: sp.v, active: true });
+            if (this.peers && this.peers.size > 0) {
+                this.peers.forEach((peer) => {
+                    if (!peer || typeof peer.x !== 'number' || typeof peer.z !== 'number') return;
+                    const pp = toUv(peer.x, peer.z);
+                    markers.push({ type: 'peer', u: pp.u, v: pp.v, active: true });
+                });
+            }
         }
         const me = toUv(this.player.x || 0, this.player.z || 0);
+        const camYaw = (this.camControl && typeof this.camControl.yaw === 'number')
+            ? this.camControl.yaw
+            : ((this.player.yaw || 0) - Math.PI);
         return {
             zone,
             aspect: spanX / spanZ,
-            player: { u: me.u, v: me.v, yaw: this.player.yaw || 0 },
+            player: {
+                u: me.u,
+                v: me.v,
+                yaw: this.player.yaw || 0,
+                cameraYaw: camYaw,
+                moving: Boolean(this.player.isMoving),
+                sprinting: Boolean(this.player.sprintBoost > 0.25),
+            },
             markers,
         };
     }
@@ -17260,10 +17288,6 @@ class SeelenfunkeLouvreShowroom3D {
         this.armoryWorldAnchors = {};
         this.armoryTemplates.clear();
         this.armoryTemplatePromises.clear();
-        if (this._weaponAudioCtx && typeof this._weaponAudioCtx.close === 'function') {
-            this._weaponAudioCtx.close().catch(() => {});
-            this._weaponAudioCtx = null;
-        }
 
         if (this._fsResizeTimer) {
             clearTimeout(this._fsResizeTimer);

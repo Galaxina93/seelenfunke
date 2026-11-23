@@ -135,6 +135,12 @@ class AIController extends Controller
         }
 
         $sessionId = $request->input('chat_session_id') ?: $request->input('session_id');
+        if ($request->hasSession()) {
+            try {
+                $request->session()->save();
+            } catch (\Throwable) {
+            }
+        }
         $currentUserId = \App\Services\AI\AiAuthHelper::getUserId();
         if ($sessionId && !$isAdmin) {
             $ownedSession = $currentUserId && \App\Models\Ai\AiChatSession::where('id', $sessionId)
@@ -745,15 +751,40 @@ class AIController extends Controller
             $systemInstruction = 'Du bist Funkira, die zentrale Stabschefin von Mein-Seelenfunke. Antworte immer kurz, präzise und freundlich.';
         }
 
+        $explicitChannel = trim((string) $request->input('channel', ''));
+        $clientParam = strtolower(trim((string) $request->query('client', '')));
+        $hasBearerAuth = !empty($request->bearerToken());
+        if ($explicitChannel === '') {
+            if ($clientParam === 'minipc') {
+                $explicitChannel = 'workshop_minipc';
+            } elseif (in_array($clientParam, ['android_native', 'android_secretary'], true) || ($hasBearerAuth && !$request->hasSession())) {
+                $explicitChannel = 'android_live_call';
+            } else {
+                $explicitChannel = 'live_widget';
+            }
+        }
+        $resolvedActiveRoute = trim((string) $request->input('active_route', ''));
+        if ($resolvedActiveRoute === '') {
+            $refererPath = parse_url((string) $request->headers->get('referer', ''), PHP_URL_PATH);
+            if (is_string($refererPath) && $refererPath !== '') {
+                $resolvedActiveRoute = $refererPath;
+            }
+        }
+
         $livePresence = \App\Services\AI\FunkiraPresenceContext::build([
-            'channel' => $request->input('channel', 'android_live_call'),
-            'active_route' => $request->input('active_route'),
+            'channel' => $explicitChannel,
+            'active_route' => $resolvedActiveRoute !== '' ? $resolvedActiveRoute : null,
             'camera_alina_verified' => $request->input('camera_alina_verified', true),
             'voice_alina_verified' => $request->input('voice_alina_verified', true),
             'detected_persons' => $request->input('detected_persons', []),
             'is_voice_mode' => true,
         ], $request);
-        $systemInstruction = \App\Services\AI\FunkiraPresenceContext::toPromptHeader($livePresence) . "\n\n" . $systemInstruction;
+        $presenceHeader = \App\Services\AI\FunkiraPresenceContext::toPromptHeader($livePresence);
+        $locationGuard = "VERBINDLICHER STANDORT- & KANAL-KONTEXT: Dein aktueller Kommunikationskanal ist '{$livePresence['channel_label']}' (technischer Kanal: '{$livePresence['channel']}'). "
+            . ($livePresence['channel'] === 'live_widget' || $livePresence['channel'] === 'web_portal'
+                ? "Du sprichst mit Alina im Webportal Live AI Widget (NICHT im 3D-Atelier und NICHT in der mobilen 3D-App!). Nenne bei Fragen zu deinem Standort oder Kanal immer klar 'Webportal Live AI Widget'" . ($resolvedActiveRoute !== '' ? " auf der Seite '{$resolvedActiveRoute}'" : '') . "."
+                : "Nenne bei Fragen zu deinem aktuellen Kanal oder Standort immer wahrheitsgemäß '{$livePresence['channel_label']}'.");
+        $systemInstruction = $presenceHeader . "\n" . $locationGuard . "\n\n" . $systemInstruction;
         $systemInstruction = str_replace([" \u{2013} ", " \u{2014} "], ' - ', $systemInstruction);
 
         $map = \App\Services\AI\AIFunctionsRegistry::getAdminNavigationMap();
@@ -808,7 +839,13 @@ class AIController extends Controller
             }
         }
         if (!$sessionId) {
-            $sessionId = session()->getId();
+            $sessionId = $request->hasSession() ? $request->session()->getId() : session()->getId();
+        }
+        if ($request->hasSession()) {
+            try {
+                $request->session()->save();
+            } catch (\Throwable) {
+            }
         }
         
         if ($sessionId) {
@@ -967,8 +1004,8 @@ class AIController extends Controller
         
         $liveEndpoint = \App\Services\AI\VertexAiService::resolveLiveWebSocketEndpoint();
 
-        // Cache credentials for 5 minutes
-        \Illuminate\Support\Facades\Cache::put('gemini_live_token_' . $token, [
+        // Cache credentials for 5 minutes (written redundantly to default + file store so transient Redis failovers never invalidate Live-Call handshakes)
+        $liveTokenPayload = [
             'api_key' => $apiKey,
             'is_vertex' => $liveEndpoint['is_vertex'],
             'vertex_access_token' => $liveEndpoint['is_vertex'] ? $liveEndpoint['token'] : null,
@@ -986,7 +1023,19 @@ class AIController extends Controller
             'user_picture' => ($user && $user->profile) ? $user->profile->photo_path : null,
             'pending_ag_blockades' => $blockadeContext['items'],
             'proactive_kick_prompt' => $blockadeContext['proactive_kick_prompt'],
-        ], now()->addMinutes(5));
+        ];
+        $liveTokenCacheKey = 'gemini_live_token_' . $token;
+        $liveTokenTtl = now()->addMinutes(5);
+        try {
+            \Illuminate\Support\Facades\Cache::put($liveTokenCacheKey, $liveTokenPayload, $liveTokenTtl);
+        } catch (\Throwable) {
+        }
+        try {
+            if (config('cache.default') !== 'file') {
+                \Illuminate\Support\Facades\Cache::store('file')->put($liveTokenCacheKey, $liveTokenPayload, $liveTokenTtl);
+            }
+        } catch (\Throwable) {
+        }
 
         $configuredWsUrl = config('services.gemini.proxy_ws_url');
         $requestHost = request()->getHost();
@@ -1303,7 +1352,18 @@ class AIController extends Controller
         }
 
         $cacheKey = 'gemini_live_token_' . $token;
-        $data = \Illuminate\Support\Facades\Cache::pull($cacheKey);
+        $data = null;
+        try {
+            $data = \Illuminate\Support\Facades\Cache::pull($cacheKey);
+        } catch (\Throwable) {
+        }
+        try {
+            $fileData = \Illuminate\Support\Facades\Cache::store('file')->pull($cacheKey);
+            if (!$data && $fileData) {
+                $data = $fileData;
+            }
+        } catch (\Throwable) {
+        }
 
         if (!$data) {
             \App\Services\System\SystemErrorLogger::recordCrossPlatformEvent([
@@ -1555,7 +1615,13 @@ class AIController extends Controller
         }
 
         if (!$sessionId) {
-            $sessionId = session()->getId();
+            $sessionId = $request->hasSession() ? $request->session()->getId() : session()->getId();
+        }
+        if ($request->hasSession()) {
+            try {
+                $request->session()->save();
+            } catch (\Throwable) {
+            }
         }
 
         $limit = min(100, max(5, intval($request->input('limit', 30))));

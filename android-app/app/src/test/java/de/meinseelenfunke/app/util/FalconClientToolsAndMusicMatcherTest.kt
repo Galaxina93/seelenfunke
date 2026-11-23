@@ -460,61 +460,92 @@ class FalconClientToolsAndMusicMatcherTest {
         val tracker = FalconInactivityTracker()
         tracker.onSessionStarted(1_000L)
 
-        // Before 120s: no action
-        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(120_999L, isAiSpeaking = false))
+        // Before 60s: no action
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(60_999L, isAiSpeaking = false))
         assertFalse(tracker.inactivityCheckSent)
 
-        // Exactly at 120s of silence: Stage 1 check prompt sent
-        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, tracker.evaluate(121_000L, isAiSpeaking = false))
+        // Exactly at 60s of silence: Stage 1 check prompt sent
+        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, tracker.evaluate(61_000L, isAiSpeaking = false))
         assertTrue(tracker.inactivityCheckSent)
 
         // Falcone speaks his Stage 1 follow-up question (must NOT reset inactivityCheckSent!)
-        tracker.onAiActivity(121_400L)
-        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(122_000L, isAiSpeaking = true))
-        tracker.onAiSpeechFinished(123_500L)
+        tracker.onAiActivity(61_400L)
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(62_000L, isAiSpeaking = true))
+        tracker.onAiSpeechFinished(63_500L)
         assertTrue(tracker.inactivityCheckSent)
         assertEquals(FalconInactivityStage.CHECK_SENT_WAITING_USER_REPLY, tracker.stage)
 
-        // User replies 10s later -> resets back to ACTIVE and fresh 120s timer!
-        tracker.onUserSpeech(133_500L)
+        // User replies 10s later -> resets back to ACTIVE and fresh 60s timer!
+        tracker.onUserSpeech(73_500L)
         assertFalse(tracker.inactivityCheckSent)
         assertEquals(FalconInactivityStage.ACTIVE, tracker.stage)
-        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(250_000L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(130_000L, isAiSpeaking = false))
 
-        // Another full 120s of silence from 133_500 -> triggers Stage 1 again at 253_500
-        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, tracker.evaluate(253_500L, isAiSpeaking = false))
-        tracker.onAiActivity(254_000L)
-        tracker.onAiSpeechFinished(256_000L)
+        // Another full 60s of silence from 73_500 -> triggers Stage 1 again at 133_500
+        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, tracker.evaluate(133_500L, isAiSpeaking = false))
+        tracker.onAiActivity(134_000L)
+        tracker.onAiSpeechFinished(136_000L)
 
         // 24.9s silence after question finished -> still waiting
-        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(280_900L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(160_900L, isAiSpeaking = false))
 
         // 25.0s silence after question finished -> Stage 2 farewell triggered!
-        assertEquals(FalconInactivityAction.SEND_STAGE2_FAREWELL, tracker.evaluate(281_000L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.SEND_STAGE2_FAREWELL, tracker.evaluate(161_000L, isAiSpeaking = false))
         assertEquals(FalconInactivityStage.FAREWELL_CLOSING, tracker.stage)
 
-        // Falcone speaks farewell from 281_400 to 283_400, then +1.2s post-speech buffer -> FORCE_DISCONNECT at 284_600
-        tracker.onAiActivity(281_400L)
-        tracker.onAiSpeechFinished(283_400L)
-        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(284_500L, isAiSpeaking = false))
-        assertEquals(FalconInactivityAction.FORCE_DISCONNECT, tracker.evaluate(284_600L, isAiSpeaking = false))
+        // Falcone/Funkira speaks farewell from 161_400 to 163_400, then +1.4s post-speech buffer -> FORCE_DISCONNECT at 164_800
+        tracker.onAiActivity(161_400L)
+        tracker.onAiSpeechFinished(163_400L)
+        assertEquals(FalconInactivityAction.NONE, tracker.evaluate(164_700L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.FORCE_DISCONNECT, tracker.evaluate(164_800L, isAiSpeaking = false))
 
-        // Also verify hard 7s safety ceiling if model never emits audio or end_call
+        // CRITICAL REGRESSION GUARD: If Funkira speaks a longer farewell sentence (> 7s, e.g. 11s),
+        // evaluate(..., isAiSpeaking = true) MUST NEVER interrupt mid-sentence!
+        val longSpeechTracker = FalconInactivityTracker()
+        longSpeechTracker.onSessionStarted(0L)
+        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, longSpeechTracker.evaluate(60_000L, isAiSpeaking = false))
+        longSpeechTracker.onAiActivity(60_500L)
+        // Even if Stage 1 question takes 9.5s (> old 6s wait), Stage 2 timer must not start until speech finishes
+        assertEquals(FalconInactivityAction.NONE, longSpeechTracker.evaluate(69_500L, isAiSpeaking = true))
+        longSpeechTracker.onAiSpeechFinished(70_000L)
+        assertEquals(FalconInactivityAction.NONE, longSpeechTracker.evaluate(94_900L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.SEND_STAGE2_FAREWELL, longSpeechTracker.evaluate(95_000L, isAiSpeaking = false))
+        longSpeechTracker.onAiActivity(95_400L)
+        assertEquals(FalconInactivityAction.NONE, longSpeechTracker.evaluate(103_000L, isAiSpeaking = true)) // 8s into farewell -> still speaking!
+        assertEquals(FalconInactivityAction.NONE, longSpeechTracker.evaluate(106_000L, isAiSpeaking = true)) // 11s into farewell -> still speaking!
+        longSpeechTracker.onAiSpeechFinished(106_500L)
+        assertEquals(FalconInactivityAction.NONE, longSpeechTracker.evaluate(107_800L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.FORCE_DISCONNECT, longSpeechTracker.evaluate(107_900L, isAiSpeaking = false))
+
+        // Also verify 12s no-speech fallback ceiling if model never emits audio or end_call at all
         val ceilingTracker = FalconInactivityTracker()
         ceilingTracker.onSessionStarted(0L)
-        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, ceilingTracker.evaluate(120_000L, isAiSpeaking = false))
-        ceilingTracker.onAiSpeechFinished(122_000L)
-        assertEquals(FalconInactivityAction.SEND_STAGE2_FAREWELL, ceilingTracker.evaluate(147_000L, isAiSpeaking = false))
-        assertEquals(FalconInactivityAction.NONE, ceilingTracker.evaluate(153_900L, isAiSpeaking = false))
-        assertEquals(FalconInactivityAction.FORCE_DISCONNECT, ceilingTracker.evaluate(154_000L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, ceilingTracker.evaluate(60_000L, isAiSpeaking = false))
+        ceilingTracker.onAiSpeechFinished(62_000L)
+        assertEquals(FalconInactivityAction.SEND_STAGE2_FAREWELL, ceilingTracker.evaluate(87_000L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.NONE, ceilingTracker.evaluate(98_900L, isAiSpeaking = false))
+        assertEquals(FalconInactivityAction.FORCE_DISCONNECT, ceilingTracker.evaluate(99_000L, isAiSpeaking = false))
 
         // Verify Gemini 3.1 realtimeInput.text schema & zero AI en-dashes
         val p1 = FalconClientTools.buildRealtimeTextPromptPacket(FalconClientTools.STAGE1_INACTIVITY_PROMPT)
         val p2 = FalconClientTools.buildRealtimeTextPromptPacket(FalconClientTools.STAGE2_AUTO_END_PROMPT)
         assertTrue(p1.has("realtimeInput"))
-        assertTrue(p2.getAsJsonObject("realtimeInput").get("text").asString.contains("Hey Falcone"))
+        assertTrue(p2.getAsJsonObject("realtimeInput").get("text").asString.contains("Hey Funkira"))
         assertFalse(FalconClientTools.STAGE1_INACTIVITY_PROMPT.contains(" \u2013 "))
         assertFalse(FalconClientTools.STAGE2_AUTO_END_PROMPT.contains(" \u2013 "))
+
+        // Verify FunkiraLiveViewModel parses both primitive string errors and object errors without ClassCastException
+        val primErr = de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.parseServerErrorElement(
+            gson.fromJson("\"Google Gemini connection error\"", com.google.gson.JsonElement::class.java)
+        )
+        assertEquals(1011, primErr.first)
+        assertEquals("Google Gemini connection error", primErr.second)
+
+        val objErr = de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel.parseServerErrorElement(
+            gson.fromJson("""{"code":1008,"message":"Token expired"}""", com.google.gson.JsonElement::class.java)
+        )
+        assertEquals(1008, objErr.first)
+        assertEquals("Token expired", objErr.second)
     }
 
     @Test
@@ -579,7 +610,7 @@ class FalconClientToolsAndMusicMatcherTest {
             assertFalse(params.has("additionalProperties"))
         }
 
-        // 3. Hard mathematical upper-arm safety clamp in falcon3d.js
+        // 3. Hard mathematical arm pose solver & smoothing bounds in falcon3d.js
         val jsCandidates = listOf(
             File("src/main/assets/falcon3d/falcon3d.js"),
             File("app/src/main/assets/falcon3d/falcon3d.js")
@@ -587,8 +618,9 @@ class FalconClientToolsAndMusicMatcherTest {
         val jsFile = jsCandidates.firstOrNull { it.exists() }
         assertNotNull("Expected assets/falcon3d/falcon3d.js to exist", jsFile)
         val jsContent = jsFile!!.readText(Charsets.UTF_8)
-        assertTrue(jsContent.contains("rArmX = clamp(rArmX, -0.18, 0.12);"))
-        assertTrue(jsContent.contains("lArmX = clamp(lArmX, -0.18, 0.12);"))
+        assertTrue(jsContent.contains("function solveArmTargets("))
+        assertTrue(jsContent.contains("function applyArmSmoothing("))
+        assertTrue(jsContent.contains("userPitch = clamp("))
         assertFalse(jsContent.contains("-1.04"))
         assertFalse(jsContent.contains("-0.92"))
     }
@@ -874,8 +906,8 @@ class FalconClientToolsAndMusicMatcherTest {
 
         assertTrue(js.contains("THREE.LinearMipmapLinearFilter"))
         assertTrue(js.contains("getMaxAnisotropy"))
-        assertTrue(js.contains("c.width = 1024;\n        c.height = 512;") || js.contains("c.width = 1024;\r\n        c.height = 512;"))
-        assertTrue(js.contains("softBandV"))
+        assertTrue(js.contains("c.width = 768;\n        c.height = 384;") || js.contains("c.width = 768;\r\n        c.height = 384;"))
+        assertTrue(js.contains("FUNKIRA"))
         assertTrue(js.contains("polygonOffset: true"))
         assertTrue(js.contains("polygonOffsetFactor: -2"))
     }

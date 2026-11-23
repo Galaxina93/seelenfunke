@@ -185,18 +185,16 @@ class AiAnalyticsTest extends TestCase
         $this->assertSame(2000000, (int) $component->viewData('outputTokensThisMonth'));
     }
 
-    public function test_company_structure_seeder_places_globi_in_agenten_and_not_in_leitung(): void
+    public function test_company_structure_seeder_places_globi_in_leitung_with_funkira(): void
     {
         $this->seed(\Database\Seeders\AiAgentSeeder::class);
         $this->seed(\Database\Seeders\AiCompanyStructureSeeder::class);
 
         $globi = AiAgent::where('name', 'Globi')->with('department')->firstOrFail();
-        $falcone = AiAgent::where('name', 'Falcone')->with('department')->firstOrFail();
         $funkira = AiAgent::where('name', 'Funkira')->with('department')->firstOrFail();
 
-        $this->assertSame('Agenten', $globi->department?->name);
-        $this->assertSame('019daaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', $globi->ai_department_id);
-        $this->assertSame('Leitung', $falcone->department?->name);
+        $this->assertSame('Leitung', $globi->department?->name);
+        $this->assertSame('019d0000-0000-0000-0000-000000000000', $globi->ai_department_id);
         $this->assertSame('Leitung', $funkira->department?->name);
     }
 }

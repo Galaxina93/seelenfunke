@@ -253,7 +253,7 @@ class FetchMailsCommand extends Command
                             $filePath = 'leitung/crm/mail-attachments/' . $mailMessage->id . '/' . uniqid() . '_' . $safeFilename;
                             Storage::disk('local')->put($filePath, $content);
 
-                            MailAttachment::create([
+                            $createdAttachment = MailAttachment::create([
                                 'mail_message_id' => $mailMessage->id,
                                 'filename' => $filename,
                                 'content_type' => $attachment->getMimeType(),
@@ -261,6 +261,13 @@ class FetchMailsCommand extends Command
                                 'path' => $filePath,
                                 'content_id' => $attachment->getId()
                             ]);
+
+                            try {
+                                app(\App\Services\Management\MailAttachmentFunnelService::class)
+                                    ->handleIncomingAttachment($createdAttachment, $mailMessage, $account);
+                            } catch (\Throwable $funnelEx) {
+                                Log::warning("MailAttachmentFunnelService warning for attachment {$createdAttachment->id}: " . $funnelEx->getMessage());
+                            }
                         }
                     }
 

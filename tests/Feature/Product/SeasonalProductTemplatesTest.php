@@ -347,7 +347,6 @@ class SeasonalProductTemplatesTest extends TestCase
             resource_path('views/livewire/shop/product/partials/product-show/right.blade.php'),
             resource_path('views/livewire/shop/product/product-calculator/product-calculator.blade.php'),
             resource_path('views/livewire/shop/product/product-templates.blade.php'),
-            base_path('Abschlussberichte/Produkte/Produkte_Vorlagen.md'),
         ];
 
         foreach ($checkedFiles as $filePath) {

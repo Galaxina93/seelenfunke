@@ -61,7 +61,7 @@ class AiKnowledgeBaseSeeder extends Seeder
             'Endokrinologikum', 'Laborbefunde', 'Humangenetik', 'Hormontherapie', 'Dorothea Jung',
             'Dr. Christian Schmidt', 'Sozialgericht', 'Eilantrag § 86b', 'Gründungszuschuss',
             'Mein Justizpostfach', 'BundID', 'Businessplan', 'Liquiditätsplan', 'Tragfähigkeitsbescheinigung',
-            'Agentur für Arbeit', 'Finanz-Audit', 'Volksbank eG', 'ALG 1', 'Workspace', 'Dokumente', 'Existenzgründung',
+            'Agentur für Arbeit', 'Arbeitslosenversicherung', '28a SGB III', 'Finanz-Audit', 'Volksbank eG', 'ALG 1', 'Workspace', 'Dokumente', 'Existenzgründung',
             'Marketing', 'TikTok', 'Instagram', 'Google Ads', 'CapCut', 'White-Glove', 'Influencer', 'Landingpage', 'Funkenwerk',
         ];
         $tagMap = [];
@@ -437,9 +437,9 @@ MD
             ],
             [
                 'slug' => 'existenzgruendung-seelenfunke-gruendungszuschuss',
-                'title' => 'Existenzgründung Mein Seelenfunke & Gründungszuschuss (§ 93 SGB III)',
+                'title' => 'Existenzgründung Mein Seelenfunke, Gründungszuschuss (§ 93 SGB III) & Arbeitslosenversicherung (§ 28a SGB III)',
                 'category' => 'Existenzgründung & Arbeitsagentur',
-                'tags' => ['Gründungszuschuss', 'Businessplan', 'Liquiditätsplan', 'Tragfähigkeitsbescheinigung', 'Agentur für Arbeit', 'Bewilligungsbescheid'],
+                'tags' => ['Gründungszuschuss', 'Arbeitslosenversicherung', 'Versicherung', '28a SGB III', 'Businessplan', 'Liquiditätsplan', 'Tragfähigkeitsbescheinigung', 'Agentur für Arbeit', 'Bewilligungsbescheid'],
                 'content' => <<<MD
 # Master-Dossier: Existenzgründung Mein Seelenfunke & Gründungszuschuss
 
@@ -463,6 +463,28 @@ MD
 3. **Mitteilungspflichten & Restanspruch:**
    - Wesentliche Änderungen (Wegfall der Hauptberuflichkeit >= 15 Std./Woche, Aufgabe der Tätigkeit, andere Sozialleistungen) sind unverzüglich mitzuteilen.
    - Ein verbleibender ALG-1-Restanspruch bleibt **4 Jahre** ab Entstehung erhalten, mindert sich jedoch Tag für Tag um die bezogenen Tage des Gründungszuschusses Phase 1 (~181 Tage).
+MD
+            ],
+            [
+                'slug' => 'freiwillige-arbeitslosenversicherung-selbstaendige-28a-sgb-iii',
+                'title' => 'Freiwillige Arbeitslosenversicherung für Selbstständige (§ 28a SGB III) - Agentur für Arbeit Gifhorn',
+                'category' => 'Buchhaltung & Steuern',
+                'tags' => ['Arbeitslosenversicherung', 'Versicherung', '28a SGB III', 'Agentur für Arbeit', 'Privat', 'Vorsorge', 'SEPA', 'FYRST', 'Fixkosten'],
+                'content' => <<<MD
+# Freiwillige Arbeitslosenversicherung für Selbstständige (§ 28a SGB III)
+
+* **Status:** **AKTIV / BEANTRAGT** (am **20.11.2026 um 12:48 Uhr** fristgerecht online im eService der Bundesagentur für Arbeit eingereicht, inkl. unterschriebenem Formular `APV 002`, Personalausweis, SEPA-Lastschriftmandat, Gewerbeanmeldung `GewA 1` und Bewilligungsbescheid Gründungszuschuss Phase 1).
+* **Träger & Aktenzeichen:** **Agentur für Arbeit Gifhorn**, Winkeler Straße 1, 38518 Gifhorn | Kundennummer / Vertragsnummer: **`241D129534`** | Telefon: `0800 4 5555-00`
+* **Versicherungsbeginn:** **`01.11.2026`** (nahtlos zum offiziellen Start der hauptberuflichen Selbstständigkeit `Mein-Seelenfunke`)
+* **Monatlicher Beitrag (Startphase):** **ca. `-49,35 €` / Monat** (in den ersten 24 Monaten ab Gründung gilt der **halbe Beitragssatz**; exakter Cent-Betrag wird im schriftlichen Festsetzungsbescheid bestätigt).
+* **Zahlungsweise & Buchhaltung (`/admin/financial-fix-costs`):**
+  * Monatlicher **SEPA-Lastschrifteinzug** über das **FYRST Geschäftskonto** (`DE76 2507 0370 0079 8629 00`, BIC `DEUTDE2HP24`) als **Privatentnahme**.
+  * **Steuerliche Einordnung (`is_business = false`):** Rein **private Vorsorgeaufwendung / Sonderausgabe** in der privaten Einkommensteuererklärung (Anlage Vorsorgeaufwand), **keine Betriebsausgabe** in der EÜR von `Mein-Seelenfunke`.
+  * **Gepflegt in:** `database/seeders/AccountingSeeder.php` (Gruppe `Versicherungen`, Name `Arbeitslosenversicherung`, `-49.35` mtl.).
+* **Kündigungsfrist:** Nach 5 Jahren Versicherungsdauer jederzeit mit 3 Monaten Frist zum Monatsende (oder sofort bei Aufgabe der selbstständigen Tätigkeit).
+* **Original-Nachweise im Vertragsarchiv (`storage/app/buchhaltung/contracts/2026/11/`):**
+  1. `2026-11-20_Agentur-fuer-Arbeit-Gifhorn_Antrag-Arbeitslosenversicherung-28a-SGB-III_241D129534.pdf`
+  2. `2026-11-20_Agentur-fuer-Arbeit-Gifhorn_Sendebestaetigung-Arbeitslosenversicherung-28a-SGB-III_241D129534.pdf`
 MD
             ],
             [

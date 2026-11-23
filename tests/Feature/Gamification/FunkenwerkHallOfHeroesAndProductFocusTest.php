@@ -155,10 +155,9 @@ class FunkenwerkHallOfHeroesAndProductFocusTest extends TestCase
         $this->assertSame('EXPRESS-Fertigung: 1× Der Seelen Kristall sofort lasern', $compass['recommended_focus_now']['title']);
         $this->assertStringNotContainsString('#ORD-EXP-777', $compass['recommended_focus_now']['title']);
 
-        // Executive prompts & orders SOP enforce product-first focus
+        // Executive prompt & orders SOP enforce product-first focus
         $pools = FunkiraSkillPoolService::getPoolDefinitions();
         $this->assertStringContainsString('PRODUKTNAME STATT BESTELLNUMMER IM FOKUS', $pools['orders']['sop']);
-        $this->assertStringContainsString('PRODUKTNAME STATT BESTELLNUMMER IM FOKUS', (string) AiAgent::where('name', 'Falcone')->value('system_prompt'));
         $this->assertStringContainsString('PRODUKTNAME STATT BESTELLNUMMER IM FOKUS', (string) AiAgent::where('name', 'Funkira')->value('system_prompt'));
     }
 

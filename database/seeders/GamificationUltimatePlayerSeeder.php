@@ -18,6 +18,9 @@ class GamificationUltimatePlayerSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->environment('production')) {
+            return;
+        }
         $gameService = app(GamificationService::class);
         $gameService->ensureHangarColumns();
 

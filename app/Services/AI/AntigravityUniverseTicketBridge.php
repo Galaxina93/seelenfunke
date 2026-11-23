@@ -171,11 +171,32 @@ class AntigravityUniverseTicketBridge
 
                 $attachments = null;
                 if (!empty($item['has_attachment']) && !empty($item['attachment_name'])) {
-                    $attachments = [[
-                        'name' => (string) $item['attachment_name'],
-                        'mime' => (string) ($item['attachment_mime'] ?? 'application/octet-stream'),
-                        'url' => "/api/funkenwerk/ag-inbox/{$agId}/attachment",
-                    ]];
+                    $resolvedAgMedia = null;
+                    try {
+                        $resolvedAgMedia = app(\App\Services\System\AntigravityDirectInboxService::class)->resolveAttachmentForStreaming($agId);
+                    } catch (\Throwable) {
+                        $resolvedAgMedia = null;
+                    }
+
+                    if ($resolvedAgMedia !== null && !empty($resolvedAgMedia['path']) && is_file($resolvedAgMedia['path'])) {
+                        $storedMeta = TicketDeliverableService::registerLocalFileForActiveTicket(
+                            $resolvedAgMedia['path'],
+                            (string) $item['attachment_name'],
+                            ['mime' => (string) ($item['attachment_mime'] ?? $resolvedAgMedia['mime'] ?? 'image/jpeg')],
+                            null
+                        );
+                        if ($storedMeta !== null) {
+                            $attachments = [$storedMeta];
+                        }
+                    }
+
+                    if ($attachments === null) {
+                        $attachments = [[
+                            'name' => (string) $item['attachment_name'],
+                            'mime' => (string) ($item['attachment_mime'] ?? 'application/octet-stream'),
+                            'url' => "/admin/ai/ag-attachment/{$agId}",
+                        ]];
+                    }
                 }
 
                 $firstMsg = new AiUniverseTicketMessage([
@@ -249,6 +270,10 @@ class AntigravityUniverseTicketBridge
                 'last_activity_at' => now(),
                 'completed_at' => $targetStatus === AiUniverseTicket::STATUS_COMPLETED ? ($ticket->completed_at ?? now()) : $ticket->completed_at,
             ]);
+
+            if ($targetStatus === AiUniverseTicket::STATUS_COMPLETED) {
+                CentralBrainService::recordTicketCompletionReport($ticket, $summary !== '' ? $summary : null);
+            }
 
             TicketAutoCompactService::compactIfNeeded($ticket);
 

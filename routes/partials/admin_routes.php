@@ -329,6 +329,23 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/tickets', \App\Livewire\Shop\Ai\AiUniverseTickets::class)->name('admin.tickets');
     Route::get('/admin/ai/analytics', fn () => redirect()->route('admin.tickets'))->name('admin.ai.analytics');
     Route::get('/admin/ai/workspace', fn () => redirect()->route('admin.tickets'))->name('admin.ai.workspace');
+    Route::get('/admin/ai/ag-attachment/{id}', function (\Illuminate\Http\Request $request, string $id, \App\Services\System\AntigravityDirectInboxService $inboxService) {
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+        $resolved = $inboxService->resolveAttachmentForStreaming($id);
+        if ($resolved === null || !is_file($resolved['path']) || is_link($resolved['path'])) {
+            abort(404);
+        }
+        $forceDownload = $request->boolean('download');
+        $disposition = $forceDownload ? 'attachment' : 'inline';
+        return response()->file($resolved['path'], [
+            'Content-Type' => $resolved['mime'],
+            'Content-Disposition' => $disposition . '; filename="' . $resolved['name'] . '"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
+    })->name('admin.ai.ag-attachment');
     Route::get('/admin/ai/workspace/file', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
         if (!is_string($path) || $path === '' || str_contains($path, '..') || str_contains($path, "\0") || str_starts_with($path, '/') || str_starts_with($path, '\\') || !str_starts_with($path, 'agenten/workspace/') || !\Illuminate\Support\Facades\Storage::disk('workspace')->exists($path)) {
@@ -338,9 +355,37 @@ Route::middleware(['auth:admin'])->group(function () {
         if (is_link($fullPath)) {
             abort(404);
         }
+
+        // Transparentes Entpacken für .gz-archivierte Ticket-Dateien (Konzepte, .stl, .obj, .xcs etc.)
+        if (str_ends_with(strtolower($path), '.gz') && str_starts_with($path, 'agenten/workspace/tickets/archiv/')) {
+            $rawGz = \Illuminate\Support\Facades\Storage::disk('workspace')->get($path);
+            $unpacked = @gzdecode((string) $rawGz);
+            if (is_string($unpacked)) {
+                $restoredName = preg_replace('/\.gz$/i', '', basename($path)) ?? basename($path);
+                $innerExt = strtolower((string) pathinfo($restoredName, PATHINFO_EXTENSION));
+                $innerMime = \App\Services\AI\TicketDeliverableService::resolveMimeForExtension($innerExt);
+                $cleanRestored = str_replace(['"', "\r", "\n", "\0"], '', $restoredName);
+                return response($unpacked, 200, [
+                    'Content-Type' => $innerMime,
+                    'Content-Disposition' => 'attachment; filename="' . $cleanRestored . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-cache',
+                ]);
+            }
+        }
+
+        $ext = strtolower((string) pathinfo($path, PATHINFO_EXTENSION));
         $mime = \Illuminate\Support\Facades\Storage::disk('workspace')->mimeType($path) ?: 'application/octet-stream';
-        $safeMimes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
-        $disposition = in_array(strtolower($mime), $safeMimes, true) ? 'inline' : 'attachment';
+        if (in_array($ext, \App\Services\AI\TicketDeliverableService::THREE_D_EXTENSIONS, true) || $ext === 'md') {
+            $mime = \App\Services\AI\TicketDeliverableService::resolveMimeForExtension($ext, $mime);
+        }
+        $safeMimes = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'application/pdf', 'text/plain', 'text/markdown',
+            'model/stl', 'model/3mf', 'model/gltf-binary', 'model/gltf+json', 'model/obj',
+        ];
+        $forceDownload = $request->boolean('download');
+        $disposition = (!$forceDownload && in_array(strtolower($mime), $safeMimes, true)) ? 'inline' : 'attachment';
         $cleanFilename = str_replace(['"', "\r", "\n", "\0"], '', basename($path));
         return response()->file($fullPath, [
             'Content-Type' => $mime,

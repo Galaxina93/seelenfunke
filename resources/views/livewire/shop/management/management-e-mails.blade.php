@@ -1,7 +1,7 @@
 <div wire:poll.60s.visible
      style="--theme-color: {{ $this->themeColorHex }}; --theme-color-5: {{ $this->themeColorHex }}0D; --theme-color-10: {{ $this->themeColorHex }}1A; --theme-color-15: {{ $this->themeColorHex }}26; --theme-color-20: {{ $this->themeColorHex }}33; --theme-color-30: {{ $this->themeColorHex }}4D; --theme-color-40: {{ $this->themeColorHex }}66; --theme-color-50: {{ $this->themeColorHex }}80; --theme-color-70: {{ $this->themeColorHex }}B3; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" 
      x-data="{ 
-         mobileView: '{{ $viewMode === 'account_settings' ? 'settings' : ($selectedMessageId ? 'detail' : 'folders') }}',
+         mobileView: '{{ $viewMode === 'account_settings' ? 'settings' : ($viewMode === 'mail_files' ? 'list' : ($selectedMessageId ? 'detail' : 'folders')) }}',
          sidebarWidth: parseInt(localStorage.getItem('admin_email_sidebar_width') || '288'),
          isResizingSidebar: false,
          startSidebarResize(e) {
@@ -58,6 +58,45 @@
         {{-- Accounts are now listed in the main sidebar area below --}}
 
         <div class="flex-1 overflow-y-auto p-3 space-y-4 custom-scrollbar">
+            {{-- Zentrale Kurz-Navigation: Alle Postfächer · Mail Dateien · Verarbeitet --}}
+            <div class="space-y-1.5 pb-3 border-b border-gray-200 dark:border-gray-800">
+                <button type="button" wire:click="selectGlobalFolder('AllInboxes')"
+                        class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all border {{ $selectedFolder === 'AllInboxes' && $viewMode === 'inbox' ? 'bg-[var(--theme-color-15)] border-[var(--theme-color)] text-gray-900 dark:text-white' : 'bg-white dark:bg-gray-900/60 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color-50)]' }}">
+                    <span class="flex items-center gap-2.5 truncate">
+                        <x-heroicon-o-inbox-stack class="w-4 h-4 shrink-0 text-[var(--theme-color)]" />
+                        <span>Alle Postfächer</span>
+                    </span>
+                    @if(($globalCounts['all_inboxes_unread'] ?? 0) > 0)
+                        <span class="bg-[var(--theme-color)] text-gray-900 text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $globalCounts['all_inboxes_unread'] }}</span>
+                    @endif
+                </button>
+
+                <button type="button" wire:click="openMailFilesView"
+                        class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all border {{ $viewMode === 'mail_files' || $selectedFolder === 'MailFiles' ? 'bg-[var(--theme-color-15)] border-[var(--theme-color)] text-gray-900 dark:text-white' : 'bg-white dark:bg-gray-900/60 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color-50)]' }}">
+                    <span class="flex items-center gap-2.5 truncate">
+                        <x-heroicon-o-paper-clip class="w-4 h-4 shrink-0 text-[var(--theme-color)]" />
+                        <span>Mail Dateien</span>
+                    </span>
+                    <span class="flex items-center gap-1 shrink-0">
+                        @if(($globalCounts['mail_files_review'] ?? 0) > 0)
+                            <span class="bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{ $globalCounts['mail_files_review'] }}</span>
+                        @endif
+                        <span class="bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $globalCounts['mail_files_total'] ?? 0 }}</span>
+                    </span>
+                </button>
+
+                <button type="button" wire:click="selectGlobalFolder('Processed')"
+                        class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all border {{ $selectedFolder === 'Processed' && $viewMode === 'inbox' ? 'bg-[var(--theme-color-15)] border-[var(--theme-color)] text-gray-900 dark:text-white' : 'bg-white dark:bg-gray-900/60 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color-50)]' }}">
+                    <span class="flex items-center gap-2.5 truncate">
+                        <x-heroicon-o-sparkles class="w-4 h-4 shrink-0 text-[var(--theme-color)]" />
+                        <span>Verarbeitet</span>
+                    </span>
+                    @if(($globalCounts['processed_open'] ?? 0) > 0)
+                        <span class="bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-[10px] font-bold px-2 py-0.5 rounded-full">{{ $globalCounts['processed_open'] }}</span>
+                    @endif
+                </button>
+            </div>
+
             @if(isset($accountTree) && count($accountTree) > 0)
                 @php
                     $commercialAccounts = collect($accountTree)->filter(fn($data) => $data['model']->is_commercial ?? true);
@@ -187,7 +226,7 @@
                 <button @click="typeof mobileView !== 'undefined' ? mobileView = 'folders' : null" class="lg:hidden p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-gray-200 dark:bg-gray-800 rounded-lg transition-colors">
                     <x-heroicon-o-chevron-left class="w-5 h-5"/>
                 </button>
-                <h3 class="text-gray-900 dark:text-white font-bold truncate">{{ $selectedFolder === 'Archive' ? 'Archiv' : ($folders[$selectedFolder] ?? 'Mails') }}</h3>
+                <h3 class="text-gray-900 dark:text-white font-bold truncate">{{ $selectedFolder === 'AllInboxes' ? 'Alle Postfächer' : ($selectedFolder === 'Processed' ? 'Verarbeitet' : ($selectedFolder === 'Archive' ? 'Archiv' : ($folders[$selectedFolder] ?? 'Mails'))) }}</h3>
             </div>
             @if($accounts->isEmpty())
                 <button disabled class="bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 cursor-not-allowed p-1.5 rounded-lg shrink-0" title="Keine Postfächer hinterlegt">
@@ -490,6 +529,239 @@
         @endif
     </div>
         </div> {{-- End INBOX VIEW --}}
+
+        {{-- MAIL DATEIEN VIEW --}}
+        <div x-show="typeof mode !== 'undefined' && mode === 'mail_files'" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" class="absolute inset-0 bg-white dark:bg-gray-950 flex flex-col overflow-hidden" style="display: none;" x-cloak>
+            {{-- Header & Search --}}
+            <div class="p-4 sm:px-6 sm:py-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/80 flex flex-col gap-3 shrink-0">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                        <button type="button" @click="typeof mobileView !== 'undefined' ? mobileView = 'folders' : null" class="lg:hidden p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white bg-gray-200 dark:bg-gray-800 rounded-lg transition-colors">
+                            <x-heroicon-o-chevron-left class="w-5 h-5"/>
+                        </button>
+                        <x-heroicon-o-paper-clip class="w-5 h-5 text-[var(--theme-color)]" />
+                        <h3 class="text-lg font-bold text-gray-900 dark:text-white">Mail Dateien</h3>
+                        <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-gray-200/80 dark:bg-gray-800 text-gray-700 dark:text-gray-300">{{ $mailFilesSummary['total'] ?? 0 }}</span>
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <div class="relative flex-1 sm:w-64">
+                            <x-heroicon-o-magnifying-glass class="w-4 h-4 absolute left-3 top-2.5 text-gray-400 dark:text-gray-500"/>
+                            <input type="text" wire:model.live.debounce.300ms="mailFileSearch" placeholder="Datei, Absender, Betreff..." class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white text-xs rounded-lg pl-9 pr-3 py-2 focus:ring-1 focus:ring-[var(--theme-color)] focus:border-[var(--theme-color)] placeholder-gray-400 dark:placeholder-gray-500" />
+                        </div>
+                        <button type="button" wire:click="scanOpenMailInvoices" wire:loading.attr="disabled" class="px-3 py-2 rounded-lg text-xs font-bold bg-[var(--theme-color)] text-gray-900 hover:brightness-105 transition-all shrink-0 flex items-center gap-1.5" title="Offene Eingangsrechnungen automatisch prüfen und in die Buchhaltung übernehmen">
+                            <x-heroicon-o-document-check class="w-4 h-4" wire:loading.class="animate-spin" wire:target="scanOpenMailInvoices" />
+                            <span>Rechnungen prüfen</span>
+                        </button>
+                    </div>
+                </div>
+
+                @if (session()->has('success_message'))
+                    <div class="px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
+                        {{ session('success_message') }}
+                    </div>
+                @endif
+                @if (session()->has('error_message'))
+                    <div class="px-3 py-2 rounded-lg text-xs font-semibold bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/50">
+                        {{ session('error_message') }}
+                    </div>
+                @endif
+
+                {{-- Filter Pills --}}
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        @php
+                            $typeTabs = [
+                                'all' => 'Alle (' . ($mailFilesSummary['total'] ?? 0) . ')',
+                                'invoice' => 'Rechnungen (' . ($mailFilesSummary['invoices'] ?? 0) . ')',
+                                'document' => 'Dokumente (' . ($mailFilesSummary['documents'] ?? 0) . ')',
+                                'image' => 'Bilder (' . ($mailFilesSummary['images'] ?? 0) . ')',
+                                'booked' => 'Verbucht (' . ($mailFilesSummary['booked'] ?? 0) . ')',
+                                'workspace' => 'Dateitrichter (' . ($mailFilesSummary['workspace'] ?? 0) . ')',
+                            ];
+                            if (($mailFilesSummary['needs_review'] ?? 0) > 0 || $mailFileTypeFilter === 'needs_review') {
+                                $typeTabs['needs_review'] = 'Prüfung nötig (' . ($mailFilesSummary['needs_review'] ?? 0) . ')';
+                            }
+                        @endphp
+                        @foreach($typeTabs as $tKey => $tLabel)
+                            <button type="button" wire:click="$set('mailFileTypeFilter', '{{ $tKey }}')"
+                                    class="px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors {{ $mailFileTypeFilter === $tKey ? 'bg-[var(--theme-color-15)] border-[var(--theme-color)] text-gray-900 dark:text-white' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                                {{ $tLabel }}
+                            </button>
+                        @endforeach
+                    </div>
+
+                    <div class="flex items-center gap-1 bg-gray-200/60 dark:bg-gray-900 p-0.5 rounded-lg border border-gray-200 dark:border-gray-800">
+                        @foreach(['all' => 'Alle', 'commercial' => 'Gewerblich', 'private' => 'Privat'] as $sKey => $sLabel)
+                            <button type="button" wire:click="$set('mailFileScopeFilter', '{{ $sKey }}')"
+                                    class="px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors {{ $mailFileScopeFilter === $sKey ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}">
+                                {{ $sLabel }}
+                            </button>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+
+            {{-- Slim Structured Files Table --}}
+            <div class="flex-1 overflow-y-auto custom-scrollbar">
+                @if(isset($mailFiles) && $mailFiles->count() > 0)
+                    <table class="w-full text-left border-collapse">
+                        <thead class="sticky top-0 z-10 bg-gray-100/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-800 text-[11px] uppercase tracking-wider text-gray-500 dark:text-gray-400 font-bold">
+                            <tr>
+                                <th class="py-2.5 px-4">Datei</th>
+                                <th class="py-2.5 px-3 hidden md:table-cell">Absender / Postfach</th>
+                                <th class="py-2.5 px-3 hidden xl:table-cell">Datum</th>
+                                <th class="py-2.5 px-3 hidden sm:table-cell">Größe</th>
+                                <th class="py-2.5 px-3">Status</th>
+                                <th class="py-2.5 px-4 text-right">Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-800/70 text-xs">
+                            @foreach($mailFiles as $att)
+                                @php
+                                    $msg = $att->message;
+                                    $acc = $msg && isset($accountsById) ? $accountsById->get($msg->mail_account_id) : null;
+                                    $isComm = (bool) ($acc?->is_commercial ?? true);
+                                    $ext = strtoupper((string) pathinfo((string) ($att->filename ?: $att->path), PATHINFO_EXTENSION)) ?: 'FILE';
+                                    $isPreviewable = in_array(strtolower($ext), ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'gif'], true);
+                                    $sizeKb = max(1, (int) round(((int) $att->size) / 1024));
+                                    $sizeFormatted = $sizeKb >= 1024 ? number_format($sizeKb / 1024, 1, ',', '.') . ' MB' : $sizeKb . ' KB';
+                                    $meta = is_array($att->funnel_meta) ? $att->funnel_meta : [];
+                                    $status = $att->funnel_status ?: 'open';
+                                    $canBook = in_array(strtolower($ext), ['pdf', 'xml', 'jpg', 'jpeg', 'png', 'webp'], true) && !in_array($status, ['booked', 'already_booked'], true);
+                                @endphp
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors">
+                                    <td class="py-3 px-4 max-w-[260px]">
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="px-1.5 py-0.5 rounded text-[10px] font-black shrink-0 {{ $att->funnel_type === 'invoice' ? 'bg-[var(--theme-color-20)] text-[var(--theme-color)]' : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300' }}">{{ $ext }}</span>
+                                            <div class="min-w-0">
+                                                @if($isPreviewable)
+                                                    <button type="button" wire:click="openAttachmentPreview({{ $att->id }})" class="font-bold text-gray-900 dark:text-white hover:text-[var(--theme-color)] truncate block max-w-full text-left" title="{{ $att->filename }}">
+                                                        {{ $att->filename }}
+                                                    </button>
+                                                @else
+                                                    <span class="font-bold text-gray-900 dark:text-white truncate block" title="{{ $att->filename }}">{{ $att->filename }}</span>
+                                                @endif
+                                                <span class="text-[11px] text-gray-500 dark:text-gray-400 truncate block" title="{{ $msg?->subject }}">{{ $msg?->subject ?: '(Kein Betreff)' }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 px-3 hidden md:table-cell max-w-[210px]">
+                                        <div class="font-semibold text-gray-800 dark:text-gray-200 truncate">{{ $msg?->from_name ?: $msg?->from_email }}</div>
+                                        <div class="flex items-center gap-1.5 mt-0.5">
+                                            <span class="px-1.5 py-0.2 rounded text-[9px] font-bold {{ $isComm ? 'bg-[var(--theme-color-15)] text-[var(--theme-color)]' : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400' }}">{{ $isComm ? 'Gewerblich' : 'Privat' }}</span>
+                                            <span class="text-[10px] text-gray-400 dark:text-gray-500 truncate">{{ $acc?->email }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="py-3 px-3 hidden xl:table-cell text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                        {{ $msg?->received_at ? \Carbon\Carbon::parse($msg->received_at)->format('d.m.Y H:i') : '-' }}
+                                    </td>
+                                    <td class="py-3 px-3 hidden sm:table-cell text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                        {{ $sizeFormatted }}
+                                    </td>
+                                    <td class="py-3 px-3 whitespace-nowrap">
+                                        @if($status === 'booked')
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                                ✓ Verbucht{{ !empty($meta['amount_formatted']) ? ' · ' . $meta['amount_formatted'] : '' }}
+                                            </span>
+                                        @elseif($status === 'already_booked')
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
+                                                ✓ Erfasst
+                                            </span>
+                                        @elseif($status === 'workspace')
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-700 dark:text-sky-400 border border-sky-500/30">
+                                                ✓ Dateitrichter
+                                            </span>
+                                        @elseif($status === 'needs_review')
+                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30">
+                                                Prüfung nötig
+                                            </span>
+                                        @elseif($att->funnel_type === 'legal_notice')
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                                AGB / Info
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                                Offen
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td class="py-3 px-4 text-right whitespace-nowrap">
+                                        <div class="inline-flex items-center gap-1">
+                                            @if($isPreviewable)
+                                                <button type="button" wire:click="openAttachmentPreview({{ $att->id }})" class="px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold transition-colors" title="Vorschau im selben Fenster">
+                                                    Vorschau
+                                                </button>
+                                            @else
+                                                <button type="button" wire:click="downloadAttachment({{ $att->id }})" class="px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold transition-colors" title="Herunterladen">
+                                                    Download
+                                                </button>
+                                            @endif
+
+                                            @if($msg)
+                                                <button type="button" wire:click="openMailFromAttachment({{ $msg->id }})" class="px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold transition-colors" title="Zugehörige E-Mail öffnen">
+                                                    Zur Mail
+                                                </button>
+                                            @endif
+
+                                            @if($canBook)
+                                                <button type="button" wire:click="bookMailAttachment({{ $att->id }})" wire:loading.attr="disabled" class="px-2 py-1 rounded-md bg-[var(--theme-color-20)] hover:bg-[var(--theme-color)] text-[var(--theme-color)] hover:text-gray-900 font-bold transition-colors" title="Als Beleg in die Buchhaltung buchen">
+                                                    Buchhaltung
+                                                </button>
+                                            @endif
+
+                                            @if($status !== 'workspace')
+                                                <button type="button" wire:click="sendMailAttachmentToTrichter({{ $att->id }})" wire:loading.attr="disabled" class="px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold transition-colors" title="In den Dateitrichter übernehmen">
+                                                    Dateitrichter
+                                                </button>
+                                            @endif
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @else
+                    <div class="h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 p-8">
+                        <x-heroicon-o-paper-clip class="w-12 h-12 mb-3 opacity-30" />
+                        <span class="text-sm font-semibold">Keine passenden Mail-Dateien gefunden</span>
+                    </div>
+                @endif
+            </div>
+
+            {{-- Lightbox / Inline-Vorschau im selben Fenster --}}
+            @if(!empty($previewAttachment))
+                @php
+                    $prevExt = strtolower((string) pathinfo((string) ($previewAttachment->filename ?: $previewAttachment->path), PATHINFO_EXTENSION));
+                    $prevUrl = route('crm.mail-attachment', ['id' => $previewAttachment->id]);
+                @endphp
+                <div class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4" @keydown.escape.window="$wire.closeAttachmentPreview()" wire:click.self="closeAttachmentPreview">
+                    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
+                        <div class="px-5 py-3.5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between gap-3 bg-gray-50 dark:bg-gray-950">
+                            <div class="min-w-0">
+                                <h4 class="text-sm font-bold text-gray-900 dark:text-white truncate">{{ $previewAttachment->filename }}</h4>
+                                <span class="text-xs text-gray-500 dark:text-gray-400 truncate block">{{ $previewAttachment->message?->subject }}</span>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <button type="button" wire:click="downloadAttachment({{ $previewAttachment->id }})" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 transition-colors">
+                                    Herunterladen
+                                </button>
+                                <button type="button" wire:click="closeAttachmentPreview" class="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+                                    <x-heroicon-o-x-mark class="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex-1 bg-gray-100 dark:bg-gray-950 flex items-center justify-center overflow-auto p-4">
+                            @if($prevExt === 'pdf')
+                                <iframe src="{{ $prevUrl }}" class="w-full h-full rounded-lg border border-gray-200 dark:border-gray-800 bg-white"></iframe>
+                            @else
+                                <img src="{{ $prevUrl }}" alt="{{ $previewAttachment->filename }}" class="max-w-full max-h-full object-contain rounded-lg shadow-md" />
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endif
+        </div>
 
         {{-- SETTINGS VIEW --}}
         <div x-show="typeof mode !== 'undefined' && mode === 'account_settings'" x-transition:enter="transition ease-out duration-300 transform" x-transition:enter-start="opacity-0 lg:translate-x-8" x-transition:enter-end="opacity-100 lg:translate-x-0" x-transition:leave="transition ease-in duration-200 transform absolute" x-transition:leave-start="opacity-100 lg:translate-x-0" x-transition:leave-end="opacity-0 lg:translate-x-8" class="absolute inset-0 bg-white dark:bg-gray-950 overflow-y-auto custom-scrollbar" style="display: none;" x-cloak>

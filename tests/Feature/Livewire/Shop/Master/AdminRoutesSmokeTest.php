@@ -46,7 +46,7 @@ class AdminRoutesSmokeTest extends TestCase
 
         foreach (self::adminRoutesProvider() as $param) {
             $url = $param[0];
-            $response = $this->actingAs($admin, 'admin')->get($url);
+            $response = $this->actingAs($admin, 'admin')->followingRedirects()->get($url);
             if (!$response->isSuccessful()) {
                 dump("Route failed: " . $url . " | Status: " . $response->status() . " | Message: " . optional($response->exception)->getMessage());
                 // Optional: dump first 500 chars of view to see HTML errors if no exception
@@ -77,6 +77,8 @@ class AdminRoutesSmokeTest extends TestCase
 
             ['/admin/global-logs'],
             ['/admin/contacts'],
+            ['/admin/tickets'],
+            ['/admin/tickets?view=organigramm'],
             ['/admin/organigramm'],
             ['/admin/ai/analytics'],
             ['/admin/user-management'],

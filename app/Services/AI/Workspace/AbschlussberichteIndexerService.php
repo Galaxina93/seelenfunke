@@ -23,12 +23,14 @@ class AbschlussberichteIndexerService
         $baseDir = base_path('Abschlussberichte');
 
         if (!File::isDirectory($baseDir)) {
+            $syncRes = app(\App\Services\AI\KnowledgeReportSyncService::class)->sync(null, $force);
+            $catCount = AiKnowledgeBaseCategory::count();
             return [
-                'total' => 0,
-                'created' => 0,
-                'updated' => 0,
-                'skipped' => 0,
-                'categories' => 0,
+                'total' => $syncRes['scanned'],
+                'created' => $syncRes['created'],
+                'updated' => $syncRes['updated'],
+                'skipped' => $syncRes['skipped_unchanged'],
+                'categories' => $catCount,
             ];
         }
 

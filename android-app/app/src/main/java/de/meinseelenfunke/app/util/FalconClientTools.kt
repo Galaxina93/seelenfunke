@@ -46,14 +46,16 @@ class FalconInactivityTracker(
     val stage1QuestionMaxWaitMs: Long = STAGE1_QUESTION_MAX_WAIT_MS,
     val stage2FollowupSilenceMs: Long = STAGE2_FOLLOWUP_SILENCE_MS,
     val farewellPostSpeechBufferMs: Long = FAREWELL_POST_SPEECH_BUFFER_MS,
-    val farewellHardCeilingMs: Long = FAREWELL_HARD_CEILING_MS
+    val farewellNoSpeechFallbackMs: Long = FAREWELL_NO_SPEECH_FALLBACK_MS,
+    val farewellSafetyMaxSpeechMs: Long = FAREWELL_SAFETY_MAX_SPEECH_MS
 ) {
     companion object {
-        const val STAGE1_SILENCE_MS = 120_000L
-        const val STAGE1_QUESTION_MAX_WAIT_MS = 6_000L
+        const val STAGE1_SILENCE_MS = 60_000L
+        const val STAGE1_QUESTION_MAX_WAIT_MS = 12_000L
         const val STAGE2_FOLLOWUP_SILENCE_MS = 25_000L
-        const val FAREWELL_POST_SPEECH_BUFFER_MS = 1_200L
-        const val FAREWELL_HARD_CEILING_MS = 7_000L
+        const val FAREWELL_POST_SPEECH_BUFFER_MS = 1_400L
+        const val FAREWELL_NO_SPEECH_FALLBACK_MS = 12_000L
+        const val FAREWELL_SAFETY_MAX_SPEECH_MS = 35_000L
     }
 
     @get:Synchronized
@@ -187,7 +189,7 @@ class FalconInactivityTracker(
             }
 
             FalconInactivityStage.CHECK_SENT_WAITING_QUESTION -> {
-                if (isAiSpeaking) {
+                if (isAiSpeaking || activeToolCalls > 0) {
                     stage1SpeechObserved = true
                     FalconInactivityAction.NONE
                 } else if (stage1SpeechObserved || (nowMs - inactivityFollowupStartedMs >= stage1QuestionMaxWaitMs)) {
@@ -200,7 +202,8 @@ class FalconInactivityTracker(
             }
 
             FalconInactivityStage.CHECK_SENT_WAITING_USER_REPLY -> {
-                if (isAiSpeaking) {
+                // Never interrupt an active AI sentence or active tool call!
+                if (isAiSpeaking || activeToolCalls > 0) {
                     stage1QuestionFinishedMs = nowMs
                     FalconInactivityAction.NONE
                 } else if (nowMs - stage1QuestionFinishedMs >= stage2FollowupSilenceMs) {
@@ -215,20 +218,28 @@ class FalconInactivityTracker(
             }
 
             FalconInactivityStage.FAREWELL_CLOSING -> {
-                if (isAiSpeaking) {
+                if (isAiSpeaking || activeToolCalls > 0) {
                     farewellSpeechObserved = true
                     farewellSpeechEndedMs = 0L
+                    // Only fail-safe disconnect if audio is stuck for > 35s; NEVER cut off a normal sentence!
+                    return if (nowMs - farewellSentAtMs >= farewellSafetyMaxSpeechMs) {
+                        stage = FalconInactivityStage.DISCONNECTED
+                        FalconInactivityAction.FORCE_DISCONNECT
+                    } else {
+                        FalconInactivityAction.NONE
+                    }
                 } else if (farewellSpeechObserved && farewellSpeechEndedMs == 0L) {
                     farewellSpeechEndedMs = nowMs
                 }
 
                 val finishedSpeechWithBuffer = farewellSpeechObserved &&
-                    !isAiSpeaking &&
                     farewellSpeechEndedMs > 0L &&
                     (nowMs - farewellSpeechEndedMs >= farewellPostSpeechBufferMs)
-                val hitHardCeiling = (nowMs - farewellSentAtMs >= farewellHardCeilingMs)
+                val noSpeechFallbackReached = !farewellSpeechObserved &&
+                    (nowMs - farewellSentAtMs >= farewellNoSpeechFallbackMs)
+                val safetyMaxReached = (nowMs - farewellSentAtMs >= farewellSafetyMaxSpeechMs)
 
-                if (finishedSpeechWithBuffer || hitHardCeiling) {
+                if (finishedSpeechWithBuffer || noSpeechFallbackReached || safetyMaxReached) {
                     stage = FalconInactivityStage.DISCONNECTED
                     FalconInactivityAction.FORCE_DISCONNECT
                 } else {
@@ -243,10 +254,16 @@ object FalconClientTools {
     private val gson = Gson()
 
     const val STAGE1_INACTIVITY_PROMPT =
-        "[SYSTEM-INAKTIVITÄT 2 MINUTEN: Alina hat seit 2 Minuten nichts gesagt. Frage sie jetzt in 1 kurzen, freundlichen Satz auf Deutsch, ob sie gerade noch etwas braucht oder ob du die Verbindung schließen sollst.]"
+        "[SYSTEM-INAKTIVITÄT 60 SEKUNDEN: Alina hat seit 60 Sekunden nichts gesagt. Frage sie jetzt in 1 kurzen, freundlichen Satz auf Deutsch ('Bist du noch da?'), ob sie gerade noch etwas braucht oder ob du die Verbindung schließen sollst. Rufe noch KEIN end_call auf, sondern warte ihre Antwort ab.]"
+
+    const val BEDTIME_2200_PROMPT =
+        "[SYSTEM-ROUTINE-ERINNERUNG 22:00 UHR (GILT AUCH AM WOCHENENDE): Es ist jetzt 22:00 Uhr (Bettfertig & Runterfahren). Erinnere Alina jetzt herzlich-bestimmt in 1 bis 2 kurzen Sätzen auf Deutsch daran, langsam runterzufahren und sich bettfertig zu machen, damit um 22:30 Uhr pünktlich Nachtruhe ist.]"
+
+    const val BEDTIME_2230_PROMPT =
+        "[SYSTEM-SCHLAFENSZEIT-ERINNERUNG 22:30 UHR (GESUNDHEITS-PFLICHT AUCH AM WOCHENENDE): Es ist jetzt Nachtruhe (ab 22:30 Uhr). Erinnere Alina jetzt freundlich, aber bestimmt in 1 bis 2 kurzen Sätzen auf Deutsch daran, das Gespräch abzuschließen und schlafen zu gehen!]"
 
     const val STAGE2_AUTO_END_PROMPT =
-        "[SYSTEM-AUTO-ENDE: Keine Antwort erhalten. Verabschiede dich jetzt in 1 kurzen Satz freundlich auf Deutsch (z. B. dass du die Verbindung schließt und auf 'Hey Falcone' wartest) und rufe end_call auf.]"
+        "[SYSTEM-AUTO-ENDE: Keine Antwort erhalten. Verabschiede dich jetzt in 1 kurzen Satz freundlich auf Deutsch (z. B. dass du die Verbindung schließt und auf 'Hey Funkira' wartest) und rufe ERST NACH deinem gesprochenen Satz end_call auf.]"
 
     val SPORT_KEYWORDS = listOf(
         "sport", "workout", "fitness", "gym", "power",
@@ -254,7 +271,7 @@ object FalconClientTools {
     )
 
     val VALID_EMOTIONS = setOf(
-        "idle", "listening", "thinking", "speaking", "happy", "proud", "focused"
+        "idle", "listening", "thinking", "speaking", "happy", "proud", "focused", "sweet", "excited"
     )
 
     val LOCAL_TOOL_NAMES = setOf(
@@ -609,7 +626,7 @@ object FalconClientTools {
                 }
             )
         }
-        return "AKTIVER SMARTHOME-BESTAND (für Funkira & Falcone via falcon_smarthome_control): " + parts.joinToString(" · ")
+        return "AKTIVER SMARTHOME-BESTAND (für Funkira via falcon_smarthome_control): " + parts.joinToString(" · ")
     }
 
     fun shouldAttachCapturedPhoto(
@@ -807,7 +824,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_music_control")
                 addProperty(
                     "description",
-                    "Steuert sofort den lokalen Musikplayer auf Alinas Smartphone (Sportmusik, Playlist/Song-Suche, Pause, Weiter, Zurück, Shuffle, Lautstärke). Bestätige danach nur ultrakurz ohne Gegenfrage, da Falcone direkt in den Ruhemodus wechselt."
+                    "Steuert sofort den lokalen Musikplayer auf Alinas Smartphone (Sportmusik, Playlist/Song-Suche, Pause, Weiter, Zurück, Shuffle, Lautstärke). Bestätige danach nur ultrakurz ohne Gegenfrage, da Funkira direkt in den Ruhemodus wechselt."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -838,7 +855,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_camera_control")
                 addProperty(
                     "description",
-                    "Steuert Falcones Kamera-Augen auf dem Smartphone (Live-Sicht ein-/ausschalten, Kamera wechseln oder scharfes hochauflösendes Foto schießen). WICHTIG: Rufe NIEMALS take_photo oder enable_vision auf, wenn Alina bereits ein Foto/Screenshot in der App hinterlegt hat, außer sie verlangt ausdrücklich ein NEUES Kamerafoto (force_new_photo=true) oder Live-Kamera (force_live_vision=true)!"
+                    "Steuert Funkiras Kamera-Augen auf dem Smartphone (Live-Sicht ein-/ausschalten, Kamera wechseln oder scharfes hochauflösendes Foto schießen). WICHTIG: Rufe NIEMALS take_photo oder enable_vision auf, wenn Alina bereits ein Foto/Screenshot in der App hinterlegt hat, außer sie verlangt ausdrücklich ein NEUES Kamerafoto (force_new_photo=true) oder Live-Kamera (force_live_vision=true)!"
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")
@@ -1051,7 +1068,7 @@ object FalconClientTools {
                 addProperty("name", "falcon_set_emotion")
                 addProperty(
                     "description",
-                    "Setzt Falcones 3D-Gesichtsausdruck und Körperhaltung passend zur Gesprächssituation."
+                    "Setzt Funkiras 3D-Gesichtsausdruck und Körperhaltung passend zur Gesprächssituation."
                 )
                 add("parameters", JsonObject().apply {
                     addProperty("type", "OBJECT")

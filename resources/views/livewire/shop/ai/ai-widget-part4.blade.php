@@ -75,21 +75,13 @@
                         } catch (e) {
                             console.error('Funki 3D initThreeJS error:', e);
                         }
-                        try {
-                            this.initMapbox();
-                        } catch (e) {
-                            console.warn('Funki 3D initMapbox skipped:', e);
+                        if (this.isMapMode || this.isMapFocus) {
+                            this.ensureMapboxReady();
                         }
                         
                         if (!this.isLiveMode) {
                             this.toggleLiveMode(); // Start voice interaction automatically!
                         }
-                        
-                        setTimeout(() => {
-                            if (window.funkiMap) {
-                                window.funkiMap.resize();
-                            }
-                        }, 500);
                     });
                 };
 
@@ -111,17 +103,75 @@
                         document.head.appendChild(script);
                     });
                 };
+                this._loadVendorScript = loadVendorScript;
 
                 try {
-                    await loadVendorScript(() => typeof THREE !== 'undefined', "{{ asset('vendor/three/three.min.js') }}");
-                    await loadVendorScript(() => typeof THREE !== 'undefined' && typeof THREE.OrbitControls !== 'undefined', "{{ asset('vendor/three/OrbitControls.js') }}");
-                    await loadVendorScript(() => typeof anime !== 'undefined', "{{ asset('vendor/animejs/anime.min.js') }}");
-                    await loadVendorScript(() => typeof mapboxgl !== 'undefined', "{{ asset('vendor/mapbox-gl/mapbox-gl.js') }}");
+                    await Promise.all([
+                        loadVendorScript(() => typeof THREE !== 'undefined', "{{ asset('vendor/three/three.min.js') }}")
+                            .then(() => loadVendorScript(() => typeof THREE !== 'undefined' && typeof THREE.OrbitControls !== 'undefined', "{{ asset('vendor/three/OrbitControls.js') }}")),
+                        loadVendorScript(() => typeof anime !== 'undefined', "{{ asset('vendor/animejs/anime.min.js') }}"),
+                    ]);
                 } catch (vendorErr) {
                     console.warn('Vendor script load warning in 3D view:', vendorErr);
                 }
 
                 startAnimation();
+            },
+
+            async ensureMapboxReady() {
+                if (window.funkiMap) {
+                    if (window.funkiMap.loaded && window.funkiMap.loaded()) {
+                        return window.funkiMap;
+                    }
+                    return new Promise(resolve => {
+                        window.funkiMap.once('load', () => resolve(window.funkiMap));
+                        setTimeout(() => resolve(window.funkiMap), 800);
+                    });
+                }
+                if (this._mapboxInitPromise) {
+                    return this._mapboxInitPromise;
+                }
+
+                this._mapboxInitPromise = (async () => {
+                    try {
+                        const cssHref = "{{ asset('vendor/mapbox-gl/mapbox-gl.css') }}";
+                        if (!document.querySelector(`link[href="${cssHref}"]`)) {
+                            const link = document.createElement('link');
+                            link.rel = 'stylesheet';
+                            link.href = cssHref;
+                            document.head.appendChild(link);
+                        }
+
+                        const loader = this._loadVendorScript || ((globalCheck, src) => {
+                            if (globalCheck()) return Promise.resolve();
+                            return new Promise((resolve, reject) => {
+                                const s = document.createElement('script');
+                                s.src = src;
+                                s.onload = resolve;
+                                s.onerror = reject;
+                                document.head.appendChild(s);
+                            });
+                        });
+
+                        await loader(() => typeof mapboxgl !== 'undefined', "{{ asset('vendor/mapbox-gl/mapbox-gl.js') }}");
+                        this.initMapbox();
+
+                        if (window.funkiMap) {
+                            await new Promise(resolve => {
+                                if (window.funkiMap.loaded && window.funkiMap.loaded()) return resolve();
+                                window.funkiMap.once('load', () => resolve());
+                                setTimeout(() => resolve(), 900);
+                            });
+                        }
+                    } catch (err) {
+                        console.warn('Lazy Mapbox init warning:', err);
+                    } finally {
+                        this._mapboxInitPromise = null;
+                    }
+                    return window.funkiMap;
+                })();
+
+                return this._mapboxInitPromise;
             },
 
             closeFunkiView() {
@@ -191,14 +241,25 @@
                 t3.closeTimerOuter = setTimeout(() => {
                     t3.closeTimerOuter = null;
                     this.showFunkiView = false; 
+                    if (this.flightDataInterval) {
+                        clearInterval(this.flightDataInterval);
+                        this.flightDataInterval = null;
+                    }
+                    if (window.pauseBrainMap) window.pauseBrainMap();
+                    // Auto-Wipe Top Secret RAM beim Verlassen des 3D-Zentrums
+                    this.isSecretMode = false;
+                    this.secretVaultIntel = [];
+                    this.secretVaultRelations = [];
+                    this.secretNetworkNodes = [];
+                    this.secretNetworkSvg = '';
 
                     t3.closeTimerInner = setTimeout(() => {
                         t3.closeTimerInner = null;
                         this.destroyMapbox();
                         this.destroyThreeJS();
                         document.body.style.overflow = 'auto'; 
-                    }, 1000);
-                }, 3500);
+                    }, 300);
+                }, 650);
             }, 
 
             toggleBackgroundAudio() {
@@ -266,153 +327,230 @@
                     return;
                 }
                 mapboxgl.accessToken = mbToken;
+
+                const escapeMapHtml = (val) => String(val ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
                 
                 window.funkiMap = new mapboxgl.Map({
                     container: 'funki-mapbox-container',
                     style: this.activeMapStyle,
-                    center: [13.4050, 52.5200], // Berlin
-                    zoom: 4,
+                    center: [10.5467, 52.4787], // Manufaktur Gifhorn / Deutschland-Zentrum
+                    zoom: 5.5,
                     pitch: 45,
-                    bearing: -17.6,
-                    antialias: true
+                    bearing: 0,
+                    antialias: false,
+                    fadeDuration: 0,
+                    maxTileCacheSize: 90
                 });
 
-                window.funkiMap.on('style.load', () => {
+                const ensureCustomMapLayers = () => {
+                    if (!window.funkiMap) return;
                     const currentStyle = window.funkiMap.getStyle();
-                    // In 'Dark Cyber' mode, the container has a filter: hue-rotate(180deg). 
-                    // So we color the water #cc4400 (orange/brown) so it hue-rotates into a beautiful deep cyan-blue!
-                    if (currentStyle && currentStyle.sprite && currentStyle.sprite.includes('dark-v')) {
-                        if (window.funkiMap.getLayer('water')) {
-                            window.funkiMap.setPaintProperty('water', 'fill-color', '#cc4400');
-                        }
+                    if (currentStyle && currentStyle.sprite && String(currentStyle.sprite).includes('dark-v')) {
+                        try {
+                            if (window.funkiMap.getLayer('water')) {
+                                window.funkiMap.setPaintProperty('water', 'fill-color', '#041428');
+                            }
+                            if (window.funkiMap.getLayer('land')) {
+                                window.funkiMap.setPaintProperty('land', 'background-color', '#050811');
+                            }
+                        } catch (e) {}
                     }
 
-                    const layers = currentStyle.layers || [];
+                    const layers = (currentStyle && currentStyle.layers) ? currentStyle.layers : [];
                     let labelLayerId;
                     for (let i = 0; i < layers.length; i++) {
-                        if (layers[i].type === 'symbol' && layers[i].layout['text-field']) {
+                        if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']) {
                             labelLayerId = layers[i].id;
                             break;
                         }
                     }
 
-                    if (window.funkiMap.getSource('composite')) {
+                    if (window.funkiMap.getSource('composite') && !window.funkiMap.getLayer('3d-buildings')) {
+                        try {
+                            window.funkiMap.addLayer({
+                                'id': '3d-buildings',
+                                'source': 'composite',
+                                'source-layer': 'building',
+                                'filter': ['==', 'extrude', 'true'],
+                                'type': 'fill-extrusion',
+                                'minzoom': 14.5,
+                                'paint': {
+                                    'fill-extrusion-color': '#C5A059',
+                                    'fill-extrusion-height': ['interpolate', ['linear'], ['zoom'], 14.5, 0, 15.05, ['get', 'height']],
+                                    'fill-extrusion-base': ['interpolate', ['linear'], ['zoom'], 14.5, 0, 15.05, ['get', 'min_height']],
+                                    'fill-extrusion-opacity': 0.65
+                                }
+                            }, labelLayerId);
+                        } catch (e) {}
+                    }
+
+                    if (!window.funkiMap.getSource('live-flights')) {
+                        window.funkiMap.addSource('live-flights', {
+                            type: 'geojson',
+                            data: window._lastFlightsGeoJson || { type: 'FeatureCollection', features: [] }
+                        });
+                    }
+                    if (!window.funkiMap.getLayer('live-flights-layer')) {
                         window.funkiMap.addLayer({
-                            'id': '3d-buildings',
-                            'source': 'composite',
-                            'source-layer': 'building',
-                            'filter': ['==', 'extrude', 'true'],
-                            'type': 'fill-extrusion',
-                            'minzoom': 15,
-                            'paint': {
-                                'fill-extrusion-color': '#00f0ff',
-                                'fill-extrusion-height': [
-                                    'interpolate',
-                                    ['linear'],
-                                    ['zoom'],
-                                    15, 0,
-                                    15.05, ['get', 'height']
-                                ],
-                                'fill-extrusion-base': [
-                                    'interpolate',
-                                    ['linear'],
-                                    ['zoom'],
-                                    15, 0,
-                                    15.05, ['get', 'min_height']
-                                ],
-                                'fill-extrusion-opacity': 0.6
+                            id: 'live-flights-layer',
+                            type: 'symbol',
+                            source: 'live-flights',
+                            layout: {
+                                'text-field': '✈',
+                                'text-size': 18,
+                                'text-rotate': ['get', 'heading'],
+                                'text-rotation-alignment': 'map',
+                                'text-allow-overlap': true,
+                                'text-ignore-placement': true
+                            },
+                            paint: {
+                                'text-color': '#00f0ff',
+                                'text-halo-color': '#000000',
+                                'text-halo-width': 1.2
                             }
-                        }, labelLayerId);
+                        });
+                    }
+
+                    if (!window.funkiMap.getSource('live-crises')) {
+                        window.funkiMap.addSource('live-crises', {
+                            type: 'geojson',
+                            data: window._lastCrisesGeoJson || { type: 'FeatureCollection', features: [] }
+                        });
+                    }
+                    if (!window.funkiMap.getLayer('live-crises-layer')) {
+                        window.funkiMap.addLayer({
+                            id: 'live-crises-layer',
+                            type: 'circle',
+                            source: 'live-crises',
+                            paint: {
+                                'circle-color': '#ff2244',
+                                'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 10, 8, 28],
+                                'circle-blur': 0.6,
+                                'circle-opacity': 0.55
+                            }
+                        });
+                    }
+                };
+
+                window.funkiMap.on('style.load', () => {
+                    ensureCustomMapLayers();
+                    if (this.isFlightDataActive) {
+                        this.fetchLiveFlightData();
+                        this.generateCrisisData();
                     }
                 });
 
                 window.funkiMap.on('load', () => {
-                    // Rotations-Schleife entfernt
-                    
-                    window.funkiMap.addSource('live-flights', {
-                        type: 'geojson',
-                        data: { type: 'FeatureCollection', features: [] }
-                    });
-                    
-                    window.funkiMap.addLayer({
-                        id: 'live-flights-layer',
-                        type: 'symbol',
-                        source: 'live-flights',
-                        layout: {
-                            'text-field': '✈',
-                            'text-size': 20,
-                            'text-rotate': ['get', 'heading'],
-                            'text-rotation-alignment': 'map',
-                            'text-allow-overlap': true,
-                            'text-ignore-placement': true
-                        },
-                        paint: {
-                            'text-color': '#00f0ff',
-                            'text-halo-color': '#000000',
-                            'text-halo-width': 1
-                        }
-                    });
+                    ensureCustomMapLayers();
 
-                    window.funkiMap.addSource('live-crises', {
-                        type: 'geojson',
-                        data: { type: 'FeatureCollection', features: [] }
+                    window.funkiMap.on('click', 'live-flights-layer', (e) => {
+                        if (!e.features || !e.features[0]) return;
+                        const coordinates = e.features[0].geometry.coordinates.slice();
+                        const p = e.features[0].properties || {};
+                        const alt = p.geo_altitude ? `${Math.round(Number(p.geo_altitude))} m` : 'k.A.';
+                        const spd = p.velocity ? `${Math.round(Number(p.velocity) * 3.6)} km/h` : 'k.A.';
+                        new mapboxgl.Popup({ closeButton: true })
+                            .setLngLat(coordinates)
+                            .setHTML(`<div class="text-[11px] font-mono bg-gray-950 text-white p-1.5 rounded"><strong class="text-emerald-400 uppercase">Flug ${escapeMapHtml(p.callsign || 'UNKNOWN')}<\/strong><br><span class="text-gray-300">Land: ${escapeMapHtml(p.origin_country || p.country || 'Unbekannt')}<br>Höhe: ${escapeMapHtml(alt)} · ${escapeMapHtml(spd)}<\/span><\/div>`)
+                            .addTo(window.funkiMap);
                     });
+                    window.funkiMap.on('mouseenter', 'live-flights-layer', () => { window.funkiMap.getCanvas().style.cursor = 'pointer'; });
+                    window.funkiMap.on('mouseleave', 'live-flights-layer', () => { window.funkiMap.getCanvas().style.cursor = ''; });
 
-                    window.funkiMap.addLayer({
-                        id: 'live-crises-layer',
-                        type: 'circle',
-                        source: 'live-crises',
-                        paint: {
-                            'circle-color': '#ff0000',
-                            'circle-radius': 6,
-                            'circle-blur': 0.5,
-                            'circle-opacity': 0.8
-                        }
+                    window.funkiMap.on('click', 'live-crises-layer', (e) => {
+                        if (!e.features || !e.features[0]) return;
+                        const coordinates = e.features[0].geometry.coordinates.slice();
+                        const p = e.features[0].properties || {};
+                        new mapboxgl.Popup({ closeButton: true })
+                            .setLngLat(coordinates)
+                            .setHTML(`<div class="text-[11px] font-mono bg-gray-950 text-white p-1.5 rounded"><strong class="text-rose-400 uppercase">${escapeMapHtml(p.name || 'Region')}<\/strong><\/div>`)
+                            .addTo(window.funkiMap);
                     });
                 });
 
-                window.funkiMap.on('dragstart', () => {
-                    if (window.mapRotateAnimationFrame) cancelAnimationFrame(window.mapRotateAnimationFrame);
-                });
+                const syncMarkerCount = () => {
+                    this.mapMarkerCount = (window.funkiMarker ? 1 : 0)
+                        + (Array.isArray(window.newsMarkers) ? window.newsMarkers.length : 0)
+                        + (Array.isArray(window.placeMarkers) ? window.placeMarkers.length : 0);
+                };
 
-                window.flyToLocation = (lng, lat, zoom = 14, pitch = 60, markerText = '') => {
-                    if(!window.funkiMap) return;
-                    
-                    // Stop any ongoing camera rotation so it doesn't cancel flyTo immediately
-                    if (window.mapRotateAnimationFrame) {
-                        cancelAnimationFrame(window.mapRotateAnimationFrame);
-                        window.mapRotateAnimationFrame = null;
-                    }
+                window.flyToLocation = (lng, lat, zoom = 14, pitch = 50, markerText = '') => {
+                    if (!window.funkiMap) return;
                     
                     window.funkiMap.flyTo({
-                        center: [lng, lat],
-                        zoom: zoom,
-                        pitch: pitch,
-                        essential: true, // Forces animation even if another one is running
-                        bearing: Math.random() * 90 - 45,
-                        duration: 4500, // Fixed smooth cinematic zoom duration instead of speed
-                        easing: (t) => t * (2 - t) // EaseOutQuad for smooth arrival
+                        center: [Number(lng), Number(lat)],
+                        zoom: Number(zoom) || 14,
+                        pitch: Number(pitch) || 50,
+                        bearing: Number(zoom) >= 15 ? -15 : 0,
+                        essential: true,
+                        duration: 1650,
+                        easing: (t) => 1 - Math.pow(1 - t, 3)
                     });
 
-                    // Resume rotation removed to allow user map control without interruption.
-                    window.funkiMap.once('moveend', () => {
-                        // done
-                    });
-
-                    if (window.funkiMarker) window.funkiMarker.remove();
+                    if (window.funkiMarker) {
+                        window.funkiMarker.remove();
+                        window.funkiMarker = null;
+                    }
                     
                     if (markerText) {
                         const el = document.createElement('div');
                         el.className = 'marker';
-                        el.innerHTML = `<div class="bg-cyan-900/80 border border-cyan-400 text-cyan-100 text-[10px] font-mono px-2 py-1 rounded shadow-[0_0_15px_rgba(0,240,255,0.5)] animate-pulse whitespace-nowrap">${markerText}<\/div>`;
+                        const pill = document.createElement('div');
+                        pill.className = 'bg-gray-950/90 border border-[#C5A059] text-white text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg shadow-xl whitespace-nowrap';
+                        pill.textContent = String(markerText);
+                        el.appendChild(pill);
                         
                         window.funkiMarker = new mapboxgl.Marker(el)
-                            .setLngLat([lng, lat])
+                            .setLngLat([Number(lng), Number(lat)])
                             .addTo(window.funkiMap);
+                    }
+                    syncMarkerCount();
+                };
+
+                const fitMarkersViewport = (markers, fallbackZoom = 12, bbox = null) => {
+                    if (!window.funkiMap || !markers || !markers.length) return;
+                    if (markers.length === 1) {
+                        window.funkiMap.flyTo({
+                            center: [Number(markers[0].lng), Number(markers[0].lat)],
+                            zoom: fallbackZoom,
+                            pitch: 45,
+                            bearing: 0,
+                            essential: true,
+                            duration: 1500
+                        });
+                        return;
+                    }
+                    let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+                    if (Array.isArray(bbox) && bbox.length === 4) {
+                        [minLng, minLat, maxLng, maxLat] = bbox.map(Number);
+                    } else {
+                        markers.forEach(m => {
+                            const x = Number(m.lng), y = Number(m.lat);
+                            if (x < minLng) minLng = x;
+                            if (x > maxLng) maxLng = x;
+                            if (y < minLat) minLat = y;
+                            if (y > maxLat) maxLat = y;
+                        });
+                    }
+                    if (Math.abs(maxLng - minLng) < 0.002 && Math.abs(maxLat - minLat) < 0.002) {
+                        window.funkiMap.flyTo({ center: [minLng, minLat], zoom: fallbackZoom, pitch: 45, duration: 1500, essential: true });
+                    } else {
+                        window.funkiMap.fitBounds([[minLng, minLat], [maxLng, maxLat]], {
+                            padding: { top: 100, bottom: 140, left: 90, right: 90 },
+                            maxZoom: 15,
+                            pitch: 40,
+                            duration: 1650,
+                            essential: true
+                        });
                     }
                 };
 
-                window.markNewsEvents = (markers) => {
+                window.markNewsEvents = (markers, bbox = null) => {
                     if (!window.funkiMap || !markers || !markers.length) return;
                     
                     if (window.newsMarkers) {
@@ -420,43 +558,36 @@
                     }
                     window.newsMarkers = [];
 
-                    if (window.mapRotateAnimationFrame) {
-                        cancelAnimationFrame(window.mapRotateAnimationFrame);
-                        window.mapRotateAnimationFrame = null;
-                    }
-                    
-                    window.funkiMap.flyTo({
-                        center: [markers[0].lng, markers[0].lat],
-                        zoom: 4, 
-                        pitch: 45,
-                        essential: true,
-                        duration: 4000
-                    });
+                    fitMarkersViewport(markers, 5, bbox);
 
                     markers.forEach(marker => {
                         const el = document.createElement('div');
                         el.className = 'marker pointer-events-auto';
-                        el.innerHTML = `
-                            <div class="bg-red-900/80 border border-red-400 text-red-100 text-[10px] font-mono px-2 py-1 rounded shadow-[0_0_15px_rgba(255,0,0,0.5)] cursor-pointer hover:scale-110 transition-transform relative z-50">
-                                <div class="absolute -inset-1 bg-red-500/30 rounded blur animate-pulse"><\/div>
-                                <span class="relative z-10 font-bold">${marker.title}<\/span>
-                            <\/div>
-                        `;
+                        const card = document.createElement('div');
+                        card.className = 'bg-rose-950/90 border border-rose-500 text-rose-100 text-[10px] font-mono px-2.5 py-1 rounded-lg shadow-lg cursor-pointer hover:scale-105 transition-transform relative z-50 max-w-[220px] truncate font-bold';
+                        card.textContent = String(marker.title || 'Ereignis');
+                        card.title = String((marker.title || '') + (marker.location_name ? ' · ' + marker.location_name : ''));
+                        el.appendChild(card);
 
                         el.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            if(marker.url) window.open(marker.url, '_blank');
+                            if (marker.url && /^https?:\/\//i.test(String(marker.url))) {
+                                window.open(marker.url, '_blank', 'noopener,noreferrer');
+                            } else {
+                                window.funkiMap.flyTo({ center: [Number(marker.lng), Number(marker.lat)], zoom: 12, duration: 1100 });
+                            }
                         });
 
                         const m = new mapboxgl.Marker(el)
-                            .setLngLat([marker.lng, marker.lat])
+                            .setLngLat([Number(marker.lng), Number(marker.lat)])
                             .addTo(window.funkiMap);
                             
                         window.newsMarkers.push(m);
                     });
+                    syncMarkerCount();
                 };
 
-                window.markPlaces = (markers) => {
+                window.markPlaces = (markers, bbox = null) => {
                     if (!window.funkiMap || !markers || !markers.length) return;
                     
                     if (window.placeMarkers) {
@@ -464,45 +595,35 @@
                     }
                     window.placeMarkers = [];
 
-                    if (window.mapRotateAnimationFrame) {
-                        cancelAnimationFrame(window.mapRotateAnimationFrame);
-                        window.mapRotateAnimationFrame = null;
-                    }
-                    
-                    window.funkiMap.flyTo({
-                        center: [markers[0].lng, markers[0].lat],
-                        zoom: 12, 
-                        pitch: 45,
-                        essential: true,
-                        duration: 4000
-                    });
+                    fitMarkersViewport(markers, 13, bbox);
 
                     markers.forEach(marker => {
                         const el = document.createElement('div');
                         el.className = 'marker pointer-events-auto group';
+                        const safeTitle = escapeMapHtml(marker.title || 'Ort');
+                        const safeLoc = escapeMapHtml(marker.location_name || '');
                         el.innerHTML = `
-                            <div class="bg-cyan-900/80 border border-cyan-400 text-cyan-100 text-[10px] font-mono px-2 py-1 rounded shadow-[0_0_15px_rgba(0,240,255,0.5)] cursor-pointer hover:scale-110 transition-transform relative z-50">
-                                <div class="absolute -inset-1 bg-cyan-500/30 rounded blur animate-pulse"><\/div>
-                                <span class="relative z-10 font-bold">${marker.title}<\/span>
-                                
-                                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 bg-gray-900/95 border border-gray-700 rounded p-2 text-left shadow-2xl z-50 pointer-events-none">
-                                    <div class="text-white font-bold mb-1 border-b border-gray-700 pb-1 whitespace-normal leading-tight">${marker.title}<\/div>
-                                    <div class="text-gray-300 text-[9px] mb-1 whitespace-normal">${marker.location_name || ''}<\/div>
+                            <div class="bg-gray-950/90 border border-emerald-400 text-emerald-100 text-[10px] font-mono px-2.5 py-1 rounded-lg shadow-lg cursor-pointer hover:scale-105 transition-transform relative z-50">
+                                <span class="relative z-10 font-bold">${safeTitle}<\/span>
+                                <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-52 bg-gray-950/95 border border-gray-700 rounded-lg p-2 text-left shadow-2xl z-50 pointer-events-none">
+                                    <div class="text-white font-bold mb-1 border-b border-gray-800 pb-1 whitespace-normal leading-tight">${safeTitle}<\/div>
+                                    <div class="text-gray-300 text-[9px] whitespace-normal">${safeLoc}<\/div>
                                 <\/div>
                             <\/div>
                         `;
 
                         el.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            window.funkiMap.flyTo({ center: [marker.lng, marker.lat], zoom: 16 });
+                            window.funkiMap.flyTo({ center: [Number(marker.lng), Number(marker.lat)], zoom: 16, pitch: 60, duration: 1200 });
                         });
 
                         const m = new mapboxgl.Marker(el)
-                            .setLngLat([marker.lng, marker.lat])
+                            .setLngLat([Number(marker.lng), Number(marker.lat)])
                             .addTo(window.funkiMap);
                             
                         window.placeMarkers.push(m);
                     });
+                    syncMarkerCount();
                 };
 
                 window.clearMarkers = () => {
@@ -518,22 +639,34 @@
                         window.placeMarkers.forEach(m => m.remove());
                         window.placeMarkers = [];
                     }
+                    syncMarkerCount();
                 };
             },
             
             async fetchLiveFlightData() {
                 if (!this.isFlightDataActive || !window.funkiMap) return;
                 try {
-                    // Using OpenSky API for live flights over Europe/World.
-                    // For performance, we limit to the first 1000 flights returned, or a bounding box if we had one.
-                    const response = await fetch('/api/flights');
+                    let url = '/api/flights';
+                    try {
+                        const b = window.funkiMap.getBounds();
+                        if (b) {
+                            const params = new URLSearchParams({
+                                lamin: Math.max(-85, b.getSouth()).toFixed(1),
+                                lamax: Math.min(85, b.getNorth()).toFixed(1),
+                                lomin: Math.max(-180, b.getWest()).toFixed(1),
+                                lomax: Math.min(180, b.getEast()).toFixed(1)
+                            });
+                            url += '?' + params.toString();
+                        }
+                    } catch (bErr) {}
+
+                    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
                     if (!response.ok) return;
                     const data = await response.json();
                     
                     const features = [];
-                    if (data && data.states) {
-                        // Take up to 1000 planes to keep performance high
-                        const limit = Math.min(data.states.length, 1000);
+                    if (data && Array.isArray(data.states)) {
+                        const limit = Math.min(data.states.length, 600);
                         for (let i = 0; i < limit; i++) {
                             const state = data.states[i];
                             const lng = state[5];
@@ -545,21 +678,22 @@
                                     type: 'Feature',
                                     geometry: { type: 'Point', coordinates: [lng, lat] },
                                     properties: {
-                                        callsign: state[1] ? state[1].trim() : 'UNKNOWN',
-                                        country: state[2],
-                                        velocity: state[9],
-                                        heading: state[10]
+                                        callsign: state[1] ? String(state[1]).trim() : 'UNKNOWN',
+                                        country: state[2] || 'Unbekannt',
+                                        origin_country: state[2] || 'Unbekannt',
+                                        geo_altitude: state[13] ?? state[7] ?? 0,
+                                        velocity: state[9] ?? 0,
+                                        heading: state[10] ?? 0
                                     }
                                 });
                             }
                         }
                     }
                     
+                    const fc = { type: 'FeatureCollection', features: features };
+                    window._lastFlightsGeoJson = fc;
                     if (window.funkiMap.getSource('live-flights')) {
-                        window.funkiMap.getSource('live-flights').setData({
-                            type: 'FeatureCollection',
-                            features: features
-                        });
+                        window.funkiMap.getSource('live-flights').setData(fc);
                     }
                 } catch (e) {
                     console.log('Flight data fetch error:', e);
@@ -569,31 +703,35 @@
             generateCrisisData() {
                 if (!this.isFlightDataActive || !window.funkiMap) return;
                 
-                // Approximate coordinates of current major crisis zones
                 const crises = [
                     { lng: 37.0, lat: 48.0, name: "Ukraine" },
-                    { lng: 34.5, lat: 31.5, name: "Gaza / Israel" },
+                    { lng: 34.5, lat: 31.5, name: "Nahost" },
                     { lng: 30.0, lat: 15.0, name: "Sudan" },
-                    { lng: 43.0, lat: 15.0, name: "Yemen" },
-                    { lng: 28.0, lat: -4.0, name: "DR Congo" },
+                    { lng: 43.0, lat: 15.0, name: "Jemen" },
+                    { lng: 28.0, lat: -4.0, name: "DR Kongo" },
                     { lng: 96.0, lat: 21.0, name: "Myanmar" }
                 ];
                 
-                const features = crises.map(c => ({
-                    type: 'Feature',
-                    geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
-                    properties: { name: c.name }
-                }));
+                const fc = {
+                    type: 'FeatureCollection',
+                    features: crises.map(c => ({
+                        type: 'Feature',
+                        geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
+                        properties: { name: c.name }
+                    }))
+                };
+                window._lastCrisesGeoJson = fc;
                 
                 if (window.funkiMap.getSource('live-crises')) {
-                    window.funkiMap.getSource('live-crises').setData({
-                        type: 'FeatureCollection',
-                        features: features
-                    });
+                    window.funkiMap.getSource('live-crises').setData(fc);
                 }
             },
 
             destroyMapbox() {
+                if (this.flightDataInterval) {
+                    clearInterval(this.flightDataInterval);
+                    this.flightDataInterval = null;
+                }
                 if (window.funkiMap) {
                     window.funkiMap.remove();
                     window.funkiMap = null;

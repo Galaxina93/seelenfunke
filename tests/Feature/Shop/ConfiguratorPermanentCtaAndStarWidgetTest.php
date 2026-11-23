@@ -235,7 +235,7 @@ class ConfiguratorPermanentCtaAndStarWidgetTest extends TestCase
         $this->assertStringContainsString('#F5B301', $configuratorHtml);
         $this->assertStringContainsString('#D97706', $configuratorHtml);
 
-        // 2. Funkenreich (CustomerDashboard & CustomerFunkiComponent mit Besuchs-Gate)
+        // 2. Funkenreich (nur im CustomerDashboard beim Hauptbutton „Ins Funkenreich“, nicht doppelt bei „Rabatt-Gutscheine freischalten“)
         $dashboardHtml = Livewire::test(CustomerDashboardComponent::class)->html();
         $this->assertStringContainsString('data-experience-star-widget="funkenreich"', $dashboardHtml);
         $this->assertStringContainsString('3D-Atelier bewerten', $dashboardHtml);
@@ -243,9 +243,7 @@ class ConfiguratorPermanentCtaAndStarWidgetTest extends TestCase
         $this->assertStringContainsString('sf-funkenreich-visited', $dashboardHtml);
 
         $funkiHtml = Livewire::test(CustomerFunkiComponent::class)->html();
-        $this->assertStringContainsString('data-experience-star-widget="funkenreich"', $funkiHtml);
-        $this->assertStringContainsString('sf_visited_funkenreich_v1', $funkiHtml);
-        $this->assertStringContainsString('sf-funkenreich-visited', $funkiHtml);
+        $this->assertStringNotContainsString('data-experience-star-widget="funkenreich"', $funkiHtml);
 
         // 3. Angebots-Kalkulator (Step 3 Formular & Step 1 mit Artikel)
         $calculatorStep3Html = Livewire::test(ProductCalculator::class)

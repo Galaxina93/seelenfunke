@@ -1876,10 +1876,17 @@ class MasterAnalytics extends Component
                 }
             }
 
-            $openTotal = $receiptDrafts + $replyDrafts;
+            $mailInvoiceReviews = \App\Models\Management\Mail\MailAttachment::where('funnel_status', 'needs_review')
+                ->whereHas('message', fn($q) => $q->where('folder', '!=', 'Junk'))
+                ->count();
+
+            $openTotal = $receiptDrafts + $replyDrafts + $mailInvoiceReviews;
             $parts = [];
             if ($receiptDrafts > 0) {
                 $parts[] = $receiptDrafts . ' Beleg-Scan' . ($receiptDrafts > 1 ? 's' : '');
+            }
+            if ($mailInvoiceReviews > 0) {
+                $parts[] = $mailInvoiceReviews . ' Mail-Rechnung' . ($mailInvoiceReviews > 1 ? 'en' : '') . ' prüfen';
             }
             if ($replyDrafts > 0) {
                 $parts[] = $replyDrafts . ' Antwort-Entw' . ($replyDrafts > 1 ? 'ürfe' : 'urf');
@@ -2404,7 +2411,7 @@ class MasterAnalytics extends Component
         }
 
         try {
-            $result = \App\Services\AI\Functions\AiSystemFuncs::executeAnalyzeSecurityThreats(['send_email' => false]);
+            $result = \App\Services\AI\AIFunctionsRegistry::executeAnalyzeSecurityThreats(['send_email' => false]);
             if (($result['status'] ?? '') === 'success') {
                 $this->latestSecurityReport = !empty($result['report_file']) ? basename((string) $result['report_file']) : null;
                 $filePath = 'agenten/workspace/Dokumente/Berichte/' . $this->latestSecurityReport;

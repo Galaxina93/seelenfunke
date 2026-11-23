@@ -186,6 +186,17 @@ class SystemErrorLogger
             ];
         }
 
+        if (
+            (str_contains($msgLower, 'getaddrinfo for db') || str_contains($msgLower, 'sqlstate[hy000] [2002]'))
+            && (str_contains($msgLower, 'connection: mysql') || str_contains($classLower, 'queryexception') || str_contains($classLower, 'pdoexception'))
+        ) {
+            return [
+                'category' => 'mysql_transient_dns_or_socket',
+                'probable_cause' => 'Kurzzeitiger Docker-/Netzwerk-DNS-Neustart des MySQL-Hosts (db) oder kurzes Verbindungs-Reconnect.',
+                'recommended_action' => 'Automatischer Verbindungs-Purge & Reconnect durch ZeroTokenSelfHealer aktiv. Nur bei dauerhaftem Ausfall Container meine_datenbank prüfen.',
+            ];
+        }
+
         if (str_contains($msgLower, 'getaddrinfo') || str_contains($msgLower, 'redis') || str_contains($classLower, 'predis')) {
             return [
                 'category' => 'redis_connectivity_or_dns',

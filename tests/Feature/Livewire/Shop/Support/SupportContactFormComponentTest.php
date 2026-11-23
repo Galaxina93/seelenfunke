@@ -144,7 +144,7 @@ class SupportContactFormComponentTest extends TestCase
         $this->assertStringContainsString('benötigen wir noch ein paar kleine Details', $component->get('replyMessage'));
 
         $component->call('insertCannedResponse', 'calculator');
-        $this->assertStringContainsString('/kalkulator', $component->get('replyMessage'));
+        $this->assertStringContainsString('/calculator', $component->get('replyMessage'));
     }
 
     public function test_can_send_reply_and_create_message_thread()

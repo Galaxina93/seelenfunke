@@ -470,11 +470,40 @@ namespace FunkenwerkPlayer
                             $"AutoPlay={tekkAutoPlayed}, FavSync={favAutoPlayed}, Queue2={focusQueueLoaded}, Next={firstFocusId}->{secondFocusId}, Prev={prevReturned}, Toggle={pausedOk}->{resumedOk}, Shuffle={shuffleOn}->{shuffleOff}");
                     });
 
-                    // 20. Version badge metadata check (v1.5.0 · Build 15)
+                    // 20. Real MediaElement clock advances past 00:00 (guards against pre-MediaOpened SpeedRatio freeze)
+                    Check("RealAudioClockAdvancesPastZero", () =>
+                    {
+                        string clockTestWav = Path.Combine(tempRoot, "clock_advance.wav");
+                        WritePcmSineWav(clockTestWav, durationSeconds: 2.0, frequencyHz: 440.0);
+                        win.Width = 640;
+                        win.Height = 420;
+                        win.ShowActivated = false;
+                        win.Opacity = 0.0;
+                        win.Show();
+
+                        win.SetMuted(true);
+                        win.LoadPathsIntoPlayer(new[] { clockTestWav }, autoPlayFirst: true);
+
+                        var sw = Stopwatch.StartNew();
+                        while (sw.ElapsedMilliseconds < 650)
+                        {
+                            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+                                () => { },
+                                System.Windows.Threading.DispatcherPriority.Background);
+                            System.Threading.Thread.Sleep(25);
+                        }
+
+                        double posMs = win.PlayerMediaElement.Position.TotalMilliseconds;
+                        win.ClearPlaylist();
+                        win.SetMuted(false);
+                        return (posMs >= 120.0, $"ElapsedClockMs={posMs:F0}ms");
+                    });
+
+                    // 21. Version badge metadata check (v1.5.1 · Build 16)
                     Check("LogicalVersionBadgePresent", () =>
                     {
                         var asmVer = typeof(MainWindow).Assembly.GetName().Version;
-                        bool verOk = asmVer != null && asmVer.Major == 1 && asmVer.Minor == 5 && asmVer.Build == 0 && asmVer.Revision == 15;
+                        bool verOk = asmVer != null && asmVer.Major == 1 && asmVer.Minor == 5 && asmVer.Build == 1 && asmVer.Revision == 16;
                         return (verOk, $"AssemblyVersion={asmVer}");
                     });
                 }

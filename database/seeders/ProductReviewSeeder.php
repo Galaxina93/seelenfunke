@@ -16,6 +16,9 @@ class ProductReviewSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->environment('production')) {
+            return;
+        }
         $products = Product::all();
         $customers = Customer::all();
 

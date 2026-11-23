@@ -132,13 +132,13 @@
             android:layout_height="1dp"
             android:layout_weight="1" />
 
-        <!-- 1-Tap Falcone Live-Call Button -->
+        <!-- 1-Tap Funkira Live-Call Button -->
         <ImageView
             android:id="@+id/btn_master_falcone"
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:background="@drawable/widget_button_gold_shape"
-            android:contentDescription="Falcone Direktstart"
+            android:contentDescription="Funkira Direktstart"
             android:padding="7dp"
             android:src="@drawable/ic_widget_mic" />
 

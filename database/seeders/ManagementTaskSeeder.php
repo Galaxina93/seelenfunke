@@ -228,7 +228,7 @@ class ManagementTaskSeeder extends Seeder
                     [
                         'title' => 'Landing Pages umfangreich und fett mit den echten Produktfotos & Multi-Profil-Logik (Jahreszeiten & Feiertage) aufbauen',
                         'priority' => 'hoch',
-                        'ai_plan' => "Konzept-Verknüpfung: Abschlussberichte/Konzepte/Konzept_Google_Ads_Autopilot_und_Merchant_Strategie.md\n\nArchitektur-Vorgabe:\n1. KEINE 117 einzelnen Landing Pages verwalten, sondern 1 feste Produkt-Landingpage (/l/{slug}) mit 13 logischen Vorlagen-Profilen (1 Standard/Evergreen + 4 Jahreszeiten + 8 Feiertage).\n2. Jedes Profil passt Headline, Verkaufstext, 3 Vorteile, Story-Sektion, Lieferfrist-Hinweis und Hero-Bild logisch an den aktiven Feiertag bzw. die Jahreszeit an (inkl. ?holiday={anlass} für Google Ads & Post-Holiday-Guard nach dem Fest).\n3. Strikter Bild-Fallback in Product.php: Ist z. B. Weihnachten vorbei und das Folge-Saisonbild (Winter) fehlt noch, greift sofort das neutrale Hauptbild (is_main = true), während am Produkt selbst gemeldet wird, welche Jahreszeiten-/Feiertagsbilder noch fehlen.",
+                        'ai_plan' => "Konzept-Verknüpfung: Wissensdatenbank (/admin/tickets?view=knowledge -> Marketing / Google-Ads-Autopilot)\n\nArchitektur-Vorgabe:\n1. KEINE 117 einzelnen Landing Pages verwalten, sondern 1 feste Produkt-Landingpage (/l/{slug}) mit 13 logischen Vorlagen-Profilen (1 Standard/Evergreen + 4 Jahreszeiten + 8 Feiertage).\n2. Jedes Profil passt Headline, Verkaufstext, 3 Vorteile, Story-Sektion, Lieferfrist-Hinweis und Hero-Bild logisch an den aktiven Feiertag bzw. die Jahreszeit an (inkl. ?holiday={anlass} für Google Ads & Post-Holiday-Guard nach dem Fest).\n3. Strikter Bild-Fallback in Product.php: Ist z. B. Weihnachten vorbei und das Folge-Saisonbild (Winter) fehlt noch, greift sofort das neutrale Hauptbild (is_main = true), während am Produkt selbst gemeldet wird, welche Jahreszeiten-/Feiertagsbilder noch fehlen.",
                         'subtasks' => [
                             [
                                 'title' => 'Bild-Fallback-Kaskade in Product.php härten: Nach Feiertags-Ende sofort Fallback auf neutrales Hauptbild (kein Stehenbleiben von Weihnachtsbildern) + Fehlmeldung am Produkt schärfen',
@@ -253,7 +253,7 @@ class ManagementTaskSeeder extends Seeder
                     [
                         'title' => 'Sobald alle echten Produktfotos im System hinterlegt sind: Google-Ads- & Merchant-Center-Autopilot („Bis zum letzten Klick") nach Konzept umsetzen',
                         'priority' => 'hoch',
-                        'ai_plan' => "WICHTIG (Start-Voraussetzung): Erst starten, sobald alle Produktfotos aus PHASE 1 selbst echt fotografiert (ohne Werbetext-Overlays im Bild für Google Shopping!) und ohne KI-Platzhalter im System hinterlegt sind!\nKonzept-Dokument: Abschlussberichte/Konzepte/Konzept_Google_Ads_Autopilot_und_Merchant_Strategie.md\n\nGeplanter Ablauf:\n1. Google Ads Konto & Google Merchant Center auf Mein-Seelenfunke (Alina Steinhauer, Gifhorn, FYRST) eröffnen + Überprüfung der Werbetreibenden durchführen.\n2. Stufe 1 (Shop-Tracking & Feed): Cookie-Kategorie 'marketing' + Google Consent Mode v2 + Kaufwert-Conversion-Tracking in OrderCheckoutSuccess + Echtfoto-Gatekeeper in /feed/google-shopping.xml.\n3. Stufe 2 (Saison- & Evergreen-Kampagnen-Studio): Ausbau in Funkenwerk Space #8 ('Ads & Budget') für Zugpferde (>= 20 € Netto-DB) -> Schicht A Evergreen auf /l/{slug} + Schicht B Feiertags-/Jahreszeiten-Anzeigengruppen auf /l/{slug}?holiday={anlass} (nur aktiv bei vorhandenem Echtfoto des Anlasses!).\n4. Stufe 3 (Google Ads API mit PAUSED-Schreibschutz & Versand-Cutoff-Stopp): Offizielle Google Ads API ('Explorer Access') anbinden -> Kampagnen werden fertig pausiert ins Konto gelegt (Alina klickt nur noch auf 'Aktiv') und Feiertags-Ads pausieren exakt am Manufaktur-Versand-Cutoff vor dem Fest automatisch.",
+                        'ai_plan' => "WICHTIG (Start-Voraussetzung): Erst starten, sobald alle Produktfotos aus PHASE 1 selbst echt fotografiert (ohne Werbetext-Overlays im Bild für Google Shopping!) und ohne KI-Platzhalter im System hinterlegt sind!\nKonzept-Dokument: Wissensdatenbank (/admin/tickets?view=knowledge -> Marketing / Google-Ads-Autopilot)\n\nGeplanter Ablauf:\n1. Google Ads Konto & Google Merchant Center auf Mein-Seelenfunke (Alina Steinhauer, Gifhorn, FYRST) eröffnen + Überprüfung der Werbetreibenden durchführen.\n2. Stufe 1 (Shop-Tracking & Feed): Cookie-Kategorie 'marketing' + Google Consent Mode v2 + Kaufwert-Conversion-Tracking in OrderCheckoutSuccess + Echtfoto-Gatekeeper in /feed/google-shopping.xml.\n3. Stufe 2 (Saison- & Evergreen-Kampagnen-Studio): Ausbau in Funkenwerk Space #8 ('Ads & Budget') für Zugpferde (>= 20 € Netto-DB) -> Schicht A Evergreen auf /l/{slug} + Schicht B Feiertags-/Jahreszeiten-Anzeigengruppen auf /l/{slug}?holiday={anlass} (nur aktiv bei vorhandenem Echtfoto des Anlasses!).\n4. Stufe 3 (Google Ads API mit PAUSED-Schreibschutz & Versand-Cutoff-Stopp): Offizielle Google Ads API ('Explorer Access') anbinden -> Kampagnen werden fertig pausiert ins Konto gelegt (Alina klickt nur noch auf 'Aktiv') und Feiertags-Ads pausieren exakt am Manufaktur-Versand-Cutoff vor dem Fest automatisch.",
                         'subtasks' => [
                             'Google-Ads-Konto (792-675-8923, FYRST, Verifizierung abgeschlossen) & Google-Merchant-Center-Konto eröffnen',
                             [
@@ -322,8 +322,6 @@ class ManagementTaskSeeder extends Seeder
                     'color' => '#805AD5',
                 ],
                 'taks' => [
-                    ['title' => 'Web Socket Einrichten (Env Files beachten Pusher Variablen, REVERB und BROADCAST_CONNECTION)', 'priority' => 'hoch'],
-                    ['title' => 'DB Seeder die nicht gebraucht werden deaktivieren', 'priority' => 'mittel'],
                     ['title' => 'DHL API Keys auf Live anpassen', 'priority' => 'hoch'],
                     [
                         'title' => 'Nach Livegang: FYRST-Geschäftskonto in Stripe hinterlegen & Live-Auszahlungen aktivieren -> https://dashboard.stripe.com/acct_1Sttm3GnukHKxpOe/test/settings/money-management',
@@ -336,7 +334,6 @@ class ManagementTaskSeeder extends Seeder
                             'Stripe Live-API-Keys (STRIPE_KEY, STRIPE_SECRET, STRIPE_WEBHOOK_SECRET) in der Live-.env hinterlegen',
                         ],
                     ],
-                    ['title' => 'Google Bewertungen implementieren - TEMPORÄRER TEST-MODUS', 'priority' => 'mittel'],
                     ['title' => 'Die Archivrechnungen entfernen für einen cleanen start', 'priority' => 'hoch'],
                     [
                         'title' => 'Nach Livegang (sobald alle Produkte gelasert & online sind): Erste 2 UGC-Creatorinnen (@content.by.lea & @anna_lena_plz) für PR-Sample + 15 % Partner-Deal anschreiben',

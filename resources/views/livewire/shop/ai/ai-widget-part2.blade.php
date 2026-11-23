@@ -73,8 +73,8 @@
             isSecretMode: false,
             currentChatSessionId: '{{ $currentChatSessionId ?? $this->currentChatSessionId }}',
             lastInformedLiveSessionId: null,
-            chatSessions: @js($this->chatSessions()->map(fn($s) => ['id' => (string)$s->id, 'title' => (string)($s->title ?? 'Neuer Chat')])->values()->toArray()),
-            agentsMap: @js(collect($availableAgents ?? \App\Models\Ai\AiAgent::where('is_active', true)->get())->keyBy('id')->map(fn($a) => ['id' => (string)$a->id, 'name' => (string)$a->name, 'color' => (string)$a->color, 'profile_picture_url' => (string)($a->profile_picture_url ?? '')])->toArray()),
+            chatSessions: @js(collect($chatSessions ?? $this->chatSessions())->map(fn($s) => ['id' => (string)$s->id, 'title' => (string)($s->title ?? 'Neuer Chat')])->values()->toArray()),
+            agentsMap: @js(collect($availableAgents ?? [])->keyBy('id')->map(fn($a) => ['id' => (string)$a->id, 'name' => (string)$a->name, 'color' => (string)$a->color, 'profile_picture_url' => (string)($a->profile_picture_url ?? '')])->toArray()),
             isJarvis: false,
             jarvisMinimized: false,
             showJarvisFlash: false,
@@ -82,6 +82,29 @@
             shelfWidgets: [],
             cameraWidget: null,
             orgChartWidget: null,
+            // Top Secret Vault State (RAM-only, wiped on lock/close)
+            secretTab: 'vault',
+            secretSearch: '',
+            secretVaultLoading: false,
+            secretVaultIntel: [],
+            secretVaultRelations: [],
+            secretNetworkNodes: [],
+            secretNetworkSvg: '',
+            secretSelectedNode: '',
+            secretShowAddIntel: false,
+            secretShowAddRelation: false,
+            secretNewIntelTitle: '',
+            secretNewIntelContent: '',
+            secretNewIntelTags: '',
+            secretNewRelSource: '',
+            secretNewRelTarget: '',
+            secretNewRelType: '',
+            secretNewRelEvidence: '',
+            // Map Quick-HUD State
+            mapQuickQuery: '',
+            mapQuickResults: [],
+            mapQuickSearching: false,
+            mapMarkerCount: 0,
             activeMapStyle: 'mapbox://styles/mapbox/dark-v11',
             mapStyles: [
                 { id: 'mapbox://styles/mapbox/dark-v11', name: 'Dark Cyber' },
@@ -90,6 +113,256 @@
                 { id: 'mapbox://styles/mapbox/standard', name: '3D Standard' },
                 { id: 'mapbox://styles/mapbox/outdoors-v12', name: 'Outdoors' }
             ],
+
+            safeCaseCode(str) {
+                const s = String(str || 'CLASSIFIED');
+                let h = 2166136261;
+                for (let i = 0; i < s.length; i++) {
+                    h ^= s.charCodeAt(i);
+                    h = Math.imul(h, 16777619);
+                }
+                return (h >>> 0).toString(16).toUpperCase().padStart(8, '0');
+            },
+
+            filteredVaultIntel() {
+                const q = (this.secretSearch || '').trim().toLowerCase();
+                const nodeFilter = (this.secretSelectedNode || '').trim().toLowerCase();
+                return (this.secretVaultIntel || []).filter(item => {
+                    const hay = ((item.title || '') + ' ' + (item.content || '') + ' ' + (item.tags || []).join(' ')).toLowerCase();
+                    if (q && !hay.includes(q)) return false;
+                    if (nodeFilter && !hay.includes(nodeFilter)) return false;
+                    return true;
+                });
+            },
+
+            filteredVaultRelations() {
+                const q = (this.secretSearch || '').trim().toLowerCase();
+                const nodeFilter = (this.secretSelectedNode || '').trim().toLowerCase();
+                return (this.secretVaultRelations || []).filter(r => {
+                    const hay = ((r.source || '') + ' ' + (r.target || '') + ' ' + (r.relationship || '') + ' ' + (r.evidence || '')).toLowerCase();
+                    if (q && !hay.includes(q)) return false;
+                    if (nodeFilter && (r.source || '').toLowerCase() !== nodeFilter && (r.target || '').toLowerCase() !== nodeFilter) return false;
+                    return true;
+                });
+            },
+
+            secretNetworkGraph() {
+                const rels = this.secretVaultRelations || [];
+                const intel = this.secretVaultIntel || [];
+                const entityMap = new Map();
+                const addEntity = (name, isDossier = false) => {
+                    const clean = String(name || '').trim();
+                    if (!clean) return;
+                    const key = clean.toLowerCase();
+                    if (!entityMap.has(key)) {
+                        entityMap.set(key, { key, label: clean, degree: 0, hasDossier: isDossier });
+                    } else if (isDossier) {
+                        entityMap.get(key).hasDossier = true;
+                    }
+                };
+                rels.forEach(r => {
+                    addEntity(r.source, false);
+                    addEntity(r.target, false);
+                    const sk = String(r.source || '').trim().toLowerCase();
+                    const tk = String(r.target || '').trim().toLowerCase();
+                    if (entityMap.has(sk)) entityMap.get(sk).degree++;
+                    if (entityMap.has(tk)) entityMap.get(tk).degree++;
+                });
+                intel.slice(0, 14).forEach(i => addEntity(i.title, true));
+
+                const nodes = Array.from(entityMap.values()).slice(0, 18);
+                const count = nodes.length;
+                const cx = 500, cy = 270;
+                const rx = count <= 4 ? 220 : 350;
+                const ry = count <= 4 ? 140 : 195;
+
+                nodes.forEach((n, idx) => {
+                    if (count === 1) {
+                        n.x = cx; n.y = cy;
+                    } else {
+                        const angle = (-Math.PI / 2) + (2 * Math.PI * idx / count);
+                        n.x = Math.round(cx + rx * Math.cos(angle));
+                        n.y = Math.round(cy + ry * Math.sin(angle));
+                    }
+                });
+
+                const posByKey = new Map(nodes.map(n => [n.key, n]));
+                const edges = [];
+                rels.forEach(r => {
+                    const s = posByKey.get(String(r.source || '').trim().toLowerCase());
+                    const t = posByKey.get(String(r.target || '').trim().toLowerCase());
+                    if (s && t && s.key !== t.key) {
+                        edges.push({
+                            id: r.id,
+                            x1: s.x, y1: s.y,
+                            x2: t.x, y2: t.y,
+                            mx: Math.round((s.x + t.x) / 2),
+                            my: Math.round((s.y + t.y) / 2),
+                            label: r.relationship || 'Verbindung',
+                            evidence: r.evidence || ''
+                        });
+                    }
+                });
+
+                return { nodes, edges };
+            },
+
+            recomputeSecretNetwork() {
+                const { nodes, edges } = this.secretNetworkGraph();
+                this.secretNetworkNodes = nodes;
+                const esc = (s) => String(s || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+                let out = '<defs><marker id="ts-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="#ef4444"></path></marker></defs>';
+                edges.forEach(e => {
+                    const lbl = esc(String(e.label || 'Verbindung').substring(0, 18));
+                    out += `<g><line x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}" stroke="#dc2626" stroke-width="2" stroke-opacity="0.78" marker-end="url(#ts-arrow)"></line>`
+                        + `<rect x="${e.mx - 58}" y="${e.my - 10}" width="116" height="20" rx="6" fill="#090b10" stroke="#7f1d1d" stroke-width="1"></rect>`
+                        + `<text x="${e.mx}" y="${e.my + 3}" text-anchor="middle" fill="#fca5a5" font-size="9" font-family="monospace">${lbl}</text></g>`;
+                });
+                this.secretNetworkSvg = out;
+            },
+
+            async loadTopSecretVault() {
+                @if(!($isAdminUser ?? false))
+                return;
+                @endif
+                this.secretVaultLoading = true;
+                try {
+                    const res = await fetch('/api/ai/top-secret/vault', {
+                        headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.secretVaultIntel = Array.isArray(data.intel) ? data.intel : [];
+                        this.secretVaultRelations = Array.isArray(data.relations) ? data.relations : [];
+                        this.recomputeSecretNetwork();
+                    }
+                } catch (e) {
+                    console.warn('Top Secret Vault load failed:', e);
+                } finally {
+                    this.secretVaultLoading = false;
+                }
+            },
+
+            async saveTopSecretIntel() {
+                const title = (this.secretNewIntelTitle || '').trim();
+                const content = (this.secretNewIntelContent || '').trim();
+                if (!title || !content) return;
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                try {
+                    const res = await fetch('/api/ai/top-secret/intel', {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+                        body: JSON.stringify({ title, content, tags: this.secretNewIntelTags })
+                    });
+                    if (res.ok) {
+                        this.secretNewIntelTitle = '';
+                        this.secretNewIntelContent = '';
+                        this.secretNewIntelTags = '';
+                        this.secretShowAddIntel = false;
+                        await this.loadTopSecretVault();
+                    }
+                } catch (e) {}
+            },
+
+            async saveTopSecretRelation() {
+                const source = (this.secretNewRelSource || '').trim();
+                const target = (this.secretNewRelTarget || '').trim();
+                if (!source || !target) return;
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                try {
+                    const res = await fetch('/api/ai/top-secret/relation', {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': token },
+                        body: JSON.stringify({
+                            source,
+                            target,
+                            relationship: (this.secretNewRelType || 'Verbindung').trim(),
+                            evidence: (this.secretNewRelEvidence || '').trim()
+                        })
+                    });
+                    if (res.ok) {
+                        this.secretNewRelSource = '';
+                        this.secretNewRelTarget = '';
+                        this.secretNewRelType = '';
+                        this.secretNewRelEvidence = '';
+                        this.secretShowAddRelation = false;
+                        await this.loadTopSecretVault();
+                    }
+                } catch (e) {}
+            },
+
+            async deleteTopSecretEntry(id) {
+                if (!id) return;
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                try {
+                    const res = await fetch('/api/ai/top-secret/entry/' + encodeURIComponent(id), {
+                        method: 'DELETE',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token }
+                    });
+                    if (res.ok) {
+                        this.secretVaultIntel = this.secretVaultIntel.filter(i => i.id !== id);
+                        this.secretVaultRelations = this.secretVaultRelations.filter(r => r.id !== id);
+                        this.recomputeSecretNetwork();
+                    }
+                } catch (e) {}
+            },
+
+            lockAndPurgeTopSecret() {
+                this.isSecretMode = false;
+                this.intelWidgets = [];
+                this.personaWidgets = [];
+                this.shelfWidgets = [];
+                this.orgChartWidget = null;
+                this.secretVaultIntel = [];
+                this.secretVaultRelations = [];
+                this.secretNetworkNodes = [];
+                this.secretNetworkSvg = '';
+                this.secretSearch = '';
+                this.secretSelectedNode = '';
+                this.secretShowAddIntel = false;
+                this.secretShowAddRelation = false;
+                if (this.mainScreenWidget && (this.mainScreenWidget.type === 'persona' || this.mainScreenWidget.type === 'intel')) {
+                    this.clearMainScreenWidget();
+                }
+                this.playAudio('secret-close');
+            },
+
+            async runMapQuickSearch() {
+                const q = (this.mapQuickQuery || '').trim();
+                if (q.length < 2) {
+                    this.mapQuickResults = [];
+                    return;
+                }
+                this.mapQuickSearching = true;
+                try {
+                    const res = await fetch('/api/ai/map-quick-search?q=' + encodeURIComponent(q), {
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        this.mapQuickResults = Array.isArray(data.results) ? data.results : [];
+                    }
+                } catch (e) {
+                    this.mapQuickResults = [];
+                } finally {
+                    this.mapQuickSearching = false;
+                }
+            },
+
+            selectMapQuickResult(item) {
+                if (!item) return;
+                this.mapQuickResults = [];
+                this.mapQuickQuery = item.title || '';
+                this.ensureMapboxReady().then(() => {
+                    if (typeof window.flyToLocation === 'function') {
+                        window.flyToLocation(item.lng, item.lat, item.zoom || 14, item.pitch || 50, item.title || '');
+                    }
+                });
+            },
 
             isAudioMuted: localStorage.getItem('funki_isAudioMuted') !== null ? localStorage.getItem('funki_isAudioMuted') === 'true' : true, // Default to muted as requested
             isMicMuted: false,
@@ -151,6 +424,134 @@
             lastVoiceDetectedTime: 0,
             isToolCallPending: false,
             turnDrainTimeout: null,
+            liveInactivityWatchdog: null,
+            liveLastInteractionAt: 0,
+            liveInactivityStage: 'active', // 'active' | 'check_sent' | 'waiting_reply' | 'farewell'
+            liveInactivityStageStartedAt: 0,
+            liveBedtimeNotifiedKeys: {},
+
+            resetLiveInactivityTimer() {
+                if (this.liveInactivityStage === 'farewell') return;
+                this.liveLastInteractionAt = Date.now();
+                this.liveInactivityStage = 'active';
+                this.liveInactivityStageStartedAt = 0;
+            },
+
+            sendLiveSystemPrompt(promptText) {
+                if (!this.liveWs || this.liveWs.readyState !== WebSocket.OPEN || !this.isSetupComplete) return false;
+                try {
+                    this.liveWs.send(JSON.stringify({
+                        clientContent: {
+                            turns: [{ role: 'user', parts: [{ text: promptText }] }],
+                            turnComplete: true
+                        }
+                    }));
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            },
+
+            evaluateLiveBedtimeSchedule() {
+                if (!this.isLiveMode || !this.isSetupComplete) return;
+                const busy = this.isSpeaking || this.isAiSpeakingTurn || this.thinking || this.isToolCallPending || (this.activeAudioSources && this.activeAudioSources.length > 0);
+                if (busy) return;
+                const now = new Date();
+                const dateKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                const mins = now.getHours() * 60 + now.getMinutes();
+
+                // 22:00 - 22:29 Uhr: Bettfertig & Runterfahren (7 Tage die Woche inkl. Wochenende)
+                if (mins >= (22 * 60) && mins < (22 * 60 + 30)) {
+                    const k2200 = `${dateKey}_2200`;
+                    if (!this.liveBedtimeNotifiedKeys[k2200]) {
+                        this.liveBedtimeNotifiedKeys[k2200] = true;
+                        this.resetLiveInactivityTimer();
+                        this.sendLiveSystemPrompt('[SYSTEM-ROUTINE-ERINNERUNG 22:00 UHR (GILT AUCH AM WOCHENENDE): Es ist jetzt Bettfertig-Zeit (22:00 Uhr: Bettfertig & Runterfahren). Erinnere Alina jetzt herzlich-bestimmt in 1 bis 2 kurzen Sätzen auf Deutsch daran, langsam runterzufahren und sich bettfertig zu machen, damit um 22:30 Uhr pünktlich Nachtruhe ist.]');
+                    }
+                }
+
+                // Ab 22:30 Uhr: Nachtruhe & Regeneration (7 Tage die Woche inkl. Wochenende)
+                if (mins >= (22 * 60 + 30) || mins < (5 * 60)) {
+                    const k2230 = `${dateKey}_2230`;
+                    if (!this.liveBedtimeNotifiedKeys[k2230]) {
+                        this.liveBedtimeNotifiedKeys[k2230] = true;
+                        this.resetLiveInactivityTimer();
+                        this.sendLiveSystemPrompt('[SYSTEM-SCHLAFENSZEIT-ERINNERUNG 22:30 UHR (GESUNDHEITS-PFLICHT AUCH AM WOCHENENDE): Es ist jetzt Nachtruhe (ab 22:30 Uhr). Erinnere Alina jetzt freundlich, aber bestimmt in 1 bis 2 kurzen Sätzen auf Deutsch daran, den Laptop/Bildschirm auszuschalten und schlafen zu gehen!]');
+                    }
+                }
+            },
+
+            startLiveInactivityWatchdog() {
+                if (this.liveInactivityWatchdog) {
+                    clearInterval(this.liveInactivityWatchdog);
+                }
+                this.liveLastInteractionAt = Date.now();
+                this.liveInactivityStage = 'active';
+                this.liveInactivityStageStartedAt = 0;
+
+                // Falls der Live-Call bereits während 22:00 / 22:30 geöffnet wurde, hat der Server-Systemprompt es schon geladen;
+                // wir markieren nur vergangene Schwellen vor über 8 Minuten als gesehen, damit bei frischem Überschreiten von 22:00 / 22:30 live erinnert wird.
+                const nowInit = new Date();
+                const dKey = `${nowInit.getFullYear()}-${String(nowInit.getMonth() + 1).padStart(2, '0')}-${String(nowInit.getDate()).padStart(2, '0')}`;
+                const initMins = nowInit.getHours() * 60 + nowInit.getMinutes();
+                if (initMins > (22 * 60 + 5)) {
+                    this.liveBedtimeNotifiedKeys[`${dKey}_2200`] = true;
+                }
+                if (initMins > (22 * 60 + 35) || initMins < (5 * 60)) {
+                    this.liveBedtimeNotifiedKeys[`${dKey}_2230`] = true;
+                }
+
+                this.liveInactivityWatchdog = setInterval(() => {
+                    if (!this.isLiveMode || !this.isSetupComplete || !this.liveWs || this.liveWs.readyState !== WebSocket.OPEN) {
+                        return;
+                    }
+
+                    this.evaluateLiveBedtimeSchedule();
+
+                    const nowMs = Date.now();
+                    const aiBusy = this.isSpeaking || this.isAiSpeakingTurn || this.thinking || this.isToolCallPending || (this.activeAudioSources && this.activeAudioSources.length > 0);
+
+                    if (this.liveInactivityStage === 'active') {
+                        if (aiBusy) {
+                            this.liveLastInteractionAt = nowMs;
+                            return;
+                        }
+                        if (nowMs - this.liveLastInteractionAt >= 60000) {
+                            this.liveInactivityStage = 'check_sent';
+                            this.liveInactivityStageStartedAt = nowMs;
+                            this.funkiLogs.push({ role: 'system', time: new Date().toLocaleTimeString('de-DE'), message: '60s Stille: Nachfrage wird gesendet...' });
+                            this.sendLiveSystemPrompt('[SYSTEM-INAKTIVITÄT 60 SEKUNDEN: Seit 60 Sekunden wurde keine Sprache erkannt. Frage Alina jetzt in 1 kurzen, freundlichen Satz auf Deutsch: "Bist du noch da?" bzw. ob sie noch etwas braucht, und warte ihre Antwort ab.]');
+                        }
+                    } else if (this.liveInactivityStage === 'check_sent') {
+                        if (aiBusy) {
+                            this.liveInactivityStage = 'waiting_reply';
+                            this.liveInactivityStageStartedAt = nowMs;
+                        } else if (nowMs - this.liveInactivityStageStartedAt >= 12000) {
+                            this.liveInactivityStage = 'waiting_reply';
+                            this.liveInactivityStageStartedAt = nowMs;
+                        }
+                    } else if (this.liveInactivityStage === 'waiting_reply') {
+                        if (aiBusy) {
+                            this.liveInactivityStageStartedAt = nowMs;
+                            return;
+                        }
+                        if (nowMs - this.liveInactivityStageStartedAt >= 25000) {
+                            this.liveInactivityStage = 'farewell';
+                            this.liveInactivityStageStartedAt = nowMs;
+                            this.funkiLogs.push({ role: 'system', time: new Date().toLocaleTimeString('de-DE'), message: 'Keine Antwort nach Nachfrage: Live-Call wird automatisch getrennt...' });
+                            this.sendLiveSystemPrompt('[SYSTEM-AUTO-DISCONNECT: Keine Antwort auf deine Nachfrage erhalten. Verabschiede dich jetzt in 1 ganz kurzen Satz freundlich auf Deutsch, da die Live-Verbindung zur Ressourcenfreigabe getrennt wird.]');
+                        }
+                    } else if (this.liveInactivityStage === 'farewell') {
+                        if (aiBusy && (nowMs - this.liveInactivityStageStartedAt < 30000)) {
+                            return;
+                        }
+                        const sinceLastSpeechEnd = nowMs - (this.lastSpeechEndTime || 0);
+                        if ((!aiBusy && (nowMs - this.liveInactivityStageStartedAt >= 4500) && sinceLastSpeechEnd >= 1200) || (nowMs - this.liveInactivityStageStartedAt >= 30000)) {
+                            this.stopLiveMode();
+                        }
+                    }
+                }, 1000);
+            },
 
             // Live Ping & Connection Status Telemetry
             bridgeOnline: true,
@@ -619,13 +1020,29 @@
                         this.jarvisAnimId = null;
                         return; // Stop animation loop
                     }
+                    const isCornerJarvis = (this.isMapFocus || this.isSecretMode || this.isBrainMode || this.jarvisMinimized);
+                    const targetJW = isCornerJarvis ? 300 : window.innerWidth;
+                    const targetJH = isCornerJarvis ? 300 : window.innerHeight;
+                    if (canvas.width !== targetJW || canvas.height !== targetJH) {
+                        canvas.width = targetJW;
+                        canvas.height = targetJH;
+                    }
                     
-                    ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                    ctx.save();
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    if (isCornerJarvis) {
+                        ctx.translate(canvas.width / 2, canvas.height / 2);
+                        ctx.scale(0.52, 0.52);
+                        ctx.translate(-canvas.width / 2, -canvas.height / 2);
+                    }
 
-                    const speaking = this.isSpeaking || (typeof this.isOutputActive === 'function' ? this.isOutputActive() : false);
+                    const speak = this.isSpeaking || (typeof this.isOutputActive === 'function' ? this.isOutputActive() : false);
+                    const deltaSec = this._lastJarvisFrameTs ? Math.min((performance.now() - this._lastJarvisFrameTs) / 1000, 0.05) : 0.016;
+                    this._lastJarvisFrameTs = performance.now();
+                    const speaking = speak;
                     const pulse = speaking ? Math.abs(Math.sin(this.jarvisTime * 0.15)) : 0;
 
-                    ctx.shadowBlur = speaking ? 15 + pulse * 15 : 5;
+                    ctx.shadowBlur = speaking ? 8 : 0;
                     ctx.shadowColor = '#00d4ff';
 
                     rings.forEach(ring => {
@@ -644,24 +1061,22 @@
                     drawParticles(speaking);
 
                     // Draw J.A.R.V.I.S. Text
-                    ctx.shadowBlur = speaking ? 20 + pulse * 20 : 10;
-                    ctx.shadowColor = '#00d4ff';
+                    ctx.shadowBlur = 0;
                     ctx.font = 'bold 18px "Courier New", Courier, monospace';
                     if ('letterSpacing' in ctx) {
                         ctx.letterSpacing = '8px';
                     }
-                    ctx.fillStyle = speaking ? `rgba(255, 255, 255, ${0.8 + pulse * 0.2})` : 'rgba(0, 212, 255, 0.7)';
+                    ctx.fillStyle = speaking ? `rgba(255, 255, 255, ${0.85 + pulse * 0.15})` : 'rgba(0, 212, 255, 0.8)';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
-                    // Shift text slightly to perfectly center the letters when letterSpacing is applied
                     ctx.fillText('J.A.R.V.I.S.', canvas.width / 2 + 4, canvas.height / 2);
 
-                    ctx.shadowBlur = 0;
                     if ('letterSpacing' in ctx) {
                         ctx.letterSpacing = '0px';
                     }
+                    ctx.restore();
 
-                    this.jarvisTime++;
+                    this.jarvisTime += deltaSec * 60.0;
                     this.jarvisAnimId = requestAnimationFrame(animate);
                 };
 
@@ -696,17 +1111,15 @@
                             
                             const canvas = document.getElementById('jarvisCanvas');
                             if (canvas) {
-                                // "Assembling" effect: start scaled down, transparent and blurred
-                                canvas.style.transform = 'scale(0.5)';
+                                canvas.style.transform = 'scale(0.85)';
                                 canvas.style.opacity = '0';
-                                canvas.style.filter = 'blur(15px)';
                                 
                                 setTimeout(() => {
-                                    canvas.style.transition = 'all 1s cubic-bezier(0.1, 0.9, 0.2, 1)';
-                                    canvas.style.transform = ''; // Tailwind takes over
+                                    canvas.style.transition = 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease-out';
+                                    canvas.style.transform = '';
                                     canvas.style.opacity = '1';
-                                    canvas.style.filter = 'blur(0px) drop-shadow(0 0 15px rgba(0, 212, 255, 0.6))';
-                                }, 50);
+                                    canvas.style.filter = 'none';
+                                }, 30);
                             }
                         });
                     }, 1200);
@@ -1596,7 +2009,8 @@
                     }
                     try {
                         const fallbackParam = preferDirect ? '&fallback=direct' : '';
-                        const res = await fetch('/api/ai/live-credentials?agent_id=' + (this.activeAgentId || '') + '&chat_session_id=' + activeChatId + '&session_id={{ session()->getId() }}' + fallbackParam + '&t=' + Date.now(), {
+                        const activePath = encodeURIComponent(window.location.pathname || '/admin/dashboard');
+                        const res = await fetch('/api/ai/live-credentials?channel=live_widget&active_route=' + activePath + '&agent_id=' + (this.activeAgentId || '') + '&chat_session_id=' + activeChatId + '&session_id={{ session()->getId() }}' + fallbackParam + '&t=' + Date.now(), {
                             credentials: 'same-origin',
                             headers: {
                                 'Accept': 'application/json',
@@ -1944,6 +2358,17 @@
                         // Do not send audio data before setup is completed and acknowledged
                         if (!this.isSetupComplete) return;
 
+                        // Safety reset if isAiSpeakingTurn got stuck without active audio playback (e.g. thought-only turn or dropped turnComplete)
+                        if (this.isAiSpeakingTurn && !this.isOutputActive() && (!this.activeAudioSources || this.activeAudioSources.length === 0)) {
+                            const idleSincePacketMs = Date.now() - (this.lastAiPacketTime || 0);
+                            if (idleSincePacketMs > 3800) {
+                                this.isAiSpeakingTurn = false;
+                                this.isSpeaking = false;
+                                this.turnStartTime = null;
+                                this.updateCoreColor(true);
+                            }
+                        }
+
                         // Prevent AI from hearing itself and interrupting mid-sentence (echo cancellation / barge-in suppression)
                         if (this.isOutputActive() || (this.isAiSpeakingTurn && !this.allowVoiceInterruption) || this.isToolCallPending) return;
 
@@ -1960,6 +2385,7 @@
                         if (rms > 0.012) {
                             this.lastVoiceDetectedTime = Date.now();
                             this.hasSpokenInTurn = true;
+                            this.resetLiveInactivityTimer();
                         } else if (this.hasSpokenInTurn) {
                             const silenceDuration = Date.now() - (this.lastVoiceDetectedTime || 0);
                             // Sobald der Nutzer seit > 250ms aufgehört hat zu sprechen, senden wir kontinuierlich Stille,
@@ -2134,10 +2560,46 @@
                         return;
                     }
                 }
+                if (data.goAway) {
+                    console.log('Gemini Live goAway signal received - scheduling seamless reconnect');
+                    if (this.isLiveMode && this.liveWs) {
+                        this.reconnectAttempts = 0;
+                        const stale = this.liveWs;
+                        this.liveWs = null;
+                        try { stale.close(1000, 'goAway_reconnect'); } catch (e) {}
+                        this.cleanupLiveConnection(true);
+                        setTimeout(() => {
+                            if (this.isLiveMode) {
+                                this.initLiveMode();
+                            }
+                        }, 180);
+                    }
+                    return;
+                }
+                if (data.error) {
+                    const errMsg = typeof data.error === 'string'
+                        ? data.error
+                        : (data.error.message || 'Unbekannter Live-Serverfehler');
+                    console.warn('Gemini Live error frame received:', errMsg);
+                    if (this.isLiveMode && this.reconnectAttempts < this.maxReconnectAttempts) {
+                        this.reconnectAttempts++;
+                        const stale = this.liveWs;
+                        this.liveWs = null;
+                        try { if (stale) stale.close(); } catch (e) {}
+                        this.cleanupLiveConnection(true);
+                        setTimeout(() => {
+                            if (this.isLiveMode) {
+                                this.initLiveMode();
+                            }
+                        }, 500);
+                    }
+                    return;
+                }
                 if (data.setupComplete) {
                     console.log('Gemini Live Setup Complete received');
                     this.isSetupComplete = true;
                     this.reconnectAttempts = 0;
+                    this.startLiveInactivityWatchdog();
                     return;
                 }
                 if (!this.hasOwnProperty('currentLiveTranscript')) {
@@ -2170,6 +2632,7 @@
                 // 2. Google Gemini Audio-Transkription für das gesprochene Wort des Benutzers erfassen
                 const userChunk = data.serverContent?.inputTranscription?.text || data.serverContent?.inputAudioTranscription?.text;
                 if (userChunk) {
+                    this.resetLiveInactivityTimer();
                     if (!this.currentUserLiveTranscript) {
                         this.currentUserLiveTranscript = userChunk;
                     } else if (!this.currentUserLiveTranscript.includes(userChunk)) {
@@ -2296,10 +2759,13 @@
                     try {
                         for (const call of data.toolCall.functionCalls) {
                             if (!call) continue;
+                            const toolAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                            const toolTimer = toolAbort ? setTimeout(() => toolAbort.abort(), 22000) : null;
                             try {
                                 const res = await fetch('/api/ai/execute', {
                                     method: 'POST',
                                     credentials: 'same-origin',
+                                    signal: toolAbort ? toolAbort.signal : undefined,
                                     headers: {
                                         'Content-Type': 'application/json',
                                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
@@ -2312,6 +2778,9 @@
                                         agent_id: this.activeAgentId || (this.$wire ? this.$wire.agentId : null)
                                     })
                                 });
+                                if (!res.ok) {
+                                    throw new Error(`HTTP ${res.status}`);
+                                }
                                 const resultData = await res.json();
 
                                 // Visualize
@@ -2356,9 +2825,13 @@
                                     id: call.id,
                                     name: call.name,
                                     response: {
-                                        error: e.message || 'Tool execution failed'
+                                        error: (e && e.name === 'AbortError')
+                                            ? 'Zeitüberschreitung bei Werkzeugausführung (22s)'
+                                            : (e.message || 'Tool execution failed')
                                     }
                                 });
+                            } finally {
+                                if (toolTimer) clearTimeout(toolTimer);
                             }
                         }
 
@@ -2489,6 +2962,11 @@
                     clearInterval(this.pingInterval);
                     this.pingInterval = null;
                 }
+                if (this.liveInactivityWatchdog) {
+                    clearInterval(this.liveInactivityWatchdog);
+                    this.liveInactivityWatchdog = null;
+                }
+                this.liveInactivityStage = 'active';
                 if (this.liveWs) {
                     this.liveWs.onclose = null;
                     this.liveWs.onerror = null;
@@ -2558,6 +3036,11 @@
                     clearInterval(this.pingInterval);
                     this.pingInterval = null;
                 }
+                if (this.liveInactivityWatchdog) {
+                    clearInterval(this.liveInactivityWatchdog);
+                    this.liveInactivityWatchdog = null;
+                }
+                this.liveInactivityStage = 'active';
                 if (this.liveWs) {
                     this.liveWs.onclose = null;
                     this.liveWs.onerror = null;
@@ -2609,7 +3092,10 @@
             cameraExpanded: false,
 
             startCameraCapture() {
-                if (this.cameraInterval) clearInterval(this.cameraInterval);
+                if (this.cameraInterval) {
+                    clearInterval(this.cameraInterval);
+                    this.cameraInterval = null;
+                }
                 
                 const video = document.getElementById('funki-local-camera');
                 if (!video) return;
@@ -2622,8 +3108,7 @@
                 this.lastDecodedFrames = 0;
 
                 this.cameraInterval = setInterval(() => {
-                    if (!this.showFunkiView || !video || !video.srcObject) {
-                        if (this.cameraFps !== '0.00') this.cameraFps = '0.00';
+                    if (!this.cameraWidget || !this.showFunkiView || !video || !video.srcObject) {
                         return;
                     }
 
@@ -2633,9 +3118,9 @@
                         const currentFrames = quality.totalVideoFrames;
                         const fps = currentFrames - this.lastDecodedFrames;
                         this.lastDecodedFrames = currentFrames;
-                        this.cameraFps = Math.max(0, fps).toFixed(2);
-                    } else {
-                        // Fallback static FPS if API not supported
+                        const nextFps = Math.max(0, fps).toFixed(2);
+                        if (this.cameraFps !== nextFps) this.cameraFps = nextFps;
+                    } else if (this.cameraFps !== '30.00') {
                         this.cameraFps = '30.00';
                     }
 

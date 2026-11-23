@@ -213,18 +213,23 @@ class AiKnowledgeBase extends Component
             $article->tags()->sync($this->editForm['tags']);
             session()->flash('success', 'Eintrag erfolgreich aktualisiert.');
         } else {
-            $article = KB::create([
-                'title' => $this->editForm['title'],
-                'slug' => \Illuminate\Support\Str::slug($this->editForm['title']) . '-' . rand(1000, 9999),
-                'ai_knowledge_base_category_id' => $this->editForm['ai_knowledge_base_category_id'],
-                'content' => $sanitizedContent,
-                'is_published' => true,
-            ]);
-            if (!empty($this->editForm['tags'])) {
-                $article->tags()->attach($this->editForm['tags']);
+            $catModel = AiKnowledgeBaseCategory::findOrFail($this->editForm['ai_knowledge_base_category_id']);
+            $tagNames = !empty($this->editForm['tags'])
+                ? AiKnowledgeBaseTag::whereIn('id', $this->editForm['tags'])->pluck('name')->all()
+                : [];
+            $article = \App\Services\AI\CentralBrainService::upsertDeduplicatedKnowledge(
+                title: (string) $this->editForm['title'],
+                content: $sanitizedContent,
+                categoryName: (string) $catModel->name,
+                tags: $tagNames,
+                sourcePath: null,
+                visibilityScope: KB::VISIBILITY_ADMIN_EXECUTIVE
+            );
+            if ($article && !empty($this->editForm['tags'])) {
+                $article->tags()->syncWithoutDetaching($this->editForm['tags']);
             }
-            $this->activeArticleId = $article->id;
-            session()->flash('success', 'Neuer Eintrag erfolgreich angelegt.');
+            $this->activeArticleId = $article?->id;
+            session()->flash('success', 'Eintrag dublettenfrei im Wissensgehirn gespeichert.');
         }
 
         $this->isEditing = false;

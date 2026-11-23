@@ -146,7 +146,7 @@ class FalconSupremeExecutiveBrainTest extends TestCase
         $systemInstruction = (string) $response->json('system_instruction');
         $this->assertStringContainsString('Funkira', $systemInstruction);
         $this->assertStringContainsString('falcon_smarthome_control', $systemInstruction);
-        $this->assertStringContainsString('2-MINUTEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN', $systemInstruction);
+        $this->assertStringContainsString('60-SEKUNDEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN', $systemInstruction);
         $this->assertStringContainsString('master_get_next_best_actions', $systemInstruction);
         $this->assertStringContainsString('system_get_error_sentinel', $systemInstruction);
         $this->assertStringContainsString('AUSSCHLIESSLICH AUF EXPLIZITE NACHFRAGE', $systemInstruction);
@@ -198,7 +198,7 @@ class FalconSupremeExecutiveBrainTest extends TestCase
             'Alina Steinhauer',
             'xTool F2 Ultra UV',
             'FYRST',
-            '2-MINUTEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN',
+            '60-SEKUNDEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN',
             'master_get_next_best_actions',
             'system_get_server_status',
             'mein-seelenfunke.de',

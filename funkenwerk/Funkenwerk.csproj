@@ -9,10 +9,10 @@
     <AssemblyName>Funkenwerk</AssemblyName>
     <RootNamespace>Funkenwerk</RootNamespace>
     <ApplicationIcon>funkenwerk.ico</ApplicationIcon>
-    <Version>2.5.0</Version>
-    <AssemblyVersion>2.5.0.45</AssemblyVersion>
-    <FileVersion>2.5.0.45</FileVersion>
-    <InformationalVersion>2.5.0+b45</InformationalVersion>
+    <Version>2.5.5</Version>
+    <AssemblyVersion>2.5.5.50</AssemblyVersion>
+    <FileVersion>2.5.5.50</FileVersion>
+    <InformationalVersion>2.5.5+b50</InformationalVersion>
     <Product>Funkenwerk</Product>
     <Company>Mein-Seelenfunke</Company>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -20,6 +20,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="PDFsharp-wpf" Version="6.2.4" />
   </ItemGroup>
 

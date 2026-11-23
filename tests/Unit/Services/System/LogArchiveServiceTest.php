@@ -70,6 +70,15 @@ class LogArchiveServiceTest extends TestCase
 
     public function test_it_handles_stage_cron_logs_ingests_only_real_errors_excludes_archive_dir_and_truncates_to_zero_bytes(): void
     {
+        foreach (LogArchiveService::listActiveLogFiles() as $existingLog) {
+            @file_put_contents($existingLog, '');
+        }
+        $handoffPath = storage_path(\App\Services\System\SentinelTriageService::HANDOFF_FILE);
+        $backupHandoff = is_file($handoffPath) ? (string) file_get_contents($handoffPath) : null;
+        @unlink($handoffPath);
+        foreach (glob(storage_path('logs/archive/*/healed_*_cron-phpunit_*.log')) ?: [] as $staleCronArch) {
+            @unlink($staleCronArch);
+        }
         $routineCronLog = storage_path('logs/cron-phpunit_routine_ok.log');
         $fatalCronLog = storage_path('logs/cron-phpunit_fatal_err.log');
         $emptyCronLog = storage_path('logs/cron-phpunit_whitespace.log');
@@ -127,6 +136,9 @@ class LogArchiveServiceTest extends TestCase
             @unlink($fatalCronLog);
             @unlink($emptyCronLog);
             @unlink($alreadyArchivedLog);
+            if ($backupHandoff !== null) {
+                @file_put_contents($handoffPath, $backupHandoff);
+            }
         }
     }
 }

@@ -267,14 +267,9 @@
          ========================================================================= --}}
     <div x-show="activeFunkiTab === 'vouchers'" class="space-y-6">
         <div class="bg-white dark:bg-[#0d1017] border border-gray-200 dark:border-gray-800 rounded-3xl p-5 sm:p-7 shadow-sm space-y-6">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                    <h2 class="text-lg font-serif font-bold text-gray-900 dark:text-white">Rabatt-Gutscheine freischalten</h2>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">Einmalig für deine nächste Bestellung einlösbar • Dein Level sinkt beim Einlösen nie.</p>
-                </div>
-                <div class="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
-                    <x-shop.experience-star-widget area="funkenreich" :requireFunkenreichVisit="true" :darkAware="true" />
-                </div>
+            <div>
+                <h2 class="text-lg font-serif font-bold text-gray-900 dark:text-white">Rabatt-Gutscheine freischalten</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Einmalig für deine nächste Bestellung einlösbar • Dein Level sinkt beim Einlösen nie.</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

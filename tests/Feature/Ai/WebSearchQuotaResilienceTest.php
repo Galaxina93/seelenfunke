@@ -278,14 +278,6 @@ HTML;
             'https://en.wikipedia.org/w/api.php*' => Http::response(['query' => ['search' => []]], 200),
         ]);
 
-        $falcone = AiAgent::where('name', 'Falcone')->first() ?: AiAgent::create([
-            'name' => 'Falcone',
-            'wake_word' => 'falcone',
-            'role_description' => 'Chef-Dirigent',
-            'system_prompt' => 'Du bist Falcone.',
-            'model' => 'gemini-3.5-flash',
-            'is_active' => true,
-        ]);
         $funkira = AiAgent::where('name', 'Funkira')->first() ?: AiAgent::create([
             'name' => 'Funkira',
             'wake_word' => 'funkira',
@@ -306,10 +298,13 @@ HTML;
         $admin = Admin::first() ?: Admin::factory()->create();
         $adminToken = $admin->createToken('android-voice-admin', ['*'])->plainTextToken;
 
-        // 1. Falcone & Funkira erhalten system_search_web in liveCredentials (Voice-Modus)
-        foreach ([$falcone, $funkira] as $execAgent) {
+        // 1. Funkira (und Legacy-Alias agent_name=Falcone -> Funkira) erhalten system_search_web in liveCredentials (Voice-Modus)
+        foreach ([
+            '/api/ai/live-credentials?agent_id=' . $funkira->id,
+            '/api/ai/live-credentials?agent_name=Falcone',
+        ] as $liveUri) {
             $liveRes = $this->withHeaders(['Authorization' => 'Bearer ' . $adminToken])
-                ->getJson('/api/ai/live-credentials?agent_id=' . $execAgent->id)
+                ->getJson($liveUri)
                 ->assertStatus(200);
 
             $liveToken = (string) $liveRes->json('token');
@@ -322,7 +317,7 @@ HTML;
                 ->values()
                 ->all();
 
-            $this->assertContains('system_search_web', $declaredNames, "system_search_web muss fuer {$execAgent->name} im Sprachmodus aktiv sein.");
+            $this->assertContains('system_search_web', $declaredNames, "system_search_web muss im Sprachmodus aktiv sein ({$liveUri}).");
         }
 
         // 2. Admin kann system_search_web ueber POST /api/ai/execute (auch bei 429 auf Stufe 1 dank Stufe 2!) ausfuehren

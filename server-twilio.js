@@ -586,7 +586,7 @@ function safeClose(ws, code, reason) {
     }
 }
 
-function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
+async function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     debugLog('🧠 Gemini Live Proxy: Verbinde zu Google Gemini Live API...');
     activeLiveSessions++;
     totalLiveSessions++;
@@ -622,7 +622,26 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     let userTurnTranscript = "";
     let lastPersistedAiText = "";
 
-    const vertexBearer = creds.vertex_access_token || cachedVertexToken || null;
+    const earlyPendingClientMessages = [];
+    const bufferEarlyClientMsg = (msg) => {
+        earlyPendingClientMessages.push(msg);
+    };
+    clientWs.on('message', bufferEarlyClientMsg);
+
+    let vertexBearer = creds.vertex_access_token || null;
+    if (!vertexBearer && (creds.is_vertex || HAS_VERTEX_SA)) {
+        vertexBearer = await ensureVertexAccessToken();
+    } else if (HAS_VERTEX_SA && cachedVertexToken && cachedVertexTokenExpiresAt - 180 > Math.floor(Date.now() / 1000)) {
+        // Prefer freshly cached local SA token if credential token is missing
+        vertexBearer = vertexBearer || cachedVertexToken;
+    }
+
+    if (clientWs.readyState === WebSocket.CLOSING || clientWs.readyState === WebSocket.CLOSED) {
+        clientWs.off('message', bufferEarlyClientMsg);
+        activeLiveSessions = Math.max(0, activeLiveSessions - 1);
+        return;
+    }
+
     const useVertexLive = Boolean((creds.is_vertex || HAS_VERTEX_SA) && vertexBearer);
     const HOST = useVertexLive
         ? (creds.vertex_host || `${VERTEX_LIVE_LOCATION}-aiplatform.googleapis.com`)
@@ -650,14 +669,25 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
 
     let isCleanedUp = false;
     let sessionResumptionUpdatesCount = 0;
+    let lastGoogleRxOrPongAt = Date.now();
+    googleWs.on('pong', () => {
+        lastGoogleRxOrPongAt = Date.now();
+    });
     const googlePingInterval = setInterval(() => {
         if (googleWs.readyState === WebSocket.OPEN) {
+            if (Date.now() - lastGoogleRxOrPongAt > 35000) {
+                recordEvent('google_pong_timeout', 'No upstream pong/packet >35s');
+                debugLog('⚠️ Gemini Live Proxy: Google Upstream antwortet nicht auf Pings (>35s). Schließe für sauberen Client-Auto-Reconnect.');
+                try { googleWs.terminate(); } catch (_) {}
+                safeClose(clientWs, 1011, 'Upstream ping timeout');
+                return;
+            }
             try { googleWs.ping(); } catch (e) {}
         }
         if (clientWs && clientWs.readyState === WebSocket.OPEN) {
             try { clientWs.ping(); } catch (e) {}
         }
-    }, 15000);
+    }, 12000);
 
     function cleanup() {
         if (isCleanedUp) return;
@@ -790,6 +820,7 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
     });
     
     googleWs.on('message', (message) => {
+        lastGoogleRxOrPongAt = Date.now();
         googleMessagesReceived++;
         try {
             const data = JSON.parse(message.toString());
@@ -901,6 +932,12 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
             );
         }
         
+        if (useVertexLive && (code === 1008 || code === 1011)) {
+            const rl = cleanReason.toLowerCase();
+            if (rl.includes('unauthenticated') || rl.includes('credential') || rl.includes('token') || rl.includes('permission')) {
+                ensureVertexAccessToken(true).catch(() => {});
+            }
+        }
         safeClose(clientWs, code, reason);
     });
     
@@ -912,15 +949,25 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
             aiTurnTranscript = "";
         }
         debugLog('🧠 Gemini Live Proxy: Google WebSocket Fehler', err);
+        if (useVertexLive && /401|403|unauthenticated/i.test(String(err.message || err))) {
+            ensureVertexAccessToken(true).catch(() => {});
+        }
         sendLogToBackend(
             'error',
             `Google Live API WebSocket-Fehler: ${err.message || err}`,
             'websocket:error:google',
             buildSessionDiagnostics(1011, err.message || String(err), 'google')
         );
-        safeSend(clientWs, JSON.stringify({ error: 'Google Gemini connection error' }));
+        safeSend(clientWs, JSON.stringify({
+            error: {
+                code: 1011,
+                message: 'Google Gemini connection error'
+            }
+        }));
+        safeClose(clientWs, 1011, 'Google Gemini connection error');
     });
     
+    clientWs.off('message', bufferEarlyClientMsg);
     clientWs.on('message', (message) => {
         if (isCleanedUp || googleWs.readyState === WebSocket.CLOSING || googleWs.readyState === WebSocket.CLOSED) {
             return;
@@ -1144,6 +1191,13 @@ function initGeminiLiveProxy(clientWs, creds, reqMeta = {}) {
         );
         safeClose(googleWs, 1011, 'Client error');
     });
+
+    if (earlyPendingClientMessages.length > 0) {
+        while (earlyPendingClientMessages.length > 0) {
+            const earlyMsg = earlyPendingClientMessages.shift();
+            clientWs.emit('message', earlyMsg);
+        }
+    }
 }
 
 function handleTwilioConnection(ws) {
@@ -2211,8 +2265,8 @@ wss.on('connection', (ws, req) => {
             }
             return res.json();
         })
-        .then((data) => {
-            if (!data.api_key) {
+        .then(async (data) => {
+            if (!data.api_key && !data.is_vertex && !HAS_VERTEX_SA) {
                 throw new Error('No API key returned from verification');
             }
             
@@ -2220,7 +2274,7 @@ wss.on('connection', (ws, req) => {
             ws.off('message', handleEarlyMessage);
  
             // Proxy initialisieren (registriert neue 'message' Listener)
-            initGeminiLiveProxy(ws, data, reqMeta);
+            await initGeminiLiveProxy(ws, data, reqMeta);
  
             // Gespeicherte Nachrichten erneut abspielen
             if (messageQueue.length > 0) {

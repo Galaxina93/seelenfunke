@@ -231,73 +231,22 @@
                 });
 
                 this.$watch('isFlightDataActive', value => {
-                    if (!window.funkiMap) return;
+                    if (this.flightDataInterval) {
+                        clearInterval(this.flightDataInterval);
+                        this.flightDataInterval = null;
+                    }
                     if (value) {
-                        // Flashing effect for sci-fi feel
-                        if (!window.funkiMap.getSource('live-flights')) {
-                            window.funkiMap.addSource('live-flights', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-                            window.funkiMap.addLayer({
-                                id: 'live-flights-layer',
-                                type: 'symbol',
-                                source: 'live-flights',
-                                layout: {
-                                    'icon-image': 'airport-15',
-                                    'icon-size': 1.0,
-                                    'icon-rotate': ['get', 'heading'],
-                                    'icon-allow-overlap': true,
-                                    'icon-ignore-placement': true
-                                },
-                                paint: {
-                                    'icon-color': '#ffffff',
-                                    'icon-halo-color': '#333333',
-                                    'icon-halo-width': 1
+                        this.ensureMapboxReady().then(() => {
+                            if (!window.funkiMap) return;
+                            this.fetchLiveFlightData();
+                            this.generateCrisisData();
+                            this.flightDataInterval = setInterval(() => {
+                                if (this.showFunkiView && this.isMapMode && this.isFlightDataActive && !document.hidden) {
+                                    this.fetchLiveFlightData();
                                 }
-                            });
-                            
-                            window.funkiMap.addSource('live-crises', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-                            window.funkiMap.addLayer({
-                                id: 'live-crises-layer',
-                                type: 'circle',
-                                source: 'live-crises',
-                                paint: {
-                                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, 20, 10, 80],
-                                    'circle-color': '#ff3300',
-                                    'circle-opacity': 0.4,
-                                    'circle-blur': 0.8
-                                }
-                            });
-                            
-                            // Map Events for Live Data
-                            window.funkiMap.on('click', 'live-flights-layer', (e) => {
-                                const coordinates = e.features[0].geometry.coordinates.slice();
-                                const p = e.features[0].properties;
-                                new mapboxgl.Popup({ closeButton: false })
-                                    .setLngLat(coordinates)
-                                    .setHTML(`<div class="text-[10px] font-mono"><strong class="text-emerald-500 uppercase">Flug: ${p.callsign || 'Unbekannt'}<\/strong><br><span class="text-gray-300">Herkunft: ${p.origin_country || 'Unbekannt'}<br>Höhe: ${Math.round(p.geo_altitude)}m<br>V: ${Math.round(p.velocity * 3.6)} km/h<\/span><\/div>`)
-                                    .addTo(window.funkiMap);
-                            });
-                            window.funkiMap.on('mouseenter', 'live-flights-layer', () => { window.funkiMap.getCanvas().style.cursor = 'pointer'; });
-                            window.funkiMap.on('mouseleave', 'live-flights-layer', () => { window.funkiMap.getCanvas().style.cursor = ''; });
-
-                            window.funkiMap.on('click', 'live-crises-layer', (e) => {
-                                const coordinates = e.features[0].geometry.coordinates.slice();
-                                const p = e.features[0].properties;
-                                new mapboxgl.Popup({ closeButton: false })
-                                    .setLngLat(coordinates)
-                                    .setHTML(`<div class="text-[10px] font-mono"><strong class="text-red-500 uppercase">Krisenherd: ${p.name || 'Unbekannt'}<\/strong><br><span class="text-gray-300">${p.description || 'Keine Details verfügbar'}<\/span><\/div>`)
-                                    .addTo(window.funkiMap);
-                            });
-                            window.funkiMap.on('mouseenter', 'live-crises-layer', () => { window.funkiMap.getCanvas().style.cursor = 'pointer'; });
-                            window.funkiMap.on('mouseleave', 'live-crises-layer', () => { window.funkiMap.getCanvas().style.cursor = ''; });
-                        }
-                        
-                        this.fetchLiveFlightData();
-                        this.flightDataInterval = setInterval(() => this.fetchLiveFlightData(), 15000);
-                        
-                        this.generateCrisisData();
-                    } else {
-                        if (this.flightDataInterval) clearInterval(this.flightDataInterval);
-                        
+                            }, 15000);
+                        });
+                    } else if (window.funkiMap) {
                         if (window.funkiMap.getSource('live-flights')) {
                             window.funkiMap.getSource('live-flights').setData({ type: 'FeatureCollection', features: [] });
                         }
@@ -310,8 +259,14 @@
                 this.$watch('isMapFocus', value => {
                     if (value) {
                         this.isMapMode = true;
+                        this.ensureMapboxReady().then(() => {
+                            if (window.funkiMap) {
+                                setTimeout(() => window.funkiMap && window.funkiMap.resize(), 80);
+                            }
+                        });
                     } else {
                         this.isMapMode = false;
+                        this.mapQuickResults = [];
                     }
                 });
 
@@ -333,27 +288,6 @@
                     this._boundWindowListeners.push([ev, fn]);
                 };
 
-                bindWindowEvent('toggle-mapfocus', (e) => {
-                    console.log('AI EVENT RECEIVED: toggle-mapfocus', e.detail);
-                    const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
-                    const val = detail?.active;
-                    const active = (val === true || val === 'true' || val === 1 || val === '1');
-                    console.log('Setting isMapFocus to:', active);
-                    this.isMapFocus = active;
-                    if (active) {
-                        this.isMapMode = true;
-                    }
-                });
-
-                bindWindowEvent('map-fly-to', (e) => {
-                    const detail = e.detail.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
-                    if(typeof window.flyToLocation === 'function') {
-                        window.flyToLocation(detail.lng, detail.lat, detail.zoom, detail.pitch, detail.markerText);
-                    }
-                    this.isMapFocus = true;
-                    this.isMapMode = true;
-                });
-
                 bindWindowEvent('ai-show-news', (e) => {
                     const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
                     const articles = detail?.articles || [];
@@ -368,7 +302,7 @@
                     }
                 });
 
-                bindWindowEvent('hide-news-panel', (e) => {
+                bindWindowEvent('hide-news-panel', () => {
                     this.newsWidgets = [];
                 });
 
@@ -419,14 +353,10 @@
                     if (this.mainScreenWidget && this.mainScreenWidget.type === 'youtube') this.clearMainScreenWidget();
                 });
 
-
-                bindWindowEvent('toggle-livedata', (e) => {
-                    const detail = e.detail.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
-                    const val = detail.active;
-                    const active = (val === true || val === 'true' || val === 1 || val === '1');
-                    if (this.isFlightDataActive !== active) {
-                        this.isFlightDataActive = active;
-                    }
+                bindWindowEvent('toggle-log', (e) => {
+                    const detail = e.detail?.payload || (Array.isArray(e.detail) ? e.detail[0] : e.detail);
+                    const val = detail?.active;
+                    this.showDebugLog = (val === true || val === 'true' || val === 1 || val === '1');
                 });
 
                 this.initSpeech();

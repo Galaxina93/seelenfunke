@@ -50,6 +50,7 @@ class FunkiraSkillPoolService
             'ticket_set_status_or_ask',
             'ticket_save_learned_preference',
             'ticket_escalate_missing_capability',
+            'ticket_attach_deliverable',
             'system_get_current_time',
             'system_get_server_status',
             'system_get_error_sentinel',
@@ -135,7 +136,7 @@ class FunkiraSkillPoolService
                 'tools' => array_values(array_unique(array_merge(
                     array_column(AIFunctionsRegistry::getAiProductFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiSuppliersFuncsSchema(), 'name'),
-                    ['product_check_inventory', 'product_get_reviews']
+                    ['product_check_inventory', 'product_get_reviews', 'print3d_evaluate_design_parameters']
                 ))),
                 'sop' => "FACHREGELN PRODUKTE, VERPACKUNG & LIEFERANTEN (Ex-Produkti-Disziplin):\n"
                     . "- Abmahnsichere Materialangaben: 'Handveredelt in Deutschland (Manufaktur Gifhorn)' bei Import-Rohlingen; '14 Karat vergoldeter Edelstahl (Ion-Plating)' statt Echtgold.\n"
@@ -148,6 +149,7 @@ class FunkiraSkillPoolService
                 'tools' => array_values(array_unique([
                     ...array_column(AIFunctionsRegistry::getAiLaserFuncsSchema(), 'name'),
                     'order_generate_xtool_svg',
+                    'print3d_evaluate_design_parameters',
                     'system_read_knowledge',
                     'system_write_knowledge',
                     'system_generate_pdf_report',

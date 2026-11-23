@@ -104,7 +104,11 @@ class UserSeeder extends Seeder
             ]
         );
 
-        // 2. Kunden-Benutzer (Neues Profil: Sarah)
+        if (app()->environment('production')) {
+            return;
+        }
+
+        // 2. Kunden-Benutzer (Nur Lokal/Stage/Testing: Sarah)
         $customer = Customer::firstOrCreate(
             ['email' => 'alina.stone@t-online.de'],
             [

@@ -222,7 +222,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringNotContainsString('this._engine', $html);
         $this->assertStringContainsString('startLobbyMusicFromGesture', $html);
         $this->assertStringContainsString('setBgmVolume', $html);
-        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261120v36')", $html);
+        $this->assertStringContainsString("import('/js/seelenfunke-louvre-showroom-3d.js?v=20261122v2')", $html);
         $this->assertStringContainsString('data-testid="lobby-character-picker-modal"', $html);
         $this->assertStringContainsString('data-testid="lobby-char-select-male"', $html);
         $this->assertStringContainsString('data-testid="lobby-char-select-female"', $html);
@@ -236,7 +236,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('avatar_gender:', $html);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $html);
         $this->assertStringContainsString('window.__sfLobbyAudioRegistry', $html);
-        $this->assertStringContainsString('volume: 5,', $html);
+        $this->assertStringContainsString('volume: 15,', $html);
         $this->assertStringContainsString('sync_interval_ms: 165,', $html);
         $this->assertStringNotContainsString('sync_interval_ms: 950,', $html);
         $this->assertStringContainsString('data-testid="lobby-minimap-ping-dot"', $html);
@@ -396,7 +396,9 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('carpetStrip.position.set(0, 0.029, carpetCenterZ)', $js);
         $this->assertStringContainsString('BoxGeometry(2.82, 0.018, 0.12)', $js);
         $this->assertStringContainsString('this.audio.setZone(this.currentZone)', $js);
-        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261118v9', $js);
+        $this->assertStringContainsString('./seelenfunke-lobby-audio.js?v=20261122v1', $js);
+        $this->assertStringNotContainsString('_weaponAudioCtx', $js);
+        $this->assertStringContainsString('this.audio.playWeaponSwing(', $js);
         $this->assertStringContainsString('THREE.SkinnedMesh', $js);
         $this->assertStringContainsString('THREE.Skeleton', $js);
         $this->assertStringContainsString('skinIndex', $js);
@@ -405,7 +407,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('_sanitizeStandingFunkiUrl', $js);
         $this->assertStringContainsString('exoBronzeUrsprung', $js);
         $this->assertStringContainsString('#A8947B', $js);
-        $this->assertStringContainsString('const legSync = 0.84;', $js);
+        $this->assertStringContainsString('const legSync = 0.90;', $js);
         $this->assertStringNotContainsString('const isSitting =', $js);
         $this->assertStringContainsString('exoReactorHex', $js);
         $this->assertStringContainsString('thrusterFlameL', $js);
@@ -413,7 +415,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('clickMoveRing', $js);
         $this->assertStringContainsString('sf_lobby_keybindings_v4', $js);
         $this->assertStringContainsString('sf_lobby_user_settings_v2', $js);
-        $this->assertStringContainsString('volume: 5,', $js);
+        $this->assertStringContainsString('volume: 15,', $js);
         $this->assertStringContainsString('proceduralExoMeshes', $js);
         $this->assertStringContainsString('? ((this.player.somersaultDir || 1) * this.player.somersaultProgress * TWO_PI)', $js);
         $this->assertStringContainsString('this.player.somersaultDir = 1;', $js);
@@ -563,7 +565,7 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('requestFullscreen', $hostJs);
         $this->assertStringContainsString('exitFullscreen', $hostJs);
         $this->assertStringContainsString("window.addEventListener('keydown', this._boundKeydown, true)", $hostJs);
-        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261120v36', $hostJs);
+        $this->assertStringContainsString('/js/seelenfunke-louvre-showroom-3d.js?v=20261122v2', $hostJs);
         $this->assertStringContainsString("root.setAttribute('data-sf-3d-lobby-modal', 'heroes')", $hostJs);
         $this->assertStringContainsString('stopPrewarmAndForceLobbySilence', $hostJs);
         $this->assertStringContainsString('window.__sfForceStopAllLobbyAudio', $hostJs);
@@ -1047,7 +1049,12 @@ class Louvre3DShowroomTest extends TestCase
         $this->assertStringContainsString('playSparkCollect', $audioJs);
         $this->assertStringContainsString('playLavaSplash', $audioJs);
         $this->assertStringContainsString('playDrinkPotion', $audioJs);
-        $this->assertStringContainsString('DEFAULT_LOBBY_BGM_VOLUME = 5', $audioJs);
+        $this->assertStringContainsString('playWeaponSwing', $audioJs);
+        $this->assertStringContainsString('DEFAULT_LOBBY_BGM_VOLUME = 15', $audioJs);
+        $this->assertStringContainsString('DEFAULT_LOBBY_SFX_VOLUME = 15', $audioJs);
+        $this->assertStringContainsString("LS_LOBBY_VOL_V3_INIT = 'sf_lobby_vol_v3_init'", $audioJs);
+        $this->assertStringContainsString("latencyHint: 'playback'", $audioJs);
+        $this->assertStringContainsString('_scheduleIdleContextSuspend', $audioJs);
         $this->assertStringContainsString('LOBBY_DOM_WATCHDOG_INTERVAL_MS = 400', $audioJs);
         $this->assertStringContainsString('LOBBY_OPEN_GRACE_MS = 1200', $audioJs);
         $this->assertStringContainsString('window.__sfLobbyAudioSingleton', $audioJs);

@@ -118,6 +118,10 @@ class AppServiceProvider extends ServiceProvider
     {
         Schema::defaultStringLength(191);
 
+        if (class_exists(\Laravel\Sanctum\Sanctum::class)) {
+            \Laravel\Sanctum\Sanctum::usePersonalAccessTokenModel(\App\Models\System\PersonalAccessToken::class);
+        }
+
         \Illuminate\Support\Facades\RateLimiter::for('ota-check', function (\Illuminate\Http\Request $request) {
             return \Illuminate\Cache\RateLimiting\Limit::perMinute(60)
                 ->by('ota-check:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
@@ -272,12 +276,35 @@ class AppServiceProvider extends ServiceProvider
 
         // 2b. Redis-Ausfallsicherung mit lokalem /tmp Circuit-Breaker (DNS- / Verbindungs-Fallback für Stage & Produktion)
         // Verhindert fatale Predis StreamInitException (getaddrinfo failed), falls der Redis-Container
-        // temporär nicht auflösbar oder nicht erreichbar ist, und vermeidet wiederholte DNS-/Disk-Latenz pro Request.
-        if (Config::get('cache.default') === 'redis' || Config::get('session.driver') === 'redis') {
+        // temporär nicht auflösbar oder nicht erreichbar ist (inkl. schedule:run / schedule:finish Mutex!), und vermeidet wiederholte DNS-/Disk-Latenz pro Request.
+        if (
+            Config::get('cache.default') === 'redis'
+            || Config::get('session.driver') === 'redis'
+            || Config::get('schedule.cache_store') === 'redis'
+            || Config::get('queue.default') === 'redis'
+        ) {
             $redisHost = Config::get('database.redis.default.host', '127.0.0.1');
             $cbFile = !app()->runningUnitTests()
                 ? (rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . '/sf_redis_cb_' . md5((string) $redisHost . '|' . (string) Config::get('database.redis.default.port', 6379)) . '.state')
                 : null;
+
+            $applyRedisFileFallback = static function (): void {
+                if (Config::get('cache.default') === 'redis') {
+                    Config::set('cache.default', 'file');
+                }
+                if (Config::get('schedule.cache_store') === 'redis') {
+                    Config::set('schedule.cache_store', 'file');
+                }
+                if (Config::get('session.driver') === 'redis') {
+                    Config::set('session.driver', 'file');
+                }
+                if (Config::get('queue.default') === 'redis') {
+                    Config::set('queue.default', 'database');
+                }
+                if (Config::get('broadcasting.default') === 'redis') {
+                    Config::set('broadcasting.default', 'null');
+                }
+            };
 
             $skipRedisNetworkCheck = false;
             if ($cbFile !== null && is_file($cbFile)) {
@@ -285,18 +312,19 @@ class AppServiceProvider extends ServiceProvider
                 if ($cbAge >= 0 && $cbAge < 45) {
                     $cbState = trim((string) @file_get_contents($cbFile));
                     if ($cbState === '0') {
-                        if (Config::get('cache.default') === 'redis') {
-                            Config::set('cache.default', 'file');
-                        }
-                        if (Config::get('session.driver') === 'redis') {
-                            Config::set('session.driver', 'file');
-                        }
-                        if (Config::get('queue.default') === 'redis') {
-                            Config::set('queue.default', 'database');
-                        }
+                        $applyRedisFileFallback();
                         $skipRedisNetworkCheck = true;
-                    } elseif ($cbState === '1' && $cbAge < 20) {
-                        $skipRedisNetworkCheck = true;
+                    } elseif ($cbState === '1' && $cbAge < 15) {
+                        if (is_string($redisHost) && $redisHost !== '' && !filter_var($redisHost, FILTER_VALIDATE_IP) && $redisHost !== 'localhost') {
+                            $quickDns = @gethostbyname($redisHost);
+                            if ($quickDns === $redisHost) {
+                                $skipRedisNetworkCheck = false;
+                            } else {
+                                $skipRedisNetworkCheck = true;
+                            }
+                        } else {
+                            $skipRedisNetworkCheck = true;
+                        }
                     }
                 }
             }
@@ -319,13 +347,8 @@ class AppServiceProvider extends ServiceProvider
                         @file_put_contents($cbFile, '0');
                         @chmod($cbFile, 0666);
                     }
-                    if (Config::get('cache.default') === 'redis') {
-                        Config::set('cache.default', 'file');
-                    }
-                    if (Config::get('session.driver') === 'redis') {
-                        Config::set('session.driver', 'file');
-                    }
-                    if (Config::get('queue.default') === 'redis') {
+                    $applyRedisFileFallback();
+                    if (Config::get('queue.default') === 'database') {
                         try {
                             Config::set('queue.default', Schema::hasTable('jobs') ? 'database' : 'sync');
                         } catch (\Throwable) {

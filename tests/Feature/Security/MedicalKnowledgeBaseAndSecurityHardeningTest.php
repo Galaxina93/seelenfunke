@@ -21,6 +21,8 @@ class MedicalKnowledgeBaseAndSecurityHardeningTest extends TestCase
 
     public function test_medical_knowledge_base_contains_full_au_chronology_and_endokrinologikum_lab_findings(): void
     {
+        $admin = \App\Models\Admin\Admin::factory()->create();
+        $this->actingAs($admin, 'admin');
         $auEntry = AiKnowledgeBase::where('slug', 'krankschreibungen-au-eau-chronologie-aussteuerung-2016-2026')->first();
         $endoEntry = AiKnowledgeBase::where('slug', 'endokrinologikum-hannover-laborbefunde-humangenetik-hormonstatus-2024')->first();
 

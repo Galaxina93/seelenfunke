@@ -142,6 +142,13 @@ class SystemCronjobSeeder extends Seeder
                 'schedule' => '30 4 * * *',
                 'is_active' => true,
             ],
+            [
+                'name' => 'Ticket-Dateien Autopilot (4-Wochen-Archiv & Müllschutz)',
+                'description' => 'Verschiebt täglich um 04:10 Uhr Ticket-Dateien älter als 4 Wochen (28 Tage) automatisch ins komprimierte Archiv und entfernt verwaiste Altlasten (>180 Tage)',
+                'command' => 'tickets:cleanup-files',
+                'schedule' => '10 4 * * *',
+                'is_active' => true,
+            ],
         ];
     }
 

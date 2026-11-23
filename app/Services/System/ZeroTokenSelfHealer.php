@@ -220,6 +220,17 @@ class ZeroTokenSelfHealer
             }
         }
 
+        // 3. Transiente MySQL Docker-DNS- oder Socket-Unterbrechung -> abgestandenen Connection-Handle sofort purgen
+        if ($category === 'mysql_transient_dns_or_socket' || str_contains($msgLower, 'getaddrinfo for db')) {
+            try {
+                \Illuminate\Support\Facades\DB::purge('mysql');
+                \Illuminate\Support\Facades\DB::reconnect('mysql');
+                return true;
+            } catch (\Throwable) {
+                return false;
+            }
+        }
+
         return false;
     }
 }

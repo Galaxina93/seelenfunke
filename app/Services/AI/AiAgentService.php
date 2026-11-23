@@ -44,11 +44,7 @@ class AiAgentService
         $isEmployeeRestricted = $isFunkiSupportOnly || (AiAuthHelper::check() && !AiAuthHelper::isAdmin());
 
         if ($isFunkiSupportOnly) {
-            $allowedToolIdentifiers = array_values(array_filter(
-                array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
-                fn (string $n) => str_starts_with($n, 'support_')
-            ));
-            $allowedToolIdentifiers[] = 'system_get_current_time';
+            $allowedToolIdentifiers = AgentSkillBudgetGuard::getImmutableFunkiToolIdentifiers();
         } elseif ($agent->name === 'Funkira') {
             $allowedToolIdentifiers = FunkiraSkillPoolService::getCoreToolIdentifiers();
             if (!$isEmployeeRestricted) {

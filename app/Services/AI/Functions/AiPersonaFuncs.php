@@ -362,10 +362,16 @@ trait AiPersonaFuncs
     // [AREA: SECURITY & AES-256 ENCRYPTION HELPERS]
     private static function assertPersonaAdminAccess(): ?array
     {
-        if (!\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
             return [
                 'status' => 'error',
                 'message' => 'Zugriff verweigert: OSINT- und Top-Secret-Werkzeuge erfordern strikte Administrator-Berechtigungen.',
+            ];
+        }
+        if (!\App\Services\AI\AiAuthHelper::check() && !app()->runningInConsole() && !app()->runningUnitTests()) {
+            return [
+                'status' => 'error',
+                'message' => 'Zugriff verweigert: Nicht authentifiziert.',
             ];
         }
         return null;
@@ -782,10 +788,17 @@ trait AiPersonaFuncs
 
             $tagIds = [];
             foreach ($customTags as $tagName) {
-                $tag = AiKnowledgeBaseTag::firstOrCreate(
-                    ['slug' => Str::slug($tagName)],
-                    ['name' => $tagName]
-                );
+                $tSlug = Str::slug($tagName);
+                if ($tSlug === '') continue;
+                $tag = AiKnowledgeBaseTag::where('slug', $tSlug)
+                    ->orWhere('name', $tagName)
+                    ->first();
+                if (!$tag) {
+                    $tag = AiKnowledgeBaseTag::create([
+                        'slug' => $tSlug,
+                        'name' => $tagName,
+                    ]);
+                }
                 $tagIds[] = $tag->id;
             }
 
@@ -841,10 +854,15 @@ trait AiPersonaFuncs
                 'visibility_scope' => AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE,
             ]);
 
-            $tag = AiKnowledgeBaseTag::firstOrCreate(
-                ['slug' => 'top_secret'],
-                ['name' => 'top_secret']
-            );
+            $tag = AiKnowledgeBaseTag::where('slug', 'top_secret')
+                ->orWhere('name', 'top_secret')
+                ->first();
+            if (!$tag) {
+                $tag = AiKnowledgeBaseTag::create([
+                    'slug' => 'top_secret',
+                    'name' => 'top_secret',
+                ]);
+            }
             $kb->tags()->sync([$tag->id]);
 
             return [

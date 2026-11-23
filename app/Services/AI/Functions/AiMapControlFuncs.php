@@ -444,119 +444,124 @@ trait AiMapControlFuncs
     {
         if ($denied = self::assertMapStaffAccess()) return $denied;
 
-        $query = $args['query'] ?? '';
-        if (empty($query)) {
+        $query = trim((string) ($args['query'] ?? ''));
+        if ($query === '') {
             $received = json_encode($args);
             return ['status' => 'error', 'message' => "Du hast den zwingenden Parameter 'query' vergessen! (Erhalten: {$received}). Bitte rufe die Funktion 'map_search_and_fly' SOFORT noch einmal auf und übergebe den Suchbegriff als 'query'!"];
         }
 
-        $token = env('MAPBOX_TOKEN');
+        $token = config('services.mapbox.token') ?: env('MAPBOX_TOKEN');
         if (empty($token)) {
-            return ['status' => 'error', 'message' => 'MAPBOX_TOKEN is not configured in .env'];
+            return ['status' => 'error', 'message' => 'MAPBOX_TOKEN ist nicht in der Konfiguration hinterlegt.'];
         }
 
         try {
-            $url = "https://api.mapbox.com/geocoding/v5/mapbox.places/" . urlencode($query) . ".json";
-            $response = Http::timeout(5)->get($url, [
-                'access_token' => $token,
-                'limit' => 3, // Hole bis zu 3 Ergebnisse
-                'language' => 'de'
-            ]);
+            $cacheKey = 'mapbox_geocode_v2_' . md5(mb_strtolower($query));
+            $data = \Illuminate\Support\Facades\Cache::remember($cacheKey, 86400, function () use ($query, $token) {
+                $url = "https://api.mapbox.com/geocoding/v5/mapbox.places/" . urlencode($query) . ".json";
+                $response = Http::timeout(4)->get($url, [
+                    'access_token' => $token,
+                    'limit' => 3,
+                    'language' => 'de'
+                ]);
+                return $response->successful() ? $response->json() : null;
+            });
 
-            if ($response->successful()) {
-                $data = $response->json();
-                if (!empty($data['features']) && count($data['features']) > 0) {
-                    // Wenn es mehrere gibt und die Relevanz nicht eindeutig 1 ist, könnte der Agent nachfragen,
-                    // aber für UX fliegen wir direkt zum besten (ersten) Ergebnis und melden die anderen zurück.
-                    $feature = $data['features'][0];
-                    $lng = $feature['center'][0];
-                    $lat = $feature['center'][1];
-                    $placeName = $feature['place_name'];
+            if (is_array($data) && !empty($data['features']) && count($data['features']) > 0) {
+                $feature = $data['features'][0];
+                $lng = (float) $feature['center'][0];
+                $lat = (float) $feature['center'][1];
+                $placeName = (string) ($feature['place_name'] ?? $query);
 
-                    $zoom = $args['zoom'] ?? 14;
-                    // Auto-adjust zoom roughly based on feature type
-                    if (isset($feature['place_type'][0])) {
-                        if ($feature['place_type'][0] === 'country') $zoom = 5;
-                        if ($feature['place_type'][0] === 'region') $zoom = 8;
-                        if ($feature['place_type'][0] === 'place' || $feature['place_type'][0] === 'city') $zoom = 12;
-                        if ($feature['place_type'][0] === 'poi') $zoom = 16;
+                $zoom = $args['zoom'] ?? 14;
+                if (!isset($args['zoom']) && isset($feature['place_type'][0])) {
+                    if ($feature['place_type'][0] === 'country') $zoom = 5;
+                    elseif ($feature['place_type'][0] === 'region') $zoom = 8;
+                    elseif ($feature['place_type'][0] === 'place' || $feature['place_type'][0] === 'city') $zoom = 12;
+                    elseif ($feature['place_type'][0] === 'poi' || $feature['place_type'][0] === 'address') $zoom = 16;
+                }
+
+                $pitch = $args['pitch'] ?? ($zoom >= 15 ? 60 : 45);
+
+                $otherResults = [];
+                if (count($data['features']) > 1) {
+                    for ($i = 1; $i < count($data['features']); $i++) {
+                        $otherResults[] = $data['features'][$i]['place_name'];
                     }
+                }
 
-                    $pitch = $args['pitch'] ?? 60;
+                $message = "Habe Koordinaten für '{$placeName}' gefunden und die Karte dorthin bewegt.";
+                if (!empty($otherResults)) {
+                    $message .= " Hinweis: Es gab weitere Treffer (z.B. " . implode(', ', $otherResults) . "). Falls der Nutzer einen anderen meinte, frage gezielt nach.";
+                }
 
-                    $otherResults = [];
-                    if (count($data['features']) > 1) {
-                        for ($i = 1; $i < count($data['features']); $i++) {
-                            $otherResults[] = $data['features'][$i]['place_name'];
-                        }
-                    }
-
-                    $message = "Habe Koordinaten für '{$placeName}' gefunden und die Karte dorthin bewegt.";
-                    if (!empty($otherResults)) {
-                        $message .= " Hinweis: Es gab weitere Treffer (z.B. " . implode(', ', $otherResults) . "). Falls der Nutzer einen anderen meinte, frage gezielt nach.";
-                    }
-
-                    // Fetch Wikipedia data for Holographic News Panel
-                    $newsEvent = null;
-                    try {
+                // Wikipedia Geosearch mit 2h Cache & kurzem Timeout (2.2s), damit Kartenflug niemals blockiert
+                $newsEvent = null;
+                try {
+                    $wikiKey = 'wiki_geo_v2_' . round($lat, 3) . '_' . round($lng, 3);
+                    $articles = \Illuminate\Support\Facades\Cache::remember($wikiKey, 7200, function () use ($lat, $lng) {
                         $wikiUrl = "https://de.wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord={$lat}|{$lng}&ggsradius=5000&ggslimit=3&prop=extracts|pageimages&exintro=1&exchars=150&explaintext=1&piprop=thumbnail&pithumbsize=300&format=json";
-                        $wikiResponse = Http::timeout(3)->get($wikiUrl);
-                        if ($wikiResponse->successful()) {
-                            $wikiData = $wikiResponse->json();
-                            $articles = [];
-                            if (isset($wikiData['query']['pages'])) {
-                                foreach ($wikiData['query']['pages'] as $pageId => $pageData) {
-                                    $articles[] = [
-                                        'title' => $pageData['title'] ?? 'Wikipedia',
-                                        'description' => $pageData['extract'] ?? '',
-                                        'image' => $pageData['thumbnail']['source'] ?? null,
-                                        'url' => 'https://de.wikipedia.org/?curid=' . $pageId,
-                                        'source' => 'WIKI GEO-LINK',
-                                        'date' => 'Live'
-                                    ];
-                                }
-                            }
-                            if (!empty($articles)) {
-                                $newsEvent = [
-                                    'name' => 'ai-show-news',
-                                    'detail' => [
-                                        'articles' => $articles
-                                    ]
+                        $wikiResponse = Http::timeout(2)->get($wikiUrl);
+                        if (!$wikiResponse->successful()) {
+                            return [];
+                        }
+                        $wikiData = $wikiResponse->json();
+                        $list = [];
+                        if (isset($wikiData['query']['pages']) && is_array($wikiData['query']['pages'])) {
+                            foreach ($wikiData['query']['pages'] as $pageId => $pageData) {
+                                $list[] = [
+                                    'title' => $pageData['title'] ?? 'Wikipedia',
+                                    'description' => $pageData['extract'] ?? '',
+                                    'image' => $pageData['thumbnail']['source'] ?? null,
+                                    'url' => 'https://de.wikipedia.org/?curid=' . $pageId,
+                                    'source' => 'WIKI GEO-LINK',
+                                    'date' => 'Live'
                                 ];
                             }
                         }
-                    } catch (\Exception $e) {
-                        Log::error("Wikipedia Fetch Error: " . $e->getMessage());
-                    }
+                        return $list;
+                    });
 
-                    $frontendEvents = [
-                        [
-                            'name' => 'map-fly-to',
+                    if (!empty($articles)) {
+                        $newsEvent = [
+                            'name' => 'ai-show-news',
                             'detail' => [
-                                'lng' => $lng,
-                                'lat' => $lat,
-                                'zoom' => $zoom,
-                                'pitch' => $pitch,
-                                'markerText' => $query
+                                'articles' => $articles
                             ]
-                        ]
-                    ];
-
-                    if ($newsEvent) {
-                        $frontendEvents[] = $newsEvent;
+                        ];
                     }
-
-                    return [
-                        'status' => 'success',
-                        'message' => $message,
-                        'place_name' => $placeName,
-                        'coordinates' => [
-                            'lng' => $lng,
-                            'lat' => $lat
-                        ],
-                        '_frontend_events' => $frontendEvents
-                    ];
+                } catch (\Exception $e) {
+                    Log::warning("Wikipedia Fetch Warning: " . $e->getMessage());
                 }
+
+                $shortLabel = trim((string) ($feature['text'] ?? $query));
+                $frontendEvents = [
+                    [
+                        'name' => 'map-fly-to',
+                        'detail' => [
+                            'lng' => $lng,
+                            'lat' => $lat,
+                            'zoom' => $zoom,
+                            'pitch' => $pitch,
+                            'markerText' => $shortLabel !== '' ? $shortLabel : $placeName
+                        ]
+                    ]
+                ];
+
+                if ($newsEvent) {
+                    $frontendEvents[] = $newsEvent;
+                }
+
+                return [
+                    'status' => 'success',
+                    'message' => $message,
+                    'place_name' => $placeName,
+                    'coordinates' => [
+                        'lng' => $lng,
+                        'lat' => $lat
+                    ],
+                    '_frontend_events' => $frontendEvents
+                ];
             }
 
             return [
@@ -573,61 +578,104 @@ trait AiMapControlFuncs
     {
         if ($denied = self::assertMapStaffAccess()) return $denied;
 
-        $query = $args['query'] ?? '';
-        $limit = $args['limit'] ?? 5;
-        if ($limit > 10) $limit = 10;
+        $query = trim((string) ($args['query'] ?? ''));
+        $limit = max(1, min(10, (int) ($args['limit'] ?? 5)));
         
-        if (empty($query)) {
+        if ($query === '') {
             $received = json_encode($args);
             return ['status' => 'error', 'message' => "Du hast den zwingenden Parameter 'query' vergessen! (Erhalten: {$received}). Bitte rufe die Funktion 'map_search_and_mark_places' SOFORT noch einmal auf und übergebe den Suchbegriff als 'query'!"];
         }
 
         try {
-            $url = "https://nominatim.openstreetmap.org/search";
-            $response = \Illuminate\Support\Facades\Http::timeout(5)->withHeaders([
-                'User-Agent' => 'Seelenfunke/1.0 (AI Agent)'
-            ])->get($url, [
-                'q' => $query,
-                'format' => 'json',
-                'addressdetails' => 1,
-                'limit' => $limit
-            ]);
+            $cacheKey = 'map_places_v2_' . md5(mb_strtolower($query) . '_' . $limit);
+            $markers = \Illuminate\Support\Facades\Cache::remember($cacheKey, 21600, function () use ($query, $limit) {
+                $found = [];
+                try {
+                    $response = \Illuminate\Support\Facades\Http::timeout(4)->withHeaders([
+                        'User-Agent' => 'Seelenfunke/1.0 (AI Agent)'
+                    ])->get('https://nominatim.openstreetmap.org/search', [
+                        'q' => $query,
+                        'format' => 'json',
+                        'addressdetails' => 1,
+                        'limit' => $limit
+                    ]);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                if (!empty($data) && count($data) > 0) {
-                    
-                    $markers = [];
-                    foreach ($data as $feature) {
-                        $name = $feature['name'] ?: ($feature['address']['shop'] ?? $feature['address']['building'] ?? $feature['address']['commercial'] ?? $feature['display_name']);
-                        
-                        $markers[] = [
-                            'lng' => (float)$feature['lon'],
-                            'lat' => (float)$feature['lat'],
-                            'title' => $name,
-                            'location_name' => $feature['display_name']
-                        ];
+                    if ($response->successful()) {
+                        $data = $response->json();
+                        if (is_array($data)) {
+                            foreach ($data as $feature) {
+                                if (!isset($feature['lon'], $feature['lat'])) {
+                                    continue;
+                                }
+                                $name = $feature['name'] ?: ($feature['address']['shop'] ?? $feature['address']['building'] ?? $feature['address']['commercial'] ?? $feature['display_name'] ?? $query);
+                                $found[] = [
+                                    'lng' => (float) $feature['lon'],
+                                    'lat' => (float) $feature['lat'],
+                                    'title' => (string) $name,
+                                    'location_name' => (string) ($feature['display_name'] ?? $name)
+                                ];
+                            }
+                        }
                     }
-
-                    $count = count($markers);
-                    
-                    $frontendEvents = [
-                        [
-                            'name' => 'map-mark-places',
-                            'detail' => [
-                                'query' => $query,
-                                'markers' => $markers
-                            ]
-                        ]
-                    ];
-
-                    return [
-                        'status' => 'success',
-                        'message' => "Habe {$count} präzise Orte für '{$query}' gefunden und auf der Map markiert. Nutze das Tool 'map_generate_places_pdf_and_mail', falls der Nutzer eine PDF-Liste angefordert hat.",
-                        'places' => $markers,
-                        '_frontend_events' => $frontendEvents
-                    ];
+                } catch (\Throwable $nomErr) {
+                    Log::warning('Nominatim fallback triggered: ' . $nomErr->getMessage());
                 }
+
+                // Fallback auf Mapbox Places POI-Suche, falls Nominatim drosselt oder leer ist
+                if (empty($found)) {
+                    $token = config('services.mapbox.token') ?: env('MAPBOX_TOKEN');
+                    if (!empty($token)) {
+                        $mbRes = Http::timeout(4)->get(
+                            'https://api.mapbox.com/geocoding/v5/mapbox.places/' . urlencode($query) . '.json',
+                            [
+                                'access_token' => $token,
+                                'limit' => $limit,
+                                'language' => 'de',
+                            ]
+                        );
+                        if ($mbRes->successful()) {
+                            $mbData = $mbRes->json();
+                            foreach (($mbData['features'] ?? []) as $feat) {
+                                if (!empty($feat['center'])) {
+                                    $found[] = [
+                                        'lng' => (float) $feat['center'][0],
+                                        'lat' => (float) $feat['center'][1],
+                                        'title' => (string) ($feat['text'] ?? $query),
+                                        'location_name' => (string) ($feat['place_name'] ?? '')
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return $found;
+            });
+
+            if (!empty($markers)) {
+                $lngs = array_column($markers, 'lng');
+                $lats = array_column($markers, 'lat');
+                $bbox = [min($lngs), min($lats), max($lngs), max($lats)];
+                $count = count($markers);
+                
+                $frontendEvents = [
+                    [
+                        'name' => 'map-mark-places',
+                        'detail' => [
+                            'query' => $query,
+                            'markers' => $markers,
+                            'bbox' => $bbox,
+                        ]
+                    ]
+                ];
+
+                return [
+                    'status' => 'success',
+                    'message' => "Habe {$count} präzise Orte für '{$query}' gefunden und auf der Map markiert. Nutze das Tool 'map_generate_places_pdf_and_mail', falls der Nutzer eine PDF-Liste angefordert hat.",
+                    'places' => $markers,
+                    'bbox' => $bbox,
+                    '_frontend_events' => $frontendEvents
+                ];
             }
 
             return [
@@ -635,7 +683,7 @@ trait AiMapControlFuncs
                 'message' => 'Keine lokalen Ergebnisse für diese Suche gefunden. Probiere es mit einer anderen Formulierung.'
             ];
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("Nominatim Geocoding Error: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Map Places Geocoding Error: " . $e->getMessage());
             return ['status' => 'error', 'message' => 'API Error: ' . $e->getMessage()];
         }
     }

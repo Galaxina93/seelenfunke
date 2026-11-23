@@ -109,8 +109,34 @@ namespace Funkenwerk3D
             string? initialModelPath = null;
             foreach (string arg in e.Args)
             {
-                if (!string.IsNullOrWhiteSpace(arg) &&
-                    !arg.StartsWith("-", StringComparison.Ordinal) &&
+                if (string.IsNullOrWhiteSpace(arg))
+                    continue;
+
+                if (arg.StartsWith("funkenwerk3d://", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (Uri.TryCreate(arg, UriKind.Absolute, out Uri? protoUri))
+                    {
+                        string query = protoUri.Query.TrimStart('?');
+                        foreach (string kv in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            int eq = kv.IndexOf('=');
+                            if (eq > 0 && string.Equals(kv.Substring(0, eq), "path", StringComparison.OrdinalIgnoreCase))
+                            {
+                                string decoded = Uri.UnescapeDataString(kv.Substring(eq + 1));
+                                if (ModelSecurityValidator.TryValidateModelFile(decoded, out string validPath, out _))
+                                {
+                                    initialModelPath = validPath;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    if (initialModelPath != null)
+                        break;
+                    continue;
+                }
+
+                if (!arg.StartsWith("-", StringComparison.Ordinal) &&
                     !arg.StartsWith("/", StringComparison.Ordinal) &&
                     File.Exists(arg))
                 {

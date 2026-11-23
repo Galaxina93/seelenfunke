@@ -306,6 +306,16 @@ class AiWidget extends Component
         $isAdmin = \App\Services\AI\AiAuthHelper::isAdmin();
         $excludedNames = $isAdmin ? ['Funki', 'Falcon', 'Falcone'] : ['Funki', 'Falcon', 'Falcone', 'Funkira'];
 
+        $availableAgents = \App\Models\Ai\AiAgent::where('is_active', true)
+            ->whereNotIn('name', $excludedNames)
+            ->get();
+
+        $widgetAgent = $this->agentId
+            ? ($availableAgents->firstWhere('id', $this->agentId) ?? \App\Models\Ai\AiAgent::find($this->agentId))
+            : ($availableAgents->firstWhere('name', 'Funkira') ?? $availableAgents->first());
+
+        $chatSessions = $this->chatSessions();
+
         return view('livewire.shop.ai.ai-widget', [
             'tasks' => $isAdmin
                 ? \App\Models\Ai\AiWorkspaceTask::with('agent')
@@ -315,9 +325,10 @@ class AiWidget extends Component
                     ->take(5)
                     ->get()
                 : collect(),
-            'availableAgents' => \App\Models\Ai\AiAgent::where('is_active', true)
-                ->whereNotIn('name', $excludedNames)
-                ->get(),
+            'availableAgents' => $availableAgents,
+            'widgetAgent' => $widgetAgent,
+            'chatSessions' => $chatSessions,
+            'isAdminUser' => $isAdmin,
         ]);
     }
 }

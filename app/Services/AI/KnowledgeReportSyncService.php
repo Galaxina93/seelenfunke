@@ -137,7 +137,13 @@ class KnowledgeReportSyncService
             ? rtrim($reportsDirectory, "/\\")
             : base_path('Abschlussberichte');
 
+        $isDefaultAbschlussberichte = ($reportsDirectory === null || trim($reportsDirectory) === '' || rtrim($reportsDirectory, "/\\") === base_path('Abschlussberichte'));
+
         if (!is_dir($rootDir)) {
+            if ($isDefaultAbschlussberichte) {
+                return $this->syncFromBrainSnapshot($force, $startedAt);
+            }
+
             return [
                 'scanned' => 0,
                 'created' => 0,
@@ -712,5 +718,178 @@ class KnowledgeReportSyncService
         ]);
 
         return Str::slug($replaced, '-');
+    }
+
+    /**
+     * Nachdem das physische Verzeichnis `Abschlussberichte/` aufgelöst wurde, synchronisiert der Dienst
+     * aus dem digitalisierten Gehirn-Snapshot (`storage/app/private/knowledge_brain_reports_snapshot.json`),
+     * sodass Tests und frische Umgebungen weiterhin deterministisch alle Berichte in Millisekunden erhalten.
+     *
+     * @return array{scanned: int, created: int, updated: int, skipped_unchanged: int, deleted_stale: int, elapsed_ms: float}
+     */
+    private function syncFromBrainSnapshot(bool $force, float $startedAt): array
+    {
+        $snapshotPath = CentralBrainService::resolveSnapshotPath();
+        if (!is_file($snapshotPath)) {
+            return [
+                'scanned' => 0,
+                'created' => 0,
+                'updated' => 0,
+                'skipped_unchanged' => 0,
+                'deleted_stale' => 0,
+                'elapsed_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+            ];
+        }
+
+        $decoded = json_decode((string) @file_get_contents($snapshotPath), true);
+        $entries = is_array($decoded['entries'] ?? null) ? $decoded['entries'] : [];
+        if (empty($entries)) {
+            return [
+                'scanned' => 0,
+                'created' => 0,
+                'updated' => 0,
+                'skipped_unchanged' => 0,
+                'deleted_stale' => 0,
+                'elapsed_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+            ];
+        }
+
+        $existingSynced = AiKnowledgeBase::query()
+            ->whereNotNull('source_path')
+            ->where('source_path', 'like', self::SOURCE_PREFIX . '%')
+            ->get(['id', 'source_path', 'content_sha256', 'is_published', 'visibility_scope', 'ai_knowledge_base_category_id'])
+            ->keyBy('source_path');
+
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+
+        $this->warmTaxonomyCaches();
+        $nowTs = now();
+        $newCategoryRows = [];
+        $newTagRows = [];
+        $preparedRows = [];
+
+        foreach ($entries as $entry) {
+            $sourcePath = substr((string) ($entry['source_path'] ?? ''), 0, 191);
+            $content = str_replace(["\r\n", "\r"], "\n", (string) ($entry['content'] ?? ''));
+            if ($sourcePath === '' || trim($content) === '') {
+                continue;
+            }
+            $sha256 = hash('sha256', $content);
+            $existing = $existingSynced->get($sourcePath);
+
+            if (
+                !$force
+                && $existing !== null
+                && $existing->content_sha256 === $sha256
+                && $existing->is_published === true
+                && !empty($existing->ai_knowledge_base_category_id)
+            ) {
+                $skipped++;
+                continue;
+            }
+
+            $catName = (string) ($entry['category'] ?? 'System');
+            $catObj = $this->stageCategory($catName, $nowTs, $newCategoryRows);
+            $tagIds = $this->stageTags((array) ($entry['tags'] ?? []), $nowTs, $newTagRows);
+
+            $preparedRows[] = [
+                'source_path' => $sourcePath,
+                'content' => $content,
+                'sha256' => $sha256,
+                'existing' => $existing,
+                'category_id' => $catObj['id'],
+                'title' => (string) ($entry['title'] ?? basename($sourcePath)),
+                'tag_ids' => $tagIds,
+            ];
+        }
+
+        if (!empty($preparedRows)) {
+            DB::transaction(function () use ($preparedRows, $newCategoryRows, $newTagRows, $nowTs, &$created, &$updated): void {
+                if (!empty($newCategoryRows)) {
+                    foreach (array_chunk($newCategoryRows, 50) as $catChunk) {
+                        DB::table('ai_knowledge_base_categories')->insert($catChunk);
+                    }
+                }
+                if (!empty($newTagRows)) {
+                    foreach (array_chunk($newTagRows, 100) as $tagChunk) {
+                        DB::table('ai_knowledge_base_tags')->insert($tagChunk);
+                    }
+                }
+                $newKbInserts = [];
+                $touchedKbIds = [];
+                $pivotInserts = [];
+
+                foreach ($preparedRows as $prep) {
+                    $existing = $prep['existing'];
+                    if ($existing !== null) {
+                        $kbId = (string) $existing->id;
+                        DB::table('ai_knowledge_bases')->where('id', $kbId)->update([
+                            'title' => $prep['title'],
+                            'ai_knowledge_base_category_id' => $prep['category_id'],
+                            'content' => $prep['content'],
+                            'content_sha256' => $prep['sha256'],
+                            'is_published' => true,
+                            'visibility_scope' => AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE,
+                            'updated_at' => $nowTs,
+                        ]);
+                        $updated++;
+                    } else {
+                        $kbId = (string) Str::uuid();
+                        $newKbInserts[] = [
+                            'id' => $kbId,
+                            'title' => $prep['title'],
+                            'slug' => $this->buildDeterministicSlug($prep['source_path']),
+                            'source_path' => $prep['source_path'],
+                            'content_sha256' => $prep['sha256'],
+                            'ai_knowledge_base_category_id' => $prep['category_id'],
+                            'content' => $prep['content'],
+                            'is_published' => true,
+                            'visibility_scope' => AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE,
+                            'created_at' => $nowTs,
+                            'updated_at' => $nowTs,
+                        ];
+                        $created++;
+                    }
+                    $touchedKbIds[] = $kbId;
+                    foreach ($prep['tag_ids'] as $tid) {
+                        $pivotInserts[] = [
+                            'ai_knowledge_base_id' => $kbId,
+                            'ai_knowledge_base_tag_id' => $tid,
+                            'created_at' => $nowTs,
+                            'updated_at' => $nowTs,
+                        ];
+                    }
+                }
+
+                if (!empty($newKbInserts)) {
+                    foreach (array_chunk($newKbInserts, 40) as $kbChunk) {
+                        DB::table('ai_knowledge_bases')->insert($kbChunk);
+                    }
+                }
+                if (!empty($touchedKbIds)) {
+                    foreach (array_chunk($touchedKbIds, 200) as $idChunk) {
+                        DB::table('ai_knowledge_base_ai_knowledge_base_tag')->whereIn('ai_knowledge_base_id', $idChunk)->delete();
+                    }
+                }
+                if (!empty($pivotInserts)) {
+                    foreach (array_chunk($pivotInserts, 250) as $pivChunk) {
+                        DB::table('ai_knowledge_base_ai_knowledge_base_tag')->insert($pivChunk);
+                    }
+                }
+            });
+
+            AiKnowledgeBase::flushBrainCache();
+        }
+
+        return [
+            'scanned' => count($entries),
+            'created' => $created,
+            'updated' => $updated,
+            'skipped_unchanged' => $skipped,
+            'deleted_stale' => 0,
+            'elapsed_ms' => round((microtime(true) - $startedAt) * 1000, 2),
+        ];
     }
 }

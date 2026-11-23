@@ -56,7 +56,7 @@ class SystemBlueprintAuditCommand extends Command
 
         if ($this->option('export-vvt')) {
             $blueprintService->generateGdprArt30VvtMarkdown(true);
-            $this->info('Art. 30 DSGVO Verarbeitungsverzeichnis erfolgreich unter Abschlussberichte/System/Verzeichnis_Verarbeitungstaetigkeiten_Art30_DSGVO.md generiert!');
+            $this->info('Art. 30 DSGVO Verarbeitungsverzeichnis erfolgreich dublettenfrei in der zentralen KI-Wissensdatenbank gespeichert!');
         }
 
         $this->info('Alle ' . $audit['total_models'] . ' Models erfüllen die Seelenfunke-Blueprint-Architektur zu 100 %!');

@@ -3,7 +3,6 @@
 namespace Tests\Feature\Ai;
 
 use App\Livewire\Shop\Ai\AiAgentEditor;
-use App\Livewire\Shop\Ai\AiMethod;
 use App\Models\Admin\Admin;
 use App\Models\Customer\Customer;
 use App\Models\Employee\Employee;
@@ -15,26 +14,21 @@ class AiAgentEditorAndMethodSecurityTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guests_cannot_mount_agent_editor_or_methods(): void
+    public function test_guests_cannot_mount_agent_editor(): void
     {
         Livewire::test(AiAgentEditor::class)->assertStatus(403);
-        Livewire::test(AiMethod::class)->assertStatus(403);
     }
 
-    public function test_customers_cannot_mount_agent_editor_or_methods(): void
+    public function test_customers_cannot_mount_agent_editor(): void
     {
         $customer = Customer::factory()->create();
 
         Livewire::actingAs($customer, 'customer')
             ->test(AiAgentEditor::class)
             ->assertStatus(403);
-
-        Livewire::actingAs($customer, 'customer')
-            ->test(AiMethod::class)
-            ->assertStatus(403);
     }
 
-    public function test_admins_and_employees_can_mount_agent_editor_and_methods(): void
+    public function test_admins_and_employees_can_mount_agent_editor(): void
     {
         $admin = Admin::factory()->create();
         $employee = Employee::create([
@@ -46,8 +40,5 @@ class AiAgentEditorAndMethodSecurityTest extends TestCase
 
         Livewire::actingAs($admin, 'admin')->test(AiAgentEditor::class)->assertStatus(200);
         Livewire::actingAs($employee, 'employee')->test(AiAgentEditor::class)->assertStatus(200);
-
-        Livewire::actingAs($admin, 'admin')->test(AiMethod::class)->assertStatus(200);
-        Livewire::actingAs($employee, 'employee')->test(AiMethod::class)->assertStatus(200);
     }
 }

@@ -569,7 +569,7 @@ fun DashboardContent(
         }
     }
 
-    // 3b. DIREKTNACHRICHT AN FALCON (1-Tap-Karte für Admin, ohne Subtexte)
+    // 3b. DIREKTNACHRICHT AN FUNKIRA (1-Tap-Karte für Admin, ohne Subtexte)
     if (isAdmin) {
         Card(
             modifier = Modifier
@@ -598,15 +598,16 @@ fun DashboardContent(
                             .clip(CircleShape)
                             .background(Gold.copy(alpha = 0.16f))
                             .border(1.dp, Gold.copy(alpha = 0.65f), CircleShape)
-                            .clickable(onClick = onOpenFalconFocus)
-                            .padding(2.dp),
+                            .clickable(onClick = onOpenFalconFocus),
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.falcon_avatar),
+                            painter = painterResource(id = R.drawable.funkira_avatar),
                             contentDescription = "Funkira 3D Fokus",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize()
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
                         )
                     }
 

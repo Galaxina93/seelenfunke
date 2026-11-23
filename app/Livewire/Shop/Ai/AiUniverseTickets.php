@@ -8,9 +8,11 @@ use App\Models\Ai\AiDepartment;
 use App\Models\Ai\AiLearnedPreference;
 use App\Models\Ai\AiMetric;
 use App\Models\Ai\AiUniverseTicket;
+use App\Services\AI\AgentSkillBudgetGuard;
 use App\Services\AI\AiAuthHelper;
 use App\Services\AI\FunkiraPresenceContext;
 use App\Services\AI\FunkiraTicketRouter;
+use App\Services\AI\TicketDeliverableService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -30,7 +32,18 @@ class AiUniverseTickets extends Component
     public string $themingDepartment = 'Leitung';
 
     #[Url(as: 'view')]
-    public string $mainView = 'tickets'; // 'tickets' | 'organigramm' | 'knowledge'
+    public string $mainView = 'tickets'; // 'tickets' | 'files' | 'organigramm' | 'knowledge'
+
+    #[Url(as: 'fstate')]
+    public string $fileStateFilter = 'active'; // 'active' | 'archived' | 'pinned' | 'all'
+
+    #[Url(as: 'ftype')]
+    public string $fileTypeFilter = 'all'; // 'all' | '3d' | 'concept' | 'document' | 'image'
+
+    public string $fileSearch = '';
+    public ?string $conceptModalTitle = null;
+    public ?string $conceptModalHtml = null;
+    public ?string $conceptModalDownloadUrl = null;
 
     #[Url(as: 'dept')]
     public string $selectedDepartmentId = 'all';
@@ -66,8 +79,16 @@ class AiUniverseTickets extends Component
             abort(403, 'Zugriff auf das zentrale Ticketsystem verweigert.');
         }
 
-        if (!in_array($this->mainView, ['tickets', 'organigramm', 'knowledge'], true)) {
+        if (!in_array($this->mainView, ['tickets', 'files', 'organigramm', 'knowledge'], true)) {
             $this->mainView = 'tickets';
+        }
+
+        if (!in_array($this->fileStateFilter, ['active', 'archived', 'pinned', 'all'], true)) {
+            $this->fileStateFilter = 'active';
+        }
+
+        if (!in_array($this->fileTypeFilter, ['all', '3d', 'concept', 'document', 'image'], true)) {
+            $this->fileTypeFilter = 'all';
         }
 
         if (!in_array($this->statusFilter, ['open', 'waiting', 'completed', 'archived'], true)) {
@@ -89,9 +110,81 @@ class AiUniverseTickets extends Component
 
     public function setMainView(string $view): void
     {
-        if (in_array($view, ['tickets', 'organigramm', 'knowledge'], true)) {
+        if (in_array($view, ['tickets', 'files', 'organigramm', 'knowledge'], true)) {
             $this->mainView = $view;
         }
+    }
+
+    public function setFileStateFilter(string $state): void
+    {
+        if (in_array($state, ['active', 'archived', 'pinned', 'all'], true)) {
+            $this->fileStateFilter = $state;
+        }
+    }
+
+    public function setFileTypeFilter(string $type): void
+    {
+        if (in_array($type, ['all', '3d', 'concept', 'document', 'image'], true)) {
+            $this->fileTypeFilter = $type;
+        }
+    }
+
+    public function jumpToTicketFromFiles(string $ticketId): void
+    {
+        $ticket = AiUniverseTicket::find($ticketId);
+        if (!$ticket) {
+            return;
+        }
+        $this->mainView = 'tickets';
+        $this->selectedDepartmentId = 'all';
+        $this->selectedAgentId = 'all';
+        $this->statusFilter = match ($ticket->status) {
+            AiUniverseTicket::STATUS_COMPLETED => 'completed',
+            AiUniverseTicket::STATUS_ARCHIVED => 'archived',
+            default => 'open',
+        };
+        $this->activeTicketId = $ticket->id;
+    }
+
+    public function toggleAttachmentPin(string $messageId, string $attachmentKey): void
+    {
+        if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        TicketDeliverableService::togglePinOnAttachment($messageId, $attachmentKey);
+    }
+
+    public function restoreArchivedFile(string $messageId, string $attachmentKey): void
+    {
+        if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin()) {
+            abort(403);
+        }
+
+        TicketDeliverableService::restoreArchivedAttachment($messageId, $attachmentKey);
+    }
+
+    public function openConceptModal(string $relPath, string $title = 'Konzept'): void
+    {
+        if (!Auth::guard('admin')->check() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+            abort(403);
+        }
+
+        $markdown = TicketDeliverableService::readConceptText($relPath);
+        if ($markdown === null) {
+            return;
+        }
+
+        $this->conceptModalTitle = $title;
+        $this->conceptModalHtml = Str::markdown($markdown, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
+        $this->conceptModalDownloadUrl = route('admin.ai.workspace.file', ['path' => $relPath, 'download' => 1], false);
+    }
+
+    public function closeConceptModal(): void
+    {
+        $this->conceptModalTitle = null;
+        $this->conceptModalHtml = null;
+        $this->conceptModalDownloadUrl = null;
     }
 
     public function selectDepartment(string $deptId): void
@@ -190,7 +283,7 @@ class AiUniverseTickets extends Component
             return;
         }
 
-        FunkiraTicketRouter::dispatchMessage(
+        $result = FunkiraTicketRouter::dispatchMessage(
             $reply,
             [
                 'channel' => 'web_portal',
@@ -202,6 +295,24 @@ class AiUniverseTickets extends Component
 
         $this->ticketReplyInput = '';
         $this->replyUploads = [];
+
+        $updatedTicket = ($result['ticket'] ?? null) instanceof AiUniverseTicket
+            ? $result['ticket']
+            : $ticket->fresh();
+
+        if ($updatedTicket) {
+            if ($this->statusFilter === 'completed' && $updatedTicket->status !== AiUniverseTicket::STATUS_COMPLETED) {
+                $this->statusFilter = 'open';
+            } elseif ($this->statusFilter === 'archived' && $updatedTicket->status !== AiUniverseTicket::STATUS_ARCHIVED) {
+                $this->statusFilter = 'open';
+            } elseif ($this->statusFilter === 'waiting' && $updatedTicket->status !== AiUniverseTicket::STATUS_WAITING_FOR_ALINA) {
+                $this->statusFilter = ($updatedTicket->status === AiUniverseTicket::STATUS_COMPLETED) ? 'completed' : 'open';
+            } elseif ($this->statusFilter === 'open' && $updatedTicket->status === AiUniverseTicket::STATUS_COMPLETED) {
+                $this->statusFilter = 'completed';
+            } elseif ($this->statusFilter === 'open' && $updatedTicket->status === AiUniverseTicket::STATUS_ARCHIVED) {
+                $this->statusFilter = 'archived';
+            }
+        }
     }
 
     public function triggerTicketAction(string $action, ?string $optionValue = null): void
@@ -306,15 +417,76 @@ class AiUniverseTickets extends Component
     }
 
     /**
-     * Formatiert kompaktes Ticket-Markdown (**Fett**, `Code`) XSS-sicher ohne rohe Sternchen.
+     * Formatiert kompaktes Ticket-Markdown (**Fett**, `Code`, @Agent) XSS-sicher und mehrzeilig ohne rohe Sternchen.
      */
     public static function formatMessageHtml(?string $content): string
     {
-        $escaped = e((string) $content);
+        $normalized = str_replace(["\r\n", "\r"], "\n", (string) $content);
+        $escaped = e($normalized);
         $formatted = preg_replace('/\*\*(.+?)\*\*/s', '<strong class="font-bold text-gray-900 dark:text-white">$1</strong>', $escaped) ?? $escaped;
         $formatted = preg_replace('/`([^`\n]+)`/', '<code class="px-1.5 py-0.5 rounded bg-gray-200/70 dark:bg-gray-800 font-mono text-[11px]">$1</code>', $formatted) ?? $formatted;
 
+        $mentionRegex = '/(?:^|(?<=[\s(\[{"\',;:]))@(Antigravity|Dr\.\s*Funki|DrFunki|Bestelli|Einkaufi|Produkti|Funkira|Marketi|Systemi|Buchi|Globi|Lasi)(?=$|[\s.,!?:;)\]}"\'\-])/iu';
+        $formatted = preg_replace(
+            $mentionRegex,
+            '<span class="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-bold bg-[var(--theme-color-20)] text-gray-900 dark:text-white border border-[var(--theme-color-30)]">@$1</span>',
+            $formatted
+        ) ?? $formatted;
+
         return $formatted;
+    }
+
+    /**
+     * Interne Spezialisten + Antigravity für das @-Mention-Autocomplete im Ticket-Chat
+     * (Funki bleibt als isolierter Frontend-Support-Agent strikt ausgeschlossen).
+     *
+     * @return array<int, array{id: string, name: string, dept: string, avatar: string}>
+     */
+    #[Computed]
+    public function mentionableAgents(): array
+    {
+        if (!Schema::hasTable('ai_agents')) {
+            return [];
+        }
+
+        $agents = AiAgent::with('department')
+            ->where('is_active', true)
+            ->get()
+            ->reject(static fn (AiAgent $ag): bool => AgentSkillBudgetGuard::isFunkiAgent($ag))
+            ->sortBy(static function (AiAgent $ag): string {
+                $name = strtolower(trim((string) $ag->name));
+                if ($name === 'funkira') {
+                    return '00_funkira';
+                }
+                if ($name === 'antigravity') {
+                    return '01_antigravity';
+                }
+                return '10_' . $name;
+            })
+            ->values();
+
+        $list = [];
+        foreach ($agents as $ag) {
+            $pic = (string) ($ag->profile_picture ?? '');
+            if ($pic !== '') {
+                $avatar = Str::startsWith($pic, ['http://', 'https://', '/'])
+                    ? $pic
+                    : (Str::startsWith($pic, 'shop/') ? asset($pic) : \Illuminate\Support\Facades\Storage::url($pic));
+            } elseif (strcasecmp((string) $ag->name, 'Antigravity') === 0) {
+                $avatar = asset('shop/projekt/logo/funkenwerk.png');
+            } else {
+                $avatar = asset('shop/ai/images/funkira_selfie.png');
+            }
+
+            $list[] = [
+                'id' => (string) $ag->id,
+                'name' => (string) $ag->name,
+                'dept' => (string) ($ag->department?->name ?? (strcasecmp((string) $ag->name, 'Antigravity') === 0 ? 'System' : 'Leitung')),
+                'avatar' => $avatar,
+            ];
+        }
+
+        return $list;
     }
 
     public function deleteLearnedPreference(string $prefId): void
@@ -350,9 +522,11 @@ class AiUniverseTickets extends Component
         return AiAgent::query()
             ->where('is_active', true)
             ->when($this->selectedDepartmentId !== 'all', fn ($q) => $q->where('ai_department_id', $this->selectedDepartmentId))
-            ->orderByRaw("CASE WHEN name = 'Funkira' THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE WHEN name = 'Funkira' THEN 0 WHEN name = 'Antigravity' THEN 1 ELSE 2 END")
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->reject(static fn (AiAgent $ag): bool => AgentSkillBudgetGuard::isFunkiAgent($ag))
+            ->values();
     }
 
     #[Computed]
@@ -493,11 +667,22 @@ class AiUniverseTickets extends Component
         }
     }
 
+    #[Computed]
+    public function ticketDeliverables(): array
+    {
+        return TicketDeliverableService::collectAllTicketDeliverables(
+            $this->fileStateFilter,
+            $this->fileTypeFilter,
+            $this->fileSearch
+        );
+    }
+
     /**
-     * Speichert hochgeladene Ticket-Anhänge sicher ab und gibt Lightbox-fähige Metadaten zurück.
+     * Speichert hochgeladene Ticket-Anhänge sicher ab (Bilder, PDFs, Konzepte, .3mf/.stl/.glb 3D-Modelle)
+     * und gibt standardisierte Sticky-Metadaten zurück.
      *
      * @param array<int, mixed> $uploads
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     protected function storeSafeAttachments($uploads): array
     {
@@ -506,27 +691,28 @@ class AiUniverseTickets extends Component
         }
 
         $stored = [];
-        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
 
         foreach ($uploads as $file) {
-            if (!is_object($file) || !method_exists($file, 'getMimeType')) {
+            if (!is_object($file) || !method_exists($file, 'getClientOriginalName')) {
                 continue;
             }
-            $mime = strtolower((string) $file->getMimeType());
-            if (!in_array($mime, $allowedMimes, true)) {
+            $origName = (string) $file->getClientOriginalName();
+            $ext = strtolower((string) pathinfo($origName, PATHINFO_EXTENSION));
+            if ($ext === '' && method_exists($file, 'guessExtension')) {
+                $ext = strtolower((string) ($file->guessExtension() ?: ''));
+            }
+            if (!in_array($ext, TicketDeliverableService::ALLOWED_EXTENSIONS, true)) {
                 continue;
             }
-            $ext = strtolower((string) $file->guessExtension() ?: 'bin');
-            $safeName = now()->format('Y-m-d_His') . '_' . Str::slug(pathinfo((string) $file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $ext;
-            $relPath = 'agenten/workspace/tickets/' . $safeName;
-            $file->storeAs('agenten/workspace/tickets', $safeName, 'workspace');
-
-            $stored[] = [
-                'name' => (string) $file->getClientOriginalName(),
-                'mime' => $mime,
-                'is_image' => str_starts_with($mime, 'image/') ? '1' : '0',
-                'url' => route('admin.ai.workspace.file', ['path' => $relPath]),
-            ];
+            $realPath = method_exists($file, 'getRealPath') ? (string) $file->getRealPath() : '';
+            $rawBytes = ($realPath !== '' && is_file($realPath)) ? @file_get_contents($realPath) : false;
+            if (!is_string($rawBytes) || $rawBytes === '') {
+                continue;
+            }
+            $meta = TicketDeliverableService::storeBytesForTicket($rawBytes, $origName);
+            if ($meta !== null) {
+                $stored[] = $meta;
+            }
         }
 
         return $stored;

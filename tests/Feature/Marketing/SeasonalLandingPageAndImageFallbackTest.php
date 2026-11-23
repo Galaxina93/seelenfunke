@@ -253,7 +253,8 @@ class SeasonalLandingPageAndImageFallbackTest extends TestCase
 
         $lp = MarketingLandingPage::syncForProduct($product, true);
 
-        // 1. Direkter Vorschau-/Kampagnen-Aufruf für Muttertag
+        // 1. Direkter Kampagnen-Aufruf für Muttertag im aktiven Muttertags-Zeitraum (Mai)
+        Carbon::setTestNow(Carbon::parse('2026-05-08 12:00:00'));
         $mothersDayResponse = $this->get('/l/' . $lp->slug . '?holiday=muttertag');
         $mothersDayResponse->assertStatus(200);
         $mothersDayResponse->assertSee('Muttertag');

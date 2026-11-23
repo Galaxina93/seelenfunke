@@ -243,15 +243,16 @@ fun AgDirectInboxSheet(
                             .size(34.dp)
                             .clip(CircleShape)
                             .background(Gold.copy(alpha = 0.16f))
-                            .border(1.dp, Gold.copy(alpha = 0.65f), CircleShape)
-                            .padding(2.dp),
+                            .border(1.dp, Gold.copy(alpha = 0.65f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.falcon_avatar),
+                            painter = painterResource(id = R.drawable.funkira_avatar),
                             contentDescription = "Funkira",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxSize()
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
                         )
                     }
                     Text(

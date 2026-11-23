@@ -54,11 +54,21 @@ class FunkiraTicketRouter
             ];
         }
 
+        $mentionedAgents = self::extractMentionedAgents($cleanPrompt);
+        $mentionsAntigravity = $mentionedAgents->contains(
+            static fn (AiAgent $ag): bool => strcasecmp((string) $ag->name, 'Antigravity') === 0
+        );
+        $mentionedSpecialists = $mentionedAgents
+            ->filter(static fn (AiAgent $ag): bool => strcasecmp((string) $ag->name, 'Antigravity') !== 0)
+            ->values();
+
         // 2. Falls kein explizites Ticket übergeben wurde: Prüfe, ob eine 1-Wort-Bestätigung ("Ja", "Go", "Freigeben") zu einem offenen Rückfrage-Ticket gehört
         $targetTicket = self::resolveExistingOrPendingReplyTicket($existingTicketId, $cleanPrompt);
         if ($targetTicket && $targetTicket->status === AiUniverseTicket::STATUS_WAITING_FOR_ALINA) {
             $tp = is_array($targetTicket->action_payload) ? $targetTicket->action_payload : [];
-            if (($tp['type'] ?? '') === 'ag_inbox_blockade' && !empty($tp['ag_item_id'])) {
+            $isOnlySpecialistMention = $mentionedSpecialists->isNotEmpty() && !$mentionsAntigravity;
+
+            if (!$isOnlySpecialistMention && ($tp['type'] ?? '') === 'ag_inbox_blockade' && !empty($tp['ag_item_id'])) {
                 $normReply = mb_strtolower(trim(preg_replace('/[!?.]+$/u', '', $cleanPrompt) ?? $cleanPrompt));
                 $decision = in_array($normReply, ['nein', 'verwerfen', 'ablehnen', 'abbrechen', 'stornieren'], true)
                     ? 'dismissed'
@@ -79,38 +89,48 @@ class FunkiraTicketRouter
                     'presence' => $presence,
                 ];
             }
-            if (self::isShortConfirmation($cleanPrompt)) {
+            if (!$isOnlySpecialistMention && !$mentionsAntigravity && self::isShortConfirmation($cleanPrompt)) {
                 return self::handleOneWordConfirmation($targetTicket, $cleanPrompt, $presence);
             }
         }
 
         // 3. 0-Token Sofortreflex ("Fast-Lane") für reine Gerätesteuerung & Kurzstatus (kein Ticket-Müll!)
-        if ($targetTicket === null && empty($attachments)) {
+        if ($targetTicket === null && empty($attachments) && $mentionedAgents->isEmpty()) {
             $fastLane = self::tryZeroTokenFastLane($cleanPrompt, $presence);
             if ($fastLane !== null) {
                 return $fastLane;
             }
         }
 
-        // 4. Deterministische 0-Token Triage (Abteilung, Spezialist & Ticket-Typ)
+        // 4. Deterministische 0-Token Triage (Abteilung, Spezialist & Ticket-Typ) inkl. expliziter @-Mentions
         $triage = self::classifyIntent($cleanPrompt, $targetTicket);
-        $department = AiDepartment::where('name', $triage['department_name'])->first()
-            ?? AiDepartment::where('name', 'Leitung')->first();
-        $agent = AiAgent::where('name', $triage['agent_name'])->where('is_active', true)->first()
-            ?? AiAgent::where('name', 'Funkira')->first();
+        $primaryMentioned = $mentionedSpecialists->first() ?? ($mentionsAntigravity ? $mentionedAgents->first() : null);
+
+        if ($primaryMentioned !== null) {
+            $agent = $primaryMentioned;
+            $department = $primaryMentioned->department
+                ?? AiDepartment::where('name', $triage['department_name'])->first()
+                ?? AiDepartment::where('name', 'Leitung')->first();
+        } else {
+            $department = AiDepartment::where('name', $triage['department_name'])->first()
+                ?? AiDepartment::where('name', 'Leitung')->first();
+            $agent = AiAgent::where('name', $triage['agent_name'])->where('is_active', true)->first()
+                ?? AiAgent::where('name', 'Funkira')->first();
+        }
 
         $isNewTicket = ($targetTicket === null);
         if ($isNewTicket) {
             $titlePrefix = $presence['environment_tier'] === FunkiraPresenceContext::ENV_STAGE ? '[STAGE] ' : '';
+            $assignAgInitially = $mentionsAntigravity || ($triage['assign_antigravity'] && $mentionedSpecialists->isEmpty());
             $targetTicket = AiUniverseTicket::create([
                 'ticket_number' => AiUniverseTicket::generateNextTicketNumber(),
                 'title' => Str::limit($titlePrefix . self::buildCleanTitle($cleanPrompt, $triage['ticket_type']), 180),
                 'status' => AiUniverseTicket::STATUS_IN_PROGRESS,
                 'priority' => $triage['priority'],
-                'ticket_type' => $triage['ticket_type'],
+                'ticket_type' => $assignAgInitially ? 'antigravity_dev' : $triage['ticket_type'],
                 'ai_department_id' => $department?->id,
                 'assigned_agent_id' => $agent?->id,
-                'assigned_to_antigravity' => $triage['assign_antigravity'],
+                'assigned_to_antigravity' => $assignAgInitially,
                 'source_channel' => $presence['channel'],
                 'environment_tier' => $presence['environment_tier'],
                 'messages_count' => 0,
@@ -118,13 +138,31 @@ class FunkiraTicketRouter
                 'last_activity_at' => now(),
             ]);
         } else {
-            $targetTicket->update([
+            $updates = [
                 'presence_snapshot' => $presence,
                 'last_activity_at' => now(),
-            ]);
-            if ($targetTicket->agent) {
+            ];
+
+            if ($primaryMentioned !== null) {
+                $updates['assigned_agent_id'] = $primaryMentioned->id;
+                if ($primaryMentioned->ai_department_id) {
+                    $updates['ai_department_id'] = $primaryMentioned->ai_department_id;
+                }
+                if (!$mentionsAntigravity) {
+                    $updates['assigned_to_antigravity'] = false;
+                    $updates['status'] = AiUniverseTicket::STATUS_IN_PROGRESS;
+                }
+                $agent = $primaryMentioned;
+            } elseif ($targetTicket->agent) {
                 $agent = $targetTicket->agent;
             }
+
+            if (in_array($targetTicket->status, [AiUniverseTicket::STATUS_COMPLETED, AiUniverseTicket::STATUS_ARCHIVED], true)) {
+                $updates['status'] = AiUniverseTicket::STATUS_IN_PROGRESS;
+            }
+
+            $targetTicket->update($updates);
+            $targetTicket->refresh();
         }
 
         // Protokolliere Alinas Nachricht chronologisch im Ticket
@@ -138,12 +176,57 @@ class FunkiraTicketRouter
         ]);
         $targetTicket->increment('messages_count');
 
-        // 5a. Direkter Entwicklungsauftrag für Antigravity (0 Tokens Triage)
-        if ($triage['assign_antigravity'] && $isNewTicket) {
-            return self::routeTicketToAntigravity($targetTicket, $presence, 'Vorqualifizierter Entwicklungsauftrag aus ' . $presence['channel_label']);
+        // 5a. Explizite @-Einbindung mehrerer interner Spezialisten + optional @Antigravity
+        if ($mentionedAgents->isNotEmpty()) {
+            $lastResult = null;
+
+            foreach ($mentionedSpecialists as $idx => $specialist) {
+                if ($idx > 0) {
+                    $targetTicket->update([
+                        'assigned_agent_id' => $specialist->id,
+                        'ai_department_id' => $specialist->ai_department_id ?? $targetTicket->ai_department_id,
+                        'status' => AiUniverseTicket::STATUS_IN_PROGRESS,
+                    ]);
+                    $targetTicket->refresh();
+                }
+                $lastResult = self::executeSpecialistOnTicket($targetTicket, $cleanPrompt, $presence, $specialist);
+            }
+
+            if ($mentionsAntigravity) {
+                if (!AiAuthHelper::isAdmin() && !($presence['environment_tier'] === FunkiraPresenceContext::ENV_TESTING && !auth()->check())) {
+                    if ($lastResult !== null) {
+                        return $lastResult;
+                    }
+                } else {
+                    return self::routeTicketToAntigravity(
+                        $targetTicket,
+                        $presence,
+                        $isNewTicket
+                            ? ('Direkt via @Antigravity aus ' . ($presence['channel_label'] ?? 'Ticketsystem') . ' eingebunden.')
+                            : ('Per @Antigravity im laufenden Ticket ' . $targetTicket->ticket_number . ' hinzugezogen.'),
+                        $cleanPrompt
+                    );
+                }
+            }
+
+            if ($lastResult !== null) {
+                return $lastResult;
+            }
         }
 
-        // 5b. Deterministischer 0-Token Einkaufs-Pfad ("Wir brauchen noch weitere Papierflachbeutel")
+        // 5b. Direkter Entwicklungsauftrag für Antigravity (0 Tokens Triage)
+        if ($triage['assign_antigravity'] && ($isNewTicket || $targetTicket->assigned_to_antigravity)) {
+            return self::routeTicketToAntigravity(
+                $targetTicket,
+                $presence,
+                $isNewTicket
+                    ? ('Vorqualifizierter Entwicklungsauftrag aus ' . $presence['channel_label'])
+                    : ('Folgenachricht zu Ticket ' . $targetTicket->ticket_number),
+                $isNewTicket ? null : $cleanPrompt
+            );
+        }
+
+        // 5c. Deterministischer 0-Token Einkaufs-Pfad ("Wir brauchen noch weitere Papierflachbeutel")
         if ($triage['ticket_type'] === 'procurement' && $isNewTicket) {
             return self::handleZeroTokenProcurementFlow($targetTicket, $cleanPrompt, $presence, $agent);
         }
@@ -184,68 +267,13 @@ class FunkiraTicketRouter
     }
 
     /**
-     * Lädt flaches Abteilungs-Wissen & gelernte Präferenzen per schnellem SQL-Index-Select (< 5 ms).
+     * Lädt in Millisekunden (0 API-Tokens!) gelernte Dauer-Entscheidungen, globale Architektur-Leitplanken
+     * sowie thematisch passende Wissenskapitel & frühere Ticket-Abschlussberichte.
+     * (Air-Gapped Frontend-Support-Agent Funki ist strikt ausgeschlossen).
      */
-    public static function loadFlatDepartmentKnowledge(?string $departmentId): string
+    public static function loadFlatDepartmentKnowledge(?string $departmentId, string $prompt = '', ?AiAgent $agent = null): string
     {
-        $blocks = [];
-
-        if (Schema::hasTable('ai_learned_preferences')) {
-            $prefs = AiLearnedPreference::query()
-                ->where('is_active', true)
-                ->when($departmentId, function ($q) use ($departmentId) {
-                    $q->where(function ($sq) use ($departmentId) {
-                        $sq->where('ai_department_id', $departmentId)
-                            ->orWhereNull('ai_department_id');
-                    });
-                })
-                ->latest('updated_at')
-                ->limit(8)
-                ->get(['subject_label', 'rule_summary']);
-
-            if ($prefs->isNotEmpty()) {
-                $lines = ['[GELERNTE DAUER-ENTSCHEIDUNGEN VON ALINA (NICHT ERNEUT FRAGEN!)]:'];
-                foreach ($prefs as $p) {
-                    $lines[] = "- {$p->subject_label}: {$p->rule_summary}";
-                }
-                $blocks[] = implode("\n", $lines);
-            }
-        }
-
-        if ($departmentId && Schema::hasTable('ai_knowledge_bases') && Schema::hasColumn('ai_knowledge_bases', 'title')) {
-            try {
-                $kbQuery = AiKnowledgeBase::query()
-                    ->where(function ($q) {
-                        $q->whereNull('visibility_scope')
-                          ->orWhere('visibility_scope', '!=', AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE);
-                    })
-                    ->whereDoesntHave('category', function ($q) {
-                        $q->whereIn('slug', \App\Livewire\Shop\Ai\AiKnowledgeBase::ADMIN_ONLY_CATEGORY_SLUGS);
-                    })
-                    ->latest('updated_at')
-                    ->limit(5);
-                if (Schema::hasColumn('ai_knowledge_bases', 'is_active')) {
-                    $kbQuery->where('is_active', true);
-                }
-                $entries = $kbQuery->get(['title', 'content']);
-                if ($entries->isNotEmpty()) {
-                    $kbLines = ['[KOMPAKTES FIRMENWISSEN]:'];
-                    foreach ($entries as $entry) {
-                        $rawContent = (string) $entry->content;
-                        if (str_starts_with($rawContent, '[TS_ENC_V1]:')) {
-                            continue;
-                        }
-                        $kbLines[] = '- ' . $entry->title . ': ' . Str::limit(trim(strip_tags($rawContent)), 180);
-                    }
-                    if (count($kbLines) > 1) {
-                        $blocks[] = implode("\n", $kbLines);
-                    }
-                }
-            } catch (\Throwable) {
-            }
-        }
-
-        return implode("\n\n", $blocks);
+        return CentralBrainService::buildZeroTokenInstantContext($departmentId, $prompt, $agent);
     }
 
     /**
@@ -365,8 +393,8 @@ class FunkiraTicketRouter
             ];
         }
 
-        // Laser-Manufaktur (Lasi)
-        if (preg_match('/\b(laser\w*|xtool|brennpunkt|fokus|gravurprofil\w*|ra3|conveyor|abluft|tros|pulsdauer)\b/iu', $lower)) {
+        // Laser-Manufaktur & 3D-Laser-Schablonen/Klickplatten (Lasi)
+        if (preg_match('/\b(laser\w*|xtool|brennpunkt|fokus|gravurprofil\w*|ra3|conveyor|abluft|tros|pulsdauer|klickplatte\w*|nullpunkt\w*|laserschablone\w*)\b/iu', $lower)) {
             return [
                 'department_name' => 'Produkte',
                 'agent_name' => 'Lasi',
@@ -376,8 +404,8 @@ class FunkiraTicketRouter
             ];
         }
 
-        // Produkte & Konfigurator (Produkti)
-        if (preg_match('/\b(produkt\w*|konfigurator|vorlage\w*|edelstahl|anhänger|seelen-pfote|seelen-kristall|bewertung\w*|bruchquote)\b/iu', $lower)
+        // Produkte, Konfigurator & 3D-Druck-Modelle / Bambu Lab A1 Organizer (Produkti)
+        if (preg_match('/\b(produkt\w*|konfigurator|vorlage\w*|edelstahl|anhänger|seelen-pfote|seelen-kristall|bewertung\w*|bruchquote|3d[-\s]*druck\w*|3d[-\s]*modell\w*|bambu\w*|\.3mf|\.stl|filament\w*|organizer|spender)\b/iu', $lower)
             && !str_contains($lower, 'bestellung')) {
             return [
                 'department_name' => 'Produkte',
@@ -597,7 +625,7 @@ class FunkiraTicketRouter
             if ($hasLiveApiCredentials && $activeAgent) {
                 $gemini = new GeminiAgent($activeAgent);
                 $header = FunkiraPresenceContext::toPromptHeader($presence);
-                $flatKnowledge = self::loadFlatDepartmentKnowledge($ticket->ai_department_id);
+                $flatKnowledge = self::loadFlatDepartmentKnowledge($ticket->ai_department_id, $prompt, $activeAgent);
 
                 $voiceDirective = !empty($presence['is_voice_mode'])
                     ? "\n[SPRACHMODUS AKTIV]: Antworte in 1 bis 2 kurzen, natürlich sprechbaren Sätzen ohne Markdown-Tabellen."
@@ -626,9 +654,10 @@ class FunkiraTicketRouter
                     . " bei " . ($activeAgent?->name ?? 'Funkira')
                     . " erfasst ({$presence['environment_tier']}). Soll ich den Punkt direkt ausführen oder an Antigravity übergeben?";
                 $executedTools[] = 'ticket_set_status_or_ask';
+                $prevPayload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
                 $ticket->update([
                     'status' => AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
-                    'action_payload' => ['type' => 'antigravity_handoff'],
+                    'action_payload' => array_merge($prevPayload, ['type' => 'antigravity_handoff']),
                 ]);
             }
         } finally {
@@ -643,7 +672,7 @@ class FunkiraTicketRouter
         $ticket->refresh();
         $previousStatus = $ticket->status;
         $actionCard = null;
-        if (!empty($gate['suggest_antigravity_handoff'])) {
+        if (!empty($gate['suggest_antigravity_handoff']) && !AgentSkillBudgetGuard::isFunkiAgent($activeAgent)) {
             $budget = AgentSkillBudgetGuard::evaluateAgentSkillBudget($activeAgent);
             $dossier = AgentSkillBudgetGuard::formatAntigravitySkillGapDossier(
                 $budget,
@@ -656,11 +685,12 @@ class FunkiraTicketRouter
                 return self::routeTicketToAntigravity($ticket, $presence, $dossier);
             }
 
-            $actionCard = [
+            $prevPayload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+            $actionCard = array_merge($prevPayload, [
                 'type' => 'antigravity_handoff',
                 'label' => 'An Antigravity übergeben',
                 'skill_gap_dossier' => $budget,
-            ];
+            ]);
             $ticket->status = AiUniverseTicket::STATUS_WAITING_FOR_ALINA;
             $ticket->ticket_type = 'capability_gap';
             $ticket->action_payload = $actionCard;
@@ -686,6 +716,8 @@ class FunkiraTicketRouter
             $finalReply .= $statusFooter;
         }
 
+        $stickyAttachments = TicketDeliverableService::pullQueuedAttachments($ticket->id);
+
         AiUniverseTicketMessage::create([
             'ticket_id' => $ticket->id,
             'sender_role' => 'agent',
@@ -694,12 +726,17 @@ class FunkiraTicketRouter
             'channel' => $presence['channel'],
             'content' => $finalReply,
             'executed_tools' => array_values(array_unique($executedTools)),
+            'attachments' => !empty($stickyAttachments) ? $stickyAttachments : null,
             'action_card' => $actionCard ?? $ticket->action_payload,
         ]);
 
         $ticket->messages_count = $ticket->messages()->count();
         $ticket->last_activity_at = now();
         $ticket->save();
+
+        if ($ticket->status === AiUniverseTicket::STATUS_COMPLETED) {
+            CentralBrainService::recordTicketCompletionReport($ticket, $finalReply);
+        }
 
         TicketAutoCompactService::compactIfNeeded($ticket);
 
@@ -716,12 +753,17 @@ class FunkiraTicketRouter
 
     /**
      * Übergibt ein Ticket sauber an Antigravity (Online -> In Arbeit, Notebook aus -> Wartet auf Notebook).
+     * Unterstützt sowohl Erst-Aufträge als auch Folge-Nachrichten via @Antigravity im laufenden Ticket.
      *
      * @param array<string, mixed> $presence
      * @return array<string, mixed>
      */
-    public static function routeTicketToAntigravity(AiUniverseTicket $ticket, array $presence, string $reasonNote = ''): array
-    {
+    public static function routeTicketToAntigravity(
+        AiUniverseTicket $ticket,
+        array $presence,
+        string $reasonNote = '',
+        ?string $explicitUserPrompt = null
+    ): array {
         $agAgent = AiAgent::where('name', 'Antigravity')->first();
         $sysDeptId = AiDepartment::where('name', 'System')->value('id') ?? $ticket->ai_department_id;
         $notebookOnline = FunkiraPresenceContext::isAntigravityNotebookOnline();
@@ -735,19 +777,50 @@ class FunkiraTicketRouter
             : "Ticket **{$ticket->ticket_number}** ist vorqualifiziert in der Warteschlange **Wartet auf Notebook** geparkt. Sobald dein Notebook eingeschaltet ist, übernimmt Antigravity nahtlos.";
 
         $existingPayload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
-        $agItemId = (string) ($existingPayload['ag_item_id'] ?? '');
-        if ($agItemId === '') {
+        $previousAgItemId = trim((string) ($existingPayload['ag_item_id'] ?? ''));
+        $agHistoryIds = is_array($existingPayload['ag_history_ids'] ?? null)
+            ? array_values(array_unique(array_filter(array_map('strval', $existingPayload['ag_history_ids']))))
+            : [];
+
+        $shouldEnqueueNewItem = ($previousAgItemId === '' || ($explicitUserPrompt !== null && trim($explicitUserPrompt) !== ''));
+        $agItemId = $previousAgItemId;
+
+        if ($shouldEnqueueNewItem) {
             try {
-                $firstUserBody = (string) ($ticket->messages()->where('sender_role', 'alina')->orderBy('created_at')->value('content') ?? $ticket->title);
+                if ($previousAgItemId !== '') {
+                    $agHistoryIds[] = $previousAgItemId;
+                }
+
+                $recentMessages = $ticket->messages()
+                    ->orderByDesc('created_at')
+                    ->limit(6)
+                    ->get()
+                    ->reverse()
+                    ->map(static fn (AiUniverseTicketMessage $m): string => '[' . $m->sender_name . ']: ' . trim((string) $m->content))
+                    ->filter(static fn (string $line): bool => $line !== '')
+                    ->values()
+                    ->all();
+
+                $primaryBody = ($explicitUserPrompt !== null && trim($explicitUserPrompt) !== '')
+                    ? trim($explicitUserPrompt)
+                    : (string) ($ticket->messages()->where('sender_role', 'alina')->orderBy('created_at')->value('content') ?? $ticket->title);
+
+                $contextTail = count($recentMessages) > 1
+                    ? ("\n\nTicket-Verlauf ({$ticket->ticket_number}):\n" . implode("\n", $recentMessages))
+                    : '';
+
                 $enqueued = app(\App\Services\System\AntigravityDirectInboxService::class)->enqueueMessage([
                     'channel' => 'leitung',
                     'title' => "[{$ticket->ticket_number}] " . $ticket->title,
-                    'body' => $firstUserBody . ($reasonNote !== '' ? "\n\nHinweis: {$reasonNote}" : ''),
+                    'body' => $primaryBody . $contextTail . ($reasonNote !== '' ? "\n\nHinweis: {$reasonNote}" : ''),
                     'execution_mode' => 'direct',
                     'source' => $presence['channel'] ?? 'web_portal',
                     'skip_universe_mirror' => true,
                 ]);
-                $agItemId = (string) ($enqueued['item']['id'] ?? '');
+                $newEnqueuedId = (string) ($enqueued['item']['id'] ?? '');
+                if ($newEnqueuedId !== '') {
+                    $agItemId = $newEnqueuedId;
+                }
             } catch (\Throwable) {
             }
         }
@@ -755,6 +828,7 @@ class FunkiraTicketRouter
         $payload = array_merge($existingPayload, [
             'type' => 'antigravity_active',
             'ag_item_id' => $agItemId !== '' ? $agItemId : ($existingPayload['ag_item_id'] ?? null),
+            'ag_history_ids' => array_values(array_unique($agHistoryIds)),
             'handoff_at' => now()->toIso8601String(),
             'notebook_online' => $notebookOnline,
             'note' => $reasonNote,
@@ -891,6 +965,10 @@ class FunkiraTicketRouter
             'last_activity_at' => now(),
         ]);
 
+        if ($newStatus === AiUniverseTicket::STATUS_COMPLETED) {
+            CentralBrainService::recordTicketCompletionReport($ticket);
+        }
+
         // Bidirektionale Rückspiegelung in AntigravityDirectInboxService, falls verknüpft
         $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
         $agId = trim((string) ($payload['ag_item_id'] ?? ''));
@@ -930,6 +1008,10 @@ class FunkiraTicketRouter
             'messages_count' => $ticket->messages()->count(),
             'last_activity_at' => now(),
         ]);
+
+        if ($status === AiUniverseTicket::STATUS_COMPLETED) {
+            CentralBrainService::recordTicketCompletionReport($ticket, $note);
+        }
 
         return [
             'status' => 'ok',
@@ -1023,7 +1105,92 @@ class FunkiraTicketRouter
     {
         $clean = AiOutputQualityGate::sanitizeText(preg_replace('/\s+/', ' ', trim($prompt)) ?? $prompt);
         $clean = preg_replace('/^(?:hey\s+)?funkira[,:\s]+/iu', '', $clean) ?? $clean;
+        $clean = preg_replace('/^@[A-Za-zÄÖÜäöüß]+(?:\.\s*[A-Za-zÄÖÜäöüß]+)?[,:\s]+/iu', '', trim($clean)) ?? $clean;
+        if (trim($clean) === '') {
+            $clean = AiOutputQualityGate::sanitizeText(preg_replace('/\s+/', ' ', trim($prompt)) ?? $prompt);
+        }
 
         return ucfirst(Str::limit(trim($clean), 110));
+    }
+
+    /**
+     * Erkennt explizite @AgentName-Erwähnungen in Nachrichten (inkl. @Antigravity & @Dr. Funki),
+     * sortiert in der Reihenfolge ihres Auftretens.
+     *
+     * SICHERHEITS-GARANTIE: Der isolierte Frontend-Support-Agent `Funki` ist permanent gesperrt
+     * (`AgentSkillBudgetGuard::isFunkiAgent`) und kann NIEMALS per `@` ins interne Ticketsystem gezogen werden.
+     *
+     * @return \Illuminate\Support\Collection<int, AiAgent>
+     */
+    public static function extractMentionedAgents(string $prompt): \Illuminate\Support\Collection
+    {
+        if (!str_contains($prompt, '@') || !Schema::hasTable('ai_agents')) {
+            return collect();
+        }
+
+        $candidates = AiAgent::with('department')
+            ->where('is_active', true)
+            ->get()
+            ->reject(static fn (AiAgent $ag): bool => AgentSkillBudgetGuard::isFunkiAgent($ag))
+            ->sortByDesc(static fn (AiAgent $ag): int => mb_strlen((string) $ag->name))
+            ->values();
+
+        if ($candidates->isEmpty()) {
+            return collect();
+        }
+
+        $matchedWithPos = [];
+
+        foreach ($candidates as $ag) {
+            $name = trim((string) $ag->name);
+            if ($name === '') {
+                continue;
+            }
+
+            $aliases = [$name];
+            $compact = preg_replace('/[\s.]+/u', '', $name) ?? '';
+            if ($compact !== '' && strcasecmp($compact, $name) !== 0) {
+                $aliases[] = $compact;
+            }
+            $dottedNoSpace = str_replace('. ', '.', $name);
+            if ($dottedNoSpace !== '' && !in_array($dottedNoSpace, $aliases, true)) {
+                $aliases[] = $dottedNoSpace;
+            }
+
+            $earliestOffset = null;
+            foreach ($aliases as $alias) {
+                $escaped = preg_quote($alias, '/');
+                $pattern = '/(?:^|(?<=[\s(\[{"\',;:]))@' . $escaped . '(?=$|[\s.,!?:;)\]}"\'\-])/iu';
+                if (preg_match($pattern, $prompt, $m, PREG_OFFSET_CAPTURE)) {
+                    $offset = (int) $m[0][1];
+                    if ($earliestOffset === null || $offset < $earliestOffset) {
+                        $earliestOffset = $offset;
+                    }
+                }
+            }
+
+            if ($earliestOffset !== null) {
+                $matchedWithPos[] = [
+                    'offset' => $earliestOffset,
+                    'agent' => $ag,
+                ];
+            }
+        }
+
+        usort($matchedWithPos, static fn (array $a, array $b): int => $a['offset'] <=> $b['offset']);
+
+        $unique = collect();
+        foreach ($matchedWithPos as $entry) {
+            /** @var AiAgent $ag */
+            $ag = $entry['agent'];
+            if (!$unique->contains('id', $ag->id)) {
+                $unique->push($ag);
+            }
+            if ($unique->count() >= 3) {
+                break;
+            }
+        }
+
+        return $unique;
     }
 }

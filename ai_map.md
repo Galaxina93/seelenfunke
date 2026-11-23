@@ -1,11 +1,11 @@
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-22 20:13)
+> Generiert via `php artisan ai:generate-map` (2026-11-23 01:22)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
 - **Funkenwerk Windows Desktop Suite (C#/WPF/.NET 8)**: `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\funkenwerk` (`MainWindow.xaml.cs`, `CameraStudioEngine.cs`, `SmartHomeEngine.cs`, `MarketingEngine.cs`, `funkenwerk_dlc_bridge.py`) + KI-Face-Swap `C:\Users\konta\Documents\Deep-Live-Cam`
 - **Funkenwerk Android App & Widgets (Kotlin/Compose)**: `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke\android-app` (Mirror: `C:\Users\konta\AndroidStudioProjects\seelenfunke-android`)
-- **Dokumentation & Belege**: `Abschlussberichte/` (`README.md`, `<Abteilung>/`, `Workflows/`, `Konzepte/`) | Belege: `storage/app/buchhaltung/receipts/` & `contracts/`
+- **Zentrales Wissensgehirn & Belege**: `/admin/tickets?view=knowledge` (`AiKnowledgeBase`, dublettenfrei inkl. automatischer Ticket-Abschlussberichte) | Belege: `storage/app/buchhaltung/receipts/` & `contracts/`
 
 ## 2. Zentrales Routen- & Begriffs-Mapping (`routes/partials/*.php`)
 - **Kommandozentrale / Operativer Status / To-Do Liste**: `/admin/dashboard` -> `Shop\Master\MasterAnalytics` & `Shop\Management\ManagementTask`
@@ -49,7 +49,7 @@
 - **Product**: `Product, ProductAnalyticsEvent, ProductAttribute, ProductCategory, ProductIdea, ProductLoss, ProductNicheCrawlerRun, ProductNicheItem, ProductPackaging, ProductPackagingItem, ProductReview, ProductSupplier, ProductTemplate, ProductTierPrice`
 - **Root**: `SupportTelephonyCall`
 - **Support**: `SupportContactRequest, SupportContactRequestMessage, SupportCustomerChat, SupportCustomerChatMessage, SupportExperienceReview, SupportTicket, SupportTicketMessage`
-- **System**: `SystemAiHostingPlan, SystemBlockedIp, SystemCheckConfig, SystemCronjob, SystemDirectory, SystemLog, SystemLoginAttempt, SystemNeuralNode, SystemPasswordResetToken, SystemSchedulerLog, SystemSetting, SystemUser, SystemUserDevice`
+- **System**: `PersonalAccessToken, SystemAiHostingPlan, SystemBlockedIp, SystemCheckConfig, SystemCronjob, SystemDirectory, SystemLog, SystemLoginAttempt, SystemNeuralNode, SystemPasswordResetToken, SystemSchedulerLog, SystemSetting, SystemUser, SystemUserDevice`
 - **Tracking**: `PageVisit`
 
 ## 5. Livewire-Komponenten (`app/Livewire/<Domain>/*.php`)
@@ -68,7 +68,7 @@
 - **Hooks**: `EmployeeRoleIsolationHook`
 - **Landing**: `LandingPageView`
 - **Shop\Accounting**: `AccountingAnalytics, AccountingBank, AccountingCredit, AccountingFixCosts, AccountingInvoice, AccountingInvoicePreview, AccountingLiquidity, AccountingQuickEntry, AccountingTax, AccountingVariableCosts`
-- **Shop\Ai**: `AiAgentEditor, AiAnalytics, AiCompanyStructure, AiKnowledgeBase, AiKnowledgeBaseCategories, AiKnowledgeBaseTags, AiMethod, AiRoleManager, AiUniverseTickets, AiWidget, AiWorkspace`
+- **Shop\Ai**: `AiAgentEditor, AiAnalytics, AiCompanyStructure, AiKnowledgeBase, AiKnowledgeBaseCategories, AiKnowledgeBaseTags, AiRoleManager, AiUniverseTickets, AiWidget, AiWorkspace`
 - **Shop\Ai\PartialsAiWorkspace**: `TabCronjobs`
 - **Shop\Ai\Traits**: `ManagesAiChat, ManagesAiWorkspaceFiles, ManagesHealthData`
 - **Shop\Cart**: `Cart, CartIcon`
@@ -96,7 +96,7 @@
 - **Root**: `AIController, CartReminderUnsubscribeController, Controller, GoogleAuthController, NewsletterController, RevocationFileController, RevocationPdfController, SeoController, StripeWebhookController`
 
 ## 7. Services & Geschäftslogik (`app/Services/<Domain>/*.php`)
-- **AI**: `AIFunctionsRegistry, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiOutputQualityGate, AiPromptService, AiSupportService, BuchiReceiptPipelineService, ContextDossierBuilder, FunkiraPresenceContext, FunkiraSkillPoolService, FunkiraTicketRouter, GeminiAgent, GeminiTtsService, KnowledgeReportSyncService, MasterNextBestActionService, ProcurementSafetyGuard, ReceiptAiScannerService, SfInternalOrchestrator, TicketAutoCompactService, VertexAiService, WebSearchCascadeService`
+- **AI**: `AIFunctionsRegistry, AgentSkillBudgetGuard, AiAgentFactory, AiAgentRouter, AiAgentService, AiAuthHelper, AiOutputQualityGate, AiPromptService, AiSupportService, AntigravityUniverseTicketBridge, BuchiReceiptPipelineService, CentralBrainService, ContextDossierBuilder, FunkiraPresenceContext, FunkiraSkillPoolService, FunkiraTicketRouter, GeminiAgent, GeminiTtsService, KnowledgeReportSyncService, MasterNextBestActionService, ProcurementSafetyGuard, ReceiptAiScannerService, SfInternalOrchestrator, TicketAutoCompactService, TicketDeliverableService, VertexAiService, WebSearchCascadeService`
 - **AI\Contracts**: `AiProviderInterface`
 - **AI\Functions**: `AiAgentsFuncs, AiBrainFuncs, AiCalendarFuncs, AiContactFuncs, AiFinanceFuncs, AiHealthFuncs, AiHolidayPlannerFuncs, AiLaserFuncs, AiMailFuncs, AiMapControlFuncs, AiMapNewsFuncs, AiMarketingBlogFuncs, AiMarketingFuncs, AiMarketingNewsletterFuncs, AiMarketingVoucherFuncs, AiMasterFuncs, AiNewsFuncs, AiOrderFuncs, AiPersonaFuncs, AiProductFuncs, AiRoutineFuncs, AiScoutFuncs, AiShoppingListFuncs, AiSmartHomeFuncs, AiStripeFuncs, AiSuppliersFuncs, AiSupportFuncs, AiSystemFuncs, AiTaskFuncs, AiTelefonyFuncs, AiUniverseTicketFuncs`
 - **AI\Mails**: `AiAgentMessageMail, AiHolidayPlanMail, AiMapSummaryMail`
@@ -106,7 +106,7 @@
 - **Export**: `FileDownloadService`
 - **Gamification**: `FunkenreichSsoBridgeService, GameConfig, GamificationService, LavaParkourService, LobbyInstanceService, PlayerNameValidator`
 - **Laser**: `LaserPhotoPreprocessor, XtoolLaserCockpitService`
-- **Management**: `MailAiSortService`
+- **Management**: `MailAiSortService, MailAttachmentFunnelService`
 - **Marketing**: `HolidayOfferAutopilotService, InfluencerService`
 - **Navigation**: `BackendNavigationService`
 - **Order**: `OrderProductionBatchService`

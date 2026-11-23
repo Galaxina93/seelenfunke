@@ -1,11 +1,12 @@
 /*!
  * Mein-Seelenfunke · Autarke 3D-Lobby Audio-Engine (2-Spur Zonen-Musik & Matte Studio-Soundeffekte)
  * Eigenstaendige Verwaltung von Calm-Lobby-Track & Action-Magma-Track mit sanftem 700-ms-Crossfade.
- * 0 Kopplung an globale Shop-Docks, 0 Ton ausserhalb der 3D-Lobby, 0 externe CDNs, Standard-Lautstaerke 5 %.
+ * 0 Kopplung an globale Shop-Docks, 0 Ton ausserhalb der 3D-Lobby, 0 externe CDNs, Standard-Lautstaerke 15 %,
+ * rauschfreie Playback-Buffer-Architektur mit Auto-Idle-Suspend fuer Android & Mobile.
  */
 
-export const LOBBY_BGM_TRACK_URL = '/shop/gamification/audio/bgm_funki_game.mp3';
-export const LOBBY_BGM_MAGMA_TRACK_URL = '/shop/gamification/audio/bgm_funki_magma_action.mp3';
+export const LOBBY_BGM_TRACK_URL = '/shop/gamification/audio/bgm_funki_game.mp3?v=20261122v1';
+export const LOBBY_BGM_MAGMA_TRACK_URL = '/shop/gamification/audio/bgm_funki_magma_action.mp3?v=20261122v1';
 
 export const LOBBY_SFX_URLS = {
     shield: '/shop/customer/gamification/sounds/shield_active.mp3',
@@ -16,13 +17,15 @@ const LS_BGM_VOL = 'sf_funki_audio_volume';
 const LS_BGM_MUTED = 'sf_funki_audio_muted';
 const LS_LOBBY_EXPLICIT_MUTED = 'sf_lobby_bgm_explicit_muted';
 const LS_LOBBY_VOL_V2_INIT = 'sf_lobby_vol_v2_init';
+const LS_LOBBY_VOL_V3_INIT = 'sf_lobby_vol_v3_init';
 const LS_SFX_VOL = 'sf_lobby_sfx_volume';
 const LS_SFX_MUTED = 'sf_lobby_sfx_muted';
-const DEFAULT_LOBBY_BGM_VOLUME = 5;
-const DEFAULT_LOBBY_SFX_VOLUME = 5;
+const DEFAULT_LOBBY_BGM_VOLUME = 15;
+const DEFAULT_LOBBY_SFX_VOLUME = 15;
 const BGM_CROSSFADE_DURATION_MS = 700;
 const LOBBY_DOM_WATCHDOG_INTERVAL_MS = 400;
 const LOBBY_OPEN_GRACE_MS = 1200;
+const SFX_IDLE_SUSPEND_DELAY_MS = 1800;
 
 function clampNum(val, min, max) {
     const n = Number(val);
@@ -156,6 +159,7 @@ export class SeelenfunkeLobbyAudio {
         this._ctx = null;
         this._masterSfxGain = null;
         this._warmNoiseBuffer = null;
+        this._idleSuspendTimer = null;
 
         this._lavaRumblerNodes = null;
         this._lastFootstepAt = 0;
@@ -172,9 +176,11 @@ export class SeelenfunkeLobbyAudio {
                 forceStopAllLobbyAudio();
                 return;
             }
-            this._unlockContextIfNeeded();
             if (!this.bgmMuted && this.bgmVolume > 0 && !this._crossfadeTimer) {
-                this._syncActiveBgmPlayback();
+                const activeEl = this._activeTrackElement();
+                if (activeEl && activeEl.paused) {
+                    this._syncActiveBgmPlayback();
+                }
             }
         };
 
@@ -209,8 +215,30 @@ export class SeelenfunkeLobbyAudio {
                 || localStorage.getItem(LS_LOBBY_VOL_V2_INIT) === '1';
             if (!hasV2Settings) {
                 localStorage.setItem(LS_LOBBY_VOL_V2_INIT, '1');
+                localStorage.setItem(LS_LOBBY_VOL_V3_INIT, '1');
                 localStorage.setItem(LS_BGM_VOL, String(DEFAULT_LOBBY_BGM_VOLUME));
                 localStorage.setItem(LS_SFX_VOL, String(DEFAULT_LOBBY_SFX_VOLUME));
+            } else if (localStorage.getItem(LS_LOBBY_VOL_V3_INIT) !== '1') {
+                // Einmaliges Upgrade des bisherigen 5-%-Auto-Defaults auf gut wahrnehmbare 15 %
+                localStorage.setItem(LS_LOBBY_VOL_V3_INIT, '1');
+                if (!explicitMuted) {
+                    const prevBgm = localStorage.getItem(LS_BGM_VOL);
+                    if (prevBgm === null || prevBgm === '' || prevBgm === '5') {
+                        localStorage.setItem(LS_BGM_VOL, String(DEFAULT_LOBBY_BGM_VOLUME));
+                    }
+                    const prevSfx = localStorage.getItem(LS_SFX_VOL);
+                    if (prevSfx === null || prevSfx === '' || prevSfx === '5') {
+                        localStorage.setItem(LS_SFX_VOL, String(DEFAULT_LOBBY_SFX_VOLUME));
+                    }
+                    const rawUserJson = localStorage.getItem('sf_lobby_user_settings_v2');
+                    if (rawUserJson) {
+                        const parsedUser = JSON.parse(rawUserJson);
+                        if (parsedUser && typeof parsedUser === 'object' && Number(parsedUser.volume) === 5) {
+                            parsedUser.volume = DEFAULT_LOBBY_BGM_VOLUME;
+                            localStorage.setItem('sf_lobby_user_settings_v2', JSON.stringify(parsedUser));
+                        }
+                    }
+                }
             }
         } catch (e) {}
 
@@ -391,6 +419,11 @@ export class SeelenfunkeLobbyAudio {
         registerLobbyAudioElement(preEl);
         if (!this._calmBgmEl) {
             preEl.loop = true;
+            try {
+                preEl.preservesPitch = true;
+                preEl.mozPreservesPitch = true;
+                preEl.webkitPreservesPitch = true;
+            } catch (e) {}
             this._calmBgmEl = preEl;
         } else if (this._calmBgmEl !== preEl) {
             silenceSingleAudioElement(preEl, true);
@@ -405,6 +438,11 @@ export class SeelenfunkeLobbyAudio {
         el.loop = true;
         el.preload = 'auto';
         el.volume = 0;
+        try {
+            el.preservesPitch = true;
+            el.mozPreservesPitch = true;
+            el.webkitPreservesPitch = true;
+        } catch (e) {}
         registerLobbyAudioElement(el);
         this._calmBgmEl = el;
         return el;
@@ -415,8 +453,13 @@ export class SeelenfunkeLobbyAudio {
         if (typeof Audio === 'undefined') return null;
         const el = new Audio(LOBBY_BGM_MAGMA_TRACK_URL);
         el.loop = true;
-        el.preload = 'auto';
+        el.preload = 'none';
         el.volume = 0;
+        try {
+            el.preservesPitch = true;
+            el.mozPreservesPitch = true;
+            el.webkitPreservesPitch = true;
+        } catch (e) {}
         registerLobbyAudioElement(el);
         this._magmaBgmEl = el;
         return el;
@@ -627,8 +670,11 @@ export class SeelenfunkeLobbyAudio {
             window.addEventListener('keydown', this._boundGestureUnlock, { passive: true });
         }
 
-        this._unlockContextIfNeeded();
-        this._ensureMagmaBgmElement();
+        // Kein proaktives Oeffnen von WebAudio (AudioContext) beim Lobby-Start:
+        // Auf Android verhindert dies AAudio-FastTrack-Interferenzen mit der Hardware-MP3-Wiedergabe.
+        if (this.currentZone === 'lava') {
+            this._ensureMagmaBgmElement();
+        }
 
         const allMuted = this.bgmMuted && this.sfxMuted;
         if (!this.bgmMuted && !allMuted) {
@@ -705,6 +751,7 @@ export class SeelenfunkeLobbyAudio {
         this._openedGraceUntil = 0;
         this._stopWatchdog();
         this._clearOneShotUnlock();
+        this._clearIdleContextSuspend();
         this._stopBothBgmElements(true);
         this.updateLavaAmbience(999, false);
 
@@ -837,10 +884,7 @@ export class SeelenfunkeLobbyAudio {
     _effectiveSfxGain() {
         if (this.sfxMuted || this.sfxVolume <= 0) return 0;
         const norm = clampNum(this.sfxVolume / 100, 0, 1);
-        if (this.sfxVolume < 3) {
-            return clampNum(this.sfxVolume * 0.065, 0.04, 0.20);
-        }
-        return clampNum(0.14 + Math.pow(norm, 0.58) * 0.58, 0.14, 0.72);
+        return clampNum(Math.pow(norm, 0.72) * 0.58, 0.02, 0.58);
     }
 
     _applyMasterSfxGain() {
@@ -852,16 +896,50 @@ export class SeelenfunkeLobbyAudio {
         }
     }
 
+    _clearIdleContextSuspend() {
+        if (this._idleSuspendTimer) {
+            clearTimeout(this._idleSuspendTimer);
+            this._idleSuspendTimer = null;
+        }
+    }
+
+    _scheduleIdleContextSuspend(extraSeconds = 0.25) {
+        this._clearIdleContextSuspend();
+        const delayMs = Math.max(600, Math.round(extraSeconds * 1000) + SFX_IDLE_SUSPEND_DELAY_MS);
+        this._idleSuspendTimer = setTimeout(() => {
+            this._idleSuspendTimer = null;
+            if (this._lavaRumblerNodes) return;
+            if (this._ctx && this._ctx.state === 'running') {
+                this._ctx.suspend().catch(() => {});
+            }
+        }, delayMs);
+    }
+
     _ensureContext() {
         if (typeof window === 'undefined') return null;
         if (!this._ctx) {
             const Ctor = window.AudioContext || window.webkitAudioContext;
             if (!Ctor) return null;
             try {
-                this._ctx = new Ctor();
+                try {
+                    this._ctx = new Ctor({ latencyHint: 'playback' });
+                } catch (hintErr) {
+                    this._ctx = new Ctor();
+                }
                 this._masterSfxGain = this._ctx.createGain();
                 this._masterSfxGain.gain.value = this._effectiveSfxGain();
-                this._masterSfxGain.connect(this._ctx.destination);
+                if (typeof this._ctx.createDynamicsCompressor === 'function') {
+                    this._masterSfxLimiter = this._ctx.createDynamicsCompressor();
+                    this._masterSfxLimiter.threshold.value = -8.0;
+                    this._masterSfxLimiter.knee.value = 12.0;
+                    this._masterSfxLimiter.ratio.value = 12.0;
+                    this._masterSfxLimiter.attack.value = 0.003;
+                    this._masterSfxLimiter.release.value = 0.16;
+                    this._masterSfxGain.connect(this._masterSfxLimiter);
+                    this._masterSfxLimiter.connect(this._ctx.destination);
+                } else {
+                    this._masterSfxGain.connect(this._ctx.destination);
+                }
                 this._warmNoiseBuffer = this._bakeWarmMatteNoise(this._ctx);
             } catch (e) {
                 this._ctx = null;
@@ -871,6 +949,7 @@ export class SeelenfunkeLobbyAudio {
         if (this._ctx.state === 'suspended') {
             this._ctx.resume().catch(() => {});
         }
+        this._scheduleIdleContextSuspend(0.25);
         return this._ctx;
     }
 
@@ -884,11 +963,18 @@ export class SeelenfunkeLobbyAudio {
         const length = Math.floor(sampleRate * 1.4);
         const buf = ctx.createBuffer(1, length, sampleRate);
         const data = buf.getChannelData(0);
+        const fadeSamples = Math.max(64, Math.floor(sampleRate * 0.025));
         let last = 0;
         for (let i = 0; i < length; i++) {
             const white = Math.random() * 2 - 1;
             last = (last + 0.085 * white) / 1.085;
-            data[i] = clampNum(last * 2.8, -0.95, 0.95);
+            let sample = clampNum(last * 2.4, -0.82, 0.82);
+            if (i < fadeSamples) {
+                sample *= (i / fadeSamples);
+            } else if (i >= length - fadeSamples) {
+                sample *= ((length - 1 - i) / fadeSamples);
+            }
+            data[i] = sample;
         }
         return buf;
     }
@@ -932,8 +1018,12 @@ export class SeelenfunkeLobbyAudio {
         const ctx = this._ensureContext();
         if (!ctx || !this._masterSfxGain) return;
 
-        const t0 = ctx.currentTime + Math.max(0, delay);
-        const t1 = t0 + Math.max(0.02, duration);
+        const safeDelay = Math.max(0, delay);
+        const safeDur = Math.max(0.02, duration);
+        const t0 = ctx.currentTime + safeDelay;
+        const t1 = t0 + safeDur;
+
+        this._scheduleIdleContextSuspend(safeDelay + safeDur + 0.06);
 
         const osc = ctx.createOscillator();
         const filter = ctx.createBiquadFilter();
@@ -950,15 +1040,16 @@ export class SeelenfunkeLobbyAudio {
         filter.Q.value = 0.7;
 
         env.gain.setValueAtTime(0.0001, t0);
-        env.gain.linearRampToValueAtTime(Math.max(0.001, gain), t0 + Math.min(0.014, duration * 0.22));
+        env.gain.linearRampToValueAtTime(Math.max(0.001, gain), t0 + Math.min(0.014, safeDur * 0.22));
         env.gain.exponentialRampToValueAtTime(0.0001, t1);
+        env.gain.linearRampToValueAtTime(0.00001, t1 + 0.018);
 
         osc.connect(filter);
         filter.connect(env);
         env.connect(this._masterSfxGain);
 
         osc.start(t0);
-        osc.stop(t1 + 0.02);
+        osc.stop(t1 + 0.024);
         osc.onended = () => {
             try {
                 osc.disconnect();
@@ -980,8 +1071,12 @@ export class SeelenfunkeLobbyAudio {
         const ctx = this._ensureContext();
         if (!ctx || !this._masterSfxGain || !this._warmNoiseBuffer) return;
 
-        const t0 = ctx.currentTime + Math.max(0, delay);
-        const t1 = t0 + Math.max(0.03, duration);
+        const safeDelay = Math.max(0, delay);
+        const safeDur = Math.max(0.03, duration);
+        const t0 = ctx.currentTime + safeDelay;
+        const t1 = t0 + safeDur;
+
+        this._scheduleIdleContextSuspend(safeDelay + safeDur + 0.06);
 
         const src = ctx.createBufferSource();
         src.buffer = this._warmNoiseBuffer;
@@ -997,15 +1092,16 @@ export class SeelenfunkeLobbyAudio {
 
         const env = ctx.createGain();
         env.gain.setValueAtTime(0.0001, t0);
-        env.gain.linearRampToValueAtTime(Math.max(0.001, gain), t0 + Math.min(0.035, duration * 0.28));
+        env.gain.linearRampToValueAtTime(Math.max(0.001, gain), t0 + Math.min(0.035, safeDur * 0.28));
         env.gain.exponentialRampToValueAtTime(0.0001, t1);
+        env.gain.linearRampToValueAtTime(0.00001, t1 + 0.018);
 
         src.connect(filter);
         filter.connect(env);
         env.connect(this._masterSfxGain);
 
         src.start(t0, Math.random() * 0.4);
-        src.stop(t1 + 0.02);
+        src.stop(t1 + 0.024);
         src.onended = () => {
             try {
                 src.disconnect();
@@ -1013,6 +1109,27 @@ export class SeelenfunkeLobbyAudio {
                 env.disconnect();
             } catch (e) {}
         };
+    }
+
+    playWeaponSwing(comboStep = 1) {
+        if (!this._canPlaySfx()) return;
+        const startHz = comboStep === 3 ? 520 : (comboStep === 2 ? 420 : 360);
+        this._triggerMatteWhoosh({
+            duration: 0.20,
+            gain: 0.22,
+            filterType: 'bandpass',
+            freqStart: startHz,
+            freqEnd: 160,
+            q: 1.5,
+        });
+        this._triggerMatteTone({
+            type: 'triangle',
+            freqStart: comboStep === 3 ? 168 : 142,
+            freqEnd: 74,
+            duration: 0.14,
+            gain: 0.16,
+            cutoff: 560,
+        });
     }
 
     playUiClick() {
@@ -1895,6 +2012,7 @@ export class SeelenfunkeLobbyAudio {
     dispose() {
         this.onLobbyClose();
         this._stopWatchdog();
+        this._clearIdleContextSuspend();
         if (this._serverSyncTimer) {
             clearTimeout(this._serverSyncTimer);
             this._serverSyncTimer = null;
@@ -1953,6 +2071,9 @@ export function forceStopAllLobbyAudio() {
         }
         if (typeof inst._clearOneShotUnlock === 'function') {
             inst._clearOneShotUnlock();
+        }
+        if (typeof inst._clearIdleContextSuspend === 'function') {
+            inst._clearIdleContextSuspend();
         }
         if (typeof window !== 'undefined' && inst._boundGestureUnlock) {
             window.removeEventListener('pointerdown', inst._boundGestureUnlock);

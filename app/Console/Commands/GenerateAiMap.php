@@ -37,7 +37,7 @@ class GenerateAiMap extends Command
         $markdown .= "- **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\\\wsl.localhost\\Ubuntu\\home\\ubuntuxina\\meine-projekte\\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`\n";
         $markdown .= "- **Funkenwerk Windows Desktop Suite (C#/WPF/.NET 8)**: `\\\\wsl.localhost\\Ubuntu\\home\\ubuntuxina\\meine-projekte\\seelenfunke\\funkenwerk` (`MainWindow.xaml.cs`, `CameraStudioEngine.cs`, `SmartHomeEngine.cs`, `MarketingEngine.cs`, `funkenwerk_dlc_bridge.py`) + KI-Face-Swap `C:\\Users\\konta\\Documents\\Deep-Live-Cam`\n";
         $markdown .= "- **Funkenwerk Android App & Widgets (Kotlin/Compose)**: `\\\\wsl.localhost\\Ubuntu\\home\\ubuntuxina\\meine-projekte\\seelenfunke\\android-app` (Mirror: `C:\\Users\\konta\\AndroidStudioProjects\\seelenfunke-android`)\n";
-        $markdown .= "- **Dokumentation & Belege**: `Abschlussberichte/` (`README.md`, `<Abteilung>/`, `Workflows/`, `Konzepte/`) | Belege: `storage/app/buchhaltung/receipts/` & `contracts/`\n\n";
+        $markdown .= "- **Zentrales Wissensgehirn & Belege**: `/admin/tickets?view=knowledge` (`AiKnowledgeBase`, dublettenfrei inkl. automatischer Ticket-Abschlussberichte) | Belege: `storage/app/buchhaltung/receipts/` & `contracts/`\n\n";
 
         // 2. Wichtige Routen & Begriffs-Mapping
         $markdown .= "## 2. Zentrales Routen- & Begriffs-Mapping (`routes/partials/*.php`)\n";

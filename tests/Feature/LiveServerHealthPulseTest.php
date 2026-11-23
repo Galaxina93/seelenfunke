@@ -61,7 +61,7 @@ class LiveServerHealthPulseTest extends TestCase
         $this->seed(AiAgentSeeder::class);
         Config::set('services.gemini.key', 'test-gemini-live-key');
 
-        $falcone = AiAgent::where('name', 'Falcone')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Funkira')->firstOrFail();
         [, $bearerToken] = $this->createSanctumAdmin();
 
         // 1. Aufruf exakt wie Android-App mit Bearer-Token (ohne Session-Cookie) und agent_id
@@ -70,7 +70,7 @@ class LiveServerHealthPulseTest extends TestCase
 
         $resById->assertStatus(200)
             ->assertJsonPath('agent_id', $falcone->id)
-            ->assertJsonPath('agent_name', 'Falcone');
+            ->assertJsonPath('agent_name', 'Funkira');
 
         $declarations = $resById->json('tools.0.functionDeclarations');
         $this->assertIsArray($declarations);
@@ -82,13 +82,13 @@ class LiveServerHealthPulseTest extends TestCase
         $this->assertContains('master_get_next_best_actions', $declaredNames);
         $this->assertContains(FunkiraSkillPoolService::EQUIP_TOOL_NAME, $declaredNames);
 
-        // 2. Aufruf über agent_name=Falcone funktioniert ebenfalls nahtlos
+        // 2. Aufruf über Legacy-Alias agent_name=Falcone mappt nahtlos auf Funkira
         Auth::forgetGuards();
         $resByName = $this->withHeader('Authorization', 'Bearer ' . $bearerToken)
             ->getJson('/api/ai/live-credentials?agent_name=Falcone&client=android_native');
 
         $resByName->assertStatus(200)
-            ->assertJsonPath('agent_name', 'Falcone');
+            ->assertJsonPath('agent_name', 'Funkira');
 
         $declaredNamesByName = array_column($resByName->json('tools.0.functionDeclarations'), 'name');
         $this->assertContains('system_get_server_status', $declaredNamesByName);
@@ -106,7 +106,7 @@ class LiveServerHealthPulseTest extends TestCase
         DB::table('failed_jobs')->delete();
 
         $this->seed(AiAgentSeeder::class);
-        $falcone = AiAgent::where('name', 'Falcone')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Funkira')->firstOrFail();
         [, $bearerToken] = $this->createSanctumAdmin();
 
         SystemHealthPulseService::setLiveDomainProbeResolver(function (): array {
@@ -209,7 +209,7 @@ class LiveServerHealthPulseTest extends TestCase
     {
         $this->seed(AiAgentSeeder::class);
 
-        $falcone = AiAgent::where('name', 'Falcone')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Funkira')->firstOrFail();
         $funkira = AiAgent::where('name', 'Funkira')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->firstOrFail();
 
@@ -289,7 +289,7 @@ class LiveServerHealthPulseTest extends TestCase
     {
         $this->seed(AiAgentSeeder::class);
         Config::set('services.gemini.key', 'test-gemini-live-key');
-        $falcone = AiAgent::where('name', 'Falcone')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Funkira')->firstOrFail();
         [, $bearerToken] = $this->createSanctumAdmin();
 
         // DNS für www.mein-seelenfunke.de noch leer ([]), alle anderen Domains lösen sauber auf

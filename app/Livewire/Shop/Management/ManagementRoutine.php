@@ -267,12 +267,11 @@ class ManagementRoutine extends Component
         try {
             $parts = explode(':', $timeStr);
             $baseMins = ((int) ($parts[0] ?? 0)) * 60 + ((int) ($parts[1] ?? 0));
-            // Do not shift sleep/night routine blocks after 21:00 past midnight
-            if ($baseMins >= 21 * 60 && $shiftMinutes > 0) {
-                $shifted = min(23 * 60 + 30, $baseMins + (int) round($shiftMinutes * 0.35));
-            } else {
-                $shifted = max(0, min(23 * 60 + 45, $baseMins + $shiftMinutes));
+            // Bettfertig (ab 21:30) und Nachtruhe (ab 22:30) sind feste Gesundheits-Ankerzeiten und verschieben sich NICHT nach hinten!
+            if ($baseMins >= (21 * 60 + 30)) {
+                return substr($timeStr, 0, 5);
             }
+            $shifted = max(0, min(23 * 60 + 45, $baseMins + $shiftMinutes));
             return sprintf('%02d:%02d', intdiv($shifted, 60), $shifted % 60);
         } catch (\Throwable $e) {
             return substr($timeStr, 0, 5);

@@ -2319,10 +2319,22 @@ namespace FunkenwerkPlayer
 
                     SyncFocusOverlayLabels();
                     SyncManufakturNowPlayingDeck();
+                    double posSec = 0.0;
+                    double durSec = 0.0;
+                    try
+                    {
+                        posSec = Math.Round(PlayerMediaElement.Position.TotalSeconds, 2);
+                        if (PlayerMediaElement.NaturalDuration.HasTimeSpan)
+                            durSec = Math.Round(PlayerMediaElement.NaturalDuration.TimeSpan.TotalSeconds, 2);
+                    }
+                    catch { }
+
                     return JsonSerializer.Serialize(new
                     {
                         ok = true,
                         is_playing = _isPlaying,
+                        position_sec = posSec,
+                        duration_sec = durSec,
                         shuffle = _isShuffleEnabled,
                         repeat = _isLoopEnabled,
                         volume = (int)Math.Round(VolumeSlider.Value),

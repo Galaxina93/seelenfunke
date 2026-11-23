@@ -204,6 +204,42 @@ class FunkiraSkillPoolAndFunkiIsolationTest extends TestCase
         // 3. Kunden-Support-Werkzeuge funktionieren weiterhin für Funki
         $allowedRes = AIFunctionsRegistry::execute('support_get_delivery_times', [], $funki);
         $this->assertFalse($allowedRes['error'] ?? false);
+
+        // 4. Unveränderlichkeits-Sperre: Funki darf NIEMALS über Antigravity, Rollen-UI oder Agent-Editor neue Fähigkeiten erhalten!
+        $budget = \App\Services\AI\AgentSkillBudgetGuard::evaluateAgentSkillBudget($funki);
+        $this->assertFalse($budget['can_add_direct_tool']);
+        $this->assertSame('immutable_frontend_support_locked', $budget['expansion_strategy']);
+        $this->assertSame($budget['max_tool_cap'], $budget['current_tool_count']);
+
+        $escBlocked = \App\Services\AI\AIFunctionsRegistry::executeTicketEscalateMissingCapability([
+            'missing_capability' => 'Neues Admin-Werkzeug',
+            'why_blocked' => 'Testversuch',
+        ], $funki);
+        $this->assertTrue($escBlocked['error'] ?? false);
+        $this->assertSame('blocked_funki_immutable', $escBlocked['status'] ?? null);
+
+        $supporterRole = \App\Models\Ai\AiRole::where('name', 'Supporter')->firstOrFail();
+        $forbiddenToolModel = \App\Models\Ai\AiTool::where('identifier', 'finance_list_fixed_costs')->firstOrFail();
+        $allowedToolModel = \App\Models\Ai\AiTool::where('identifier', 'support_get_delivery_times')->firstOrFail();
+
+        Livewire::actingAs($admin, 'admin')
+            ->test(\App\Livewire\Shop\Ai\AiRoleManager::class)
+            ->call('edit', $supporterRole->id)
+            ->set('selectedTools', [(string) $allowedToolModel->id, (string) $forbiddenToolModel->id])
+            ->call('save');
+
+        $syncedIdentifiers = $supporterRole->fresh('tools')->tools->pluck('identifier')->all();
+        $this->assertContains('support_get_delivery_times', $syncedIdentifiers);
+        $this->assertNotContains('finance_list_fixed_costs', $syncedIdentifiers);
+
+        // Auch ein Rollenwechsel von Funki auf 'Teamleiter' im AiAgentEditor wird auf 'Supporter' zurückgezwungen
+        $teamleiterRole = \App\Models\Ai\AiRole::where('name', 'Teamleiter')->firstOrFail();
+        Livewire::actingAs($admin, 'admin')
+            ->test(\App\Livewire\Shop\Ai\AiAgentEditor::class, ['id' => $funki->id])
+            ->set('ai_role_id', $teamleiterRole->id)
+            ->call('save');
+
+        $this->assertSame($supporterRole->id, $funki->fresh()->ai_role_id);
     }
 
     public function test_is_funkira_helper_and_live_credentials_endpoint_succeed(): void

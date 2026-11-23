@@ -59,6 +59,12 @@ class ManagementEMails extends Component
     public $searchQuery = '';
     public $filterMode = 'all'; // 'all', 'unread', 'attachments'
 
+    // Mail Dateien View Filters & Lightbox
+    public string $mailFileTypeFilter = 'all';
+    public string $mailFileScopeFilter = 'all';
+    public string $mailFileSearch = '';
+    public ?int $previewAttachmentId = null;
+
     // Folder Creation
     public $newFolderName = '';
     public $showNewFolderModal = false;
@@ -108,6 +114,10 @@ class ManagementEMails extends Component
                 $this->composeAccountId = $this->selectedAccountId;
             }
         }
+
+        if (request()->get('folder') === 'MailFiles') {
+            $this->openMailFilesView();
+        }
     }
 
     public function selectAccount($id)
@@ -115,6 +125,89 @@ class ManagementEMails extends Component
         $this->selectedAccountId = $id;
         $this->selectedFolder = 'INBOX';
         $this->selectedMessageId = null;
+        $this->viewMode = 'inbox';
+    }
+
+    public function selectGlobalFolder(string $folderKey): void
+    {
+        if ($folderKey === 'MailFiles') {
+            $this->openMailFilesView();
+            return;
+        }
+        $this->selectedAccountId = null;
+        $this->selectedFolder = in_array($folderKey, ['AllInboxes', 'Processed'], true) ? $folderKey : 'AllInboxes';
+        $this->selectedMessageId = null;
+        $this->viewMode = 'inbox';
+        $this->dispatch('folder-selected');
+    }
+
+    public function openMailFilesView(): void
+    {
+        $this->selectedFolder = 'MailFiles';
+        $this->selectedMessageId = null;
+        $this->viewMode = 'mail_files';
+        $this->dispatch('folder-selected');
+    }
+
+    public function openMailFromAttachment(int $messageId): void
+    {
+        $msg = MailMessage::find($messageId);
+        if (!$msg) {
+            return;
+        }
+        $this->selectedAccountId = $msg->mail_account_id;
+        $this->selectedFolder = $msg->is_archived ? 'Archive' : $msg->folder;
+        $this->selectedMessageId = $msg->id;
+        $this->previewAttachmentId = null;
+        $this->viewMode = 'inbox';
+        $this->dispatch('message-selected');
+    }
+
+    public function openAttachmentPreview(int $attachmentId): void
+    {
+        $this->previewAttachmentId = $attachmentId;
+    }
+
+    public function closeAttachmentPreview(): void
+    {
+        $this->previewAttachmentId = null;
+    }
+
+    public function bookMailAttachment(int $attachmentId, \App\Services\Management\MailAttachmentFunnelService $funnelService): void
+    {
+        $att = \App\Models\Management\Mail\MailAttachment::with('message')->find($attachmentId);
+        if (!$att) {
+            return;
+        }
+        $res = $funnelService->processInvoiceToAccounting($att, isManualAction: true);
+        if (!empty($res['success'])) {
+            session()->flash('success_message', $res['message'] ?? 'Beleg verbucht.');
+        } else {
+            session()->flash('error_message', $res['message'] ?? 'Beleg konnte nicht gebucht werden.');
+        }
+    }
+
+    public function sendMailAttachmentToTrichter(int $attachmentId, \App\Services\Management\MailAttachmentFunnelService $funnelService): void
+    {
+        $att = \App\Models\Management\Mail\MailAttachment::with('message')->find($attachmentId);
+        if (!$att) {
+            return;
+        }
+        $res = $funnelService->sendToDateitrichter($att);
+        if (!empty($res['success'])) {
+            session()->flash('success_message', $res['message'] ?? 'Im Dateitrichter abgelegt.');
+        } else {
+            session()->flash('error_message', $res['message'] ?? 'Übergabe an Dateitrichter fehlgeschlagen.');
+        }
+    }
+
+    public function scanOpenMailInvoices(\App\Services\Management\MailAttachmentFunnelService $funnelService): void
+    {
+        $stats = $funnelService->backfillMetadataAndAutoProcessNew(autoBookInvoices: true, maxInvoiceScans: 15);
+        session()->flash(
+            'success_message',
+            "Rechnungsprüfung: {$stats['booked']} verbucht, {$stats['already_booked']} bereits erfasst, {$stats['needs_review']} zur Prüfung."
+        );
     }
 
     #[On('echo-private:crm-inbox,.MailReceivedEvent')]
@@ -1009,6 +1102,22 @@ class ManagementEMails extends Component
             }
 
             $messages = $query->orderBy('received_at', 'desc')->get();
+        } elseif ($this->selectedFolder === 'AllInboxes') {
+            $query = MailMessage::where('folder', 'INBOX')->where('is_archived', false);
+            if ($this->filterMode === 'unread') {
+                $query->where('is_read', false);
+            } elseif ($this->filterMode === 'attachments') {
+                $query->where('has_attachments', true);
+            }
+            $messages = $query->orderBy('received_at', 'desc')->get();
+        } elseif ($this->selectedFolder === 'Processed') {
+            $query = MailMessage::where('folder', 'Processed')->where('is_archived', false);
+            if ($this->filterMode === 'unread') {
+                $query->where('is_read', false);
+            } elseif ($this->filterMode === 'attachments') {
+                $query->where('has_attachments', true);
+            }
+            $messages = $query->orderBy('received_at', 'desc')->get();
         } elseif ($this->selectedAccountId) {
             // Normal Folder View Mode
             $query = MailMessage::where('mail_account_id', $this->selectedAccountId);
@@ -1033,14 +1142,91 @@ class ManagementEMails extends Component
             ->where('email', '!=', '')
             ->get(['first_name', 'last_name', 'email']);
 
+        app(\App\Services\Management\MailAttachmentFunnelService::class)->backfillMetadataAndAutoProcessNew(false);
+
+        $accountsById = $accounts->keyBy('id');
+        $filesBase = \App\Models\Management\Mail\MailAttachment::query()
+            ->with(['message' => fn($q) => $q->select('id', 'mail_account_id', 'folder', 'subject', 'from_name', 'from_email', 'received_at', 'is_archived')])
+            ->whereHas('message', fn($q) => $q->where('folder', '!=', 'Junk'))
+            ->where(function ($q) {
+                $q->whereNull('funnel_type')->orWhere('funnel_type', '!=', 'inline_signature');
+            });
+
+        $mailFilesSummary = [
+            'total' => (clone $filesBase)->count(),
+            'invoices' => (clone $filesBase)->where('funnel_type', 'invoice')->count(),
+            'documents' => (clone $filesBase)->whereIn('funnel_type', ['document', 'legal_notice', 'archive'])->count(),
+            'images' => (clone $filesBase)->where('funnel_type', 'image')->count(),
+            'needs_review' => (clone $filesBase)->where('funnel_status', 'needs_review')->count(),
+            'booked' => (clone $filesBase)->whereIn('funnel_status', ['booked', 'already_booked'])->count(),
+            'workspace' => (clone $filesBase)->where('funnel_status', 'workspace')->count(),
+        ];
+
+        $globalCounts = [
+            'all_inboxes_unread' => MailMessage::where('folder', 'INBOX')->where('is_archived', false)->where('is_read', false)->count(),
+            'processed_open' => MailMessage::where('folder', 'Processed')->where('is_archived', false)->count(),
+            'mail_files_total' => $mailFilesSummary['total'],
+            'mail_files_review' => $mailFilesSummary['needs_review'],
+        ];
+
+        $mailFiles = collect();
+        if ($this->viewMode === 'mail_files' || $this->selectedFolder === 'MailFiles') {
+            $fq = clone $filesBase;
+            if ($this->mailFileScopeFilter === 'commercial') {
+                $commIds = $accounts->filter(fn($a) => (bool) ($a->is_commercial ?? true))->pluck('id')->all();
+                $fq->whereHas('message', fn($q) => $q->whereIn('mail_account_id', $commIds));
+            } elseif ($this->mailFileScopeFilter === 'private') {
+                $privIds = $accounts->filter(fn($a) => !($a->is_commercial ?? true))->pluck('id')->all();
+                $fq->whereHas('message', fn($q) => $q->whereIn('mail_account_id', $privIds));
+            }
+
+            if ($this->mailFileTypeFilter === 'invoice') {
+                $fq->where('funnel_type', 'invoice');
+            } elseif ($this->mailFileTypeFilter === 'document') {
+                $fq->whereIn('funnel_type', ['document', 'legal_notice', 'archive']);
+            } elseif ($this->mailFileTypeFilter === 'image') {
+                $fq->where('funnel_type', 'image');
+            } elseif ($this->mailFileTypeFilter === 'needs_review') {
+                $fq->where('funnel_status', 'needs_review');
+            } elseif ($this->mailFileTypeFilter === 'booked') {
+                $fq->whereIn('funnel_status', ['booked', 'already_booked']);
+            } elseif ($this->mailFileTypeFilter === 'workspace') {
+                $fq->where('funnel_status', 'workspace');
+            }
+
+            if (trim($this->mailFileSearch) !== '') {
+                $esc = addcslashes(trim($this->mailFileSearch), '%_\\');
+                $like = '%' . $esc . '%';
+                $fq->where(function ($q) use ($like) {
+                    $q->where('filename', 'like', $like)
+                        ->orWhereHas('message', function ($mq) use ($like) {
+                            $mq->where('subject', 'like', $like)
+                                ->orWhere('from_email', 'like', $like)
+                                ->orWhere('from_name', 'like', $like);
+                        });
+                });
+            }
+
+            $mailFiles = $fq->orderByDesc('id')->limit(200)->get();
+        }
+
+        $previewAttachment = $this->previewAttachmentId
+            ? \App\Models\Management\Mail\MailAttachment::with('message')->find($this->previewAttachmentId)
+            : null;
+
         return view('livewire.shop.management.management-e-mails', [
             'accounts' => $accounts,
+            'accountsById' => $accountsById,
             'messages' => $messages,
             'selectedMessage' => $selectedMessage,
             'accountTree' => $accountTree,
             'folders' => $this->selectedAccountId && isset($accountTree[$this->selectedAccountId]) ? $accountTree[$this->selectedAccountId]['folders'] : $baseFolders,
             'folderCounts' => $this->selectedAccountId && isset($accountTree[$this->selectedAccountId]) ? $accountTree[$this->selectedAccountId]['counts'] : [],
-            'contactEmails' => $contactEmails
+            'contactEmails' => $contactEmails,
+            'globalCounts' => $globalCounts,
+            'mailFiles' => $mailFiles,
+            'mailFilesSummary' => $mailFilesSummary,
+            'previewAttachment' => $previewAttachment,
         ]);
     }
 

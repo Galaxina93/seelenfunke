@@ -499,7 +499,8 @@ case "$1" in
             fi
 
             echo "🧹 Bereinige DomPDF-Fontcache & alte Test-/Altdateien auf Stage..."
-            git checkout -- storage/fonts/ Abschlussberichte/System/Verzeichnis_Verarbeitungstaetigkeiten_Art30_DSGVO.md 2>/dev/null || true
+            git checkout -- storage/fonts/ 2>/dev/null || true
+            rm -rf "$STAGE_DIR/Abschlussberichte" 2>/dev/null || true
             rm -f "$STAGE_DIR/storage/app/test_dummy_file.php" \
                   "$STAGE_DIR/storage/app/public/system-brain-map.json" \
                   "$STAGE_DIR/app/Services/AI/Functions/execute_role_update.php" 2>/dev/null || true
@@ -530,7 +531,7 @@ case "$1" in
             echo "🧠 Erneuere Caches & Projekt-Gehirn auf Stage..."
             php artisan optimize:clear
             php artisan system:brain:generate
-            git checkout -- Abschlussberichte/System/Verzeichnis_Verarbeitungstaetigkeiten_Art30_DSGVO.md 2>/dev/null || true
+            php artisan ai:sync-reports --force 2>/dev/null || true
             chmod -R 775 storage/ bootstrap/cache/ 2>/dev/null || true
 
             echo "🔄 Synchronisiere Worker-Container (worker-stage-3)..."

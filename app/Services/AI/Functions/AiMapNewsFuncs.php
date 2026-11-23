@@ -53,34 +53,40 @@ trait AiMapNewsFuncs
         $query = mb_substr($query, 0, 100);
         
         $newsApiKey = config('services.newsapi.key') ?: env('NEWS_API_KEY');
-        $openAiKey = config('openai.api_key') ?: config('services.openai.key') ?: env('OPENAI_API_KEY');
         $mapboxToken = config('services.mapbox.token') ?: env('MAPBOX_TOKEN');
+        $vertexEndpoint = app()->runningUnitTests()
+            ? ['base_url' => '', 'token' => '', 'is_vertex' => false]
+            : \App\Services\AI\VertexAiService::resolveOpenAiEndpoint();
+        $openAiFallbackKey = config('openai.api_key') ?: config('services.openai.key') ?: env('OPENAI_API_KEY');
 
-        if (empty($newsApiKey) || empty($openAiKey) || empty($mapboxToken)) {
+        if (empty($newsApiKey) || empty($mapboxToken) || (empty($vertexEndpoint['token']) && empty($openAiFallbackKey))) {
             return [
                 'status' => 'error',
-                'message' => 'Es fehlen benötigte API-Schlüssel (NEWS_API_KEY, OPENAI_API_KEY, MAPBOX_TOKEN) in der Systemkonfiguration. Bitte den Administrator informieren.'
+                'message' => 'Es fehlen benötigte API-Schlüssel (NEWS_API_KEY, MAPBOX_TOKEN oder Vertex/Gemini-Zugang) in der Systemkonfiguration.'
             ];
         }
 
         try {
-            // 1. Fetch News
-            $newsResponse = Http::timeout(5)->get('https://newsapi.org/v2/everything', [
-                'q' => $query,
-                'language' => $language,
-                'sortBy' => 'publishedAt',
-                'apiKey' => $newsApiKey,
-                'pageSize' => 15
-            ]);
+            // 1. Fetch News (mit 5-Minuten Cache für identische Abfragen)
+            $articles = \Illuminate\Support\Facades\Cache::remember('map_news_articles_' . md5($language . ':' . mb_strtolower($query)), 300, function () use ($query, $language, $newsApiKey) {
+                $newsResponse = Http::timeout(4)->get('https://newsapi.org/v2/everything', [
+                    'q' => $query,
+                    'language' => $language,
+                    'sortBy' => 'publishedAt',
+                    'apiKey' => $newsApiKey,
+                    'pageSize' => 12
+                ]);
+                return ($newsResponse->successful() && !empty($newsResponse->json()['articles']))
+                    ? $newsResponse->json()['articles']
+                    : [];
+            });
 
-            if (!$newsResponse->successful() || empty($newsResponse->json()['articles'])) {
+            if (empty($articles)) {
                 return [
                     'status' => 'success',
                     'message' => "Es wurden keine aktuellen Nachrichten zu '{$query}' gefunden, die auf der Karte markiert werden könnten."
                 ];
             }
-
-            $articles = $newsResponse->json()['articles'];
             
             // Prepare text block for LLM to extract locations
             $textForLLM = "";
@@ -90,25 +96,22 @@ trait AiMapNewsFuncs
                 $textForLLM .= "ID: {$index} | Titel: {$title} | Text: {$desc}\n";
             }
 
-            // 2. Token-saving LLM call to extract locations
-            $systemPrompt = "Du bist ein Geodaten-Extraktor. Finde in den folgenden Texten alle Vorfälle, die einen klaren Ort, eine Stadt oder Adresse nennen. 
-Antworte AUSSCHLIESSLICH im JSON-Format. Ignoriere Texte ohne klaren Ort.
-Format:
-{
-  \"markers\": [
-    {
-      \"id\": 0,
-      \"location\": \"(gefundener Ort, z.B. 'Solingen, Deutschland')\",
-      \"title\": \"(Kurzer 1-Satz Titel des Vorfalls)\"
-    }
-  ]
-}";
+            // 2. Schneller Vertex/Gemini Flash Call (mit OpenAI Fallback) zur Orts-Extraktion
+            $systemPrompt = "Du bist ein Geodaten-Extraktor. Finde in den folgenden Texten alle Vorfälle, die einen klaren Ort, eine Stadt oder ein Land nennen. Antworte AUSSCHLIESSLICH als reines JSON-Objekt im Format: {\"markers\":[{\"id\":0,\"location\":\"Stadt, Land\",\"title\":\"Kurzer 1-Satz Titel\"}]}. Ignoriere Texte ohne klaren Ort.";
 
-            $openaiResponse = Http::timeout(10)->withHeaders([
-                'Authorization' => 'Bearer ' . $openAiKey,
+            $llmBaseUrl = !empty($openAiFallbackKey) && empty($vertexEndpoint['is_vertex']) && app()->runningUnitTests()
+                ? 'https://api.openai.com/v1'
+                : (!empty($vertexEndpoint['token']) ? rtrim($vertexEndpoint['base_url'], '/') : 'https://api.openai.com/v1');
+            $llmToken = ($llmBaseUrl === 'https://api.openai.com/v1') ? $openAiFallbackKey : $vertexEndpoint['token'];
+            $llmModel = ($llmBaseUrl === 'https://api.openai.com/v1')
+                ? 'gpt-4o-mini'
+                : \App\Services\AI\VertexAiService::formatOpenAiModel('gemini-2.5-flash-lite', $vertexEndpoint['is_vertex']);
+
+            $llmResponse = Http::timeout(8)->withHeaders([
+                'Authorization' => 'Bearer ' . $llmToken,
                 'Content-Type' => 'application/json',
-            ])->post('https://api.openai.com/v1/chat/completions', [
-                'model' => 'gpt-3.5-turbo',
+            ])->post($llmBaseUrl . '/chat/completions', [
+                'model' => $llmModel,
                 'messages' => [
                     ['role' => 'system', 'content' => $systemPrompt],
                     ['role' => 'user', 'content' => $textForLLM]
@@ -117,16 +120,18 @@ Format:
                 'response_format' => ['type' => 'json_object']
             ]);
 
-            if (!$openaiResponse->successful()) {
-                Log::warning('OpenAI API Error in AiMapNewsFuncs', ['status' => $openaiResponse->status()]);
+            if (!$llmResponse->successful()) {
+                Log::warning('LLM Error in AiMapNewsFuncs', ['status' => $llmResponse->status()]);
                 return [
                     'status' => 'error',
                     'message' => 'Die KI-Ortsanalyse konnte temporär nicht durchgeführt werden.'
                 ];
             }
 
-            $llmResult = json_decode($openaiResponse->json()['choices'][0]['message']['content'], true);
-            $extractedMarkers = $llmResult['markers'] ?? [];
+            $rawContent = (string) ($llmResponse->json()['choices'][0]['message']['content'] ?? '{}');
+            $rawContent = trim(preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($rawContent)) ?? $rawContent);
+            $llmResult = json_decode($rawContent, true);
+            $extractedMarkers = is_array($llmResult['markers'] ?? null) ? array_slice($llmResult['markers'], 0, 10) : [];
 
             if (empty($extractedMarkers)) {
                 return [
@@ -135,40 +140,69 @@ Format:
                 ];
             }
 
-            // 3. Geocoding (max 10 locations)
-            $extractedMarkers = array_slice($extractedMarkers, 0, 10);
-            $finalMarkers = [];
-            foreach ($extractedMarkers as $marker) {
-                $loc = trim($marker['location'] ?? '');
-                if (empty($loc)) continue;
+            // 3. Paralleles Geocoding via Http::pool() + 24h Cache (statt 10x sequentieller Blockade!)
+            $cachedGeo = [];
+            $toFetch = [];
+            foreach ($extractedMarkers as $idx => $marker) {
+                $loc = trim((string) ($marker['location'] ?? ''));
+                if ($loc === '') {
+                    continue;
+                }
+                $cKey = 'mapbox_news_geo_' . md5(mb_strtolower($loc));
+                $hit = \Illuminate\Support\Facades\Cache::get($cKey);
+                if (is_array($hit)) {
+                    $cachedGeo[$idx] = $hit;
+                } else {
+                    $toFetch[$idx] = ['loc' => $loc, 'key' => $cKey];
+                }
+            }
 
-                $geoUrl = "https://api.mapbox.com/geocoding/v5/mapbox.places/" . urlencode($loc) . ".json";
-                $geoResponse = Http::timeout(5)->get($geoUrl, [
-                    'access_token' => $mapboxToken,
-                    'limit' => 1
-                ]);
+            if (!empty($toFetch)) {
+                $responses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($toFetch, $mapboxToken) {
+                    foreach ($toFetch as $idx => $info) {
+                        $geoUrl = "https://api.mapbox.com/geocoding/v5/mapbox.places/" . urlencode($info['loc']) . ".json";
+                        $pool->as((string) $idx)->timeout(4)->get($geoUrl, [
+                            'access_token' => $mapboxToken,
+                            'limit' => 1,
+                        ]);
+                    }
+                });
 
-                if ($geoResponse->successful()) {
-                    $geoData = $geoResponse->json();
-                    if (!empty($geoData['features'])) {
-                        $lng = $geoData['features'][0]['center'][0];
-                        $lat = $geoData['features'][0]['center'][1];
-                        
-                        $id = $marker['id'] ?? -1;
-                        $url = ($id >= 0 && isset($articles[$id])) ? $articles[$id]['url'] : null;
-                        if (is_string($url) && !preg_match('/^https?:\/\//i', trim($url))) {
-                            $url = null;
+                foreach ($toFetch as $idx => $info) {
+                    $res = $responses[(string) $idx] ?? null;
+                    if ($res instanceof \Illuminate\Http\Client\Response && $res->successful()) {
+                        $geoData = $res->json();
+                        if (!empty($geoData['features'][0]['center'])) {
+                            $coords = [
+                                'lng' => (float) $geoData['features'][0]['center'][0],
+                                'lat' => (float) $geoData['features'][0]['center'][1],
+                            ];
+                            \Illuminate\Support\Facades\Cache::put($info['key'], $coords, 86400);
+                            $cachedGeo[$idx] = $coords;
                         }
-
-                        $finalMarkers[] = [
-                            'lat' => $lat,
-                            'lng' => $lng,
-                            'title' => $marker['title'] ?? 'Ereignis',
-                            'location_name' => $loc,
-                            'url' => $url
-                        ];
                     }
                 }
+            }
+
+            $finalMarkers = [];
+            foreach ($extractedMarkers as $idx => $marker) {
+                if (!isset($cachedGeo[$idx])) {
+                    continue;
+                }
+                $loc = trim((string) ($marker['location'] ?? ''));
+                $id = $marker['id'] ?? -1;
+                $url = ($id >= 0 && isset($articles[$id])) ? $articles[$id]['url'] : null;
+                if (is_string($url) && !preg_match('/^https?:\/\//i', trim($url))) {
+                    $url = null;
+                }
+
+                $finalMarkers[] = [
+                    'lat' => $cachedGeo[$idx]['lat'],
+                    'lng' => $cachedGeo[$idx]['lng'],
+                    'title' => (string) ($marker['title'] ?? 'Ereignis'),
+                    'location_name' => $loc,
+                    'url' => $url
+                ];
             }
 
             $count = count($finalMarkers);
@@ -179,6 +213,10 @@ Format:
                 ];
             }
 
+            $lngs = array_column($finalMarkers, 'lng');
+            $lats = array_column($finalMarkers, 'lat');
+            $bbox = [min($lngs), min($lats), max($lngs), max($lats)];
+
             // 4. Frontend Event
             return [
                 'status' => 'success',
@@ -188,7 +226,8 @@ Format:
                         'name' => 'map-mark-news-events',
                         'detail' => [
                             'query' => $query,
-                            'markers' => $finalMarkers
+                            'markers' => $finalMarkers,
+                            'bbox' => $bbox,
                         ]
                     ]
                 ]

@@ -5,7 +5,7 @@
         return;
     }
 
-    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261120v36';
+    var MODULE_URL = '/js/seelenfunke-louvre-showroom-3d.js?v=20261122v2';
 
     function ensurePrewarmRegistryAndRegister(audioEl) {
         if (!audioEl || typeof window === 'undefined') return audioEl;
@@ -318,6 +318,7 @@
         this._pingProbeTimer = null;
         this._pingWarmupTimer = null;
         this._hudTimer = null;
+        this._minimapRafId = null;
         this._syncInFlight = false;
         this._syncPendingImmediate = false;
         this._lastSyncSentAtMs = 0;
@@ -455,7 +456,7 @@
         this.keybindingsExpanded = false;
         this.listeningKeyAction = '';
         this.userSettings = {
-            volume: 5,
+            volume: 15,
             cameraSensitivity: 100,
             useRealName: false,
             graphicsQuality: 'high',
@@ -473,9 +474,9 @@
         this._productTransitionTimer = null;
         this._productTransitioning = false;
         this.audioState = {
-            bgmVolume: 5,
+            bgmVolume: 15,
             bgmMuted: false,
-            sfxVolume: 5,
+            sfxVolume: 15,
             sfxMuted: false,
             allMuted: false
         };
@@ -790,11 +791,11 @@
             '        <div class="sf-lobby-settings-row">',
             '          <span class="sf-lobby-settings-label">Lautstärke</span>',
             '          <div style="display:flex;align-items:center;gap:8px;">',
-            '            <span data-lobby-volume-label style="font-size:11px;font-weight:800;color:#9A7738;">5 %</span>',
+            '            <span data-lobby-volume-label style="font-size:11px;font-weight:800;color:#9A7738;">15 %</span>',
             '            <button type="button" data-lobby-settings-mute data-testid="lobby-settings-mute-btn" class="sf-lobby-step-btn is-active" style="padding:4px 10px;font-size:10.5px;">🔊 Ton an</button>',
             '          </div>',
             '        </div>',
-            '        <input type="range" min="0" max="100" step="1" value="5" data-lobby-volume-slider data-testid="lobby-settings-volume-slider" class="sf-lobby-slider" aria-label="Lautstärke">',
+            '        <input type="range" min="0" max="100" step="1" value="15" data-lobby-volume-slider data-testid="lobby-settings-volume-slider" class="sf-lobby-slider" aria-label="Lautstärke">',
             '      </div>',
             '      <div class="sf-lobby-settings-section">',
             '        <div class="sf-lobby-settings-row">',
@@ -1745,70 +1746,279 @@
         }
     };
 
-    SeelenfunkeUnifiedLobbyHost.prototype._renderMinimap = function () {
+    SeelenfunkeUnifiedLobbyHost.prototype._startMinimapLoop = function () {
+        this._stopMinimapLoop();
+        if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return;
+        var self = this;
+        var step = function (nowMs) {
+            if (!self.isOpen) {
+                self._minimapRafId = null;
+                return;
+            }
+            self._renderMinimap(nowMs);
+            self._minimapRafId = window.requestAnimationFrame(step);
+        };
+        this._minimapRafId = window.requestAnimationFrame(step);
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._stopMinimapLoop = function () {
+        if (this._minimapRafId !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+            window.cancelAnimationFrame(this._minimapRafId);
+        }
+        this._minimapRafId = null;
+    };
+
+    SeelenfunkeUnifiedLobbyHost.prototype._renderMinimap = function (nowMs) {
         var canvas = this.minimapCanvasEl;
         var facade = getFacade(this);
         if (!canvas || !facade || typeof facade.getMinimapState !== 'function') return;
-        var ctx = canvas.getContext('2d');
-        if (!ctx) return;
         var snap = facade.getMinimapState();
         if (!snap) return;
 
-        var w = canvas.width || 232;
-        var h = canvas.height || 232;
+        var dpr = Math.min((typeof window !== 'undefined' && window.devicePixelRatio) || 1, 2);
+        var cssW = Math.max(140, Math.round(canvas.clientWidth || 232));
+        var targetPx = Math.round(cssW * dpr);
+        if (canvas.width !== targetPx || canvas.height !== targetPx) {
+            canvas.width = targetPx;
+            canvas.height = targetPx;
+        }
+        var ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        var rt = canvas.__sfMinimapRt;
+        if (!rt) {
+            rt = {
+                init: false,
+                zone: '',
+                lastMs: 0,
+                u: 0.5,
+                v: 0.5,
+                yaw: 0,
+                camYaw: 0,
+                dialCanvas: null,
+                dialKey: ''
+            };
+            canvas.__sfMinimapRt = rt;
+        }
+
+        var ts = typeof nowMs === 'number' ? nowMs : this._nowPerfMs();
+        var rawDt = rt.lastMs > 0 ? (ts - rt.lastMs) * 0.001 : 0.016;
+        rt.lastMs = ts;
+        var dt = Math.max(0.001, Math.min(0.05, rawDt));
+
+        var w = canvas.width;
+        var h = canvas.height;
         var sc = w / 180;
         var cx = w * 0.5;
         var cy = h * 0.5;
-        var rad = w * 0.5 - 8 * sc;
+        var rad = w * 0.5 - 7.5 * sc;
+
+        var dialKey = targetPx + ':' + (snap.zone || 'gallery');
+        if (!rt.dialCanvas || rt.dialKey !== dialKey) {
+            var dc = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
+            if (dc) {
+                dc.width = w;
+                dc.height = h;
+                var dctx = dc.getContext('2d');
+                if (dctx) {
+                    dctx.save();
+                    dctx.beginPath();
+                    dctx.arc(cx, cy, rad + 4.5 * sc, 0, Math.PI * 2);
+                    dctx.clip();
+
+                    var bgGrad = dctx.createRadialGradient(cx, cy, rad * 0.08, cx, cy, rad + 4 * sc);
+                    bgGrad.addColorStop(0, '#FFFFFF');
+                    bgGrad.addColorStop(0.68, '#FAF8F5');
+                    bgGrad.addColorStop(1, '#F2EDE3');
+                    dctx.fillStyle = bgGrad;
+                    dctx.fillRect(0, 0, w, h);
+
+                    dctx.strokeStyle = 'rgba(197,160,89,0.13)';
+                    dctx.lineWidth = Math.max(1, 0.9 * sc);
+                    dctx.beginPath();
+                    dctx.moveTo(cx - rad * 0.86, cy);
+                    dctx.lineTo(cx + rad * 0.86, cy);
+                    dctx.moveTo(cx, cy - rad * 0.86);
+                    dctx.lineTo(cx, cy + rad * 0.86);
+                    dctx.stroke();
+
+                    dctx.strokeStyle = 'rgba(197,160,89,0.26)';
+                    dctx.lineWidth = Math.max(1, 1.15 * sc);
+                    dctx.beginPath();
+                    dctx.arc(cx, cy, rad * 0.64, 0, Math.PI * 2);
+                    dctx.stroke();
+                    dctx.beginPath();
+                    dctx.arc(cx, cy, rad * 0.32, 0, Math.PI * 2);
+                    dctx.stroke();
+
+                    for (var ti = 1; ti < 36; ti++) {
+                        var ang = (ti / 36) * Math.PI * 2 - Math.PI * 0.5;
+                        var isCard = (ti % 9) === 0;
+                        var isMaj = (ti % 3) === 0;
+                        var rOuter = rad * 0.965;
+                        var rInner = rad * (isCard ? 0.885 : (isMaj ? 0.915 : 0.938));
+                        dctx.strokeStyle = isCard
+                            ? 'rgba(197,160,89,0.62)'
+                            : (isMaj ? 'rgba(197,160,89,0.36)' : 'rgba(197,160,89,0.18)');
+                        dctx.lineWidth = Math.max(1, (isCard ? 1.35 : 0.95) * sc);
+                        dctx.beginPath();
+                        dctx.moveTo(cx + Math.cos(ang) * rInner, cy + Math.sin(ang) * rInner);
+                        dctx.lineTo(cx + Math.cos(ang) * rOuter, cy + Math.sin(ang) * rOuter);
+                        dctx.stroke();
+                    }
+
+                    dctx.fillStyle = '#9A7B3E';
+                    dctx.font = '700 ' + Math.round(7.4 * sc) + 'px system-ui, -apple-system, sans-serif';
+                    dctx.textAlign = 'center';
+                    dctx.textBaseline = 'middle';
+                    dctx.fillText('N', cx, cy - rad * 0.895);
+                    dctx.restore();
+                }
+                rt.dialCanvas = dc;
+                rt.dialKey = dialKey;
+            }
+        }
 
         ctx.clearRect(0, 0, w, h);
         ctx.save();
         ctx.beginPath();
-        ctx.arc(cx, cy, rad + 5 * sc, 0, Math.PI * 2);
+        ctx.arc(cx, cy, rad + 4.5 * sc, 0, Math.PI * 2);
         ctx.clip();
 
-        ctx.fillStyle = '#FAF8F5';
-        ctx.fillRect(0, 0, w, h);
+        if (rt.dialCanvas) {
+            ctx.drawImage(rt.dialCanvas, 0, 0);
+        } else {
+            ctx.fillStyle = '#FAF8F5';
+            ctx.fillRect(0, 0, w, h);
+        }
 
-        ctx.strokeStyle = 'rgba(197,160,89,0.28)';
-        ctx.lineWidth = Math.max(1, 1.3 * sc);
-        ctx.beginPath();
-        ctx.arc(cx, cy, rad * 0.58, 0, Math.PI * 2);
-        ctx.stroke();
+        if (snap.player) {
+            var pu = snap.player.u;
+            var pv = snap.player.v;
+            var pyaw = snap.player.yaw || 0;
+            var pcam = (typeof snap.player.cameraYaw === 'number') ? snap.player.cameraYaw : (pyaw - Math.PI);
+            if (!rt.init || rt.zone !== snap.zone) {
+                rt.u = pu;
+                rt.v = pv;
+                rt.yaw = pyaw;
+                rt.camYaw = pcam;
+                rt.zone = snap.zone || 'gallery';
+                rt.init = true;
+            } else {
+                var posAlpha = 1 - Math.exp(-dt * 28);
+                var rotAlpha = 1 - Math.exp(-dt * 30);
+                rt.u += (pu - rt.u) * posAlpha;
+                rt.v += (pv - rt.v) * posAlpha;
+                var dY = pyaw - rt.yaw;
+                while (dY > Math.PI) dY -= Math.PI * 2;
+                while (dY < -Math.PI) dY += Math.PI * 2;
+                rt.yaw += dY * rotAlpha;
+                var dC = pcam - rt.camYaw;
+                while (dC > Math.PI) dC -= Math.PI * 2;
+                while (dC < -Math.PI) dC += Math.PI * 2;
+                rt.camYaw += dC * rotAlpha;
+            }
+        }
 
-        ctx.strokeStyle = 'rgba(197,160,89,0.16)';
-        ctx.beginPath();
-        ctx.moveTo(cx - rad * 0.85, cy);
-        ctx.lineTo(cx + rad * 0.85, cy);
-        ctx.moveTo(cx, cy - rad * 0.85);
-        ctx.lineTo(cx, cy + rad * 0.85);
-        ctx.stroke();
+        var px = cx + (rt.u - 0.5) * rad * 1.66;
+        var py = cy + (rt.v - 0.5) * rad * 1.66;
+
+        if (snap.player) {
+            var coneR = rad * 0.46;
+            ctx.save();
+            ctx.translate(px, py);
+            ctx.rotate(-rt.camYaw);
+            var coneGrad = ctx.createRadialGradient(0, 0, 2 * sc, 0, 0, coneR);
+            coneGrad.addColorStop(0, 'rgba(197,160,89,0.20)');
+            coneGrad.addColorStop(0.65, 'rgba(197,160,89,0.08)');
+            coneGrad.addColorStop(1, 'rgba(197,160,89,0.0)');
+            ctx.fillStyle = coneGrad;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, coneR, -Math.PI * 0.5 - 0.48, -Math.PI * 0.5 + 0.48);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
 
         var markers = Array.isArray(snap.markers) ? snap.markers : [];
         for (var i = 0; i < markers.length; i++) {
             var m = markers[i];
-            var mx = cx + (m.u - 0.5) * rad * 1.68;
-            var my = cy + (m.v - 0.5) * rad * 1.68;
-            ctx.beginPath();
-            ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17,24,39,0.36)';
-            ctx.arc(mx, my, (m.active ? 4.8 : 3.4) * sc, 0, Math.PI * 2);
-            ctx.fill();
+            var mx = cx + (m.u - 0.5) * rad * 1.66;
+            var my = cy + (m.v - 0.5) * rad * 1.66;
+            if (m.type === 'portal' || m.type === 'gate') {
+                var ds = (m.active ? 5.0 : 4.2) * sc;
+                ctx.save();
+                ctx.translate(mx, my);
+                ctx.rotate(Math.PI * 0.25);
+                ctx.fillStyle = m.active ? '#C5A059' : '#9CA3AF';
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = Math.max(1, 1.1 * sc);
+                ctx.beginPath();
+                ctx.rect(-ds * 0.5, -ds * 0.5, ds, ds);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            } else if (m.type === 'armory') {
+                var rA = (m.active ? 4.4 : 3.5) * sc;
+                ctx.beginPath();
+                ctx.fillStyle = m.active ? '#C5A059' : '#1F2937';
+                ctx.strokeStyle = '#C5A059';
+                ctx.lineWidth = Math.max(1, 1.15 * sc);
+                ctx.arc(mx, my, rA, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else if (m.type === 'peer') {
+                ctx.beginPath();
+                ctx.fillStyle = '#C5A059';
+                ctx.strokeStyle = '#111827';
+                ctx.lineWidth = Math.max(1, 1.1 * sc);
+                ctx.arc(mx, my, 3.6 * sc, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                if (m.active) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(197,160,89,0.48)';
+                    ctx.lineWidth = Math.max(1, 1.2 * sc);
+                    ctx.arc(mx, my, 6.2 * sc, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                ctx.beginPath();
+                ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17,24,39,0.38)';
+                ctx.arc(mx, my, (m.active ? 3.8 : 2.8) * sc, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         if (snap.player) {
-            var px = cx + (snap.player.u - 0.5) * rad * 1.68;
-            var py = cy + (snap.player.v - 0.5) * rad * 1.68;
             ctx.save();
             ctx.translate(px, py);
-            ctx.rotate(-(snap.player.yaw || 0) + Math.PI);
-            ctx.fillStyle = '#111827';
+            ctx.rotate(-rt.yaw + Math.PI);
+
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+            ctx.lineWidth = Math.max(1.5, 2.2 * sc);
             ctx.beginPath();
-            ctx.moveTo(0, -8.2 * sc);
-            ctx.lineTo(5.8 * sc, 6.4 * sc);
-            ctx.lineTo(0, 3.6 * sc);
-            ctx.lineTo(-5.8 * sc, 6.4 * sc);
+            ctx.moveTo(0, -8.4 * sc);
+            ctx.lineTo(5.6 * sc, 6.2 * sc);
+            ctx.lineTo(0, 3.1 * sc);
+            ctx.lineTo(-5.6 * sc, 6.2 * sc);
+            ctx.closePath();
+            ctx.stroke();
+
+            ctx.fillStyle = '#111827';
+            ctx.fill();
+
+            ctx.fillStyle = '#C5A059';
+            ctx.beginPath();
+            ctx.moveTo(0, -7.2 * sc);
+            ctx.lineTo(2.1 * sc, 3.6 * sc);
+            ctx.lineTo(0, 2.2 * sc);
+            ctx.lineTo(-2.1 * sc, 3.6 * sc);
             ctx.closePath();
             ctx.fill();
+
             ctx.restore();
         }
 
@@ -1848,7 +2058,6 @@
                 : (this.environmentInfo.season_label || 'Herbst');
         }
         this._renderPingHud();
-        this._renderMinimap();
     };
 
     SeelenfunkeUnifiedLobbyHost.prototype._nowPerfMs = function () {
@@ -2146,6 +2355,9 @@
             settingsMuteBtn.addEventListener('click', function () {
                 if (self._audio && typeof self._audio.toggleQuickMute === 'function') {
                     self.audioState = self._audio.toggleQuickMute();
+                    if (!self.audioState.allMuted && self.userSettings.volume <= 0) {
+                        self.userSettings.volume = self.audioState.bgmVolume || 15;
+                    }
                     self._syncHudState();
                 }
             });
@@ -2391,12 +2603,11 @@
             var facade = getFacade(self);
             if (facade && typeof facade.updateSettings === 'function') {
                 facade.updateSettings({ volume: vol });
+            } else if (self._audio) {
+                self._audio.setBgmVolume(vol, true);
+                self._audio.setSfxVolume(vol);
             }
             if (self._audio) {
-                self._audio.setBgmVolume(vol, true);
-                self._audio.setBgmMuted(vol === 0, true);
-                self._audio.setSfxVolume(vol);
-                self._audio.setSfxMuted(vol === 0);
                 self.audioState = self._audio.getState();
             }
             self._syncHudState();
@@ -4273,10 +4484,21 @@
             var explicitMuted = (rawExplicit === '1' || rawExplicit === 'true') || rawVol === '0';
             if (!explicitMuted && typeof Audio !== 'undefined') {
                 localStorage.setItem('sf_funki_audio_muted', '0');
-                var preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3');
+                var parsedVol = (rawVol !== null && rawVol !== '' && !isNaN(Number(rawVol)))
+                    ? Math.max(0, Math.min(100, Math.round(Number(rawVol))))
+                    : 15;
+                if (parsedVol === 5 && localStorage.getItem('sf_lobby_vol_v3_init') !== '1') {
+                    parsedVol = 15;
+                }
+                var preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3?v=20261122v1');
                 preEl.loop = true;
                 preEl.preload = 'auto';
-                preEl.volume = 0.025;
+                preEl.volume = Math.min(0.50, Math.max(0, (parsedVol / 100) * 0.50));
+                try {
+                    preEl.preservesPitch = true;
+                    preEl.mozPreservesPitch = true;
+                    preEl.webkitPreservesPitch = true;
+                } catch (ePitch) {}
                 window.__sfPrewarmLobbyBgmEl = preEl;
                 ensurePrewarmRegistryAndRegister(preEl);
                 window.__sfLobbyAudioGraceUntil = Date.now() + 1200;
@@ -4329,6 +4551,7 @@
                 self._syncRealtimeHud();
             }, 120);
         }
+        this._startMinimapLoop();
         this._startAtelierPingLoop();
 
         var existingFacade = getFacade(this);
@@ -4618,6 +4841,7 @@
             clearInterval(this._hudTimer);
             this._hudTimer = null;
         }
+        this._stopMinimapLoop();
 
         if (getActiveFullscreenElement()) {
             try {

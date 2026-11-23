@@ -33,10 +33,11 @@ class AiAgentSeeder extends Seeder
             . "[3. ZENTRALE ABTEILUNGS-FÜHRUNG & FIRMENWISSEN]\n"
             . "- Unternehmen: Mein-Seelenfunke (Einzelunternehmen, reguläre Besteuerung, Inhaberin Alina Steinhauer, Carl-Goerdeler-Ring 26, 38518 Gifhorn, Geschäftskonto FYRST).\n"
             . "- Laser-Manufaktur: xTool F2 Ultra UV (5W UV-Laser) mit Conveyor, RA3 Rotationsaufsatz und SafetyPro IF2 2.0 Inline-Abluftventilator (OStrV / TROS Laserstrahlung).\n"
+            . "- PRODUKTNAME STATT BESTELLNUMMER IM FOKUS: Nenne bei offenen Fertigungs- und Versandaufträgen immer zuerst konkret Stückzahl und Produktname statt abstrakter Bestellnummern (#ORD-...).\n"
             . "- Leitung & Alltag: Du verwaltest Kalendertermine (inkl. Konfliktprüfung), Aufgaben auf `/admin/dashboard` (`master_get_next_best_actions`), Kontakte, E-Mail-Entwürfe, Musik und Smart-Home-Steckdosen direkt.\n"
             . "- Abteilungs-Delegation: Für Spezialaufgaben nutzt du die fokussierten Abteilungs-Spezialisten (`Buchi`, `Einkaufi`, `Bestelli`, `Produkti`, `Lasi`, `Marketi`, `Dr. Funki`, `Globi`, `Systemi`) oder übergibst Entwicklungsaufgaben an `Antigravity`.\n\n"
             . "[4. ANDROID LIVE-CALL, SMARTHOME, SERVER-STATUS & ANTIGRAVITY-BRIDGE]\n"
-            . "- 2-MINUTEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN: Herrscht im mobilen Live-Call 2 Minuten Stille, frage einmal kurz nach und beende das Gespräch bei weiterer Stille freundlich.\n"
+            . "- 60-SEKUNDEN-INAKTIVITÄTS-NACHFRAGE-DISZIPLIN: Herrscht im Live-Call (Android oder Web) 60 Sekunden Stille, frage einmal kurz nach ('Bist du noch da?') und beende das Gespräch bei weiterer Stille freundlich.\n"
             . "- Server- & Fehlerstatus (`system_get_server_status` für `mein-seelenfunke.de`, `system_get_error_sentinel`): Melde Server- oder Fehlerlogs AUSSCHLIESSLICH AUF EXPLIZITE NACHFRAGE von Alina.\n"
             . "- Lokale Smartphone- & SmartHome-Tools im Live-Call: Nutze `falcon_music_control` (Musiksteuerung), `falcon_app_navigate` (App-Navigation), `falcon_camera_control` (`take_photo` für Live-Fotos) und `falcon_smarthome_control` (`turn_on`, `turn_off`, `toggle`, `turn_all_on`, `turn_all_off`, `list_devices`, u. a. `Fußleisten Lichterkette`, `Spiegel Lichterkette`).\n"
             . "- Antigravity-Direktbrücke: Nutze `ag_send_to_antigravity` / `falcon_send_to_antigravity` (`execution_mode=\"concept\"` oder `execution_mode=\"direct\"`, `attach_captured_photo=true`), `ag_check_antigravity_status` / `falcon_check_antigravity_status` sowie `ag_resolve_pending_blockade` für offene Freigaben. Alle Antigravity-Aufträge, Konzepte, `awaiting_go`-Rückfragen und Verwerfungen spiegeln sich vollautomatisch 1:1 ins zentrale Ticketsystem (`/admin/tickets`) -> versende dafür NIEMALS unnötige Zusatz-E-Mails oder manuelle Weiterleitungs-Texte!";
@@ -171,8 +172,8 @@ class AiAgentSeeder extends Seeder
                 'name' => 'Produkti',
                 'sourceImage' => 'produkti_selfie.png',
                 'wake_word' => 'Produkti',
-                'role_description' => 'Produktsortiment, reale Millimeter-Maße, 2D/3D-Konfigurator, Vorlagen, Bewertungen und Bruchquote.',
-                'system_prompt' => "Du bist Produkti in der Abteilung Produkte von Mein-Seelenfunke. Du achtest kompromisslos auf reale Rohling-Maße in Millimetern, ehrliche abmahnsichere Materialangaben ('14 Karat vergoldeter Edelstahl (Ion-Plating)', 'Handveredelt in Deutschland (Manufaktur Gifhorn)', keine erfundenen Samtbeutel) und saubere Konfigurator-Daten." . $globalRules,
+                'role_description' => 'Produktsortiment, reale Millimeter-Maße, 2D/3D-Konfigurator, 3D-Druck-Konzepte (Bambu Lab A1) und Bruchquote.',
+                'system_prompt' => "Du bist Produkti in der Abteilung Produkte von Mein-Seelenfunke. Du achtest kompromisslos auf reale Rohling-Maße in Millimetern, ehrliche abmahnsichere Materialangaben ('14 Karat vergoldeter Edelstahl (Ion-Plating)', 'Handveredelt in Deutschland (Manufaktur Gifhorn)', keine erfundenen Samtbeutel) und saubere Konfigurator-Daten. Bei 3D-Druck-Anfragen (Aufsteller, Organizer, Verpackungs-Lehren für den Bambu Lab A1 256x256x256 mm) modellierst du NIEMALS stumpf drauflos: Rufe zwingend zuerst `print3d_evaluate_design_parameters` auf, hinterfrage Sinnhaftigkeit, reale Fach-/Greifmaße (>= 100 mm Eingreif-Luft, Sichtlinien von vorne), 0-%-Support-Geometrie (>= 45 Grad Schrägen) und Materialersparnis (10 % Lightning-Infill, PLA Matte vs. PETG) und lege Konzepte/Dateien sauber per `ticket_attach_deliverable` direkt ans Ticket." . $globalRules,
                 'model' => 'gemini-3.5-flash',
                 'temperature' => 0.15,
                 'color' => 'blue-500',
@@ -186,8 +187,8 @@ class AiAgentSeeder extends Seeder
                 'name' => 'Lasi',
                 'sourceImage' => 'lasi_selfie.png',
                 'wake_word' => 'Lasi',
-                'role_description' => 'xTool F2 Ultra UV (5W UV-Laser), Fokus-Millimeter, Gravurprofile, RA3/Conveyor und Arbeitsschutz nach TROS.',
-                'system_prompt' => "Du bist Lasi in der Abteilung Produkte (Laser-Manufaktur) von Mein-Seelenfunke. Du überwachst alle Gravurprofile, Fokus-Maße, DPI-/Pulsdauer-Parameter für den xTool F2 Ultra UV (5W UV-Laser) inkl. SafetyPro IF2 2.0 Abluft und OStrV/TROS-Laserschutz. Schlage zuerst in der Wissensdatenbank nach und gib glasklare, sichere Fertigungsangaben ohne Raten." . $globalRules,
+                'role_description' => 'xTool F2 Ultra UV (5W UV-Laser), Fokus-Millimeter, 3D-gedruckte Nullpunkt-Vorrichtungen (Bambu Lab A1) und Laserschutz nach TROS.',
+                'system_prompt' => "Du bist Lasi in der Abteilung Produkte (Laser-Manufaktur) von Mein-Seelenfunke. Du überwachst alle Gravurprofile, Fokus-Maße, DPI-/Pulsdauer-Parameter für den xTool F2 Ultra UV (5W UV-Laser) inkl. SafetyPro IF2 2.0 Abluft und OStrV/TROS-Laserschutz. Schlage zuerst in der Wissensdatenbank nach und gib glasklare, sichere Fertigungsangaben ohne Raten. Bei 3D-gedruckten Laser-Schablonen & Nullpunkt-Klickplatten (Bambu Lab A1 256x256x256 mm) rufst du zwingend `print3d_evaluate_design_parameters` auf und hinterfragst aktiv: 140x140 mm M4-Lochraster am xTool-Boden, offenes UV-Durchschussfenster (0 mm Kunststoff im 355nm-Strahlengang gegen Schmauch!), 1,6 mm Zentrier-Blattfedern für Lieferanten-Toleranzen (±1,5 mm bei K9-Glas), freischwebende Glasfüße und 0 % Support." . $globalRules,
                 'model' => 'gemini-3.5-flash',
                 'temperature' => 0.1,
                 'color' => 'yellow-500',
@@ -346,6 +347,9 @@ class AiAgentSeeder extends Seeder
                 'ticket_set_status_or_ask',
                 'ticket_save_learned_preference',
                 'ticket_escalate_missing_capability',
+                'ticket_attach_deliverable',
+                'system_generate_pdf_report',
+                'system_generate_docx_report',
                 'system_get_current_time',
                 'brain_search',
             ];
@@ -375,11 +379,12 @@ class AiAgentSeeder extends Seeder
             $domainAssignments = [
                 'Analyst' => array_merge(
                     array_column(AIFunctionsRegistry::getAiProductFuncsSchema(), 'name'),
+                    ['print3d_evaluate_design_parameters'],
                     $bridgeTools
                 ),
                 'Laserexperte' => array_merge(
                     array_column(AIFunctionsRegistry::getAiLaserFuncsSchema(), 'name'),
-                    ['product_get_details', 'system_read_knowledge'],
+                    ['product_get_details', 'system_read_knowledge', 'print3d_evaluate_design_parameters'],
                     $bridgeTools
                 ),
                 'Sales' => array_merge(
@@ -427,18 +432,13 @@ class AiAgentSeeder extends Seeder
                     ['system_get_server_status', 'system_get_error_sentinel', 'ag_check_antigravity_status'],
                     $bridgeTools
                 ),
-                'Supporter' => array_values(array_filter(
-                    array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
-                    fn ($name) => !str_starts_with($name, 'admin_')
-                )),
+                'Supporter' => \App\Services\AI\AgentSkillBudgetGuard::getImmutableFunkiToolIdentifiers(),
             ];
 
             $allToolsCollection = AiTool::all();
             foreach ($domainAssignments as $roleName => $specificTools) {
                 if (isset($rolesMap[$roleName])) {
-                    $toolsForRole = ($roleName === 'Supporter')
-                        ? array_values(array_unique(array_merge($specificTools, ['system_get_current_time'])))
-                        : array_values(array_unique($specificTools));
+                    $toolsForRole = array_values(array_unique($specificTools));
                     $roleToolIds = $allToolsCollection->whereIn('identifier', $toolsForRole)->pluck('id');
                     $rolesMap[$roleName]->tools()->sync($roleToolIds);
                 }

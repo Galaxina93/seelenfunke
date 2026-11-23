@@ -133,7 +133,7 @@ class FunkiraPresenceContext
             'channel' => $channel,
             'channel_label' => match ($channel) {
                 'web_portal' => 'Web-Portal (Admin)',
-                'live_widget' => 'Live-AI Seiten-Widget',
+                'live_widget' => 'Webportal Live AI Widget',
                 'android_app' => 'Funkenwerk Android-App (Chat)',
                 'android_live_call' => 'Funkenwerk Android-App (3D Live-Call)',
                 'funkenwerk_desktop' => 'Funkenwerk Windows-Suite (Haupt-PC)',

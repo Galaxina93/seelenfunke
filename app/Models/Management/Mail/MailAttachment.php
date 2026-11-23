@@ -47,7 +47,12 @@ class MailAttachment extends Model implements HasSystemBlueprint
         );
     }
 
-protected $guarded = [];
+    protected $guarded = [];
+
+    protected $casts = [
+        'size' => 'integer',
+        'funnel_meta' => 'array',
+    ];
 
     protected static function booted(): void
     {
@@ -61,6 +66,16 @@ protected $guarded = [];
     public function message()
     {
         return $this->belongsTo(MailMessage::class, 'mail_message_id');
+    }
+
+    public function accountingIssue()
+    {
+        return $this->belongsTo(\App\Models\Accounting\AccountingSpecialIssue::class, 'accounting_issue_id');
+    }
+
+    public function workspaceDocument()
+    {
+        return $this->belongsTo(\App\Models\Ai\AiWorkspaceDocument::class, 'workspace_document_id');
     }
     
     /**

@@ -140,7 +140,7 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
             'stripe_get_live_telemetry',
         ];
 
-        $falcone = AiAgent::where('name', 'Falcone')->with('role.tools')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
         $funkira = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->with('role.tools')->firstOrFail();
 
@@ -162,7 +162,7 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
         $migration = require base_path('database/migrations/2026_11_16_190500_seed_stripe_agent_autonomy_settings_and_tools.php');
         $migration->applyUpgrade();
 
-        $falcone = AiAgent::where('name', 'Falcone')->with('role.tools')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
         $funki = AiAgent::where('name', 'Funki')->with('role.tools')->firstOrFail();
         $buchi = AiAgent::where('name', 'Buchi')->with('role.tools')->firstOrFail();
 
@@ -243,7 +243,7 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
 
         $admin = $this->createAdmin();
         Auth::guard('admin')->login($admin);
-        $falcone = AiAgent::where('name', 'Falcone')->with('role.tools')->firstOrFail();
+        $falcone = AiAgent::where('name', 'Funkira')->with('role.tools')->firstOrFail();
 
         $refundHttpCalls = 0;
 

@@ -55,12 +55,16 @@ class AntigravityDirectInboxTest extends TestCase
         $defaultService = new AntigravityDirectInboxService();
 
         $this->assertSame(
-            storage_path('app/private/antigravity_direct_inbox.json'),
-            $defaultService->inboxFilePath()
+            storage_path('app/private'),
+            $defaultService->productionPrivateRootPath()
         );
-        $this->assertSame(
-            storage_path('app/private/ag_direct_media'),
-            $defaultService->mediaDirectoryPath()
+        $this->assertStringEndsWith(
+            '/antigravity_direct_inbox.json',
+            str_replace('\\', '/', $defaultService->inboxFilePath())
+        );
+        $this->assertStringEndsWith(
+            '/ag_direct_media',
+            str_replace('\\', '/', $defaultService->mediaDirectoryPath())
         );
         $this->assertStringNotContainsString(
             str_replace('\\', '/', public_path()),

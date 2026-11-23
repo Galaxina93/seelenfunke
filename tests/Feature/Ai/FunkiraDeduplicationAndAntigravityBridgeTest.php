@@ -194,6 +194,7 @@ class FunkiraDeduplicationAndAntigravityBridgeTest extends TestCase
         $this->assertStringNotContainsString('AIzaSySecretKey1234567890abcdef', (string) ($rawInbox['items'][0]['body'] ?? ''));
 
         Storage::disk('public')->delete($relImgPath);
+        Storage::disk('public')->deleteDirectory('agenten/workspace');
     }
 
     public function test_tool_loop_does_not_duplicate_preliminary_answer_and_widget_enforces_single_funkira_and_echo_dedup(): void

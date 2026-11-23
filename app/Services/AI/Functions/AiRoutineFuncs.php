@@ -688,7 +688,22 @@ trait AiRoutineFuncs
                 });
             } elseif ($filterDays === 'weekend') {
                 $query->where(function ($q) {
-                    $q->whereIn('days_of_week', ['all', 'weekend'])->orWhereNull('days_of_week');
+                    $q->whereIn('days_of_week', ['all', 'weekend'])
+                      ->orWhereNull('days_of_week')
+                      ->orWhere('type', 'sleep')
+                      ->orWhere('title', 'like', '%Bettfertig%')
+                      ->orWhere('title', 'like', '%Nachtruhe%')
+                      ->orWhere('title', 'like', '%Schlaf%');
+                });
+            } elseif ($filterDays === null && $targetCarbon->isWeekend()) {
+                $query->where(function ($q) {
+                    $q->whereIn('days_of_week', ['all', 'weekend'])
+                      ->orWhereNull('days_of_week')
+                      ->orWhere('days_of_week', '')
+                      ->orWhere('type', 'sleep')
+                      ->orWhere('title', 'like', '%Bettfertig%')
+                      ->orWhere('title', 'like', '%Nachtruhe%')
+                      ->orWhere('title', 'like', '%Schlaf%');
                 });
             }
 
@@ -862,7 +877,9 @@ trait AiRoutineFuncs
                 'date' => $targetDate,
                 'weekday' => $targetCarbon->locale('de')->dayName,
                 'is_weekend' => $targetCarbon->isWeekend(),
-                'weekend_note' => $targetCarbon->isWeekend() ? 'Heiliges Wochenende (Freie Gestaltung – kein Pflicht-Tracking)' : 'Werktag (Mo–Fr Fokus)',
+                'weekend_note' => $targetCarbon->isWeekend()
+                    ? 'Heiliges Wochenende (Arbeits-Pflicht-Tracking pausiert, ABER Gesundheits- & Schlafenszeit-Routinen um 22:00 Uhr Bettfertig und 22:30 Uhr Nachtruhe sind AUCH AM WOCHENENDE verbindlich aktiv!)'
+                    : 'Werktag (Mo-Fr Fokus inkl. fester Schlafenszeit 22:00 / 22:30 Uhr)',
                 'is_sick_day' => $isSickDay,
                 'wake_time_aligned' => $shiftInfo['wake_time'] ?? '08:30',
                 'shift_minutes' => $shiftMinutes,

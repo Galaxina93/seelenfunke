@@ -80,6 +80,25 @@ use HasFactory, HasUuids;
         'funkira_call_whitelist' => 'boolean'
     ];
 
+    protected $appends = [
+        'avatar_url',
+    ];
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if (empty($this->avatar_path)) {
+            return null;
+        }
+        $path = ltrim((string) $this->avatar_path, '/');
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+        if (str_starts_with($path, 'storage/')) {
+            return '/' . $path;
+        }
+        return \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+    }
+
     /**
      * Get the full name of the person.
      */

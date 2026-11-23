@@ -1802,15 +1802,27 @@ class XtoolLaserCockpitTest extends TestCase
         $resEngrave = $v2Harness->sendJobToLaserV2('engrave', 'TAR_XF_BYTES', '192.168.188.150', 21.5, 'flatbed_standard');
         $this->assertTrue($resEngrave['ok']);
         $this->assertSame(27.5, $resEngrave['target_z_mm']);
-        $this->assertCount(4, $v2Harness->events);
         $this->assertSame('/v1/user/parity', $v2Harness->events[0]['url']);
-        $this->assertSame('POST', $v2Harness->events[1]['method']);
-        $this->assertSame('/v1/laser-head/focus/control', $v2Harness->events[1]['url']);
-        $this->assertSame(['action' => 'goTo', 'stopFirst' => 1, 'z' => 27.5], $v2Harness->events[1]['data']);
-        $this->assertSame('upload', $v2Harness->events[2]['kind']);
-        $this->assertSame('tmp.xf', $v2Harness->events[2]['filename']);
-        $this->assertSame('/v1/processing/upload/config', $v2Harness->events[3]['url']);
-        $this->assertSame(0, $v2Harness->events[3]['data']['autoStart']);
+        $focusIdx = null;
+        $uploadIdx = null;
+        $uploadConfigIdx = null;
+        foreach ($v2Harness->events as $idx => $ev) {
+            if (($ev['url'] ?? null) === '/v1/laser-head/focus/control') {
+                $focusIdx = $idx;
+            } elseif (($ev['kind'] ?? null) === 'upload' && ($ev['filename'] ?? null) === 'tmp.xf') {
+                $uploadIdx = $idx;
+            } elseif (($ev['url'] ?? null) === '/v1/processing/upload/config') {
+                $uploadConfigIdx = $idx;
+            }
+        }
+        $this->assertNotNull($focusIdx);
+        $this->assertNotNull($uploadIdx);
+        $this->assertNotNull($uploadConfigIdx);
+        $this->assertLessThan($uploadIdx, $focusIdx, 'Focus goTo command must run BEFORE tmp.xf upload');
+        $this->assertLessThan($uploadConfigIdx, $uploadIdx);
+        $this->assertSame('POST', $v2Harness->events[$focusIdx]['method']);
+        $this->assertSame(['action' => 'goTo', 'stopFirst' => 1, 'z' => 27.5], $v2Harness->events[$focusIdx]['data']);
+        $this->assertSame(0, $v2Harness->events[$uploadConfigIdx]['data']['autoStart']);
 
         // 2b. Framing sendet KEIN focus/control
         $v2Harness->events = [];
@@ -1901,13 +1913,14 @@ class XtoolLaserCockpitTest extends TestCase
             $this->assertSame('Schwellenwert', $cfg['xtool_bitmap_mode']);
         }
 
-        // 2. Seelen Kristall nutzt das einzige überarbeitete K9-Seidenmatt-Frost-Profil inkl. invert:true
+        // 2. Seelen Kristall nutzt die beiden K9-Frost-Profile (Tiefen-Frost 31,2 mm + Außen-Seidenmatt 32,5 mm) inkl. invert:true
         $kristall = Product::where('slug', 'seelen-kristall')->firstOrFail();
         $kristallProfiles = $kristall->getLaserProfiles();
-        $this->assertCount(1, $kristallProfiles);
-        $this->assertSame('Außen Seidenmatt-Frost (Überarbeitet)', $kristallProfiles[0]['title']);
-        $this->assertSame(32.7, (float) $kristall->configurator_settings['xtool_focus_mm']);
-        $this->assertSame(32.7, (float) $kristallProfiles[0]['focus_mm']);
+        $this->assertCount(2, $kristallProfiles);
+        $this->assertSame('K9 Tiefen-Frost im Glas · Lamellenrost (31,2 mm)', $kristallProfiles[0]['title']);
+        $this->assertSame(31.2, (float) $kristall->configurator_settings['xtool_focus_mm']);
+        $this->assertSame(31.2, (float) $kristallProfiles[0]['focus_mm']);
+        $this->assertSame(32.5, (float) $kristallProfiles[1]['focus_mm']);
         $this->assertTrue($kristallProfiles[0]['photo_studio']['invert'] ?? false);
 
         // 3. Produkt-Editor Schritt 4.2 rendert das Accordion & synchronisiert beim Anlegen/Umschalten eines zweiten Admin-Profils die Primärfelder

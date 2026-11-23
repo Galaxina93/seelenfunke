@@ -289,9 +289,8 @@ class MarketingNewsletterTest extends TestCase
         // 2. File-Cache-Store ist mit permission 0777 konfiguriert (verhindert LockableFile fopen ErrorException)
         $this->assertSame(0777, config('cache.stores.file.permission'));
 
-        // 3. Funki Musik Dock: Eingeklapptes Icon und ausgeklapptes Panel teilen sich denselben bottom-0 right-0 Ankerpunkt
+        // 3. Spielmusik ist exklusiv in der 3D-Lobby aktiv (kein globales Shop-Audio-Dock außerhalb des Ateliers)
         $bgmBlade = file_get_contents(resource_path('views/components/gamification/persistent-bgm-dock.blade.php'));
-        $this->assertStringContainsString('absolute bottom-0 right-0 origin-center', $bgmBlade);
-        $this->assertStringContainsString('absolute bottom-0 right-0 origin-bottom-right', $bgmBlade);
+        $this->assertStringContainsString('exklusiv in der 3D-Lobby', $bgmBlade);
     }
 }

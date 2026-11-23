@@ -190,8 +190,20 @@ class AiAgentEditor extends Component
             return;
         }
 
+        $currentAgent = ($this->agentId && $this->agentId !== 'new') ? AiAgent::find($this->agentId) : null;
+        if (\App\Services\AI\AgentSkillBudgetGuard::isFunkiAgent($currentAgent) || \App\Services\AI\AgentSkillBudgetGuard::isFunkiAgent($this->name)) {
+            $this->savedMessage = 'Funki ist als Frontend-Support fest eingefroren (keine neuen Fähigkeiten erlaubt).';
+            $this->dispatch('agent-saved', message: $this->savedMessage);
+            return;
+        }
+
         $role = AiRole::find($this->ai_role_id);
         if ($role) {
+            if (\App\Services\AI\AgentSkillBudgetGuard::isSupporterRole($role)) {
+                $this->savedMessage = 'Die Supporter-Rolle (Funki) ist fest eingefroren.';
+                $this->dispatch('agent-saved', message: $this->savedMessage);
+                return;
+            }
             $role->tools()->toggle($toolId);
             $this->updateContextLoad();
             $this->savedMessage = 'Fähigkeiten aktualisiert';
@@ -514,6 +526,14 @@ class AiAgentEditor extends Component
             $agent = new AiAgent();
         } else {
             $agent = AiAgent::findOrFail($this->agentId);
+        }
+
+        // Funki bleibt fest an die isolierte Supporter-Rolle gekoppelt (kein Rollenwechsel auf Admin-/Abteilungsrollen möglich)
+        if (\App\Services\AI\AgentSkillBudgetGuard::isFunkiAgent($agent) || \App\Services\AI\AgentSkillBudgetGuard::isFunkiAgent($this->name)) {
+            $supporterRoleId = AiRole::where('name', 'Supporter')->value('id');
+            if ($supporterRoleId) {
+                $this->ai_role_id = $supporterRoleId;
+            }
         }
 
         $agent->name = $this->name;

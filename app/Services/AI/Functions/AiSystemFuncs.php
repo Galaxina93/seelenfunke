@@ -3166,6 +3166,14 @@ trait AiSystemFuncs
             \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
 
             $downloadUrl = \Illuminate\Support\Facades\Storage::url($filePath);
+            $absoluteGeneratedPath = storage_path('app/' . $filePath);
+            $stickyMeta = \App\Services\AI\TicketDeliverableService::registerLocalFileForActiveTicket(
+                $absoluteGeneratedPath,
+                \Illuminate\Support\Str::slug($title) . '.pdf'
+            );
+            if ($stickyMeta !== null && !empty($stickyMeta['url'])) {
+                $downloadUrl = $stickyMeta['url'];
+            }
 
             if ($action === 'email') {
                 if (empty($recipient)) {
@@ -3287,6 +3295,13 @@ trait AiSystemFuncs
             }
 
             $downloadUrl = \Illuminate\Support\Facades\Storage::url($filePath);
+            $stickyDocxMeta = \App\Services\AI\TicketDeliverableService::registerLocalFileForActiveTicket(
+                $absoluteOutputPath,
+                \Illuminate\Support\Str::slug($title) . '.docx'
+            );
+            if ($stickyDocxMeta !== null && !empty($stickyDocxMeta['url'])) {
+                $downloadUrl = $stickyDocxMeta['url'];
+            }
 
             if ($action === 'email') {
                 if (empty($recipient)) {
@@ -3416,6 +3431,14 @@ trait AiSystemFuncs
             \Illuminate\Support\Facades\Storage::put($filePath, $pdf->output());
 
             $downloadUrl = \Illuminate\Support\Facades\Storage::url($filePath);
+            $absoluteGeneratedPath = storage_path('app/' . $filePath);
+            $stickyMeta = \App\Services\AI\TicketDeliverableService::registerLocalFileForActiveTicket(
+                $absoluteGeneratedPath,
+                $prefix . '-' . $slugNum . '.pdf'
+            );
+            if ($stickyMeta !== null && !empty($stickyMeta['url'])) {
+                $downloadUrl = $stickyMeta['url'];
+            }
             $absolutePath = storage_path('app/' . $filePath);
 
             if ($action === 'email') {
@@ -4150,6 +4173,12 @@ trait AiSystemFuncs
         }
         \Illuminate\Support\Facades\Storage::disk('workspace')->put($workspacePath, $content);
 
+        // Automatisch als Sticky-Konzept an die aktive Ticket-Nachricht heften
+        \App\Services\AI\TicketDeliverableService::registerLocalFileForActiveTicket(
+            \Illuminate\Support\Facades\Storage::disk('workspace')->path($workspacePath),
+            $filename
+        );
+
         if (str_contains(strtolower($rawName), 'implementation_plan') || str_contains(strtolower($rawName), 'plan')) {
             session()->put('has_ai_implementation_plan', true);
             // We use put() here, which makes it persistent for the session until cleared or expired.
@@ -4242,22 +4271,14 @@ trait AiSystemFuncs
              return ['status' => 'error', 'message' => 'Wissensdatenbank-System ist offline.'];
         }
 
-        $category = \App\Models\Ai\AiKnowledgeBaseCategory::firstOrCreate(
-            ['name' => 'System & Architektur'],
-            [
-                'slug' => \Illuminate\Support\Str::slug('System & Architektur'),
-                // Falls 'description' nicht fillable ist, kann es hier weggelassen werden
-            ]
-        );
-
-        $article = \App\Models\Ai\AiKnowledgeBase::updateOrCreate(
-            ['title' => str_replace('_', ' ', $topic)],
-            [
-                'slug' => \Illuminate\Support\Str::slug($topic),
-                'content' => $content,
-                'ai_knowledge_base_category_id' => $category->id,
-                'is_published' => true,
-            ]
+        $cleanTitle = str_replace('_', ' ', $topic);
+        $article = \App\Services\AI\CentralBrainService::upsertDeduplicatedKnowledge(
+            title: $cleanTitle,
+            content: $content,
+            categoryName: 'System & Architektur',
+            tags: ['System', 'Architektur'],
+            sourcePath: null,
+            visibilityScope: \App\Models\Ai\AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE
         );
 
         $addedLines = substr_count($content, "\n") + 1;
@@ -4465,6 +4486,10 @@ trait AiSystemFuncs
             return "Fehler: Tool-Indentifier fehlt oder dir fehlt die feste Rolle im System.";
         }
 
+        if (\App\Services\AI\AgentSkillBudgetGuard::isFunkiAgent($agent)) {
+            return "Sicherheitsrichtlinie: Der Frontend-Support-Agent 'Funki' ist unveränderlich eingefroren und darf niemals neue Fähigkeiten erhalten.";
+        }
+
         $restrictedSelfAssignTools = [
             'system_run_command',
             'system_command_status',
@@ -4510,6 +4535,9 @@ trait AiSystemFuncs
 
         $role = \App\Models\Ai\AiRole::find($agent->ai_role_id);
         if ($role) {
+            if (\App\Services\AI\AgentSkillBudgetGuard::isSupporterRole($role)) {
+                return "Sicherheitsrichtlinie: Die Frontend-Support-Rolle 'Supporter' (Funki) ist unveränderlich eingefroren und darf keine neuen Fähigkeiten erhalten.";
+            }
             $role->tools()->syncWithoutDetaching([$tool->id]);
             return [
                 'status' => 'success',

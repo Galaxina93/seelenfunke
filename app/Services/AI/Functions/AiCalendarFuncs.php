@@ -567,6 +567,10 @@ trait AiCalendarFuncs
             try {
                 if ( array_key_exists('workspace', config('filesystems.disks', [])) ) {
                     Storage::disk('workspace')->put($workspaceRelativePath, $icsContent);
+                    \App\Services\AI\TicketDeliverableService::registerLocalFileForActiveTicket(
+                        Storage::disk('workspace')->path($workspaceRelativePath),
+                        $icsFilename
+                    );
                 } else {
                     Storage::disk('local')->put($workspaceRelativePath, $icsContent);
                 }

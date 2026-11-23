@@ -110,9 +110,16 @@ class AiRoleManager extends Component
             'description' => $this->description,
         ]);
 
-        // Nur tatsächlich existierende Tool-IDs synchronisieren
+        // Nur tatsächlich existierende Tool-IDs synchronisieren (Funkis 'Supporter'-Rolle ist fest eingefroren und darf keine Zusatz-Fähigkeiten bekommen!)
         $rawToolIds = array_slice(array_values(array_filter((array) $this->selectedTools)), 0, 200);
-        $validToolIds = AiTool::whereIn('id', $rawToolIds)->pluck('id')->toArray();
+        if (\App\Services\AI\AgentSkillBudgetGuard::isSupporterRole($role)) {
+            $validToolIds = AiTool::whereIn('id', $rawToolIds)
+                ->whereIn('identifier', \App\Services\AI\AgentSkillBudgetGuard::getImmutableFunkiToolIdentifiers())
+                ->pluck('id')
+                ->toArray();
+        } else {
+            $validToolIds = AiTool::whereIn('id', $rawToolIds)->pluck('id')->toArray();
+        }
         $role->tools()->sync($validToolIds);
 
         session()->flash('message', $roleIdToSave ? 'Rolle erfolgreich aktualisiert.' : 'Rolle erfolgreich erstellt.');

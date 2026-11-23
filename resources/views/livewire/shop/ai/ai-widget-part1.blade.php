@@ -13,23 +13,38 @@
      @chat-session-created.window="handleChatSessionCreated($event.detail)"
      @chat-session-switched.window="handleChatSessionSwitched($event.detail)"
      @ai-switch-agent.window="handleAgentSwitch($event.detail.agent_id)"
-     @toggle-mapfocus.window="console.log('toggle-mapfocus', $event.detail); let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isMapFocus = (d && (d.active === true || d.active === 'true' || d.active === 1)); if(isMapFocus) { isMapMode = true; }"
-     @map-fly-to.window="console.log('map-fly-to', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.flyToLocation === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.flyToLocation(p.lng, p.lat, p.zoom, p.pitch, p.markerText); }"
-     @toggle-livedata.window="console.log('toggle-livedata', $event.detail); let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isFlightDataActive = (d && (d.active === true || d.active === 'true' || d.active === 1));"
-     @map-mark-news-events.window="console.log('map-mark-news-events', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.markNewsEvents === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.markNewsEvents(p.markers); }"
-     @map-mark-places.window="console.log('map-mark-places', $event.detail); isMapFocus = true; isMapMode = true; if(typeof window.markPlaces === 'function') { let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; window.markPlaces(p.markers); }"
-     @map-clear-markers.window="console.log('map-clear-markers'); if(typeof window.clearMarkers === 'function') { window.clearMarkers(); }"
+     @toggle-mapfocus.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isMapFocus = Boolean(d && (d.active === true || d.active === 'true' || d.active === 1 || d.active === '1')); if(isMapFocus) { isMapMode = true; isSecretMode = false; isBrainMode = false; isBrainFocus = false; if(window.pauseBrainMap) window.pauseBrainMap(); if(!showFunkiView) openFunkiView(false); ensureMapboxReady(); }"
+     @map-fly-to.window="let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; isMapFocus = true; isMapMode = true; isSecretMode = false; isBrainMode = false; isBrainFocus = false; if(window.pauseBrainMap) window.pauseBrainMap(); if(!showFunkiView) openFunkiView(false); ensureMapboxReady().then(() => { if(typeof window.flyToLocation === 'function' && p) window.flyToLocation(p.lng, p.lat, p.zoom, p.pitch, p.markerText); });"
+     @toggle-livedata.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isFlightDataActive = Boolean(d && (d.active === true || d.active === 'true' || d.active === 1 || d.active === '1'));"
+     @map-mark-news-events.window="let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; isMapFocus = true; isMapMode = true; isSecretMode = false; isBrainMode = false; isBrainFocus = false; if(window.pauseBrainMap) window.pauseBrainMap(); if(!showFunkiView) openFunkiView(false); ensureMapboxReady().then(() => { if(typeof window.markNewsEvents === 'function' && p) window.markNewsEvents(p.markers, p.bbox); });"
+     @map-mark-places.window="let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; isMapFocus = true; isMapMode = true; isSecretMode = false; isBrainMode = false; isBrainFocus = false; if(window.pauseBrainMap) window.pauseBrainMap(); if(!showFunkiView) openFunkiView(false); ensureMapboxReady().then(() => { if(typeof window.markPlaces === 'function' && p) window.markPlaces(p.markers, p.bbox); });"
+     @map-clear-markers.window="if(typeof window.clearMarkers === 'function') { window.clearMarkers(); }"
      @ui-focus-widget.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; setMainScreenWidget(d.type, d.index);"
+     @ai-focus-widget.window="
+        let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload;
+        if (!d) return;
+        if (d.action === 'unfocus') { clearMainScreenWidget(); return; }
+        const t = d.type || 'persona';
+        const q = String(d.identifier || '').toLowerCase();
+        if (t === 'persona') {
+            let idx = q ? personaWidgets.findIndex(w => String(w.name || '').toLowerCase().includes(q)) : 0;
+            if (idx >= 0 && personaWidgets[idx]) setMainScreenWidget('persona', idx);
+        } else if (t === 'intel') {
+            isSecretMode = true;
+            secretTab = 'board';
+        }
+     "
      @ui-clear-focus.window="clearMainScreenWidget()"
-     @ai-show-news.window="console.log('ai-show-news via alpine', $event.detail); showNewsPanel = true; /* The panel injection is still handled by window.addEventListener in part3 since it touches innerHTML */"
-     @ai-show-persona.window="console.log('ai-show-persona', $event.detail); personaWidgets.unshift($event.detail.payload || $event.detail); showFunkiView = true; setMainScreenWidget('persona', 0);"
-     @ai-show-intel.window="console.log('ai-show-intel', $event.detail); intelWidgets.unshift($event.detail.payload || $event.detail); isSecretMode = true; showFunkiView = true;"
+     @ai-show-news.window="showNewsPanel = true;"
+     @ai-show-persona.window="let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; if(p) { personaWidgets.unshift(p); showFunkiView = true; setMainScreenWidget('persona', 0); }"
+     @ai-show-intel.window="let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; if(p) { intelWidgets.unshift(p); isSecretMode = true; secretTab = 'board'; showFunkiView = true; loadTopSecretVault(); }"
+     @ai-top-secret-refresh.window="if(isSecretMode) { loadTopSecretVault(); }"
      @ai-show-camera.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; cameraWidget = d.open ? true : null; showFunkiView = true;"
-     @ai-show-org-chart.window="console.log('ai-show-org-chart', $event.detail); orgChartWidget = $event.detail.payload || $event.detail; showFunkiView = true; isSecretMode = true;"
+     @ai-show-org-chart.window="let p = $event.detail; if(Array.isArray(p)) p = p[0]; if(p && p.payload) p = p.payload; orgChartWidget = p; showFunkiView = true; isSecretMode = true; secretTab = 'org'; loadTopSecretVault();"
      @ai-transform-core.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; isJarvis = (d.target === 'jarvis'); jarvisMinimized = false; if(isJarvis) { showJarvisFlash = true; setTimeout(() => showJarvisFlash = false, 100); setTimeout(() => jarvisMinimized = true, 1500); } updateJarvisMode();"
-     @ai-toggle-secret-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; let isSilent = (d && (d.silent || (d.payload && d.payload.silent))); if(d && d.payload) d = d.payload; isSecretMode = d.open; if(isSecretMode) { if(!isSilent) { let s = document.getElementById('audio-funki-secret-open'); if(s) { s.currentTime = 0; s.play().catch(e=>console.log(e)); } } if(!showFunkiView) { openFunkiView(false); } } else { if(!isSilent) { let s = document.getElementById('audio-funki-secret-close'); if(s) { s.currentTime = 0; s.play().catch(e=>console.log(e)); } } }"
-     @ai-toggle-brain-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; let isSilent = (d && (d.silent || (d.payload && d.payload.silent))); if(d && d.payload) d = d.payload; isBrainFocus = d.open; if(isBrainFocus) { if(!isSilent) { let s = document.getElementById('audio-funki-brain-open'); if(s) { s.currentTime = 0; s.play().catch(e=>console.log(e)); } } isBrainMode = true; isMapFocus = false; isSecretMode = false; if(!showFunkiView) openFunkiView(false); setTimeout(() => { if(window.initBrainMap) window.initBrainMap(); }, 100); } else { isBrainMode = false; if(!isSilent) { let s = document.getElementById('audio-funki-unclick'); if(s) { s.currentTime = 0; s.play().catch(e=>console.log(e)); } } }"
-     @map-change-style.window="if(window.changeMapStyle) { window.changeMapStyle($event.detail.style); }"
+     @ai-toggle-secret-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; let isSilent = (d && (d.silent || (d.payload && d.payload.silent))); if(d && d.payload) d = d.payload; isSecretMode = Boolean(d && d.open); if(isSecretMode) { isMapFocus = false; isMapMode = false; isBrainFocus = false; isBrainMode = false; if(window.pauseBrainMap) window.pauseBrainMap(); if(!isSilent) { playAudio('secret-open'); } if(!showFunkiView) { openFunkiView(false); } loadTopSecretVault(); } else { secretVaultIntel = []; secretVaultRelations = []; recomputeSecretNetwork(); if(!isSilent) { playAudio('secret-close'); } }"
+     @ai-toggle-brain-workspace.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; let isSilent = (d && (d.silent || (d.payload && d.payload.silent))); if(d && d.payload) d = d.payload; isBrainFocus = Boolean(d && d.open); if(isBrainFocus) { if(!isSilent) { playAudio('brain-open'); } isBrainMode = true; isMapFocus = false; isMapMode = false; isSecretMode = false; if(!showFunkiView) openFunkiView(false); requestAnimationFrame(() => { if(window.initBrainMap) window.initBrainMap(); }); } else { isBrainMode = false; if(window.pauseBrainMap) window.pauseBrainMap(); if(!isSilent) { playAudio('unclick'); } }"
+     @map-change-style.window="let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload; if(d && d.style && window.changeMapStyle) { const mapped = window.changeMapStyle(d.style); if(mapped) activeMapStyle = mapped; }"
      @ai-unshelf-widget.window="
         let d = $event.detail; if(Array.isArray(d)) d = d[0]; if(d && d.payload) d = d.payload;
         const type = d.type;
@@ -356,65 +371,108 @@
 
     <template x-teleport="body">
         <div x-show="showFunkiView"
-             x-transition:enter="transition ease-out duration-1000"
+             x-transition:enter="transition-opacity ease-out duration-200"
              x-transition:enter-start="opacity-0"
              x-transition:enter-end="opacity-100"
-             x-transition:leave="transition ease-in duration-1000"
+             x-transition:leave="transition-opacity ease-in duration-200"
              x-transition:leave-start="opacity-100"
              x-transition:leave-end="opacity-0"
-             style="display: none; height: 100dvh;"
+             style="display: none; height: 100dvh; contain: strict;"
              class="fixed inset-0 z-[99999] bg-[#03050a] overflow-hidden font-mono">
 
     <!-- [AREA: SCRIPTS & IMPORTS] -->
-    <!-- Mapbox GL CSS (JS & Anime.js werden bei Öffnen von FunkiView in part4 nachgeladen) -->
-    <link href="{{ asset('vendor/mapbox-gl/mapbox-gl.css') }}" rel="stylesheet" />
+    <!-- Mapbox GL JS & CSS werden erst bei Bedarf über ensureMapboxReady() nachgeladen -->
 
     <!-- Mapbox Map Container (Background) -->
-    <div id="funki-map-container" class="absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 opacity-100 pointer-events-auto" style="filter: contrast(1.1) brightness(0.9) saturate(1.2);"></div>
+    <div id="funki-map-container" class="absolute inset-0 w-full h-full z-0 pointer-events-none"></div>
 
-    <!-- Sci-Fi HUD Overlay (Grid + Scanlines + Vignette) -->
-    <div class="absolute inset-0 z-0 pointer-events-none opacity-30 mix-blend-screen"
-         style="background-image: linear-gradient(rgba(0, 240, 255, 0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 240, 255, 0.15) 1px, transparent 1px); background-size: 50px 50px;">
+    <!-- Sci-Fi HUD Overlay (GPU-freundlich ohne mix-blend-screen / mix-blend-overlay!) -->
+    <div class="absolute inset-0 z-0 pointer-events-none opacity-20"
+         style="background-image: linear-gradient(rgba(0, 240, 255, 0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 240, 255, 0.12) 1px, transparent 1px); background-size: 56px 56px;">
     </div>
-    <!-- Scanlines -->
-    <div class="absolute inset-0 z-0 pointer-events-none opacity-10 mix-blend-overlay"
-         style="background: repeating-linear-gradient(0deg, transparent, transparent 2px, #000 2px, #000 4px);">
-    </div>
-    <!-- Vignette / Glow -->
+    <!-- Vignette -->
     <div class="absolute inset-0 z-0 pointer-events-none"
-         style="box-shadow: inset 0 0 150px 50px rgba(1, 6, 15, 0.9);">
+         style="background: radial-gradient(circle at center, transparent 48%, rgba(1, 6, 15, 0.88) 100%);">
     </div>
 
     <!-- CSS2D Container for HTML elements in 3D -->
     <div id="css2d-container" class="absolute inset-0 w-full h-full z-10 pointer-events-none"></div>
 
     <!-- Main Screen Focus Backdrop -->
-    <div x-show="mainScreenWidget" x-transition.opacity
-         class="fixed inset-0 bg-black/80 z-[9998] pointer-events-auto backdrop-blur-sm"
+    <div x-show="mainScreenWidget" x-transition.opacity.duration.150ms
+         class="fixed inset-0 bg-black/85 z-[9998] pointer-events-auto"
          @click="clearMainScreenWidget()" style="display: none;"></div>
 
     <!-- ========================================== -->
-    <!-- START KI KERN (3D) - Hier läuft Three.js -->
+    <!-- START KI KERN (3D) - Hier läuft Three.js (Ultra-Snap 60 FPS GPU Transform) -->
     <!-- ========================================== -->
-    <div id="funki-canvas-container" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right" :class="(isMapFocus || isSecretMode || isBrainMode) ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] pointer-events-none z-[50]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] pointer-events-none z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto'))"></div>
+    <div id="funki-canvas-container"
+         :style="(isMapFocus || isSecretMode || isBrainMode || jarvisMinimized) ? 'width: 300px; height: 300px; right: 0.75rem; bottom: 0.5rem; top: auto; left: auto;' : 'inset: 0; width: 100%; height: 100%;'"
+         class="absolute transition-opacity duration-200 transform-gpu"
+         :class="(isMapFocus || isSecretMode || isBrainMode || jarvisMinimized) ? 'pointer-events-none z-[50]' : (isMapMode ? 'z-10 pointer-events-none' : 'z-10 pointer-events-auto')"></div>
     <!-- END KI KERN (3D) -->
 
     <!-- ========================================== -->
     <!-- START JARVIS (2D) - Hier läuft die Canvas Animation -->
     <!-- ========================================== -->
-    <canvas id="jarvisCanvas" x-show="isJarvis" style="display: none; filter: drop-shadow(0 0 15px rgba(0, 212, 255, 0.6));" class="absolute inset-0 w-full h-full transition-all duration-[2500ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] transform-gpu origin-bottom-right pointer-events-none" :class="(isMapFocus || isSecretMode || isBrainMode) ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (jarvisMinimized ? 'scale-[0.65] translate-x-[10vw] md:translate-x-[22vw] translate-y-[5vh] md:translate-y-[12vh] rounded-3xl overflow-hidden z-[51]' : (isMapMode ? 'z-[11]' : 'z-[11]'))"></canvas>
+    <canvas id="jarvisCanvas" x-show="isJarvis"
+            :style="(isMapFocus || isSecretMode || isBrainMode || jarvisMinimized) ? 'display: none; width: 300px; height: 300px; right: 0.75rem; bottom: 0.5rem; top: auto; left: auto;' : 'display: none; inset: 0; width: 100%; height: 100%;'"
+            class="absolute transition-opacity duration-200 transform-gpu pointer-events-none"
+            :class="(isMapFocus || isSecretMode || isBrainMode || jarvisMinimized) ? 'rounded-3xl overflow-hidden z-[51]' : 'z-[11]'"></canvas>
     <!-- END JARVIS (2D) -->
 
     <!-- Jarvis Flash Transition -->
-    <div x-show="showJarvisFlash" x-transition.opacity.duration.500ms class="absolute inset-0 z-[60] bg-cyan-400 mix-blend-screen pointer-events-none" style="display: none;"></div>
-    <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]"
-         :class="isMapMode ? 'opacity-100 scale-100 pointer-events-auto shadow-[inset_0_0_200px_rgba(0,0,0,0.9)]' : 'opacity-0 scale-110 blur-xl pointer-events-none'"
-         :style="isMapMode ? 'filter: brightness(0.6) sepia(0.3) hue-rotate(180deg) saturate(2.0);' : 'filter: brightness(0.5);'"></div>
+    <div x-show="showJarvisFlash" x-transition.opacity.duration.200ms class="absolute inset-0 z-[60] bg-cyan-400/60 pointer-events-none" style="display: none;"></div>
+    <div id="funki-mapbox-container" class="absolute inset-0 w-full h-full z-[5] transition-opacity duration-200"
+         :class="isMapMode ? 'opacity-100 pointer-events-auto' : 'opacity-0 invisible pointer-events-none'"></div>
+
+    <!-- Interaktives Map-Schnell-HUD (Sofort-Suche ohne LLM-Latenz, Schnellziele & Pin-Steuerung) -->
+    <div x-show="isMapFocus && isMapMode" x-transition.opacity class="absolute left-1/2 -translate-x-1/2 bottom-[max(1rem,env(safe-area-inset-bottom))] md:bottom-10 w-[94%] md:w-[680px] z-[75] pointer-events-auto flex flex-col gap-2" style="display: none;" x-cloak>
+        <!-- Schnelltreffer-Dropdown -->
+        <div x-show="mapQuickResults && mapQuickResults.length > 0" x-transition class="bg-gray-950/[0.97] border border-emerald-500/40 rounded-2xl overflow-hidden shadow-2xl divide-y divide-white/5">
+            <template x-for="(item, rIdx) in mapQuickResults" :key="rIdx">
+                <button type="button" @click="selectMapQuickResult(item)" class="w-full px-4 py-2.5 text-left hover:bg-emerald-500/15 transition-colors flex items-center justify-between gap-3 cursor-pointer">
+                    <div class="min-w-0">
+                        <div class="text-xs font-bold text-white truncate" x-text="item.title"></div>
+                        <div class="text-[10px] text-gray-400 truncate" x-text="item.subtitle"></div>
+                    </div>
+                    <span class="text-[10px] font-mono text-[#C5A059] shrink-0">ANFLIEGEN →</span>
+                </button>
+            </template>
+        </div>
+
+        <!-- Schnell-Buttons -->
+        <div class="flex items-center justify-center gap-1.5 flex-wrap">
+            <button type="button" @click="ensureMapboxReady().then(() => window.flyToLocation && window.flyToLocation(10.5467, 52.4787, 15.5, 60, 'Manufaktur Gifhorn'))" class="px-2.5 py-1 rounded-full bg-gray-950/90 border border-[#C5A059]/50 hover:border-[#C5A059] text-[#C5A059] text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                Manufaktur Gifhorn
+            </button>
+            <button type="button" @click="ensureMapboxReady().then(() => { if(window.funkiMap) window.funkiMap.easeTo({ pitch: window.funkiMap.getPitch() > 20 ? 0 : 60, bearing: 0, duration: 700 }); })" class="px-2.5 py-1 rounded-full bg-gray-950/90 border border-gray-700 hover:border-emerald-400 text-gray-200 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                2D / 3D Neigung
+            </button>
+            <button type="button" x-show="mapMarkerCount > 0" @click="window.clearMarkers && window.clearMarkers()" class="px-2.5 py-1 rounded-full bg-rose-950/90 border border-rose-500/50 hover:border-rose-400 text-rose-200 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                Pins löschen (<span x-text="mapMarkerCount"></span>)
+            </button>
+        </div>
+
+        <!-- Direkt-Suchleiste -->
+        <div class="bg-gray-950/[0.96] border border-emerald-500/40 focus-within:border-[#C5A059] rounded-full px-4 py-2 flex items-center gap-2.5 shadow-2xl">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 text-emerald-400 shrink-0">
+                <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
+            </svg>
+            <input type="text"
+                   x-model="mapQuickQuery"
+                   @input.debounce.220ms="runMapQuickSearch()"
+                   @keydown.enter.prevent="if(mapQuickResults.length > 0) { selectMapQuickResult(mapQuickResults[0]); } else { runMapQuickSearch(); }"
+                   placeholder="Ort, Stadt oder Adresse direkt anfliegen..."
+                   class="bg-transparent border-none text-white text-xs sm:text-sm w-full focus:outline-none focus:ring-0 placeholder-gray-500" />
+            <button x-show="mapQuickQuery" type="button" @click="mapQuickQuery = ''; mapQuickResults = [];" class="text-gray-400 hover:text-white text-xs px-1.5 cursor-pointer">✕</button>
+        </div>
+    </div>
 
     <!-- ========================================== -->
     <!-- START NEURALE FEHLERANALYSE (3D GEHIRN) -->
     <!-- ========================================== -->
-    <div x-show="isBrainMode" class="absolute inset-0 transition-opacity duration-1000" style="z-index: 55;" x-transition.opacity>
+    <div x-show="isBrainMode" class="absolute inset-0 transition-opacity duration-200" style="z-index: 55;" x-transition.opacity.duration.200ms>
         <style>
             .brain-touch-scroll {
                 overflow-y: auto !important;
@@ -755,7 +813,7 @@
                         <span class="text-[9px] uppercase font-bold tracking-widest opacity-80" x-text="article.source || 'LIVE FEED'"></span>
                         <div class="flex gap-2">
                             <!-- Copy Link Button -->
-                            <button x-show="article.url" @click="navigator.clipboard.writeText(article.url); copySuccess = true; setTimeout(function(){copySuccess = false}, 2000)"
+                            <button x-show="article.url" @click="if(navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(article.url); } else { const ta = document.createElement('textarea'); ta.value = article.url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); } copySuccess = true; setTimeout(function(){copySuccess = false}, 2000)"
                                     class="p-2 bg-black/50 hover:bg-white/10 rounded border transition-colors cursor-pointer relative"
                                     :style="{ 'border-color': getHexColorStr(agentColor) + '80', 'color': getHexColorStr(agentColor) }" title="Link kopieren">
                                 <svg x-show="!copySuccess" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -839,68 +897,273 @@
         </template>
     </div>
 
-    <!-- [AREA: TOP SECRET BOARD] -->
-    <!-- String Board (Top Secret Workspace) -->
-    <div x-show="isSecretMode" x-transition:enter="transition ease-out duration-1000" x-transition:enter-start="opacity-0 scale-110" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-700" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-0 z-[40] pointer-events-auto bg-gray-950/95 backdrop-blur-2xl overflow-hidden" style="display: none;" x-cloak>
-        <!-- Background texture -->
-        <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA0MCAwIEwgMCAwIDAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyMjAsIDM4LCAzOCwgMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-40"></div>
+    <!-- [AREA: TOP SECRET ENCRYPTED VAULT & OSINT BOARD (ADMIN EYES ONLY)] -->
+    @if($isAdminUser ?? \App\Services\AI\AiAuthHelper::isAdmin())
+    <div x-show="isSecretMode"
+         x-transition:enter="transition-opacity ease-out duration-180"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition-opacity ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="absolute inset-0 z-[45] pointer-events-auto bg-[#050609]/[0.97] overflow-hidden flex flex-col"
+         style="display: none; contain: strict;" x-cloak>
 
-        <!-- Header -->
-        <div class="absolute top-6 left-6 z-50 flex flex-col pointer-events-none">
-            <div class="text-red-500 text-sm md:text-xl uppercase tracking-[0.4em] font-black font-mono animate-pulse">Top Secret</div>
-            <div class="text-red-900/80 text-xs uppercase tracking-widest font-mono">OSINT Investigation Board</div>
+        <!-- Subtiles taktisches Raster -->
+        <div class="absolute inset-0 pointer-events-none opacity-25"
+             style="background-image: linear-gradient(rgba(197,160,89,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(220,38,38,0.07) 1px, transparent 1px); background-size: 36px 36px;"></div>
+
+        <!-- Top Secret Command Header (2-zeilig strukturiert: Zeile 1 lässt oben rechts Platz für die globale KI-Navigation, Zeile 2 zeigt Tresor-Tabs & Aktionen ohne Überlappung) -->
+        <div class="relative z-20 px-4 sm:px-8 pt-20 xl:pt-6 pb-3.5 border-b border-red-900/40 bg-black/75 flex flex-col gap-3.5">
+            <!-- Zeile 1: Top Secret Branding links (rechts sitzt die globale AI-Widget-Navigation auf top-6 right-6) -->
+            <div class="flex items-center gap-3 min-h-[40px]">
+                <div class="w-9 h-9 rounded-xl bg-red-950/80 border border-red-500/50 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-red-400">
+                        <path fill-rule="evenodd" d="M12 1.5a5.25 5.25 0 0 0-5.25 5.25v3a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h10.5a3 3 0 0 0 3-3v-6.75a3 3 0 0 0-3-3v-3c0-2.9-2.35-5.25-5.25-5.25Zm3.75 8.25v-3a3.75 3.75 0 1 0-7.5 0v3h7.5Z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-red-400 text-sm sm:text-base font-black uppercase tracking-[0.28em] whitespace-nowrap">Top Secret</span>
+                    <span class="px-2 py-0.5 rounded bg-red-950/90 border border-red-500/40 text-[9px] font-mono font-bold text-[#C5A059] uppercase tracking-widest whitespace-nowrap">AES-256 · Admin Only</span>
+                </div>
+            </div>
+
+            <!-- Zeile 2: Tabs links, Suche & Aktionen rechts (unterhalb der globalen AI-Navigation -> 0 Überlappung) -->
+            <div class="pt-3 border-t border-red-900/30 flex flex-wrap items-center justify-between gap-2.5">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button type="button" @click="secretTab = 'vault'; secretSelectedNode = '';"
+                            :class="secretTab === 'vault' ? 'bg-red-600/25 border-red-400 text-white' : 'bg-gray-900/80 border-gray-800 text-gray-400 hover:text-white'"
+                            class="px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                        Tresor (<span x-text="secretVaultIntel.length"></span>)
+                    </button>
+                    <button type="button" @click="secretTab = 'network'"
+                            :class="secretTab === 'network' ? 'bg-red-600/25 border-red-400 text-white' : 'bg-gray-900/80 border-gray-800 text-gray-400 hover:text-white'"
+                            class="px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                        Netzwerk (<span x-text="secretVaultRelations.length"></span>)
+                    </button>
+                    <button type="button" x-show="intelWidgets.length > 0" @click="secretTab = 'board'"
+                            :class="secretTab === 'board' ? 'bg-red-600/25 border-red-400 text-white' : 'bg-gray-900/80 border-gray-800 text-gray-400 hover:text-white'"
+                            class="px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                        Live-Notizen (<span x-text="intelWidgets.length"></span>)
+                    </button>
+                    <button type="button" x-show="orgChartWidget" @click="secretTab = 'org'"
+                            :class="secretTab === 'org' ? 'bg-red-600/25 border-red-400 text-white' : 'bg-gray-900/80 border-gray-800 text-gray-400 hover:text-white'"
+                            class="px-3 py-1.5 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                        Struktur
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2 flex-wrap">
+                    <input type="text" x-model="secretSearch" placeholder="Dossiers filtern..."
+                           class="bg-gray-900/90 border border-gray-800 focus:border-[#C5A059] rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none w-36 sm:w-48" />
+
+                    <button type="button" @click="secretShowAddIntel = !secretShowAddIntel; secretShowAddRelation = false;"
+                            class="px-2.5 py-1.5 rounded-lg bg-[#C5A059]/20 border border-[#C5A059]/60 hover:bg-[#C5A059]/30 text-[#C5A059] text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                        + Dossier
+                    </button>
+                    <button type="button" @click="secretShowAddRelation = !secretShowAddRelation; secretShowAddIntel = false;"
+                            class="px-2.5 py-1.5 rounded-lg bg-gray-900 border border-gray-700 hover:border-red-400 text-gray-200 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+                        + Verbindung
+                    </button>
+                    <button type="button" @click="lockAndPurgeTopSecret()"
+                            class="px-2.5 py-1.5 rounded-lg bg-red-950/90 border border-red-500/60 hover:bg-red-700 text-red-200 hover:text-white text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                            title="Sperren und Arbeitsspeicher sofort bereinigen">
+                        Sperren
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- Shelf Widget Sidebar (Seitenablage) -->
-        <div x-show="shelfWidgets.length > 0" x-transition class="absolute top-24 left-6 bottom-6 w-48 z-[60] flex flex-col gap-3 overflow-y-auto custom-scrollbar pr-2 pointer-events-auto border-r border-red-900/30">
-            <div class="text-red-500/70 text-[10px] uppercase tracking-widest font-mono mb-2 border-b border-red-900/30 pb-1">Seitenablage</div>
-            <template x-for="(shelfItem, index) in shelfWidgets" :key="index">
-                <div class="relative bg-gray-900/80 border border-red-900/50 p-3 rounded-lg shadow-lg cursor-pointer hover:border-red-500 transition-colors group"
-                     @click="
-                        if(shelfItem.type === 'persona') { personaWidgets.unshift(shelfItem.payload); }
-                        else if(shelfItem.type === 'intel') { intelWidgets.unshift(shelfItem.payload); }
-                        shelfWidgets.splice(index, 1);
-                     ">
-                    <div class="text-xs font-bold text-red-400 truncate uppercase tracking-wide" x-text="shelfItem.payload.name || shelfItem.payload.title || 'Akte'"></div>
-                    <div class="text-[9px] text-gray-500 mt-1 uppercase" x-text="shelfItem.type"></div>
-                    <div class="absolute inset-0 bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg"></div>
-                    <!-- Restore Icon -->
-                    <div class="absolute right-2 top-1/2 -translate-y-1/2 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+        <!-- Schnell-Erfassung: Neues verschlüsseltes Dossier -->
+        <div x-show="secretShowAddIntel" x-transition class="relative z-20 mx-4 sm:mx-8 mt-3 p-4 rounded-2xl bg-gray-950/95 border border-[#C5A059]/50 flex flex-col gap-2.5 max-w-2xl">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input type="text" x-model="secretNewIntelTitle" placeholder="Entität / Akten-Titel" class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:border-[#C5A059] focus:outline-none" />
+                <input type="text" x-model="secretNewIntelTags" placeholder="Tags (kommagetrennt, optional)" class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:border-[#C5A059] focus:outline-none" />
+            </div>
+            <textarea x-model="secretNewIntelContent" rows="3" placeholder="Vertrauliche Fakten (werden AES-256-verschlüsselt gespeichert)..." class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:border-[#C5A059] focus:outline-none"></textarea>
+            <div class="flex justify-end gap-2">
+                <button type="button" @click="secretShowAddIntel = false" class="px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 text-[10px] uppercase font-bold cursor-pointer">Abbrechen</button>
+                <button type="button" @click="saveTopSecretIntel()" class="px-4 py-1.5 rounded-lg bg-[#C5A059] text-black text-[10px] uppercase font-black tracking-wider cursor-pointer">Verschlüsselt speichern</button>
+            </div>
+        </div>
+
+        <!-- Schnell-Erfassung: Neue Entitäts-Verbindung -->
+        <div x-show="secretShowAddRelation" x-transition class="relative z-20 mx-4 sm:mx-8 mt-3 p-4 rounded-2xl bg-gray-950/95 border border-red-500/50 flex flex-col gap-2.5 max-w-2xl">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input type="text" x-model="secretNewRelSource" placeholder="Entität A" class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:border-red-400 focus:outline-none" />
+                <input type="text" x-model="secretNewRelType" placeholder="Beziehung (z.B. Inhaber)" class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:border-red-400 focus:outline-none" />
+                <input type="text" x-model="secretNewRelTarget" placeholder="Entität B" class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:border-red-400 focus:outline-none" />
+            </div>
+            <input type="text" x-model="secretNewRelEvidence" placeholder="Nachweis / Notiz (optional)" class="bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-xs text-white focus:border-red-400 focus:outline-none" />
+            <div class="flex justify-end gap-2">
+                <button type="button" @click="secretShowAddRelation = false" class="px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 text-[10px] uppercase font-bold cursor-pointer">Abbrechen</button>
+                <button type="button" @click="saveTopSecretRelation()" class="px-4 py-1.5 rounded-lg bg-red-600 text-white text-[10px] uppercase font-black tracking-wider cursor-pointer">Verbindung speichern</button>
+            </div>
+        </div>
+
+        <!-- Hauptbereich mit optionaler Seitenablage -->
+        <div class="relative z-10 flex-1 min-h-0 flex overflow-hidden">
+            <!-- Seitenablage -->
+            <div x-show="shelfWidgets.length > 0" class="w-52 shrink-0 border-r border-red-900/30 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-2.5 bg-black/40">
+                <div class="text-[10px] uppercase tracking-widest font-bold text-[#C5A059]">Seitenablage</div>
+                <template x-for="(shelfItem, index) in shelfWidgets" :key="index">
+                    <button type="button"
+                            @click="if(shelfItem.type === 'persona') { personaWidgets.unshift(shelfItem.payload); } else if(shelfItem.type === 'intel') { intelWidgets.unshift(shelfItem.payload); secretTab = 'board'; } shelfWidgets.splice(index, 1);"
+                            class="text-left bg-gray-900/90 border border-gray-800 hover:border-[#C5A059] p-2.5 rounded-xl transition-colors cursor-pointer">
+                        <div class="text-xs font-bold text-white truncate" x-text="shelfItem.payload.name || shelfItem.payload.title || 'Akte'"></div>
+                        <div class="text-[9px] text-gray-500 uppercase mt-0.5" x-text="shelfItem.type"></div>
+                    </button>
+                </template>
+            </div>
+
+            <!-- TAB 1: VERSCHLÜSSELTER TRESOR (DOSSIERS) -->
+            <div x-show="secretTab === 'vault'" class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-8 pb-28">
+                <div x-show="secretSelectedNode" class="mb-4 flex items-center gap-2">
+                    <span class="px-3 py-1 rounded-full bg-red-950/80 border border-red-500/40 text-xs text-red-200">Filter: <strong x-text="secretSelectedNode"></strong></span>
+                    <button type="button" @click="secretSelectedNode = ''" class="text-xs text-gray-400 hover:text-white cursor-pointer">Zurücksetzen</button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    <template x-for="item in filteredVaultIntel()" :key="item.id">
+                        <div class="bg-gray-950/90 border border-gray-800 hover:border-[#C5A059]/60 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-colors shadow-xl">
+                            <div>
+                                <div class="flex items-start justify-between gap-2 border-b border-gray-800/80 pb-2.5 mb-2.5">
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <template x-if="item.image_url">
+                                            <img :src="item.image_url" class="w-9 h-9 rounded-lg object-cover border border-gray-700 shrink-0" alt="" />
+                                        </template>
+                                        <div class="min-w-0">
+                                            <h4 class="text-sm font-bold text-white truncate" x-text="item.title"></h4>
+                                            <div class="text-[10px] font-mono text-gray-500" x-text="item.updated_at"></div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <span class="px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-500/30 text-[9px] font-mono text-emerald-300">AES</span>
+                                        <button type="button" @click="deleteTopSecretEntry(item.id)" class="p-1 text-gray-500 hover:text-rose-400 transition-colors cursor-pointer" title="Dauerhaft vernichten">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-300 leading-relaxed whitespace-pre-line line-clamp-6" x-text="item.content"></p>
+                            </div>
+                            <div class="flex items-center justify-between gap-2 pt-2 border-t border-gray-900">
+                                <div class="flex flex-wrap gap-1">
+                                    <template x-for="tag in (item.tags || []).slice(0, 3)" :key="tag">
+                                        <span class="px-2 py-0.5 rounded bg-gray-900 text-[9px] font-mono text-[#C5A059]" x-text="tag"></span>
+                                    </template>
+                                </div>
+                                <button type="button" @click="intelWidgets.unshift({ title: item.title, content: item.content }); secretTab = 'board';" class="text-[10px] font-mono text-red-400 hover:text-red-300 uppercase cursor-pointer shrink-0">
+                                    Anpinnen →
+                                </button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div x-show="!secretVaultLoading && filteredVaultIntel().length === 0" class="flex flex-col items-center justify-center py-20 text-center">
+                    <div class="text-sm font-bold text-gray-400 uppercase tracking-widest">Tresor bereit</div>
+                </div>
+            </div>
+
+            <!-- TAB 2: INTERAKTIVES STRING-BOARD / ENTITÄTEN-NETZWERK -->
+            <div x-show="secretTab === 'network'" class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-8 pb-28 flex flex-col gap-6">
+                <div class="relative w-full h-[360px] md:h-[430px] bg-gray-950/95 border border-red-900/40 rounded-2xl overflow-hidden select-none">
+                    <!-- Gecachter SVG-Layer (0 Neuberechnungen im Leerlauf!) -->
+                    <svg viewBox="0 0 1000 540" preserveAspectRatio="xMidYMid meet" class="absolute inset-0 w-full h-full pointer-events-none" x-html="secretNetworkSvg"></svg>
+
+                    <!-- Interaktive HTML-Entitäts-Knoten im selben %-Koordinatensystem -->
+                    <template x-for="node in secretNetworkNodes" :key="node.key">
+                        <button type="button"
+                                @click="secretSelectedNode = node.label; secretTab = 'vault';"
+                                :style="`left: ${(node.x / 1000) * 100}%; top: ${(node.y / 540) * 100}%;`"
+                                class="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 group cursor-pointer z-10">
+                            <span class="w-8 h-8 rounded-full flex items-center justify-center border-2 transition-transform duration-150 group-hover:scale-110 shadow-lg"
+                                  :class="node.hasDossier ? 'bg-[#1f1608] border-[#C5A059]' : 'bg-[#18090c] border-red-500'">
+                                <span class="w-2 h-2 rounded-full" :class="node.hasDossier ? 'bg-[#C5A059]' : 'bg-red-500'"></span>
+                            </span>
+                            <span class="px-2 py-0.5 rounded bg-black/90 border border-white/10 text-[10px] font-bold text-gray-100 whitespace-nowrap max-w-[150px] truncate" x-text="node.label"></span>
+                        </button>
+                    </template>
+
+                    <div x-show="secretNetworkNodes.length === 0" class="absolute inset-0 flex items-center justify-center text-xs font-mono uppercase tracking-widest text-gray-500">
+                        Keine Netzwerk-Verbindungen hinterlegt
                     </div>
                 </div>
-            </template>
-        </div>
 
-        <!-- Intel Post-its -->
-        <div class="absolute inset-0 p-10 pt-24 overflow-auto custom-scrollbar flex flex-wrap gap-6 items-start justify-center content-start" :class="shelfWidgets.length > 0 ? 'pl-60' : ''">
-            <template x-for="(intel, index) in intelWidgets" :key="index">
-                <div class="relative w-64 bg-yellow-200/90 shadow-xl border border-yellow-400 p-4 transform transition-all duration-300 hover:scale-105 font-sans group/postit"
-                     style="box-shadow: 5px 5px 15px rgba(0,0,0,0.5);">
-                    <!-- Pin -->
-                    <div class="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-red-600 shadow-md border border-red-800"></div>
-
-                    <button @click="intelWidgets.splice(index, 1)" class="absolute top-2 right-2 text-yellow-800 hover:text-red-600 p-1 cursor-pointer">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                    <!-- Shelve Button -->
-                    <button @click="$dispatch('ai-shelf-widget', { type: 'intel', identifier: intel.title })" class="absolute top-2 right-7 text-yellow-800 hover:text-blue-600 p-1 cursor-pointer opacity-0 group-hover/postit:opacity-100 transition-opacity" title="In Seitenablage">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                    </button>
-
-                    <h4 class="font-black text-yellow-900 text-sm uppercase tracking-wider mb-2 pr-10 border-b border-yellow-400/50 pb-1 line-clamp-2" x-text="intel.title"></h4>
-                    <p class="text-yellow-950 text-xs leading-relaxed" x-text="intel.content"></p>
+                <!-- Verbindungs-Liste -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <template x-for="rel in filteredVaultRelations()" :key="rel.id">
+                        <div class="bg-gray-950/90 border border-gray-800 rounded-xl p-3.5 flex items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 text-xs font-bold text-white flex-wrap">
+                                    <span x-text="rel.source"></span>
+                                    <span class="px-2 py-0.5 rounded bg-red-950/80 border border-red-500/40 text-[10px] font-mono text-red-300" x-text="rel.relationship"></span>
+                                    <span x-text="rel.target"></span>
+                                </div>
+                                <div x-show="rel.evidence" class="text-[11px] text-gray-400 mt-1 truncate" x-text="rel.evidence"></div>
+                            </div>
+                            <button type="button" @click="deleteTopSecretEntry(rel.id)" class="p-1.5 text-gray-500 hover:text-rose-400 cursor-pointer shrink-0" title="Verbindung löschen">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    </template>
                 </div>
-            </template>
+            </div>
 
-            <template x-if="!intelWidgets || intelWidgets.length === 0">
-                <div class="flex flex-col items-center justify-center w-full h-full opacity-30 mt-20">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-24 h-24 text-red-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                    <div class="text-red-500 font-mono tracking-widest uppercase">Keine Fakten auf dem Board</div>
-                </div>
-            </template>
+            <!-- TAB 3: LIVE-NOTIZEN (EPHEMERES BOARD) -->
+            <div x-show="secretTab === 'board'" class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-8 pb-28 flex flex-wrap gap-4 items-start content-start">
+                <template x-for="(intel, index) in intelWidgets" :key="index">
+                    <div class="relative w-72 bg-gray-950/95 border border-[#C5A059]/50 rounded-2xl p-4 shadow-2xl group/intel">
+                        <div class="flex items-start justify-between gap-2 border-b border-gray-800 pb-2 mb-2.5">
+                            <h4 class="font-bold text-[#C5A059] text-xs uppercase tracking-wider line-clamp-2" x-text="intel.title"></h4>
+                            <div class="flex items-center gap-1 shrink-0">
+                                <button type="button" @click="$dispatch('ai-shelf-widget', { type: 'intel', identifier: intel.title })" class="text-gray-500 hover:text-white p-1 cursor-pointer" title="In Seitenablage">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3" /></svg>
+                                </button>
+                                <button type="button" @click="intelWidgets.splice(index, 1)" class="text-gray-500 hover:text-rose-400 p-1 cursor-pointer" title="Schließen">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-gray-200 text-xs leading-relaxed whitespace-pre-line" x-text="intel.content"></p>
+                    </div>
+                </template>
+            </div>
+
+            <!-- TAB 4: ORGANIGRAMM / FIRMENSTRUKTUR RENDERER -->
+            <div x-show="secretTab === 'org' && orgChartWidget" class="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-8 pb-28">
+                <template x-if="orgChartWidget">
+                    <div class="max-w-5xl mx-auto flex flex-col gap-6">
+                        <div class="bg-gray-950 border border-[#C5A059]/60 rounded-2xl p-5 flex items-center justify-between gap-4">
+                            <div>
+                                <div class="text-[10px] font-mono uppercase tracking-widest text-[#C5A059]">Organisations-Struktur</div>
+                                <h3 class="text-lg font-black text-white uppercase tracking-wide mt-0.5" x-text="orgChartWidget.organization_name || 'Organisation'"></h3>
+                                <div x-show="orgChartWidget.ceo_or_leader" class="text-xs text-gray-300 mt-1">Leitung: <strong class="text-white" x-text="orgChartWidget.ceo_or_leader"></strong></div>
+                            </div>
+                            <button type="button" @click="orgChartWidget = null; secretTab = 'vault';" class="px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:text-white text-xs cursor-pointer">Schließen</button>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <template x-for="(dept, dIdx) in (orgChartWidget.departments || [])" :key="dIdx">
+                                <div class="bg-gray-950/90 border border-gray-800 rounded-2xl p-4 flex flex-col gap-3">
+                                    <div class="border-b border-gray-800 pb-2">
+                                        <div class="text-xs font-black text-[#C5A059] uppercase tracking-wider" x-text="dept.name || 'Abteilung'"></div>
+                                        <div x-show="dept.head" class="text-[11px] text-gray-300 mt-0.5" x-text="'Leitung: ' + dept.head"></div>
+                                    </div>
+                                    <div class="flex flex-col gap-1.5">
+                                        <template x-for="(member, mIdx) in (dept.members || dept.employees || [])" :key="mIdx">
+                                            <div class="px-2.5 py-1.5 rounded-lg bg-gray-900 text-xs text-gray-200" x-text="typeof member === 'object' ? ((member.name || '') + (member.role ? ' · ' + member.role : '')) : member"></div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
         </div>
     </div>
+    @endif
 
     <!-- [AREA: PERSONA WIDGETS] -->
     <!-- Persona Pool (2D Overlay) -->
@@ -955,7 +1218,7 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 16 16"><path d="M5.338 1.59a61 61 0 0 0-2.837.856.48.48 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.7 10.7 0 0 0 2.287 2.233c.346.244.652.42.893.533q.18.085.293.118a1 1 0 0 0 .216.058l.004.001.002.001h.002l.002-.001.004-.001a1 1 0 0 0 .216-.058q.114-.033.293-.118c.24-.113.547-.29.893-.533a10.7 10.7 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.8 11.8 0 0 1-2.517 2.453 7 7 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7 7 0 0 1-1.048-.625 11.8 11.8 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 63 63 0 0 1 5.072.56z"/><path d="M9.5 6.5a1.5 1.5 0 0 1-1 1.415l.385 1.99a.5.5 0 0 1-.491.595h-.788a.5.5 0 0 1-.49-.595l.384-1.99a1.5 1.5 0 1 1 2-1.415"/></svg>
                                 <div>
                                     <div class="text-red-500 text-[10px] uppercase tracking-[0.3em] font-bold font-mono">Top Secret // Eyes Only</div>
-                                    <div class="text-gray-400 text-xs font-mono" x-text="'Profil-Akte: ' + (persona.name ? btoa(persona.name).substring(0,8) : 'XXX') + '-2025'"></div>
+                                    <div class="text-gray-400 text-xs font-mono" x-text="'Profil-Akte: ' + safeCaseCode(persona.name) + '-{{ date('Y') }}'"></div>
                                 </div>
                             </div>
                             <div class="px-3 py-1 bg-red-950/50 border border-red-800 text-red-400 text-[10px] font-mono tracking-widest uppercase rounded hidden sm:block">
@@ -1168,25 +1431,30 @@
         });
 
         window.changeMapStyle = function(style) {
-            const mapInst = window.funkiMap || window.map;
-            if(!mapInst) return;
             const styles = {
                 'dark': 'mapbox://styles/mapbox/dark-v11',
                 'light': 'mapbox://styles/mapbox/light-v11',
                 'satellite': 'mapbox://styles/mapbox/satellite-streets-v12',
                 'streets': 'mapbox://styles/mapbox/streets-v12',
-                'cyber': 'mapbox://styles/mapbox/navigation-night-v1'
+                'standard': 'mapbox://styles/mapbox/standard',
+                'outdoors': 'mapbox://styles/mapbox/outdoors-v12',
+                'cyber': 'mapbox://styles/mapbox/dark-v11'
             };
-            mapInst.setStyle(styles[style] || styles['dark']);
+            const targetStyle = (style && String(style).startsWith('mapbox://')) ? style : (styles[style] || styles['dark']);
+            const mapInst = window.funkiMap || window.map;
+            if (mapInst) {
+                mapInst.setStyle(targetStyle);
+            }
+            return targetStyle;
         };
     </script>
 
 
     <!-- [AREA: NAVIGATION & LOG] -->
     <!-- UI Overlay Navigation -->
-    <div x-show="showFunkiView" class="absolute top-6 right-6 flex flex-col items-end gap-2" style="z-index: 90;" x-transition:enter="transition ease-out duration-1000 delay-500" x-transition:enter-start="opacity-0 translate-y-[-20px]" x-transition:enter-end="opacity-100 translate-y-0">
+    <div x-show="showFunkiView" class="absolute top-6 right-6 flex flex-col items-end gap-2" style="z-index: 90;" x-transition:enter="transition-opacity ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
         <!-- Control Bar: Aufgaben, Log, Pause, Stop, Agent -->
-        <x-backend.ai-widget-navigation :available-agents="$availableAgents" />
+        <x-backend.ai-widget-navigation :available-agents="$availableAgents" :chat-sessions="$chatSessions ?? null" :is-admin-user="$isAdminUser ?? null" />
 
         <!-- Token Usage -->
         <div x-show="tokenUsage" x-transition class="flex items-center gap-2 px-3 py-1 mt-1 bg-gray-900/80 border border-gray-700 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] backdrop-blur-md" style="display: none;">
@@ -1301,9 +1569,9 @@
          :class="isBrainMode ? 'top-6 left-4 md:top-auto md:left-auto md:right-6 flex-row-reverse md:flex-col items-center md:items-end bottom-auto md:bottom-[max(1.5rem,env(safe-area-inset-bottom))]' : 'right-6 bottom-[max(1.5rem,env(safe-area-inset-bottom))] flex-col items-end'"
          class="absolute flex gap-2.5 md:gap-3 pointer-events-auto"
          style="z-index: 90;"
-         x-transition:enter="transition ease-out duration-1000 delay-500"
-         x-transition:enter-start="opacity-0 translate-y-[20px]"
-         x-transition:enter-end="opacity-100 translate-y-0">
+         x-transition:enter="transition-opacity ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100">
         <!-- Audio Toggle & Slider -->
         <div x-show="!(isMobile && isLiveMode)" x-data="{ showVol: false }" @click.outside="showVol = false" class="flex items-center gap-2 px-2.5 md:px-3 py-1 bg-gray-900/80 border border-gray-700 rounded-full shadow-glow backdrop-blur-md transition-all hover:border-emerald-500 hover:bg-black">
             <button @click="toggleBackgroundAudio()" class="w-8 h-8 flex justify-center items-center text-gray-300 hover:text-emerald-400 transition-colors" title="Hintergrundmusik an/aus">
@@ -1358,20 +1626,20 @@
         </button>
     </div>
 
-    <!-- Audio Elements -->
-    <audio id="audio-funki-background" src="{{ asset('shop/ai/sounds/ai_background.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
-    <audio id="audio-funki-default-ambient" src="{{ asset('shop/ai/sounds/ai_default_universum.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
-    <audio id="audio-funki-pulse" src="{{ asset('shop/ai/sounds/ai_pulse.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
-    <audio id="audio-funki-init" src="{{ asset('shop/ai/sounds/ai_Initialize.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
-    <audio id="audio-funki-shutdown" src="{{ asset('shop/ai/sounds/ai_shutdown.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
-    <audio id="audio-funki-heartbeat" src="{{ asset('shop/ai/sounds/ai_heartbeat.mp3') }}" preload="auto" playsinline webkit-playsinline loop></audio>
-    <audio id="audio-funki-click" src="{{ asset('shop/ai/sounds/ai_click.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
-    <audio id="audio-funki-unclick" src="{{ asset('shop/ai/sounds/ai_unclick.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
-    <audio id="audio-funki-map-open" src="{{ asset('shop/ai/sounds/map_open.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
-    <audio id="audio-funki-map-close" src="{{ asset('shop/ai/sounds/map_close.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
-    <audio id="audio-funki-secret-open" src="{{ asset('shop/ai/sounds/top_secret/open_secret_mode.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
-    <audio id="audio-funki-secret-close" src="{{ asset('shop/ai/sounds/top_secret/close_secret_mode.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
-    <audio id="audio-funki-brain-open" src="{{ asset('shop/ai/sounds/project_brain/open_project_brain.mp3') }}" preload="auto" playsinline webkit-playsinline></audio>
+    <!-- Audio Elements (Lazy Preload: 0 Netzwerk-Last beim normalen Backend-Seitenaufbau) -->
+    <audio id="audio-funki-background" src="{{ asset('shop/ai/sounds/ai_background.mp3') }}" preload="none" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-default-ambient" src="{{ asset('shop/ai/sounds/ai_default_universum.mp3') }}" preload="none" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-pulse" src="{{ asset('shop/ai/sounds/ai_pulse.mp3') }}" preload="none" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-init" src="{{ asset('shop/ai/sounds/ai_Initialize.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-shutdown" src="{{ asset('shop/ai/sounds/ai_shutdown.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-heartbeat" src="{{ asset('shop/ai/sounds/ai_heartbeat.mp3') }}" preload="none" playsinline webkit-playsinline loop></audio>
+    <audio id="audio-funki-click" src="{{ asset('shop/ai/sounds/ai_click.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-unclick" src="{{ asset('shop/ai/sounds/ai_unclick.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-map-open" src="{{ asset('shop/ai/sounds/map_open.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-map-close" src="{{ asset('shop/ai/sounds/map_close.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-secret-open" src="{{ asset('shop/ai/sounds/top_secret/open_secret_mode.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-secret-close" src="{{ asset('shop/ai/sounds/top_secret/close_secret_mode.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
+    <audio id="audio-funki-brain-open" src="{{ asset('shop/ai/sounds/project_brain/open_project_brain.mp3') }}" preload="none" playsinline webkit-playsinline></audio>
 
     <!-- Unified Floating UI Panel (Mapped to 3D Space) -->
     <div id="diagnostic-panel"></div>

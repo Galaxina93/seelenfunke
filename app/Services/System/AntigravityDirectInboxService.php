@@ -71,9 +71,17 @@ class AntigravityDirectInboxService
     ) {
     }
 
+    public function productionPrivateRootPath(): string
+    {
+        return rtrim(storage_path('app/private'), '/\\');
+    }
+
     public function privateRootPath(): string
     {
-        $dir = $this->privateRootOverride ?? storage_path('app/private');
+        $defaultDir = app()->runningUnitTests()
+            ? (rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'sf_phpunit_ag_inbox')
+            : $this->productionPrivateRootPath();
+        $dir = $this->privateRootOverride ?? $defaultDir;
         if (!File::isDirectory($dir)) {
             File::makeDirectory($dir, 0700, true, true);
         }

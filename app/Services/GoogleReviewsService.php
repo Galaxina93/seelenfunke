@@ -30,12 +30,17 @@ class GoogleReviewsService
         }
 
         try {
-            $response = Http::timeout(3)->get('https://maps.googleapis.com/maps/api/place/details/json', [
-                'place_id' => $placeId,
-                'fields' => 'reviews,rating,user_ratings_total',
-                'key' => $apiKey,
-                'language' => 'de'
-            ]);
+            $appUrl = rtrim((string) config('app.url', 'https://mein-seelenfunke.de'), '/');
+            $response = Http::timeout(3)
+                ->withHeaders([
+                    'Referer' => $appUrl . '/',
+                ])
+                ->get('https://maps.googleapis.com/maps/api/place/details/json', [
+                    'place_id' => $placeId,
+                    'fields' => 'reviews,rating,user_ratings_total',
+                    'key' => $apiKey,
+                    'language' => 'de'
+                ]);
 
             if ($response->successful()) {
                 $result = $response->json()['result'] ?? [];

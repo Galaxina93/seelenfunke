@@ -98,6 +98,50 @@ trait AiUniverseTicketFuncs
                 ],
                 'callable' => [self::class, 'executeProcurementQueueTresorOrder'],
             ],
+            [
+                'name' => 'ticket_attach_deliverable',
+                'description' => 'Heftet ein erzeugtes Konzept (.md), eine Datei (.pdf, .docx, .csv, .xcs, .json) oder ein 3D-Druckmodell (.3mf, .stl, .glb) dauerhaft als Sticky-Anhang an die aktuelle Nachricht im Universum-Ticket an (inkl. Funkenwerk-3D-Vorschau & Download).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'ticket_id' => ['type' => 'string', 'description' => 'Optionale UUID oder Ticket-Nummer (z. B. SF-0001).'],
+                        'filename' => ['type' => 'string', 'description' => 'Dateiname mit Endung (z. B. Konzept_Spender.md, Klickplatte_BambuA1.3mf, Kalkulation.csv).'],
+                        'content_text' => ['type' => 'string', 'description' => 'Text-/Markdown-Inhalt, wenn eine neue Konzept- oder Textdatei direkt erstellt werden soll.'],
+                        'source_path' => ['type' => 'string', 'description' => 'Optionaler relativer Pfad innerhalb von storage/app/ einer bereits erzeugten Binär-/3D-/PDF-Datei.'],
+                        'pinned' => ['type' => 'boolean', 'description' => 'Auf true setzen bei dauerhaften Referenz-Vorlagen (schützt vor der automatischen 4-Wochen-Archivierung).'],
+                        'dimensions_mm' => [
+                            'type' => 'object',
+                            'description' => 'Optionale Außenmaße in Millimetern bei 3D-Modellen ({width, depth, height}).',
+                            'properties' => [
+                                'width' => ['type' => 'number'],
+                                'depth' => ['type' => 'number'],
+                                'height' => ['type' => 'number'],
+                            ],
+                        ],
+                        'filament_grams' => ['type' => 'integer', 'description' => 'Optionaler geschätzter Filamentverbrauch in Gramm bei 3D-Druckvorlagen.'],
+                    ],
+                    'required' => ['filename'],
+                ],
+                'callable' => [self::class, 'executeTicketAttachDeliverable'],
+            ],
+            [
+                'name' => 'print3d_evaluate_design_parameters',
+                'description' => 'Pflicht-Prüfwerkzeug für 3D-Druck-Anfragen (Bambu Lab A1 256x256x256 mm): Prüft Bauraum, 0-%-Support-Geometrie (>=45 Grad), Materialwahl (PLA Matte vs. PETG/ASA), Wandlinien, Lightning-Infill-Einsparung, xTool-Strahlengang-Freiheit und deckt fehlende Pflicht-Parameter auf, die vor dem Modellieren hinterfragt werden müssen.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'purpose' => ['type' => 'string', 'description' => 'Wofür soll das 3D-Bauteil eingesetzt werden (z. B. xTool Laser-Schablone, Regal-Organizer, Produkt-Aufsteller)?'],
+                        'width_mm' => ['type' => 'number', 'description' => 'Geplante Breite in mm (0 falls noch unbekannt).'],
+                        'depth_mm' => ['type' => 'number', 'description' => 'Geplante Tiefe in mm (0 falls noch unbekannt).'],
+                        'height_mm' => ['type' => 'number', 'description' => 'Geplante Höhe in mm (0 falls noch unbekannt).'],
+                        'clearance_above_mm' => ['type' => 'number', 'description' => 'Freie Eingreif-Luft nach oben im Fach/Regal in mm (falls in einem Fach stehend).'],
+                        'exposed_to_heat_or_uv_laser' => ['type' => 'boolean', 'description' => 'Ist das Bauteil Wärme >50 Grad, Dauerspannung oder dem xTool 355nm UV-Laserstrahl ausgesetzt?'],
+                        'has_spring_clips' => ['type' => 'boolean', 'description' => 'Besitzt das Bauteil federnde Zentrierlippen / Klickfedern für Rohling-Toleranzen?'],
+                    ],
+                    'required' => ['purpose'],
+                ],
+                'callable' => [self::class, 'executePrint3dEvaluateDesignParameters'],
+            ],
         ];
     }
 
@@ -150,6 +194,10 @@ trait AiUniverseTicketFuncs
                 ]);
                 $ticket->update(['messages_count' => $ticket->messages()->count()]);
             }
+
+            if ($status === AiUniverseTicket::STATUS_COMPLETED) {
+                \App\Services\AI\CentralBrainService::recordTicketCompletionReport($ticket, $cleanReason);
+            }
         }
 
         return [
@@ -199,10 +247,22 @@ trait AiUniverseTicketFuncs
         ];
     }
 
-    public static function executeTicketEscalateMissingCapability(array $args): array
+    public static function executeTicketEscalateMissingCapability(array $args, $agent = null): array
     {
         if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
             return ['error' => true, 'message' => 'Zugriff verweigert.'];
+        }
+
+        $ticket = self::resolveActiveUniverseTicket($args['ticket_id'] ?? null);
+        $reportingAgent = $agent ?? $ticket?->agent ?? \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
+
+        // Harter Unveränderlichkeits-Schutz für Funki (Frontend-Support): niemals neue Fähigkeiten über Antigravity!
+        if (\App\Services\AI\AgentSkillBudgetGuard::isFunkiAgent($reportingAgent)) {
+            return [
+                'error' => true,
+                'status' => 'blocked_funki_immutable',
+                'message' => "GESETZ-SPERRE: Der externe Frontend-Support-Agent 'Funki' ist fest eingefroren und darf niemals durch Antigravity neue Fähigkeiten oder Rollenrechte erhalten.",
+            ];
         }
 
         $missing = trim((string) ($args['missing_capability'] ?? 'Fehlende technische Funktion'));
@@ -210,8 +270,6 @@ trait AiUniverseTicketFuncs
         $area = trim((string) ($args['affected_area'] ?? 'System'));
         $autoHandoff = !array_key_exists('auto_handoff_to_antigravity', $args) || (bool) $args['auto_handoff_to_antigravity'];
 
-        $ticket = self::resolveActiveUniverseTicket($args['ticket_id'] ?? null);
-        $reportingAgent = $ticket?->agent ?? \App\Models\Ai\AiAgent::where('name', 'Funkira')->first();
         $budget = \App\Services\AI\AgentSkillBudgetGuard::evaluateAgentSkillBudget($reportingAgent);
         $dossier = \App\Services\AI\AgentSkillBudgetGuard::formatAntigravitySkillGapDossier($budget, $missing, $whyBlocked, $area);
 
@@ -359,5 +417,165 @@ trait AiUniverseTicketFuncs
         }
 
         return null;
+    }
+
+    public static function executeTicketAttachDeliverable(array $args): array
+    {
+        if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+            return ['error' => true, 'message' => 'Zugriff verweigert.'];
+        }
+
+        $ticket = self::resolveActiveUniverseTicket($args['ticket_id'] ?? null);
+        $filename = trim((string) ($args['filename'] ?? ''));
+        if ($filename === '') {
+            return ['error' => true, 'message' => 'Dateiname fehlt.'];
+        }
+
+        $extraMeta = [
+            'pinned' => !empty($args['pinned']),
+        ];
+        if (!empty($args['dimensions_mm']) && is_array($args['dimensions_mm'])) {
+            $extraMeta['dimensions_mm'] = $args['dimensions_mm'];
+        }
+        if (!empty($args['filament_grams'])) {
+            $extraMeta['filament_grams'] = (int) $args['filament_grams'];
+        }
+
+        $meta = null;
+        $sourceRel = trim(str_replace('\\', '/', (string) ($args['source_path'] ?? '')), '/');
+
+        if ($sourceRel !== '' && !str_contains($sourceRel, '..')) {
+            $absCandidate = storage_path('app/' . $sourceRel);
+            if (!is_file($absCandidate)) {
+                $absCandidate = storage_path('app/public/' . ltrim(preg_replace('/^storage\//', '', $sourceRel) ?? $sourceRel, '/'));
+            }
+            if (is_file($absCandidate) && !is_link($absCandidate)) {
+                $meta = \App\Services\AI\TicketDeliverableService::registerLocalFileForActiveTicket(
+                    $absCandidate,
+                    $filename,
+                    $extraMeta,
+                    $ticket?->id
+                );
+            }
+        } elseif (isset($args['content_text']) && trim((string) $args['content_text']) !== '') {
+            $cleanText = \App\Services\AI\AiOutputQualityGate::sanitizeText((string) $args['content_text']);
+            $meta = \App\Services\AI\TicketDeliverableService::storeBytesForTicket(
+                $cleanText,
+                $filename,
+                $ticket?->ticket_number,
+                $extraMeta
+            );
+            if ($meta !== null && $ticket) {
+                \App\Services\AI\TicketDeliverableService::queueAttachmentForTicket($ticket->id, $meta);
+            }
+        }
+
+        if ($meta === null) {
+            return [
+                'error' => true,
+                'message' => 'Datei konnte nicht gespeichert werden (ungültige Dateiendung, leerer Inhalt oder Quelldatei nicht gefunden).',
+            ];
+        }
+
+        // Falls außerhalb eines laufenden Router-Turns aufgerufen -> direkt als eigene Sticky-Nachricht ans Ticket hängen
+        if ($ticket && !app()->bound('active_universe_ticket_id') && \Illuminate\Support\Facades\Schema::hasTable('ai_universe_ticket_messages')) {
+            \App\Services\AI\TicketDeliverableService::pullQueuedAttachments($ticket->id);
+            \App\Models\Ai\AiUniverseTicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'sender_role' => 'agent',
+                'sender_name' => $ticket->agent?->name ?: 'Antigravity',
+                'ai_agent_id' => $ticket->assigned_agent_id,
+                'channel' => $ticket->source_channel ?: 'web_portal',
+                'content' => "Datei **{$meta['name']}** ({$meta['size_human']}) wurde bereitgestellt und direkt angeheftet.",
+                'executed_tools' => ['ticket_attach_deliverable'],
+                'attachments' => [$meta],
+            ]);
+            $ticket->update([
+                'messages_count' => $ticket->messages()->count(),
+                'last_activity_at' => now(),
+            ]);
+        }
+
+        return [
+            'status' => 'success',
+            'ticket_number' => $ticket?->ticket_number,
+            'attachment' => $meta,
+        ];
+    }
+
+    public static function executePrint3dEvaluateDesignParameters(array $args): array
+    {
+        if (!AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee()) {
+            return ['error' => true, 'message' => 'Zugriff verweigert.'];
+        }
+
+        $purpose = trim((string) ($args['purpose'] ?? '3D-Bauteil'));
+        $w = (float) ($args['width_mm'] ?? 0);
+        $d = (float) ($args['depth_mm'] ?? 0);
+        $h = (float) ($args['height_mm'] ?? 0);
+        $clearance = isset($args['clearance_above_mm']) ? (float) $args['clearance_above_mm'] : null;
+        $heatOrLaser = !empty($args['exposed_to_heat_or_uv_laser']);
+        $hasSprings = !empty($args['has_spring_clips']);
+
+        $bambuMax = 256.0;
+        $questionsToAskAlina = [];
+        $engineeringWarnings = [];
+
+        if ($w <= 0 || $d <= 0 || $h <= 0) {
+            $questionsToAskAlina[] = 'Exakte Außen-/Fachmaße (Breite x Tiefe x Höhe in mm per Messschieber/Zollstock inkl. Scharnier- oder Leisten-Überständen)';
+        } else {
+            if ($w > $bambuMax || $d > $bambuMax || $h > $bambuMax) {
+                $engineeringWarnings[] = sprintf(
+                    'Maße (%.1f x %.1f x %.1f mm) überschreiten den Monoblock-Bauraum des Bambu Lab A1 (256 x 256 x 256 mm): Kompaktere Hybrid-Geometrie vorschlagen statt instabilem Klebe-/Stecksystem.',
+                    $w,
+                    $d,
+                    $h
+                );
+            }
+        }
+
+        if ($clearance !== null && $clearance > 0 && $clearance < 100.0) {
+            $engineeringWarnings[] = sprintf(
+                'Nur %.1f mm freie Eingreif-Luft nach oben (< 100 mm): Unbedingt gestufte Vorder-Tribüne planen, damit man nicht blind über hohe Rückwände greifen muss.',
+                $clearance
+            );
+        }
+
+        $lowerPurpose = mb_strtolower($purpose);
+        $isLaserJig = $heatOrLaser || str_contains($lowerPurpose, 'xtool') || str_contains($lowerPurpose, 'laser') || str_contains($lowerPurpose, 'schablone') || str_contains($lowerPurpose, 'klickplatte');
+
+        if ($isLaserJig) {
+            $engineeringWarnings[] = 'xTool F2 Ultra UV Pflicht: Offenes Durchschussfenster (0 mm Kunststoff unter der Gravurfläche gegen 355nm-Schmauch), 140 x 140 mm M4-Lochraster am Boden und freischwebende Aussparung für angeklebte Glasfüße.';
+            if (!$hasSprings) {
+                $questionsToAskAlina[] = 'Schwanken die Lieferanten-Rohlinge im Außenmaß (±1,5 mm bei K9-Glas/Schiefer), sodass wir 4 symmetrische 1,6 mm Zentrier-Blattfedern einplanen sollen?';
+            }
+        }
+
+        $recommendedMaterial = ($heatOrLaser && !$isLaserJig)
+            ? 'Bambu PETG HF / ASA (Wärme- & Dauerlaststabil > 50 Grad)'
+            : 'Bambu PLA Matte Charcoal 11101 (höchste Maßhaltigkeit, edles Matt-Finish, kein Warping)';
+
+        $wallLoops = ($hasSprings || $isLaserJig) ? 3 : 2;
+        $infill = $isLaserJig ? '15 % Gyroid' : '10 % Lightning (Blitz-Füllung, spart ~35 % Filament & Druckzeit)';
+
+        return [
+            'status' => 'evaluated',
+            'printer_target' => 'Bambu Lab A1 (N2S · 256 x 256 x 256 mm · 0,4 mm Düse · Textured PEI Plate)',
+            'fits_monoblock_256mm' => ($w > 0 && $d > 0 && $h > 0) ? ($w <= $bambuMax && $d <= $bambuMax && $h <= $bambuMax) : null,
+            'recommended_material' => $recommendedMaterial,
+            'recommended_slicer_profile' => [
+                'layer_height_mm' => 0.20,
+                'wall_loops' => $wallLoops,
+                'sparse_infill' => $infill,
+                'support_structures' => 'AUS (0 % Support durch >= 45 Grad Schrägen/Spitzbögen & Rückseiten-Stützgewölbe)',
+                'triangle_budget' => '< 900.000 Dreiecke (Manifold 0 offene Kanten, verhindert Bambu-Vereinfachen-Reset)',
+                'elephants_foot_chamfer_mm' => 0.5,
+            ],
+            'engineering_warnings' => $engineeringWarnings,
+            'missing_parameters_to_ask_alina' => $questionsToAskAlina,
+            'next_step_directive' => !empty($questionsToAskAlina)
+                ? 'NICHT blind modellieren! Stelle Alina im Ticket kurz & knackig die offenen Parameter-Fragen via ticket_set_status_or_ask (status=waiting_for_alina) und schlage direkt die sinnvollste Geometrie vor.'
+                : 'Alle Kernmaße plausibel: Erstelle eine kompakte 3D-Konzeptkarte und übergib die CAD/.3mf-Generierung bei Go an @Antigravity.',
+        ];
     }
 }

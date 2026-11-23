@@ -13,6 +13,9 @@ class GamificationTestSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->environment('production')) {
+            return;
+        }
         $faker = Faker::create('de_DE');
 
         $this->command->info('Starte Gamification Test-Seeding...');

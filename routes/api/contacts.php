@@ -43,6 +43,7 @@ Route::prefix('funki/contacts')->group(function () {
             'postal_code' => 'nullable|string|max:20',
             'city' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
+            'system_instructions' => 'nullable|string|max:10000',
             'is_favorite' => 'boolean',
             'funkira_call_whitelist' => 'boolean'
         ]);
@@ -55,6 +56,60 @@ Route::prefix('funki/contacts')->group(function () {
     Route::get('/{id}', function ($id) {
         $contact = ManagementContact::findOrFail($id);
         return response()->json(['success' => true, 'data' => $contact]);
+    });
+
+    // 3b. Stream Contact Avatar Image
+    Route::get('/{id}/avatar', function ($id) {
+        $contact = ManagementContact::findOrFail($id);
+        $rel = ltrim((string) ($contact->avatar_path ?? ''), '/');
+        if (str_starts_with($rel, 'storage/')) {
+            $rel = substr($rel, strlen('storage/'));
+        }
+        if ($rel === '' || str_contains($rel, '..') || !\Illuminate\Support\Facades\Storage::disk('public')->exists($rel)) {
+            abort(404);
+        }
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('public')->path($rel);
+        $mime = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($rel) ?: 'image/jpeg';
+        return response()->file($fullPath, [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'private, max-age=3600',
+        ]);
+    });
+
+    // 3c. Upload / Update Contact Avatar Image
+    Route::post('/{id}/avatar', function (Request $request, $id) {
+        $contact = ManagementContact::findOrFail($id);
+        $request->validate([
+            'avatar' => 'required|file|max:5120',
+        ]);
+
+        $file = $request->file('avatar');
+        $realPath = $file ? $file->getRealPath() : false;
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $detectedMime = $realPath ? finfo_file($finfo, $realPath) : false;
+        finfo_close($finfo);
+
+        $mimeToExt = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+        ];
+        if (!is_string($detectedMime) || !isset($mimeToExt[$detectedMime])) {
+            return response()->json(['success' => false, 'message' => 'Ungültiges Bildformat (nur JPG, PNG oder WebP).'], 422);
+        }
+
+        if (!empty($contact->avatar_path) && !str_contains((string) $contact->avatar_path, '..') && \Illuminate\Support\Facades\Storage::disk('public')->exists($contact->avatar_path)) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($contact->avatar_path);
+        }
+
+        $storedPath = $file->storeAs(
+            'leitung/person_profiles',
+            \Illuminate\Support\Str::uuid()->toString() . '.' . $mimeToExt[$detectedMime],
+            'public'
+        );
+
+        $contact->update(['avatar_path' => $storedPath]);
+        return response()->json(['success' => true, 'data' => $contact->fresh()]);
     });
 
     // 4. Update Contact
@@ -73,6 +128,7 @@ Route::prefix('funki/contacts')->group(function () {
             'postal_code' => 'nullable|string|max:20',
             'city' => 'nullable|string|max:255',
             'country' => 'nullable|string|max:255',
+            'system_instructions' => 'nullable|string|max:10000',
             'is_favorite' => 'boolean',
             'funkira_call_whitelist' => 'boolean'
         ]);

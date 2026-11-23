@@ -310,11 +310,13 @@ class SystemBlueprintService
         }
 
         if ($persistToDisk) {
-            $reportDir = base_path('Abschlussberichte/System');
-            if (!File::exists($reportDir)) {
-                File::makeDirectory($reportDir, 0755, true);
-            }
-            File::put($reportDir . '/Verzeichnis_Verarbeitungstaetigkeiten_Art30_DSGVO.md', $md);
+            \App\Services\AI\CentralBrainService::upsertDeduplicatedKnowledge(
+                title: 'Verzeichnis von Verarbeitungstätigkeiten nach Art. 30 DSGVO',
+                content: $md,
+                categoryName: 'System',
+                tags: ['DSGVO', 'Art. 30', 'VVT', 'Compliance', 'System'],
+                sourcePath: 'system:vvt_art30_dsgvo'
+            );
 
             $workspaceDir = storage_path('app/agenten/workspace/Dokumente/Berichte');
             if (!File::exists($workspaceDir)) {

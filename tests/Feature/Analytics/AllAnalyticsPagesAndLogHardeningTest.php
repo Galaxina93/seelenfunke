@@ -48,7 +48,7 @@ class AllAnalyticsPagesAndLogHardeningTest extends TestCase
         ];
 
         foreach ($urls as $url) {
-            $res = $this->actingAs($admin, 'admin')->get($url);
+            $res = $this->actingAs($admin, 'admin')->followingRedirects()->get($url);
             $res->assertStatus(200);
             $html = $res->getContent();
             $this->assertStringNotContainsString('solar-wallet-money', $html, "Broken solar icon found on {$url}");

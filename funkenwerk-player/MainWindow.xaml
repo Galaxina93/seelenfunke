@@ -104,7 +104,7 @@
                               LoadedBehavior="Manual"
                               UnloadedBehavior="Stop"
                               Stretch="Uniform"
-                              ScrubbingEnabled="True"
+                              ScrubbingEnabled="False"
                               MediaOpened="PlayerMediaElement_MediaOpened"
                               MediaEnded="PlayerMediaElement_MediaEnded"
                               MediaFailed="PlayerMediaElement_MediaFailed"/>

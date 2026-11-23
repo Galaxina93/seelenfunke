@@ -10,7 +10,10 @@ use App\Models\Admin\Admin;
 class BankTransactionTestSeeder extends Seeder
 {
     public function run()
-{
+    {
+        if (app()->environment('production')) {
+            return;
+        }
         $admin = Admin::first();
         if (!$admin) {
             $this->command->error('Kein Admin gefunden. Test abgebrochen.');

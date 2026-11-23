@@ -980,7 +980,7 @@ class DeepSecurityScanRegressionTest extends TestCase
             \App\Livewire\Shop\Ai\AiKnowledgeBaseTags::class,
             \App\Livewire\Shop\Ai\AiCompanyStructure::class,
             \App\Livewire\Shop\Ai\AiAnalytics::class,
-            \App\Livewire\Shop\Ai\AiMethod::class,
+            \App\Livewire\Shop\Ai\AiUniverseTickets::class,
         ];
 
         foreach ($classes as $class) {
@@ -1269,7 +1269,7 @@ class DeepSecurityScanRegressionTest extends TestCase
 
         // Verify FileDownloadService::downloadLaserSvg uses withoutRedirecting()
         $downloadSource = file_get_contents(base_path('app/Services/Export/FileDownloadService.php'));
-        $this->assertStringContainsString('->withoutRedirecting()->get($url)', $downloadSource);
+        $this->assertMatchesRegularExpression('/->withoutRedirecting\(\)->get\((?:\(string\)\s*)?\$url\)/', $downloadSource);
 
         // Verify Blade templates strip unsafe HTML/links
         $invoiceCreateBlade = file_get_contents(base_path('resources/views/livewire/shop/accounting/accounting-invoice-partials/invoice_create.blade.php'));

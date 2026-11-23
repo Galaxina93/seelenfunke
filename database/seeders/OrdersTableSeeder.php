@@ -20,6 +20,9 @@ class OrdersTableSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->environment('production')) {
+            return;
+        }
         $faker = Faker::create('de_DE');
 
         // Lade oder erzeuge Test-Produkte

@@ -16,7 +16,11 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import de.meinseelenfunke.app.R
 import kotlin.math.cos
 import kotlin.math.sin
 import androidx.compose.foundation.background
@@ -306,12 +310,23 @@ fun FunkiraLiveScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        text = agent.name.take(2).uppercase(),
-                                        color = if (isSelected) Slate900 else Slate50,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    if (agent.name.equals("Funkira", ignoreCase = true)) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.funkira_avatar),
+                                            contentDescription = "Funkira",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = agent.name.take(2).uppercase(),
+                                            color = if (isSelected) Slate900 else Slate50,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(4.dp))

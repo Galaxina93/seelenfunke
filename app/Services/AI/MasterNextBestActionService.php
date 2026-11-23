@@ -185,7 +185,6 @@ class MasterNextBestActionService
         if (
             class_exists(ManagementDayRoutine::class)
             && Schema::hasTable('management_day_routines')
-            && !$isWeekend
         ) {
             $routines = ManagementDayRoutine::query()
                 ->where('is_active', true)
@@ -196,14 +195,39 @@ class MasterNextBestActionService
                 if (empty($r->start_time)) {
                     continue;
                 }
+                $rTitleLower = mb_strtolower((string) $r->title, 'UTF-8');
+                $isHealthSleepRoutine = ($r->type === 'sleep')
+                    || str_contains($rTitleLower, 'bettfertig')
+                    || str_contains($rTitleLower, 'nachtruhe')
+                    || str_contains($rTitleLower, 'schlaf');
+
+                // Am Wochenende ("Heilige Freizeit") pausieren Arbeitsblöcke, aber Gesundheits-/Schlafenszeit-Routinen (22:00 / 22:30) gelten IMMER!
+                if ($isWeekend && !$isHealthSleepRoutine && ($r->days_of_week ?? 'all') !== 'weekend') {
+                    continue;
+                }
+
                 $startDt = Carbon::parse($r->start_time);
                 $rStartMins = ((int) $startDt->hour * 60) + (int) $startDt->minute;
-                $dur = max(15, (int) ($r->duration_minutes ?: 60));
+                $dur = max(15, (int) ($r->duration_minutes ?: ($r->type === 'sleep' ? 510 : 60)));
                 $rEndMins = $rStartMins + $dur;
 
-                if ($minsOfDay >= $rStartMins && $minsOfDay < $rEndMins) {
-                    $activeRoutineTitle = (string) $r->title;
+                $isActiveNow = false;
+                if ($rEndMins > 24 * 60) {
+                    $wrappedEnd = $rEndMins - (24 * 60);
+                    if ($minsOfDay >= $rStartMins) {
+                        $isActiveNow = true;
+                        $minutesRemainingInRoutine = $rEndMins - $minsOfDay;
+                    } elseif ($minsOfDay < $wrappedEnd) {
+                        $isActiveNow = true;
+                        $minutesRemainingInRoutine = $wrappedEnd - $minsOfDay;
+                    }
+                } elseif ($minsOfDay >= $rStartMins && $minsOfDay < $rEndMins) {
+                    $isActiveNow = true;
                     $minutesRemainingInRoutine = $rEndMins - $minsOfDay;
+                }
+
+                if ($isActiveNow) {
+                    $activeRoutineTitle = (string) $r->title;
                 } elseif ($rStartMins > $minsOfDay && $nextRoutineTitle === null) {
                     $nextRoutineTitle = (string) $r->title;
                     $minutesUntilNextRoutine = $rStartMins - $minsOfDay;

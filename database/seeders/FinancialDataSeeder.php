@@ -15,6 +15,9 @@ class FinancialDataSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->environment('production')) {
+            return;
+        }
         $admin = Admin::first();
         if (!$admin) {
             $this->command->error('Kein Admin gefunden. Seeder abgebrochen.');

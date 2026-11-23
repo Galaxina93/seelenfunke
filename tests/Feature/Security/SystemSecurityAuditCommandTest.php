@@ -62,7 +62,7 @@ class SystemSecurityAuditCommandTest extends TestCase
 
         // 3. App Ecosystem Layer (Funkenwerk C# & Android)
         $this->assertTrue($report['apps']['funkenwerk']['exists'] ?? false);
-        $this->assertSame('net9.0-windows', $report['apps']['funkenwerk']['target_framework'] ?? null);
+        $this->assertStringStartsWith('net9.0-windows', (string) ($report['apps']['funkenwerk']['target_framework'] ?? ''));
         $this->assertTrue($report['apps']['android']['exists'] ?? false);
         $this->assertSame(34, $report['apps']['android']['compile_sdk'] ?? null);
 

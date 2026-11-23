@@ -348,11 +348,7 @@ class GeminiAgent implements AiProviderInterface
             || (AiAuthHelper::check() && AiAuthHelper::isCustomer() && !AiAuthHelper::isAdmin() && !AiAuthHelper::isEmployee());
 
         if ($isFunkiSupportOnly) {
-            $allowedIdentifiers = array_values(array_filter(
-                array_column(AIFunctionsRegistry::getAiSupportFuncsSchema(), 'name'),
-                fn (string $n) => str_starts_with($n, 'support_')
-            ));
-            $allowedIdentifiers[] = 'system_get_current_time';
+            $allowedIdentifiers = AgentSkillBudgetGuard::getImmutableFunkiToolIdentifiers();
         } elseif (($this->agent->name ?? '') === 'Funkira' && !$isPublicCustomerSupport) {
             $allowedIdentifiers = FunkiraSkillPoolService::getActiveToolIdentifiers($this->ephemeralEquippedPools);
         } else {

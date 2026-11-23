@@ -481,6 +481,17 @@ namespace Funkenwerk3D
                     cmdKey.SetValue("", openCommand);
                 }
 
+                // 1b. Register URI Protocol funkenwerk3d:// for 1-click launch from Seelenfunke Ticket System
+                using (var protoKey = Registry.CurrentUser.CreateSubKey($@"{softwarePrefix}\Classes\funkenwerk3d"))
+                {
+                    protoKey.SetValue("", "URL:Funkenwerk 3D Protocol");
+                    protoKey.SetValue("URL Protocol", "");
+                    using var pIcon = protoKey.CreateSubKey("DefaultIcon");
+                    pIcon.SetValue("", iconSpec);
+                    using var pCmd = protoKey.CreateSubKey(@"shell\open\command");
+                    pCmd.SetValue("", openCommand);
+                }
+
                 // 2. Register Application Entry
                 using (var appKey = Registry.CurrentUser.CreateSubKey($@"{softwarePrefix}\Classes\Applications\Funkenwerk3D.exe"))
                 {

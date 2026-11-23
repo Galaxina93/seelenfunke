@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Ai;
 
+use App\Models\Admin\Admin;
 use App\Models\Ai\AiKnowledgeBase;
 use App\Models\Ai\AiKnowledgeBaseCategory;
 use App\Services\AI\Functions\AiBrainFuncs;
@@ -14,6 +15,8 @@ class AiBrainFuncsSecurityTest extends TestCase
 
     public function test_save_to_brain_allows_short_notes_without_false_duplicate_rejection()
     {
+        $admin = Admin::factory()->create();
+        $this->actingAs($admin, 'admin');
         $cat = AiKnowledgeBaseCategory::create([
             'name' => 'General',
             'slug' => 'general',
@@ -44,6 +47,8 @@ class AiBrainFuncsSecurityTest extends TestCase
 
     public function test_delete_brain_entry_prioritizes_title_and_protects_against_broad_accidental_deletions()
     {
+        $admin = Admin::factory()->create();
+        $this->actingAs($admin, 'admin');
         $cat = AiKnowledgeBaseCategory::create([
             'name' => 'General',
             'slug' => 'general',

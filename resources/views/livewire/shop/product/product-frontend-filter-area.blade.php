@@ -3592,7 +3592,7 @@
                     keybindingsExpanded: false,
                     listeningKeyAction: '',
                     userSettings: {
-                        volume: 5,
+                        volume: 15,
                         cameraSensitivity: 100,
                         useRealName: false,
                         graphicsQuality: 'high',
@@ -3607,9 +3607,9 @@
                         moveRight: 'KeyD',
                     },
                     audioState: {
-                        bgmVolume: 5,
+                        bgmVolume: 15,
                         bgmMuted: false,
-                        sfxVolume: 5,
+                        sfxVolume: 15,
                         sfxMuted: false,
                         allMuted: false,
                     },
@@ -3687,6 +3687,7 @@
                         dashboardUrl: '/dashboard',
                     },
                     _abilityPollTimer: null,
+                    _minimapRafId: null,
                     productTransitionActive: false,
                     _productTransitionTimer: null,
                     _productFadeTimer: null,
@@ -3845,14 +3846,16 @@
                         const facade = getFacade();
                         if (facade && typeof facade.updateSettings === 'function') {
                             facade.updateSettings({ volume: vol });
-                        } else if (privateMod && typeof privateMod.saveLobbyUserSettings === 'function') {
-                            privateMod.saveLobbyUserSettings({ volume: vol });
+                        } else {
+                            if (privateMod && typeof privateMod.saveLobbyUserSettings === 'function') {
+                                privateMod.saveLobbyUserSettings({ volume: vol });
+                            }
+                            if (privateAudio) {
+                                privateAudio.setBgmVolume(vol, true);
+                                privateAudio.setSfxVolume(vol);
+                            }
                         }
                         if (privateAudio) {
-                            privateAudio.setBgmVolume(vol, true);
-                            privateAudio.setBgmMuted(vol === 0, true);
-                            privateAudio.setSfxVolume(vol);
-                            privateAudio.setSfxMuted(vol === 0);
                             this.audioState = privateAudio.getState();
                         }
                     },
@@ -4656,6 +4659,9 @@
                     toggleQuickMute() {
                         if (privateAudio && typeof privateAudio.toggleQuickMute === 'function') {
                             this.audioState = privateAudio.toggleQuickMute();
+                            if (!this.audioState.allMuted && this.userSettings.volume <= 0) {
+                                this.userSettings.volume = this.audioState.bgmVolume || 15;
+                            }
                         }
                     },
 
@@ -4848,10 +4854,21 @@
                             const explicitMuted = (rawExplicit === '1' || rawExplicit === 'true') || rawVol === '0';
                             if (!explicitMuted && typeof Audio !== 'undefined') {
                                 localStorage.setItem('sf_funki_audio_muted', '0');
-                                const preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3');
+                                let parsedVol = (rawVol !== null && rawVol !== '' && !Number.isNaN(Number(rawVol)))
+                                    ? Math.max(0, Math.min(100, Math.round(Number(rawVol))))
+                                    : 15;
+                                if (parsedVol === 5 && localStorage.getItem('sf_lobby_vol_v3_init') !== '1') {
+                                    parsedVol = 15;
+                                }
+                                const preEl = window.__sfPrewarmLobbyBgmEl || new Audio('/shop/gamification/audio/bgm_funki_game.mp3?v=20261122v1');
                                 preEl.loop = true;
                                 preEl.preload = 'auto';
-                                preEl.volume = 0.025;
+                                preEl.volume = Math.min(0.50, Math.max(0, (parsedVol / 100) * 0.50));
+                                try {
+                                    preEl.preservesPitch = true;
+                                    preEl.mozPreservesPitch = true;
+                                    preEl.webkitPreservesPitch = true;
+                                } catch (ePitch) {}
                                 window.__sfPrewarmLobbyBgmEl = preEl;
                                 if (!(window.__sfLobbyAudioRegistry instanceof Set)) {
                                     window.__sfLobbyAudioRegistry = new Set();
@@ -4936,6 +4953,7 @@
                         if (!this._abilityPollTimer) {
                             this._abilityPollTimer = setInterval(() => this.syncAbilityState(), 120);
                         }
+                        this._startMinimapLoop();
                         this.prevHtmlOverflow = document.documentElement.style.overflow || '';
                         this.prevOverflow = document.body.style.overflow || '';
                         document.documentElement.style.overflow = 'hidden';
@@ -4985,7 +5003,7 @@
                             .then((res) => (res.ok ? res.json() : null))
                             .catch(() => null);
 
-                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261120v36');
+                        const modulePromise = import('/js/seelenfunke-louvre-showroom-3d.js?v=20261122v2');
 
                         Promise.all([dataPromise, heroesPromise, modulePromise])
                             .then(([payload, heroesJson, mod]) => {
@@ -6688,74 +6706,281 @@
                             const latestHud = facade.getPlayerHudState();
                             this.playerHud = Object.assign({}, this.playerHud, latestHud);
                         }
-                        this.renderMinimap();
                     },
 
-                    renderMinimap() {
+                    _startMinimapLoop() {
+                        this._stopMinimapLoop();
+                        if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return;
+                        const step = (nowMs) => {
+                            if (!this.isOpen) {
+                                this._minimapRafId = null;
+                                return;
+                            }
+                            this.renderMinimap(nowMs);
+                            this._minimapRafId = window.requestAnimationFrame(step);
+                        };
+                        this._minimapRafId = window.requestAnimationFrame(step);
+                    },
+
+                    _stopMinimapLoop() {
+                        if (this._minimapRafId !== null && typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+                            window.cancelAnimationFrame(this._minimapRafId);
+                        }
+                        this._minimapRafId = null;
+                    },
+
+                    renderMinimap(nowMs) {
                         const canvas = this.$refs.minimapCanvas;
                         const facade = getFacade();
                         if (!canvas || !facade || typeof facade.getMinimapState !== 'function') return;
-                        const ctx = canvas.getContext('2d');
-                        if (!ctx) return;
                         const snap = facade.getMinimapState();
                         if (!snap) return;
 
-                        const w = canvas.width || 232;
-                        const h = canvas.height || 232;
+                        const dpr = Math.min((typeof window !== 'undefined' && window.devicePixelRatio) || 1, 2);
+                        const cssW = Math.max(140, Math.round(canvas.clientWidth || 232));
+                        const targetPx = Math.round(cssW * dpr);
+                        if (canvas.width !== targetPx || canvas.height !== targetPx) {
+                            canvas.width = targetPx;
+                            canvas.height = targetPx;
+                        }
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) return;
+
+                        let rt = canvas.__sfMinimapRt;
+                        if (!rt) {
+                            rt = {
+                                init: false,
+                                zone: '',
+                                lastMs: 0,
+                                u: 0.5,
+                                v: 0.5,
+                                yaw: 0,
+                                camYaw: 0,
+                                dialCanvas: null,
+                                dialKey: '',
+                            };
+                            canvas.__sfMinimapRt = rt;
+                        }
+
+                        const ts = typeof nowMs === 'number' ? nowMs : ((typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now());
+                        const rawDt = rt.lastMs > 0 ? (ts - rt.lastMs) * 0.001 : 0.016;
+                        rt.lastMs = ts;
+                        const dt = Math.max(0.001, Math.min(0.05, rawDt));
+
+                        const w = canvas.width;
+                        const h = canvas.height;
                         const scale = w / 180;
                         const cx = w * 0.5;
                         const cy = h * 0.5;
-                        const rad = w * 0.5 - 8 * scale;
+                        const rad = w * 0.5 - 7.5 * scale;
+
+                        const dialKey = targetPx + ':' + (snap.zone || 'gallery');
+                        if (!rt.dialCanvas || rt.dialKey !== dialKey) {
+                            const dc = (typeof document !== 'undefined') ? document.createElement('canvas') : null;
+                            if (dc) {
+                                dc.width = w;
+                                dc.height = h;
+                                const dctx = dc.getContext('2d');
+                                if (dctx) {
+                                    dctx.save();
+                                    dctx.beginPath();
+                                    dctx.arc(cx, cy, rad + 4.5 * scale, 0, Math.PI * 2);
+                                    dctx.clip();
+
+                                    const bgGrad = dctx.createRadialGradient(cx, cy, rad * 0.08, cx, cy, rad + 4 * scale);
+                                    bgGrad.addColorStop(0, '#FFFFFF');
+                                    bgGrad.addColorStop(0.68, '#FAF8F5');
+                                    bgGrad.addColorStop(1, '#F2EDE3');
+                                    dctx.fillStyle = bgGrad;
+                                    dctx.fillRect(0, 0, w, h);
+
+                                    dctx.strokeStyle = 'rgba(197, 160, 89, 0.13)';
+                                    dctx.lineWidth = Math.max(1, 0.9 * scale);
+                                    dctx.beginPath();
+                                    dctx.moveTo(cx - rad * 0.86, cy);
+                                    dctx.lineTo(cx + rad * 0.86, cy);
+                                    dctx.moveTo(cx, cy - rad * 0.86);
+                                    dctx.lineTo(cx, cy + rad * 0.86);
+                                    dctx.stroke();
+
+                                    dctx.strokeStyle = 'rgba(197, 160, 89, 0.26)';
+                                    dctx.lineWidth = Math.max(1, 1.15 * scale);
+                                    dctx.beginPath();
+                                    dctx.arc(cx, cy, rad * 0.64, 0, Math.PI * 2);
+                                    dctx.stroke();
+                                    dctx.beginPath();
+                                    dctx.arc(cx, cy, rad * 0.32, 0, Math.PI * 2);
+                                    dctx.stroke();
+
+                                    for (let ti = 0; ti < 36; ti++) {
+                                        const ang = (ti / 36) * Math.PI * 2 - Math.PI * 0.5;
+                                        const isCard = (ti % 9) === 0;
+                                        const isMaj = (ti % 3) === 0;
+                                        if (ti === 0) continue;
+                                        const rOuter = rad * 0.965;
+                                        const rInner = rad * (isCard ? 0.885 : (isMaj ? 0.915 : 0.938));
+                                        dctx.strokeStyle = isCard
+                                            ? 'rgba(197, 160, 89, 0.62)'
+                                            : (isMaj ? 'rgba(197, 160, 89, 0.36)' : 'rgba(197, 160, 89, 0.18)');
+                                        dctx.lineWidth = Math.max(1, (isCard ? 1.35 : 0.95) * scale);
+                                        dctx.beginPath();
+                                        dctx.moveTo(cx + Math.cos(ang) * rInner, cy + Math.sin(ang) * rInner);
+                                        dctx.lineTo(cx + Math.cos(ang) * rOuter, cy + Math.sin(ang) * rOuter);
+                                        dctx.stroke();
+                                    }
+
+                                    dctx.fillStyle = '#9A7B3E';
+                                    dctx.font = '700 ' + Math.round(7.4 * scale) + 'px system-ui, -apple-system, sans-serif';
+                                    dctx.textAlign = 'center';
+                                    dctx.textBaseline = 'middle';
+                                    dctx.fillText('N', cx, cy - rad * 0.895);
+                                    dctx.restore();
+                                }
+                                rt.dialCanvas = dc;
+                                rt.dialKey = dialKey;
+                            }
+                        }
 
                         ctx.clearRect(0, 0, w, h);
                         ctx.save();
                         ctx.beginPath();
-                        ctx.arc(cx, cy, rad + 4 * scale, 0, Math.PI * 2);
+                        ctx.arc(cx, cy, rad + 4.5 * scale, 0, Math.PI * 2);
                         ctx.clip();
 
-                        ctx.fillStyle = '#FAF8F5';
-                        ctx.fillRect(0, 0, w, h);
+                        if (rt.dialCanvas) {
+                            ctx.drawImage(rt.dialCanvas, 0, 0);
+                        } else {
+                            ctx.fillStyle = '#FAF8F5';
+                            ctx.fillRect(0, 0, w, h);
+                        }
 
-                        ctx.strokeStyle = 'rgba(197, 160, 89, 0.28)';
-                        ctx.lineWidth = Math.max(1, 1.4 * scale);
-                        ctx.beginPath();
-                        ctx.arc(cx, cy, rad * 0.62, 0, Math.PI * 2);
-                        ctx.stroke();
+                        if (snap.player) {
+                            const pu = snap.player.u;
+                            const pv = snap.player.v;
+                            const pyaw = snap.player.yaw || 0;
+                            const pcam = (typeof snap.player.cameraYaw === 'number') ? snap.player.cameraYaw : (pyaw - Math.PI);
+                            if (!rt.init || rt.zone !== snap.zone) {
+                                rt.u = pu;
+                                rt.v = pv;
+                                rt.yaw = pyaw;
+                                rt.camYaw = pcam;
+                                rt.zone = snap.zone || 'gallery';
+                                rt.init = true;
+                            } else {
+                                const posAlpha = 1 - Math.exp(-dt * 28);
+                                const rotAlpha = 1 - Math.exp(-dt * 30);
+                                rt.u += (pu - rt.u) * posAlpha;
+                                rt.v += (pv - rt.v) * posAlpha;
+                                let dY = pyaw - rt.yaw;
+                                while (dY > Math.PI) dY -= Math.PI * 2;
+                                while (dY < -Math.PI) dY += Math.PI * 2;
+                                rt.yaw += dY * rotAlpha;
+                                let dC = pcam - rt.camYaw;
+                                while (dC > Math.PI) dC -= Math.PI * 2;
+                                while (dC < -Math.PI) dC += Math.PI * 2;
+                                rt.camYaw += dC * rotAlpha;
+                            }
+                        }
 
-                        ctx.beginPath();
-                        ctx.arc(cx, cy, rad * 0.30, 0, Math.PI * 2);
-                        ctx.stroke();
+                        const px = cx + (rt.u - 0.5) * rad * 1.66;
+                        const py = cy + (rt.v - 0.5) * rad * 1.66;
+
+                        if (snap.player) {
+                            const coneR = rad * 0.46;
+                            ctx.save();
+                            ctx.translate(px, py);
+                            ctx.rotate(-rt.camYaw);
+                            const coneGrad = ctx.createRadialGradient(0, 0, 2 * scale, 0, 0, coneR);
+                            coneGrad.addColorStop(0, 'rgba(197, 160, 89, 0.20)');
+                            coneGrad.addColorStop(0.65, 'rgba(197, 160, 89, 0.08)');
+                            coneGrad.addColorStop(1, 'rgba(197, 160, 89, 0.0)');
+                            ctx.fillStyle = coneGrad;
+                            ctx.beginPath();
+                            ctx.moveTo(0, 0);
+                            ctx.arc(0, 0, coneR, -Math.PI * 0.5 - 0.48, -Math.PI * 0.5 + 0.48);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.restore();
+                        }
 
                         const markers = Array.isArray(snap.markers) ? snap.markers : [];
                         for (let i = 0; i < markers.length; i++) {
                             const m = markers[i];
-                            const mx = cx + (m.u - 0.5) * rad * 1.68;
-                            const my = cy + (m.v - 0.5) * rad * 1.68;
-                            ctx.beginPath();
-                            if (m.type === 'portal') {
+                            const mx = cx + (m.u - 0.5) * rad * 1.66;
+                            const my = cy + (m.v - 0.5) * rad * 1.66;
+                            if (m.type === 'portal' || m.type === 'gate') {
+                                const ds = (m.active ? 5.0 : 4.2) * scale;
+                                ctx.save();
+                                ctx.translate(mx, my);
+                                ctx.rotate(Math.PI * 0.25);
                                 ctx.fillStyle = m.active ? '#C5A059' : '#9CA3AF';
-                                ctx.arc(mx, my, 5.2 * scale, 0, Math.PI * 2);
+                                ctx.strokeStyle = '#FFFFFF';
+                                ctx.lineWidth = Math.max(1, 1.1 * scale);
+                                ctx.beginPath();
+                                ctx.rect(-ds * 0.5, -ds * 0.5, ds, ds);
+                                ctx.fill();
+                                ctx.stroke();
+                                ctx.restore();
+                            } else if (m.type === 'armory') {
+                                const rA = (m.active ? 4.4 : 3.5) * scale;
+                                ctx.beginPath();
+                                ctx.fillStyle = m.active ? '#C5A059' : '#1F2937';
+                                ctx.strokeStyle = '#C5A059';
+                                ctx.lineWidth = Math.max(1, 1.15 * scale);
+                                ctx.arc(mx, my, rA, 0, Math.PI * 2);
+                                ctx.fill();
+                                ctx.stroke();
+                            } else if (m.type === 'peer') {
+                                ctx.beginPath();
+                                ctx.fillStyle = '#C5A059';
+                                ctx.strokeStyle = '#111827';
+                                ctx.lineWidth = Math.max(1, 1.1 * scale);
+                                ctx.arc(mx, my, 3.6 * scale, 0, Math.PI * 2);
+                                ctx.fill();
+                                ctx.stroke();
                             } else {
-                                ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17, 24, 39, 0.36)';
-                                ctx.arc(mx, my, (m.active ? 4.4 : 3.2) * scale, 0, Math.PI * 2);
+                                if (m.active) {
+                                    ctx.beginPath();
+                                    ctx.strokeStyle = 'rgba(197, 160, 89, 0.48)';
+                                    ctx.lineWidth = Math.max(1, 1.2 * scale);
+                                    ctx.arc(mx, my, 6.2 * scale, 0, Math.PI * 2);
+                                    ctx.stroke();
+                                }
+                                ctx.beginPath();
+                                ctx.fillStyle = m.active ? '#C5A059' : 'rgba(17, 24, 39, 0.38)';
+                                ctx.arc(mx, my, (m.active ? 3.8 : 2.8) * scale, 0, Math.PI * 2);
+                                ctx.fill();
                             }
-                            ctx.fill();
                         }
 
                         if (snap.player) {
-                            const px = cx + (snap.player.u - 0.5) * rad * 1.68;
-                            const py = cy + (snap.player.v - 0.5) * rad * 1.68;
                             ctx.save();
                             ctx.translate(px, py);
-                            ctx.rotate(-(snap.player.yaw || 0) + Math.PI);
-                            ctx.fillStyle = '#111827';
+                            ctx.rotate(-rt.yaw + Math.PI);
+
+                            ctx.lineJoin = 'round';
+                            ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+                            ctx.lineWidth = Math.max(1.5, 2.2 * scale);
                             ctx.beginPath();
-                            ctx.moveTo(0, -8.5 * scale);
-                            ctx.lineTo(6.0 * scale, 6.8 * scale);
-                            ctx.lineTo(0, 3.6 * scale);
-                            ctx.lineTo(-6.0 * scale, 6.8 * scale);
+                            ctx.moveTo(0, -8.4 * scale);
+                            ctx.lineTo(5.6 * scale, 6.2 * scale);
+                            ctx.lineTo(0, 3.1 * scale);
+                            ctx.lineTo(-5.6 * scale, 6.2 * scale);
+                            ctx.closePath();
+                            ctx.stroke();
+
+                            ctx.fillStyle = '#111827';
+                            ctx.fill();
+
+                            ctx.fillStyle = '#C5A059';
+                            ctx.beginPath();
+                            ctx.moveTo(0, -7.2 * scale);
+                            ctx.lineTo(2.1 * scale, 3.6 * scale);
+                            ctx.lineTo(0, 2.2 * scale);
+                            ctx.lineTo(-2.1 * scale, 3.6 * scale);
                             ctx.closePath();
                             ctx.fill();
+
                             ctx.restore();
                         }
 
@@ -6883,6 +7108,7 @@
                             clearInterval(this._abilityPollTimer);
                             this._abilityPollTimer = null;
                         }
+                        this._stopMinimapLoop();
                         this.endStick();
                         const facade = getFacade();
                         if (facade) {

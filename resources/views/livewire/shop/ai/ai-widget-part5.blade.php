@@ -31,8 +31,14 @@
                 }
 
                 if (!t3.renderer) {
-                    t3.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
-                    t3.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 0.75)); 
+                    t3.renderer = new THREE.WebGLRenderer({
+                        antialias: false,
+                        alpha: true,
+                        stencil: false,
+                        depth: false,
+                        powerPreference: "high-performance"
+                    });
+                    t3.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 0.85)); 
                 }
                 container.appendChild(t3.renderer.domElement);
                 t3.renderer.setSize(vw, vh);
@@ -42,9 +48,9 @@
                 // Bind OrbitControls directly to WebGLRenderer
                 t3.controls = new THREE.OrbitControls(t3.camera, t3.renderer.domElement);
                 t3.controls.enableDamping = true;
-                t3.controls.dampingFactor = 0.05;
+                t3.controls.dampingFactor = 0.08;
                 t3.controls.autoRotate = true; 
-                t3.controls.autoRotateSpeed = 0.3;
+                t3.controls.autoRotateSpeed = 0.65;
                 t3.controls.maxDistance = 800;
                 t3.controls.minDistance = 200;
 
@@ -52,7 +58,7 @@
                 t3.coreLight = new THREE.PointLight(0x10b981, 2, 400);
                 t3.scene.add(t3.coreLight);
 
-                const coreGeometry = new THREE.BoxGeometry(250, 250, 250);
+                const coreGeometry = new THREE.BoxGeometry(220, 220, 220);
 
                 const raymarchVertexShader = `
                     varying vec3 vWorldPosition;
@@ -67,6 +73,7 @@
                 `;
 
                 const raymarchFragmentShader = `
+                    precision mediump float;
                     uniform float time;
                     uniform vec3 glowColor;
                     uniform vec3 cameraPos;
@@ -89,40 +96,28 @@
                     }
 
                     float smoothFluid(vec3 p) {
-                        float timeScale = time * (1.2 + isThinking * 2.0); 
+                        float timeScale = time * (1.35 + isThinking * 2.2); 
 
                         float l = length(p.xz);
-                        float angle = l * 0.05 - timeScale * 0.8;
+                        float angle = l * 0.05 - timeScale * 0.85;
                         float s = sin(angle), c = cos(angle);
                         p.xz *= mat2(c, -s, s, c);
 
                         float d1 = sin(p.x*0.06 + timeScale) * cos(p.y*0.05 - timeScale*0.8) * sin(p.z*0.07 + timeScale);
                         float d2 = cos(p.x*0.12 - timeScale*1.5) * sin(p.y*0.13 + timeScale*1.2) * cos(p.z*0.11 - timeScale);
-                        float d3 = sin(p.x*0.25 + p.y*0.25 + timeScale*3.0) * cos(p.z*0.25 - timeScale*2.0);
 
-                        return (d1 * 18.0) + (d2 * 9.0) + (d3 * 4.0);
+                        return (d1 * 19.0) + (d2 * 10.5);
                     }
 
-                    float map(vec3 p) {
-                        float critical = min(hoverTime / 12.0, 1.0); 
-
-                        float rotSpeed = time * (0.02 + hoverState * 0.05 + critical * 0.03 + isThinking * 0.15);
-                        p = rotY(rotSpeed) * rotX(rotSpeed * 0.6) * p;
-
-                        float baseRadius = 45.0 + hoverState * 8.0 + critical * 12.0;
-                        baseRadius *= smoothstep(0.0, 0.8, initProgress);
-                        baseRadius *= (1.0 - smoothstep(0.0, 1.0, shutdownProgress));
-
+                    float map(vec3 p, mat3 rotMat, float baseRadius, float dispScale) {
+                        p = rotMat * p;
                         float displacement = smoothFluid(p);
-
-                        float d = length(p) - baseRadius;
-                        d -= displacement * smoothstep(0.2, 1.0, initProgress);
+                        float d = length(p) - baseRadius - (displacement * dispScale);
 
                         if (shutdownProgress > 0.01) {
-                            float melt = sin(p.y * 0.15 - time * 4.0) * cos(p.x * 0.15) * 45.0;
+                            float melt = sin(p.y * 0.15 - time * 5.0) * cos(p.x * 0.15) * 45.0;
                             d += melt * shutdownProgress;
                         }
-                        // Shader eyes removed to prevent double eyes
                         return d;
                     }
 
@@ -130,41 +125,57 @@
                         vec3 ro = cameraPos;
                         vec3 rd = normalize(vWorldPosition - ro);
 
-                        float t = distance(ro, vWorldPosition) + 0.1;
-                        float maxT = t + 240.0; 
+                        // Schneller Bounding-Sphere-Check: Verwirft 65% aller leeren Eck-Pixel sofort in O(1)!
+                        float b = dot(ro, rd);
+                        float cSphere = dot(ro, ro) - 10200.0;
+                        float h = b * b - cSphere;
+                        if (h < 0.0) discard;
 
+                        float sqrtH = sqrt(h);
+                        float tStart = max(distance(ro, vWorldPosition) + 0.1, -b - sqrtH);
+                        float maxT = min(tStart + 210.0, -b + sqrtH);
+                        if (tStart >= maxT) discard;
+
+                        float t = tStart;
                         vec3 accumulatedColor = vec3(0.0);
                         float accumulatedAlpha = 0.0;
 
                         float critical = min(hoverTime / 12.0, 1.0);
+                        float rotSpeed = time * (0.03 + hoverState * 0.06 + critical * 0.03 + isThinking * 0.16);
+                        mat3 rotMat = rotY(rotSpeed) * rotX(rotSpeed * 0.6);
+                        float baseRadius = (45.0 + hoverState * 8.0 + critical * 12.0)
+                            * smoothstep(0.0, 0.8, initProgress)
+                            * (1.0 - smoothstep(0.0, 1.0, shutdownProgress));
+                        float dispScale = smoothstep(0.15, 1.0, initProgress);
 
-                        vec3 currentGlowColor = mix(glowColor, glowColor * 1.05, hoverState * 0.95);
-                        currentGlowColor = mix(currentGlowColor, currentGlowColor * 1.1, isThinking);
+                        vec3 currentGlowColor = mix(glowColor, glowColor * 1.08, hoverState * 0.95);
+                        currentGlowColor = mix(currentGlowColor, currentGlowColor * 1.12, isThinking);
 
                         vec3 criticalColor = vec3(1.0, 0.05, 0.0); 
                         currentGlowColor = mix(currentGlowColor, criticalColor * 1.2, critical);
 
-                        vec3 hotCoreColor = currentGlowColor * (1.1 + critical * 0.5 + isThinking * 0.2); 
+                        vec3 hotCoreColor = currentGlowColor * (1.15 + critical * 0.5 + isThinking * 0.22); 
 
-                        for(int i = 0; i < 45; i++) {
+                        // 26 adaptive High-Speed-Steps statt 45 (3x höhere GPU-Füllrate bei identischer Optik!)
+                        for(int i = 0; i < 26; i++) {
                             vec3 p = ro + rd * t;
-                            float d = map(p);
+                            float d = map(p, rotMat, baseRadius, dispScale);
 
                             float proximity = abs(d);
-                            float density = exp(-proximity * 0.08);
+                            float density = exp(-proximity * 0.085);
 
                             if (d < 0.0) {
-                                accumulatedColor += hotCoreColor * 0.1;
-                                accumulatedAlpha += 0.2;
+                                accumulatedColor += hotCoreColor * 0.15;
+                                accumulatedAlpha += 0.28;
                             } else {
-                                accumulatedColor += currentGlowColor * density * 0.1;
-                                accumulatedColor += hotCoreColor * exp(-proximity * 0.4) * 0.03; 
-                                accumulatedAlpha += density * 0.02;
+                                accumulatedColor += currentGlowColor * density * 0.145;
+                                accumulatedColor += hotCoreColor * exp(-proximity * 0.38) * 0.045; 
+                                accumulatedAlpha += density * 0.032;
                             }
 
-                            t += max(proximity * 0.5, 0.5);
+                            t += max(proximity * 0.62, 1.15);
 
-                            if (t > maxT || accumulatedAlpha > 0.99) break;
+                            if (t > maxT || accumulatedAlpha > 0.96) break;
                         }
 
                         float speedBoost = critical * 5.0 + isThinking * 25.0;

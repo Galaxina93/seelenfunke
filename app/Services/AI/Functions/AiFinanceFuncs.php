@@ -1824,8 +1824,8 @@ trait AiFinanceFuncs
                     'webp' => 'image/webp',
                     'gif' => 'image/gif',
                 };
-                if (method_exists(AiTaskFuncs::class, 'analyzeImageWithGemini')) {
-                    $content = AiTaskFuncs::analyzeImageWithGemini($absolutePath, $mime);
+                if (method_exists(\App\Services\AI\AIFunctionsRegistry::class, 'analyzeImageWithGemini')) {
+                    $content = \App\Services\AI\AIFunctionsRegistry::analyzeImageWithGemini($absolutePath, $mime);
                 } else {
                     $content = "[Bild-Datei: {$extension}, {$fileSize} Bytes]";
                 }

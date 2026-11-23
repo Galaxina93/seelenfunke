@@ -56,17 +56,6 @@ class DatabaseSeeder extends Seeder
             AiKnowledgeBaseSeeder::class,
             AiKnowledgeBaseLaserSeeder::class,
             AiCompanyStructureSeeder::class,
-
-            // DEAKTIVIEREN BEI LIVEGANG
-            /*GamificationUltimatePlayerSeeder::class,*/
-            /*FinancialDataSeeder::class,*/
-            /*OrdersTableSeeder::class,*/
-            /*ProductReviewSeeder::class,*/
-            /*GamificationTestSeeder::class,*/
-            /*BankTransactionTestSeeder::class,*/
-            /*OrderShoppingCartSeeder::class,*/
-
         ]);
-
     }
 }

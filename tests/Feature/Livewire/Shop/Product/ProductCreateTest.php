@@ -813,19 +813,16 @@ class ProductCreateTest extends TestCase
         $this->assertNotNull($customWinterPath);
         $this->assertNotNull($customSeasonalPath);
 
-        // Exact storage folder & filename convention check
-        $this->assertStringStartsWith('produkte/products/medien-saison-test/seasonal/', $customWinterPath);
-        $this->assertStringEndsWith('_medien-saison-test-winter.jpg', $customWinterPath);
-        $this->assertStringStartsWith('produkte/products/medien-saison-test/seasonal/', $customSeasonalPath);
-        $this->assertStringEndsWith('_medien-saison-test-weihnachten.jpg', $customSeasonalPath);
+        // Exact private seasonal storage folder & filename convention check
+        $this->assertSame('produkte/products-secure/seasonal/medien-saison-test/winter.jpg', $customWinterPath);
+        $this->assertSame('produkte/products-secure/seasonal/medien-saison-test/weihnachten.jpg', $customSeasonalPath);
 
-        // Old replaced seasonal file is cleaned up from disk, new files exist
+        // Old replaced seasonal file is cleaned up from disk, new protected files exist on local disk
         Storage::disk('public')->assertMissing($oldWinterDummyPath);
-        Storage::disk('public')->assertExists($customWinterPath);
-        Storage::disk('public')->assertExists($customSeasonalPath);
+        Storage::disk('local')->assertExists($customWinterPath);
+        Storage::disk('local')->assertExists($customSeasonalPath);
 
-        // ProductTemplate for Weihnachten is automatically synchronized (default is_ai_generated = false on upload)
-        $this->assertSame($customSeasonalPath, $xmasTemplate->fresh()->preview_image);
+        // Protected seasonal images keep ProductTemplate preview_image untouched (no leak via public template cards) while syncing is_ai_generated = false
         $this->assertFalse((bool) $xmasTemplate->fresh()->is_ai_generated);
 
         $resolvedWinter = $freshAfterUpload->resolveMainImageMeta('Winter', true);

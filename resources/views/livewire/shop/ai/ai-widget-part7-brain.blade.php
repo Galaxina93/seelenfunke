@@ -2,7 +2,38 @@
 <script>
     window.brainMapInstance = null;
     window.brainMapData = null;
+    window.brainNodeMap = new Map();
     window.selectedBrainNodeId = null;
+    window._brainResizeBound = false;
+    window._brainSearchDebounce = null;
+
+    function rebuildBrainIndex(graphData) {
+        window.brainNodeMap = new Map();
+        if (!graphData || !Array.isArray(graphData.nodes)) return;
+
+        graphData.nodes.forEach(node => {
+            node._inIds = [];
+            node._outIds = [];
+            node._idLower = String(node.id || '').toLowerCase();
+            window.brainNodeMap.set(node.id, node);
+        });
+
+        if (Array.isArray(graphData.links)) {
+            graphData.links.forEach(link => {
+                const sId = getLinkEndpointId(link.source);
+                const tId = getLinkEndpointId(link.target);
+                const sNode = window.brainNodeMap.get(sId);
+                const tNode = window.brainNodeMap.get(tId);
+                if (sNode && tId && sId !== tId && !sNode._outIds.includes(tId)) {
+                    sNode._outIds.push(tId);
+                }
+                if (tNode && sId && sId !== tId && !tNode._inIds.includes(sId)) {
+                    tNode._inIds.push(sId);
+                }
+                link.isErrorLink = Boolean((sNode && sNode.isError) || (tNode && tNode.isError));
+            });
+        }
+    }
 
     window.copyBrainNodePath = function(btn) {
         const el = document.getElementById('brain-selected-node-name');
@@ -74,20 +105,41 @@
     }
 
     function isErrorConnectedLink(link) {
-        if (link.isErrorLink) return true;
-        if (!window.brainMapData || !window.brainMapData.nodes) return false;
+        if (typeof link.isErrorLink === 'boolean') return link.isErrorLink;
         const srcId = getLinkEndpointId(link.source);
         const tgtId = getLinkEndpointId(link.target);
-        const srcNode = window.brainMapData.nodes.find(n => n.id === srcId);
-        const tgtNode = window.brainMapData.nodes.find(n => n.id === tgtId);
-        return Boolean((srcNode && srcNode.isError) || (tgtNode && tgtNode.isError));
+        const srcNode = window.brainNodeMap.get(srcId);
+        const tgtNode = window.brainNodeMap.get(tgtId);
+        const flag = Boolean((srcNode && srcNode.isError) || (tgtNode && tgtNode.isError));
+        link.isErrorLink = flag;
+        return flag;
     }
+
+    window.pauseBrainMap = function() {
+        if (window.brainMapInstance && typeof window.brainMapInstance.pauseAnimation === 'function') {
+            try { window.brainMapInstance.pauseAnimation(); } catch (e) {}
+        }
+    };
+
+    window.resumeBrainMap = function() {
+        if (window.brainMapInstance && typeof window.brainMapInstance.resumeAnimation === 'function') {
+            try { window.brainMapInstance.resumeAnimation(); } catch (e) {}
+        }
+    };
 
     window.initBrainMap = async function() {
         if (typeof ForceGraph3D === 'undefined') {
             await new Promise((resolve, reject) => {
+                const src = "{{ asset('vendor/force-graph/3d-force-graph.min.js') }}";
+                const existing = document.querySelector(`script[src="${src}"]`);
+                if (existing) {
+                    if (typeof ForceGraph3D !== 'undefined') return resolve();
+                    existing.addEventListener('load', () => resolve(), { once: true });
+                    existing.addEventListener('error', () => reject(new Error('3d-force-graph load failed')), { once: true });
+                    return;
+                }
                 const script = document.createElement('script');
-                script.src = "//unpkg.com/3d-force-graph";
+                script.src = src;
                 script.onload = resolve;
                 script.onerror = reject;
                 document.head.appendChild(script);
@@ -95,12 +147,15 @@
         }
 
         if (window.brainMapInstance) {
+            window.resumeBrainMap();
             try {
-                window.brainMapInstance.zoomToFit(1000, 50);
+                window.brainMapInstance
+                    .width(window.innerWidth)
+                    .height(window.innerHeight);
+                window.brainMapInstance.zoomToFit(700, 50);
             } catch (e) {
                 console.warn('zoomToFit skipped due to layout instability:', e);
             }
-            window.scanSystemErrors();
             return;
         }
 
@@ -108,12 +163,12 @@
         if (!container) return;
 
         if (container.clientWidth === 0 || container.clientHeight === 0) {
-            setTimeout(window.initBrainMap, 100);
+            setTimeout(window.initBrainMap, 80);
             return;
         }
 
         try {
-            const response = await fetch('/api/ai/system-brain-map?t=' + Date.now(), {
+            const response = await fetch('/api/ai/system-brain-map', {
                 headers: { 'Accept': 'application/json' }
             });
             if (!response.ok) {
@@ -123,6 +178,7 @@
                 return;
             }
             window.brainMapData = await response.json();
+            rebuildBrainIndex(window.brainMapData);
         } catch (e) {
             console.error('Fehler beim Laden der System Brain Map:', e);
             return;
@@ -133,9 +189,13 @@
             : 0;
         window.dispatchEvent(new CustomEvent('brain-errors-updated', { detail: { count: initialErrorCount } }));
 
-        window.brainMapInstance = ForceGraph3D()(container)
+        window.brainMapInstance = ForceGraph3D({ controlType: 'orbit', rendererConfig: { antialias: false, powerPreference: 'high-performance' } })(container)
             .width(window.innerWidth)
             .height(window.innerHeight)
+            .warmupTicks(55)
+            .cooldownTime(1800)
+            .nodeResolution(6)
+            .linkOpacity(0.28)
             .graphData(window.brainMapData)
             .nodeLabel(node => node.isError ? `[FEHLERKERN] ${node.id}` : node.id)
             .nodeColor(node => getNodeRenderColor(node))
@@ -145,13 +205,16 @@
             .linkWidth(link => isErrorConnectedLink(link) ? 1.8 : 0.5)
             .backgroundColor('rgba(0,0,0,0)');
 
-        window.addEventListener('resize', () => {
-            if (window.brainMapInstance) {
-                window.brainMapInstance
-                    .width(window.innerWidth)
-                    .height(window.innerHeight);
-            }
-        });
+        if (!window._brainResizeBound) {
+            window._brainResizeBound = true;
+            window.addEventListener('resize', () => {
+                if (window.brainMapInstance) {
+                    window.brainMapInstance
+                        .width(window.innerWidth)
+                        .height(window.innerHeight);
+                }
+            });
+        }
 
         window.brainMapInstance.onNodeClick(node => {
             flyCameraToNode(node, 1500);
@@ -202,34 +265,35 @@
 
                 const incoming = [];
                 const outgoing = [];
+                const seenIn = new Set();
+                const seenOut = new Set();
 
-                if (window.brainMapData && Array.isArray(window.brainMapData.links)) {
-                    window.brainMapData.links.forEach(l => {
-                        const sId = getLinkEndpointId(l.source);
-                        const tId = getLinkEndpointId(l.target);
-                        if (tId === node.id && sId !== node.id) {
-                            const sNode = (typeof l.source === 'object') ? l.source : (window.brainMapData.nodes.find(n => n.id === sId) || { id: sId, name: sId });
-                            if (!incoming.some(i => i.id === sNode.id)) incoming.push(sNode);
-                        } else if (sId === node.id && tId !== node.id) {
-                            const tNode = (typeof l.target === 'object') ? l.target : (window.brainMapData.nodes.find(n => n.id === tId) || { id: tId, name: tId });
-                            if (!outgoing.some(o => o.id === tNode.id)) outgoing.push(tNode);
-                        }
-                    });
-                }
+                (node._inIds || []).forEach(sId => {
+                    if (!seenIn.has(sId)) {
+                        seenIn.add(sId);
+                        incoming.push(window.brainNodeMap.get(sId) || { id: sId, name: sId });
+                    }
+                });
+                (node._outIds || []).forEach(tId => {
+                    if (!seenOut.has(tId)) {
+                        seenOut.add(tId);
+                        outgoing.push(window.brainNodeMap.get(tId) || { id: tId, name: tId });
+                    }
+                });
 
                 if (Array.isArray(node.incomingFiles)) {
                     node.incomingFiles.forEach(fp => {
-                        if (!incoming.some(i => i.id === fp)) {
-                            const found = (window.brainMapData && window.brainMapData.nodes.find(n => n.id === fp)) || { id: fp, name: fp.split('/').pop() };
-                            incoming.push(found);
+                        if (!seenIn.has(fp)) {
+                            seenIn.add(fp);
+                            incoming.push(window.brainNodeMap.get(fp) || { id: fp, name: fp.split('/').pop() });
                         }
                     });
                 }
                 if (Array.isArray(node.outgoingFiles)) {
                     node.outgoingFiles.forEach(fp => {
-                        if (!outgoing.some(o => o.id === fp)) {
-                            const found = (window.brainMapData && window.brainMapData.nodes.find(n => n.id === fp)) || { id: fp, name: fp.split('/').pop() };
-                            outgoing.push(found);
+                        if (!seenOut.has(fp)) {
+                            seenOut.add(fp);
+                            outgoing.push(window.brainNodeMap.get(fp) || { id: fp, name: fp.split('/').pop() });
                         }
                     });
                 }
@@ -405,9 +469,15 @@
 
         window.brainMapInstance.d3Force('charge').strength(-120);
 
-        setTimeout(() => {
-            window.scanSystemErrors();
-        }, 600);
+        if (initialErrorCount > 0 && window.brainMapData && Array.isArray(window.brainMapData.nodes)) {
+            const firstErr = window.brainMapData.nodes.find(n => n.isError);
+            if (firstErr) {
+                setTimeout(() => {
+                    flyCameraToNode(firstErr, 1200);
+                    if (window.openNeuralNodeTile) window.openNeuralNodeTile(firstErr);
+                }, 350);
+            }
+        }
     };
 
     function flyCameraToNode(node, duration = 1600) {
@@ -429,14 +499,23 @@
             .linkWidth(link => isErrorConnectedLink(link) ? 1.8 : 0.5);
     }
 
-    window.searchBrainMap = function(query) {
+    window.searchBrainMap = function(query, immediate = false) {
         if (!window.brainMapInstance || !window.brainMapData) return;
+        if (!immediate) {
+            if (window._brainSearchDebounce) clearTimeout(window._brainSearchDebounce);
+            window._brainSearchDebounce = setTimeout(() => window.searchBrainMap(query, true), 110);
+            return;
+        }
+
         const q = (query || '').trim().toLowerCase();
+        const matches = [];
 
         window.brainMapData.nodes.forEach(node => {
-            if (q && node.id.toLowerCase().includes(q)) {
+            const idLow = node._idLower || String(node.id || '').toLowerCase();
+            if (q && idLow.includes(q)) {
                 node.__color = node.isError ? 'rgba(255, 0, 68, 1)' : 'rgba(255, 255, 255, 1)';
                 node.__val = 10;
+                matches.push(node);
             } else {
                 delete node.__color;
                 delete node.__val;
@@ -445,13 +524,13 @@
 
         refreshBrainVisuals();
 
-        if (q.length > 2) {
-            const exact = window.brainMapData.nodes.find(n => n.id.toLowerCase() === q);
-            const matches = exact ? [exact] : window.brainMapData.nodes.filter(n => n.id.toLowerCase().includes(q));
-            if (matches.length === 1) {
-                flyCameraToNode(matches[0], 1600);
+        if (q.length > 2 && matches.length > 0) {
+            const exact = matches.find(n => (n._idLower || n.id.toLowerCase()) === q);
+            const target = exact || (matches.length === 1 ? matches[0] : null);
+            if (target) {
+                flyCameraToNode(target, 1200);
                 if (window.openNeuralNodeTile) {
-                    window.openNeuralNodeTile(matches[0]);
+                    window.openNeuralNodeTile(target);
                 }
             }
         }
@@ -509,13 +588,12 @@
     window.highlightBrainStructure = function() {
         if (!window.selectedBrainNodeId || !window.brainMapInstance || !window.brainMapData) return;
 
+        const selectedNode = window.brainNodeMap.get(window.selectedBrainNodeId);
         const relatedNodeIds = new Set([window.selectedBrainNodeId]);
-        window.brainMapData.links.forEach(l => {
-            const sId = getLinkEndpointId(l.source);
-            const tId = getLinkEndpointId(l.target);
-            if (sId === window.selectedBrainNodeId) relatedNodeIds.add(tId);
-            if (tId === window.selectedBrainNodeId) relatedNodeIds.add(sId);
-        });
+        if (selectedNode) {
+            (selectedNode._inIds || []).forEach(id => relatedNodeIds.add(id));
+            (selectedNode._outIds || []).forEach(id => relatedNodeIds.add(id));
+        }
 
         window.brainMapInstance
             .nodeColor(node => relatedNodeIds.has(node.id) ? getNodeRenderColor(node) : 'rgba(50, 50, 50, 0.10)')
@@ -698,7 +776,7 @@
     window.addEventListener('ai-fly-to-neural-node', (e) => {
         const id = e.detail ? (e.detail.id || (Array.isArray(e.detail) && e.detail[0] ? e.detail[0].id : null)) : null;
         if (id && window.searchBrainMap) {
-            window.searchBrainMap(id);
+            window.searchBrainMap(id, true);
         }
     });
 

@@ -52,7 +52,11 @@ class AiSupportService
             ->where(function ($q) use ($allowedDayFilters) {
                 $q->whereIn('days_of_week', $allowedDayFilters)
                   ->orWhereNull('days_of_week')
-                  ->orWhere('days_of_week', '');
+                  ->orWhere('days_of_week', '')
+                  ->orWhere('type', 'sleep')
+                  ->orWhere('title', 'like', '%Bettfertig%')
+                  ->orWhere('title', 'like', '%Nachtruhe%')
+                  ->orWhere('title', 'like', '%Schlaf%');
             })
             ->orderBy('start_time', 'asc')
             ->get();
@@ -137,8 +141,20 @@ class AiSupportService
                         $currentFlow['step'] = 'Fokus-Phase';
                     }
 
-                    // Wenn es Pause/Sport/Essen ist (und heute noch nicht abgehakt), pushen wir es als aktive Handlungsoption (Score 300)
-                    if (!$isCompletedToday && in_array($routine->type, ['food', 'sport', 'hygiene', 'break'])) {
+                    $titleLower = mb_strtolower((string) $routine->title, 'UTF-8');
+                    $isBedtimeWindDown = str_contains($titleLower, 'bettfertig') || str_contains($titleLower, 'runterfahren');
+
+                    // Wenn es Bettfertig & Runterfahren (22:00 Uhr) ist -> hohe Gesundheits-Priorität (Score 2100, auch am Wochenende!)
+                    if (!$isCompletedToday && $isBedtimeWindDown) {
+                        $options[] = [
+                            'score' => 2100,
+                            'title' => $routine->title,
+                            'message' => "GESUNDHEITS-ROUTINE BETTFERTIG (" . $start->format('H:i') . " Uhr, gilt auch am Wochenende): Erinnere Alina jetzt freundlich-bestimmt ans Runterfahren und Bettfertigmachen (" . $currentFlow['step'] . "), damit um 22:30 Uhr pünktlich Nachtruhe ist!",
+                            'action_label' => 'Routine ansehen',
+                            'action_route' => 'admin.funki-routine',
+                            'icon' => $routine->icon ?? '🌙'
+                        ];
+                    } elseif (!$isCompletedToday && in_array($routine->type, ['food', 'sport', 'hygiene', 'break'])) {
                         $options[] = [
                             'score' => 300,
                             'title' => $routine->title,

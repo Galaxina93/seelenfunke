@@ -2020,7 +2020,7 @@ class SystemHealthPulseService
 
         if ($shopHoursAgo !== null) {
             if ($shopHoursAgo > 48) {
-                $status = $this->escalateStatus($status, 'critical');
+                $status = $this->escalateStatus($status, $strict ? 'critical' : 'warning');
                 $issues[] = "Shop-Backup überfällig ({$shopHoursAgo} Std alt)";
             } elseif ($shopHoursAgo > 26) {
                 $status = $this->escalateStatus($status, 'warning');

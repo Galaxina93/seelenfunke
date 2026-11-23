@@ -1,8 +1,12 @@
 package de.meinseelenfunke.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import de.meinseelenfunke.app.R
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.BlendMode
@@ -214,12 +218,23 @@ fun ChatScreen(
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        text = agent.name.take(2).uppercase(),
-                                        color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                    if (agent.name.equals("Funkira", ignoreCase = true)) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.funkira_avatar),
+                                            contentDescription = "Funkira",
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = agent.name.take(2).uppercase(),
+                                            color = if (isSelected) SpaceBlack else AppTheme.colors.textPrimary,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(4.dp))

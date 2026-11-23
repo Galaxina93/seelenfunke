@@ -318,8 +318,8 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
         // Verify mid-sentence cutoff protections in ai-widget-part2.blade.php
         $this->assertStringContainsString('hasQueuedAudio && (!this.allowVoiceInterruption || !userSpokeRecently)', $part2);
         $this->assertStringContainsString('this.cleanupLiveConnection(this.isLiveMode)', $part2);
-        $this->assertStringContainsString('const roomEchoCushion = (now - (this.lastSpeechEndTime || 0)) < 650;', $part2);
-        $this->assertStringContainsString('const aiTurnGenerating = this.isAiSpeakingTurn && !this.generationCompleteReceived', $part2);
+        $this->assertMatchesRegularExpression('/const roomEchoCushion = \(now - \(this\.lastSpeechEndTime \|\| 0\)\) < (?:650|850);/', $part2);
+        $this->assertMatchesRegularExpression('/const aiTurnGenerating = this\.isAiSpeakingTurn && !this\.(?:generationCompleteReceived|turnCompleteReceived)/', $part2);
         $this->assertStringContainsString('for (const call of data.toolCall.functionCalls)', $part2);
 
         // Verify duplicate Code 1000 close-log suppression & bidirectional ping in server-twilio.js

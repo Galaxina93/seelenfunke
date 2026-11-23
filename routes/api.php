@@ -43,6 +43,10 @@ Route::post('/log/frontend-error', function (\Illuminate\Http\Request $request) 
         ]);
 
         $errType = $data['type'] ?? 'js_error';
+        $rawMsgLower = strtolower(trim((string) ($data['message'] ?? '')));
+        if (str_contains($rawMsgLower, 'isfromcancelledtransition')) {
+            return response()->json(['status' => 'ignored_benign_transition']);
+        }
         $title = match ($errType) {
             'promise_rejection' => 'Frontend Promise Error',
             'livewire_request_error' => 'Frontend Livewire HTTP-' . ($data['status_code'] ?? 'Error'),
@@ -269,8 +273,18 @@ Route::post('/twilio/call-log', [\App\Http\Controllers\Api\TwilioCallController:
     ->withoutMiddleware([\App\Http\Middleware\VerifyCsrfToken::class])
     ->middleware('throttle:30,1');
 
-// --- Flight Data Proxy (CORS Fix) ---
+// --- Flight Data Proxy (CORS Fix, Staff-Only & Quantized Viewport Cache) ---
 Route::get('/flights', function (\Illuminate\Http\Request $request) {
+    $user = $request->user() ?: auth()->guard('admin')->user() ?: auth()->guard('employee')->user();
+    $isStaff = ($user instanceof \App\Models\Admin\Admin)
+        || ($user instanceof \App\Models\Employee\Employee && $user->isInternalEmployee() && $user->isAccountActive())
+        || \App\Services\AI\AiAuthHelper::isAdmin()
+        || \App\Services\AI\AiAuthHelper::isEmployee();
+
+    if (!$isStaff) {
+        abort(403, 'Zugriff verweigert.');
+    }
+
     try {
         $url = "https://opensky-network.org/api/states/all";
         $bounds = ['lamin' => [-90, 90], 'lamax' => [-90, 90], 'lomin' => [-180, 180], 'lomax' => [-180, 180]];
@@ -278,27 +292,29 @@ Route::get('/flights', function (\Illuminate\Http\Request $request) {
         foreach ($bounds as $param => [$min, $max]) {
             $val = $request->query($param);
             if (is_scalar($val) && $val !== '' && is_numeric($val)) {
-                $floatVal = (float) $val;
+                $floatVal = round((float) $val, 1);
                 if ($floatVal >= $min && $floatVal <= $max) {
                     $queryParams[$param] = $floatVal;
                 }
             }
         }
         
-        if (!empty($queryParams)) {
+        if (count($queryParams) === 4 && $queryParams['lamin'] < $queryParams['lamax'] && $queryParams['lomin'] < $queryParams['lomax']) {
             $url .= '?' . http_build_query($queryParams);
         }
         
-        $data = \Illuminate\Support\Facades\Cache::remember('opensky_flights_' . md5($url), 10, function () use ($url) {
-            $response = \Illuminate\Support\Facades\Http::timeout(5)->get($url);
-            return $response->successful() ? $response->json() : [];
+        $data = \Illuminate\Support\Facades\Cache::remember('opensky_flights_' . md5($url), 12, function () use ($url) {
+            $response = \Illuminate\Support\Facades\Http::timeout(4)->get($url);
+            return $response->successful() ? $response->json() : ['states' => []];
         });
         
-        return response()->json($data);
+        return response()->json($data, 200, [
+            'Cache-Control' => 'private, max-age=10',
+        ]);
     } catch (\Exception $e) {
-        return response()->json(['error' => 'Flight API Proxy failed'], 500);
+        return response()->json(['states' => [], 'error' => 'Flight API Proxy failed'], 200);
     }
-})->middleware('throttle:30,1');
+})->middleware(['web', 'throttle:30,1']);
 
 // --- Secure File View for Mobile App (supports Bearer, Signed URL, or non-expired ?token=) ---
 Route::get('/funki/financials/receipt', function (\Illuminate\Http\Request $request) {

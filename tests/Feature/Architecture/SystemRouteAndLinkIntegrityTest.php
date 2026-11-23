@@ -264,8 +264,8 @@ class SystemRouteAndLinkIntegrityTest extends TestCase
             $relPath = str_replace($publicDir . '/', '', $file->getPathname());
             $ext = strtolower($file->getExtension());
 
-            // In public/ darf ausschließlich index.php als ausführbares PHP-Skript liegen
-            if ($ext === 'php' && $relPath !== 'index.php') {
+            // In public/ dürfen ausschließlich index.php und der Zero-Laravel-Ping lobby-ping.php liegen
+            if ($ext === 'php' && !in_array($relPath, ['index.php', 'lobby-ping.php'], true)) {
                 $forbiddenFiles[] = $relPath;
             }
 

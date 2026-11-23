@@ -101,6 +101,7 @@
             if (
                 lower.includes('resizeobserver loop') ||
                 lower.includes('could not find livewire component in dom tree') ||
+                lower.includes('isfromcancelledtransition') ||
                 lower.includes('aborterror') ||
                 lower.includes('the user aborted a request') ||
                 (lower.includes('unexpected token') && lower.includes('<!doctype')) ||

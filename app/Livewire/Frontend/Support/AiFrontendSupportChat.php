@@ -330,7 +330,7 @@ class AiFrontendSupportChat extends Component
 
         if ($isPromptInjection || $isSevereInsult) {
             $tag = $isPromptInjection ? 'PROMPT_INJECTION' : 'INSULT';
-            $result = \App\Services\AI\Functions\AiSupportFuncs::executePenalizeOfftopic([
+            $result = \App\Services\AI\AIFunctionsRegistry::executePenalizeOfftopic([
                 '__chat_id' => $chat->id,
                 'severity' => 10,
                 'tag' => $tag,
@@ -345,7 +345,7 @@ class AiFrontendSupportChat extends Component
         ) === 1;
 
         if ($isTokenWasteOrOfftopic) {
-            $result = \App\Services\AI\Functions\AiSupportFuncs::executePenalizeOfftopic([
+            $result = \App\Services\AI\AIFunctionsRegistry::executePenalizeOfftopic([
                 '__chat_id' => $chat->id,
                 'severity' => 7,
                 'tag' => 'PROVOCATION',
@@ -780,7 +780,7 @@ class AiFrontendSupportChat extends Component
         $customerMsgs = $chat->messages->where('sender', 'customer');
         $customerMsgCount = $customerMsgs->count();
         $severitySum = (int) $customerMsgs->sum('severity');
-        $carryOverPenalty = \App\Services\AI\Functions\AiSupportFuncs::getCarryOverPenaltyPoints($chat);
+        $carryOverPenalty = \App\Services\AI\AIFunctionsRegistry::getCarryOverPenaltyPoints($chat);
         $chatWeight = ($customerMsgCount * 10) + $severitySum + $carryOverPenalty;
         
         if ($chatWeight >= 100) {
