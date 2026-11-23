@@ -50,11 +50,11 @@
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-bold mb-2">Kundenbetreuung & B2B-Projektservice</h3>
-                        <p class="mb-4">Persönliche Beratung für Privatkunden, Vereine und Firmenkunden.</p>
+                        <h3 class="text-lg font-bold mb-2">Kundenbetreuung &amp; persönlicher Service</h3>
+                        <p class="mb-4">Herzliche Beratung für unsere Kundinnen und Kunden rund um individuelle Wunschgravuren.</p>
                         <ul class="list-disc list-inside space-y-1 text-gray-700">
                             <li>Betreuung individueller Sonderwünsche</li>
-                            <li>Angebotserstellung für B2B- und Vereinsaufträge</li>
+                            <li>Begleitung von der Motivauswahl bis zum fertigen Unikat</li>
                             <li>Freundlicher Support per E-Mail und Telefon</li>
                         </ul>
                     </div>

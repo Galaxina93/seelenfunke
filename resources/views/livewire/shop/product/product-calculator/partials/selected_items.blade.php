@@ -274,8 +274,8 @@
                     $formattedPercent = number_format($expressPercent, 0, ',', '.');
                     $formattedMin = number_format($expressMin / 100, 2, ',', '.');
                     
-                    $shopCapacityLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
-                    $expressDisabled = $shopCapacityLevel >= 2;
+                    $shopCapacityLevel = \App\Services\Order\ShopCapacityService::getCurrentLevel();
+                    $expressDisabled = !\App\Services\Order\ShopCapacityService::isExpressAvailable();
                 @endphp
 
                 {{-- Container: Wenn ausgewählt, goldener Rahmen & Hintergrund, sonst grau/weiß --}}

@@ -177,7 +177,7 @@ class SupplierProcurementAndLeadTimeTest extends TestCase
         $product = Product::where('name', 'Edelstahl Herz-Anhänger Vergoldet')->first();
         $this->assertNotNull($product);
         $this->assertSame(0, (int) $product->quantity);
-        $this->assertTrue((bool) $product->continue_selling_when_out_of_stock);
+        $this->assertFalse((bool) $product->continue_selling_when_out_of_stock);
         $this->assertSame(4, (int) ($product->configurator_settings['out_of_stock_lead_days_min'] ?? 0));
         $this->assertSame(6, (int) ($product->configurator_settings['out_of_stock_lead_days_max'] ?? 0));
         $this->assertStringContainsString('7-11 Werktage', (string) ($product->attributes['Lieferzeit'] ?? ''));

@@ -392,7 +392,7 @@ class ProductCreateTest extends TestCase
 
         $created = Product::where('sku', 'STEEL-TEST-99')->first();
         $this->assertNotNull($created);
-        $this->assertEquals('active', $created->status);
+        $this->assertEquals('draft', $created->status);
         $this->assertEquals(4, $created->completion_step);
         $this->assertEquals(1990, $created->price);
         $this->assertEquals(116, $created->purchase_price);

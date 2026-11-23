@@ -518,7 +518,7 @@ class MarketingLandingPage extends Model implements HasSystemBlueprint
                 'Valentinstag' => [
                     'title'    => "{$name} | Valentinstagsgeschenk von {$companyName}",
                     'headline' => 'Gemeinsame Erinnerungen zum Valentinstag verschenken: Der Seelenfunken Wertgutschein',
-                    'intro'    => "Lass deinen Lieblingsmenschen sein Wunsch-Unikat selbst gestalten: mit persönlicher Liebesbotschaft per E-Mail (PDF) oder als edle lasergravierte Aluminiumkarte mit Wachssiegel.",
+                    'intro'    => "Lass deinen Lieblingsmenschen sein Wunsch-Unikat selbst gestalten: mit persönlicher Liebesbotschaft per E-Mail (PDF) oder als edle lasergravierte Aluminiumkarte mit goldenem Siegel.",
                     'cta_text' => 'Gutschein gestalten',
                 ],
                 'Ostern' => [
@@ -548,7 +548,7 @@ class MarketingLandingPage extends Model implements HasSystemBlueprint
                 'Hochzeit' => [
                     'title'    => "{$name} | Hochzeitsgeschenk von {$companyName}",
                     'headline' => 'Stilvolles Geld- & Wertgeschenk zur Hochzeit: Der Seelenfunken Wertgutschein',
-                    'intro'    => "Ideal für das Brautpaar: Als lasergravierte Gold-Aluminiumkarte im schwarzen Umschlag mit Wachssiegel überreichst du ein bleibendes Hochzeitsgeschenk, mit dem das Paar sein Lieblingsfoto später selbst verewigen kann.",
+                    'intro'    => "Ideal für das Brautpaar: Als lasergravierte Gold-Aluminiumkarte im schwarzen Umschlag mit goldenem Siegel überreichst du ein bleibendes Hochzeitsgeschenk, mit dem das Paar sein Lieblingsfoto später selbst verewigen kann.",
                     'cta_text' => 'Hochzeitsgutschein gestalten',
                 ],
                 'Geburtstag' => [

@@ -121,7 +121,17 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
 
     protected static function booted()
     {
-        static::created(function ($order) {
+        $syncCapacityRealtime = static function (): void {
+            if (!app()->runningUnitTests() || config('services.capacity.realtime_in_tests', false)) {
+                try {
+                    app(\App\Services\Order\ShopCapacityService::class)->syncAndApplyAutopilot();
+                } catch (\Throwable) {
+                }
+            }
+        };
+
+        static::created(function ($order) use ($syncCapacityRealtime) {
+            $syncCapacityRealtime();
             if (!app()->runningUnitTests()) {
                 try {
                     broadcast(new \App\Events\OrderScopeUpdated($order, true));
@@ -131,7 +141,7 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
             }
         });
 
-        static::updated(function ($order) {
+        static::updated(function ($order) use ($syncCapacityRealtime) {
             if ($order->isDirty(['status', 'payment_status', 'total_price']) && !app()->runningUnitTests()) {
                 try {
                     broadcast(new \App\Events\OrderScopeUpdated($order, false));
@@ -205,6 +215,18 @@ use HasFactory, SoftDeletes, HasUuids, FormatsECommerceData;
                     );
                 }
             }
+
+            if ($order->isDirty('status')) {
+                $syncCapacityRealtime();
+            }
+        });
+
+        static::deleted(function () use ($syncCapacityRealtime) {
+            $syncCapacityRealtime();
+        });
+
+        static::restored(function () use ($syncCapacityRealtime) {
+            $syncCapacityRealtime();
         });
     }
 

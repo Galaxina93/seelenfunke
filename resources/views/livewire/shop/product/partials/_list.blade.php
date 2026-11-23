@@ -35,9 +35,9 @@
                         Archiv öffnen
                     </button>
                     <button type="button" wire:click="openQuickAiModal"
-                            class="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-sm hover:scale-[1.02] transition-all flex items-center justify-center gap-1.5 whitespace-nowrap"
-                            title="KI-Produkt per Knopfdruck vollautomatisch anlegen">
-                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.3"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            class="flex-1 sm:flex-initial bg-gray-900 dark:bg-gray-800 border border-gray-800 dark:border-gray-700 hover:border-[var(--theme-color)] text-white px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer"
+                            title="Rohling-Entwurf aus Händler-Link anlegen">
+                        <svg class="w-3.5 h-3.5 shrink-0 text-[var(--theme-color)] dark:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                         <span>Neu (KI)</span>
                     </button>
                     <button wire:click="createDraft"
@@ -724,246 +724,226 @@
     @endif
 
     {{-- ===================================================================== --}}
-    {{-- 1-KLICK KI-PRODUKT-ASSISTENT MODAL                                    --}}
+    {{-- KI-PRODUKT-ENTWURF MODAL (CLEAN DESIGN)                               --}}
     {{-- ===================================================================== --}}
     @if($showQuickAiModal)
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
             <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-[2.5rem] shadow-2xl max-w-2xl w-full p-6 sm:p-8 relative overflow-hidden max-h-[92vh] overflow-y-auto">
-                <div class="flex items-start justify-between gap-4 mb-5">
-                    <div>
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 text-[10px] font-black uppercase tracking-widest mb-2">
-                            ⚡ 1-Link KI-Produkt-Pipeline (Vollautomatisch)
-                        </span>
-                        <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white">Neues Produkt per Knopfdruck anlegen</h2>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Gib einfach nur den <strong>Link zum Rohling-Produkt</strong> an. Alle leeren Felder (Name, Maße, EK/VK, 3D-Animation, Overlay, Maßblatt-Bild &amp; Gravurzone) werden logisch von der KI errechnet.
-                        </p>
+                <div class="flex items-center justify-between gap-4 mb-5">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <h2 class="text-xl sm:text-2xl font-serif font-bold text-gray-900 dark:text-white truncate">Produkt-Entwurf aus Rohling-Link</h2>
+                        <span class="inline-flex items-center justify-center w-5 h-5 rounded-full border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-black text-[10px] shrink-0 cursor-help"
+                              title="Liest Titel, Maße, Gewicht, Material, Lieferant und Stück-EK aus der Händler-Seite aus, legt das Produkt sicher als Entwurf (Bestand 0, ohne Fremdfotos oder ungeprüfte Laserwerte) an und erstellt die Fertigstellungs-Checkliste auf dem Dashboard.">!</span>
                     </div>
-                    <button type="button" wire:click="closeQuickAiModal" class="p-2 rounded-xl text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <button type="button" wire:click="closeQuickAiModal" class="p-2 rounded-xl text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
 
-                {{-- 1. EINZIGES PFLICHTFELD: ROHLING-KAUFLINK --}}
-                <div class="mb-5 p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-500/30">
-                    <div class="flex items-center justify-between gap-2 mb-1.5">
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-emerald-800 dark:text-emerald-300">
-                            1. Link zum Rohling-Produkt (Temu / Amazon / Großhandel) * <span class="text-emerald-600 dark:text-emerald-400 font-bold">(Einziges Pflichtfeld)</span>
+                {{-- 1. PFLICHTFELD: ROHLING-KAUFLINK --}}
+                <div class="mb-5 p-4 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <label class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-700 dark:text-gray-300">
+                            <span>Rohling-Kauflink *</span>
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-black text-[9px] cursor-help"
+                                  title="B2B-Produktlink (z. B. Glücksfieber, Friedrich Binder FBM, Silberketten-Store, PrintEquipment). Leere Felder unten werden automatisch aus der Produktseite abgeleitet.">!</span>
                         </label>
-                        <button type="button" wire:click="analyzeQuickAiUrl" class="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1">
-                            <span>✨ Werte vorab in Felder laden</span>
+                        <button type="button"
+                                wire:click="analyzeQuickAiUrl"
+                                wire:loading.attr="disabled"
+                                wire:target="analyzeQuickAiUrl"
+                                class="px-3 py-1 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)] text-[10px] font-black uppercase tracking-wider text-gray-800 dark:text-white transition-colors cursor-pointer">
+                            <span wire:loading.remove wire:target="analyzeQuickAiUrl">Aus Link laden</span>
+                            <span wire:loading wire:target="analyzeQuickAiUrl">Prüfe Link...</span>
                         </button>
                     </div>
-                    <input type="url" wire:model="quickAiReorderUrl" placeholder="https://www.temu.com/de/... oder Händler-Link hier einfügen" class="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-950 border border-emerald-300 dark:border-emerald-500/40 text-xs font-mono text-gray-900 dark:text-white outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20">
-                    @error('quickAiReorderUrl') <span class="text-[10px] text-red-500 font-bold mt-1 block">{{ $message }}</span> @enderror
-                    <p class="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 mt-1.5">
-                        Die KI analysiert aus dem Link automatisch Originalbild (<code>top_gallery_url</code>), Gebindegröße, Stück-EK, optimale Marge, Geometrie und legt auf der letzten Galerie-Position das technische Maßblatt an.
-                    </p>
+                    <input type="url"
+                           wire:model="quickAiReorderUrl"
+                           placeholder="https://www.gluecksfieber.de/... oder https://shop.fbm-chains.com/..."
+                           class="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-xs font-mono text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
+                    @error('quickAiReorderUrl') <span class="text-[10px] text-red-500 font-bold mt-1.5 block">{{ $message }}</span> @enderror
                 </div>
 
-                {{-- Geometrie-Modus / Schnellvorlagen (Optional) --}}
+                {{-- 2. GEOMETRIE-ARCHETYP --}}
                 <div class="mb-4">
-                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Geometrie-Erkennung / Optionales Produkt-Preset</label>
-                    <div class="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                        <button type="button" wire:click="applyQuickAiPreset('auto')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'auto' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">🤖 KI-Auto</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">Aus Link erkennen</div>
-                        </button>
-                        <button type="button" wire:click="applyQuickAiPreset('goldenes-seelen-herz')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'goldenes-seelen-herz' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">Gold-Herz</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">22x25 mm Schmuck</div>
-                        </button>
-                        <button type="button" wire:click="applyQuickAiPreset('seelen-pfote-hundemarke')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'seelen-pfote-hundemarke' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">Hundemarke</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">40x22 mm Knochen</div>
-                        </button>
-                        <button type="button" wire:click="applyQuickAiPreset('seelen-talisman')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'seelen-talisman' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">Edelstahl-Barren</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">28x50 mm Talisman</div>
-                        </button>
-                        <button type="button" wire:click="applyQuickAiPreset('heavytool-opener')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'heavytool-opener' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">Alu-Öffner</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">150 Stk. (0,29 € EK)</div>
-                        </button>
-                        <button type="button" wire:click="applyQuickAiPreset('bambus-pen')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiPreset === 'bambus-pen' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">Bambus-Stift</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">24 Stk. (0,30 € EK)</div>
-                        </button>
+                    <div class="flex items-center gap-1.5 mb-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Rohling-Geometrie</span>
+                        <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-black text-[9px] cursor-help"
+                              title="Bestimmt Grundform (Flachbett vs. RA3-Rundgravur), Vorder-/Rückseiten-Option und Standardmaße, sofern auf der Händlerseite keine exakten mm-Angaben stehen.">!</span>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                        @foreach([
+                            'auto' => 'Automatisch',
+                            'id-armband-silber-herz' => 'Silber-Armband',
+                            'id-armband-gold-herz' => 'Gold-Armband',
+                            'goldenes-seelen-herz' => 'Gold-Herz',
+                            'seelen-anhaenger' => 'Anhänger',
+                            'seelen-talisman' => 'Schlüsselanhänger',
+                            'seelen-pfote-hundemarke' => 'Tiermarke',
+                            'seelen-kristall' => 'Kristall',
+                            'weizenglas-personalisiert' => 'Glas (RA3)',
+                        ] as $pKey => $pLabel)
+                            <button type="button" wire:click="applyQuickAiPreset('{{ $pKey }}')"
+                                    class="px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer {{ $quickAiPreset === $pKey ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-white dark:text-gray-900' : 'bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)]' }}">
+                                {{ $pLabel }}
+                            </button>
+                        @endforeach
                     </div>
                 </div>
 
-                {{-- NEU: KOLLEKTIONS-BEREICH (3-WELTEN-WEICHE) IM KI-GENERATOR --}}
-                <div class="mb-4">
-                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Kollektions-Bereich im Shop (3-Welten-Weiche)</label>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <button type="button" wire:click="setQuickAiCollectionLine('auto')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiCollectionLine === 'auto' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">🤖 KI-Auto</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">Aus Link &amp; Material erkennen</div>
-                        </button>
-                        <button type="button" wire:click="setQuickAiCollectionLine('manufaktur')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiCollectionLine === 'manufaktur' ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">✨ Manufaktur-Kollektion</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">Edelstahl, Kristall &amp; Alltags-Geschenke</div>
-                        </button>
-                        <button type="button" wire:click="setQuickAiCollectionLine('atelier')"
-                                class="p-2.5 rounded-2xl border text-left transition-all {{ $quickAiCollectionLine === 'atelier' ? 'border-[#C5A059] bg-[#F5F1E8] dark:bg-[#C5A059]/15 text-gray-900 dark:text-[#e2c27d]' : 'border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">👑 Atelier Echtgold &amp; Silber</div>
-                            <div class="text-[9px] opacity-75 mt-0.5">585/333 Echtgold &amp; 925 Silber</div>
-                        </button>
+                {{-- 3. KOLLEKTIONS-LINIE & KONFIGURATOR-MODUS --}}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                    <div>
+                        <span class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-2">Kollektions-Linie</span>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            @foreach([
+                                'auto' => 'Auto',
+                                'manufaktur' => 'Manufaktur',
+                                'atelier' => 'Atelier',
+                            ] as $lineKey => $lineLabel)
+                                <button type="button" wire:click="setQuickAiCollectionLine('{{ $lineKey }}')"
+                                        class="px-2.5 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider text-center transition-all cursor-pointer {{ $quickAiCollectionLine === $lineKey ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-white dark:text-gray-900' : 'bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)]' }}">
+                                    {{ $lineLabel }}
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center gap-1.5 mb-2">
+                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Verkaufs-Modus</span>
+                            <span class="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-black text-[9px] cursor-help"
+                                  title="2D/3D-Studio: Voller Seelenfunke-Konfigurator (Neuling + Studio). Schnell-Felder: Reine Text-/Schriftfelder ohne 3D-Modell. Standard: Fertigprodukt ohne Personalisierung.">!</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5">
+                            @foreach([
+                                'studio' => '2D/3D-Studio',
+                                'custom_fields' => 'Schnell-Felder',
+                                'standard' => 'Standard',
+                            ] as $mKey => $mLabel)
+                                <button type="button" wire:click="setQuickAiPersonalizationMode('{{ $mKey }}')"
+                                        class="px-2.5 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider text-center transition-all cursor-pointer {{ $quickAiPersonalizationMode === $mKey ? 'bg-[var(--theme-color)] border-[var(--theme-color)] text-white dark:text-gray-900' : 'bg-white dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-700 dark:text-gray-300 hover:border-[var(--theme-color)]' }}">
+                                    {{ $mLabel }}
+                                </button>
+                            @endforeach
+                        </div>
                     </div>
                 </div>
 
-                {{-- NEU: PERSONALISIERUNGS- & VERKAUFS-MODUS IM KI-GENERATOR --}}
-                <div class="mb-5 p-4 rounded-2xl bg-gray-50 dark:bg-gray-950/80 border border-gray-200 dark:border-gray-800 space-y-3">
-                    <div class="flex items-center justify-between gap-2">
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-300">
-                            Personalisierungs- &amp; Verkaufs-Modus wählen
-                        </label>
-                        <span class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">100 % verkaufsfertig ohne Fehl-Angaben</span>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <button type="button" wire:click="setQuickAiPersonalizationMode('custom_fields')"
-                                class="p-3 rounded-2xl border text-left transition-all {{ $quickAiPersonalizationMode === 'custom_fields' ? 'border-emerald-500 bg-emerald-50/80 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 ring-1 ring-emerald-500/30' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="flex items-center justify-between gap-1">
-                                <span class="text-[10px] font-black uppercase tracking-wider">⚡ Schnell-Felder</span>
-                                <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[8px] font-black uppercase">Empfohlen</span>
-                            </div>
-                            <div class="text-[10px] opacity-80 mt-1 leading-snug">Schlanke Wunschtext-Felder mit <strong>!</strong>-Info-Tooltip (ohne 3D-Modell)</div>
-                        </button>
-
-                        <button type="button" wire:click="setQuickAiPersonalizationMode('studio')"
-                                class="p-3 rounded-2xl border text-left transition-all {{ $quickAiPersonalizationMode === 'studio' ? 'border-amber-500 bg-amber-50/80 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200 ring-1 ring-amber-500/30' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">🎨 2D/3D-Studio</div>
-                            <div class="text-[10px] opacity-80 mt-1 leading-snug">Interaktiver Live-Konfigurator mit 3D-Modell &amp; Design-Vorlagen</div>
-                        </button>
-
-                        <button type="button" wire:click="setQuickAiPersonalizationMode('standard')"
-                                class="p-3 rounded-2xl border text-left transition-all {{ $quickAiPersonalizationMode === 'standard' ? 'border-stone-500 bg-stone-100 dark:bg-stone-800/80 text-stone-900 dark:text-stone-100 ring-1 ring-stone-500/30' : 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:border-gray-300' }}">
-                            <div class="text-[10px] font-black uppercase tracking-wider">📦 Standard-Artikel</div>
-                            <div class="text-[10px] opacity-80 mt-1 leading-snug">Fertig gelasertes Produkt („Bereit zum Kauf“ ohne Konfigurator)</div>
-                        </button>
-                    </div>
-
-                    @if($quickAiPersonalizationMode === 'custom_fields')
-                        @php
-                            $previewDetectedArchetype = $quickAiPreset !== 'auto' ? $quickAiPreset : 'seelen-talisman';
-                            $previewCustomFields = $this->buildQuickAiCustomFields($previewDetectedArchetype, $quickAiCustomFieldsPreset);
-                        @endphp
-                        <div class="pt-2 border-t border-gray-200/80 dark:border-gray-800 space-y-2.5">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <span class="text-[10px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Eingabefeld-Vorlage (später im Editor frei anpassbar):</span>
-                                <div class="flex flex-wrap gap-1.5">
-                                    @foreach([
-                                        'auto' => '🤖 KI-Passend',
-                                        'single_name' => '1x Wunschname',
-                                        'name_and_font' => 'Wunschname + Schriftart',
-                                        'name_date_symbol' => 'Name + Datum + Symbol',
-                                        'family_names_4' => 'Bis zu 4 Namen',
-                                        'pet_tag' => 'Hundemarke',
-                                        'front_back_engraving' => 'Vorder- & Rückseite (+5 €)',
-                                    ] as $cfKey => $cfLabel)
-                                        <button type="button" wire:click="setQuickAiCustomFieldsPreset('{{ $cfKey }}')"
-                                                class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all {{ $quickAiCustomFieldsPreset === $cfKey ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-emerald-400' }}">
-                                            {{ $cfLabel }}
-                                        </button>
-                                    @endforeach
-                                </div>
-                            </div>
-
-                            <div class="flex flex-wrap items-center gap-1.5">
-                                @foreach($previewCustomFields as $pcf)
-                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-gray-900 border border-emerald-200 dark:border-emerald-500/30 text-[10px] text-gray-700 dark:text-gray-200" title="{{ $pcf['info_text'] ?? '' }}">
-                                        <strong class="text-emerald-700 dark:text-emerald-400">{{ $pcf['label'] }}{{ !empty($pcf['required']) ? ' *' : '' }}</strong>
-                                        @if(($pcf['type'] ?? 'text') === 'font')
-                                            <span class="text-[9px] text-indigo-600 dark:text-indigo-400 font-bold">(22 Konfigurator-Schriften)</span>
-                                        @else
-                                            <span class="text-[9px] text-gray-400">(max. {{ $pcf['max_length'] ?? 30 }} Z.)</span>
-                                        @endif
-                                        @if(!empty($pcf['info_text']))
-                                            <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 font-black text-[9px]" title="{{ $pcf['info_text'] }}">!</span>
-                                        @endif
-                                    </span>
+                @if($quickAiPersonalizationMode === 'custom_fields')
+                    @php
+                        $previewDetectedArchetype = $quickAiPreset !== 'auto' ? $quickAiPreset : 'seelen-talisman';
+                        $previewCustomFields = $this->buildQuickAiCustomFields($previewDetectedArchetype, $quickAiCustomFieldsPreset);
+                    @endphp
+                    <div class="mb-5 p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 space-y-2.5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Feld-Vorlage</span>
+                            <div class="flex flex-wrap gap-1.5">
+                                @foreach([
+                                    'auto' => 'Passend',
+                                    'single_name' => '1x Name',
+                                    'name_and_font' => 'Name + Schrift',
+                                    'name_date_symbol' => 'Name + Datum + Symbol',
+                                    'family_names_4' => '4 Namen',
+                                    'pet_tag' => 'Tiermarke',
+                                    'front_back_engraving' => 'Vorder- & Rückseite',
+                                ] as $cfKey => $cfLabel)
+                                    <button type="button" wire:click="setQuickAiCustomFieldsPreset('{{ $cfKey }}')"
+                                            class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all cursor-pointer {{ $quickAiCustomFieldsPreset === $cfKey ? 'bg-[var(--theme-color)] text-white dark:text-gray-900 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]' }}">
+                                        {{ $cfLabel }}
+                                    </button>
                                 @endforeach
                             </div>
                         </div>
-                    @endif
-                </div>
 
-                {{-- 2. OPTIONALE FELDER (Werden bei Leerfeld automatisch von der KI berechnet) --}}
-                <div class="mb-2 flex items-center justify-between">
-                    <span class="text-[10px] font-black uppercase tracking-widest text-gray-400 dark:text-gray-500">
-                        2. Optionale Angaben (Wenn leer, werden alle Werte logisch von der KI errechnet)
-                    </span>
-                </div>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            @foreach($previewCustomFields as $pcf)
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[10px] text-gray-700 dark:text-gray-200" title="{{ $pcf['info_text'] ?? '' }}">
+                                    <strong class="text-gray-900 dark:text-white">{{ $pcf['label'] }}{{ !empty($pcf['required']) ? ' *' : '' }}</strong>
+                                    @if(!empty($pcf['info_text']))
+                                        <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 font-black text-[9px]" title="{{ $pcf['info_text'] }}">!</span>
+                                    @endif
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                {{-- 4. STAMMDATEN & LIEFERANT --}}
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Produktname <span class="font-normal opacity-70">(Optional)</span></label>
-                        <input type="text" wire:model="quickAiName" placeholder="Automatisch durch KI aus Link..." class="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Produktname</label>
+                        <input type="text" wire:model="quickAiName" placeholder="Automatisch aus Link" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Artikelnummer / SKU <span class="font-normal opacity-70">(Optional)</span></label>
-                        <input type="text" wire:model="quickAiSku" placeholder="Auto-SKU (z.B. MSF-EDELSTAHL-PFOTE-001)" class="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-emerald-500">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">SKU</label>
+                        <input type="text" wire:model="quickAiSku" placeholder="MSF-..." class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Lieferant</label>
+                        <select wire:model="quickAiSupplierId" class="w-full px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
+                            <option value="">Automatisch erkennen</option>
+                            @foreach($this->suppliers as $sup)
+                                <option value="{{ $sup->id }}">{{ $sup->name }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">VK Brutto (€) <span class="font-normal opacity-70">(Opt.)</span></label>
-                        <input type="text" wire:model="quickAiPrice" placeholder="KI (~90% Marge)" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">VK Brutto (€)</label>
+                        <input type="text" wire:model="quickAiPrice" placeholder="Auto" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Stück-EK (€) <span class="font-normal opacity-70">(Opt.)</span></label>
-                        <input type="text" wire:model="quickAiPurchasePrice" placeholder="KI aus Link" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-mono font-bold text-gray-900 dark:text-white outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Stück-EK (€)</label>
+                        <input type="text" wire:model="quickAiPurchasePrice" placeholder="Auto" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Bestand <span class="font-normal opacity-70">(Opt.)</span></label>
-                        <input type="number" wire:model="quickAiQuantity" placeholder="0 (Startbestand)" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-bold text-gray-900 dark:text-white outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Bestand</label>
+                        <input type="number" min="0" wire:model="quickAiQuantity" placeholder="0" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Gewicht (g) <span class="font-normal opacity-70">(Opt.)</span></label>
-                        <input type="number" wire:model="quickAiWeight" placeholder="Auto (g)" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm font-bold text-gray-900 dark:text-white outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Gewicht (g)</label>
+                        <input type="number" min="1" wire:model="quickAiWeight" placeholder="Auto" class="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Breite (mm) <span class="font-normal opacity-70">(Opt.)</span></label>
-                        <input type="number" wire:model="quickAiWidth" placeholder="Auto (mm)" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Breite (mm)</label>
+                        <input type="number" min="1" wire:model="quickAiWidth" placeholder="Auto" class="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Höhe (mm) <span class="font-normal opacity-70">(Opt.)</span></label>
-                        <input type="number" wire:model="quickAiHeight" placeholder="Auto (mm)" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Höhe (mm)</label>
+                        <input type="number" min="1" wire:model="quickAiHeight" placeholder="Auto" class="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Tiefe (mm) <span class="font-normal opacity-70">(Opt.)</span></label>
-                        <input type="number" step="0.1" wire:model="quickAiLength" placeholder="Auto (mm)" class="w-full px-3.5 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">Tiefe (mm)</label>
+                        <input type="number" step="0.1" min="0.5" wire:model="quickAiLength" placeholder="Auto" class="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 mb-1.5" title="Lieferanten-Vorlaufzeit Min. bei Bestand 0">Zulauf Min (T.)</label>
-                        <input type="number" min="1" max="60" wire:model="quickAiLeadDaysMin" placeholder="Auto (Tage)" class="w-full px-3.5 py-2 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-500/30 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5" title="Lieferanten-Vorlaufzeit Min. in Werktagen bei Bestand 0">Zulauf Min</label>
+                        <input type="number" min="1" max="60" wire:model="quickAiLeadDaysMin" placeholder="Tage" class="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                     <div>
-                        <label class="block text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400 mb-1.5" title="Lieferanten-Vorlaufzeit Max. bei Bestand 0">Zulauf Max (T.)</label>
-                        <input type="number" min="1" max="60" wire:model="quickAiLeadDaysMax" placeholder="Auto (Tage)" class="w-full px-3.5 py-2 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-500/30 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5" title="Lieferanten-Vorlaufzeit Max. in Werktagen bei Bestand 0">Zulauf Max</label>
+                        <input type="number" min="1" max="60" wire:model="quickAiLeadDaysMax" placeholder="Tage" class="w-full px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-xs font-mono font-bold text-gray-900 dark:text-white outline-none focus:border-[var(--theme-color)]">
                     </div>
                 </div>
 
                 <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-                    <button type="button" wire:click="closeQuickAiModal" class="px-5 py-3 rounded-2xl border border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <button type="button" wire:click="closeQuickAiModal" class="px-5 py-3 rounded-2xl border border-gray-200 dark:border-gray-800 text-[10px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer">
                         Abbrechen
                     </button>
-                    <button type="button" wire:click="createQuickAiProduct" class="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center gap-2 transition-all">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-                        <span>Produkt sofort verkaufsfertig anlegen</span>
+                    <button type="button"
+                            wire:click="createQuickAiProduct"
+                            wire:loading.attr="disabled"
+                            wire:target="createQuickAiProduct"
+                            class="px-6 py-3 rounded-2xl bg-[var(--theme-color)] border border-[var(--theme-color-50)] text-white dark:text-gray-900 text-[10px] font-black uppercase tracking-widest hover:brightness-105 flex items-center gap-2 transition-all cursor-pointer">
+                        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                        <span wire:loading.remove wire:target="createQuickAiProduct">Entwurf anlegen</span>
+                        <span wire:loading wire:target="createQuickAiProduct">Wird angelegt...</span>
                     </button>
                 </div>
             </div>

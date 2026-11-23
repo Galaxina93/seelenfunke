@@ -964,10 +964,12 @@ class FunkiraTicketRouter
                     ? ("\n\nTicket-Verlauf ({$ticket->ticket_number}):\n" . implode("\n", $recentMessages))
                     : '';
 
+                $hardeningMandate = "\n\nAutopilot-Mandat (Lösen + Härten in einem Atemzug): Behebe nicht nur das akute Problem, sondern härte den betroffenen Code-Pfad inkl. Nachbarstellen dauerhaft gegen Wiederauftreten ab und sichere ihn per Regressions-Test.";
+
                 $enqueued = app(\App\Services\System\AntigravityDirectInboxService::class)->enqueueMessage([
-                    'channel' => 'leitung',
+                    'channel' => 'tickets',
                     'title' => "[{$ticket->ticket_number}] " . $ticket->title,
-                    'body' => $primaryBody . $contextTail . ($reasonNote !== '' ? "\n\nHinweis: {$reasonNote}" : ''),
+                    'body' => $primaryBody . $contextTail . ($reasonNote !== '' ? "\n\nHinweis: {$reasonNote}" : '') . $hardeningMandate,
                     'execution_mode' => 'direct',
                     'source' => $presence['channel'] ?? 'web_portal',
                     'skip_universe_mirror' => true,
@@ -983,10 +985,13 @@ class FunkiraTicketRouter
         $payload = array_merge($existingPayload, [
             'type' => 'antigravity_active',
             'ag_item_id' => $agItemId !== '' ? $agItemId : ($existingPayload['ag_item_id'] ?? null),
+            'ag_channel' => 'tickets',
             'ag_history_ids' => array_values(array_unique($agHistoryIds)),
             'handoff_at' => now()->toIso8601String(),
             'notebook_online' => $notebookOnline,
             'note' => $reasonNote,
+            'queue_state' => 'queued',
+            'auto_dispatch_attempts' => 0,
         ]);
 
         AiUniverseTicketMessage::create([

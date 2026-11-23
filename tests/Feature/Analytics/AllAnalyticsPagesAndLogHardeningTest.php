@@ -403,4 +403,138 @@ class AllAnalyticsPagesAndLogHardeningTest extends TestCase
         $diag = SystemErrorLogger::diagnose('Undefined array key "appconnect_time"', 'ErrorException', 'Standard input code');
         $this->assertSame('cli_stdin_eval_error', $diag['category']);
     }
+
+    public function test_cli_eval_stack_frames_in_connection_fatal_errors_are_ignored_across_logger_and_archive_service(): void
+    {
+        $fatalMsg = "Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'slug' in 'field list' in /var/www/html/vendor/laravel/framework/src/Illuminate/Database/Connection.php:442\n"
+            . "Stack trace:\n"
+            . "#0 /var/www/html/vendor/laravel/framework/src/Illuminate/Database/Connection.php(442): PDO->prepare('select `id`, `n...')\n"
+            . "#9 Command line code(5): Illuminate\\Database\\Eloquent\\Model::all(Array)";
+
+        $diag = SystemErrorLogger::diagnose(
+            $fatalMsg,
+            \Symfony\Component\ErrorHandler\Error\FatalError::class,
+            '/var/www/html/vendor/laravel/framework/src/Illuminate/Database/Connection.php'
+        );
+        $this->assertSame('cli_stdin_eval_error', $diag['category']);
+
+        $traceOnlyDiag = SystemErrorLogger::diagnose(
+            "SQLSTATE[42S22]: Column not found: 1054 Unknown column 'slug' in 'field list'",
+            \Illuminate\Database\QueryException::class,
+            '/var/www/html/vendor/laravel/framework/src/Illuminate/Database/Connection.php',
+            "#7 /var/www/html/vendor/laravel/framework/src/Illuminate/Database/Eloquent/Model.php(864): Illuminate\\Database\\Eloquent\\Builder->get(Array)\n#8 Standard input code:5"
+        );
+        $this->assertSame('cli_stdin_eval_error', $traceOnlyDiag['category']);
+
+        // recordFatalShutdownError darf bei Command line code(5) weder SystemLog noch Ticket erzeugen
+        $beforeLogs = \App\Models\System\SystemLog::count();
+        $this->assertNull(SystemErrorLogger::recordFatalShutdownError([
+            'type' => E_ERROR,
+            'message' => $fatalMsg,
+            'file' => '/var/www/html/vendor/laravel/framework/src/Illuminate/Database/Connection.php',
+            'line' => 864,
+        ]));
+        $this->assertSame($beforeLogs, \App\Models\System\SystemLog::count());
+
+        // LogArchiveService darf mehrzeilige CLI-Eval-Stacktraces in laravel.log nicht als App-Fehler einsaugen
+        $tmpLog = tempnam(sys_get_temp_dir(), 'sf_cli_eval_');
+        $this->assertNotFalse($tmpLog);
+        try {
+            file_put_contents(
+                $tmpLog,
+                "[2026-11-23 23:23:14] local.ERROR: Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'slug' in 'field list' in /var/www/html/vendor/laravel/framework/src/Illuminate/Database/Connection.php:442\n"
+                . "Stack trace:\n"
+                . "#0 /var/www/html/vendor/laravel/framework/src/Illuminate/Database/Connection.php(442): PDO->prepare('select `id`, `n...')\n"
+                . "#9 Command line code(5): Illuminate\\Database\\Eloquent\\Model::all(Array)\n"
+            );
+            $this->assertFalse(LogArchiveService::fileHasErrorLines($tmpLog));
+            $this->assertSame(0, LogArchiveService::ingestSingleLogFileIntoSentinel($tmpLog, 'laravel.log'));
+
+            // Echte Anwendungs-Fehler über mehrere Zeilen hinweg werden weiterhin erkannt
+            file_put_contents(
+                $tmpLog,
+                "[2026-11-23 23:24:00] local.ERROR: Division by zero in /var/www/html/app/Services/PriceCalcService.php:42\n"
+                . "Stack trace:\n"
+                . "#0 /var/www/html/app/Http/Controllers/CheckoutController.php(88): App\\Services\\PriceCalcService->calc()\n"
+            );
+            $this->assertTrue(LogArchiveService::fileHasErrorLines($tmpLog));
+            $this->assertSame(1, LogArchiveService::ingestSingleLogFileIntoSentinel($tmpLog, 'laravel.log'));
+        } finally {
+            @unlink($tmpLog);
+        }
+
+        // SF-0147 Nachbarpfad: QueryException mit Standard input code im Previous-File / Trace darf weder SystemLog noch Ticket ausloesen
+        $pdoEx = new \PDOException("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'ticket_code' in 'field list'");
+        $queryEx = new \Illuminate\Database\QueryException(
+            'mysql',
+            'select `ticket_code` from `ai_universe_tickets`',
+            [],
+            $pdoEx
+        );
+        $wrappedInStdin = new \RuntimeException(
+            "QueryException in Standard input code:5 - " . $queryEx->getMessage(),
+            0,
+            $queryEx
+        );
+
+        $beforeStdinLogs = \App\Models\System\SystemLog::count();
+        $beforeTickets = \App\Models\Ai\AiUniverseTicket::count();
+        $this->assertNull(SystemErrorLogger::recordException($wrappedInStdin));
+        $this->assertSame($beforeStdinLogs, \App\Models\System\SystemLog::count());
+        $this->assertSame($beforeTickets, \App\Models\Ai\AiUniverseTicket::count());
+
+        $healerResult = \App\Services\System\ZeroTokenSelfHealer::handleSystemError(
+            $queryEx->getMessage(),
+            \Illuminate\Database\QueryException::class,
+            'Standard input code',
+            5
+        );
+        $this->assertSame('ignored', $healerResult['action']);
+
+        // Nachbarhärtung 1: Sehr tiefe Log-Traces (>40 Zeilen Lookahead) & cron-*.log mit CLI-Eval werden ignoriert
+        $deepLog = tempnam(sys_get_temp_dir(), 'sf_deep_cli_eval_');
+        $this->assertNotFalse($deepLog);
+        try {
+            $deepFrames = '';
+            for ($f = 0; $f < 55; $f++) {
+                $deepFrames .= "#{$f} /var/www/html/vendor/laravel/framework/src/Illuminate/Database/Query/Builder.php(" . (100 + $f) . "): Illuminate\\Database\\Connection->select()\n";
+            }
+            file_put_contents(
+                $deepLog,
+                "[2026-11-23 23:28:17] local.ERROR: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'ticket_code' in 'field list'\n"
+                . "Stack trace:\n"
+                . $deepFrames
+                . "#55 Standard input code(5): Illuminate\\Database\\Query\\Builder->get()\n"
+            );
+            $this->assertFalse(LogArchiveService::fileHasErrorLines($deepLog));
+            $this->assertSame(0, LogArchiveService::ingestSingleLogFileIntoSentinel($deepLog, 'laravel.log'));
+        } finally {
+            @unlink($deepLog);
+        }
+
+        $this->assertNull(LogArchiveService::extractLogErrorLine(
+            'cron-queue.log',
+            'Uncaught PDOException: Unknown column ticket_code in Command line code on line 5'
+        ));
+
+        // Nachbarhärtung 2: recordCommandFailure & recordCrossPlatformEvent ignorieren CLI-Eval-Ausgaben ohne SystemLog
+        $beforeNeighborLogs = \App\Models\System\SystemLog::count();
+        $this->assertNull(SystemErrorLogger::recordCommandFailure(
+            'php artisan test-cli',
+            1,
+            "SQLSTATE[42S22] Unknown column 'ticket_code' in Standard input code:5"
+        ));
+        $this->assertNull(SystemErrorLogger::recordCrossPlatformEvent([
+            'platform' => 'portal',
+            'component' => 'cli_probe',
+            'message' => "SQLSTATE[42S22]: Column not found: 1054 Unknown column 'ticket_code'",
+            'stacktrace' => "#0 Connection.php(864)\n#12 Standard input code(5): Builder->get()",
+        ]));
+        $this->assertSame($beforeNeighborLogs, \App\Models\System\SystemLog::count());
+
+        // Nachbarhärtung 3: buildExceptionPayload erkennt Standard-input-Ursprung in Previous-Kette auch bei tiefem Trace
+        $deepInner = new \PDOException("SQLSTATE[42S22]: Unknown column 'ticket_code' in Standard input code:5");
+        $outerPayload = SystemErrorLogger::buildExceptionPayload(new \RuntimeException('Wrapped DB error', 0, $deepInner));
+        $this->assertSame('cli_stdin_eval_error', $outerPayload['diagnosis']['category'] ?? null);
+    }
 }

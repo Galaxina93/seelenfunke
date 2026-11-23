@@ -1,5 +1,5 @@
 @php
-    if (!filter_var(shop_setting('quote_calculator_enabled', true), FILTER_VALIDATE_BOOLEAN)) {
+    if (!\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()) {
         abort(404);
     }
 

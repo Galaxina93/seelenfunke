@@ -1473,6 +1473,10 @@ class CartService
         $missingForFreeShipping = $shippingResult['missing'];
 
         $expressGross = 0;
+        if ($cart->is_express && !\App\Services\Order\ShopCapacityService::isExpressAvailable()) {
+            $cart->updateQuietly(['is_express' => false]);
+            $cart->is_express = false;
+        }
         if ($cart->is_express && $this->shippingService->needsShipping($cart->items)) {
             $expressPercent = (float) shop_setting('express_surcharge_percent', 20.0);
             $expressMin = (int) shop_setting('express_surcharge_min', 500);

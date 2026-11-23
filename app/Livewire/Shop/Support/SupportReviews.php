@@ -145,8 +145,12 @@ class SupportReviews extends Component
         $areaKpis = [];
         $openLowRatingCount = 0;
 
+        $activeAreas = \App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()
+            ? SupportExperienceReview::AREAS
+            : array_values(array_filter(SupportExperienceReview::AREAS, fn ($a) => $a !== SupportExperienceReview::AREA_CALCULATOR));
+
         if (Schema::hasTable('support_experience_reviews')) {
-            foreach (SupportExperienceReview::AREAS as $area) {
+            foreach ($activeAreas as $area) {
                 $count = SupportExperienceReview::where('area', $area)->count();
                 $avg = $count > 0
                     ? round((float) SupportExperienceReview::where('area', $area)->avg('rating'), 1)
@@ -162,7 +166,7 @@ class SupportReviews extends Component
 
             $openLowRatingCount = SupportExperienceReview::where('status', SupportExperienceReview::STATUS_OPEN)->count();
         } else {
-            foreach (SupportExperienceReview::AREAS as $area) {
+            foreach ($activeAreas as $area) {
                 $areaKpis[$area] = [
                     'area' => $area,
                     'label' => SupportExperienceReview::areaLabel($area),

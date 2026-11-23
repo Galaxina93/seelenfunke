@@ -8,10 +8,10 @@
                     <x-heroicon-o-chart-pie class="w-6 h-6" />
                 </span>
                 <h1 class="text-2xl font-serif font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
-                    Produkt-, Konfigurator- & Rechner-Analyse
+                    {{ \App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled() ? 'Produkt-, Konfigurator- & Rechner-Analyse' : 'Produkt- & Konfigurator-Analyse' }}
                     <x-heroicon-o-information-circle
                         class="w-5 h-5 text-gray-400 hover:text-[var(--theme-color)] cursor-help transition-colors"
-                        title="Auswertung des Kundenverhaltens im 2D/3D-Konfigurator, Funnel-Messung des Mengenrechners (/calculator) sowie Netto-Margen- und LUCID-Verpackungskalkulation." />
+                        title="{{ \App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled() ? 'Auswertung des Kundenverhaltens im 2D/3D-Konfigurator, Funnel-Messung des Mengenrechners (/calculator) sowie Netto-Margen- und LUCID-Verpackungskalkulation.' : 'Auswertung des Kundenverhaltens im 2D/3D-Konfigurator sowie Netto-Margen- und LUCID-Verpackungskalkulation.' }}" />
                 </h1>
             </div>
 
@@ -43,17 +43,19 @@
                 @endif
             </button>
 
-            <button type="button"
-                    wire:click="setTab('calculator')"
-                    class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap {{ $activeTab === 'calculator' ? 'bg-[var(--theme-color)] text-white shadow-md shadow-[var(--theme-color-30)]' : 'bg-gray-100 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700' }}">
-                <x-heroicon-o-calculator class="w-4 h-4" />
-                <span>Mengenrechner (/calculator)</span>
-                @if(($calculatorFunnel['views'] ?? 0) > 0)
-                    <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px] {{ $activeTab === 'calculator' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }}">
-                        {{ $calculatorFunnel['views'] }}
-                    </span>
-                @endif
-            </button>
+            @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
+                <button type="button"
+                        wire:click="setTab('calculator')"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap {{ $activeTab === 'calculator' ? 'bg-[var(--theme-color)] text-white shadow-md shadow-[var(--theme-color-30)]' : 'bg-gray-100 dark:bg-gray-800/80 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700' }}">
+                    <x-heroicon-o-calculator class="w-4 h-4" />
+                    <span>Mengenrechner (/calculator)</span>
+                    @if(($calculatorFunnel['views'] ?? 0) > 0)
+                        <span class="ml-1 px-1.5 py-0.5 rounded-md text-[10px] {{ $activeTab === 'calculator' ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300' }}">
+                            {{ $calculatorFunnel['views'] }}
+                        </span>
+                    @endif
+                </button>
+            @endif
 
             <button type="button"
                     wire:click="setTab('economics')"

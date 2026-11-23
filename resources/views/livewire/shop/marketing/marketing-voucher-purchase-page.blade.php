@@ -136,7 +136,7 @@
                             <svg class="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5a2 2 0 10-2 2h2zm-2 4h12M5 15h14" /></svg>
                             <div>
                                 <strong class="text-gray-800">Postalischer Versand (+ {{ number_format($this->shippingCost, 2, ',', '.') }} €):</strong>
-                                <p class="mt-0.5">Wir gravieren deinen Gutschein per Laser auf eine edle {{ $isBlackCard ? 'schwarze' : 'goldene' }} Aluminiumkarte und versenden sie im schwarzen Umschlag mit goldenen Linien und goldenem Wachssiegel-Aufkleber an deine Lieferadresse.</p>
+                                <p class="mt-0.5">Wir gravieren deinen Gutschein per Laser auf eine edle {{ $isBlackCard ? 'schwarze' : 'goldene' }} Aluminiumkarte und versenden sie im schwarzen Umschlag mit goldenen Linien und goldenem Siegel-Aufkleber an deine Lieferadresse.</p>
                             </div>
                         @endif
                     </div>

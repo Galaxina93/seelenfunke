@@ -255,7 +255,7 @@ class MarketingBlogSeeder extends Seeder
                     <p>Der spiegelpolierte <a href="/produkt/seelen-talisman"><strong>Seelen-Talisman</strong></a> (28 × 50 mm) und der schwarz eloxierte <a href="/produkt/seelen-anhaenger"><strong>Seelenanhänger in Herzform</strong></a> sind unverwüstliche Alltagsbegleiter für Partner, Papa, Großeltern oder zum Führerschein.</p>
 
                     <h3>5. Für Geburtstage, Vatertag &amp; Vereine: Der Feierabend-Funke (0,5 l Kristall-Weizenglas)</h3>
-                    <p>Das personalisierte <a href="/produkt/weizenglas-personalisiert"><strong>Weizenglas „Der Feierabend-Funke“</strong></a> mit präziser 360°-Lasergravur sorgt bei jedem Anstoßen für Freude. Für Vereine und Firmen lassen sich größere Stückzahlen direkt in unserem <a href="/calculator"><strong>B2B-Projekt-Kalkulator</strong></a> berechnen.</p>
+                    <p>Das personalisierte <a href="/produkt/weizenglas-personalisiert"><strong>Weizenglas „Der Feierabend-Funke“</strong></a> mit präziser 360°-Lasergravur sorgt bei jedem Anstoßen für Freude und lässt sich direkt im 2D/3D-Konfigurator mit Namen oder Wunschmotiv gestalten.</p>
                 ',
                 'featured_image' => 'marketing/blog/personalisierte-geschenke-vergleich.webp',
                 'status' => 'published',

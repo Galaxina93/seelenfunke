@@ -543,4 +543,29 @@ class ManagementEMailsTest extends TestCase
 
         Mail::assertNotSent(\App\Mail\CrmOutgoingMailToCustomer::class);
     }
+
+    public function test_fetch_mails_command_uses_valid_imap_query_methods_without_leave_seen()
+    {
+        $source = file_get_contents(app_path('Console/Commands/FetchMailsCommand.php'));
+        $this->assertNotFalse($source);
+        $this->assertStringNotContainsString('leaveSeen', $source);
+        $this->assertStringNotContainsString('whereLeaveSeen', $source);
+        $this->assertStringContainsString('->setFetchBody(false)->leaveUnread()->get()', $source);
+
+        $client = \Webklex\IMAP\Facades\Client::make([
+            'host' => 'imap.example.com',
+            'port' => 993,
+            'encryption' => 'ssl',
+            'validate_cert' => true,
+            'username' => 'test@example.com',
+            'password' => 'secret',
+            'protocol' => 'imap',
+        ]);
+
+        $query = new \Webklex\PHPIMAP\Query\WhereQuery($client);
+        $configured = $query->since(now()->subDays(7))->setFetchBody(false)->leaveUnread();
+
+        $this->assertFalse($configured->getFetchBody());
+        $this->assertSame(\Webklex\PHPIMAP\IMAP::FT_PEEK, $configured->getFetchOptions());
+    }
 }

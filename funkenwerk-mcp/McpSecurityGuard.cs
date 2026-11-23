@@ -3063,6 +3063,7 @@ unset($rawPayload);
         public static readonly IReadOnlyList<string> FixedAgChannels = new[]
         {
             "leitung",
+            "tickets",
             "shop",
             "android",
             "minipc",
@@ -3075,6 +3076,7 @@ unset($rawPayload);
             return norm switch
             {
                 "leitung" => "leitung",
+                "tickets" or "ticket" => "tickets",
                 "shop" => "shop",
                 "android" => "android",
                 "minipc" or "mini-pc" => "minipc",
@@ -3088,10 +3090,11 @@ unset($rawPayload);
         {
             string clean = (rawChannel ?? "").Trim().ToLowerInvariant();
             if (clean == "mini-pc") clean = "minipc";
+            if (clean == "ticket") clean = "tickets";
             if (!FixedAgChannels.Contains(clean, StringComparer.Ordinal))
             {
                 throw new ArgumentException(
-                    $"Ungültiger Abteilungs-Kanal '{ScrubSecrets(rawChannel)}'. Erlaubte feste Kanäle: leitung, shop, android, minipc, buchhaltung.");
+                    $"Ungültiger Abteilungs-Kanal '{ScrubSecrets(rawChannel)}'. Erlaubte feste Kanäle: leitung, tickets, shop, android, minipc, buchhaltung.");
             }
             return clean;
         }
@@ -3100,6 +3103,7 @@ unset($rawPayload);
         {
             return NormalizeAgChannel(channel) switch
             {
+                "tickets" => "[SF] Ticket-Autopilot",
                 "shop" => "Shop & Konfigurator",
                 "android" => "Android & Funkenwerk",
                 "minipc" => "Mini-PC & Laser",
@@ -3113,6 +3117,7 @@ unset($rawPayload);
         {
             return NormalizeAgChannel(channel) switch
             {
+                "tickets" => "Serielle Work-Until-Zero Ticket-Queue: Löse nicht nur das akute Symptom, sondern härte den betroffenen Code-Pfad inkl. Nachbarstellen und Regressions-Test in einem Atemzug dauerhaft gegen Wiederauftreten ab, und schließe zwingend per --ag-inbox-complete ab.",
                 "shop" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): app/, resources/, routes/, database/ (ohne AccountingSeeder.php), tests/.",
                 "android" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): android-app/ + Mirror C:\\Users\\konta\\AndroidStudioProjects\\seelenfunke-android (sowie ggf. funkenwerk/).",
                 "minipc" => "Dateibereichs-Fokus (Dateikonflikt-Schutz): funkenwerk-os-linux/ & Manufaktur Mini-PC (192.168.188.151).",
@@ -3120,6 +3125,8 @@ unset($rawPayload);
                 _ => null
             };
         }
+
+        public static bool IsUnitTestVaultActive => !string.IsNullOrWhiteSpace(_vaultDirOverride);
 
         public static string FunkenwerkSharedAppDataDir => !string.IsNullOrWhiteSpace(_vaultDirOverride)
             ? _vaultDirOverride!
@@ -3516,6 +3523,12 @@ unset($rawPayload);
                 string cleanPath = savedAttachmentPath.Replace('\0', ' ').Trim();
                 sb.AppendLine();
                 sb.AppendLine($"Angehängtes Bild lokal gespeichert unter: {cleanPath} (bitte per read_file ansehen)");
+            }
+
+            if (isDirect)
+            {
+                sb.AppendLine();
+                sb.AppendLine("Qualitäts- & Härtungs-Pflicht (in einem Atemzug): Behebe nicht nur das akute Symptom, sondern härte den betroffenen Code-Pfad inkl. Nachbarstellen dauerhaft gegen Wiederauftreten ab und sichere ihn per Regressions-Test.");
             }
 
             sb.AppendLine();

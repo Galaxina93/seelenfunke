@@ -696,8 +696,8 @@
             $formattedPercent = number_format($expressPercent, 0, ',', '.');
             $formattedMin = number_format($expressMin / 100, 2, ',', '.');
 
-            $shopCapacityLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
-            $expressDisabled = $shopCapacityLevel >= 2;
+            $shopCapacityLevel = \App\Services\Order\ShopCapacityService::getCurrentLevel();
+            $expressDisabled = !\App\Services\Order\ShopCapacityService::isExpressAvailable();
         @endphp
         <div class="pt-4 border-t relative w-full transition-all duration-300 animate-fade-in-up {{ $isDark ? 'border-gray-800' : 'border-slate-100' }}">
             <label class="block border rounded-xl p-3.5 transition-all group relative overflow-hidden {{ $expressDisabled ? ($isDark ? 'bg-gray-900 border-gray-800 opacity-70 cursor-not-allowed' : 'bg-gray-50 border-gray-200 opacity-70 cursor-not-allowed') : ($is_express ? ($isDark ? 'bg-amber-900/20 border-amber-500/50 ring-1 ring-amber-500/50 cursor-pointer' : 'bg-amber-50 border-amber-300 ring-1 ring-amber-300 cursor-pointer') : ($isDark ? 'bg-gray-900 border-gray-800 hover:border-primary/50 cursor-pointer' : 'bg-white border-gray-200 hover:border-primary/50 shadow-2xs hover:shadow-sm cursor-pointer')) }}">

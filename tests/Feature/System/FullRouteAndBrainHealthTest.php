@@ -445,9 +445,15 @@ class FullRouteAndBrainHealthTest extends TestCase
             $this->assertSame(0, $greenReport['overlay']['error_core_count']);
 
             $exitCode = Artisan::call('system:check-routes', ['--json' => true]);
-            $cliJson = json_decode(trim(Artisan::output()), true);
+            $rawCli = trim(Artisan::output());
+            $cliJson = json_decode($rawCli, true);
 
-            $this->assertSame(0, $exitCode, 'Artisan system:check-routes muss Exit-Code 0 liefern.');
+            $this->assertSame(0, $exitCode, 'Artisan system:check-routes muss Exit-Code 0 liefern: ' . json_encode([
+                'failures' => $cliJson['route_sweep']['failures'] ?? null,
+                'overlay_errors' => $cliJson['overlay']['api_errors_list'] ?? null,
+                'bp' => $cliJson['blueprints_compliant'] ?? null,
+                'missing_tables' => $cliJson['missing_tables'] ?? null,
+            ]));
             $this->assertIsArray($cliJson);
             $this->assertTrue($cliJson['passed'] ?? false);
             $this->assertTrue($cliJson['blueprints_compliant'] ?? false);
@@ -621,5 +627,18 @@ SVG;
             ->assertSeeHtml('id="brain-selected-node-mobile-name"')
             ->assertSeeHtml('brain-touch-scroll')
             ->assertSeeHtml('window.closeNeuralNodeTile');
+    }
+
+    public function test_isolated_http_route_sweep_uses_isolated_compiled_views_and_resets_livewire_state(): void
+    {
+        $diagnostics = app(SystemBrainDiagnosticsService::class);
+
+        $originalCompiled = (string) config('view.compiled');
+        $sweep = $diagnostics->executeIsolatedHttpRouteSweep();
+
+        $this->assertTrue($sweep['passed'], 'HTTP-Routen-Sweep fehlgeschlagen: ' . json_encode($sweep['failures'] ?? []));
+        $this->assertSame($originalCompiled, (string) config('view.compiled'));
+        $this->assertInstanceOf(\Illuminate\Routing\Redirector::class, app('redirect'));
+        $this->assertEmpty(\Livewire\Features\SupportRedirects\SupportRedirects::$redirectorCacheStack);
     }
 }

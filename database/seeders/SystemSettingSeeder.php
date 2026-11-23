@@ -48,7 +48,7 @@ class SystemSettingSeeder extends Seeder
             'shop_is_live'              => $defaultShopIsLive,
             'shop_live_unlocked'        => $defaultShopIsLive,
             'maintenance_mode'          => 'false',
-            'quote_calculator_enabled'  => 'true',
+            'quote_calculator_enabled'  => 'false',
             'send_order_email_to_admin' => 'true',
 
             // Inhaber Daten (Echte Daten von Alina - für juristische Erwähnungen)
@@ -128,10 +128,14 @@ class SystemSettingSeeder extends Seeder
             'google_ads_conversion_label'        => 'cZPCCMjkirodEL2X0ZtF',
             'google_shopping_require_real_photos' => 'true',
 
-            // Produktions-Kapazitäten
-            'shop_daily_working_hours'  => '7',
-            'shop_minutes_per_order'    => '10',
-            'shop_capacity_buffer'      => '12',
+            // Produktions-Kapazitäten & Lieferzeit-Autopilot
+            'shop_daily_working_hours'   => '7',
+            'shop_minutes_per_order'     => '10',
+            'shop_capacity_buffer'       => '12',
+            'shop_capacity_threshold_1'  => '60',
+            'shop_capacity_threshold_2'  => '85',
+            'shop_capacity_threshold_3'  => '90',
+            'shop_capacity_autopilot'    => 'true',
 
             // Länderliste als JSON (Fallback)
             'active_countries'          => json_encode($countries),
@@ -143,6 +147,7 @@ class SystemSettingSeeder extends Seeder
             'shop_live_unlocked',
             'maintenance_mode',
             'quote_calculator_enabled',
+            'shop_capacity_autopilot',
             'google_tag_enabled',
             'google_tag_id',
             'google_ads_conversion_label',
@@ -167,6 +172,7 @@ class SystemSettingSeeder extends Seeder
         // 4. Cache leeren, damit die neuen Daten sofort überall aktiv sind
         Cache::forget('global_shop_settings');
         Cache::forget('shop_setting_inventory_threshold');
+        Cache::forget('shop_capacity_autopilot');
 
         // 5. Lieferzeiten (Ampelsystem) & Spezialmodi initialisieren
         \App\Models\Delivery\DeliverySetting::firstOrCreate(['id' => 1], [

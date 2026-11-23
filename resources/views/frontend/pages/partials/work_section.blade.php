@@ -62,8 +62,9 @@
     </div>
 
     {{-- ========================================== --}}
-    {{-- 2. FIRMEN & VEREINE (Awards / B2B) --}}
+    {{-- 2. MITTLERER HELL-BEREICH (B2B bei aktivem Kalkulator / Live-Konfigurator & Einzelstücke bei pausiertem Kalkulator) --}}
     {{-- ========================================== --}}
+    @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
     <div id="fuer-firmen" class="relative bg-gray-50 overflow-hidden">
         <div class="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-24">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
@@ -119,25 +120,97 @@
                         </li>
                     </ul>
 
-                    @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
-                        {{-- Button zum Kalkulator --}}
-                        <div class="mt-10 flex justify-start md:justify-end">
-                            <a href="/calculator"
-                               title="Individuelles Angebot für Firmenawards und Vereinsgeschenke berechnen"
-                               class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-primary transition shadow-lg transform hover:-translate-y-1">
-                                Jetzt Serien-Preis berechnen
-                                <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                                </svg>
-                            </a>
-                        </div>
-                    @endif
+                    {{-- Button zum Kalkulator --}}
+                    <div class="mt-10 flex justify-start md:justify-end">
+                        <a href="/calculator"
+                           title="Individuelles Angebot für Firmenawards und Vereinsgeschenke berechnen"
+                           class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-primary transition shadow-lg transform hover:-translate-y-1">
+                            Jetzt Serien-Preis berechnen
+                            <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </a>
+                    </div>
 
                 </div>
 
             </div>
         </div>
     </div>
+    @else
+    <div id="live-konfigurator" class="relative bg-gray-50 overflow-hidden">
+        <div class="relative max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8 lg:py-24">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 items-center">
+
+                {{-- Bild: Mobil oben, Desktop links innerhalb der Seitenlinie --}}
+                <div class=" relative h-60 sm:h-72 md:h-80 lg:h-96 w-full flex items-center justify-center overflow-hidden">
+                    <img class="h-full w-auto max-w-none select-none pointer-events-none"
+                         src="{{ asset('shop/frontend/other/appreciation.webp') }}"
+                         alt="Personalisierte K9-Kristallglas-Geschenke und Schmuck-Unikate im Live-Konfigurator gestalten"
+                         loading="lazy">
+                </div>
+
+                {{-- Text: Mobil unten, Desktop rechts --}}
+                <div class="md:text-right">
+
+                    <div class="text-sm font-bold uppercase tracking-widest text-primary-dark">
+                        Dein Design in Echtzeit
+                    </div>
+
+                    <h3 class="mt-2 text-gray-900 text-3xl font-serif font-bold sm:text-4xl">
+                        Jedes Unikat <span class="text-[#8a6820]">selbst gestalten</span>
+                    </h3>
+
+                    <p class="mt-4 text-gray-600 text-lg leading-relaxed">
+                        Keine Überraschungen beim Auspacken: In unserem interaktiven <strong>2D- & 3D-Konfigurator</strong> siehst du schon beim Gestalten live, wie dein Wunschtext, dein Datum oder dein Symbol auf <strong>K9-Kristallglas</strong>, <strong>360° Gläsern</strong>, <strong>vergoldetem Edelstahl-Schmuck</strong> oder deinem Anhänger wirkt.
+                    </p>
+
+                    {{-- Liste: Mobil linksbündig, Desktop rechtsbündig mit Icons rechts --}}
+                    <ul class="mt-8 space-y-4 text-gray-700 text-lg w-full">
+
+                        {{-- Item 1 --}}
+                        <li class="flex items-start justify-end gap-3 flex-row-reverse md:flex-row">
+                            <span class="text-left md:text-right"><strong>Interaktive 2D- & 3D-Vorschau</strong> direkt am echten Modell</span>
+                            <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">💎</span>
+                        </li>
+
+                        {{-- Item 2 --}}
+                        <li class="flex items-start justify-end gap-3 flex-row-reverse md:flex-row">
+                            <span class="text-left md:text-right"><strong>Freie Motivwahl</strong> aus Schriften, Symbolen & eigenem Foto-Upload</span>
+                            <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">✨</span>
+                        </li>
+
+                        {{-- Item 3 --}}
+                        <li class="flex items-start justify-end gap-3 flex-row-reverse md:flex-row">
+                            <span class="text-left md:text-right"><strong>Persönliche Gravur-Prüfung</strong> vor der Veredelung in Gifhorn</span>
+                            <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">🔍</span>
+                        </li>
+
+                        {{-- Item 4 --}}
+                        <li class="flex items-start justify-end gap-3 flex-row-reverse md:flex-row">
+                            <span class="text-left md:text-right">Auf Wunsch überreichfertig in edler <strong>Geschenkverpackung</strong></span>
+                            <span class="text-primary text-xl flex-shrink-0 mt-1" aria-hidden="true">🎁</span>
+                        </li>
+                    </ul>
+
+                    {{-- Button zum Shop --}}
+                    <div class="mt-10 flex justify-start md:justify-end">
+                        <a href="{{ route('shop') }}"
+                           title="Personalisierte Unikate im Online-Shop entdecken und selbst gestalten"
+                           class="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gray-900 hover:bg-primary transition shadow-lg transform hover:-translate-y-1">
+                            Unikat auswählen & gestalten
+                            <svg class="ml-2 -mr-1 w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </a>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+    @endif
 
     {{-- ========================================== --}}
     {{-- 3. MANUFAKTUR & DIE 5 ENORMEN VORTEILE --}}

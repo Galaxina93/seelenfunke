@@ -1393,7 +1393,7 @@ namespace FunkenwerkMcp
             sb.AppendLine("1. Lies `\\\\wsl.localhost\\Ubuntu\\home\\ubuntuxina\\meine-projekte\\seelenfunke\\storage\\app\\private\\antigravity_inbox.json` per read_file (und ggf. betroffene `storage/logs/*.log`).");
             sb.AppendLine("2. SICHERHEITS-LEITPLANKEN: Niemals `production`-Branch (`mein-seelenfunke.de`), `.env`/Keys, `AccountingSeeder.php` oder Live-Zahlungsdaten anfassen; bei Entscheidungsbedarf von Alina ein To-Do über `funkenwerk/tasks_manage` anlegen.");
             sb.AppendLine("3. CODE-FIX & PFLICHT-TEST (100 % GRÜN): Portal (`docker exec -u www-data mein_php_server php artisan test <Test>`), Mini-PC (`funkenwerk-os-linux` `dotnet build`), Android (synchron in WSL + Mirror `C:\\Users\\konta\\AndroidStudioProjects\\seelenfunke-android`, `gradlew testDebugUnitTest` + `--stage-publish-apk`), Windows (`funkenwerk/` `dotnet build`).");
-            sb.AppendLine("4. PROTOKOLLIERUNG: Jeden Fix kompakt in Abschnitt 4 von `\\\\wsl.localhost\\Ubuntu\\home\\ubuntuxina\\meine-projekte\\seelenfunke\\Abschlussberichte\\System\\System_Universum_Vollautomatische_Selbstheilung.md` dokumentieren.");
+            sb.AppendLine("4. PROTOKOLLIERUNG (KEIN Abschlussberichte-Ordner!): Bedeutsame Fixes dublettenfrei im zentralen Wissensgehirn (`CentralBrainService::upsertDeduplicatedKnowledge`, `/admin/tickets?view=knowledge`) dokumentieren — niemals einen Dateiordner `Abschlussberichte/` anlegen!");
             sb.Append("5. ROLLOUT & 0-BYTE-NULLSTELLUNG: Stage-Fixes via `--stage-deploy --skip-shop-assets` ausrollen und abschließend zwingend `& 'C:\\Users\\konta\\AppData\\Local\\Funkenwerk\\SentinelCli\\FunkenwerkMcp.exe' --sentinel-sync --resolve-all` ausführen, bis `0` offene Dossiers und `0 Bytes` in allen Haupt-Logdateien erreicht sind.");
             return sb.ToString();
         }
@@ -1831,6 +1831,25 @@ namespace FunkenwerkMcp
                         string channelTitle = McpSecurityGuard.GetAgChannelDisplayTitle(channel);
                         var checklist = ExtractChecklistStrings(itemObj["checklist"]);
 
+                        // Serielle Work-Until-Zero Ticket-Queue ("tickets") wird zentral ueber PumpLocalTicketAutopilotQueueAsync
+                        // mit MaxInFlight=1, 3-Minuten-Watchdog und 3x-Schutzbremse gesteuert (kein paralleler Burst!).
+                        if (channel == "tickets")
+                        {
+                            if (fromStage && !fromLocal)
+                            {
+                                var stageTicketCopy = (JsonObject)itemObj.DeepClone();
+                                stageTicketCopy.Remove("attachment_base64");
+                                stageTicketCopy["channel"] = "tickets";
+                                stageTicketCopy["status"] = "pending";
+                                if (!string.IsNullOrWhiteSpace(savedMediaPath))
+                                    stageTicketCopy["local_attachment_path"] = savedMediaPath;
+
+                                await SyncItemsToLocalPortalBestEffortAsync(new JsonArray(stageTicketCopy), markDeliveredId: null);
+                                await McpSecurityGuard.ExecuteStageAgInboxCommandAsync("mark_delivered", itemId: safeId, isDaemonInternal: true);
+                            }
+                            continue;
+                        }
+
                         string promptText = McpSecurityGuard.BuildAgDirectMasterPrompt(
                             safeId,
                             title,
@@ -2012,6 +2031,9 @@ namespace FunkenwerkMcp
 
                         Console.Error.WriteLine($"[AG-Sidecar] Direktnachricht '{safeId}' verlustfrei an {deliveredTargetDesc} zugestellt.");
                     }
+
+                    // 3. Serielle Work-Until-Zero Ticket-Queue (MaxInFlight = 1, 180s Transcript-Idle-Watchdog & 3x-Bremse)
+                    await PumpLocalTicketAutopilotQueueAsync(cts.Token);
                 }
                 catch (OperationCanceledException) when (cts.IsCancellationRequested)
                 {
@@ -2364,11 +2386,25 @@ namespace FunkenwerkMcp
             }
 
             bool localDockerCompleted = await TryRunLocalDockerAgInboxAsync($"--complete={safeId}", $"--summary-b64={summaryB64}", "--ignore-missing");
-            bool localJsonUpdated = await UpsertOrUpdateLocalDirectInboxJsonAsync(null, safeId, "completed", cleanSummary);
+            bool localJsonUpdated = localDockerCompleted
+                || await UpsertOrUpdateLocalDirectInboxJsonAsync(null, safeId, "completed", cleanSummary);
 
             if (!stageCompleted && !localDockerCompleted && !localJsonUpdated)
             {
                 throw new InvalidOperationException($"Fertigmeldung für '{safeId}' konnte weder auf Stage ({stageError}) noch lokal gespeichert werden.");
+            }
+
+            // Work-Until-Zero Self-Chaining: Ziehe in derselben Sekunde sofort das nächste offene Ticket nach!
+            object? nextTicketResult = null;
+            if (!McpSecurityGuard.IsUnitTestVaultActive)
+            {
+                try
+                {
+                    nextTicketResult = await PumpLocalTicketAutopilotQueueAsync(CancellationToken.None);
+                }
+                catch
+                {
+                }
             }
 
             return new
@@ -2379,7 +2415,8 @@ namespace FunkenwerkMcp
                 stage_completed = stageCompleted,
                 stage_warning = stageError,
                 local_docker_completed = localDockerCompleted,
-                local_file_updated = localJsonUpdated
+                local_file_updated = localJsonUpdated,
+                next_ticket_autopilot = nextTicketResult
             };
         }
 
@@ -2387,34 +2424,272 @@ namespace FunkenwerkMcp
         {
             var results = new List<JsonObject>();
             string path = McpSecurityGuard.DefaultLocalDirectInboxPath;
-            if (!File.Exists(path)) return results;
 
             try
             {
-                var fi = new FileInfo(path);
-                if (fi.Length < 2 || fi.Length > 32L * 1024L * 1024L) return results;
-                if (McpSecurityGuard.HasReparsePointInAncestry(path)) return results;
-
-                string raw = File.ReadAllText(path, Encoding.UTF8);
-                if (string.IsNullOrWhiteSpace(raw)) return results;
-
-                var parsed = JsonNode.Parse(raw, documentOptions: StrictJsonParseOptions);
-                JsonArray? arr = parsed as JsonArray ?? parsed?["items"] as JsonArray;
-                if (arr == null) return results;
-
-                foreach (var node in arr)
+                if (File.Exists(path))
                 {
-                    if (node is not JsonObject obj) continue;
-                    string status = obj["status"]?.GetValue<string>() ?? "pending";
-                    if (!onlyPending || string.Equals(status, "pending", StringComparison.OrdinalIgnoreCase))
+                    var fi = new FileInfo(path);
+                    if (fi.Length >= 2 && fi.Length <= 32L * 1024L * 1024L && !McpSecurityGuard.HasReparsePointInAncestry(path))
                     {
-                        results.Add((JsonObject)obj.DeepClone());
+                        string raw = File.ReadAllText(path, Encoding.UTF8);
+                        if (!string.IsNullOrWhiteSpace(raw))
+                        {
+                            var parsed = JsonNode.Parse(raw, documentOptions: StrictJsonParseOptions);
+                            JsonArray? arr = parsed as JsonArray ?? parsed?["items"] as JsonArray;
+                            if (arr != null)
+                            {
+                                foreach (var node in arr)
+                                {
+                                    if (node is not JsonObject obj) continue;
+                                    string status = obj["status"]?.GetValue<string>() ?? "pending";
+                                    if (!onlyPending || string.Equals(status, "pending", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        results.Add((JsonObject)obj.DeepClone());
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+                return results;
             }
-            catch { }
+            catch (Exception ex) when (ex is UnauthorizedAccessException || ex is IOException)
+            {
+                // Fallback ueber Docker-CLI, falls WSL-Dateirechte (0600 www-data) den direkten UNC-Zugriff blockieren
+                try
+                {
+                    var cliJson = TryRunLocalArtisanJsonAsync("system:ag-inbox", onlyPending ? "--peek-pending" : "--list")
+                        .GetAwaiter().GetResult();
+                    if (cliJson?["items"] is JsonArray fallbackArr)
+                    {
+                        foreach (var node in fallbackArr)
+                        {
+                            if (node is JsonObject obj)
+                            {
+                                results.Add((JsonObject)obj.DeepClone());
+                            }
+                        }
+                    }
+                }
+                catch { }
+                return results;
+            }
+            catch
+            {
+                return results;
+            }
+        }
 
-            return results;
+        private static int MeasureConversationTranscriptIdleSeconds(string? conversationId)
+        {
+            if (string.IsNullOrWhiteSpace(conversationId))
+                return -1;
+
+            try
+            {
+                string safeId = McpSecurityGuard.ValidateAgConversationId(conversationId);
+                string transcriptPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".gemini", "antigravity", "brain", safeId, ".system_generated", "logs", "transcript.jsonl");
+
+                if (!File.Exists(transcriptPath))
+                    return -1;
+
+                DateTime lastWriteUtc = File.GetLastWriteTimeUtc(transcriptPath);
+                double diff = (DateTime.UtcNow - lastWriteUtc).TotalSeconds;
+                return diff < 0 ? 0 : (int)Math.Min(diff, 864000);
+            }
+            catch
+            {
+                return -1;
+            }
+        }
+
+        private static async Task<JsonObject?> TryRunLocalArtisanJsonAsync(string commandName, params string[] artisanFlags)
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "wsl.exe",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                psi.ArgumentList.Add("-d");
+                psi.ArgumentList.Add("Ubuntu");
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add("docker");
+                psi.ArgumentList.Add("exec");
+                psi.ArgumentList.Add("-u");
+                psi.ArgumentList.Add("www-data");
+                psi.ArgumentList.Add("mein_php_server");
+                psi.ArgumentList.Add("php");
+                psi.ArgumentList.Add("/var/www/html/artisan");
+                psi.ArgumentList.Add(commandName);
+                foreach (string flag in artisanFlags)
+                {
+                    psi.ArgumentList.Add(flag);
+                }
+
+                using var proc = Process.Start(psi);
+                if (proc == null) return null;
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                var outTask = proc.StandardOutput.ReadToEndAsync(cts.Token);
+                var errTask = proc.StandardError.ReadToEndAsync(cts.Token);
+                await proc.WaitForExitAsync(cts.Token);
+                string stdOut = await outTask;
+                await errTask;
+
+                if (proc.ExitCode != 0) return null;
+                return ParseJsonObjectFromCliOutput(stdOut);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static async Task<object?> PumpLocalTicketAutopilotQueueAsync(CancellationToken ct)
+        {
+            try
+            {
+                var cfg = McpSecurityGuard.LoadAgBridgeConfig();
+                cfg.ChannelConversationIds.TryGetValue("tickets", out string? existingTicketsUuid);
+                int chatIdleSeconds = MeasureConversationTranscriptIdleSeconds(existingTicketsUuid);
+
+                var claimObj = await TryRunLocalArtisanJsonAsync(
+                    "system:ag-ticket-queue",
+                    "--claim-next",
+                    "--idle-timeout=180",
+                    $"--chat-idle-seconds={chatIdleSeconds}");
+
+                if (claimObj == null)
+                    return null;
+
+                string action = claimObj["action"]?.GetValue<string>() ?? "none";
+                if (!string.Equals(action, "dispatch", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new
+                    {
+                        action,
+                        open_count = claimObj["open_count"]?.GetValue<int>() ?? 0,
+                        in_flight_ticket = claimObj["in_flight_ticket"]?.GetValue<string>()
+                    };
+                }
+
+                string ticketNumber = claimObj["ticket_number"]?.GetValue<string>() ?? "";
+                string agItemId = McpSecurityGuard.ValidateAgInboxSingleId(claimObj["ag_item_id"]?.GetValue<string>());
+                string channel = McpSecurityGuard.NormalizeAgChannel(claimObj["channel"]?.GetValue<string>() ?? "tickets");
+                string channelTitle = McpSecurityGuard.GetAgChannelDisplayTitle(channel);
+                string title = claimObj["title"]?.GetValue<string>() ?? ticketNumber;
+                string prompt = claimObj["prompt"]?.GetValue<string>() ?? "";
+                int attempt = claimObj["attempt"]?.GetValue<int>() ?? 1;
+                int openCount = claimObj["open_count"]?.GetValue<int>() ?? 1;
+
+                if (string.IsNullOrWhiteSpace(ticketNumber) || string.IsNullOrWhiteSpace(prompt))
+                    return null;
+
+                bool sentOk = false;
+                int exitCode = -1;
+                string errOut = "";
+                string targetDesc = "";
+
+                cfg = McpSecurityGuard.LoadAgBridgeConfig();
+                bool hasChannelUuid = cfg.ChannelConversationIds.TryGetValue(channel, out string? targetUuid)
+                                      && !string.IsNullOrWhiteSpace(targetUuid);
+
+                if (hasChannelUuid)
+                {
+                    string validUuid = McpSecurityGuard.ValidateAgConversationId(targetUuid);
+                    var compactEval = McpSecurityGuard.EvaluateAgChannelAutoCompact(
+                        validUuid,
+                        channel,
+                        title,
+                        prompt,
+                        null,
+                        incomingItemId: agItemId);
+
+                    if (compactEval.ShouldRotate)
+                    {
+                        var rotateRes = await StartNewAgentConversationSafeAsync(channelTitle, prompt, captureUuid: true, ct);
+                        if (rotateRes.Success && rotateRes.ExitCode == 0)
+                        {
+                            sentOk = true;
+                            exitCode = 0;
+                            if (!string.IsNullOrWhiteSpace(rotateRes.ExtractedUuid))
+                            {
+                                cfg.ChannelConversationIds[channel] = rotateRes.ExtractedUuid!;
+                                McpSecurityGuard.SaveAgBridgeConfig(cfg);
+                            }
+                            targetDesc = $"Auto-Compact '{channelTitle}' ({rotateRes.ExtractedUuid ?? "auto"})";
+                        }
+                    }
+
+                    if (!sentOk || exitCode != 0)
+                    {
+                        (sentOk, exitCode, errOut) = await SendAgentApiMessageSafeAsync(validUuid, prompt, ct);
+                        targetDesc = $"'{channelTitle}' ({validUuid})";
+
+                        if (!sentOk || exitCode != 0)
+                        {
+                            var recreateRes = await StartNewAgentConversationSafeAsync(channelTitle, prompt, captureUuid: true, ct);
+                            if (recreateRes.Success && recreateRes.ExitCode == 0)
+                            {
+                                sentOk = true;
+                                exitCode = 0;
+                                errOut = "";
+                                if (!string.IsNullOrWhiteSpace(recreateRes.ExtractedUuid))
+                                {
+                                    cfg.ChannelConversationIds[channel] = recreateRes.ExtractedUuid!;
+                                    McpSecurityGuard.SaveAgBridgeConfig(cfg);
+                                }
+                                targetDesc = $"Neu angelegter Kanal '{channelTitle}' ({recreateRes.ExtractedUuid ?? "auto"})";
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    var createRes = await StartNewAgentConversationSafeAsync(channelTitle, prompt, captureUuid: true, ct);
+                    sentOk = createRes.Success;
+                    exitCode = createRes.ExitCode;
+                    errOut = createRes.ErrorSummary;
+                    if (sentOk && exitCode == 0 && !string.IsNullOrWhiteSpace(createRes.ExtractedUuid))
+                    {
+                        cfg.ChannelConversationIds[channel] = createRes.ExtractedUuid!;
+                        McpSecurityGuard.SaveAgBridgeConfig(cfg);
+                    }
+                    targetDesc = $"Erstmalig angelegter Kanal '{channelTitle}' ({createRes.ExtractedUuid ?? "auto"})";
+                }
+
+                if (!sentOk || exitCode != 0)
+                {
+                    Console.Error.WriteLine($"[Ticket-Autopilot] Zustellung für '{ticketNumber}' ({agItemId}) noch nicht möglich (Exit {exitCode}: {errOut}).");
+                    return new { action = "retry_next_cycle", ticket_number = ticketNumber, exit_code = exitCode };
+                }
+
+                await TryRunLocalArtisanJsonAsync("system:ag-ticket-queue", $"--ack-dispatched={ticketNumber}", $"--attempt={attempt}");
+                Console.Error.WriteLine($"[Ticket-Autopilot] Ticket '{ticketNumber}' (Versuch {attempt}/3, verbleibend: {openCount}) seriell an {targetDesc} übergeben.");
+
+                return new
+                {
+                    action = "dispatched",
+                    ticket_number = ticketNumber,
+                    ag_item_id = agItemId,
+                    attempt,
+                    open_count = openCount,
+                    target = targetDesc
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Ticket-Autopilot] Warnung: {McpSecurityGuard.ScrubSecrets(ex.Message)}");
+                return null;
+            }
         }
 
         private static async Task<bool> UpsertOrUpdateLocalDirectInboxJsonAsync(
@@ -6115,6 +6390,8 @@ namespace FunkenwerkMcp
                         && conceptPrompt.Contains("--ag-inbox-complete ag_test_01 \"<kurze Zusammenfassung>\"")
                         && directPrompt.Contains("[DIREKTNACHRICHT AUS ANDROID-APP | ID: ag_test_02 | MODUS: Direkt umsetzen via Orchester-Subagenten]")
                         && !directPrompt.Contains("Angehängtes Bild lokal gespeichert unter:")
+                        && directPrompt.Contains("Qualitäts- & Härtungs-Pflicht (in einem Atemzug):")
+                        && (McpSecurityGuard.GetAgChannelScopeHint("tickets") ?? "").Contains("in einem Atemzug")
                         && directPrompt.Contains("--ag-inbox-complete ag_test_02 \"<kurze Zusammenfassung>\""));
                 }
 

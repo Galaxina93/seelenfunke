@@ -569,6 +569,26 @@ class SystemBrainDiagnosticsService
         $failures = [];
         $results = [];
 
+        $isolatedViewsDir = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'sf_route_check_views_' . getmypid() . '_' . Str::lower(Str::random(6));
+        $previousCompiledPath = (string) config('view.compiled');
+        $compilerSwapped = false;
+        if (@mkdir($isolatedViewsDir, 0775, true) || is_dir($isolatedViewsDir)) {
+            try {
+                config(['view.compiled' => $isolatedViewsDir]);
+                if (app()->bound('blade.compiler')) {
+                    \Livewire\invade(app('blade.compiler'))->cachePath = $isolatedViewsDir;
+                }
+                if (app()->bound('view.engine.resolver')) {
+                    $bladeEngine = app('view.engine.resolver')->resolve('blade');
+                    if (method_exists($bladeEngine, 'forgetCompiledOrNotExpired')) {
+                        $bladeEngine->forgetCompiledOrNotExpired();
+                    }
+                }
+                $compilerSwapped = true;
+            } catch (\Throwable) {
+            }
+        }
+
         DB::beginTransaction();
         try {
             $admin = Admin::query()->first() ?: Admin::create([
@@ -708,6 +728,28 @@ class SystemBrainDiagnosticsService
         } finally {
             Auth::forgetGuards();
             DB::rollBack();
+
+            if ($compilerSwapped && $previousCompiledPath !== '') {
+                try {
+                    config(['view.compiled' => $previousCompiledPath]);
+                    if (app()->bound('blade.compiler')) {
+                        \Livewire\invade(app('blade.compiler'))->cachePath = $previousCompiledPath;
+                    }
+                    if (app()->bound('view.engine.resolver')) {
+                        $bladeEngine = app('view.engine.resolver')->resolve('blade');
+                        if (method_exists($bladeEngine, 'forgetCompiledOrNotExpired')) {
+                            $bladeEngine->forgetCompiledOrNotExpired();
+                        }
+                    }
+                } catch (\Throwable) {
+                }
+            }
+            if (is_dir($isolatedViewsDir)) {
+                try {
+                    File::deleteDirectory($isolatedViewsDir);
+                } catch (\Throwable) {
+                }
+            }
         }
 
         $durationMs = max(1, (int) round((microtime(true) - $startedAt) * 1000));
@@ -735,7 +777,9 @@ class SystemBrainDiagnosticsService
             ['uri' => '/shop', 'label' => 'Shop-Übersicht'],
             ['uri' => '/manufaktur', 'label' => 'Manufaktur'],
             ['uri' => '/blog', 'label' => 'Ratgeber / Blog'],
-            ['uri' => '/calculator', 'label' => 'Sofort-Kalkulator'],
+            ...(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()
+                ? [['uri' => '/calculator', 'label' => 'Sofort-Kalkulator']]
+                : []),
             ['uri' => '/kontakt', 'label' => 'Kontaktformular'],
             ['uri' => '/versand', 'label' => 'Versandinformationen'],
             ['uri' => '/newsletter', 'label' => 'Newsletter-Seite'],
@@ -978,14 +1022,44 @@ class SystemBrainDiagnosticsService
         return $failures;
     }
 
+    protected function resetLivewireRedirectorBinding(): void
+    {
+        if (app()->bound('livewire')) {
+            try {
+                app('livewire')->flushState();
+            } catch (\Throwable) {
+            }
+
+            try {
+                $extendBlade = app(\Livewire\Mechanisms\ExtendBlade\ExtendBlade::class);
+                \Livewire\invade($extendBlade)->renderCounter = 0;
+            } catch (\Throwable) {
+            }
+        }
+
+        \Livewire\Mechanisms\HandleComponents\HandleComponents::$renderStack = [];
+        \Livewire\Mechanisms\HandleComponents\HandleComponents::$componentStack = [];
+        \Livewire\Features\SupportRedirects\SupportRedirects::$redirectorCacheStack = [];
+        \Livewire\Features\SupportRedirects\SupportRedirects::$atLeastOneMountedComponentHasRedirected = false;
+
+        if (!app()->bound('redirect') || app('redirect') instanceof \Livewire\Features\SupportRedirects\Redirector) {
+            app()->forgetInstance('redirect');
+            app()->singleton('redirect', function ($app) {
+                $redirector = new \Illuminate\Routing\Redirector($app['url']);
+                if (isset($app['session.store'])) {
+                    $redirector->setSession($app['session.store']);
+                }
+                return $redirector;
+            });
+        }
+    }
+
     /**
      * Führt einen einzelnen internen HTTP-GET-Request mit E_ALL Deprecation-Überwachung aus.
      */
     protected function dispatchSingleKernelGet(string $uri, mixed $actor = null, ?string $guard = null): array
     {
-        if (app()->bound('redirect') && app('redirect') instanceof \Livewire\Features\SupportRedirects\Redirector) {
-            app()->forgetInstance('redirect');
-        }
+        $this->resetLivewireRedirectorBinding();
 
         Auth::forgetGuards();
         if ($actor && $guard) {
@@ -1030,9 +1104,7 @@ class SystemBrainDiagnosticsService
             $exceptionMsg = $ex->getMessage() . ' @ ' . basename($ex->getFile()) . ':' . $ex->getLine();
             $errorFile = $this->extractFirstProjectFileFromThrowable($ex);
         } finally {
-            if (app()->bound('redirect') && app('redirect') instanceof \Livewire\Features\SupportRedirects\Redirector) {
-                app()->forgetInstance('redirect');
-            }
+            $this->resetLivewireRedirectorBinding();
             restore_error_handler();
             error_reporting($prevReporting);
         }

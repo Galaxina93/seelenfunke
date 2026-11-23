@@ -53,10 +53,36 @@ class LogArchiveService
     }
 
     /**
+     * Sammelt bis zu $maxLookahead nachfolgende Stack-Trace-Zeilen eines einzelnen Log-Eintrags,
+     * bevor der nächste Monolog-Zeitstempel beginnt.
+     *
+     * @param array<int, string> $lines
+     */
+    protected static function collectLogEntryContextBlock(array $lines, int $startIdx, int $maxLookahead = 120): string
+    {
+        $total = count($lines);
+        if ($startIdx < 0 || $startIdx >= $total) {
+            return '';
+        }
+
+        $collected = [];
+        $limit = min($total - 1, $startIdx + max(1, $maxLookahead));
+        for ($i = $startIdx + 1; $i <= $limit; $i++) {
+            $nextLine = (string) ($lines[$i] ?? '');
+            if (preg_match('/^\[\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}/', $nextLine) === 1) {
+                break;
+            }
+            $collected[] = $nextLine;
+        }
+
+        return implode("\n", $collected);
+    }
+
+    /**
      * Extrahiert aus einer einzelnen Logzeile echte Fehler-/Absturz-Meldungen (Monolog ERROR..EMERGENCY,
      * twilio_bridge.log sowie CLI-/PHP-Fehler in cron-*.log), ohne harmlose Info- oder `testing.*`-Zeilen auszulösen.
      */
-    public static function extractLogErrorLine(string $baseName, string $line): ?string
+    public static function extractLogErrorLine(string $baseName, string $line, string $contextBlock = ''): ?string
     {
         $trimmed = trim($line);
         if ($trimmed === '' || self::isTestingEnvironmentLogLine($trimmed)) {
@@ -70,11 +96,7 @@ class LogArchiveService
 
             $msgBody = trim($m[2]);
             if (
-                str_contains($msgBody, 'at Standard input code:')
-                || str_contains($msgBody, 'in Standard input code:')
-                || str_contains($msgBody, 'at Command line code:')
-                || str_contains($msgBody, 'in Command line code:')
-                || str_contains($msgBody, 'called in Command line code on line')
+                SystemErrorLogger::isCliEvalOrStdinError($msgBody, null, $contextBlock)
                 || (
                     $baseName === 'laravel.log'
                     && (
@@ -96,6 +118,10 @@ class LogArchiveService
 
         if (str_starts_with($baseName, 'cron-')) {
             if (preg_match('/^(?:\[(?:ERROR|CRITICAL|ALERT|EMERGENCY)\]|(?:PHP\s+)?(?:Fatal|Parse)\s+error:|Uncaught\s+[A-Za-z0-9_\\\\]+(?:Exception|Error|Throwable):|ErrorException:)\s*(.+)$/i', $trimmed, $cm)) {
+                if (SystemErrorLogger::isCliEvalOrStdinError($cm[0], null, $contextBlock)) {
+                    return null;
+                }
+
                 return trim($cm[0]);
             }
         }
@@ -133,8 +159,10 @@ class LogArchiveService
         }
 
         $baseName = basename($logFile);
-        foreach (explode("\n", $chunk) as $line) {
-            if (self::extractLogErrorLine($baseName, $line) !== null) {
+        $lines = explode("\n", $chunk);
+        foreach ($lines as $idx => $line) {
+            $contextBlock = self::collectLogEntryContextBlock($lines, (int) $idx);
+            if (self::extractLogErrorLine($baseName, $line, $contextBlock) !== null) {
                 return true;
             }
         }
@@ -195,15 +223,20 @@ class LogArchiveService
         $lines = explode("\n", $chunk);
         $ingested = 0;
 
-        foreach ($lines as $line) {
-            $matchedMsg = self::extractLogErrorLine($baseName, $line);
+        foreach ($lines as $idx => $line) {
+            if ($ingested >= 100) {
+                break;
+            }
+
+            $contextBlock = self::collectLogEntryContextBlock($lines, (int) $idx);
+            $matchedMsg = self::extractLogErrorLine($baseName, $line, $contextBlock);
             if ($matchedMsg === null || $matchedMsg === '') {
                 continue;
             }
 
             // Endlosschleifen verhindern: Ignoriere reine Test-/Artisan-Infozeilen
             $cleanMsg = SystemErrorLogger::sanitizeSensitiveText(Str::limit($matchedMsg, 1500, '...'));
-            $normForFp = preg_replace('/\b\d+\b/', '#', strtolower(mb_substr($cleanMsg, 0, 180)));
+            $normForFp = preg_replace('/\b\d+\b/', '#', strtolower(mb_substr($cleanMsg, 0, 180))) ?? '';
             $fingerprint = hash('sha256', 'raw_logfile|' . strtolower($baseName) . '|' . $normForFp);
 
             $parsedExceptionClass = null;
@@ -251,7 +284,7 @@ class LogArchiveService
                     'exception_class' => $parsedExceptionClass,
                     'file' => $parsedFile,
                     'line' => $parsedLine,
-                    'diagnosis' => SystemErrorLogger::diagnose($cleanMsg, $parsedExceptionClass, $parsedFile),
+                    'diagnosis' => SystemErrorLogger::diagnose($cleanMsg, $parsedExceptionClass, $parsedFile, $contextBlock),
                     'occurrences_count' => 1,
                     'first_seen_at' => now()->toIso8601String(),
                     'last_seen_at' => now()->toIso8601String(),

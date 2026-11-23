@@ -530,7 +530,8 @@ class AccountingSeeder extends Seeder
                 'provider_zip'     => '32339',
                 'provider_city'    => 'Espelkamp',
                 'provider_phone'   => '+49-5772-293-100',
-                'description' => "Mittwald Hosting zum verwalten und betreiben der Domains\nHRA: 6640, AG Bad Oeynhausen\nUSt. ID-Nr: DE814773217\nKunden-E-Mail: kontakt@mein-seelenfunke.de\nFax: +49-5772-293-333",
+                'contract_number'  => 'Kd.-Nr. 4159158 / vServer s-pis5pf',
+                'description' => "Mittwald Hosting zum Verwalten und Betreiben der Domains (vServer: \"Mein-Seelenfunke\", 2 vCPU / 4 GiB RAM / 50 GiB, 41,00 € netto + 7,79 € USt. = 48,79 € brutto mtl.)\nKunden-Nr.: 4159158 | Short-ID: s-pis5pf | Monatsrechnung 11/2026 (RG6931743 vom 03.11.2026): buchhaltung/receipts/2026/11/2026-11-03_Mittwald_Hosting-vServer_Rechnung-RG6931743.pdf\nHRA: 6640, AG Bad Oeynhausen\nUSt. ID-Nr: DE814773217\nKunden-E-Mail: kontakt@mein-seelenfunke.de\nFax: +49-5772-293-333",
                 'tags'        => ['Vertrag', 'IT', 'Gewerbe', 'Hosting', 'Mittwald'],
                 'contract_file_path' => 'buchhaltung/contracts/2026/04/2026-04-15_Mittwald_Hosting.pdf'
             ],
@@ -644,6 +645,19 @@ class AccountingSeeder extends Seeder
 
         $specialIssues = [
             [
+                'title'          => '20x Edelstahl-Hundemarke Knochenform Gold, 16x Edelstahl-Schlüsselanhänger Gold & 20x Herz-Aluminium-Schlüsselanhänger Schwarz (LS20002)',
+                'location'       => 'Temu (CTHOLD / HaoYiZF / Gifts Crafts Zone)',
+                'amount'         => -88.93,
+                'date'           => '2026-11-23',
+                'category'       => 'Rohmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'PO-076-01872499884150774',
+                'note'           => "Bestellnummer: PO-076-01872499884150774 | Bestellzeit / Bezahlt am: 23.11.2026 | Zahlungsart: PayPal (a***e@t-online.de) | Zustellung durch: 09.12.2026\nPositionen (6 Packungen = 56 Gravur-Rohlinge gesamt):\n- 2x 10 Stück (gesamt 20 Stück) leere Edelstahl-Hundeanhänger mit hohlen Pfotenmustern für Haustiere (Variante: 【Golden】 / Einheitsgröße, Verkauft von Händler: CTHOLD | Wuxi Qiyue Industry and Trade Co., Ltd): je 8,11 € = 16,22 €\n- 2x 8 Stück (gesamt 16 Stück) Edelstahl-Schlüsselanhänger Rohlinge, Schlüsselringe separat verpackt (Variante: Goldene 8Stk, Verkauft von Händler: HaoYiZF | Fuhao): je 10,50 € = 21,00 €\n- 2x 10 Stück (gesamt 20 Stück) doppelseitige schwarze herzförmige Aluminium-Metall-Schlüsselanhänger Rohlinge (Modell: LS20002, Verkauft von Händler: Gifts Crafts Zone | Xipingxianyishugongyipin Co., Ltd.): je 22,64 € = 45,28 €\nArtikel gesamt: 82,50 € | Versand: KOSTENLOS (0,00 €) | Einfuhrabgaben: 6,43 € | Gesamt (Netto): 74,72 € | Enthält Umsatzsteuer (19 %): 14,21 € | Gesamtsumme (Brutto): 88,93 €\nHinweis: Vorläufiger Beleg (Temu-Bestellübersicht); offizielle Händler-Rechnungen nach Lieferung bei Bedarf ergänzen.",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-23_Temu_56x-Gravur-Rohlinge-Hundemarken-Edelstahl-und-Herz-Schluesselanhaenger_Order-PO-076-01872499884150774.pdf',
+                ]
+            ],
+            [
                 'title'          => '2x Rolle Geschenkpapier Schwarz & Gold (0,70 x 10 m, beidseitig bedruckt / wendbar)',
                 'location'       => 'www.natuerlich-verpacken.de (Parterremedia GmbH / Natürlich verpacken)',
                 'amount'         => -32.97,
@@ -651,9 +665,10 @@ class AccountingSeeder extends Seeder
                 'category'       => 'Verpackungen',
                 'tax_rate'       => 19,
                 'invoice_number' => '42026159952 (Bestellnr. 22026114411-NV)',
-                'note'           => "Rechnungsnummer (Belegnr.): 42026159952 | Rechnungsdatum: 22.11.2026 | Auftragsnummer: 22026187349 | Lieferschein-Nr.: 22026187349-001 | Bestellnummer: 22026114411-NV | Kundennummer: K2026141803 | Zahlungsart: Amazon Pay (Volksbank eG Braunschweig Wolfsburg ••• 000)\nHändler: Natürlich verpacken / Parterremedia GmbH, Groß-Berliner Damm 153, 12489 Berlin (USt-IdNr.: DE301876264, Steuer-Nr.: 37/466/30942, HRB 170146 AG Berlin-Charlottenburg)\nPositionen:\n- Pos. 1: 2x Rolle Geschenkpapier Schwarz & Gold, 0,70 x 10 m = 20 Laufmeter gesamt, beidseitig bedruckt / wendbar (Art.-Nr.: 2821171260, 19 % MwSt.): je 11,42 € netto = 22,84 € netto (27,18 € brutto)\n- Pos. 2: 1x DHL Paket Versand (19 % MwSt.): 4,87 € netto (5,79 € brutto)\nGesamt Netto: 27,71 € | zzgl. 19,00 % DE MwSt.: 5,26 € | Rechnungsbetrag: 32,95 € | Erhaltene Zahlung am 22.11.2026 (tatsächlicher Geldabfluss): 32,97 € (0,02 € Shop-Rundungsdifferenz / Guthaben)\nEinsatzzweck: Sofort lieferbares Schwarz-Gold-Geschenkpapier (Ersatz für nicht lieferbare Westpack-Rolle 03307510300) für Geschenkverpackungs-Upsell (+2,90 €).\nProdukt-Link: https://www.natuerlich-verpacken.de/zweifarbiges-geschenkpapier-schwarz-gold-rolle-kaufen",
+                'note'           => "Rechnungsnummer (Belegnr.): 42026159952 | Rechnungsdatum: 22.11.2026 | Auftragsnummer: 22026187349 | Lieferschein-Nr.: 22026187349-001 | Bestellnummer: 22026114411-NV | Kundennummer: K2026141803 | DHL-Sendungsnr.: 00340434297457676494 (Versand 23.11.2026) | Zahlungsart: Amazon Pay (Volksbank eG Braunschweig Wolfsburg ••• 000)\nHändler: Natürlich verpacken / Parterremedia GmbH, Groß-Berliner Damm 153, 12489 Berlin (USt-IdNr.: DE301876264, Steuer-Nr.: 37/466/30942, HRB 170146 AG Berlin-Charlottenburg)\nPositionen:\n- Pos. 1: 2x Rolle Geschenkpapier Schwarz & Gold, 0,70 x 10 m = 20 Laufmeter gesamt, beidseitig bedruckt / wendbar (Art.-Nr.: 2821171260, 19 % MwSt.): je 11,42 € netto = 22,84 € netto (27,18 € brutto)\n- Pos. 2: 1x DHL Paket Versand (19 % MwSt.): 4,87 € netto (5,79 € brutto)\nGesamt Netto: 27,71 € | zzgl. 19,00 % DE MwSt.: 5,26 € | Rechnungsbetrag: 32,95 € | Erhaltene Zahlung am 22.11.2026 (tatsächlicher Geldabfluss): 32,97 € (0,02 € Shop-Rundungsdifferenz / Guthaben)\nEinsatzzweck: Sofort lieferbares Schwarz-Gold-Geschenkpapier (Ersatz für nicht lieferbare Westpack-Rolle 03307510300) für Geschenkverpackungs-Upsell (+2,90 €).\nProdukt-Link: https://www.natuerlich-verpacken.de/zweifarbiges-geschenkpapier-schwarz-gold-rolle-kaufen",
                 'file_paths'     => [
                     'buchhaltung/receipts/2026/11/2026-11-22_Natuerlich-Verpacken_2x-Geschenkpapier-Schwarz-Gold-2821171260_Rechnung-42026159952.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-22_Natuerlich-Verpacken_2x-Geschenkpapier-Schwarz-Gold-2821171260_Rechnung-42026159952.xml',
                     'buchhaltung/receipts/2026/11/2026-11-22_Natuerlich-Verpacken_2x-Geschenkpapier-Schwarz-Gold-2821171260_Order-22026114411-NV.pdf',
                 ]
             ],
@@ -678,10 +693,36 @@ class AccountingSeeder extends Seeder
                 'category'       => 'Verpackungen',
                 'tax_rate'       => 19,
                 'invoice_number' => 'R505615 (Bestellnr. 306-3879066-2697958)',
-                'note'           => "Rechnungsnummer: R505615 (Frau Wundervoll GmbH, Lemgo) | Bestellnummer: 306-3879066-2697958 | Bestellt am: 22.11.2026 | Zahlungsart: Volksbank eG Braunschweig Wolfsburg ••• 000 | Zustellung: Do., 26.11.2026\nPosition:\n- 1x 100 Stück Frau WUNDERVoll® Papiertüten / Papierflachbeutel Schwarz, 13 x 16,5 cm (+ 2 cm Umfaltlasche), 45 g/m² unbeschichtetes Papier (ASIN: B0CPJT35H8, Verkauf durch: frauwundervoll): 9,99 € brutto\nZwischensumme / Gesamt vor USt. (Netto): 8,39 € | Verpackung & Versand: 0,00 € | Geschätzte USt. (19 %): 1,60 € | Gesamtsumme (Brutto): 9,99 €\nEinsatzzweck: 100 % plastikfreie, schwarze Papierflachbeutel für längliche Schmuckstücke ohne Geschenkbox (insbesondere 18,5 cm ID-Seelenarmbänder, die nicht ungeknickt in 10x6 cm passen, sowie Mehrfach-Anhänger).\nProdukt-Link: https://www.amazon.de/dp/B0CPJT35H8\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=306-3879066-2697958",
+                'note'           => "Rechnungsnummer: R505615 vom 23.11.2026 | Auftragsnummer: A510194 | Kundennummer: K516735 | Amazon-Bestellnummer: 306-3879066-2697958 | Bestellt & bezahlt am: 22.11.2026 (Amazon Payment / Volksbank eG Braunschweig Wolfsburg ••• 000)\nHändler: Frau Wundervoll GmbH (Max Meyercordt), Hauptstr. 13, 32657 Lemgo, USt-IdNr.: DE304189490, Steuer-Nr.: 329 5887 1612, HRB 8688 AG Lemgo\nPosition:\n- Pos. 1: 1x 100 Stück Frau WUNDERVoll® Papiertüten / Papierflachbeutel Schwarz, 13 x 16,5 cm (+ 2 cm Umfaltlasche), 45 g/m² Papier (Art.-Nr. / Amazon SKU: FW-19510-P4, ASIN: B0CPJT35H8): 8,40 € netto (9,99 € brutto)\n- Pos. 2: DHL Paketversand: 0,00 €\nGesamt Netto (19,00 %): 8,40 € | zzgl. 19,00 % MwSt.: 1,59 € | Gesamtbetrag (Brutto): 9,99 €\nEinsatzzweck: 100 % plastikfreie, schwarze Papierflachbeutel für längliche Schmuckstücke ohne Geschenkbox (insbesondere 18,5 cm ID-Seelenarmbänder, die nicht ungeknickt in 10x6 cm passen, sowie Mehrfach-Anhänger).\nProdukt-Link: https://www.amazon.de/dp/B0CPJT35H8\nBestellübersicht-Link: https://www.amazon.de/gp/css/summary/print.html?orderID=306-3879066-2697958",
                 'file_paths'     => [
-                    'buchhaltung/receipts/2026/11/2026-11-22_Amazon_100x-Frau-WUNDERVoll-Schwarze-Papierflachbeutel-13x16-5cm_Order-306-3879066-2697958.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-23_Frau-Wundervoll-GmbH_Frau-Wundervoll-Papiertueten.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-22_Amazon_100x-Frau-WUNDERVoll-Schwarze-Papierflachbeutel-13x16-5cm_Order-306-3879066-2697958.pdf',
+                ]
+            ],
+            [
+                'title'          => '100x Vollpapp-Versandtasche DIN A5 selbstklebend weiß (167 x 240 mm, Art.-Nr. 3895-001)',
+                'location'       => 'www.verpacking.com (RAPIDPACK GmbH)',
+                'amount'         => -46.60,
+                'date'           => '2026-11-20',
+                'category'       => 'Verpackungen',
+                'tax_rate'       => 19,
+                'invoice_number' => 'VPJ21171 (PayPal 1SW87551V09465610)',
+                'note'           => "Bestellnummer: VPJ21171 | Bestellt & bezahlt am: 20.11.2026 via PayPal Checkout (Transaktionscode: 1SW87551V09465610, Volksbank eG Braunschweig Wolfsburg ••6000) | Versand am: 22.11.2026 (Sendungsnr.: 01925028357057)\nHändler: RAPIDPACK GmbH (verpacking.com), Neuenhagener Chaussee 2, 15366 Hoppegarten, USt-IdNr.: DE292411306, HRB 20121 FF AG Frankfurt (Oder), Tel.: +49 30 221846600\nPositionen:\n- Pos. 1: 100x Versandtasche Vollpappe 167x240 mm DIN A5 selbstklebend weiß (Art.-Nr.: 3895-001): 41,65 € brutto (0,42 € brutto / Stk.)\n- Pos. 2: Standardversand DE Paketversand: 4,95 € brutto\nGesamt (Netto): 39,16 € | inkl. 19 % USt.: 7,44 € | Gesamtsumme (Brutto): 46,60 €\nEinsatzzweck: 100 % plastikfreie, knickgeschützte Vollpapp-Versandtasche (PKG-ENV-VOUCHER) für den Postversand gravierter Geschenkgutscheine im Schwarz-Gold-Umschlag (Deutsche Post Großbrief).\nProdukt-Link: https://www.verpacking.com/Versandtasche-Vollpappe-167x240-mm-DIN-A5-selbstklebend-weiss",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-20_Rapidpack-verpacking_100x-Vollpapp-Versandtasche-DIN-A5-3895-001_Order-VPJ21171.pdf',
+                ]
+            ],
+            [
+                'title'          => 'Rückerstattung / Gutschrift: 10x KADAX Werkstatt-Stapelkiste (Retoure zu Bestellung 303-2735132-0737928)',
+                'location'       => 'Amazon (ALEKSY LISOWSKI NETFOX)',
+                'amount'         => 34.99,
+                'date'           => '2026-11-17',
+                'category'       => 'Arbeitsmaterial',
+                'tax_rate'       => 19,
+                'invoice_number' => 'Gutschrift PL60984198MOVU (Bestellnr. 303-2735132-0737928)',
+                'note'           => "Amazon Gutschriftbestätigung vom 17.11.2026 (Abgabe der Rücksendung am 09.11.2026) zu Bestellung 303-2735132-0737928 / ursprünglicher Rechnung PL60984198MOVU vom 02.11.2026\nErstattete Position:\n- 1x (Set à 10 Stück) KADAX Werkstatt-Stapelkiste / Sichtlagerbox aus PP Kunststoff (Schwarz, 290x200mm, ASIN: B0BSQZ447T, Grund: Rücksendung durch Kunden)\nArtikel-Erstattung (Netto): +29,40 € | Erstattete Mehrwertsteuer (19 %): +5,59 € | Gesamt-Rückerstattung auf Bankkonto: +34,99 €",
+                'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-17_Amazon_10x-KADAX-Werkstatt-Stapelkiste-Gutschrift-Retoure_Order-303-2735132-0737928.pdf',
                 ]
             ],
             [
@@ -985,9 +1026,10 @@ class AccountingSeeder extends Seeder
                 'date'           => '2026-11-02',
                 'category'       => 'Verpackungen',
                 'tax_rate'       => 0,
-                'invoice_number' => '29000069521 (Klischee L247401 / Kd.-Nr. 7164015)',
-                'note'           => "Bestellung Order #29000069521 vom 02.11.2026 (Order-ID: 485928) | Kundennummer: 7164015 | Westpack Klischee-Nr.: L247401\nSteuer-Hinweis: 25 % dänische MOMS = 29,19 €, kein deutscher Vorsteuerabzug in Kz 66 (voller Bruttobetrag 145,95 € als Betriebsausgabe in der EÜR).\nLogokorrektur / Proof vom 03.11.2026 (Azizah Fitria Nada Zahra, afz@westpack.com): Logo \"mein-seelenfunke\" (60 x h11,4 mm mittig auf Schachteldeckel 86 x 86 x 17 mm)\nPositionen:\n- 96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr.: 30286060102, Schwarz matt, 86 x 86 x 17 mm inkl. Schaumstoffeinlage & eigenem Mein-Seelenfunke-Logodruck): Einzelpreis 1,06 € netto = 101,76 € netto\n- 1x Klischeekosten / Druckstempel (Art.-Nr.: 60000002000, Klischee-Nr. L247401): 0,00 €\nZwischensumme: 101,76 € netto | Versand & Bearbeitung (Standard nach DE): 15,00 € netto | Steuer (25% DK MwSt.): 29,19 € | Gesamtsumme: 145,95 € brutto (1,52 € brutto / Stk.)\nZahlungsart: PayPal (Alina Steinhauer / Mein Seelenfunke)\nHändler: Westpack A/S, Sletten 21, 7500 Holstebro, Dänemark, USt-IdNr.: DK15505908, Kontakt Klischee: afz@westpack.com\nProdukt-Link: https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html",
+                'invoice_number' => '821293 (Auftragsnr. 29000069521 / Klischee L247401 / Kd.-Nr. 7164015)',
+                'note'           => "Rechnungsnr.: 821293 vom 10.11.2026 | Bestellung / Auftragsnummer: #29000069521 vom 02.11.2026 (Order-ID: 485928) | Kundennummer: 7164015 | Westpack Klischee-Nr.: L247401-60 | FedEx Paketnr.: 879930038007 (2,1 kg)\nSteuer-Hinweis: 25 % dänische MOMS = 29,19 €, kein deutscher Vorsteuerabzug in Kz 66 (voller Bruttobetrag 145,95 € als Betriebsausgabe in der EÜR).\nLogokorrektur / Proof vom 03.11.2026 (Azizah Fitria Nada Zahra, afz@westpack.com): Logo \"mein-seelenfunke\" (Metallic Gold, 60 x h11,4 mm mittig auf Schachteldeckel 86 x 86 x 17 mm)\nPositionen:\n- 96x Frankfurt ECO Schmuckschachtel Anhänger/Armreif (Art.-Nr.: 30286060102, Schwarz matt, 86 x 86 x 17 mm inkl. Schaumstoffeinlage & eigenem Mein-Seelenfunke-Logodruck, FSC Mix 70 %): Einzelpreis 1,06 € netto = 101,76 € netto\n- 1x Klischeekosten / Druckstempel (Art.-Nr.: 60000002000, Klischee-Nr. L247401): 0,00 €\n- 1x Versandkosten (Art.-Nr.: 60000001400): 15,00 € netto\nZwischensumme: 116,76 € netto | Steuer (25 % DK MwSt.): 29,19 € | Gesamtsumme: 145,95 € brutto (1,52 € brutto / Stk.)\nZahlungsart: PayPal am 02.11.2026 (Alina Steinhauer / Mein Seelenfunke)\nHändler: Westpack A/S, Sletten 21, DK-7500 Holstebro, Dänemark, USt-IdNr.: DK11963552 / DK15505908, CVR-Nr.: 26211425, Kontakt: sales@westpack.com / afz@westpack.com\nProdukt-Link: https://www.westpack.com/eur_eu_ger/frankfurt-eco-jewellery-box-for-pendant-bangle-30286060102.html",
                 'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-10_Westpack_96x-Frankfurt-ECO-Schmuckschachtel_Rechnung-821293_Order-29000069521.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-02_Westpack_96x-Frankfurt-ECO-Schmuckschachtel-Order-29000069521.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-03_Westpack_Logokorrektur-Klischee-L247401-Kundennr-7164015.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-03_Westpack_Logo-Vektor-L247401-Kundennr-7164015.pdf',
@@ -1032,10 +1074,12 @@ class AccountingSeeder extends Seeder
                 'date'           => '2026-10-30',
                 'category'       => 'Rohmaterial',
                 'tax_rate'       => 19,
-                'invoice_number' => '324858',
-                'note'           => "Bestellung #324858 | Art. Nr.: STA1274 (5 Stück à 2,40 € brutto = 12,00 € brutto / 10,08 € netto zzgl. 1,92 € MwSt.)\nVersand (DHL): 4,99 € brutto (4,19 € netto zzgl. 0,80 € MwSt.) | Gesamtbetrag: 16,99 €\nZahlungsart: PayPal (kontakt@mein-seelenfunke.de)\nHändler: Stefan Spreier & Sandra Schmidt GbR (Glücksfieber), Stockholmring 8, 23560 Lübeck, Tel.: 0451/ 47 99 85-0, E-Mail: kundenservice@gluecksfieber.de\nProdukt-Link: https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html",
+                'invoice_number' => 'RE2613298 (Bestellung 324858)',
+                'note'           => "Rechnung Nr. RE2613298 vom 02.11.2026 | Bestellung #324858 vom 30.10.2026 | Kundennr.: 252590\nPositionen (inkl. 19 % MwSt.):\n- Pos. 1: 5x Edelstahl Laserrohling Anhänger, Herz, mit Collierschlaufe, 14 Karat vergoldet, 25 x 22 x 4 mm, Öse: 3 x 6 mm, Ion Plating (IP) (Art. Nr.: STA1274): 2,40 € brutto/Stk. = 12,00 € brutto\n- Pos. 2: 1x Porto & Verpackung (Art. Nr.: P / DHL): 4,99 € brutto\nWarenwert Gesamt (Netto): 14,28 € | MwSt. (19 %): 2,71 € | Rechnungsbetrag (Brutto): 16,99 €\nZahlungsart: PayPal (kontakt@mein-seelenfunke.de)\nHändler: Glücksfieber-Perlen, Stefan Spreier & Sandra Schmidt GbR, Stockholmring 8, 23560 Lübeck, Steuer-Nr.: 22 285 50300, USt-IdNr.: DE246566105, Tel.: 0451/ 47 99 85-0, E-Mail: kundenservice@gluecksfieber.de\nProdukt-Link: https://www.gluecksfieber.de/shop/laserrohlinge/edelstahl-laserrohling-anhaenger-herz-mit-collierschlaufe-14-karat-vergoldet-25-x-22-x-4-mm-oese-3-x-6-mm-ion-plating-ip.html",
                 'file_paths'     => [
-                    'buchhaltung/receipts/2026/10/2026-10-30_Gluecksfieber_5x-Edelstahl-Laserrohling-Anhaenger-Herz-Rechnung.pdf'
+                    'buchhaltung/receipts/2026/11/2026-11-02_Gluecksfieber_Rechnung-RE2613298-Bestellung-324858.pdf',
+                    'buchhaltung/receipts/2026/11/2026-11-02_Gluecksfieber_Rechnung-RE2613298-Bestellung-324858.xml',
+                    'buchhaltung/receipts/2026/10/2026-10-30_Gluecksfieber_5x-Edelstahl-Laserrohling-Anhaenger-Herz-Rechnung.pdf',
                 ]
             ],
             [

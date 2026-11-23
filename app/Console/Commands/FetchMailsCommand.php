@@ -123,7 +123,7 @@ class FetchMailsCommand extends Command
                 $folder = $client->getFolder('INBOX');
 
                 // Fetch headers first to skip already-stored large MIME bodies without loading 25 MB attachments into RAM
-                $messages = $folder->query()->since(now()->subDays(7))->setFetchBody(false)->get();
+                $messages = $folder->query()->since(now()->subDays(7))->setFetchBody(false)->leaveUnread()->get();
                 $count = 0;
 
                 foreach ($messages as $message) {
@@ -161,6 +161,26 @@ class FetchMailsCommand extends Command
                             if ($existingMsg) {
                                 if ($decodedSubject !== '' && $existingMsg->subject !== $decodedSubject && str_contains((string) $existingMsg->subject, '??')) {
                                     $existingMsg->update(['subject' => $decodedSubject]);
+                                }
+                                if ($existingMsg->has_attachments) {
+                                    $missingDbAtts = $existingMsg->attachments->filter(fn ($a) => !empty($a->path) && !Storage::disk('local')->exists($a->path));
+                                    if ($missingDbAtts->isNotEmpty()) {
+                                        if (method_exists($message, 'parseBody')) {
+                                            $message->parseBody();
+                                        }
+                                        if ($message->hasAttachments()) {
+                                            foreach ($message->getAttachments() as $imapAtt) {
+                                                $imapName = strtolower(self::decodeMimeHeaderSafe((string) $imapAtt->getName()));
+                                                $targetAtt = $missingDbAtts->first(fn ($a) => strtolower((string) $a->filename) === $imapName);
+                                                if ($targetAtt && (int) ($imapAtt->getSize() ?? 0) <= 25 * 1024 * 1024) {
+                                                    $bytes = (string) $imapAtt->getContent();
+                                                    if ($bytes !== '' && strlen($bytes) <= 25 * 1024 * 1024) {
+                                                        Storage::disk('local')->put($targetAtt->path, $bytes);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                                 continue;
                             }

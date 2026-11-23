@@ -104,7 +104,7 @@ class ProductCalculator extends Component
 
     protected function assertPublicCalculatorEnabled(): void
     {
-        if ($this->isPublicFrontendCalculator() && !filter_var(shop_setting('quote_calculator_enabled', true), FILTER_VALIDATE_BOOLEAN)) {
+        if ($this->isPublicFrontendCalculator() && !\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()) {
             abort(404);
         }
     }
@@ -439,8 +439,7 @@ class ProductCalculator extends Component
             return isset($item['configuration']['is_express']) && filter_var($item['configuration']['is_express'], FILTER_VALIDATE_BOOLEAN);
         });
         $this->isExpress = $hasExpressItem;
-        $shopLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
-        if ($shopLevel >= 2 && $this->isExpress) {
+        if (!\App\Services\Order\ShopCapacityService::isExpressAvailable() && $this->isExpress) {
             $this->isExpress = false;
         }
 

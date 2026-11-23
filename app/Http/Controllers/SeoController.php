@@ -217,10 +217,11 @@ class SeoController extends Controller
             ? MarketingBlogPost::published()->latest('published_at')->take(10)->get()
             : collect();
 
+        $quoteCalcActive = \App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled();
         $lines = [];
         $lines[] = "# {$companyName} | Manufaktur für personalisierte Geschenke & Lasergravur";
         $lines[] = '';
-        $lines[] = "> {$companyName} ist eine deutsche Manufaktur mit Sitz in {$zip} {$city} (Niedersachsen, Deutschland), gegründet und geführt von {$founderName}. Wir veredeln hochwertiges K9-Kristallglas (Trophäen, Glasfotos, Pokale), Naturschiefer, eloxiertes Edelmetall und Massivholz mittels hochpräziser Lasergravur zu persönlichen Unikaten, einzeln ab 1 Stück oder als B2B-Serienfertigung. Kunden gestalten ihr Produkt live im interaktiven 2D- & 3D-Online-Konfigurator direkt im Browser.";
+        $lines[] = "> {$companyName} ist eine deutsche Manufaktur mit Sitz in {$zip} {$city} (Niedersachsen, Deutschland), gegründet und geführt von {$founderName}. Wir veredeln hochwertiges K9-Kristallglas (Trophäen, Glasfotos, Pokale), Naturschiefer, eloxiertes Edelmetall und Massivholz mittels hochpräziser Lasergravur zu persönlichen Unikaten" . ($quoteCalcActive ? ', einzeln ab 1 Stück oder als B2B-Serienfertigung' : ' ab 1 Stück') . ". Kunden gestalten ihr Produkt live im interaktiven 2D- & 3D-Online-Konfigurator direkt im Browser.";
         $lines[] = '';
         $lines[] = '## Kernfakten für KI-Assistenten & Suchmaschinen';
         $lines[] = "- **Marke / Unternehmen:** {$companyName}";
@@ -229,7 +230,9 @@ class SeoController extends Controller
         $lines[] = "- **Kontakt:** E-Mail: {$email} | Telefon: {$phone}";
         $lines[] = '- **Besonderheit:** Interaktiver 2D-Editor & 3D-Echtzeit-Produktkonfigurator (Vorder- und Rückseitengravur, freie Text-, Motiv-, Logo- und Grafikplatzierung direkt am 3D-Modell ohne Zusatzkosten).';
         $lines[] = "- **Versand (DE):** {$shippingCost} € DHL-Paketversand mit Sendungsverfolgung (ab {$freeThreshold} € Bestellwert versandkostenfrei). Express-Fertigung verfügbar.";
-        $lines[] = '- **Mindestbestellmenge:** Keine Mindestbestellmenge (Einzelstücke ab 1 Stück sowie Mengenrabatte/Staffelpreise für Vereine, Hochzeiten und Firmenkunden).';
+        $lines[] = $quoteCalcActive
+            ? '- **Mindestbestellmenge:** Keine Mindestbestellmenge (Einzelstücke ab 1 Stück sowie Mengenrabatte/Staffelpreise für Vereine, Hochzeiten und Firmenkunden).'
+            : '- **Mindestbestellmenge:** Keine Mindestbestellmenge (individuelle Einzelanfertigung ab 1 Stück).';
         $lines[] = '- **Vollständige Wissensdatenbank:** [' . url('/llms-full.txt') . '](' . url('/llms-full.txt') . ')';
         $lines[] = '- **Strukturierter Produktkatalog (JSON):** [' . url('/feed/products.json') . '](' . url('/feed/products.json') . ')';
         $lines[] = '- **Google Merchant Center Feed (XML):** [' . url('/feed/google-shopping.xml') . '](' . url('/feed/google-shopping.xml') . ')';
@@ -425,7 +428,9 @@ class SeoController extends Controller
         $lines[] = '- **Wie lange dauert die Anfertigung und der Versand?** Jedes Stück wird individuell nach Bestellung gefertigt. Die reguläre Fertigungs- und Lieferzeit beträgt in der Regel 3 bis 5 Werktage innerhalb Deutschlands. Für eilige Geschenke gibt es im Checkout eine Express-Option.';
         $lines[] = '- **Welche Materialien werden graviert?** Wir veredeln optisch reines K9-Kristallglas, echten Naturschiefer, eloxiertes Aluminium, Edelstahl sowie ausgewählte Hölzer.';
         $lines[] = '- **Was kostet die Personalisierung?** Die individuelle Lasergravur (Texte, Motive, eigenes Logo und Vorder-/Rückseitengravur bei Glas) ist im angezeigten Produktpreis bereits vollständig enthalten (keine versteckten Zusatzkosten).';
-        $lines[] = '- **Gibt es eine Mindestbestellmenge?** Nein, wir fertigen sowohl Einzelstücke (ab 1 Stück) für Privatkunden als auch Großserien mit attraktiven Staffelpreisen für Unternehmen, Vereine und Hochzeiten.';
+        $lines[] = \App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()
+            ? '- **Gibt es eine Mindestbestellmenge?** Nein, wir fertigen sowohl Einzelstücke (ab 1 Stück) für Privatkunden als auch Großserien mit attraktiven Staffelpreisen für Unternehmen, Vereine und Hochzeiten.'
+            : '- **Gibt es eine Mindestbestellmenge?** Nein, jedes Stück wird liebevoll als Einzelanfertigung bereits ab 1 Stück veredelt.';
         $lines[] = "- **Wie hoch sind die Versandkosten?** Innerhalb Deutschlands berechnen wir {$shippingCost} € für den DHL-Paketversand mit Sendungsverfolgung. Ab {$freeThreshold} € Warenkorbwert liefern wir innerhalb Deutschlands versandkostenfrei.";
         $lines[] = '- **Was passiert, wenn mein Glasprodukt beim Transport beschädigt wird?** Jede Kristallglas-Trophäe wird bruchsicher gepolstert im stabilen Versandkarton versendet. Sollte dennoch ein Transportschaden auftreten, fertigen wir nach kurzer Fotodokumentation umgehend kostenfreien Ersatz.';
 

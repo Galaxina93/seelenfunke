@@ -440,5 +440,33 @@ class ShowcaseMaintenanceAndCalculatorLockTest extends TestCase
             ->set('replyMessage', '')
             ->call('insertCannedResponse', 'calculator')
             ->assertSet('replyMessage', '');
+
+        // 4. Startseite (/), Navigation, Footer, AGB, Datenschutz, Sitemap & LLMs.txt blenden alle Kalkulator-/B2B-Hinweise aus, behalten aber die helle Mittel-Sektion bei
+        $this->get('/')
+            ->assertStatus(200)
+            ->assertSee('Dein Design in Echtzeit')
+            ->assertSee('Jedes Unikat')
+            ->assertSee('Unikat auswählen & gestalten', false)
+            ->assertDontSee('Für B2B Kunden, Teams & Vereine')
+            ->assertDontSee('Wertschätzung mit')
+            ->assertDontSee('Attraktive Mengenrabatte')
+            ->assertDontSee('Jetzt Serien-Preis berechnen')
+            ->assertDontSee('Angebot kalkulieren')
+            ->assertDontSee('Angebotskalkulator öffnen')
+            ->assertDontSee('B2B Projekt-Kalkulator');
+
+        $this->get('/agb')
+            ->assertStatus(200)
+            ->assertDontSee('B2B-Projekt-Kalkulator')
+            ->assertDontSee('oder Kalkulator hochlädt');
+
+        $this->get('/sitemap.xml')
+            ->assertStatus(200)
+            ->assertDontSee('/calculator');
+
+        $this->get('/llms.txt')
+            ->assertStatus(200)
+            ->assertDontSee('/calculator')
+            ->assertDontSee('Mengenrabatte/Staffelpreise');
     }
 }

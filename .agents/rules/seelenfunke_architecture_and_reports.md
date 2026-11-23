@@ -20,3 +20,9 @@
    - **No unnecessary sentences:** Never add instructional banners, sub-headers, or status texts for things that are already visually obvious.
    - **No artificial/weird headings:** Use short, natural labels (`Inventar`, `Rucksack`, `KLASSE C/B/A/S`, `Profil`, `In die Schlacht`).
    - **No overloaded views:** Keep cards, headers, and modals minimal and progressive (details on hover/modal/expand, never stacked badge walls).
+6. **Enforce Stock/Margin Protection, 360° Feature Gates, Laser Safety, Blueprints & Live Air-Gap**:
+   - **Stock & Margin Guard:** All physical products enforce `track_quantity = true`, `continue_selling_when_out_of_stock = false`, and zero automatic `ProductTierPrice` volume discounts unless explicitly requested.
+   - **360° Feature Switches:** Any feature toggle (e.g., `quote_calculator_enabled`, `showroom_multiplayer_enabled`) MUST centrally control route (`404`), navigation/footer/homepage teasers, customer/admin cards, legal text references (`AGB`/`Datenschutz`), SEO feeds (`sitemap.xml`, `llms*.txt`), and `system:check-routes`.
+   - **Laser Hardware Safety (`xTool F2 Ultra UV`):** Keep `An Laser senden` disabled whenever unsaved changes (`isDirty`) exist, sync `focus_mm` prior to camera capture & job upload, and compute `custom_card` coordinates strictly against the contour box rather than the `200×200 mm` full bed.
+   - **Blueprint & Green Gate:** Every new Eloquent model must implement `HasSystemBlueprint`; always finish local work with `./funki rights` and `./funki check` (`0 errors / 0 warnings`).
+   - **Live Data Taboo & Privacy Air-Gap:** Never run `ProductSeeder`, `AccountingSeeder`, or order/customer seeders on `Live` (`mein-seelenfunke.de`); verify idempotent `SHOW COLUMNS` schema parity on Live pulls; keep `storage/app/buchhaltung/`, music, and `.env` strictly local (`0 bytes` external).

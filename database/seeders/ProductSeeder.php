@@ -125,7 +125,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 150,
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 920,
             'packaging_weight' => 150,
             'width' => 180,
@@ -228,13 +228,8 @@ class ProductSeeder extends Seeder
         $catIds1 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets', 'Bestseller'])->pluck('id');
         $p1->categories()->sync($catIds1);
 
-        // Staffelpreise als relationale Datensätze
+        // Keine Mengenrabatte zum Start (Einzelanfertigung nach realem Lagerbestand)
         $p1->tierPrices()->delete();
-        $p1->tierPrices()->createMany([
-            ['qty' => 5, 'percent' => 5],
-            ['qty' => 10, 'percent' => 10],
-            ['qty' => 20, 'percent' => 15]
-        ]);
 
         // Verpackungsmaterial (LUCID / /admin/product-packaging): Versandkarton + Polsterschutz (150 g gesamt)
         $p1->packagings()->delete();
@@ -278,7 +273,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 150,
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 19,
             'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
             'height' => 40,
@@ -449,11 +444,6 @@ class ProductSeeder extends Seeder
         $catIds2 = ProductCategory::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger', 'Bestseller'])->pluck('id');
         $p2->categories()->sync($catIds2);
         $p2->tierPrices()->delete();
-        $p2->tierPrices()->createMany([
-            ['qty' => 3, 'percent' => 5],
-            ['qty' => 5, 'percent' => 10],
-            ['qty' => 10, 'percent' => 15]
-        ]);
 
         // Verpackungsmaterial (LUCID / /admin/product-packaging): Luftpolster-Versandtüte (15 g gesamt)
         $p2->packagings()->delete();
@@ -485,7 +475,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 200,
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 450,
             'packaging_weight' => 180, // Karton.eu Art.-Nr. 2633 (300x230x150 mm) = 0,18 kg (180 g) lt. Rechnung 26169398
             'width' => 74,      // 7,4 cm
@@ -583,11 +573,6 @@ class ProductSeeder extends Seeder
         $catIds3 = ProductCategory::whereIn('name', ['Glas & Kristall', 'Geschenksets'])->pluck('id');
         $p3->categories()->sync($catIds3);
         $p3->tierPrices()->delete();
-        $p3->tierPrices()->createMany([
-            ['qty' => 4, 'percent' => 5],
-            ['qty' => 6, 'percent' => 10],
-            ['qty' => 12, 'percent' => 15]
-        ]);
 
         // Verpackungsmaterial (LUCID / /admin/product-packaging): Versandkarton + Polsterschutz (120 g gesamt)
         $p3->packagings()->delete();
@@ -619,7 +604,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 16,
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 24,
             'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
             'height' => 50,
@@ -785,11 +770,6 @@ class ProductSeeder extends Seeder
         $catIds4 = ProductCategory::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger', 'Bestseller'])->pluck('id');
         $p4->categories()->sync($catIds4);
         $p4->tierPrices()->delete();
-        $p4->tierPrices()->createMany([
-            ['qty' => 3, 'percent' => 5],
-            ['qty' => 5, 'percent' => 10],
-            ['qty' => 10, 'percent' => 15]
-        ]);
 
         // Verpackungsmaterial (LUCID / /admin/product-packaging): Luftpolster-Versandtüte (15 g gesamt)
         $p4->packagings()->delete();
@@ -821,7 +801,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 30,
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 12,
             'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
             'height' => 22,
@@ -1012,11 +992,6 @@ class ProductSeeder extends Seeder
         $catIdsPaw = ProductCategory::whereIn('name', ['Metall & Alu', 'Schmuck & Anhänger', 'Bestseller'])->pluck('id');
         $p5Paw->categories()->sync($catIdsPaw);
         $p5Paw->tierPrices()->delete();
-        $p5Paw->tierPrices()->createMany([
-            ['qty' => 2, 'percent' => 8],
-            ['qty' => 3, 'percent' => 12],
-            ['qty' => 5, 'percent' => 18]
-        ]);
 
         // Verpackungsmaterial (LUCID / /admin/product-packaging): Luftpolster-Versandtüte (15 g gesamt)
         $p5Paw->packagings()->delete();
@@ -1048,7 +1023,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke',
             'track_quantity' => true,
             'quantity' => 10,
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 18,
             'packaging_weight' => 15, // Luftpolster-Versandtüte (15 g)
             'height' => 25,
@@ -1220,11 +1195,6 @@ class ProductSeeder extends Seeder
         $catIdsGoldHeart = ProductCategory::whereIn('name', ['Schmuck & Anhänger', 'Metall & Alu', 'Geschenksets', 'Bestseller'])->pluck('id');
         $p6GoldHeart->categories()->sync($catIdsGoldHeart);
         $p6GoldHeart->tierPrices()->delete();
-        $p6GoldHeart->tierPrices()->createMany([
-            ['qty' => 2, 'percent' => 5],
-            ['qty' => 3, 'percent' => 10],
-            ['qty' => 5, 'percent' => 15]
-        ]);
 
         // Verpackungsmaterial (LUCID / /admin/product-packaging): Luftpolster-Versandtüte (15 g gesamt)
         $p6GoldHeart->packagings()->delete();
@@ -1266,7 +1236,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke Atelier',
             'track_quantity' => true,
             'quantity' => 0, // Auftragsbezogene Einzelanfertigung (Startbestand 0)
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 3, // ca. 1,80 g Echtgold (0,80 g Herz + 1,00 g Kette) -> aufgerundet 3 g
             'packaging_weight' => 170, // 20 g Westpack Schmuckbox + 150 g Versandkarton
             'height' => 14,
@@ -1412,7 +1382,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke Atelier',
             'track_quantity' => true,
             'quantity' => 0, // Auftragsfertigung (Startbestand 0)
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 3, // 2,50 g 925er Sterlingsilber -> aufgerundet 3 g
             'packaging_weight' => 15, // 15 g Luftpolster-Versandtasche
             'width' => 185, // 185 mm (18,5 cm Gesamtlänge)
@@ -1575,7 +1545,7 @@ class ProductSeeder extends Seeder
             'brand' => 'Mein-Seelenfunke Atelier',
             'track_quantity' => true,
             'quantity' => 0, // Auftragsfertigung (Startbestand 0)
-            'continue_selling_when_out_of_stock' => true,
+            'continue_selling_when_out_of_stock' => false,
             'weight' => 3, // 2,50 g 925er Sterlingsilber Gelb vergoldet -> aufgerundet 3 g
             'packaging_weight' => 15, // 15 g Luftpolster-Versandtasche
             'width' => 185, // 185 mm (18,5 cm Gesamtlänge)
@@ -1722,7 +1692,7 @@ class ProductSeeder extends Seeder
             'description' => 'Verschenken Sie unvergessliche Momente mit unserem edlen Seelenfunken Geschenkgutschein. Der Gutschein kann wahlweise digital per E-Mail oder als lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag mit goldenem Siegel per Post bestellt werden. Sie können den Betrag flexibel wählen und eine persönliche Grußbotschaft hinzufügen. Der perfekte Ausdruck Ihrer Wertschätzung.',
             'is_personalizable' => true,
             'three_d_active' => false,
-            'short_description' => 'Der flexible Seelenfunken Geschenkgutschein als E-Mail-PDF oder lasergravierte Aluminiumkarte im Edel-Umschlag mit Wachssiegel.',
+            'short_description' => 'Der flexible Seelenfunken Geschenkgutschein als E-Mail-PDF oder lasergravierte Aluminiumkarte im Edel-Umschlag mit goldenem Siegel.',
             'status' => 'active',
             'price' => 0, // Wird dynamisch durch den Konfigurator/Warenkorb bestimmt
             'tax_class' => 'zero', // Mehrzweck-Gutschein gem. § 3 Abs. 14 UStG (Versteuerung erst bei Einlösung)
@@ -1736,15 +1706,11 @@ class ProductSeeder extends Seeder
             'weight' => 25, 'packaging_weight' => 15, 'height' => 2, 'width' => 114, 'length' => 162, 'shipping_class' => 'brief',
             'preview_image_path' => 'produkte/products/geschenkgutschein/envelope.png',
             'media_gallery' => $resolveGallery('geschenkgutschein', [
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Standard', 'alt' => 'Seelenfunke Geschenkgutschein im schwarz-goldenen Umschlag mit Wachssiegel'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-lifestyle.jpg', 'is_main' => false, 'is_hover' => true, 'is_ai_generated' => false, 'alt' => 'Seelenfunke Geschenkgutschein: Persönliche Übergabe im Schwarz-Gold-Umschlag mit Wachssiegel'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-halloween.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Halloween', 'alt' => 'Seelenfunke Geschenkgutschein: Herbst & Lichter Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-weihnachten.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Weihnachten', 'alt' => 'Seelenfunke Geschenkgutschein: Weihnachts-Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-valentinstag.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Valentinstag', 'alt' => 'Seelenfunke Geschenkgutschein: Romantik & Valentinstag Edition'],
-                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-ostern.jpg', 'is_main' => false, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Ostern', 'alt' => 'Seelenfunke Geschenkgutschein: Frühlings- & Oster-Edition'],
-            ]),
+                ['type' => 'image', 'path' => 'produkte/products/geschenkgutschein/gutschein-main.jpg', 'is_main' => true, 'is_hover' => false, 'is_ai_generated' => false, 'holiday' => 'Standard', 'alt' => 'Seelenfunke Geschenkgutschein im schwarz-goldenen Umschlag mit goldenem Siegel'],
+            ], true),
             'configurator_settings' => [
                 'auto_seasonal_main_image' => true,
+                'seasonal_images' => $resolveSeasonalImages('geschenkgutschein', false, true),
                 'allow_text_pos' => false,
                 'allow_logo' => false,
                 // Validierte xTool F2 Ultra UV Handbuchwerte für die lasergravierte Alu-Gutscheinkarte (86 × 54 mm, Schwarz)
@@ -1789,7 +1755,7 @@ class ProductSeeder extends Seeder
             ],
             'tier_pricing' => [],
             'seo_title' => 'Geschenkgutschein online kaufen & verschenken | Mein-Seelenfunke',
-            'seo_description' => 'Edler Geschenkgutschein von Mein-Seelenfunke. Flexibler Wert, mit persönlicher Botschaft. Digital per E-Mail oder als lasergravierte Aluminiumkarte im Edel-Umschlag mit Wachssiegel bestellen.',
+            'seo_description' => 'Edler Geschenkgutschein von Mein-Seelenfunke. Flexibler Wert, mit persönlicher Botschaft. Digital per E-Mail oder als lasergravierte Aluminiumkarte im Edel-Umschlag mit goldenem Siegel bestellen.',
             'completion_step' => 4
         ]);
 

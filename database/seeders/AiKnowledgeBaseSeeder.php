@@ -167,17 +167,17 @@ Der Kundenservice wird durch ein fortschrittliches KI-Netzwerk verwaltet, welche
 **Echte Bewertungen (Reviews):** Zu jedem Produkt können registrierte Käufer Bewertungen hinterlassen. Echte Reviews anderer Kunden sind im Shop beim jeweiligen Artikel einsehbar.
                 "
             ],
-            // Artikel 7: Rabatte
+            // Artikel 7: Rabatte & Treueprogramm
             [
-                'title' => 'Rabatte, B2B & Großbestellungen',
+                'title' => 'Rabatte, Gutscheine & Treueprogramm',
                 'category' => 'Produkte & B2B',
-                'tags' => ['B2B', 'Gamification'],
+                'tags' => ['Gamification'],
                 'content' => "
-# Angebote & Firmenkunden
-**Rabattcodes & Gutscheine:** Rabattcodes können direkt im Warenkorb (Checkout) eingelöst werden. Normale Geschenkgutscheine (Gift Cards) bieten wir ebenfalls zum Kauf für Freunde an. 
-**Saisonale Aktionen (Sales) & Studentenrabatt:** Große Rabattaktionen (Black Friday, Summer Sale) werden gesammelt beworben. Einen dedizierten Schüler- oder Studentenrabatt bieten wir nicht standardmäßig an, stattdessen können alle über Gamification ihre Rabatte erspielen. Es gilt keine Preisgarantie im Nachhinein (Price match).
-**Das Seelenfunken-Treueprogramm & Funki (Level 1–10):** Kunden aktivieren im Kunden-Dashboard (/dashboard) unter '✨ Seelenfunken & Prämien' ('Magie aktivieren') das Treueprogramm. Für jeden Einkauf (1,00 € Warenwert = 1 ✨ Seelenfunke), Produktbewertungen (+15 ✨), Geburtstag & Stammkunden-Jahrestag (+50 ✨) sowie versteckte Funken im Shop sammeln Kunden Punkte. Über 'Funki öffnen' im Dashboard (Reiter 'Rabatte', 'Level', 'Titel & Ränge', 'Halle der Helden') können Funken ab 250 ✨ (5 %), 500 ✨ (10 %) und 750 ✨ (15 %) gegen Rabatt-Gutscheine eingelöst werden, während Funki von Level 1 bis Level 10 (bis zum Titel 'Seelengott unter Sterblichen') aufsteigt.
-**B2B & Großbestellungen:** Wer als Unternehmen extrem hohe Stückzahlen ordert, ist herzlich willkommen! Der Kunde soll bitte das Support-Team kontaktieren oder eine B2B-Anfrage (Bulk Order Inquiry) stellen, das interne Verkaufsteam meldet sich dann bezüglich Mengenrabatten.
+# Rabatte, Gutscheine & Treueprogramm
+**Rabattcodes & Gutscheine:** Rabattcodes können direkt im Warenkorb (Checkout) eingelöst werden. Geschenkgutscheine (Wertgutscheine) bieten wir ebenfalls zum Kauf an.
+**Saisonale Aktionen (Sales) & Studentenrabatt:** Große Rabattaktionen werden gesammelt beworben. Einen dedizierten Schüler- oder Studentenrabatt bieten wir nicht standardmäßig an; stattdessen können alle Kundinnen und Kunden über das Seelenfunken-Treueprogramm Rabatte erspielen. Es gilt keine Preisgarantie im Nachhinein.
+**Das Seelenfunken-Treueprogramm & Funki (Level 1 bis 10):** Kunden aktivieren im Kunden-Dashboard (/dashboard) unter 'Seelenfunken & Prämien' ('Magie aktivieren') das Treueprogramm. Für jeden Einkauf (1,00 € Warenwert = 1 Seelenfunke), Produktbewertungen (+15), Geburtstag & Stammkunden-Jahrestag (+50) sowie versteckte Funken im Shop sammeln Kunden Punkte. Über 'Funki öffnen' im Dashboard können Funken ab 250 (5 %), 600 (10 %) und 1.200 (15 %) gegen Rabatt-Gutscheine eingelöst werden, während Funki von Level 1 bis Level 10 aufsteigt.
+**Verfügbarkeit & größere Stückzahlen:** Im Shop kann stets maximal die aktuell physisch auf Lager liegende Stückzahl direkt bestellt werden (keine automatischen Mengenrabatte zum Start). Fragt jemand nach einer größeren Sonderanfertigung für eine Hochzeit, einen Verein oder ein Unternehmen, verweise freundlich auf das Kontaktformular (/kontakt), damit Alina Machbarkeit und Lieferzeit individuell prüfen kann.
                 "
             ],
             // Artikel 8

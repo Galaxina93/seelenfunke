@@ -382,12 +382,14 @@ class CustomerReviewsComponent extends Component
                 'title' => SupportExperienceReview::AREA_LABELS[SupportExperienceReview::AREA_FUNKENREICH],
                 'icon' => 'sparkles',
             ],
-            [
+        ];
+        if (\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()) {
+            $experienceCards[] = [
                 'area' => SupportExperienceReview::AREA_CALCULATOR,
                 'title' => SupportExperienceReview::AREA_LABELS[SupportExperienceReview::AREA_CALCULATOR],
                 'icon' => 'calculator',
-            ],
-        ];
+            ];
+        }
 
         return view('livewire.customer.customer-reviews-component', [
             'productReviews' => $productReviews,

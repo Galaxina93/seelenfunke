@@ -2348,7 +2348,9 @@ html.dark .hover-theme-pulse:hover, html.dark .active-theme-pulse { animation: t
                         'open_tickets' => 'Offene Kunden-Tickets aus dem Support inkl. gemeldeter Bug-Reports (hebt hohe Priorität & Bug-Tickets besonders hervor).',
                         'open_chats' => 'Live-Chat Anfragen von Kunden, die auf eine Antwort vom System warten.',
                         'open_contact_requests' => 'Eingegangene Anfragen über das Kontaktformular, die unbearbeitet sind.',
-                        'experience_reviews' => 'Offene 1-3 Sterne Erlebnis-Rückmeldungen zu Produktkonfigurator, 3D-Funkenreich und Angebots-Kalkulator.',
+                        'experience_reviews' => \App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()
+                            ? 'Offene 1-3 Sterne Erlebnis-Rückmeldungen zu Produktkonfigurator, 3D-Funkenreich und Angebots-Kalkulator.'
+                            : 'Offene 1-3 Sterne Erlebnis-Rückmeldungen zu Produktkonfigurator und 3D-Funkenreich.',
                         'ai_autopilot_drafts' => 'Fertig vorbereitete 1-Klick-Belegscans (Buchi) und Bestell-Antwortentwürfe (Bestelli) im Verarbeitet-Postfach.',
                         'open_mails' => 'Ungelesene E-Mails im Posteingang, die Aufmerksamkeit erfordern.',
                         'product_reviews' => 'Von Kunden eingereichte Produktbewertungen, die auf manuelle Freigabe warten.',

@@ -107,8 +107,12 @@ class ZeroTokenSelfHealer
 
             if ($existing) {
                 $newCount = ((int) $existing->occurrence_count) + 1;
+                $existingPayload = is_array($existing->action_payload) ? $existing->action_payload : [];
+                $existingPayload['occurrences_count'] = $newCount;
+                $existingPayload['last_seen_at'] = now()->toIso8601String();
                 $existing->update([
                     'occurrence_count' => $newCount,
+                    'action_payload' => $existingPayload,
                     'last_activity_at' => now(),
                 ]);
 
@@ -124,31 +128,39 @@ class ZeroTokenSelfHealer
             $systemDeptId = AiDepartment::where('name', 'System')->value('id');
             $systemiAgent = AiAgent::where('name', 'Systemi')->first();
             $envTier = FunkiraPresenceContext::resolveEnvironmentTier();
+            $notebookOnline = FunkiraPresenceContext::isAntigravityNotebookOnline();
 
             $shortFile = $file ? basename(str_replace('\\', '/', $file)) . ($line ? ":{$line}" : '') : $category;
             $cleanTitle = 'System-Fehler: ' . Str::limit($shortFile . ' (' . trim(preg_replace('/\s+/', ' ', $message) ?? $message) . ')', 140);
 
+            $initialStatus = $autoRepaired
+                ? AiUniverseTicket::STATUS_COMPLETED
+                : ($notebookOnline ? AiUniverseTicket::STATUS_IN_PROGRESS : AiUniverseTicket::STATUS_WAITING_FOR_NOTEBOOK);
+
             $ticket = AiUniverseTicket::create([
                 'ticket_number' => AiUniverseTicket::generateNextTicketNumber(),
                 'title' => $cleanTitle,
-                'status' => $autoRepaired ? AiUniverseTicket::STATUS_COMPLETED : AiUniverseTicket::STATUS_WAITING_FOR_ALINA,
+                'status' => $initialStatus,
                 'priority' => $category === 'php_fatal_or_oom' ? 'high' : 'normal',
                 'ticket_type' => 'system_error',
                 'ai_department_id' => $systemDeptId,
                 'assigned_agent_id' => $systemiAgent?->id,
-                'assigned_to_antigravity' => false,
+                'assigned_to_antigravity' => !$autoRepaired,
                 'source_channel' => 'system_sentinel',
                 'environment_tier' => $envTier,
                 'error_fingerprint' => $fingerprint,
                 'occurrence_count' => 1,
                 'messages_count' => 1,
                 'action_payload' => [
-                    'type' => 'antigravity_handoff',
+                    'type' => $autoRepaired ? 'antigravity_handoff' : 'antigravity_active',
                     'category' => $category,
                     'file' => $file,
                     'line' => $line,
                     'exception_class' => $exceptionClass,
                     'auto_repaired' => $autoRepaired,
+                    'ag_channel' => 'tickets',
+                    'queue_state' => $autoRepaired ? 'completed' : 'queued',
+                    'auto_dispatch_attempts' => 0,
                 ],
                 'last_activity_at' => now(),
                 'completed_at' => $autoRepaired ? now() : null,
@@ -159,10 +171,31 @@ class ZeroTokenSelfHealer
                 '- **Umgebung:** `' . $envTier . '`',
                 '- **Ort:** `' . ($file ? $file . ($line ? ':' . $line : '') : 'Laufzeit') . '`',
                 '- **Ursache:** ' . ($diag['probable_cause'] ?? Str::limit($message, 260)),
-                '- **Empfehlung:** ' . ($diag['recommended_action'] ?? 'Bei Bedarf per 1-Klick an Antigravity übergeben.'),
+                '- **Empfehlung:** ' . ($diag['recommended_action'] ?? 'Automatisch in die serielle Antigravity-Reparatur-Queue eingereiht.'),
             ];
             if ($autoRepaired) {
                 $summaryLines[] = '- **Selbstreparatur:** Bekannter Cache-/Queue-Klemmer wurde in 0 Tokens automatisch bereinigt.';
+            }
+
+            if (!$autoRepaired) {
+                try {
+                    $autopilotMandate = "\n\nAutopilot-Mandat (Lösen + Härten in einem Atemzug): Behebe nicht nur das akute Symptom, sondern härte den betroffenen Code-Pfad inkl. Nachbarstellen dauerhaft gegen Wiederauftreten ab und verankere einen automatisierten Regressions-Test.";
+                    $enqueued = app(AntigravityDirectInboxService::class)->enqueueMessage([
+                        'channel' => 'tickets',
+                        'title' => "[{$ticket->ticket_number}] {$cleanTitle}",
+                        'body' => implode("\n", $summaryLines) . "\n\nOriginal-Fehlermeldung:\n" . Str::limit($message, 1500) . $autopilotMandate,
+                        'execution_mode' => 'direct',
+                        'source' => 'system_sentinel',
+                        'skip_universe_mirror' => true,
+                    ]);
+                    $newAgId = trim((string) ($enqueued['item']['id'] ?? ''));
+                    if ($newAgId !== '') {
+                        $p = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+                        $p['ag_item_id'] = $newAgId;
+                        $ticket->update(['action_payload' => $p]);
+                    }
+                } catch (\Throwable) {
+                }
             }
 
             AiUniverseTicketMessage::create([

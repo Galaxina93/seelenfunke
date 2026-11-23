@@ -2,174 +2,39 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Order\ShopCapacityService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
-use App\Models\System\SystemSetting;
-use App\Models\Delivery\DeliveryTime;
 
 class ShopCapacityEngine extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'shop:capacity-engine';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
     protected $description = 'Berechnet die aktuelle Shop-Auslastung und passt ggf. Liefergeschwindigkeiten autonom an.';
 
-    /**
-     * Execute the console command.
-     */
-    public function handle()
+    public function handle(ShopCapacityService $capacityService): int
     {
-        $this->info("Starte Shop Capacity Engine...");
+        $this->info('Starte Shop Capacity Engine...');
 
-        $dailyHours = (float) SystemSetting::where('key', 'shop_daily_working_hours')->value('value') ?: 7.0;
-        $minutesPerOrder = (float) SystemSetting::where('key', 'shop_minutes_per_order')->value('value') ?: 10.0;
-        $rawBuffer = SystemSetting::where('key', 'shop_capacity_buffer')->value('value');
-        $buffer = ($rawBuffer !== null && $rawBuffer !== '') ? max(0, (int) $rawBuffer) : 12;
+        $result = $capacityService->syncAndApplyAutopilot();
 
-        $t1 = (int) SystemSetting::where('key', 'shop_capacity_threshold_1')->value('value') ?: 60;
-        $t2 = (int) SystemSetting::where('key', 'shop_capacity_threshold_2')->value('value') ?: 85;
-        $t3 = (int) SystemSetting::where('key', 'shop_capacity_threshold_3')->value('value') ?: 90;
+        $this->info("Current Load: {$result['active_orders']} orders (Limit: {$result['max_capacity']})");
+        $this->info("Percentage: {$result['capped_percentage']}% => Level {$result['level']}");
 
-        $t1 = max(1, min(97, $t1));
-        $t2 = max($t1 + 1, min(98, $t2));
-        $t3 = max($t2 + 1, min(99, $t3));
-
-        if ($minutesPerOrder <= 0) $minutesPerOrder = 10;
-
-        // 2. Errechne 100% Limit
-        $maxCapacity = max(1, (int)floor((($dailyHours * 60) / $minutesPerOrder) - $buffer));
-
-        // 3. Hole aktuelle Last (Pending + Processing)
-        $orders = \App\Models\Order\OrderOrder::whereIn('status', ['pending', 'processing'])
-            ->with('items.product')
-            ->get();
-            
-        $totalMinutesRequired = 0;
-        foreach ($orders as $order) {
-            $totalMinutesRequired += $minutesPerOrder;
-            foreach ($order->items as $item) {
-                $laserRuntime = 0;
-                if ($item->product && is_numeric($item->product->laser_runtime_minutes)) {
-                    $laserRuntime = (float)$item->product->laser_runtime_minutes;
-                }
-                $runtimePerItem = $laserRuntime > 0 ? $laserRuntime : 2;
-                $totalMinutesRequired += ($item->quantity * $runtimePerItem);
-            }
-        }
-        $orderEquivalents = $totalMinutesRequired / max(1, $minutesPerOrder);
-        $activeOrders = (int) ceil($orderEquivalents);
-
-        // 4. Kalkuliere Level
-        $percentage = min(100, (int)round(($activeOrders / max(1, $maxCapacity)) * 100));
-        
-        $level = 0; // Normal (0 - t1)
-        if ($percentage >= $t1 && $percentage < $t2) {
-            $level = 1; // Erhöhtes Aufkommen
-        } elseif ($percentage >= $t2 && $percentage < $t3) {
-            $level = 2; // Hohe Auslastung (Rot)
-        } elseif ($percentage >= $t3 && $percentage < 100) {
-            $level = 3; // Hohe Auslastung + Express Off
-        } elseif ($percentage >= 100) {
-            $level = 4; // Lockdown
-        }
-
-        $this->info("Current Load: {$activeOrders} orders (Limit: {$maxCapacity})");
-        $this->info("Percentage: {$percentage}% => Level {$level}");
-
-        // Speichere das Level für den globalen Zugriff cache/DB:
-        Cache::put('shop_capacity_level', $level);
-        Cache::put('shop_capacity_percentage', $percentage);
-        SystemSetting::updateOrCreate(
-            ['key' => 'shop_capacity_level'],
-            ['value' => $level]
-        );
-        Cache::forget('global_shop_settings');
-
-        // 5. Autopilot Eingriffe
-        $autoPilot = filter_var(Cache::get('shop_capacity_autopilot', SystemSetting::where('key', 'shop_capacity_autopilot')->value('value') ?? false), FILTER_VALIDATE_BOOLEAN);
-        $deliverySetting = \App\Models\Delivery\DeliverySetting::first();
-        $isVacationMode = filter_var(SystemSetting::where('key', 'is_vacation_mode')->value('value') ?? false, FILTER_VALIDATE_BOOLEAN)
-            || (bool) ($deliverySetting?->is_vacation_mode ?? false)
-            || (bool) ($deliverySetting?->is_sick_mode ?? false);
-
-        if ($isVacationMode) {
-            $this->warn("Vacation mode is ON. Skipping delivery time mutations.");
-        } elseif ($autoPilot) {
-            $this->info("Autopilot is ON. Adjusting delivery times...");
-            
-            // Definiere die 4 Profile
-            $profiles = [
-                'Standard' => ['min_days' => 5, 'max_days' => 7],
-                'Erhöhtes Aufkommen' => ['min_days' => 7, 'max_days' => 10],
-                'Hohe Auslastung' => ['min_days' => 10, 'max_days' => 14],
-                'Extreme Auslastung' => ['min_days' => 16, 'max_days' => 21],
-            ];
-
-            // Stelle sicher, dass diese Profile existieren
-            foreach ($profiles as $name => $days) {
-                DeliveryTime::firstOrCreate(
-                    ['name' => $name],
-                    [
-                        'min_days' => $days['min_days'],
-                        'max_days' => $days['max_days'],
-                        'is_active' => false
-                    ]
-                );
-            }
-
-            $targetDeliveryName = 'Standard';
-            if ($level === 1) {
-                $targetDeliveryName = 'Erhöhtes Aufkommen';
-            } elseif ($level === 2 || $level === 3) {
-                $targetDeliveryName = 'Hohe Auslastung';
-            } elseif ($level >= 4) {
-                $targetDeliveryName = 'Extreme Auslastung';
-            }
-
-            // Aktive Lieferzeit updaten (falls abweichend)
-            $activeDelivery = DeliveryTime::where('is_active', true)->first();
-            
-            if (!$activeDelivery || $activeDelivery->name !== $targetDeliveryName) {
-                DeliveryTime::query()->update(['is_active' => false]);
-                DeliveryTime::where('name', $targetDeliveryName)->update(['is_active' => true]);
-                $this->info("Switched active delivery time to: {$targetDeliveryName}");
+        if (!empty($result['is_vacation_or_sick'])) {
+            $this->warn('Vacation mode is ON. Skipping delivery time mutations.');
+        } elseif (!empty($result['autopilot_enabled'])) {
+            $this->info('Autopilot is ON. Adjusting delivery times...');
+            if (($result['mutation'] ?? '') === 'switched') {
+                $this->info("Switched active delivery time to: {$result['target_profile_name']}");
             } else {
-                $this->info("Delivery time already optimal ({$targetDeliveryName}).");
+                $this->info("Delivery time already optimal ({$result['target_profile_name']}).");
             }
         } else {
-            $this->warn("Autopilot is OFF. No data mutated.");
+            $this->warn('Autopilot is OFF. No data mutated.');
         }
 
-        if ($level >= 4) {
-            \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
-                alertKey: 'shop_capacity:lockdown_level_4',
-                title: "Werkstatt-Kapazität am Limit (100 % Auslastung / Stufe 4)",
-                markdownBody: "Die `ShopCapacityEngine` meldet aktuell **{$percentage} % Manufaktur-Auslastung** ({$activeOrders} Auftrags-Äquivalente bei Tageslimit {$maxCapacity}). Express-Optionen sind gedrosselt"
-                    . ($autoPilot ? ' und die Lieferzeit wurde automatisch auf **Extreme Auslastung (16 bis 21 Tage)** angepasst.' : ' (Lieferzeit-Autopilot ist aktuell deaktiviert).'),
-                departmentName: 'Bestellungen',
-                agentName: 'Bestelli',
-                ticketType: 'capacity_alert',
-                priority: 'high',
-                assignToAntigravity: false
-            );
-        } else {
-            \App\Services\System\SystemAlertTicketService::autoResolveByAlertPrefix(
-                'shop_capacity:lockdown_level_4',
-                "Werkstatt-Auslastung wieder unter 100 % gesunken (aktuell {$percentage} %, Stufe {$level}).",
-                'Bestelli'
-            );
-        }
+        $this->info('Shop Capacity Engine run completed.');
 
-        $this->info("Shop Capacity Engine run completed.");
         return self::SUCCESS;
     }
 }

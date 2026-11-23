@@ -21,7 +21,7 @@ class AntigravityDirectInboxService
     public const MAX_CHECKLIST_ITEM_LENGTH = 300;
 
     public const ALLOWED_EXECUTION_MODES = ['concept', 'direct'];
-    public const ALLOWED_CHANNELS = ['leitung', 'shop', 'android', 'minipc', 'buchhaltung', 'new'];
+    public const ALLOWED_CHANNELS = ['leitung', 'tickets', 'shop', 'android', 'minipc', 'buchhaltung', 'new'];
     public const ALLOWED_STATUSES = ['pending', 'delivered', 'awaiting_go', 'completed'];
     public const ALLOWED_DECISIONS = ['approved', 'info_provided', 'dismissed', 'deferred'];
     public const ALLOWED_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
@@ -76,15 +76,32 @@ class AntigravityDirectInboxService
         return rtrim(storage_path('app/private'), '/\\');
     }
 
+    public function privateFileMode(): int
+    {
+        return app()->environment(['local', 'testing']) ? 0666 : 0600;
+    }
+
+    public function privateDirectoryMode(): int
+    {
+        return app()->environment(['local', 'testing']) ? 0777 : 0700;
+    }
+
     public function privateRootPath(): string
     {
         $defaultDir = app()->runningUnitTests()
             ? (rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'sf_phpunit_ag_inbox')
             : $this->productionPrivateRootPath();
         $dir = $this->privateRootOverride ?? $defaultDir;
+        $dirMode = $this->privateDirectoryMode();
         if (!File::isDirectory($dir)) {
-            File::makeDirectory($dir, 0700, true, true);
+            $oldUmask = @umask(0);
+            try {
+                File::makeDirectory($dir, $dirMode, true, true);
+            } finally {
+                @umask($oldUmask);
+            }
         }
+        @chmod($dir, $dirMode);
 
         return rtrim($dir, '/\\');
     }
@@ -102,9 +119,16 @@ class AntigravityDirectInboxService
     public function mediaDirectoryPath(): string
     {
         $dir = $this->privateRootPath() . DIRECTORY_SEPARATOR . self::MEDIA_DIR_NAME;
+        $dirMode = $this->privateDirectoryMode();
         if (!File::isDirectory($dir)) {
-            File::makeDirectory($dir, 0700, true, true);
+            $oldUmask = @umask(0);
+            try {
+                File::makeDirectory($dir, $dirMode, true, true);
+            } finally {
+                @umask($oldUmask);
+            }
         }
+        @chmod($dir, $dirMode);
 
         return $dir;
     }
@@ -754,6 +778,48 @@ class AntigravityDirectInboxService
     }
 
     /**
+     * Schließt ältere verknüpfte Inbox-Einträge desselben Tickets (ag_history_ids / previous_concept_ag_id)
+     * geräuschlos auf completed, damit keine verwaisten delivered-Einträge zurückbleiben.
+     *
+     * @param  array<int, string>  $ids
+     */
+    public function closeSiblingItems(array $ids, string $summary = 'Mit übergeordnetem Ticket abgeschlossen.'): int
+    {
+        $validIds = array_values(array_unique(array_filter(
+            array_map('trim', $ids),
+            static fn (string $id): bool => self::isValidItemId($id)
+        )));
+
+        if ($validIds === []) {
+            return 0;
+        }
+
+        return $this->withExclusiveLock(function (array $items) use ($validIds, $summary): array {
+            $lookup = array_fill_keys($validIds, true);
+            $nowIso = now('Europe/Berlin')->toIso8601String();
+            $cleanSummary = mb_substr(trim($summary), 0, 5000);
+            $closed = 0;
+
+            foreach ($items as &$item) {
+                $cid = (string) ($item['id'] ?? '');
+                if (isset($lookup[$cid]) && ($item['status'] ?? '') !== 'completed') {
+                    $item['status'] = 'completed';
+                    $item['completed_at'] = $nowIso;
+                    $item['pending_question'] = null;
+                    if (empty($item['ag_response_summary']) && $cleanSummary !== '') {
+                        $item['ag_response_summary'] = $cleanSummary;
+                    }
+                    $item = $this->formatItemSchema($item);
+                    $closed++;
+                }
+            }
+            unset($item);
+
+            return [$closed, $items, $closed > 0];
+        });
+    }
+
+    /**
      * Prüft, ob ein Ticket (Konzept-Modus oder Rückfrage im Summary) auf eine Entscheidung/Antwort von Alina wartet.
      *
      * @param  array<string, mixed>  $item
@@ -773,7 +839,20 @@ class AntigravityDirectInboxService
             return true;
         }
 
-        $lower = mb_strtolower($trimmed);
+        // Im Direkt-Umsetzungsmodus ("direct") nicht fälschlich auf awaiting_go blockieren,
+        // wenn lediglich der Lokal-First-Hinweis ("bereit für Stage-Rollout auf dein Go") am Ende steht.
+        $sanitizedForCheck = (string) (preg_replace(
+            '/bereit\s+f(?:ü|ue)r\s+(?:stage|live)[^.!?\n]{0,60}\b(?:dein|ihr)?\s*go\b/iu',
+            '',
+            $trimmed
+        ) ?? $trimmed);
+        $sanitizedForCheck = (string) (preg_replace(
+            '/(?:stage|live)[-\s]*(?:rollout|deploy|push)[^.!?\n]{0,60}\b(?:dein|ihr)?\s*go\b/iu',
+            '',
+            $sanitizedForCheck
+        ) ?? $sanitizedForCheck);
+
+        $lower = mb_strtolower($sanitizedForCheck);
         $markers = [
             'wartet auf',
             'warte auf',
@@ -991,12 +1070,13 @@ class AntigravityDirectInboxService
             $followupTitle = mb_substr('GO & Antwort zu: ' . $origTitle, 0, 500);
             $effectiveAnswer = $cleanAnswer !== ''
                 ? $cleanAnswer
-                : 'Explizites GO von Alina erteilt. Bitte wie konzeptioniert direkt umsetzen.';
+                : 'Explizites GO von Alina erteilt. Bitte wie konzeptioniert direkt umsetzen, den betroffenen Code-Pfad inkl. Nachbarstellen in einem Atemzug gegen Randfälle härten und per automatisiertem Test absichern.';
 
             $followupBodyLines = [
                 'Referenz-Ticket: ' . $targetId,
                 'Entscheidung von ' . $actorLabel . ': ' . ($normalizedDecision === 'approved' ? 'FREIGABE / GO' : 'RÜCKFRAGE BEANTWORTET'),
                 'Antwort / Vorgabe: ' . $effectiveAnswer,
+                'Qualitäts- & Härtungs-Pflicht: Löse nicht nur den Kernpunkt, sondern härte den betroffenen Code-Pfad inkl. Nachbarstellen in einem Atemzug gegen Wiederauftreten und verankere einen Regressions-Test.',
             ];
             if ($origQuestion !== '') {
                 $followupBodyLines[] = 'Ursprüngliche Rückfrage / Zusammenfassung: ' . mb_substr($origQuestion, 0, 1500);
@@ -1359,12 +1439,13 @@ class AntigravityDirectInboxService
             throw new RuntimeException('Privater Anhang konnte nicht gespeichert werden.');
         }
 
-        @chmod($tmpPath, 0600);
+        $fileMode = $this->privateFileMode();
+        @chmod($tmpPath, $fileMode);
         if (!@rename($tmpPath, $absPath)) {
             @unlink($tmpPath);
             throw new RuntimeException('Privater Anhang konnte nicht finalisiert werden.');
         }
-        @chmod($absPath, 0600);
+        @chmod($absPath, $fileMode);
 
         return [
             'rel_path' => self::MEDIA_DIR_NAME . '/' . $fileName,
@@ -1663,7 +1744,7 @@ class AntigravityDirectInboxService
         if (!is_resource($lockFp)) {
             throw new RuntimeException('Sperrdatei für AG-Direct-Inbox konnte nicht geöffnet werden.');
         }
-        @chmod($this->lockFilePath(), 0600);
+        @chmod($this->lockFilePath(), $this->privateFileMode());
 
         if (!@flock($lockFp, LOCK_SH)) {
             @fclose($lockFp);
@@ -1686,7 +1767,7 @@ class AntigravityDirectInboxService
         if (!is_resource($lockFp)) {
             throw new RuntimeException('Sperrdatei für AG-Direct-Inbox konnte nicht geöffnet werden.');
         }
-        @chmod($this->lockFilePath(), 0600);
+        @chmod($this->lockFilePath(), $this->privateFileMode());
 
         if (!@flock($lockFp, LOCK_EX)) {
             @fclose($lockFp);
@@ -1767,11 +1848,12 @@ class AntigravityDirectInboxService
             throw new RuntimeException('Temporäre AG-Direct-Inbox-Datei konnte nicht geschrieben werden.');
         }
 
-        @chmod($tmpFile, 0600);
+        $fileMode = $this->privateFileMode();
+        @chmod($tmpFile, $fileMode);
         if (!@rename($tmpFile, $inboxFile)) {
             @unlink($tmpFile);
             throw new RuntimeException('AG-Direct-Inbox konnte nicht atomar aktualisiert werden.');
         }
-        @chmod($inboxFile, 0600);
+        @chmod($inboxFile, $fileMode);
     }
 }

@@ -215,10 +215,10 @@
                             </div>
 
                             <div class="flex flex-col flex-1 min-w-[30%]">
-                                <label class="text-[8px] sm:text-[9px] uppercase tracking-widest text-gray-500 font-bold mb-1.5">Support-Puffer</label>
+                                <label class="text-[8px] sm:text-[9px] uppercase tracking-widest text-gray-500 font-bold mb-1.5" title="Abgezogene Puffer-Pakete pro Tag für Support & Verwaltung">Puffer-Pakete</label>
                                 <div class="flex items-center w-full">
                                     <input type="number" wire:model.blur="capacityBuffer" class="w-full min-w-[50px] bg-white dark:bg-black/40 border border-gray-300 dark:border-gray-700/50 rounded-l shadow-inner focus:border-red-500 focus:ring focus:ring-red-500/20 text-red-500 dark:text-red-400 text-xs p-2 font-mono text-center outline-none">
-                                    <span class="bg-gray-100 dark:bg-gray-800 border border-l-0 border-gray-300 dark:border-gray-700/50 rounded-r text-[10px] text-gray-600 dark:text-gray-400 px-2 sm:px-3 py-2">Min</span>
+                                    <span class="bg-gray-100 dark:bg-gray-800 border border-l-0 border-gray-300 dark:border-gray-700/50 rounded-r text-[10px] text-gray-600 dark:text-gray-400 px-2 sm:px-3 py-2">Pak.</span>
                                 </div>
                             </div>
                         </div>

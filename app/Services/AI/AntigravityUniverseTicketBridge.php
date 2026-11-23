@@ -24,6 +24,7 @@ class AntigravityUniverseTicketBridge
             'leitung' => 'Leitung',
             'buchhaltung' => 'Buchhaltung',
             'shop' => 'Produkte',
+            'tickets' => 'System',
             default => 'System',
         };
     }
@@ -262,16 +263,44 @@ class AntigravityUniverseTicketBridge
                 ]);
             }
 
+            $mergedPayload = array_merge($prevPayload, $actionPayload);
+            if ($targetStatus === AiUniverseTicket::STATUS_COMPLETED) {
+                $mergedPayload['queue_state'] = 'completed';
+                $mergedPayload['queue_completed_at'] = now()->toIso8601String();
+            } elseif ($targetStatus === AiUniverseTicket::STATUS_WAITING_FOR_ALINA) {
+                $mergedPayload['queue_state'] = 'waiting_for_alina';
+            }
+
             $ticket->update([
                 'status' => $targetStatus,
                 'priority' => $targetStatus === AiUniverseTicket::STATUS_WAITING_FOR_ALINA ? 'high' : $ticket->priority,
-                'action_payload' => array_merge($prevPayload, $actionPayload),
+                'action_payload' => $mergedPayload,
                 'messages_count' => $ticket->messages()->count(),
                 'last_activity_at' => now(),
                 'completed_at' => $targetStatus === AiUniverseTicket::STATUS_COMPLETED ? ($ticket->completed_at ?? now()) : $ticket->completed_at,
             ]);
 
             if ($targetStatus === AiUniverseTicket::STATUS_COMPLETED) {
+                $siblingIds = [];
+                if (!empty($prevPayload['ag_history_ids']) && is_array($prevPayload['ag_history_ids'])) {
+                    $siblingIds = array_merge($siblingIds, array_map('strval', $prevPayload['ag_history_ids']));
+                }
+                if (!empty($prevPayload['previous_concept_ag_id'])) {
+                    $siblingIds[] = (string) $prevPayload['previous_concept_ag_id'];
+                }
+                if (!empty($prevPayload['ag_item_id']) && (string) $prevPayload['ag_item_id'] !== $agId) {
+                    $siblingIds[] = (string) $prevPayload['ag_item_id'];
+                }
+                if ($siblingIds !== []) {
+                    try {
+                        app(AntigravityDirectInboxService::class)->closeSiblingItems(
+                            $siblingIds,
+                            $summary !== '' ? $summary : "Abgeschlossen über Ticket {$ticket->ticket_number}."
+                        );
+                    } catch (\Throwable) {
+                    }
+                }
+
                 CentralBrainService::recordTicketCompletionReport($ticket, $summary !== '' ? $summary : null);
             }
 

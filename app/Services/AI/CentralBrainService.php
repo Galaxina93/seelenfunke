@@ -413,6 +413,12 @@ class CentralBrainService
         $isBusinessTicket = (bool) ($ticket->is_business ?? true);
         $scopeLabel = AiUniverseTicket::getScopeLabel($isBusinessTicket);
 
+        $payload = is_array($ticket->action_payload) ? $ticket->action_payload : [];
+        $errorLoc = !empty($payload['file'])
+            ? ((string) $payload['file'] . (!empty($payload['line']) ? ':' . $payload['line'] : ''))
+            : '';
+        $occurrences = max(1, (int) ($ticket->occurrence_count ?? 1));
+
         $mdLines = [
             "# [{$ticket->ticket_number}] {$ticket->title}",
             '',
@@ -421,6 +427,9 @@ class CentralBrainService
             "- **Abteilung & Einheit:** {$deptName} · {$agentName}",
             "- **Kanal & Umgebung:** " . AiUniverseTicket::getChannelLabel((string) $ticket->source_channel) . " (`{$ticket->environment_tier}`)",
         ];
+        if ($errorLoc !== '') {
+            $mdLines[] = "- **Gehärteter Fehlerort:** `{$errorLoc}`" . ($occurrences > 1 ? " (vor Fix {$occurrences}x aufgetreten)" : '');
+        }
         if (!empty($toolsUsed)) {
             $mdLines[] = '- **Ausgeführte Werkzeuge:** `' . implode('`, `', $toolsUsed) . '`';
         }
@@ -431,11 +440,14 @@ class CentralBrainService
         $mdLines[] = '## Ausgangsanfrage';
         $mdLines[] = Str::limit($problemText, 800);
         $mdLines[] = '';
-        $mdLines[] = '## Lösung & Umsetzung';
+        $mdLines[] = '## Lösung, Code-Härtung & Verifikation';
         $mdLines[] = Str::limit($solutionText, 1800);
+
+        $hasHardeningDoc = mb_stripos($solutionText, 'härtung') !== false || $errorLoc !== '';
 
         $tags = array_values(array_unique(array_filter([
             'Ticket-Abschlussbericht',
+            $hasHardeningDoc ? 'Code-Härtung' : null,
             $scopeLabel,
             strtolower($ticket->ticket_number),
             $deptName,

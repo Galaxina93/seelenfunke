@@ -69,20 +69,51 @@ class SystemErrorLogger
     }
 
     /**
+     * Erkennt einmalige manuelle PHP CLI-/Eval-/Stdin-Aufrufe ("Command line code", "Standard input code"),
+     * einschließlich mehrzeiliger Stack-Trace-Frames wie "#9 Command line code(5):" oder "Standard input code:5".
+     */
+    public static function isCliEvalOrStdinError(string $message, ?string $file = null, ?string $traceText = null): bool
+    {
+        $fileLower = strtolower(trim((string) $file));
+        if (str_contains($fileLower, 'standard input code') || str_contains($fileLower, 'command line code')) {
+            return true;
+        }
+
+        $haystack = strtolower($message . "\n" . (string) $traceText);
+        if (trim($haystack) === '') {
+            return false;
+        }
+
+        $markers = [
+            'at standard input code:',
+            'in standard input code',
+            'standard input code(',
+            'standard input code:',
+            'at command line code:',
+            'in command line code',
+            'called in command line code on line',
+            'command line code(',
+            'command line code:',
+        ];
+
+        foreach ($markers as $marker) {
+            if (str_contains($haystack, $marker)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Analysiert eine Fehlermeldung / Exception und liefert eine strukturierte deutsche Ursachen-Diagnose.
      */
-    public static function diagnose(string $message, ?string $exceptionClass = null, ?string $file = null): array
+    public static function diagnose(string $message, ?string $exceptionClass = null, ?string $file = null, ?string $traceText = null): array
     {
         $msgLower = strtolower($message);
         $classLower = strtolower((string) $exceptionClass);
-        $fileLower = strtolower((string) $file);
 
-        if (
-            str_contains($fileLower, 'standard input code')
-            || str_contains($fileLower, 'command line code')
-            || str_contains($msgLower, 'at standard input code:')
-            || str_contains($msgLower, 'in command line code')
-        ) {
+        if (self::isCliEvalOrStdinError($message, $file, $traceText)) {
             return [
                 'category' => 'cli_stdin_eval_error',
                 'probable_cause' => 'Einmaliger manueller CLI-/Tinker-Testaufruf über Standard-Input (php -r / stdin), kein regulärer Laufzeitfehler im Anwendungscode.',
@@ -401,6 +432,38 @@ class SystemErrorLogger
     }
 
     /**
+     * Sammelt CLI-Eval-/Stdin-Herkunftshinweise über die gesamte Exception- und Previous-Kette,
+     * damit auch bei >4000 Zeichen langen Stack-Traces der Einstiegspunkt ("Standard input code" / "Command line code")
+     * nicht abgeschnitten wird.
+     */
+    protected static function collectThrowableOriginHints(\Throwable $e): string
+    {
+        $hints = [];
+        $cursor = $e;
+        $depth = 0;
+
+        while ($cursor !== null && $depth < 4) {
+            $cursorFile = (string) $cursor->getFile();
+            $cursorMsg = (string) $cursor->getMessage();
+            if (self::isCliEvalOrStdinError($cursorMsg, $cursorFile)) {
+                $hints[] = ($cursorFile !== '' ? $cursorFile : 'Standard input code') . ':' . $cursor->getLine() . ' ' . Str::limit($cursorMsg, 240, '');
+            }
+
+            foreach ($cursor->getTrace() as $frame) {
+                $frameFile = (string) ($frame['file'] ?? '');
+                if ($frameFile !== '' && self::isCliEvalOrStdinError('', $frameFile)) {
+                    $hints[] = $frameFile . ':' . ($frame['line'] ?? '?');
+                }
+            }
+
+            $cursor = $cursor->getPrevious();
+            $depth++;
+        }
+
+        return implode("\n", array_values(array_unique($hints)));
+    }
+
+    /**
      * Erstellt ein detailliertes Diagnose-Payload-Array aus einer Throwable-Instanz.
      */
     public static function buildExceptionPayload(\Throwable $e, array $extra = []): array
@@ -418,12 +481,21 @@ class SystemErrorLogger
             'line' => $previous->getLine(),
         ] : null;
 
+        $originHints = self::collectThrowableOriginHints($e);
+        $traceForDiagnosis = Str::limit(
+            ($originHints !== '' ? $originHints . "\n" : '')
+            . $e->getTraceAsString()
+            . ($previous ? "\n" . $previous->getFile() . ':' . $previous->getLine() . "\n" . $previous->getTraceAsString() : ''),
+            4000,
+            ''
+        );
+
         return array_merge([
             'exception_class' => get_class($e),
             'file' => $e->getFile(),
             'line' => $e->getLine(),
             'code' => $e->getCode(),
-            'diagnosis' => self::diagnose($e->getMessage(), get_class($e), $e->getFile()),
+            'diagnosis' => self::diagnose($e->getMessage(), get_class($e), $e->getFile(), $traceForDiagnosis),
             'previous_exception' => $previousData,
             'execution_context' => self::buildExecutionContext(),
             'server_environment' => self::buildServerEnvironment(),
@@ -954,6 +1026,9 @@ class SystemErrorLogger
 
             $payload = self::buildExceptionPayload($e, $extraPayload);
             $category = $payload['diagnosis']['category'] ?? 'exception';
+            if ($category === 'cli_stdin_eval_error') {
+                return null;
+            }
             $resolvedActionId = Str::limit($actionId ?: ('system:exception:' . $category), 190, '');
 
             $rawMessage = $e->getMessage() ?: ('Exception in ' . basename($e->getFile()) . ':' . $e->getLine());
@@ -1069,7 +1144,11 @@ class SystemErrorLogger
 
             $sanitizedMessage = self::sanitizeSensitiveText($message);
             $callerInfo = self::extractCallerTraceExcerpt();
-            $diagnosis = self::diagnose($sanitizedMessage, null, $callerInfo['file']);
+            $callerTraceText = implode("\n", is_array($callerInfo['trace_excerpt'] ?? null) ? $callerInfo['trace_excerpt'] : []);
+            $diagnosis = self::diagnose($sanitizedMessage, null, $callerInfo['file'] ?? null, $callerTraceText);
+            if (($diagnosis['category'] ?? '') === 'cli_stdin_eval_error') {
+                return null;
+            }
             $actionId = Str::limit('system:log:' . strtolower($level) . ':' . ($diagnosis['category'] ?? 'general'), 190, '');
             $status = in_array(strtolower($level), ['warning', 'notice'], true) ? 'warning' : 'error';
 
@@ -1154,7 +1233,10 @@ class SystemErrorLogger
                 $message .= " Ausgabe: " . Str::limit($sanitizedOutput, 1500);
             }
 
-            $diagnosis = self::diagnose($message, null, 'Console/Commands');
+            $diagnosis = self::diagnose($message, null, 'Console/Commands', $sanitizedOutput);
+            if (($diagnosis['category'] ?? '') === 'cli_stdin_eval_error') {
+                return null;
+            }
             $fingerprint = hash('sha256', strtolower('scheduler|' . $actionId . '|' . $exitCode));
             $existing = self::incrementRecentDuplicate('scheduler', $actionId, ['error', 'warning'], $fingerprint, 1);
             if ($existing) {
@@ -1317,7 +1399,10 @@ class SystemErrorLogger
                 return $existing;
             }
 
-            $diagnosis = self::diagnose(trim($rawTitle . ' ' . $cleanMessage . ' ' . $componentSlug), $errorClass ?: null, $file ?: null);
+            $diagnosis = self::diagnose(trim($rawTitle . ' ' . $cleanMessage . ' ' . $componentSlug), $errorClass ?: null, $file ?: null, $stackRaw);
+            if (($diagnosis['category'] ?? '') === 'cli_stdin_eval_error') {
+                return null;
+            }
             $baseTitle = $rawTitle !== ''
                 ? $rawTitle
                 : ($component !== '' ? ucfirst($component) : ($errorClass !== '' ? class_basename($errorClass) : 'Laufzeitfehler'));
@@ -1503,6 +1588,9 @@ class SystemErrorLogger
             $resolvedFile = self::resolveCompiledBladeViewPath($rawFile) ?? $rawFile;
             $sanitizedMessage = self::sanitizeSensitiveText($rawMessage);
             $diagnosis = self::diagnose($sanitizedMessage, 'FatalShutdownError', $resolvedFile);
+            if (($diagnosis['category'] ?? '') === 'cli_stdin_eval_error') {
+                return null;
+            }
             $actionId = 'system:fatal_shutdown:' . ($diagnosis['category'] ?? 'php_fatal_or_oom');
 
             $normalizedSig = preg_replace('/\b\d+\b/', '#', strtolower($sanitizedMessage));

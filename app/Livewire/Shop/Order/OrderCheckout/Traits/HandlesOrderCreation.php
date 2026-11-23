@@ -353,7 +353,7 @@ trait HandlesOrderCreation
                 'customer_id' => $customerId,
                 'email' => $this->email,
                 'status' => 'pending',
-                'is_express' => $cart->is_express,
+                'is_express' => (bool) $cart->is_express && \App\Services\Order\ShopCapacityService::isExpressAvailable(),
                 'payment_status' => 'unpaid',
                 'payment_method' => 'stripe',
                 'billing_address' => [
@@ -546,6 +546,13 @@ trait HandlesOrderCreation
         });
 
         $this->reconcileCachedStripeWebhookPayment($order);
+
+        if (!app()->runningUnitTests() || config('services.capacity.realtime_in_tests', false)) {
+            try {
+                app(\App\Services\Order\ShopCapacityService::class)->syncAndApplyAutopilot();
+            } catch (\Throwable) {
+            }
+        }
 
         return $order->id;
     }

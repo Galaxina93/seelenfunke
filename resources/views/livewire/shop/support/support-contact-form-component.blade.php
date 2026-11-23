@@ -122,7 +122,7 @@
                                                         <div class="flex gap-1.5">
                                                             <button type="button" wire:click="insertCannedResponse('busy')" title="Hohes Aufkommen" class="p-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-xs border border-gray-200 dark:border-gray-600">⏱️</button>
                                                             <button type="button" wire:click="insertCannedResponse('details')" title="Details anfragen" class="p-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-xs border border-gray-200 dark:border-gray-600">❓</button>
-                                                            @if(filter_var(shop_setting('quote_calculator_enabled', true), FILTER_VALIDATE_BOOLEAN))
+                                                            @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
                                                                 <button type="button" wire:click="insertCannedResponse('calculator')" title="Kalkulator" class="p-1 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-xs border border-gray-200 dark:border-gray-600">💲</button>
                                                             @endif
                                                         </div>

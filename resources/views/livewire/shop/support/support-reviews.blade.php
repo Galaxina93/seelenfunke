@@ -12,8 +12,8 @@
         </button>
     </div>
 
-    {{-- 3 KOMPAKTE BEREICHS-KPI-KACHELN --}}
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {{-- KOMPAKTE BEREICHS-KPI-KACHELN --}}
+    <div class="grid grid-cols-1 {{ count($areaKpis) === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3' }} gap-4">
         @foreach($areaKpis as $kpi)
             <button type="button"
                     wire:key="kpi-area-{{ $kpi['area'] }}"
@@ -60,7 +60,9 @@
                 <option value="all">Alle Bereiche</option>
                 <option value="configurator">Konfigurator</option>
                 <option value="funkenreich">Funkenreich</option>
-                <option value="calculator">Kalkulator</option>
+                @if(\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled())
+                    <option value="calculator">Kalkulator</option>
+                @endif
             </select>
 
             {{-- Sterne-Filter --}}

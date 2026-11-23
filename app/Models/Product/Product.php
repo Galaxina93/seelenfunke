@@ -3405,6 +3405,14 @@ use HasFactory, HasUuids, SoftDeletes;
                 'returnMethod' => 'https://schema.org/ReturnByMail',
             ];
 
+        $effectiveDeliveryDetails = $this->getEffectiveDeliveryDetails();
+        $schemaMinDays = max(2, (int) ($effectiveDeliveryDetails['min_days'] ?? 3));
+        $schemaMaxDays = max($schemaMinDays, (int) ($effectiveDeliveryDetails['max_days'] ?? 5));
+        $schemaTransitMin = 1;
+        $schemaTransitMax = min(2, max(1, $schemaMaxDays - 1));
+        $schemaHandlingMin = max(1, $schemaMinDays - $schemaTransitMin);
+        $schemaHandlingMax = max($schemaHandlingMin, $schemaMaxDays - $schemaTransitMax);
+
         $shippingDetails = [
             '@type' => 'OfferShippingDetails',
             'shippingRate' => [
@@ -3420,14 +3428,14 @@ use HasFactory, HasUuids, SoftDeletes;
                 '@type' => 'ShippingDeliveryTime',
                 'handlingTime' => [
                     '@type' => 'QuantitativeValue',
-                    'minValue' => 1,
-                    'maxValue' => 3,
+                    'minValue' => $schemaHandlingMin,
+                    'maxValue' => $schemaHandlingMax,
                     'unitCode' => 'DAY',
                 ],
                 'transitTime' => [
                     '@type' => 'QuantitativeValue',
-                    'minValue' => 1,
-                    'maxValue' => 3,
+                    'minValue' => $schemaTransitMin,
+                    'maxValue' => $schemaTransitMax,
                     'unitCode' => 'DAY',
                 ],
             ],
@@ -3644,12 +3652,15 @@ use HasFactory, HasUuids, SoftDeletes;
             : 'den in den Produkteigenschaften angegebenen Originalmaßen';
 
         $companyCityFaq = shop_setting('company_city', shop_setting('owner_city', 'Gifhorn'));
+        $faqDaySpan = ($schemaMinDays === $schemaMaxDays)
+            ? "{$schemaMinDays} Werktagen"
+            : "{$schemaMinDays} bis {$schemaMaxDays} Werktagen";
         if ($this->slug === 'geschenkgutschein') {
-            $deliveryFaqAnswer = 'Digitale Geschenkgutscheine stehen nach Zahlungseingang sofort als PDF-Download bereit. Bei Wahl des Postversands wird die lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag mit goldenem Siegel innerhalb von 3 bis 5 Werktagen versendet.';
+            $deliveryFaqAnswer = "Digitale Geschenkgutscheine stehen nach Zahlungseingang sofort als PDF-Download bereit. Bei Wahl des Postversands wird die lasergravierte Aluminiumkarte im schwarzen Edel-Umschlag mit goldenem Siegel innerhalb von {$faqDaySpan} versendet.";
         } elseif ($this->type === 'digital') {
             $deliveryFaqAnswer = 'Digitale Produkte stehen unmittelbar nach Zahlungseingang als Sofort-Download bereit.';
         } else {
-            $deliveryFaqAnswer = 'Jedes Unikat wird in unserer Manufaktur in ' . $companyCityFaq . ' (Deutschland) einzeln per Laser veredelt, handgeprüft und innerhalb von 3–5 Werktagen sorgfältig gepolstert per DHL mit Sendungsverfolgung versendet.';
+            $deliveryFaqAnswer = 'Jedes Unikat wird in unserer Manufaktur in ' . $companyCityFaq . ' (Deutschland) einzeln per Laser veredelt, handgeprüft und innerhalb von ' . $faqDaySpan . ' sorgfältig gepolstert per DHL mit Sendungsverfolgung versendet.';
         }
 
         $faqNode = [

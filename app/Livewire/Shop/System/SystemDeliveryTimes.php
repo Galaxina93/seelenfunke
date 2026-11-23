@@ -3,23 +3,29 @@
 namespace App\Livewire\Shop\System;
 
 use App\Livewire\Traits\WithDepartmentTheming;
-
-use Livewire\Component;
-use App\Models\Delivery\DeliveryTime;
-use App\Models\Delivery\DeliverySetting;
 use App\Models\Delivery\DeliveryFeedback;
+use App\Models\Delivery\DeliverySetting;
+use App\Models\Delivery\DeliveryTime;
+use App\Models\System\SystemSetting;
+use App\Services\AI\AiAuthHelper;
+use App\Services\Order\ShopCapacityService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Computed;
+use Livewire\Component;
 
 class SystemDeliveryTimes extends Component
 {
     use WithDepartmentTheming;
-    
+
     public string $themingDepartment = 'System';
 
     public $activeDeliveryTimeId = null;
 
-    // Settings-Werte
+    public bool $capacityAutopilotEnabled = false;
+    public float $capacityPercentage = 0.0;
+    public int $capacityLevel = 0;
+
     public $isVacationMode = false;
     public $vacationStartDate;
     public $vacationEndDate;
@@ -28,102 +34,63 @@ class SystemDeliveryTimes extends Component
     public $isSickMode = false;
     public $sickDescription = '';
 
-    public function boot(): void
+    private function assertAuthorized(): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
+        if (!Auth::guard('admin')->check() && !AiAuthHelper::isEmployee() && !AiAuthHelper::isAdmin()) {
             abort(403);
         }
     }
 
-    public function mount()
+    public function boot(): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            abort(403);
-        }
+        $this->assertAuthorized();
+    }
+
+    public function mount(): void
+    {
+        $this->assertAuthorized();
 
         $setting = DeliverySetting::firstOrCreate(['id' => 1], [
             'is_vacation_mode' => false,
             'is_sick_mode' => false,
-            'vacation_description' => 'Mein Seelenfunke macht eine kurze Kreativpause! ☀️ Bestellungen sind weiterhin möglich, werden aber erst nach unserer Rückkehr gefertigt und versendet. Wir wünschen dir trotzdem ganz viel Spaß beim Stöbern im Shop!',
-            'sick_description' => 'Einige aus unseren Team sind leider aktuell gesundheitlich etwas angeschlagen und liegen flach. 🤒 Bestellungen werden natürlich weiterhin angenommen, die Fertigung und der Versand verzögern sich jedoch, bis wir wieder fit sind. Wir bitten um dein Verständnis und wünschen dir trotzdem ganz viel Spaß beim Stöbern!'
+            'vacation_description' => 'Mein Seelenfunke macht eine kurze Kreativpause. Bestellungen sind weiterhin möglich und werden direkt nach unserer Rückkehr in unserer Manufaktur gefertigt und versendet.',
+            'sick_description' => 'Aktuell verzögert sich die Fertigung in unserer Manufaktur gesundheitsbedingt um einige Tage. Bestellungen werden selbstverständlich angenommen und mit größter Sorgfalt bearbeitet, sobald wir wieder fit sind.',
         ]);
 
-        $standardNames = ['Standard', 'Erhöhtes Aufkommen', 'Hohe Auslastung', 'Extreme Auslastung'];
-        $existingNames = DeliveryTime::pluck('name')->toArray();
+        $capacityService = app(ShopCapacityService::class);
+        $capacityService->ensureCanonicalDeliveryProfiles(true);
 
-        if (count($existingNames) !== 4 || count(array_diff($standardNames, $existingNames)) > 0 || count(array_diff($existingNames, $standardNames)) > 0) {
-            DeliveryTime::updateOrCreate(
-                ['name' => 'Standard'],
-                [
-                    'min_days' => 3,
-                    'max_days' => 5,
-                    'color' => 'green',
-                    'description' => 'Da jedes Seelenstück ein Unikat ist, setzt sich diese Zeit aus der individuellen Fertigung in der Manufaktur und dem anschließenden Postweg zusammen.',
-                ]
-            );
+        $this->refreshCapacityState();
 
-            DeliveryTime::updateOrCreate(
-                ['name' => 'Erhöhtes Aufkommen'],
-                [
-                    'min_days' => 5,
-                    'max_days' => 8,
-                    'color' => 'yellow',
-                    'description' => 'Aufgrund vieler Bestellungen benötigen wir aktuell etwas länger für die liebevolle Handfertigung deines Unikats. Danke für deine Geduld!',
-                ]
-            );
+        $activeRow = DeliveryTime::where('is_active', true)->orderBy('id')->first();
+        $this->activeDeliveryTimeId = $activeRow?->id;
 
-            DeliveryTime::updateOrCreate(
-                ['name' => 'Hohe Auslastung'],
-                [
-                    'min_days' => 10,
-                    'max_days' => 14,
-                    'color' => 'red',
-                    'description' => 'Wir fertigen auf Hochtouren! Bitte beachte die deutlich verlängerte Bearbeitungszeit durch die aktuell extrem hohe Nachfrage.',
-                ]
-            );
-
-            DeliveryTime::updateOrCreate(
-                ['name' => 'Extreme Auslastung'],
-                [
-                    'min_days' => 16,
-                    'max_days' => 21,
-                    'color' => 'red',
-                    'description' => 'Aufgrund extrem hoher Auslastung kommt es derzeit zu Verzögerungen. Dein Unikat wird mit größter Sorgfalt, aber etwas später gefertigt. Danke für dein Verständnis!',
-                ]
-            );
-
-            DeliveryTime::whereNotIn('name', $standardNames)->delete();
-        }
-
-        // Aktiven Status ermitteln, Default ist Standard (und Mehrfach-Aktivierungen bereinigen)
-        $activeRows = DeliveryTime::where('is_active', true)->orderBy('id')->get();
-        if ($activeRows->isEmpty()) {
-            $dt1 = DeliveryTime::where('name', 'Standard')->first() ?? DeliveryTime::first();
-            if ($dt1) {
-                $dt1->update(['is_active' => true]);
-                $this->activeDeliveryTimeId = $dt1->id;
-            }
-        } else {
-            $firstActive = $activeRows->first();
-            $this->activeDeliveryTimeId = $firstActive->id;
-            if ($activeRows->count() > 1) {
-                DeliveryTime::where('id', '!=', $firstActive->id)->update(['is_active' => false]);
-            }
-        }
-
-        $this->isVacationMode = $setting->is_vacation_mode;
+        $this->isVacationMode = (bool) $setting->is_vacation_mode;
         $this->vacationStartDate = $setting->vacation_start_date ? $setting->vacation_start_date->format('Y-m-d') : '';
         $this->vacationEndDate = $setting->vacation_end_date ? $setting->vacation_end_date->format('Y-m-d') : '';
-        $this->vacationDescription = $setting->vacation_description;
+        $this->vacationDescription = (string) ($setting->vacation_description ?? '');
 
-        $this->isSickMode = $setting->is_sick_mode;
-        $this->sickDescription = $setting->sick_description;
+        $this->isSickMode = (bool) $setting->is_sick_mode;
+        $this->sickDescription = (string) ($setting->sick_description ?? '');
+    }
+
+    private function refreshCapacityState(): void
+    {
+        $snap = app(ShopCapacityService::class)->evaluateCapacitySnapshot(false);
+        $this->capacityAutopilotEnabled = $snap['autopilot_enabled'];
+        $this->capacityPercentage = $snap['percentage'];
+        $this->capacityLevel = $snap['level'];
     }
 
     #[Computed]
     public function deliveryTimes()
     {
-        return DeliveryTime::orderBy('created_at')->get();
+        $order = array_keys(ShopCapacityService::CANONICAL_PROFILES);
+
+        return DeliveryTime::all()->sortBy(static function (DeliveryTime $dt) use ($order): int {
+            $idx = array_search($dt->name, $order, true);
+            return $idx === false ? 99 : $idx;
+        })->values();
     }
 
     #[Computed]
@@ -133,33 +100,68 @@ class SystemDeliveryTimes extends Component
     }
 
     #[Computed]
-    public function vacationWishesCount()
+    public function vacationWishesCount(): int
     {
         return DeliveryFeedback::where('type', 'vacation')->count();
     }
 
     #[Computed]
-    public function sickWishesCount()
+    public function sickWishesCount(): int
     {
         return DeliveryFeedback::where('type', 'sick')->count();
     }
 
-    // Adding/Deleting custom times has been permanently removed by CEO logic restriction.
-
-    public function setActiveDeliveryTime($id)
+    public function toggleCapacityAutopilot(): void
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            abort(403);
+        $this->assertAuthorized();
+
+        $next = !ShopCapacityService::isAutopilotEnabled();
+        ShopCapacityService::setAutopilotEnabled($next);
+
+        $synced = app(ShopCapacityService::class)->syncAndApplyAutopilot();
+        $this->capacityAutopilotEnabled = $synced['autopilot_enabled'];
+        $this->capacityPercentage = $synced['percentage'];
+        $this->capacityLevel = $synced['level'];
+
+        $activeRow = DeliveryTime::where('is_active', true)->first();
+        $this->activeDeliveryTimeId = $activeRow?->id;
+
+        unset($this->deliveryTimes);
+
+        if ($next) {
+            session()->flash('success', "Kapazitäts-Autopilot aktiviert: Profil „{$synced['target_profile_name']}“ ({$synced['capped_percentage']} % Auslastung) ist im Shop aktiv.");
+        } else {
+            session()->flash('success', 'Kapazitäts-Autopilot deaktiviert: Du steuerst die aktive Lieferzeit jetzt manuell.');
         }
+    }
+
+    public function setActiveDeliveryTime($id): void
+    {
+        $this->assertAuthorized();
 
         $target = DeliveryTime::findOrFail($id);
+        $wasAutopilot = ShopCapacityService::isAutopilotEnabled();
+
         DeliveryTime::query()->update(['is_active' => false]);
         $target->update(['is_active' => true]);
         $this->activeDeliveryTimeId = $target->id;
-        session()->flash('success', 'Standard-Lieferzeit wurde aktualisiert!');
+
+        // Wenn manuell ein abweichendes Profil gewählt wird, Autopilot transparent auf Manuell stellen,
+        // damit der 5-Minuten-Cronjob die manuelle Auswahl nicht im Hintergrund überschreibt!
+        $snap = app(ShopCapacityService::class)->evaluateCapacitySnapshot(false);
+        if ($wasAutopilot && $target->name !== $snap['target_profile_name']) {
+            ShopCapacityService::setAutopilotEnabled(false);
+            $this->capacityAutopilotEnabled = false;
+            unset($this->deliveryTimes);
+            session()->flash('success', "Lieferzeit auf „{$target->name}“ gesetzt (Autopilot pausiert, damit deine manuelle Wahl bestehen bleibt).");
+            return;
+        }
+
+        unset($this->deliveryTimes);
+        session()->flash('success', "Standard-Lieferzeit „{$target->name}“ ist im Shop aktiv.");
     }
 
-    public function updatedIsVacationMode($value)
+    public function updatedIsVacationMode($value): void
     {
         if ($value) {
             $this->isSickMode = false;
@@ -167,7 +169,7 @@ class SystemDeliveryTimes extends Component
         $this->saveSettings();
     }
 
-    public function updatedIsSickMode($value)
+    public function updatedIsSickMode($value): void
     {
         if ($value) {
             $this->isVacationMode = false;
@@ -177,9 +179,8 @@ class SystemDeliveryTimes extends Component
 
     public function saveSettings(): bool
     {
-        if (!Auth::guard('admin')->check() && !\App\Services\AI\AiAuthHelper::isEmployee() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
-            abort(403);
-        }
+        $this->assertAuthorized();
+
         $rules = [
             'isVacationMode' => 'boolean',
             'vacationStartDate' => 'nullable|date',
@@ -217,13 +218,23 @@ class SystemDeliveryTimes extends Component
             ]);
         }
 
-        \App\Models\System\SystemSetting::updateOrCreate(
+        SystemSetting::updateOrCreate(
             ['key' => 'is_vacation_mode'],
             ['value' => $isVacation ? 'true' : 'false']
         );
-        \Illuminate\Support\Facades\Cache::forget('global_shop_settings');
+        Cache::forget('global_shop_settings');
 
-        session()->flash('success', 'Einstellungen erfolgreich gespeichert!');
+        // Wenn Urlaubs- und Krankheitsmodus beendet werden und Autopilot aktiv ist, sofort optimales Profil nachziehen!
+        if (!$isVacation && !$isSick && ShopCapacityService::isAutopilotEnabled()) {
+            app(ShopCapacityService::class)->syncAndApplyAutopilot();
+            $activeRow = DeliveryTime::where('is_active', true)->first();
+            $this->activeDeliveryTimeId = $activeRow?->id;
+            unset($this->deliveryTimes);
+        }
+
+        $this->refreshCapacityState();
+        session()->flash('success', 'Einstellungen gespeichert.');
+
         return true;
     }
 

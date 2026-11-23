@@ -413,7 +413,12 @@ class SentinelTriageService
                             'occurrences_count' => 1,
                             'first_seen_at' => (string) ($job->failed_at ?? now()->toIso8601String()),
                             'last_seen_at' => now()->toIso8601String(),
-                            'diagnosis' => SystemErrorLogger::diagnose($firstLine, $displayName, $file),
+                            'diagnosis' => SystemErrorLogger::diagnose(
+                                $firstLine,
+                                $displayName,
+                                $file,
+                                Str::limit($rawException, 4000, '')
+                            ),
                         ],
                         'started_at' => !empty($job->failed_at) ? Carbon::parse($job->failed_at) : now(),
                         'finished_at' => now(),

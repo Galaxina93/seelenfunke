@@ -8,20 +8,18 @@ use App\Support\Blueprint\Enums\ActorScope;
 use App\Support\Blueprint\Enums\AiAccessPolicy;
 use App\Support\Blueprint\Enums\ComplianceRegulation;
 use App\Support\Blueprint\Enums\DataSensitivity;
-use App\Support\Blueprint\Enums\ExternalChannel;
 use App\Support\Blueprint\Enums\LifecycleBehavior;
 use App\Support\Blueprint\Enums\RetentionPolicy;
 use App\Support\Blueprint\Enums\SystemDepartment;
 use App\Support\Blueprint\ModelBlueprint;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 
 class DeliverySetting extends Model implements HasSystemBlueprint
 {
     use InteractsWithSystemBlueprint;
 
-    /**
-     * Digitales Architektur- & Compliance-Typenschild (Living Documentation).
-     */
     public static function blueprint(): ModelBlueprint
     {
         return ModelBlueprint::make(
@@ -55,7 +53,54 @@ class DeliverySetting extends Model implements HasSystemBlueprint
     ];
 
     /**
-     * Ermittelt die vollständigen Lieferzeit- und Datumsdetails inklusive Wochentagen
+     * Prüft, ob ein Datum ein bundesweiter gesetzlicher Feiertag in Deutschland ist (keine Post-/DHL-Zustellung).
+     */
+    public static function isGermanNationalHoliday(CarbonInterface $date): bool
+    {
+        $md = $date->format('m-d');
+        if (in_array($md, ['01-01', '05-01', '10-03', '12-25', '12-26'], true)) {
+            return true;
+        }
+
+        $year = (int) $date->year;
+        $easterSunday = Carbon::createFromDate($year, 3, 21)->addDays(easter_days($year));
+
+        $movableHolidays = [
+            $easterSunday->copy()->subDays(2)->format('Y-m-d'), // Karfreitag
+            $easterSunday->copy()->addDay()->format('Y-m-d'),    // Ostermontag
+            $easterSunday->copy()->addDays(39)->format('Y-m-d'), // Christi Himmelfahrt
+            $easterSunday->copy()->addDays(50)->format('Y-m-d'), // Pfingstmontag
+        ];
+
+        return in_array($date->format('Y-m-d'), $movableHolidays, true);
+    }
+
+    /**
+     * Addiert echte deutsche Post-Werktage (Montag bis Samstag, überspringt JEDEN Sonntag & bundesweiten Feiertag).
+     */
+    public static function addPostalWorkingDays(CarbonInterface $baseDate, int $workingDays): Carbon
+    {
+        $cursor = Carbon::instance($baseDate)->copy();
+        $remaining = max(0, $workingDays);
+
+        while ($remaining > 0) {
+            $cursor->addDay();
+            if ($cursor->isSunday() || self::isGermanNationalHoliday($cursor)) {
+                continue;
+            }
+            $remaining--;
+        }
+
+        // Sicherheitshalber falls workingDays = 0 auf Sonntag/Feiertag fiel
+        while ($cursor->isSunday() || self::isGermanNationalHoliday($cursor)) {
+            $cursor->addDay();
+        }
+
+        return $cursor;
+    }
+
+    /**
+     * Ermittelt die vollständigen Lieferzeit- und Datumsdetails inklusive echten Werktagen (Mo bis Sa).
      */
     public static function getDeliveryDetails(): array
     {
@@ -73,30 +118,20 @@ class DeliverySetting extends Model implements HasSystemBlueprint
             $max += 6;
         }
 
-        // Basis-Startdatum: Entweder Urlaubsende oder jetzt
         $baseDate = ($isVacation && !$setting->vacation_end_date->copy()->endOfDay()->isPast())
             ? $setting->vacation_end_date->copy()
             : now();
 
-        $minDate = $baseDate->copy()->addDays($min);
-        $maxDate = $baseDate->copy()->addDays($max);
+        $minDate = self::addPostalWorkingDays($baseDate, $min);
+        $maxDate = self::addPostalWorkingDays($baseDate, $max);
 
-        // Sonntage überspringen (keine Paketzustellung)
-        if ($minDate->isSunday()) {
-            $minDate->addDay();
-        }
-        if ($maxDate->isSunday()) {
-            $maxDate->addDay();
-        }
-
-        // Sicherheitsprüfung: Max-Datum darf nicht vor Min-Datum liegen
         if ($maxDate->lessThan($minDate)) {
-            $maxDate = $minDate->copy()->addDay();
+            $maxDate = self::addPostalWorkingDays($minDate, 1);
         }
 
         $startDayStr = $minDate->translatedFormat('D, d. M');
         $endDayStr = $maxDate->translatedFormat('D, d. M');
-        $dateRange = "ca. {$startDayStr} – {$endDayStr}";
+        $dateRange = "ca. {$startDayStr} bis {$endDayStr}";
 
         if ($isVacation) {
             $fullText = "Voraussichtliche Lieferung: {$dateRange}";
@@ -124,9 +159,7 @@ class DeliverySetting extends Model implements HasSystemBlueprint
     }
 
     /**
-     * Ermittelt die produktspezifischen Lieferzeit-Details:
-     * Ist das physische Produkt nicht auf Lager (quantity <= 0 bei aktivem Überverkauf),
-     * wird die Lieferanten-Vorlaufzeit (Beschaffungszeit des Rohlings) automatisch zur Manufaktur-Lieferzeit addiert.
+     * Ermittelt die produktspezifischen Lieferzeit-Details inkl. Lieferanten-Vorlaufzeit bei Auftragsfertigung.
      */
     public static function getDeliveryDetailsForProduct(?\App\Models\Product\Product $product = null, int $requestedQty = 1, ?string $variantId = null): array
     {
@@ -151,17 +184,11 @@ class DeliverySetting extends Model implements HasSystemBlueprint
             ? $setting->vacation_end_date->copy()
             : now();
 
-        $minDate = $baseDate->copy()->addDays($min);
-        $maxDate = $baseDate->copy()->addDays($max);
+        $minDate = self::addPostalWorkingDays($baseDate, $min);
+        $maxDate = self::addPostalWorkingDays($baseDate, $max);
 
-        if ($minDate->isSunday()) {
-            $minDate->addDay();
-        }
-        if ($maxDate->isSunday()) {
-            $maxDate->addDay();
-        }
         if ($maxDate->lessThan($minDate)) {
-            $maxDate = $minDate->copy()->addDay();
+            $maxDate = self::addPostalWorkingDays($minDate, 1);
         }
 
         $startDayStr = $minDate->translatedFormat('D, d. M');
@@ -193,9 +220,6 @@ class DeliverySetting extends Model implements HasSystemBlueprint
         ]);
     }
 
-    /**
-     * Gibt den fertig berechneten Lieferzeit-Text für den Shop aus (optional produktspezifisch)
-     */
     public static function getCurrentDeliveryText(?\App\Models\Product\Product $product = null, int $requestedQty = 1, ?string $variantId = null): string
     {
         if ($product !== null) {

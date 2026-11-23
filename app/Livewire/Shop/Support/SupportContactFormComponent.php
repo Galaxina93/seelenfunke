@@ -99,7 +99,7 @@ class SupportContactFormComponent extends Component
         } elseif ($type === 'details') {
             $this->replyMessage = "Hallo {$name},\n\ndanke für deine Anfrage.\nUm dir bestmöglich und schnell weiterhelfen zu können, benötigen wir noch ein paar kleine Details von dir. Kannst du uns hierzu noch [BITTE AUSFÜLLEN] verraten?\n\nHerzliche Grüße,\nDein Seelenfunke Team";
         } elseif ($type === 'calculator') {
-            if (!filter_var(shop_setting('quote_calculator_enabled', true), FILTER_VALIDATE_BOOLEAN)) {
+            if (!\App\Http\Middleware\EnforceShopMaintenanceMode::isQuoteCalculatorEnabled()) {
                 return;
             }
             $url = route('calculator');

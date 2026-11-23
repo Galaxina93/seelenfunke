@@ -112,7 +112,8 @@ class BuchiReceiptPipelineService
             ? abs((float) $raw['amount_abs'])
             : abs((float) str_replace(',', '.', (string) ($raw['amount'] ?? 0)));
 
-        $isCreditNote = !empty($raw['is_credit_note']);
+        $isCreditNote = !empty($raw['is_credit_note'])
+            || (bool) preg_match('/\b(gutschrift|stornierung|storno-rechnung|rückerstattung|credit\s*note)\b/iu', "{$title} {$description}");
         $amountCents = $isCreditNote
             ? abs((int) round($amountFloat * 100))
             : -abs((int) round($amountFloat * 100));

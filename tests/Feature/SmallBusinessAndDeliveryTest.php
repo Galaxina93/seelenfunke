@@ -65,7 +65,7 @@ class SmallBusinessAndDeliveryTest extends TestCase
         $this->assertFalse($details['is_vacation']);
         $this->assertFalse($details['is_sick']);
         $this->assertStringStartsWith('Lieferzeit: 3-5 Werktage (ca. ', $details['full_text']);
-        $this->assertStringContainsString(' – ', $details['date_range_formatted']);
+        $this->assertStringContainsString(' bis ', $details['date_range_formatted']);
 
         // Sonntag-Ausschluss prüfen
         $this->assertFalse($details['start_date']->isSunday(), 'Lieferdatum Start darf kein Sonntag sein');

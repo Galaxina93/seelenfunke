@@ -87,9 +87,8 @@ trait HandlesConfiguratorLogic
         $isExpressVal = property_exists($this, 'is_express') ? filter_var($this->is_express, FILTER_VALIDATE_BOOLEAN) : false;
         
         if ($isExpressVal) {
-            $shopCapacityLevel = (int) \Illuminate\Support\Facades\Cache::get('shop_capacity_level', shop_setting('shop_capacity_level', 0));
-            if ($shopCapacityLevel >= 2) {
-                // Bei hoher Auslastung Express deaktivieren
+            if (!\App\Services\Order\ShopCapacityService::isExpressAvailable()) {
+                // Ab Drossel 3 (Level >= 3) Express-Fertigung deaktivieren
                 $this->is_express = false;
             } else {
                 $expressPercent = (float) shop_setting('express_surcharge_percent', 20.0);
