@@ -87,6 +87,7 @@ class EnforceShopMaintenanceMode
                 'livewire/*',
                 'api',
                 'api/*',
+                'stripe/webhook',
                 'up',
                 'system/cronjob/*',
                 'system/cache/clear/*',

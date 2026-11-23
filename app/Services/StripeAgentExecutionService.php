@@ -30,6 +30,27 @@ class StripeAgentExecutionService
 {
     private const STRIPE_API_BASE = 'https://api.stripe.com/v1';
 
+    public const STAGE_WEBHOOK_URL = 'https://stage.mein-seelenfunke.de/stripe/webhook';
+    public const LIVE_WEBHOOK_URL = 'https://mein-seelenfunke.de/stripe/webhook';
+
+    public const ALLOWED_WEBHOOK_URLS = [
+        self::STAGE_WEBHOOK_URL,
+        self::LIVE_WEBHOOK_URL,
+    ];
+
+    public const CANONICAL_WEBHOOK_EVENTS = [
+        'checkout.session.completed',
+        'checkout.session.async_payment_succeeded',
+        'checkout.session.async_payment_failed',
+        'payment_intent.succeeded',
+        'payment_intent.payment_failed',
+        'payment_intent.canceled',
+        'charge.refunded',
+        'charge.dispute.created',
+        'charge.dispute.closed',
+        'payout.paid',
+    ];
+
     private static ?Closure $customTransport = null;
 
     public static function setTransportForTesting(?Closure $transport): void
@@ -1943,6 +1964,563 @@ class StripeAgentExecutionService
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * 7. Prüft, repariert und verwaltet Stripe-Webhook-Endpunkte (Sandbox vs. Stage vs. Live) autonom über /v1/webhook_endpoints.
+     */
+    public function diagnoseAndManageWebhooks(array $params = [], string $actorName = 'Funkira'): array
+    {
+        $action = strtolower(trim((string) ($params['action'] ?? 'diagnose')));
+        if (!in_array($action, ['diagnose', 'auto_heal', 'update_url', 'disable', 'delete'], true)) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => "Ungültige Aktion '{$action}'. Erlaubt: diagnose, auto_heal, update_url, disable, delete.",
+            ];
+        }
+
+        if (in_array($action, ['update_url', 'disable', 'delete'], true)) {
+            $endpointId = trim((string) ($params['endpoint_id'] ?? ''));
+            if ($endpointId === '' || !str_starts_with($endpointId, 'we_')) {
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => 'Für update_url, disable oder delete ist eine gültige endpoint_id (we_...) erforderlich.',
+                ];
+            }
+
+            if ($action === 'update_url') {
+                $targetUrl = trim((string) ($params['target_url'] ?? ''));
+                if (!in_array($targetUrl, self::ALLOWED_WEBHOOK_URLS, true)) {
+                    return [
+                        'error' => true,
+                        'status' => 'error',
+                        'message' => 'Ziel-URL nicht in der Seelenfunke-Domain-Whitelist erlaubt.',
+                    ];
+                }
+
+                $upd = $this->requestStripeApi('POST', "/webhook_endpoints/{$endpointId}", [
+                    'url' => $targetUrl,
+                    'enabled_events' => self::CANONICAL_WEBHOOK_EVENTS,
+                ]);
+                if (!$upd['ok']) {
+                    return [
+                        'error' => true,
+                        'status' => 'error',
+                        'message' => 'Stripe Webhook-Update fehlgeschlagen: ' . ($upd['error_message'] ?? 'Unbekannt'),
+                    ];
+                }
+
+                $this->logAudit(
+                    'stripe_agent:webhook_updated',
+                    'Stripe-Webhook-URL aktualisiert',
+                    "{$actorName} hat Webhook {$endpointId} auf {$targetUrl} umgestellt.",
+                    'success',
+                    ['endpoint_id' => $endpointId, 'target_url' => $targetUrl]
+                );
+
+                return [
+                    'status' => 'success',
+                    'action' => 'update_url',
+                    'endpoint_id' => $endpointId,
+                    'target_url' => $targetUrl,
+                    'message' => "Webhook {$endpointId} wurde erfolgreich auf {$targetUrl} aktualisiert.",
+                ];
+            }
+
+            if ($action === 'disable') {
+                $dis = $this->requestStripeApi('POST', "/webhook_endpoints/{$endpointId}", [
+                    'disabled' => 'true',
+                ]);
+                if (!$dis['ok']) {
+                    return [
+                        'error' => true,
+                        'status' => 'error',
+                        'message' => 'Stripe Webhook-Deaktivierung fehlgeschlagen: ' . ($dis['error_message'] ?? 'Unbekannt'),
+                    ];
+                }
+
+                $this->logAudit(
+                    'stripe_agent:webhook_disabled',
+                    'Stripe-Webhook deaktiviert',
+                    "{$actorName} hat Webhook {$endpointId} deaktiviert.",
+                    'success',
+                    ['endpoint_id' => $endpointId]
+                );
+
+                return [
+                    'status' => 'success',
+                    'action' => 'disable',
+                    'endpoint_id' => $endpointId,
+                    'message' => "Webhook {$endpointId} wurde bei Stripe deaktiviert.",
+                ];
+            }
+
+            $del = $this->requestStripeApi('DELETE', "/webhook_endpoints/{$endpointId}");
+            if (!$del['ok']) {
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => 'Stripe Webhook-Löschung fehlgeschlagen: ' . ($del['error_message'] ?? 'Unbekannt'),
+                ];
+            }
+
+            $this->logAudit(
+                'stripe_agent:webhook_deleted',
+                'Fehlerhafter Stripe-Webhook gelöscht',
+                "{$actorName} hat den überflüssigen/fehlgeleiteten Webhook {$endpointId} gelöscht.",
+                'success',
+                ['endpoint_id' => $endpointId]
+            );
+
+            return [
+                'status' => 'success',
+                'action' => 'delete',
+                'endpoint_id' => $endpointId,
+                'message' => "Webhook {$endpointId} wurde bei Stripe gelöscht.",
+            ];
+        }
+
+        $listRes = $this->requestStripeApi('GET', '/webhook_endpoints', ['limit' => 30]);
+        if (!$listRes['ok']) {
+            return [
+                'error' => true,
+                'status' => 'error',
+                'message' => 'Abruf der Stripe-Webhook-Endpunkte fehlgeschlagen: ' . ($listRes['error_message'] ?? 'Unbekannt'),
+            ];
+        }
+
+        $rawEndpoints = (array) ($listRes['data']['data'] ?? []);
+        $endpoints = [];
+        $issues = [];
+        $healedActions = [];
+
+        $hasActiveStageSandbox = false;
+        foreach ($rawEndpoints as $ep) {
+            if (!is_array($ep)) {
+                continue;
+            }
+            $epUrl = rtrim(strtolower(trim((string) ($ep['url'] ?? ''))), '/');
+            $epLive = (bool) ($ep['livemode'] ?? false);
+            $epStatus = strtolower((string) ($ep['status'] ?? 'unknown'));
+            if (!$epLive && $epStatus === 'enabled' && $epUrl === strtolower(self::STAGE_WEBHOOK_URL)) {
+                $hasActiveStageSandbox = true;
+            }
+        }
+
+        foreach ($rawEndpoints as $ep) {
+            if (!is_array($ep)) {
+                continue;
+            }
+
+            $epId = (string) ($ep['id'] ?? '');
+            $epUrl = trim((string) ($ep['url'] ?? ''));
+            $epHost = strtolower((string) parse_url($epUrl, PHP_URL_HOST));
+            $epLive = (bool) ($ep['livemode'] ?? false);
+            $epStatus = strtolower((string) ($ep['status'] ?? 'unknown'));
+            $enabledEvents = array_values(array_filter(array_map('strval', (array) ($ep['enabled_events'] ?? []))));
+            $hasWildcard = in_array('*', $enabledEvents, true);
+            $missingEvents = $hasWildcard ? [] : array_values(array_diff(self::CANONICAL_WEBHOOK_EVENTS, $enabledEvents));
+
+            $issueCode = null;
+            $issueDetail = null;
+
+            if (!$epLive && in_array($epHost, ['mein-seelenfunke.de', 'www.mein-seelenfunke.de'], true) && $epStatus === 'enabled') {
+                $issueCode = 'sandbox_pointing_to_live';
+                $issueDetail = $hasActiveStageSandbox
+                    ? "Sandbox-Endpunkt {$epId} sendet Test-Events auf die Live-Domain ({$epUrl}), obwohl Stage-Webhook aktiv ist."
+                    : "Sandbox-Endpunkt {$epId} zeigt auf die Live-Domain ({$epUrl}) statt auf Stage (" . self::STAGE_WEBHOOK_URL . ').';
+            } elseif ($epLive && $epHost === 'stage.mein-seelenfunke.de' && $epStatus === 'enabled') {
+                $issueCode = 'live_pointing_to_stage';
+                $issueDetail = "Kritisch: Echtes Live-Konto sendet Events über {$epId} an die Stage-Domain ({$epUrl}).";
+            } elseif ($epStatus === 'enabled' && !empty($missingEvents)) {
+                $issueCode = 'missing_canonical_events';
+                $issueDetail = "Endpunkt {$epId} abonniert noch nicht alle Standard-Events (" . implode(', ', $missingEvents) . ').';
+            }
+
+            if ($issueCode !== null) {
+                $issues[] = [
+                    'endpoint_id' => $epId,
+                    'livemode' => $epLive,
+                    'url' => $epUrl,
+                    'issue_code' => $issueCode,
+                    'detail' => $issueDetail,
+                ];
+            }
+
+            if ($action === 'auto_heal' && $epId !== '') {
+                if ($issueCode === 'sandbox_pointing_to_live' && !$epLive) {
+                    if ($hasActiveStageSandbox) {
+                        $delRes = $this->requestStripeApi('DELETE', "/webhook_endpoints/{$epId}");
+                        if ($delRes['ok']) {
+                            $healedActions[] = "Doppelter Sandbox-auf-Live-Webhook {$epId} ({$epUrl}) gelöscht, da Stage-Webhook aktiv ist.";
+                            $epStatus = 'deleted';
+                        } else {
+                            $disRes = $this->requestStripeApi('POST', "/webhook_endpoints/{$epId}", ['disabled' => 'true']);
+                            if ($disRes['ok']) {
+                                $healedActions[] = "Doppelter Sandbox-auf-Live-Webhook {$epId} ({$epUrl}) deaktiviert.";
+                                $epStatus = 'disabled';
+                            }
+                        }
+                    } else {
+                        $updRes = $this->requestStripeApi('POST', "/webhook_endpoints/{$epId}", [
+                            'url' => self::STAGE_WEBHOOK_URL,
+                            'description' => 'Verarbeitet Zahlungseingänge für Bestellungen (Stage Sandbox)',
+                            'enabled_events' => self::CANONICAL_WEBHOOK_EVENTS,
+                        ]);
+                        if ($updRes['ok']) {
+                            $healedActions[] = "Sandbox-Webhook {$epId} von {$epUrl} auf " . self::STAGE_WEBHOOK_URL . ' umgestellt.';
+                            $epUrl = self::STAGE_WEBHOOK_URL;
+                            $missingEvents = [];
+                            $hasActiveStageSandbox = true;
+                        }
+                    }
+                } elseif (
+                    !$epLive
+                    && $epStatus === 'enabled'
+                    && rtrim(strtolower($epUrl), '/') === strtolower(self::STAGE_WEBHOOK_URL)
+                    && !empty($missingEvents)
+                ) {
+                    $syncEv = $this->requestStripeApi('POST', "/webhook_endpoints/{$epId}", [
+                        'enabled_events' => self::CANONICAL_WEBHOOK_EVENTS,
+                    ]);
+                    if ($syncEv['ok']) {
+                        $healedActions[] = "Stage-Sandbox-Webhook {$epId} um fehlende Events ergänzt (" . implode(', ', $missingEvents) . ').';
+                        $missingEvents = [];
+                    }
+                }
+            }
+
+            $endpoints[] = [
+                'id' => $epId,
+                'url' => $epUrl,
+                'status' => $epStatus,
+                'livemode' => $epLive,
+                'description' => (string) ($ep['description'] ?? ''),
+                'missing_events' => $missingEvents,
+                'issue_code' => $issueCode,
+            ];
+        }
+
+        if (!empty($healedActions)) {
+            $this->logAudit(
+                'stripe_agent:webhook_auto_healed',
+                'Stripe-Webhook-Konfiguration autonom geheilt',
+                implode(' | ', $healedActions),
+                'success',
+                ['actor' => $actorName, 'actions' => $healedActions]
+            );
+        }
+
+        return [
+            'status' => 'success',
+            'action' => $action,
+            'endpoints_count' => count($endpoints),
+            'endpoints' => $endpoints,
+            'issues_found' => $issues,
+            'healed_actions' => $healedActions,
+            'message' => !empty($healedActions)
+                ? ('Webhook-Heilung erfolgreich: ' . implode(' ', $healedActions))
+                : (empty($issues)
+                    ? 'Alle Stripe-Webhook-Endpunkte sind sauber konfiguriert.'
+                    : (count($issues) . ' Webhook-Abweichung(en) erkannt.')),
+        ];
+    }
+
+    /**
+     * 8. Gleicht verpasste Stripe-Zahlungs- und Konflikt-Events (z. B. nach HTTP-503-Ausfällen) idempotent mit OrderOrder ab.
+     */
+    public function syncMissedEvents(array $params = [], string $actorName = 'Funkira'): array
+    {
+        $daysBack = max(1, min(30, (int) ($params['days_back'] ?? 10)));
+        $dryRun = filter_var($params['dry_run'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $sinceUnix = Carbon::now()->subDays($daysBack)->timestamp;
+        $isLiveEnvNow = class_exists(\App\Services\AI\FunkiraPresenceContext::class)
+            && \App\Services\AI\FunkiraPresenceContext::resolveEnvironmentTier() === 'LIVE';
+
+        $scannedEvents = 0;
+        $alreadyPaidCount = 0;
+        $recoveredOrders = [];
+        $openDisputes = [];
+
+        foreach (['checkout.session.completed', 'payment_intent.succeeded', 'charge.dispute.created'] as $eventType) {
+            $res = $this->requestStripeApi('GET', '/events', [
+                'type' => $eventType,
+                'created' => ['gte' => $sinceUnix],
+                'limit' => 100,
+            ]);
+
+            if (!$res['ok']) {
+                return [
+                    'error' => true,
+                    'status' => 'error',
+                    'message' => "Abruf der Stripe-Events ({$eventType}) fehlgeschlagen: " . ($res['error_message'] ?? 'Unbekannt'),
+                ];
+            }
+
+            $items = (array) ($res['data']['data'] ?? []);
+            foreach ($items as $ev) {
+                if (!is_array($ev)) {
+                    continue;
+                }
+                $scannedEvents++;
+                $evLive = (bool) ($ev['livemode'] ?? false);
+                if ($isLiveEnvNow && !$evLive) {
+                    continue;
+                }
+
+                $obj = (array) ($ev['data']['object'] ?? []);
+                $meta = (array) ($obj['metadata'] ?? []);
+
+                if ($eventType === 'charge.dispute.created') {
+                    $dpStatus = strtolower((string) ($obj['status'] ?? ''));
+                    if (in_array($dpStatus, ['needs_response', 'warning_needs_response'], true)) {
+                        $openDisputes[] = [
+                            'dispute_id' => (string) ($obj['id'] ?? ''),
+                            'amount_cents' => (int) ($obj['amount'] ?? 0),
+                            'reason' => (string) ($obj['reason'] ?? 'unknown'),
+                        ];
+                    }
+                    continue;
+                }
+
+                $metaAppUrl = rtrim(strtolower(trim((string) ($meta['app_url'] ?? ''))), '/');
+                $currentAppUrl = rtrim(strtolower(trim((string) config('app.url', ''))), '/');
+                if ($metaAppUrl !== '' && $currentAppUrl !== '' && $metaAppUrl !== $currentAppUrl) {
+                    continue;
+                }
+
+                $orderId = trim((string) ($meta['order_id'] ?? ''));
+                $intentId = '';
+                if ($eventType === 'checkout.session.completed') {
+                    if (strtolower((string) ($obj['payment_status'] ?? '')) !== 'paid') {
+                        continue;
+                    }
+                    $rawPi = $obj['payment_intent'] ?? '';
+                    $intentId = is_array($rawPi) ? trim((string) ($rawPi['id'] ?? '')) : trim((string) $rawPi);
+                    $receivedCents = (int) ($obj['amount_total'] ?? 0);
+                } else {
+                    $intentId = trim((string) ($obj['id'] ?? ''));
+                    $receivedCents = isset($obj['amount_received']) ? (int) $obj['amount_received'] : (int) ($obj['amount'] ?? 0);
+                }
+
+                $currency = strtolower(trim((string) ($obj['currency'] ?? 'eur')));
+                if ($currency !== 'eur') {
+                    continue;
+                }
+
+                $order = null;
+                if ($orderId !== '') {
+                    $order = OrderOrder::find($orderId);
+                }
+                if (!$order && $intentId !== '') {
+                    $order = OrderOrder::where('stripe_payment_intent_id', $intentId)->first();
+                }
+
+                if (!$order) {
+                    continue;
+                }
+
+                if (in_array($order->payment_status, ['paid', 'refunded'], true)) {
+                    $alreadyPaidCount++;
+                    continue;
+                }
+
+                if (in_array($order->status, ['cancelled', 'refunded'], true)) {
+                    continue;
+                }
+
+                if ($receivedCents < (int) $order->total_price) {
+                    continue;
+                }
+
+                if (!$dryRun) {
+                    $order->completePayment($intentId !== '' ? $intentId : null);
+                    $quoteNumber = trim((string) ($meta['quote_number'] ?? ''));
+                    if ($quoteNumber !== '' && $order->payment_status === 'paid') {
+                        $quote = OrderQuoteRequest::where('quote_number', $quoteNumber)->first();
+                        if (
+                            $quote
+                            && $quote->status !== 'converted'
+                            && empty($quote->converted_order_id)
+                            && ((int) $order->total_price + (int) ($order->discount_amount ?? 0)) >= (int) $quote->gross_total
+                        ) {
+                            $quote->update(['status' => 'converted', 'converted_order_id' => $order->id]);
+                        }
+                    }
+                }
+
+                $recoveredOrders[] = (string) $order->order_number;
+            }
+        }
+
+        $recoveredOrders = array_values(array_unique($recoveredOrders));
+
+        $this->logAudit(
+            'stripe_agent:missed_events_synced',
+            'Stripe Event-Nachabgleich durchgeführt',
+            "{$actorName} prüfte {$scannedEvents} Events ({$daysBack} Tage): " . count($recoveredOrders) . ' nachgebucht, ' . $alreadyPaidCount . ' bereits verbucht.',
+            'success',
+            [
+                'days_back' => $daysBack,
+                'dry_run' => $dryRun,
+                'scanned_events' => $scannedEvents,
+                'already_paid_orders' => $alreadyPaidCount,
+                'recovered_orders' => $recoveredOrders,
+                'open_disputes_count' => count($openDisputes),
+            ]
+        );
+
+        return [
+            'status' => 'success',
+            'days_back' => $daysBack,
+            'dry_run' => $dryRun,
+            'scanned_events' => $scannedEvents,
+            'already_paid_orders' => $alreadyPaidCount,
+            'recovered_orders' => $recoveredOrders,
+            'recovered_count' => count($recoveredOrders),
+            'open_disputes' => $openDisputes,
+            'message' => count($recoveredOrders) > 0
+                ? ('Zahlungs-Nachabgleich abgeschlossen: ' . count($recoveredOrders) . ' Bestellung(en) nachgebucht (' . implode(', ', $recoveredOrders) . ').')
+                : "Zahlungs-Nachabgleich über {$daysBack} Tage abgeschlossen: 0 verpasste Bestellungen ({$alreadyPaidCount} Zahlungen bereits regulär verbucht).",
+        ];
+    }
+
+    /**
+     * 0-Token E-Mail-Autopilot für offizielle Stripe-Systemmeldungen (@stripe.com):
+     * Prüft Webhooks + verpasste Zahlungen rein deterministisch ohne LLM-Kosten und dokumentiert das Ergebnis als 1 gebündeltes Ticket.
+     */
+    public function runZeroTokenAlertMailAutopilot(\App\Models\Management\Mail\MailMessage $mail): array
+    {
+        $mailRef = trim((string) ($mail->message_id ?: $mail->id));
+        $fingerprint = sha1('stripe_alert_mail:' . $mailRef);
+
+        if (Schema::hasTable('ai_universe_tickets')) {
+            $existingTicket = \App\Models\Ai\AiUniverseTicket::query()
+                ->where('error_fingerprint', $fingerprint)
+                ->first();
+            if ($existingTicket) {
+                return [
+                    'status' => 'already_processed',
+                    'ticket_number' => $existingTicket->ticket_number,
+                    'ticket_status' => $existingTicket->status,
+                ];
+            }
+        }
+
+        $subj = trim((string) $mail->subject);
+        $subjLower = mb_strtolower($subj);
+        $bodyPlain = strip_tags((string) ($mail->body_plain ?: $mail->body_html));
+        $bodyLower = mb_strtolower($bodyPlain);
+
+        $isSandboxMail = str_contains($subjLower, 'sandbox')
+            || str_contains($subjLower, 'testmodus')
+            || str_contains($bodyLower, 'testmodus')
+            || str_contains($bodyLower, 'sandbox');
+        $isDisputeMail = str_contains($subjLower, 'dispute')
+            || str_contains($subjLower, 'konfliktfall')
+            || str_contains($subjLower, 'rückbuchung')
+            || str_contains($subjLower, 'chargeback');
+
+        $webhookRes = $this->diagnoseAndManageWebhooks(
+            ['action' => $isSandboxMail ? 'auto_heal' : 'diagnose'],
+            'Funkira (0-Token Autopilot)'
+        );
+        $syncRes = $this->syncMissedEvents(['days_back' => 10], 'Funkira (0-Token Autopilot)');
+
+        $healedActions = (array) ($webhookRes['healed_actions'] ?? []);
+        $issuesFound = (array) ($webhookRes['issues_found'] ?? []);
+        $recoveredOrders = (array) ($syncRes['recovered_orders'] ?? []);
+        $openDisputes = (array) ($syncRes['open_disputes'] ?? []);
+
+        $needsAlinaAttention = $isDisputeMail
+            || !empty($openDisputes)
+            || (!$isSandboxMail && !empty($issuesFound));
+
+        $targetStatus = $needsAlinaAttention
+            ? \App\Models\Ai\AiUniverseTicket::STATUS_WAITING_FOR_ALINA
+            : \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED;
+
+        $summaryLines = [];
+        $summaryLines[] = '**0-Token Stripe-Autopilot zu E-Mail:** `' . Str::limit($subj, 110) . '`';
+        if (!empty($healedActions)) {
+            $summaryLines[] = '• **Webhook-Korrektur:** ' . implode(' ', $healedActions);
+        } elseif (!empty($issuesFound)) {
+            $summaryLines[] = '• **Webhook-Befund:** ' . implode(' ', array_column($issuesFound, 'detail'));
+        } else {
+            $summaryLines[] = '• **Webhook-Prüfung:** Alle aktiven Stripe-Endpunkte antworten sauber.';
+        }
+
+        $summaryLines[] = empty($recoveredOrders)
+            ? '• **Zahlungs-Abgleich (10 Tage):** 0 verpasste Bestellungen (' . ((int) ($syncRes['already_paid_orders'] ?? 0)) . ' Zahlungen bereits regulär verbucht).'
+            : '• **Zahlungs-Abgleich (10 Tage):** ' . count($recoveredOrders) . ' verpasste Bestellung(en) idempotent nachgebucht (' . implode(', ', $recoveredOrders) . ').';
+
+        if (!empty($openDisputes)) {
+            $summaryLines[] = '• **Offene Konfliktfälle:** ' . count($openDisputes) . ' Dispute(s) benötigen Prüfung.';
+        }
+
+        $summaryLines[] = $targetStatus === \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED
+            ? '**Status -> Erledigt:** Grund: Sandbox-Fehlroute und Zahlungsabgleich vollständig autonom bereinigt. Finale Aktion: E-Mail als erledigt protokolliert.'
+            : '**Status -> Wartet auf Alina:** Grund: Live-Webhook-Abweichung oder offener Konfliktfall erkannt. Finale Aktion: Freigabe von Alina im Ticket angefordert.';
+
+        $ticketNumber = null;
+        if (Schema::hasTable('ai_universe_tickets') && Schema::hasTable('ai_universe_ticket_messages')) {
+            $deptName = $isDisputeMail ? 'Bestellungen' : 'System';
+            $dept = \App\Models\Ai\AiDepartment::where('name', $deptName)->first()
+                ?? \App\Models\Ai\AiDepartment::orderBy('sort_order')->first();
+            $funkira = \App\Models\Ai\AiAgent::where('name', 'Funkira')->where('is_active', true)->first();
+            $envTier = class_exists(\App\Services\AI\FunkiraPresenceContext::class)
+                ? \App\Services\AI\FunkiraPresenceContext::resolveEnvironmentTier()
+                : 'LOCAL';
+
+            $ticketNumber = \App\Models\Ai\AiUniverseTicket::generateNextTicketNumber();
+            $ticket = \App\Models\Ai\AiUniverseTicket::create([
+                'ticket_number' => $ticketNumber,
+                'title' => Str::limit('Stripe-Meldung: ' . $subj, 140),
+                'status' => $targetStatus,
+                'priority' => $needsAlinaAttention ? 'high' : 'normal',
+                'ticket_type' => 'system_incident',
+                'ai_department_id' => $dept?->id,
+                'assigned_agent_id' => $funkira?->id,
+                'assigned_to_antigravity' => false,
+                'source_channel' => 'system_sentinel',
+                'environment_tier' => $envTier,
+                'error_fingerprint' => $fingerprint,
+                'occurrence_count' => 1,
+                'messages_count' => 1,
+                'action_payload' => [
+                    'mail_id' => $mail->id,
+                    'is_sandbox' => $isSandboxMail,
+                    'healed_actions' => $healedActions,
+                    'recovered_orders' => $recoveredOrders,
+                ],
+                'last_activity_at' => now(),
+                'completed_at' => $targetStatus === \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED ? now() : null,
+            ]);
+
+            \App\Models\Ai\AiUniverseTicketMessage::create([
+                'ticket_id' => $ticket->id,
+                'sender_role' => 'agent',
+                'sender_name' => 'Funkira',
+                'ai_agent_id' => $funkira?->id,
+                'channel' => 'system_sentinel',
+                'content' => implode("\n", $summaryLines),
+                'executed_tools' => [
+                    'stripe_diagnose_and_manage_webhooks',
+                    'stripe_sync_missed_events',
+                ],
+            ]);
+        }
+
+        return [
+            'status' => $targetStatus === \App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED ? 'auto_resolved' : 'awaiting_alina',
+            'ticket_number' => $ticketNumber,
+            'healed_actions' => $healedActions,
+            'recovered_orders' => $recoveredOrders,
+            'needs_alina_attention' => $needsAlinaAttention,
+            'summary' => implode(' ', $summaryLines),
+        ];
     }
 
     private function logAudit(

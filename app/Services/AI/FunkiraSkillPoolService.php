@@ -215,7 +215,8 @@ class FunkiraSkillPoolService
                     array_column(AIFunctionsRegistry::getAiNewsFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiMapControlFuncsSchema(), 'name'),
                     array_column(AIFunctionsRegistry::getAiMapNewsFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name')
+                    array_column(AIFunctionsRegistry::getAiPersonaFuncsSchema(), 'name'),
+                    ['stripe_diagnose_and_manage_webhooks', 'stripe_sync_missed_events']
                 ))),
                 'sop' => "FACHREGELN SYSTEM, ARCHITEKTUR & GLOBALE ANALYSE (Ex-Systemi, Agenti & Globi):\n"
                     . "- Destruktive Code- oder Dateizugriffe erfordern zwingend vorab einen implementation_plan und Freigabe.\n"
@@ -282,7 +283,7 @@ class FunkiraSkillPoolService
                 'server', 'live-server', 'liveserver', 'stage-server', 'mittwald', 'serverstatus', 'domain',
                 'mein-seelenfunke.de', 'ssl', 'uptime', 'wartungsmodus', 'log', 'logs', 'backup', 'datenbank',
                 'fehler', 'bug', 'code', 'dateisystem',
-                'security', 'sicherheit', 'websocket', 'neural', 'organigramm', 'abteilung', 'agenten',
+                'security', 'sicherheit', 'websocket', 'webhook', 'webhooks', 'neural', 'organigramm', 'abteilung', 'agenten',
                 'nachrichten', 'news', 'youtube', 'weltkarte', 'karte', 'urlaub', 'feiertag', 'wetter',
                 'clipboard', 'zwischenablage', 'osint', 'persona', 'systemi', 'agenti', 'globi',
                 'geheimkeller', 'keller', 'fehlerraum', 'analyse-keller', 'projekt-gehirn', 'antigravity',

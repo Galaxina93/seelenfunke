@@ -416,6 +416,44 @@ class MailAiSortService
         }
 
         // 4. Genuine Actionable WICHTIG Mails (Current open tasks requiring user action)
+        // 4.0 Offizielle Stripe-Systemmeldungen (@stripe.com: Webhook-Störung, HTTP 503/500, Deaktivierung, Dispute) -> 0-Token Autopilot + Ticket
+        $isOfficialStripeSender = $from === 'stripe.com'
+            || str_ends_with($from, '@stripe.com')
+            || str_ends_with($from, '.stripe.com');
+        if (
+            $isRecent
+            && $isOfficialStripeSender
+            && (
+                str_contains($subjLower, 'webhook')
+                || str_contains($subjLower, 'übertragungsprobleme')
+                || str_contains($bodyLower, 'stripe/webhook')
+                || str_contains($subjLower, 'dispute')
+                || str_contains($subjLower, 'konfliktfall')
+                || str_contains($subjLower, 'rückbuchung')
+                || str_contains($subjLower, 'chargeback')
+            )
+        ) {
+            try {
+                $autopilot = app(\App\Services\StripeAgentExecutionService::class)->runZeroTokenAlertMailAutopilot($msg);
+                $ticketRef = !empty($autopilot['ticket_number']) ? (' (Ticket #' . $autopilot['ticket_number'] . ')') : '';
+                if (($autopilot['status'] ?? '') === 'auto_resolved') {
+                    return ['Normal', 'Stripe & Zahlungsverkehr', null];
+                }
+
+                return [
+                    'Wichtig',
+                    'Stripe & Zahlungsverkehr',
+                    'Stripe-Meldung im Ticketsystem prüfen' . $ticketRef . ': Live-Webhook oder Konfliktfall erfordert deine Freigabe.'
+                ];
+            } catch (\Throwable $ignore) {
+                return [
+                    'Wichtig',
+                    'Stripe & Zahlungsverkehr',
+                    'Stripe-Systemmeldung prüfen: ' . Str::limit($subj, 80)
+                ];
+            }
+        }
+
         // 4a. DEVK Wohngebäudeversicherung Rückfragen (WHG-31186083)
         if (str_contains($from, 'whg@check24.de') && str_contains($subjLower, 'rückfragen')) {
             return [

@@ -192,6 +192,49 @@ trait AiStripeFuncs
                 ],
                 'callable' => [self::class, 'executeStripeGetLiveTelemetry'],
             ],
+            [
+                'name' => 'stripe_diagnose_and_manage_webhooks',
+                'description' => 'Liest alle registrierten Stripe-Webhook-Endpunkte (/v1/webhook_endpoints) aus, erkennt Fehlkonfigurationen (z. B. Sandbox-Endpunkt auf Live-Domain statt Stage) und kann Endpunkte per auto_heal, update_url, disable oder delete direkt reparieren.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'action' => [
+                            'type' => 'string',
+                            'description' => 'Aktion: diagnose (Standard), auto_heal, update_url, disable oder delete.',
+                            'enum' => ['diagnose', 'auto_heal', 'update_url', 'disable', 'delete'],
+                        ],
+                        'endpoint_id' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Stripe Webhook-Endpoint-ID (we_...) für update_url, disable oder delete.',
+                        ],
+                        'target_url' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Ziel-URL aus der Seelenfunke-Whitelist für update_url.',
+                        ],
+                    ],
+                    'required' => [],
+                ],
+                'callable' => [self::class, 'executeStripeDiagnoseAndManageWebhooks'],
+            ],
+            [
+                'name' => 'stripe_sync_missed_events',
+                'description' => 'Prüft die Stripe-Ereignisliste (/v1/events) der letzten Tage auf bezahlte Checkout-Sessions, PaymentIntents und offene Konfliktfälle und bucht eventuell durch Webhook-Störungen (z. B. HTTP 503) verpasste Zahlungen idempotent in OrderOrder nach.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'days_back' => [
+                            'type' => 'integer',
+                            'description' => 'Rückblick-Zeitraum in Tagen (1 bis 30, Standard: 10).',
+                        ],
+                        'dry_run' => [
+                            'type' => 'boolean',
+                            'description' => 'Wenn true, werden fehlende Zahlungen nur simuliert gemeldet ohne DB-Schreibzugriff (Standard: false).',
+                        ],
+                    ],
+                    'required' => [],
+                ],
+                'callable' => [self::class, 'executeStripeSyncMissedEvents'],
+            ],
         ];
     }
 
@@ -255,6 +298,26 @@ trait AiStripeFuncs
             ->getLiveTelemetry($args, self::resolveStripeActorName($agent));
     }
 
+    public static function executeStripeDiagnoseAndManageWebhooks(array $args = [], $agent = null): array
+    {
+        if ($violation = self::guardStripeExecutiveAccess('stripe_diagnose_and_manage_webhooks', $args, $agent)) {
+            return $violation;
+        }
+
+        return app(StripeAgentExecutionService::class)
+            ->diagnoseAndManageWebhooks($args, self::resolveStripeActorName($agent));
+    }
+
+    public static function executeStripeSyncMissedEvents(array $args = [], $agent = null): array
+    {
+        if ($violation = self::guardStripeExecutiveAccess('stripe_sync_missed_events', $args, $agent)) {
+            return $violation;
+        }
+
+        return app(StripeAgentExecutionService::class)
+            ->syncMissedEvents($args, self::resolveStripeActorName($agent));
+    }
+
     /**
      * Zentrale Zero-Trust- & Air-Gap-Prüfung innerhalb jeder einzelnen Stripe-Tool-Methode:
      * 1. Öffentlicher Support-Chat / Funki -> sofort SANDBOX VIOLATION (403)
@@ -313,7 +376,7 @@ trait AiStripeFuncs
                 'error' => true,
                 'status' => 'error',
                 'http_status' => 403,
-                'message' => "ROLE VIOLATION: Nur Executive-Root-Agenten (Falcone & Funkira) dürfen '{$toolName}' ausführen (403).",
+                'message' => "ROLE VIOLATION: Nur Executive-Root-Agenten (Funkira) dürfen '{$toolName}' ausführen (403).",
             ];
         }
 
@@ -338,6 +401,6 @@ trait AiStripeFuncs
     private static function resolveStripeActorName($agent): string
     {
         $name = self::extractAgentName($agent);
-        return $name !== '' ? $name : 'Falcone';
+        return $name !== '' ? $name : 'Funkira';
     }
 }

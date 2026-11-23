@@ -277,7 +277,7 @@ class AIFunctionsRegistry
                     'error' => true,
                     'status' => 'error',
                     'http_status' => 403,
-                    'message' => "ROLE VIOLATION: Nur Executive-Root-Agenten (Falcone & Funkira) dürfen '{$name}' ausführen (403)."
+                    'message' => "ROLE VIOLATION: Nur Executive-Root-Agenten (Funkira) dürfen '{$name}' ausführen (403)."
                 ];
             }
         }
@@ -318,7 +318,7 @@ class AIFunctionsRegistry
                     'error' => true,
                     'status' => 'error',
                     'http_status' => 403,
-                    'message' => "ROLE VIOLATION: Nur Executive-Root-Agenten (Falcone & Funkira) dürfen '{$name}' ausführen (403)."
+                    'message' => "ROLE VIOLATION: Nur Executive-Root-Agenten (Funkira) dürfen '{$name}' ausführen (403)."
                 ];
             }
         }

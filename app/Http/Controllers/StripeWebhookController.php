@@ -53,6 +53,17 @@ class StripeWebhookController extends Controller
             return response('Error: Invalid Payload', 400);
         }
 
+        // Strikte Sandbox-vs.-Live-Trennung: Testmodus-Events (livemode=false) niemals in die Live-Datenbank buchen,
+        // aber nach gültiger Signaturprüfung mit 200 quittieren, damit Stripe keine 503-Fehlalarme erzeugt.
+        if (
+            \App\Http\Middleware\EnforceShopMaintenanceMode::isLiveHost($request)
+            && isset($event->livemode)
+            && $event->livemode === false
+        ) {
+            Log::warning("Stripe Webhook: Sandbox-Event ({$event->type}) auf Live-Host {$request->getHost()} sicher ignoriert.");
+            return response('Ignored: Sandbox event on live host', 200);
+        }
+
         $eventObject = $event->data->object ?? null;
         if (!is_object($eventObject)) {
             Log::warning('Stripe Webhook: Event enthält kein gültiges data.object.');

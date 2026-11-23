@@ -880,4 +880,186 @@ class AutonomousStripeAgentAndAcpTest extends TestCase
             SystemLog::where('action_id', 'stripe_webhook:payout_paid:po_whk_fyrst_01')->count()
         );
     }
+
+    public function test_autonomous_webhook_self_healing_missed_event_sync_maintenance_passthrough_and_zero_token_mail_ticket(): void
+    {
+        $this->seed(AiAgentSeeder::class);
+        $migration = require base_path('database/migrations/2026_11_16_190500_seed_stripe_agent_autonomy_settings_and_tools.php');
+        $migration->applyUpgrade();
+
+        // 1. Alle Agenten bleiben strikt im AgentSkillBudgetGuard-Limit & Funki bleibt 100 % Air-Gapped
+        foreach (AiAgent::where('is_active', true)->get() as $agentItem) {
+            $budget = \App\Services\AI\AgentSkillBudgetGuard::evaluateAgentSkillBudget($agentItem);
+            $this->assertLessThanOrEqual(
+                $budget['max_tool_cap'],
+                $budget['current_tool_count'],
+                "Agent {$agentItem->name} überschreitet Skill-Budget!"
+            );
+        }
+
+        // 2. Live-Wartungsmodus-Durchlass: Auf mein-seelenfunke.de (!shop_is_live) kein HTTP 503 mehr für /stripe/webhook,
+        //    ungültige Signatur wird mit 400 abgewiesen, Sandbox-Event (livemode=false) wird ohne Live-DB-Manipulation mit 200 quittiert!
+        SystemSetting::updateOrCreate(['key' => 'shop_is_live'], ['value' => 'false']);
+        Cache::forget('global_shop_settings');
+
+        $this->call('POST', 'https://mein-seelenfunke.de/stripe/webhook', [], [], [], [
+            'HTTP_STRIPE_SIGNATURE' => 't=123,v1=invalid',
+            'CONTENT_TYPE' => 'application/json',
+        ], '{}')->assertStatus(400);
+
+        $sandboxOnLivePayload = json_encode([
+            'id' => 'evt_sandbox_on_live_01',
+            'livemode' => false,
+            'type' => 'checkout.session.completed',
+            'data' => [
+                'object' => [
+                    'id' => 'cs_test_01',
+                    'payment_status' => 'paid',
+                    'amount_total' => 4990,
+                    'currency' => 'eur',
+                ],
+            ],
+        ]);
+        $sigSandbox = $this->signWebhookPayload($sandboxOnLivePayload);
+        $sandboxResp = $this->call('POST', 'https://mein-seelenfunke.de/stripe/webhook', [], [], [], [
+            'HTTP_STRIPE_SIGNATURE' => $sigSandbox,
+            'CONTENT_TYPE' => 'application/json',
+        ], $sandboxOnLivePayload);
+        $sandboxResp->assertStatus(200);
+        $this->assertStringContainsString('Ignored: Sandbox event on live host', $sandboxResp->getContent());
+
+        // 3. Unbezahlte Bestellung anlegen, deren Webhook während des 503-Fensters verloren ging
+        $unpaidOrder = OrderOrder::create([
+            'order_number' => 'ORD-2026-RECOVER503',
+            'status' => 'pending',
+            'payment_status' => 'unpaid',
+            'email' => 'alina-recover@example.com',
+            'billing_address' => ['first_name' => 'Alina', 'last_name' => 'Test', 'country' => 'DE'],
+            'shipping_address' => ['first_name' => 'Alina', 'last_name' => 'Test', 'country' => 'DE'],
+            'subtotal_price' => 4500,
+            'tax_amount' => 0,
+            'shipping_price' => 490,
+            'total_price' => 4990,
+        ]);
+
+        $deletedMisroutedEndpoint = false;
+        $updatedStageEvents = false;
+
+        Http::fake(function (HttpClientRequest $req) use ($unpaidOrder, &$deletedMisroutedEndpoint, &$updatedStageEvents) {
+            $url = $req->url();
+            $method = strtoupper($req->method());
+
+            if ($method === 'GET' && str_contains($url, '/v1/webhook_endpoints')) {
+                return Http::response([
+                    'object' => 'list',
+                    'data' => [
+                        [
+                            'id' => 'we_stage_sandbox_ok',
+                            'url' => 'https://stage.mein-seelenfunke.de/stripe/webhook',
+                            'status' => 'enabled',
+                            'livemode' => false,
+                            'enabled_events' => ['checkout.session.completed', 'payment_intent.succeeded'],
+                        ],
+                        [
+                            'id' => 'we_sandbox_wrong_live',
+                            'url' => 'https://mein-seelenfunke.de/stripe/webhook',
+                            'status' => 'enabled',
+                            'livemode' => false,
+                            'enabled_events' => ['checkout.session.completed'],
+                        ],
+                    ],
+                ], 200);
+            }
+
+            if ($method === 'DELETE' && str_ends_with($url, '/v1/webhook_endpoints/we_sandbox_wrong_live')) {
+                $deletedMisroutedEndpoint = true;
+                return Http::response(['id' => 'we_sandbox_wrong_live', 'deleted' => true], 200);
+            }
+
+            if ($method === 'POST' && str_ends_with($url, '/v1/webhook_endpoints/we_stage_sandbox_ok')) {
+                $updatedStageEvents = true;
+                return Http::response(['id' => 'we_stage_sandbox_ok', 'status' => 'enabled'], 200);
+            }
+
+            if ($method === 'GET' && str_contains($url, '/v1/events')) {
+                if (str_contains($url, 'checkout.session.completed')) {
+                    return Http::response([
+                        'object' => 'list',
+                        'data' => [
+                            [
+                                'id' => 'evt_missed_503_01',
+                                'type' => 'checkout.session.completed',
+                                'livemode' => false,
+                                'data' => [
+                                    'object' => [
+                                        'id' => 'cs_test_recover_01',
+                                        'payment_status' => 'paid',
+                                        'payment_intent' => 'pi_test_recover_503',
+                                        'amount_total' => 4990,
+                                        'currency' => 'eur',
+                                        'metadata' => [
+                                            'order_id' => (string) $unpaidOrder->id,
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ], 200);
+                }
+
+                return Http::response(['object' => 'list', 'data' => []], 200);
+            }
+
+            return Http::response(['ok' => true], 200);
+        });
+
+        // 4. SSRF-Schutz auf stripe_diagnose_and_manage_webhooks prüfen
+        $admin = $this->createAdmin();
+        Auth::guard('admin')->login($admin);
+        $funkira = AiAgent::where('name', 'Funkira')->firstOrFail();
+
+        $ssrfBlocked = AIFunctionsRegistry::execute('stripe_diagnose_and_manage_webhooks', [
+            'action' => 'update_url',
+            'endpoint_id' => 'we_stage_sandbox_ok',
+            'target_url' => 'https://evil.example.com/webhook',
+        ], $funkira);
+        $this->assertTrue($ssrfBlocked['error'] ?? false);
+
+        // 5. 0-Token E-Mail-Autopilot über MailAiSortService mit exakt Alinas Stripe-Sandbox-Warnmail testen
+        $mailAccount = \App\Models\Management\Mail\MailAccount::create([
+            'name' => 'Kontakt',
+            'email' => 'kontakt@mein-seelenfunke.de',
+            'imap_host' => '127.0.0.1',
+            'imap_port' => 993,
+            'imap_encryption' => 'ssl',
+            'smtp_host' => '127.0.0.1',
+            'smtp_port' => 465,
+            'smtp_encryption' => 'ssl',
+            'username' => 'kontakt@mein-seelenfunke.de',
+            'password' => 'secret',
+        ]);
+
+        $stripeMail = \App\Models\Management\Mail\MailMessage::create([
+            'mail_account_id' => $mailAccount->id,
+            'message_id' => '<stripe-sandbox-503-alert@stripe.com>',
+            'folder' => 'INBOX',
+            'from_email' => 'notifications@stripe.com',
+            'from_name' => 'Stripe',
+            'to_email' => 'kontakt@mein-seelenfunke.de',
+            'subject' => '[Sandbox] Übertragungsprobleme bei Stripe-Webhook [Testmodus] für https://mein-seelenfunke.de',
+            'body_plain' => '9 Anforderungen mit Zurücksendung von HTTP 503 an https://mein-seelenfunke.de/stripe/webhook.',
+            'received_at' => now(),
+            'is_read' => false,
+        ]);
+
+        app(\App\Services\Management\MailAiSortService::class)->sortAllMailsAndSubfolders();
+
+        $this->assertTrue($deletedMisroutedEndpoint, 'Fehlgeleiteter Sandbox->Live-Webhook muss automatisch gelöscht werden.');
+        $this->assertTrue($updatedStageEvents, 'Stage-Webhook muss fehlende Standard-Events automatisch ergänzen.');
+        $this->assertSame('paid', $unpaidOrder->fresh()->payment_status, 'Verpasste Bestellung muss idempotent als bezahlt nachgebucht werden.');
+
+        $ticket = \App\Models\Ai\AiUniverseTicket::where('title', 'like', '%Stripe-Meldung:%')->first();
+        $this->assertNotNull($ticket, 'Gebündeltes Ticket muss in /admin/tickets erstellt werden.');
+        $this->assertSame(\App\Models\Ai\AiUniverseTicket::STATUS_COMPLETED, $ticket->status);
+    }
 }

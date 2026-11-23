@@ -357,6 +357,7 @@ class AiAgentSeeder extends Seeder
             if (isset($rolesMap['Teamleiter'])) {
                 $teamleiterAllowedTools = array_values(array_unique(array_merge(
                     FunkiraSkillPoolService::getCoreToolIdentifiers(),
+                    array_column(AIFunctionsRegistry::getAiStripeFuncsSchema(), 'name'),
                     $bridgeTools,
                     [
                         'system_get_server_status',
@@ -402,7 +403,6 @@ class AiAgentSeeder extends Seeder
                 ),
                 'Finanzmanager' => array_merge(
                     array_column(AIFunctionsRegistry::getAiFinanceFuncsSchema(), 'name'),
-                    array_column(AIFunctionsRegistry::getAiStripeFuncsSchema(), 'name'),
                     $bridgeTools
                 ),
                 'Versorgungsmanager' => array_merge(
