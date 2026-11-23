@@ -144,6 +144,8 @@ fun BatchDocumentScannerSection(
     var nativeCombinedPdfBytes by remember { mutableStateOf<ByteArray?>(null) }
     var queuedFiles by remember { mutableStateOf<List<TrichterUploadItem>>(emptyList()) }
     var statusNote by rememberSaveable { mutableStateOf<String?>(null) }
+    var queueSyncSuccessNote by remember { mutableStateOf<String?>(null) }
+    var syncingOfflineQueue by remember { mutableStateOf(false) }
     var localCompilingPdf by remember { mutableStateOf(false) }
     var localLoadingFiles by remember { mutableStateOf(false) }
     var sharedUrisConsumed by rememberSaveable { mutableStateOf(false) }
@@ -739,15 +741,32 @@ fun BatchDocumentScannerSection(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    text = "Jetzt synchronisieren",
-                    color = AppTheme.colors.textPrimary,
+                    text = if (syncingOfflineQueue) "Synchronisiere..." else "Jetzt synchronisieren",
+                    color = if (syncingOfflineQueue) Gold else AppTheme.colors.textPrimary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.clickable {
+                    modifier = Modifier.clickable(enabled = !syncingOfflineQueue) {
                         scope.launch {
-                            val sent = ServiceLocator.financeRepository.flushOfflineTrichterQueue()
-                            if (sent > 0) {
-                                statusNote = null
+                            syncingOfflineQueue = true
+                            statusNote = null
+                            queueSyncSuccessNote = null
+                            val res = ServiceLocator.financeRepository.flushOfflineTrichterQueueDetailed()
+                            syncingOfflineQueue = false
+                            when {
+                                res.uploaded > 0 && res.remaining == 0 -> {
+                                    statusNote = null
+                                    queueSyncSuccessNote = if (res.uploaded == 1) {
+                                        "1 Dokument erfolgreich an kDrive übertragen."
+                                    } else {
+                                        "${res.uploaded} Dokumente erfolgreich an kDrive übertragen."
+                                    }
+                                }
+                                res.uploaded > 0 && res.remaining > 0 -> {
+                                    statusNote = "${res.uploaded} übertragen, ${res.remaining} wartend: ${res.lastError ?: "Verbindung prüfen."}"
+                                }
+                                res.remaining > 0 -> {
+                                    statusNote = res.lastError ?: "kDrive-Übertragung aktuell nicht möglich (${res.remaining} wartend)."
+                                }
                             }
                         }
                     }
@@ -772,6 +791,7 @@ fun BatchDocumentScannerSection(
         val bannerIsError = statusNote != null || (trichterFeedback != null && !trichterFeedback.isSuccess)
         val bannerText = when {
             statusNote != null -> statusNote
+            queueSyncSuccessNote != null -> queueSyncSuccessNote
             trichterFeedback != null -> trichterFeedback.message
             else -> null
         }
@@ -823,6 +843,7 @@ fun BatchDocumentScannerSection(
             Button(
                 onClick = {
                     statusNote = null
+                    queueSyncSuccessNote = null
                     onClearTrichterFeedback()
                     val cleanHint = trichterTitle.trim().ifBlank { null }
                     val queuedSnapshot = queuedFiles

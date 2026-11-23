@@ -206,4 +206,71 @@ class KdriveTrichterScannerTest {
         assertEquals("/api/funki/kdrive-trichter/config", recorded.path)
         assertEquals("POST", recorded.method)
     }
+
+    @Test
+    fun `stale socket disconnect after camera scan automatically evicts pool and retries directly to kdrive`() = runBlocking {
+        val baseUrl = server.url("/api/").toString()
+        ServiceLocator.saveBaseUrl(baseUrl)
+        ServiceLocator.saveAuthToken("test-sanctum-token-123")
+
+        // Simulate stale HTTP socket drop right after returning from ML Kit Document Scanner
+        server.enqueue(
+            MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.DISCONNECT_AFTER_REQUEST)
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"success":true,"direct_uploaded":true,"kdrive_configured":true,"message":"Im kDrive Eingang-Trichter abgelegt: Scan_Retry.pdf"}""")
+        )
+
+        val pdfBytes = "%PDF-1.4\nCamera Scan Content\n%%EOF".toByteArray(Charsets.UTF_8)
+        val result = ServiceLocator.financeRepository.sendToMiniPcTrichter(
+            fileBytes = pdfBytes,
+            fileName = "Scan_Retry.pdf",
+            mimeType = "application/pdf",
+            customTitle = "Beleg",
+            source = "android_scanner"
+        )
+
+        assertTrue(result.isSuccess)
+        assertTrue(result.getOrNull().orEmpty().contains("Im kDrive Eingang-Trichter abgelegt"))
+        assertEquals(0, KdriveTrichterOfflineQueue.pendingCount.value)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `flushPendingDetailed preserves scan on server error without head-of-line blocking subsequent scans`() = runBlocking {
+        val baseUrl = server.url("/api/").toString()
+        ServiceLocator.saveBaseUrl(baseUrl)
+        ServiceLocator.saveAuthToken("test-sanctum-token-123")
+
+        val pdf1 = "%PDF-1.4\nFirst Scan\n%%EOF".toByteArray(Charsets.UTF_8)
+        val pdf2 = "%PDF-1.4\nSecond Scan\n%%EOF".toByteArray(Charsets.UTF_8)
+
+        KdriveTrichterOfflineQueue.enqueue(context, pdf1, "Scan_01.pdf", "application/pdf", null, "android_scanner")
+        Thread.sleep(15)
+        KdriveTrichterOfflineQueue.enqueue(context, pdf2, "Scan_02.pdf", "application/pdf", null, "android_scanner")
+        assertEquals(2, KdriveTrichterOfflineQueue.pendingCount.value)
+
+        // First scan hits HTTP 500, second scan succeeds (200 OK)
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(500)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"success":false,"message":"Kurzzeitiger Serverfehler."}""")
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"success":true,"direct_uploaded":true,"message":"Im kDrive Eingang-Trichter abgelegt."}""")
+        )
+
+        val detailed = ServiceLocator.financeRepository.flushOfflineTrichterQueueDetailed()
+        assertEquals(1, detailed.uploaded)
+        assertEquals(1, detailed.remaining)
+        assertTrue(detailed.lastError.orEmpty().contains("Scan_01.pdf"))
+        assertEquals(1, KdriveTrichterOfflineQueue.pendingCount.value)
+    }
 }

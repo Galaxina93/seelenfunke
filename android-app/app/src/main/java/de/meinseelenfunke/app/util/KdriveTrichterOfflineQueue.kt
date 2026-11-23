@@ -1,13 +1,22 @@
 package de.meinseelenfunke.app.util
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import de.meinseelenfunke.app.data.repository.FinanceRepository
+import de.meinseelenfunke.app.di.ServiceLocator
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -18,6 +27,7 @@ import java.io.IOException
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -34,6 +44,12 @@ data class QueuedTrichterScanMeta(
     val createdAtMs: Long
 )
 
+data class QueuedTrichterFlushResult(
+    val uploaded: Int,
+    val remaining: Int,
+    val lastError: String? = null
+)
+
 object KdriveTrichterOfflineQueue {
 
     private const val QUEUE_DIR_NAME = "kdrive_trichter_queue"
@@ -43,8 +59,14 @@ object KdriveTrichterOfflineQueue {
     private val SAFE_UUID_REGEX = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
     private val mutex = Mutex()
+    private val observerInstalled = AtomicBoolean(false)
+    private val autoFlushScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
+
+    private val _lastSyncError = MutableStateFlow<String?>(null)
+    val lastSyncError: StateFlow<String?> = _lastSyncError.asStateFlow()
 
     @Volatile
     private var jvmFallbackKey: SecretKey? = null
@@ -120,20 +142,76 @@ object KdriveTrichterOfflineQueue {
         val dir = queueDir(context)
         val count = dir.listFiles { f -> f.isFile && f.name.endsWith(".json") }?.size ?: 0
         _pendingCount.value = count
+        if (count == 0) {
+            _lastSyncError.value = null
+        }
         return count
+    }
+
+    fun installAutoFlushObserver(context: Context) {
+        val appCtx = context.applicationContext
+        refreshCount(appCtx)
+        if (!observerInstalled.compareAndSet(false, true)) return
+        try {
+            val cm = appCtx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+            val req = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            cm.registerNetworkCallback(req, object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    scheduleBackgroundAutoFlush(appCtx, 1200L)
+                }
+
+                override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                    if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                        scheduleBackgroundAutoFlush(appCtx, 800L)
+                    }
+                }
+            })
+        } catch (_: Throwable) {
+            // ConnectivityCallback unavailable in unit tests or restricted environments
+        }
+    }
+
+    fun scheduleBackgroundAutoFlush(context: Context, delayMs: Long = 900L) {
+        val appCtx = context.applicationContext
+        autoFlushScope.launch {
+            if (delayMs > 0) delay(delayMs)
+            try {
+                ServiceLocator.ensureInitialized(appCtx)
+                if (!ServiceLocator.getAuthToken().isNullOrBlank() && refreshCount(appCtx) > 0) {
+                    ServiceLocator.financeRepository.flushOfflineTrichterQueueDetailed()
+                }
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    fun isRetryableTransportOrGatewayFailure(error: Throwable?): Boolean {
+        if (error == null) return false
+        if (error is javax.net.ssl.SSLHandshakeException || error is javax.net.ssl.SSLPeerUnverifiedException) {
+            return false
+        }
+        if (error is IOException) return true
+        if (error is HttpException) {
+            return error.code() in listOf(408, 429, 502, 503, 504)
+        }
+        return false
     }
 
     fun isTransientNetworkFailure(error: Throwable?): Boolean {
         if (error == null) return false
-        if (error is IOException) return true
-        if (error is HttpException) {
-            return error.code() in listOf(408, 429, 500, 502, 503, 504)
-        }
+        if (isRetryableTransportOrGatewayFailure(error)) return true
+        if (error is HttpException && error.code() == 500) return true
         val msg = error.message?.lowercase() ?: ""
         return msg.contains("nicht erreichbar") ||
             msg.contains("zeitüberschreitung") ||
             msg.contains("timeout") ||
-            msg.contains("internetverbindung")
+            msg.contains("internetverbindung") ||
+            msg.contains("http 500") ||
+            msg.contains("http 502") ||
+            msg.contains("http 503") ||
+            msg.contains("http 504")
     }
 
     suspend fun enqueue(
@@ -206,7 +284,14 @@ object KdriveTrichterOfflineQueue {
     suspend fun flushPending(
         context: Context,
         financeRepository: FinanceRepository
-    ): Int = withContext(Dispatchers.IO) {
+    ): Int {
+        return flushPendingDetailed(context, financeRepository).uploaded
+    }
+
+    suspend fun flushPendingDetailed(
+        context: Context,
+        financeRepository: FinanceRepository
+    ): QueuedTrichterFlushResult = withContext(Dispatchers.IO) {
         mutex.withLock {
             val dir = queueDir(context)
             val metaFiles = dir.listFiles { f -> f.isFile && f.name.endsWith(".json") }
@@ -248,6 +333,8 @@ object KdriveTrichterOfflineQueue {
                 ?: emptyList()
 
             var uploaded = 0
+            var lastErr: String? = null
+
             for ((meta, metaFile) in metaFiles) {
                 val binFile = File(dir, "${meta.id}.bin")
                 if (!binFile.exists()) {
@@ -275,16 +362,19 @@ object KdriveTrichterOfflineQueue {
                         wipeAndDeleteFile(binFile)
                         wipeAndDeleteFile(metaFile)
                         uploaded++
-                    } else if (isTransientNetworkFailure(res.exceptionOrNull())) {
-                        // Stop flushing until network returns
-                        break
                     } else {
-                        // Permanent validation rejection (e.g. unsupported file type) -> drop item so queue isn't poisoned
-                        val errMsg = res.exceptionOrNull()?.message ?: ""
-                        if (!errMsg.contains("Sitzung abgelaufen")) {
-                            wipeAndDeleteFile(binFile)
-                            wipeAndDeleteFile(metaFile)
-                        } else {
+                        val ex = res.exceptionOrNull()
+                        val msg = ex?.message?.trim()?.takeIf { it.isNotEmpty() }
+                            ?: "kDrive-Übertragung fehlgeschlagen."
+                        lastErr = "${meta.fileName}: $msg"
+
+                        // Stop iterating immediately only if device is truly offline or session expired;
+                        // NEVER silently delete user scans on server/validation errors and do NOT block subsequent items!
+                        if (ex is java.net.UnknownHostException ||
+                            ex is java.net.ConnectException ||
+                            ex is java.net.NoRouteToHostException ||
+                            msg.contains("Sitzung abgelaufen", ignoreCase = true)
+                        ) {
                             break
                         }
                     }
@@ -293,8 +383,13 @@ object KdriveTrichterOfflineQueue {
                 }
             }
 
-            refreshCount(context)
-            uploaded
+            val remaining = refreshCount(context)
+            _lastSyncError.value = if (remaining > 0) lastErr else null
+            QueuedTrichterFlushResult(
+                uploaded = uploaded,
+                remaining = remaining,
+                lastError = if (remaining > 0) lastErr else null
+            )
         }
     }
 }

@@ -43,6 +43,7 @@ class MainActivity : FragmentActivity() {
         ServiceLocator.ensureInitialized(this)
         de.meinseelenfunke.app.util.AppUpdateManager.cleanupCacheAsync(this)
         de.meinseelenfunke.app.util.ErrorSentinelReporter.install(this)
+        de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.installAutoFlushObserver(this)
         FunkenwerkAlarmManager.ensureInitialized(this)
 
         // Evaluate signed Voice / Widget Intent BEFORE setContent so cold-start Fast-Unlock is immediately active!
@@ -74,6 +75,15 @@ class MainActivity : FragmentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (ServiceLocator.authRepository.isLoggedIn() &&
+            de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.refreshCount(this) > 0
+        ) {
+            de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue.scheduleBackgroundAutoFlush(this, 450L)
         }
     }
 

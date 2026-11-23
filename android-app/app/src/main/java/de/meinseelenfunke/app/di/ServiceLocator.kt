@@ -637,13 +637,18 @@ object ServiceLocator {
 
                     val encodedPath = builtRequest.url.encodedPath
                     val isLongAiInference = encodedPath.endsWith("/ai/chat") || encodedPath.endsWith("/ai/execute")
-                    val activeChain = if (isLongAiInference) {
-                        chain
+                    val isKdriveScanTransfer = encodedPath.contains("/funki/kdrive-trichter/") ||
+                        encodedPath.endsWith("/funki/financials/scan-receipt")
+                    val activeChain = when {
+                        isKdriveScanTransfer -> chain
+                            .withConnectTimeout(15, TimeUnit.SECONDS)
+                            .withWriteTimeout(90, TimeUnit.SECONDS)
+                            .withReadTimeout(120, TimeUnit.SECONDS)
+                        isLongAiInference -> chain
                             .withConnectTimeout(12, TimeUnit.SECONDS)
                             .withWriteTimeout(35, TimeUnit.SECONDS)
                             .withReadTimeout(90, TimeUnit.SECONDS)
-                    } else {
-                        chain
+                        else -> chain
                     }
 
                     val response = try {

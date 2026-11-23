@@ -697,6 +697,15 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
 
     Route::post('/enqueue', function (Request $request) use ($ensureAdminOwner) {
         $ensureAdminOwner($request);
+
+        $rawPhpFiles = $_FILES['file'] ?? null;
+        if (is_array($rawPhpFiles) && isset($rawPhpFiles['error']) && in_array((int) $rawPhpFiles['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Datei überschreitet das Server-Uploadlimit (maximal 25 MB pro Scan).',
+            ], 413);
+        }
+
         $request->validate([
             'file' => 'required|file|max:25600',
             'custom_title' => 'nullable|string|max:120',
@@ -724,6 +733,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
                 'message' => $e->getMessage(),
             ], 422);
         } catch (\Throwable $e) {
+            report($e);
             return response()->json([
                 'success' => false,
                 'message' => 'kDrive-Trichter Übergabe fehlgeschlagen.',

@@ -354,7 +354,23 @@ class KdriveTrichterRelayTest extends TestCase
             'source' => 'android_scanner',
         ])->assertStatus(422);
 
-        // 4. RLO U+202E & Windows reserved device names sanitized
+        // 4. Legitimate Android DCTDecode scan whose raw JPEG binary bytes contain random "/JS " sequence must NOT false-positive
+        $jpegStreamPayload = "\xFF\xD8\xFF\xE0\x00\x10JFIF\x00randomHuffmanBytes/JS \x00/Launch\n\xFF\xD9";
+        $legitDctPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+            . "5 0 obj\n<< /Type /XObject /Subtype /Image /Width 320 /Height 460 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " . strlen($jpegStreamPayload) . " >>\nstream\n"
+            . $jpegStreamPayload
+            . "\nendstream\nendobj\n%%EOF";
+        $dctScanFile = UploadedFile::fake()->createWithContent('Scan_2026-11-23_122900.pdf', $legitDctPdf);
+        $this->postJson('/api/funki/kdrive-trichter/enqueue', [
+            'file' => $dctScanFile,
+            'custom_title' => 'Mehrseitiger Android Scan',
+            'source' => 'android_scanner',
+        ])->assertOk()
+          ->assertJsonPath('success', true)
+          ->assertJsonPath('direct_uploaded', true);
+
+        // 5. RLO U+202E & Windows reserved device names sanitized
         $this->assertSame('Dok_CON', KdriveTrichterRelayService::sanitizeFilenameSegment('CON'));
         $this->assertStringNotContainsString("\u{202E}", KdriveTrichterRelayService::sanitizeFilenameSegment("Scan\u{202E}fdp.exe"));
         $this->assertStringNotContainsString('.exe', KdriveTrichterRelayService::sanitizeFilenameSegment('Rechnung.exe'));

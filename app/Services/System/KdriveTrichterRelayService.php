@@ -364,7 +364,8 @@ class KdriveTrichterRelayService
                 if (!str_contains($head32, '%PDF-')) {
                     throw new \InvalidArgumentException('Ungültige PDF-Datei (fehlender %PDF-Header).');
                 }
-                if (preg_match('/\/(?:JavaScript|JS|Launch|RichMedia|SubmitForm|ImportData|GoToE)\b/i', $rawBytes) === 1) {
+                $inspectBytes = self::stripPdfImageStreamsForSecurityScan($rawBytes);
+                if (preg_match('/\/(?:JavaScript|JS|Launch|RichMedia|SubmitForm|ImportData|GoToE)(?=[\s\/<\(\[\r\n]|$)/i', $inspectBytes) === 1) {
                     throw new \InvalidArgumentException('Sicherheits-Sperre: Aktive Skripte oder Startbefehle in PDF-Dateien sind blockiert.');
                 }
                 break;
@@ -410,6 +411,88 @@ class KdriveTrichterRelayService
                 }
                 break;
         }
+    }
+
+    /**
+     * Entfernt reine Binär-Bildströme (/Subtype /Image ... stream ... endstream) per C-schnellem Offset-Scan
+     * ohne PCRE-Backtracking-Limit, damit komprimierte JPEG/PNG-Bytes in mehrseitigen Scans niemals zufällige
+     * "/JS"-Fehlalarme auslösen, während alle PDF-Objekt-Dictionaries & Nicht-Bild-Streams voll geprüft bleiben.
+     */
+    private static function stripPdfImageStreamsForSecurityScan(string $rawBytes): string
+    {
+        $totalLen = strlen($rawBytes);
+        if ($totalLen < 64) {
+            return $rawBytes;
+        }
+
+        $out = [];
+        $cursor = 0;
+
+        while ($cursor < $totalLen) {
+            $streamPos = strpos($rawBytes, 'stream', $cursor);
+            if ($streamPos === false) {
+                $out[] = substr($rawBytes, $cursor);
+                break;
+            }
+
+            // Ensure "stream" is followed by \n or \r\n (not e.g. "endstream" or "/Stream")
+            if ($streamPos > 0 && ctype_alpha($rawBytes[$streamPos - 1])) {
+                $out[] = substr($rawBytes, $cursor, ($streamPos + 6) - $cursor);
+                $cursor = $streamPos + 6;
+                continue;
+            }
+
+            $afterKeyword = $streamPos + 6;
+            $dataStart = null;
+            if ($afterKeyword < $totalLen && $rawBytes[$afterKeyword] === "\n") {
+                $dataStart = $afterKeyword + 1;
+            } elseif (($afterKeyword + 1) < $totalLen && $rawBytes[$afterKeyword] === "\r" && $rawBytes[$afterKeyword + 1] === "\n") {
+                $dataStart = $afterKeyword + 2;
+            }
+
+            if ($dataStart === null) {
+                $out[] = substr($rawBytes, $cursor, $afterKeyword - $cursor);
+                $cursor = $afterKeyword;
+                continue;
+            }
+
+            $dictWindowStart = max(0, $streamPos - 512);
+            $precedingHeader = substr($rawBytes, $dictWindowStart, $streamPos - $dictWindowStart);
+            $lastDictOpen = strrpos($precedingHeader, '<<');
+            $dictSnippet = $lastDictOpen !== false ? substr($precedingHeader, $lastDictOpen) : $precedingHeader;
+
+            $declaredLen = null;
+            if (preg_match('/\/Length\s+(\d+)(?!\s+\d+\s+R)/i', $dictSnippet, $lenMatch) === 1) {
+                $parsedLen = (int) $lenMatch[1];
+                if ($parsedLen > 0 && ($dataStart + $parsedLen) < $totalLen) {
+                    $declaredLen = $parsedLen;
+                }
+            }
+
+            $searchEndFrom = $declaredLen !== null ? ($dataStart + $declaredLen) : $dataStart;
+            $endStreamPos = strpos($rawBytes, 'endstream', $searchEndFrom);
+            if ($endStreamPos === false) {
+                $endStreamPos = strpos($rawBytes, 'endstream', $dataStart);
+            }
+            if ($endStreamPos === false) {
+                $out[] = substr($rawBytes, $cursor);
+                break;
+            }
+
+            $isImageXObject = stripos($dictSnippet, '/Subtype') !== false
+                && stripos($dictSnippet, '/Image') !== false;
+
+            if ($isImageXObject) {
+                $out[] = substr($rawBytes, $cursor, $dataStart - $cursor);
+                $out[] = "\n";
+                $cursor = $endStreamPos;
+            } else {
+                $out[] = substr($rawBytes, $cursor, ($endStreamPos + 9) - $cursor);
+                $cursor = $endStreamPos + 9;
+            }
+        }
+
+        return implode('', $out);
     }
 
     private static function scrubSecretFromText(string $message, ?string $secret = null): string
@@ -659,7 +742,7 @@ PROMPT;
                         'generationConfig' => $genConfig,
                     ];
 
-                    $response = VertexAiService::generateContent($model, $payload, 20, 5);
+                    $response = VertexAiService::generateContent($model, $payload, 12, 4);
                     if (!$response->successful()) {
                         continue;
                     }
@@ -1354,6 +1437,7 @@ PROMPT;
         ?int $batchIndex = null,
         ?int $batchTotal = null
     ): array {
+        @set_time_limit(150);
         self::purgeExpired();
 
         $size = (int) $file->getSize();
@@ -1717,6 +1801,7 @@ PROMPT;
 
     public static function flushPendingRelayToWebDav(int $maxItems = 25): array
     {
+        @set_time_limit(150);
         $cfg = self::getWebDavConfig();
         if (empty($cfg['configured'])) {
             return [
@@ -1881,7 +1966,7 @@ PROMPT;
                         'generationConfig' => $genConfig,
                     ];
 
-                    $response = VertexAiService::generateContent($model, $payload, 20, 5);
+                    $response = VertexAiService::generateContent($model, $payload, 12, 4);
                     if (!$response->successful()) {
                         continue;
                     }
