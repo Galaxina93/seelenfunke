@@ -633,11 +633,15 @@ class SystemBrainDiagnosticsService
                 'is_active' => true,
             ]);
 
-            // 1. Frontend Routes (Guest)
+            // 1. Frontend Routes (Guest) - akzeptiert HTTP 503 auf Live vor offiziellem Go-Live (!shop_is_live)
+            $shopIsLiveNow = \App\Http\Middleware\EnforceShopMaintenanceMode::isShopLive();
+            $allowedFrontendStatuses = $shopIsLiveNow ? [200, 301, 302] : [200, 301, 302, 503];
+            $allowedPortalStatuses = $shopIsLiveNow ? [200, 302] : [200, 302, 503];
+
             Auth::forgetGuards();
             foreach ($frontendRoutes as $item) {
                 $probe = $this->dispatchSingleKernelGet($item['uri'], null, null);
-                $ok = in_array($probe['status'], [200, 301, 302], true) && empty($probe['deprecations']) && $probe['exception'] === null;
+                $ok = in_array($probe['status'], $allowedFrontendStatuses, true) && empty($probe['deprecations']) && $probe['exception'] === null;
                 $results[] = array_merge($item, $probe, ['ok' => $ok]);
                 if (!$ok) {
                     $failures[] = [
@@ -682,11 +686,11 @@ class SystemBrainDiagnosticsService
 
                 if ($actor) {
                     $probe = $this->dispatchSingleKernelGet($item['uri'], $actor, $actualGuard);
-                    $ok = in_array($probe['status'], [200, 302], true) && empty($probe['deprecations']) && $probe['exception'] === null;
+                    $ok = in_array($probe['status'], $allowedPortalStatuses, true) && empty($probe['deprecations']) && $probe['exception'] === null;
                 } else {
-                    // Unauthenticated guest must be redirected to login (302) and never 500
+                    // Unauthenticated guest must be redirected to login (302) or gated (503) and never 500
                     $probe = $this->dispatchSingleKernelGet($item['uri'], null, null);
-                    $ok = in_array($probe['status'], [302, 401, 403], true) && empty($probe['deprecations']) && $probe['exception'] === null;
+                    $ok = in_array($probe['status'], $shopIsLiveNow ? [302, 401, 403] : [302, 401, 403, 503], true) && empty($probe['deprecations']) && $probe['exception'] === null;
                 }
 
                 $results[] = array_merge($item, $probe, ['ok' => $ok]);
