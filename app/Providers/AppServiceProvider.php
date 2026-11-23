@@ -292,6 +292,9 @@ class AppServiceProvider extends ServiceProvider
                 if (Config::get('cache.default') === 'redis') {
                     Config::set('cache.default', 'file');
                 }
+                if (Config::get('cache.limiter') === 'redis') {
+                    Config::set('cache.limiter', 'file');
+                }
                 if (Config::get('schedule.cache_store') === 'redis') {
                     Config::set('schedule.cache_store', 'file');
                 }
@@ -303,6 +306,14 @@ class AppServiceProvider extends ServiceProvider
                 }
                 if (Config::get('broadcasting.default') === 'redis') {
                     Config::set('broadcasting.default', 'null');
+                }
+                try {
+                    if (app()->bound('cache')) {
+                        app('cache')->forgetDriver('redis');
+                    }
+                    app()->forgetInstance('cache.store');
+                    app()->forgetInstance(\Illuminate\Cache\RateLimiter::class);
+                } catch (\Throwable) {
                 }
             };
 
@@ -320,6 +331,8 @@ class AppServiceProvider extends ServiceProvider
                             if ($quickDns === $redisHost) {
                                 $skipRedisNetworkCheck = false;
                             } else {
+                                Config::set('database.redis.default.host', $quickDns);
+                                Config::set('database.redis.cache.host', $quickDns);
                                 $skipRedisNetworkCheck = true;
                             }
                         } else {
@@ -336,6 +349,8 @@ class AppServiceProvider extends ServiceProvider
                         if ($resolved === $redisHost) {
                             throw new \RuntimeException("DNS resolution failed for Redis host: {$redisHost}");
                         }
+                        Config::set('database.redis.default.host', $resolved);
+                        Config::set('database.redis.cache.host', $resolved);
                     }
                     Cache::store('redis')->get('__redis_health_check__');
                     if ($cbFile !== null) {
@@ -363,22 +378,22 @@ class AppServiceProvider extends ServiceProvider
                             \Illuminate\Support\Facades\Log::warning('Redis nicht erreichbar (' . $redisEx->getMessage() . '): Automatischer Fallback auf File-Cache/Session aktiviert.');
 
                             if (!app()->runningInConsole() && class_exists(\App\Models\System\SystemLog::class) && Schema::hasTable('system_logs')) {
-                                \App\Models\System\SystemLog::create([
-                                    'type' => 'system',
-                                    'action_id' => 'system:redis_fallback',
-                                    'title' => 'Redis-Fallback aktiviert (File-Cache)',
-                                    'message' => 'Redis-Host nicht erreichbar (' . substr($redisEx->getMessage(), 0, 250) . '). System nutzt automatisch File-Cache & File-Session.',
-                                    'status' => 'warning',
-                                    'payload' => [
-                                        'redis_host' => Config::get('database.redis.default.host'),
-                                        'error' => $redisEx->getMessage(),
-                                        'active_cache_driver' => Config::get('cache.default'),
-                                        'active_session_driver' => Config::get('session.driver'),
-                                        'active_queue_driver' => Config::get('queue.default'),
-                                    ],
-                                    'started_at' => now(),
-                                    'finished_at' => now(),
-                                ]);
+                                    \App\Models\System\SystemLog::create([
+                                        'type' => 'system',
+                                        'action_id' => 'system:redis_fallback',
+                                        'title' => 'Redis-Fallback aktiviert (File-Cache)',
+                                        'message' => 'Redis-Host nicht erreichbar (' . substr($redisEx->getMessage(), 0, 250) . '). System nutzt automatisch File-Cache & File-Session.',
+                                        'status' => 'info',
+                                        'payload' => [
+                                            'redis_host' => $redisHost,
+                                            'error' => $redisEx->getMessage(),
+                                            'active_cache_driver' => Config::get('cache.default'),
+                                            'active_session_driver' => Config::get('session.driver'),
+                                            'active_queue_driver' => Config::get('queue.default'),
+                                        ],
+                                        'started_at' => now(),
+                                        'finished_at' => now(),
+                                    ]);
                             }
                         }
                     } catch (\Throwable $ignore) {

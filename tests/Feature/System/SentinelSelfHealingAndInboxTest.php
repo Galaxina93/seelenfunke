@@ -929,6 +929,7 @@ class SentinelSelfHealingAndInboxTest extends TestCase
         });
 
         $origEnv = $this->app['env'];
+        SystemLog::query()->delete();
         $beforeLogCount = SystemLog::count();
 
         try {

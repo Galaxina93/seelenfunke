@@ -532,11 +532,11 @@ class SentinelTriageService
             ];
         }
 
-        // Playbook 4: Kurzzeitiger DNS-/Redis-Wackler, der seit >= 5 Min nicht mehr auftrat und live gesund ist
-        if (in_array($category, ['network_dns_or_socket_eagain', 'redis_connectivity_or_dns'], true) && $occurrences < 10) {
+        // Playbook 4: Kurzzeitiger DNS-/Redis-Wackler (automatischer File-Cache-Fallback schützt alle Web-/API-Requests sofort)
+        if ($actionId === 'system:redis_fallback' || (in_array($category, ['network_dns_or_socket_eagain', 'redis_connectivity_or_dns'], true) && $occurrences < 10)) {
             $lastSeenRaw = $payload['last_seen_at'] ?? ($log->finished_at?->toIso8601String() ?? $log->started_at?->toIso8601String());
-            $isCooledDown = false;
-            if ($lastSeenRaw) {
+            $isCooledDown = $actionId === 'system:redis_fallback' || $category === 'redis_connectivity_or_dns';
+            if (!$isCooledDown && $lastSeenRaw) {
                 try {
                     $isCooledDown = Carbon::parse($lastSeenRaw)->lte(now()->subMinutes(5));
                 } catch (\Throwable $ignore) {
@@ -547,7 +547,7 @@ class SentinelTriageService
                 return [
                     'healed' => true,
                     'playbook' => 'transient_dns_or_cache_recovered',
-                    'summary' => 'Temporärer DNS-/Cache-Engpass ist abgeklungen; Live-Verbindungstest (DB + Cache) erfolgreich.',
+                    'summary' => 'Temporärer DNS-/Redis-Engpass durch File-Cache-Fallback abgefangen; Live-Verbindungstest (DB + Cache) erfolgreich.',
                 ];
             }
         }
