@@ -102,7 +102,10 @@ class FunkiraLiveViewModel : ViewModel() {
     @Volatile private var isRecordingActive = false
     @Volatile private var isAiSpeaking = false
     @Volatile private var playbackActiveUntilUptimeMs = 0L
+    @Volatile private var totalFramesWrittenToTrack = 0L
     @Volatile private var lastAiServerPacketUptimeMs = 0L
+    @Volatile private var lastUserVoiceDetectedUptimeMs = 0L
+    @Volatile private var lastUserTranscriptDeltaUptimeMs = 0L
     @Volatile private var setupCompletedForCurrentSocket = false
     @Volatile private var sessionEverSetupComplete = false
     @Volatile private var currentSocketSetupAtUptimeMs = 0L
@@ -157,16 +160,46 @@ class FunkiraLiveViewModel : ViewModel() {
         }
     }
 
+    private fun hasUnplayedHardwareAudioFrames(): Boolean {
+        val track = audioTrack ?: return false
+        val writtenFrames = totalFramesWrittenToTrack
+        if (writtenFrames <= 0L) return false
+        return try {
+            if (track.state != AudioTrack.STATE_INITIALIZED || track.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                false
+            } else {
+                val playedFrames = track.playbackHeadPosition.toLong() and 0xFFFFFFFFL
+                (writtenFrames - playedFrames) > 480L // > 20ms @ 24 kHz still buffered in hardware
+            }
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
     private fun isAiEffectivelySpeaking(): Boolean {
         val now = android.os.SystemClock.uptimeMillis()
-        if (now < playbackActiveUntilUptimeMs) {
+        if (now < playbackActiveUntilUptimeMs || hasUnplayedHardwareAudioFrames()) {
             return true
         }
         if (isAiSpeaking) {
-            if (lastAiServerPacketUptimeMs > 0L && (now - lastAiServerPacketUptimeMs) > 4200L) {
+            if (lastAiServerPacketUptimeMs > 0L && (now - lastAiServerPacketUptimeMs) > 12_000L) {
                 setAiSpeakingState(false)
                 return false
             }
+            return true
+        }
+        return false
+    }
+
+    private fun isUserEffectivelySpeaking(): Boolean {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (lastUserVoiceDetectedUptimeMs > 0L && (now - lastUserVoiceDetectedUptimeMs) < 3_800L) {
+            return true
+        }
+        if (userTurnTranscript.isNotBlank() &&
+            lastUserTranscriptDeltaUptimeMs > 0L &&
+            (now - lastUserTranscriptDeltaUptimeMs) < 15_000L
+        ) {
             return true
         }
         return false
@@ -277,6 +310,9 @@ class FunkiraLiveViewModel : ViewModel() {
         sessionEverSetupComplete = false
         currentSocketSetupAtUptimeMs = 0L
         lastAiServerPacketUptimeMs = 0L
+        lastUserVoiceDetectedUptimeMs = 0L
+        lastUserTranscriptDeltaUptimeMs = 0L
+        totalFramesWrittenToTrack = 0L
         _isConnecting.value = true
         _error.value = null
         shouldEndCall = false
@@ -985,7 +1021,10 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (itObj != null && itObj.has("text")) {
                     val delta = itObj.get("text").asString
                     if (delta.isNotBlank()) {
-                        inactivityTracker.onUserSpeech(android.os.SystemClock.uptimeMillis())
+                        val nowUp = android.os.SystemClock.uptimeMillis()
+                        lastUserVoiceDetectedUptimeMs = nowUp
+                        lastUserTranscriptDeltaUptimeMs = nowUp
+                        inactivityTracker.onUserSpeech(nowUp)
                     }
                     userTurnTranscript.append(delta)
                     _liveSubtitle.value = "Du: ${userTurnTranscript.toString().trim()}"
@@ -1012,11 +1051,11 @@ class FunkiraLiveViewModel : ViewModel() {
                 if (serverContent.has("turnComplete") && serverContent.get("turnComplete").asBoolean) {
                     hasOutputTranscriptionInTurn = false
                     val remainingPlaybackMs = (playbackActiveUntilUptimeMs - android.os.SystemClock.uptimeMillis())
-                        .coerceIn(280L, 60_000L)
+                        .coerceIn(280L, 90_000L)
                     turnCompleteSettleJob?.cancel()
                     turnCompleteSettleJob = viewModelScope.launch {
                         delay(remainingPlaybackMs)
-                        while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs) {
+                        while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs || hasUnplayedHardwareAudioFrames()) {
                             delay(150L)
                         }
                         setAiSpeakingState(false)
@@ -1025,6 +1064,7 @@ class FunkiraLiveViewModel : ViewModel() {
                     if (userTurnTranscript.isNotBlank()) {
                         addLog("Du: ${userTurnTranscript.toString().trim()}")
                         userTurnTranscript.clear()
+                        lastUserTranscriptDeltaUptimeMs = 0L
                     }
                     if (aiTurnTranscript.isNotBlank()) {
                         val cleanText = sanitizeAiTranscript(aiTurnTranscript.toString().trim())
@@ -1042,13 +1082,13 @@ class FunkiraLiveViewModel : ViewModel() {
                         viewModelScope.launch(Dispatchers.Main) {
                             if (!isMusicStandby) {
                                 delay(maxOf(1200L, remainingPlaybackMs + 350L))
-                                while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs) {
+                                while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs || hasUnplayedHardwareAudioFrames()) {
                                     delay(150L)
                                 }
                                 de.meinseelenfunke.app.util.SoundManager.playSound(de.meinseelenfunke.app.R.raw.click_file_in_project_brain)
                             } else {
                                 delay(remainingPlaybackMs + 250L)
-                                while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs) {
+                                while (android.os.SystemClock.uptimeMillis() < playbackActiveUntilUptimeMs || hasUnplayedHardwareAudioFrames()) {
                                     delay(150L)
                                 }
                                 addLog("[System]: Musiksteuerung abgeschlossen. Wechsel in den Ruhemodus.")
@@ -1123,7 +1163,7 @@ class FunkiraLiveViewModel : ViewModel() {
                             viewModelScope.launch(Dispatchers.Main) {
                                 delay(3500L)
                                 var guardWaitedMs = 0L
-                                while (shouldEndCall && isAiEffectivelySpeaking() && guardWaitedMs < 25_000L) {
+                                while (shouldEndCall && (isAiEffectivelySpeaking() || isUserEffectivelySpeaking()) && guardWaitedMs < 90_000L) {
                                     delay(300L)
                                     guardWaitedMs += 300L
                                 }
@@ -1422,6 +1462,7 @@ class FunkiraLiveViewModel : ViewModel() {
             } catch (_: Exception) {
             }
             audioTrack = null
+            totalFramesWrittenToTrack = 0L
 
             setCommunicationMode(true)
             
@@ -1507,6 +1548,7 @@ class FunkiraLiveViewModel : ViewModel() {
             if (written < 0) {
                 addLog("[Audio] Schreibfehler: $written")
             } else {
+                totalFramesWrittenToTrack += (written / 2L)
                 val chunkDurationMs = (written * 1000L) / (24000L * 2L)
                 val nowUptime = android.os.SystemClock.uptimeMillis()
                 val baseEnd = if (playbackActiveUntilUptimeMs > nowUptime) playbackActiveUntilUptimeMs else nowUptime
@@ -1522,8 +1564,10 @@ class FunkiraLiveViewModel : ViewModel() {
 
     private fun flushAudioPlayback() {
         playbackActiveUntilUptimeMs = 0L
+        totalFramesWrittenToTrack = 0L
         try {
             audioTrack?.apply {
+                pause()
                 flush()
                 stop()
                 play()
@@ -1594,6 +1638,7 @@ class FunkiraLiveViewModel : ViewModel() {
                     requiredVoicedFrames = 3,
                     windowSize = 8
                 )
+                var voicedWindowMask = 0
 
                 while (isRecordingActive) {
                     if (webSocket == null) {
@@ -1602,29 +1647,42 @@ class FunkiraLiveViewModel : ViewModel() {
                     val read = audioRecord.read(buffer, 0, buffer.size)
                     if (read > 0) {
                         var maxVal = 0
+                        var sumSquares = 0.0
                         for (i in 0 until read) {
                             val v = Math.abs(buffer[i].toInt())
                             if (v > maxVal) maxVal = v
+                            sumSquares += (v.toDouble() * v.toDouble())
                         }
+                        val rms = kotlin.math.sqrt(sumSquares / read.toDouble())
 
                         // Echo-Schutz & lokale Barge-In-Erkennung:
                         // Während die KI über den Lautsprecher spricht, senden wir kein Echo zurück,
                         // es sei denn, der Nutzer unterbricht deutlich hörbar (Google VAD übernimmt das Interrupt-Handling nativ über realtimeInput.audio).
                         if (isAiEffectivelySpeaking()) {
                             userSpeechGate.reset()
+                            voicedWindowMask = 0
                             if (maxVal > 12000) {
+                                val nowUp = android.os.SystemClock.uptimeMillis()
                                 android.util.Log.d("FunkiraLive", "Local user interruption detected (amplitude: $maxVal). Flushing audio playback.")
                                 turnCompleteSettleJob?.cancel()
                                 setAiSpeakingState(false)
                                 flushAudioPlayback()
-                                inactivityTracker.onUserSpeech(android.os.SystemClock.uptimeMillis())
+                                lastUserVoiceDetectedUptimeMs = nowUp
+                                inactivityTracker.onUserSpeech(nowUp)
                             } else {
                                 _voiceAmplitude.value = 0f
                                 delay(20)
                                 continue
                             }
-                        } else if (userSpeechGate.onFrame(buffer, read)) {
-                            inactivityTracker.onUserSpeech(android.os.SystemClock.uptimeMillis())
+                        } else {
+                            // Calibrated for Android VOICE_COMMUNICATION AGC/AEC (normal speech RMS ~800..2800)
+                            val isVoicedAecFrame = rms >= 820.0 || maxVal >= 2400
+                            voicedWindowMask = ((voicedWindowMask shl 1) or (if (isVoicedAecFrame) 1 else 0)) and 0xFF
+                            if (Integer.bitCount(voicedWindowMask) >= 2 || userSpeechGate.onFrame(buffer, read)) {
+                                val nowUp = android.os.SystemClock.uptimeMillis()
+                                lastUserVoiceDetectedUptimeMs = nowUp
+                                inactivityTracker.onUserSpeech(nowUp)
+                            }
                         }
 
                         _voiceAmplitude.value = maxVal.toFloat() / 32768f
@@ -1731,7 +1789,7 @@ class FunkiraLiveViewModel : ViewModel() {
                 refreshReconnectBudgetIfStable(setupCompletedForCurrentSocket)
 
                 // Live-Check für 22:00 (Bettfertig) & 22:30 (Nachtruhe) - aktiv an 7 Tagen inkl. Wochenende
-                if (!isAiEffectivelySpeaking() && activeToolCallCount.get() == 0 && inactivityTracker.stage == de.meinseelenfunke.app.util.FalconInactivityStage.ACTIVE) {
+                if (!isAiEffectivelySpeaking() && !isUserEffectivelySpeaking() && activeToolCallCount.get() == 0 && inactivityTracker.stage == de.meinseelenfunke.app.util.FalconInactivityStage.ACTIVE) {
                     val cal = java.util.Calendar.getInstance()
                     val dKey = String.format(
                         java.util.Locale.ROOT,
@@ -1755,7 +1813,8 @@ class FunkiraLiveViewModel : ViewModel() {
                 val action = inactivityTracker.evaluate(
                     nowMs = android.os.SystemClock.uptimeMillis(),
                     isAiSpeaking = isAiEffectivelySpeaking(),
-                    activeToolCalls = activeToolCallCount.get()
+                    activeToolCalls = activeToolCallCount.get(),
+                    isUserSpeaking = isUserEffectivelySpeaking()
                 )
                 when (action) {
                     de.meinseelenfunke.app.util.FalconInactivityAction.NONE -> {}
@@ -1845,10 +1904,10 @@ class FunkiraLiveViewModel : ViewModel() {
         musicStandbyFallbackJob?.cancel()
         musicStandbyFallbackJob = viewModelScope.launch(Dispatchers.Main) {
             var waitedMs = 0L
-            while (shouldEnterStandbyAfterTurn && waitedMs < 7500L) {
+            while (shouldEnterStandbyAfterTurn && waitedMs < 90_000L) {
                 delay(350L)
                 waitedMs += 350L
-                if (waitedMs >= 3200L && activeToolCallCount.get() <= 0 && !isAiEffectivelySpeaking()) {
+                if (waitedMs >= 3200L && activeToolCallCount.get() <= 0 && !isAiEffectivelySpeaking() && !isUserEffectivelySpeaking()) {
                     break
                 }
             }
@@ -1871,6 +1930,9 @@ class FunkiraLiveViewModel : ViewModel() {
         setupCompletedForCurrentSocket = false
         pendingProactiveKickPrompt = null
         playbackActiveUntilUptimeMs = 0L
+        totalFramesWrittenToTrack = 0L
+        lastUserVoiceDetectedUptimeMs = 0L
+        lastUserTranscriptDeltaUptimeMs = 0L
         activeToolCallCount.set(0)
         setAiSpeakingState(false)
         _falconEmotion.value = "idle"
@@ -1896,6 +1958,7 @@ class FunkiraLiveViewModel : ViewModel() {
     }
 
     private fun releaseAudioTrack() {
+        totalFramesWrittenToTrack = 0L
         try {
             audioTrack?.apply {
                 stop()

@@ -4,10 +4,14 @@ package de.meinseelenfunke.app.ui.navigation
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -154,11 +158,15 @@ fun AppNavigation(
                 androidx.lifecycle.Lifecycle.Event.ON_RESUME -> {
                     val nowElapsed = android.os.SystemClock.elapsedRealtime()
                     val wasInBackgroundMs = if (backgroundedAtElapsedMs > 0L) (nowElapsed - backgroundedAtElapsedMs) else 0L
+                    val returningFromActiveScanner =
+                        de.meinseelenfunke.app.util.TrichterScanDraftStore.isWithinActiveScannerGraceWindow(context) &&
+                            !de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context)
                     val shouldRelock = ServiceLocator.authRepository.isLoggedIn()
                         && ServiceLocator.isBiometricEnabled()
                         && BiometricHelper.isBiometricAvailable(context)
                         && backgroundedAtElapsedMs > 0L
                         && wasInBackgroundMs >= 180_000L
+                        && !returningFromActiveScanner
                         && !de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.value
                         && !de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive
                         && !de.meinseelenfunke.app.util.NavigationBridge.hasRecentTrustedFastUnlock()
@@ -314,146 +322,175 @@ fun AppNavigation(
         }
     }
 
-    if (isLoggedIn && !isBiometricUnlocked) {
-        BiometricLockScreen(
-            onUnlockSuccess = {
-                isBiometricUnlocked = true
-            },
-            onUsePassword = {
-                AppUpdateManager.resetOnLogout(context)
-                ServiceLocator.authRepository.logout()
-                isLoggedIn = false
-                isBiometricUnlocked = true
-                navController.navigate(Screen.Login.route) {
-                    popUpTo(0) { inclusive = true }
+    val isBiometricLockOverlayVisible = isLoggedIn && !isBiometricUnlocked
+    val sharedLiveViewModel: FunkiraLiveViewModel = viewModel()
+    val startDestination = remember {
+        if (!ServiceLocator.authRepository.isLoggedIn()) {
+            Screen.Login.route
+        } else {
+            val isAdminRole = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
+            val hasPendingDeepLink = de.meinseelenfunke.app.util.NavigationBridge.pendingTarget != null ||
+                de.meinseelenfunke.app.util.NavigationBridge.pendingTab != null ||
+                de.meinseelenfunke.app.util.TrichterScanDraftStore.hasActiveScannerSessionOrDraft(context)
+            if (isAdminRole && !hasPendingDeepLink) Screen.FalconFocus.route else "main"
+        }
+    }
+
+    val performLogout: () -> Unit = {
+        sharedLiveViewModel.disconnectLiveChat()
+        de.meinseelenfunke.app.util.FalconCameraController.stopCamera()
+        de.meinseelenfunke.app.util.NavigationBridge.clearTrustedFastUnlock()
+        AppUpdateManager.resetOnLogout(context)
+        de.meinseelenfunke.app.util.TrichterScanDraftStore.extractionScope.launch {
+            de.meinseelenfunke.app.util.TrichterScanDraftStore.clearDraft(context)
+        }
+        ServiceLocator.authRepository.logout()
+        de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
+        isLoggedIn = false
+        isBiometricUnlocked = false
+        navController.navigate(Screen.Login.route) {
+            popUpTo(0) { inclusive = true }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        de.meinseelenfunke.app.util.NavigationBridge.logoutTrigger.collect {
+            performLogout()
+        }
+    }
+
+    // Keep NavHost mounted underneath BiometricLockScreen so multi-page scans, ActivityResultLaunchers,
+    // and background PDF extraction coroutines are NEVER destroyed or interrupted by fingerprint verification!
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = if (isBiometricLockOverlayVisible) 0f else 1f
+                }
+        ) {
+            NavHost(
+                navController = navController,
+                startDestination = startDestination,
+                enterTransition = {
+                    androidx.compose.animation.fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                    ) + androidx.compose.animation.scaleIn(
+                        initialScale = 0.94f,
+                        animationSpec = androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                    )
+                },
+                exitTransition = {
+                    androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(200)
+                    ) + androidx.compose.animation.scaleOut(
+                        targetScale = 0.96f,
+                        animationSpec = androidx.compose.animation.core.tween(200)
+                    )
+                },
+                popEnterTransition = {
+                    androidx.compose.animation.fadeIn(
+                        animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                    ) + androidx.compose.animation.scaleIn(
+                        initialScale = 0.96f,
+                        animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                    )
+                },
+                popExitTransition = {
+                    androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(200)
+                    ) + androidx.compose.animation.scaleOut(
+                        targetScale = 0.92f,
+                        animationSpec = androidx.compose.animation.core.tween(200)
+                    )
+                }
+            ) {
+                composable(Screen.Login.route) {
+                    LoginScreen(
+                        onLoginSuccess = {
+                            isLoggedIn = true
+                            isBiometricUnlocked = true
+                            val isAdminAfterLogin = ServiceLocator.getUserType() == "admin" ||
+                                ServiceLocator.userTypeState.value == "admin"
+                            val dest = if (isAdminAfterLogin) Screen.FalconFocus.route else "main"
+                            navController.navigate(dest) {
+                                popUpTo(Screen.Login.route) { inclusive = true }
+                            }
+                        }
+                    )
+                }
+                composable(Screen.FalconFocus.route) {
+                    FalconFocusScreen(
+                        onOpenDashboard = {
+                            navController.navigate("main") {
+                                launchSingleTop = true
+                            }
+                        },
+                        autoStartVoice = wakeWordAutoStart && !isBiometricLockOverlayVisible,
+                        onConsumedAutoStartVoice = { wakeWordAutoStart = false },
+                        viewModel = sharedLiveViewModel
+                    )
+                }
+                composable("main") {
+                    MainTabbedScreen(
+                        navController = navController,
+                        onNavigateToLiveChat = {
+                            val isAdminNow = ServiceLocator.getUserType() == "admin" ||
+                                ServiceLocator.userTypeState.value == "admin"
+                            if (isAdminNow) {
+                                val popped = navController.popBackStack(Screen.FalconFocus.route, inclusive = false)
+                                if (!popped) {
+                                    navController.navigate(Screen.FalconFocus.route) {
+                                        launchSingleTop = true
+                                    }
+                                }
+                            } else {
+                                navController.navigate(Screen.LiveVoice.route)
+                            }
+                        },
+                        onLogout = performLogout
+                    )
+                }
+                composable(Screen.LiveVoice.route) {
+                    FunkiraLiveScreen(
+                        onBack = { navController.popBackStack() },
+                        viewModel = sharedLiveViewModel
+                    )
                 }
             }
-        )
-    } else {
-        val sharedLiveViewModel: FunkiraLiveViewModel = viewModel()
-        val startDestination = remember {
-            if (!ServiceLocator.authRepository.isLoggedIn()) {
-                Screen.Login.route
-            } else {
-                val isAdminRole = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
-                val hasPendingDeepLink = de.meinseelenfunke.app.util.NavigationBridge.pendingTarget != null ||
-                    de.meinseelenfunke.app.util.NavigationBridge.pendingTab != null
-                if (isAdminRole && !hasPendingDeepLink) Screen.FalconFocus.route else "main"
-            }
         }
 
-        val performLogout: () -> Unit = {
-            sharedLiveViewModel.disconnectLiveChat()
-            de.meinseelenfunke.app.util.FalconCameraController.stopCamera()
-            de.meinseelenfunke.app.util.NavigationBridge.clearTrustedFastUnlock()
-            AppUpdateManager.resetOnLogout(context)
-            ServiceLocator.authRepository.logout()
-            de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
-            isLoggedIn = false
-            isBiometricUnlocked = false
-            navController.navigate(Screen.Login.route) {
-                popUpTo(0) { inclusive = true }
-            }
+        if (isLoggedIn && !isBiometricLockOverlayVisible) {
+            StartupOtaUpdatePrompt()
         }
 
-        LaunchedEffect(Unit) {
-            de.meinseelenfunke.app.util.NavigationBridge.logoutTrigger.collect {
-                performLogout()
-            }
-        }
-
-        NavHost(
-            navController = navController,
-            startDestination = startDestination,
-            enterTransition = {
-                androidx.compose.animation.fadeIn(
-                    animationSpec = androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-                ) + androidx.compose.animation.scaleIn(
-                    initialScale = 0.94f,
-                    animationSpec = androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-                )
-            },
-            exitTransition = {
-                androidx.compose.animation.fadeOut(
-                    animationSpec = androidx.compose.animation.core.tween(200)
-                ) + androidx.compose.animation.scaleOut(
-                    targetScale = 0.96f,
-                    animationSpec = androidx.compose.animation.core.tween(200)
-                )
-            },
-            popEnterTransition = {
-                androidx.compose.animation.fadeIn(
-                    animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-                ) + androidx.compose.animation.scaleIn(
-                    initialScale = 0.96f,
-                    animationSpec = androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-                )
-            },
-            popExitTransition = {
-                androidx.compose.animation.fadeOut(
-                    animationSpec = androidx.compose.animation.core.tween(200)
-                ) + androidx.compose.animation.scaleOut(
-                    targetScale = 0.92f,
-                    animationSpec = androidx.compose.animation.core.tween(200)
-                )
-            }
-        ) {
-            composable(Screen.Login.route) {
-                LoginScreen(
-                    onLoginSuccess = {
-                        isLoggedIn = true
+        if (isBiometricLockOverlayVisible) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {}
+            ) {
+                BiometricLockScreen(
+                    onUnlockSuccess = {
                         isBiometricUnlocked = true
-                        val isAdminAfterLogin = ServiceLocator.getUserType() == "admin" ||
-                            ServiceLocator.userTypeState.value == "admin"
-                        val dest = if (isAdminAfterLogin) Screen.FalconFocus.route else "main"
-                        navController.navigate(dest) {
-                            popUpTo(Screen.Login.route) { inclusive = true }
+                    },
+                    onUsePassword = {
+                        AppUpdateManager.resetOnLogout(context)
+                        de.meinseelenfunke.app.util.TrichterScanDraftStore.extractionScope.launch {
+                            de.meinseelenfunke.app.util.TrichterScanDraftStore.clearDraft(context)
+                        }
+                        ServiceLocator.authRepository.logout()
+                        isLoggedIn = false
+                        isBiometricUnlocked = true
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
                         }
                     }
                 )
             }
-            composable(Screen.FalconFocus.route) {
-                FalconFocusScreen(
-                    onOpenDashboard = {
-                        navController.navigate("main") {
-                            launchSingleTop = true
-                        }
-                    },
-                    autoStartVoice = wakeWordAutoStart,
-                    onConsumedAutoStartVoice = { wakeWordAutoStart = false },
-                    viewModel = sharedLiveViewModel
-                )
-            }
-            composable("main") {
-                MainTabbedScreen(
-                    navController = navController,
-                    onNavigateToLiveChat = {
-                        val isAdminNow = ServiceLocator.getUserType() == "admin" ||
-                            ServiceLocator.userTypeState.value == "admin"
-                        if (isAdminNow) {
-                            val popped = navController.popBackStack(Screen.FalconFocus.route, inclusive = false)
-                            if (!popped) {
-                                navController.navigate(Screen.FalconFocus.route) {
-                                    launchSingleTop = true
-                                }
-                            }
-                        } else {
-                            navController.navigate(Screen.LiveVoice.route)
-                        }
-                    },
-                    onLogout = performLogout
-                )
-            }
-            composable(Screen.LiveVoice.route) {
-                FunkiraLiveScreen(
-                    onBack = { navController.popBackStack() },
-                    viewModel = sharedLiveViewModel
-                )
-            }
-        }
-
-        if (isLoggedIn) {
-            StartupOtaUpdatePrompt()
         }
     }
 }

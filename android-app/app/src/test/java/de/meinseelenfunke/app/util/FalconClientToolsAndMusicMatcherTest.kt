@@ -546,6 +546,23 @@ class FalconClientToolsAndMusicMatcherTest {
         )
         assertEquals(1008, objErr.first)
         assertEquals("Token expired", objErr.second)
+
+        // Verify active user speech or long AI speech > 60s is NEVER interrupted by timeout, and user speech cancels FAREWELL_CLOSING
+        val midSentenceTracker = FalconInactivityTracker()
+        midSentenceTracker.onSessionStarted(0L)
+        // User speaks continuously from t=10s..75s (well past 60s) -> must NEVER trigger Stage-1 check!
+        assertEquals(FalconInactivityAction.NONE, midSentenceTracker.evaluate(60_500L, isAiSpeaking = false, isUserSpeaking = true))
+        assertEquals(FalconInactivityAction.NONE, midSentenceTracker.evaluate(75_000L, isAiSpeaking = false, isUserSpeaking = true))
+        assertFalse(midSentenceTracker.inactivityCheckSent)
+        // Only 60s AFTER the user finishes speaking (75s + 60s = 135s) may Stage-1 check fire
+        assertEquals(FalconInactivityAction.NONE, midSentenceTracker.evaluate(134_900L, isAiSpeaking = false, isUserSpeaking = false))
+        assertEquals(FalconInactivityAction.SEND_STAGE1_CHECK, midSentenceTracker.evaluate(135_000L, isAiSpeaking = false, isUserSpeaking = false))
+        midSentenceTracker.onAiSpeechFinished(137_000L)
+        assertEquals(FalconInactivityAction.SEND_STAGE2_FAREWELL, midSentenceTracker.evaluate(162_000L, isAiSpeaking = false, isUserSpeaking = false))
+        assertEquals(FalconInactivityStage.FAREWELL_CLOSING, midSentenceTracker.stage)
+        // User speaks right as farewell starts -> cancels disconnect and returns to ACTIVE!
+        assertEquals(FalconInactivityAction.NONE, midSentenceTracker.evaluate(163_000L, isAiSpeaking = false, isUserSpeaking = true))
+        assertEquals(FalconInactivityStage.ACTIVE, midSentenceTracker.stage)
     }
 
     @Test

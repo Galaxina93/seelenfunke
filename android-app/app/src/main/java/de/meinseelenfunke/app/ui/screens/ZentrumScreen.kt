@@ -408,8 +408,18 @@ fun DashboardContent(
     FinanceDashboardCard(kpis = kpis, onClick = onNavigateToFinances)
 
     // 3. BELEG ERFASSEN & SCHNELLEINTRAG
+    val zentrumContext = androidx.compose.ui.platform.LocalContext.current
+    val hasActiveScanDraft = remember {
+        de.meinseelenfunke.app.util.TrichterScanDraftStore.hasActiveScannerSessionOrDraft(zentrumContext)
+    }
     var isQuickEntryExpanded by androidx.compose.runtime.saveable.rememberSaveable {
-        mutableStateOf(de.meinseelenfunke.app.util.NavigationBridge.pendingOpenQuickEntry)
+        mutableStateOf(de.meinseelenfunke.app.util.NavigationBridge.pendingOpenQuickEntry || hasActiveScanDraft)
+    }
+    val draftSnap by de.meinseelenfunke.app.util.TrichterScanDraftStore.snapshot.collectAsState()
+    LaunchedEffect(draftSnap.hasContent) {
+        if (draftSnap.hasContent) {
+            isQuickEntryExpanded = true
+        }
     }
     LaunchedEffect(Unit) {
         if (de.meinseelenfunke.app.util.NavigationBridge.pendingOpenQuickEntry) {
@@ -424,7 +434,6 @@ fun DashboardContent(
     val categories = remember {
         listOf("Lebensmittel", "Miete/Wohnen", "Transport", "Freizeit/Hobby", "Versicherungen", "Investitionen", "Werkzeug & Material", "Sonstiges")
     }
-    val zentrumContext = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(actionResult) {
         actionResult?.let { res ->
@@ -449,7 +458,14 @@ fun DashboardContent(
     }
 
     var quickScannerNonce by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-    var openQuickEntryInTrichterMode by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    var openQuickEntryInTrichterMode by androidx.compose.runtime.saveable.rememberSaveable {
+        androidx.compose.runtime.mutableStateOf(hasActiveScanDraft)
+    }
+    LaunchedEffect(draftSnap.hasContent) {
+        if (draftSnap.hasContent) {
+            openQuickEntryInTrichterMode = true
+        }
+    }
 
     Card(
         modifier = Modifier

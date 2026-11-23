@@ -45,6 +45,7 @@
 -keep class de.meinseelenfunke.app.util.AgDirectOutboxEntry { *; }
 -keep class de.meinseelenfunke.app.util.QueuedTrichterScanMeta { *; }
 -keep class de.meinseelenfunke.app.util.QueuedTrichterFlushResult { *; }
+-keep class de.meinseelenfunke.app.util.TrichterScanDraftSnapshot { *; }
 -keep class de.meinseelenfunke.app.ui.screens.SelectedFile { *; }
 -keep class de.meinseelenfunke.app.ui.screens.TrichterUploadItem { *; }
 -keep class de.meinseelenfunke.app.ui.screens.TrichterFeedback { *; }

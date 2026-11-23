@@ -273,4 +273,50 @@ class KdriveTrichterScannerTest {
         assertTrue(detailed.lastError.orEmpty().contains("Scan_01.pdf"))
         assertEquals(1, KdriveTrichterOfflineQueue.pendingCount.value)
     }
+
+    @Test
+    fun `multi-page scan draft store survives biometric lock and process recreation encrypted at rest`() = runBlocking {
+        TrichterScanDraftStore.clearDraft(context)
+        assertFalse(TrichterScanDraftStore.hasActiveScannerSessionOrDraft(context))
+
+        // 1. Launching ML Kit multi-page scanner activates biometric grace window
+        TrichterScanDraftStore.markExternalScannerLaunched(context)
+        assertTrue(TrichterScanDraftStore.isWithinActiveScannerGraceWindow(context))
+        assertTrue(TrichterScanDraftStore.hasActiveScannerSessionOrDraft(context))
+
+        // 2. Persist 3 multi-page JPEG scans + custom title encrypted on disk
+        val p1 = makeSampleJpeg(Color.WHITE)
+        val p2 = makeSampleJpeg(Color.LTGRAY)
+        val p3 = makeSampleJpeg(Color.GRAY)
+
+        TrichterScanDraftStore.updateDraft(context) { cur ->
+            cur.copy(
+                scannedPages = listOf(p1, p2, p3),
+                splitIntoSinglePdfs = false,
+                trichterTitle = "Mehrseitige Steuerunterlagen"
+            )
+        }
+        TrichterScanDraftStore.markExternalScannerReturned(context)
+
+        assertFalse(TrichterScanDraftStore.isWithinActiveScannerGraceWindow(context))
+        assertTrue(TrichterScanDraftStore.hasActiveScannerSessionOrDraft(context))
+
+        // Verify encrypted on disk (zero plaintext title in manifest)
+        val draftDir = File(context.filesDir, "trichter_scan_draft")
+        val rawManifest = String(File(draftDir, "draft_manifest.enc").readBytes(), Charsets.ISO_8859_1)
+        assertFalse(rawManifest.contains("Mehrseitige Steuerunterlagen"))
+
+        // 3. Rehydrate draft and verify all 3 pages + title + mode survived intact
+        val hydrated = TrichterScanDraftStore.ensureHydrated(context)
+        assertEquals(3, hydrated.scannedPages.size)
+        assertFalse(hydrated.splitIntoSinglePdfs)
+        assertEquals("Mehrseitige Steuerunterlagen", hydrated.trichterTitle)
+        assertEquals(p1.size, hydrated.scannedPages[0].size)
+        assertEquals(p3.size, hydrated.scannedPages[2].size)
+
+        // 4. Clearing draft after successful kDrive send wipes everything cleanly
+        TrichterScanDraftStore.clearDraft(context)
+        assertFalse(TrichterScanDraftStore.hasActiveScannerSessionOrDraft(context))
+        assertEquals(0, TrichterScanDraftStore.snapshot.value.scannedPages.size)
+    }
 }

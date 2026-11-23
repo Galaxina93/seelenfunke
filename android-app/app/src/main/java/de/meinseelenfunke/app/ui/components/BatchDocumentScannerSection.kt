@@ -73,6 +73,7 @@ import de.meinseelenfunke.app.ui.theme.Rose500
 import de.meinseelenfunke.app.ui.theme.SpaceBlack
 import de.meinseelenfunke.app.util.ImageUtils
 import de.meinseelenfunke.app.util.KdriveTrichterOfflineQueue
+import de.meinseelenfunke.app.util.TrichterScanDraftStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -137,12 +138,14 @@ fun BatchDocumentScannerSection(
     val contentResolver = context.contentResolver
     val scope = rememberCoroutineScope()
 
-    var splitIntoSinglePdfs by rememberSaveable { mutableStateOf(true) }
-    var trichterTitle by rememberSaveable { mutableStateOf("") }
+    val draftSnapshot by TrichterScanDraftStore.snapshot.collectAsState()
+    val scannedPages = draftSnapshot.scannedPages
+    val nativeCombinedPdfBytes = draftSnapshot.nativeCombinedPdfBytes
+    val queuedFiles = draftSnapshot.queuedFiles
+
+    var splitIntoSinglePdfs by rememberSaveable { mutableStateOf(draftSnapshot.splitIntoSinglePdfs) }
+    var trichterTitle by rememberSaveable { mutableStateOf(draftSnapshot.trichterTitle) }
     var fallbackCameraUriString by rememberSaveable { mutableStateOf<String?>(null) }
-    var scannedPages by remember { mutableStateOf<List<ByteArray>>(emptyList()) }
-    var nativeCombinedPdfBytes by remember { mutableStateOf<ByteArray?>(null) }
-    var queuedFiles by remember { mutableStateOf<List<TrichterUploadItem>>(emptyList()) }
     var statusNote by rememberSaveable { mutableStateOf<String?>(null) }
     var queueSyncSuccessNote by remember { mutableStateOf<String?>(null) }
     var syncingOfflineQueue by remember { mutableStateOf(false) }
@@ -155,13 +158,26 @@ fun BatchDocumentScannerSection(
 
     LaunchedEffect(Unit) {
         KdriveTrichterOfflineQueue.refreshCount(context)
+        val restored = TrichterScanDraftStore.ensureHydrated(context)
+        if (restored.hasContent) {
+            splitIntoSinglePdfs = restored.splitIntoSinglePdfs
+            if (trichterTitle.isBlank() && restored.trichterTitle.isNotBlank()) {
+                trichterTitle = restored.trichterTitle
+            }
+        }
+    }
+
+    LaunchedEffect(splitIntoSinglePdfs, trichterTitle) {
+        TrichterScanDraftStore.updatePreferencesOnly(
+            context = context,
+            splitIntoSinglePdfs = splitIntoSinglePdfs,
+            trichterTitle = trichterTitle
+        )
     }
 
     LaunchedEffect(trichterFeedback?.id) {
         if (trichterFeedback?.isSuccess == true) {
-            scannedPages = emptyList()
-            nativeCombinedPdfBytes = null
-            queuedFiles = emptyList()
+            TrichterScanDraftStore.clearDraft(context)
             trichterTitle = ""
             statusNote = null
         }
@@ -252,7 +268,9 @@ fun BatchDocumentScannerSection(
             }
             localLoadingFiles = false
             if (loadedBatch.isNotEmpty()) {
-                queuedFiles = queuedFiles + loadedBatch
+                TrichterScanDraftStore.updateDraft(context) { cur ->
+                    cur.copy(queuedFiles = cur.queuedFiles + loadedBatch)
+                }
             } else {
                 statusNote = "Datei konnte nicht gelesen werden."
             }
@@ -262,36 +280,40 @@ fun BatchDocumentScannerSection(
     val fallbackCameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
+        val appCtx = context.applicationContext
         val uri = fallbackCameraUriString?.let { Uri.parse(it) }
         if (success && uri != null) {
             statusNote = null
             onClearTrichterFeedback()
-            scope.launch {
+            TrichterScanDraftStore.extractionScope.launch {
                 try {
-                    val pageBytes = withContext(Dispatchers.IO) {
-                        val bytes = ImageUtils.compressImageUri(
-                            context, uri, maxDimension = 1900, quality = 85
-                        ) ?: context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
-                        bytes
-                    }
-                    fallbackCameraUriString = null
-                    if (pageBytes != null && pageBytes.isNotEmpty()) {
-                        nativeCombinedPdfBytes = null
-                        scannedPages = scannedPages + pageBytes
+                    val bytes = ImageUtils.compressImageUri(
+                        appCtx, uri, maxDimension = 1900, quality = 85
+                    ) ?: appCtx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    try { appCtx.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        TrichterScanDraftStore.updateDraft(appCtx) { cur ->
+                            cur.copy(
+                                nativeCombinedPdfBytes = null,
+                                scannedPages = cur.scannedPages + bytes
+                            )
+                        }
                     } else {
-                        statusNote = "Aufnahme fehlgeschlagen."
+                        withContext(Dispatchers.Main) { statusNote = "Aufnahme fehlgeschlagen." }
                     }
                 } catch (_: Exception) {
-                    try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
-                    fallbackCameraUriString = null
-                    statusNote = "Fehler beim Verarbeiten der Seite."
+                    try { appCtx.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
+                    withContext(Dispatchers.Main) { statusNote = "Fehler beim Verarbeiten der Seite." }
+                } finally {
+                    TrichterScanDraftStore.markExternalScannerReturned(appCtx)
+                    withContext(Dispatchers.Main) { fallbackCameraUriString = null }
                 }
             }
         } else {
             if (uri != null) {
                 try { context.contentResolver.delete(uri, null, null) } catch (_: Exception) {}
             }
+            TrichterScanDraftStore.markExternalScannerReturned(appCtx)
             fallbackCameraUriString = null
         }
     }
@@ -308,6 +330,7 @@ fun BatchDocumentScannerSection(
                 tempFile
             )
             fallbackCameraUriString = uri.toString()
+            TrichterScanDraftStore.markExternalScannerLaunched(context)
             fallbackCameraLauncher.launch(uri)
         } catch (_: Exception) {
             statusNote = "Kamera konnte nicht gestartet werden."
@@ -317,60 +340,77 @@ fun BatchDocumentScannerSection(
     val mlKitScannerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { activityResult ->
+        val appCtx = context.applicationContext
         if (activityResult.resultCode == Activity.RESULT_OK) {
             val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(activityResult.data)
             if (scanResult != null) {
                 statusNote = null
                 onClearTrichterFeedback()
                 localLoadingFiles = true
-                val hadPreviousPages = scannedPages.isNotEmpty()
-                scope.launch {
+                val hadPreviousPages = TrichterScanDraftStore.snapshot.value.scannedPages.isNotEmpty()
+                TrichterScanDraftStore.extractionScope.launch {
                     try {
-                        val extracted = withContext(Dispatchers.IO) {
-                            val pageList = mutableListOf<ByteArray>()
-                            scanResult.pages?.forEach { page ->
-                                val imgBytes = ImageUtils.compressImageUri(
-                                    context,
-                                    page.imageUri,
-                                    maxDimension = 1850,
-                                    quality = 82
-                                ) ?: contentResolver.openInputStream(page.imageUri)?.use { it.readBytes() }
-                                if (imgBytes != null && imgBytes.isNotEmpty()) {
-                                    pageList.add(imgBytes)
+                        val pageList = mutableListOf<ByteArray>()
+                        scanResult.pages?.forEach { page ->
+                            val imgBytes = ImageUtils.compressImageUri(
+                                appCtx,
+                                page.imageUri,
+                                maxDimension = 1850,
+                                quality = 82
+                            ) ?: appCtx.contentResolver.openInputStream(page.imageUri)?.use { it.readBytes() }
+                            if (imgBytes != null && imgBytes.isNotEmpty()) {
+                                pageList.add(imgBytes)
+                            }
+                        }
+                        val pdfBytes = if (pageList.isEmpty() && !hadPreviousPages) {
+                            scanResult.pdf?.uri?.let { pdfUri ->
+                                try {
+                                    readUriRawBytesLimited(pdfUri)?.first
+                                } catch (_: Exception) {
+                                    null
                                 }
                             }
-                            val pdfBytes = if (pageList.isEmpty() && !hadPreviousPages) {
-                                scanResult.pdf?.uri?.let { pdfUri ->
-                                    try {
-                                        readUriRawBytesLimited(pdfUri)?.first
-                                    } catch (_: Exception) {
-                                        null
-                                    }
-                                }
-                            } else null
-                            pageList to pdfBytes
-                        }
-                        localLoadingFiles = false
-                        val (newPages, nativePdf) = extracted
-                        if (newPages.isNotEmpty()) {
-                            nativeCombinedPdfBytes = null
-                            scannedPages = scannedPages + newPages
-                        } else if (nativePdf != null && nativePdf.isNotEmpty()) {
+                        } else null
+
+                        if (pageList.isNotEmpty()) {
+                            TrichterScanDraftStore.updateDraft(appCtx) { cur ->
+                                cur.copy(
+                                    nativeCombinedPdfBytes = null,
+                                    scannedPages = cur.scannedPages + pageList
+                                )
+                            }
+                            withContext(Dispatchers.Main) { localLoadingFiles = false }
+                        } else if (pdfBytes != null && pdfBytes.isNotEmpty()) {
                             val stamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
-                            queuedFiles = queuedFiles + TrichterUploadItem(
-                                bytes = nativePdf,
+                            val pdfItem = TrichterUploadItem(
+                                bytes = pdfBytes,
                                 fileName = "Scan_$stamp.pdf",
                                 mimeType = "application/pdf"
                             )
+                            TrichterScanDraftStore.updateDraft(appCtx) { cur ->
+                                cur.copy(queuedFiles = cur.queuedFiles + pdfItem)
+                            }
+                            withContext(Dispatchers.Main) { localLoadingFiles = false }
                         } else {
-                            statusNote = "Keine Seiten vom Scanner empfangen."
+                            withContext(Dispatchers.Main) {
+                                localLoadingFiles = false
+                                statusNote = "Keine Seiten vom Scanner empfangen."
+                            }
                         }
                     } catch (e: Exception) {
-                        localLoadingFiles = false
-                        statusNote = e.localizedMessage ?: "Fehler beim Lesen des Scans."
+                        withContext(Dispatchers.Main) {
+                            localLoadingFiles = false
+                            statusNote = e.localizedMessage ?: "Fehler beim Lesen des Scans."
+                        }
+                    } finally {
+                        TrichterScanDraftStore.markExternalScannerReturned(appCtx)
                     }
                 }
+            } else {
+                TrichterScanDraftStore.markExternalScannerReturned(appCtx)
             }
+        } else {
+            TrichterScanDraftStore.markExternalScannerReturned(appCtx)
         }
     }
 
@@ -394,6 +434,7 @@ fun BatchDocumentScannerSection(
                 GmsDocumentScanning.getClient(options)
                     .getStartScanIntent(hostActivity)
                     .addOnSuccessListener { intentSender ->
+                        TrichterScanDraftStore.markExternalScannerLaunched(context)
                         mlKitScannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
                     }
                     .addOnFailureListener {
@@ -415,30 +456,39 @@ fun BatchDocumentScannerSection(
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
+        val appCtx = context.applicationContext
         if (uris.isNotEmpty()) {
             statusNote = null
             onClearTrichterFeedback()
             localLoadingFiles = true
-            scope.launch {
+            TrichterScanDraftStore.extractionScope.launch {
                 try {
-                    val loadedItems = withContext(Dispatchers.IO) {
-                        val list = mutableListOf<TrichterUploadItem>()
-                        uris.take(40).forEachIndexed { idx, targetUri ->
-                            loadUriAsTrichterItem(targetUri, idx)?.let { list.add(it) }
-                        }
-                        list
+                    val list = mutableListOf<TrichterUploadItem>()
+                    uris.take(40).forEachIndexed { idx, targetUri ->
+                        loadUriAsTrichterItem(targetUri, idx)?.let { list.add(it) }
                     }
-                    localLoadingFiles = false
-                    if (loadedItems.isNotEmpty()) {
-                        queuedFiles = queuedFiles + loadedItems
+                    if (list.isNotEmpty()) {
+                        TrichterScanDraftStore.updateDraft(appCtx) { cur ->
+                            cur.copy(queuedFiles = cur.queuedFiles + list)
+                        }
+                        withContext(Dispatchers.Main) { localLoadingFiles = false }
                     } else {
-                        statusNote = "Keine gültigen Dateien ausgewählt."
+                        withContext(Dispatchers.Main) {
+                            localLoadingFiles = false
+                            statusNote = "Keine gültigen Dateien ausgewählt."
+                        }
                     }
                 } catch (e: Exception) {
-                    localLoadingFiles = false
-                    statusNote = e.localizedMessage ?: "Dateien konnten nicht gelesen werden."
+                    withContext(Dispatchers.Main) {
+                        localLoadingFiles = false
+                        statusNote = e.localizedMessage ?: "Dateien konnten nicht gelesen werden."
+                    }
+                } finally {
+                    TrichterScanDraftStore.markExternalScannerReturned(appCtx)
                 }
             }
+        } else {
+            TrichterScanDraftStore.markExternalScannerReturned(appCtx)
         }
     }
 
@@ -556,7 +606,10 @@ fun BatchDocumentScannerSection(
                     .clip(RoundedCornerShape(8.dp))
                     .background(AppTheme.colors.glassSurface)
                     .border(1.dp, AppTheme.colors.glassBorder, RoundedCornerShape(8.dp))
-                    .clickable { filePickerLauncher.launch("*/*") }
+                    .clickable {
+                        TrichterScanDraftStore.markExternalScannerLaunched(context)
+                        filePickerLauncher.launch("*/*")
+                    }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -606,8 +659,14 @@ fun BatchDocumentScannerSection(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clickable {
-                                nativeCombinedPdfBytes = null
-                                scannedPages = scannedPages.dropLast(1)
+                                TrichterScanDraftStore.extractionScope.launch {
+                                    TrichterScanDraftStore.updateDraft(context) { cur ->
+                                        cur.copy(
+                                            nativeCombinedPdfBytes = null,
+                                            scannedPages = cur.scannedPages.dropLast(1)
+                                        )
+                                    }
+                                }
                             }
                         )
                     }
@@ -617,8 +676,14 @@ fun BatchDocumentScannerSection(
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.clickable {
-                            nativeCombinedPdfBytes = null
-                            scannedPages = emptyList()
+                            TrichterScanDraftStore.extractionScope.launch {
+                                TrichterScanDraftStore.updateDraft(context) { cur ->
+                                    cur.copy(
+                                        nativeCombinedPdfBytes = null,
+                                        scannedPages = emptyList()
+                                    )
+                                }
+                            }
                         }
                     )
                 }
@@ -668,13 +733,16 @@ fun BatchDocumentScannerSection(
                                             localCompilingPdf = false
                                             if (mergedPdf != null && mergedPdf.isNotEmpty()) {
                                                 val stamp = SimpleDateFormat("yyyy-MM-dd_HHmmss", Locale.US).format(Date())
-                                                queuedFiles = listOf(
+                                                val newFiles = listOf(
                                                     TrichterUploadItem(
                                                         bytes = mergedPdf,
                                                         fileName = "Scan_$stamp.pdf",
                                                         mimeType = "application/pdf"
                                                     )
                                                 ) + remainingNonImages
+                                                TrichterScanDraftStore.updateDraft(context) { cur ->
+                                                    cur.copy(queuedFiles = newFiles)
+                                                }
                                             } else {
                                                 statusNote = "PDF-Bündelung fehlgeschlagen."
                                             }
@@ -688,7 +756,11 @@ fun BatchDocumentScannerSection(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clickable {
-                                    queuedFiles = emptyList()
+                                    TrichterScanDraftStore.extractionScope.launch {
+                                        TrichterScanDraftStore.updateDraft(context) { cur ->
+                                            cur.copy(queuedFiles = emptyList())
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -716,7 +788,11 @@ fun BatchDocumentScannerSection(
                             modifier = Modifier
                                 .size(16.dp)
                                 .clickable {
-                                    queuedFiles = queuedFiles.filterNot { it.id == fileItem.id }
+                                    TrichterScanDraftStore.extractionScope.launch {
+                                        TrichterScanDraftStore.updateDraft(context) { cur ->
+                                            cur.copy(queuedFiles = cur.queuedFiles.filterNot { it.id == fileItem.id })
+                                        }
+                                    }
                                 }
                         )
                     }

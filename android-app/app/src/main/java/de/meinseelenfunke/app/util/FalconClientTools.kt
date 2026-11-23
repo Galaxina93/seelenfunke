@@ -55,7 +55,7 @@ class FalconInactivityTracker(
         const val STAGE2_FOLLOWUP_SILENCE_MS = 25_000L
         const val FAREWELL_POST_SPEECH_BUFFER_MS = 1_400L
         const val FAREWELL_NO_SPEECH_FALLBACK_MS = 12_000L
-        const val FAREWELL_SAFETY_MAX_SPEECH_MS = 35_000L
+        const val FAREWELL_SAFETY_MAX_SPEECH_MS = 90_000L
     }
 
     @get:Synchronized
@@ -97,7 +97,7 @@ class FalconInactivityTracker(
 
     @Synchronized
     fun onUserSpeech(nowMs: Long) {
-        if (stage == FalconInactivityStage.FAREWELL_CLOSING || stage == FalconInactivityStage.DISCONNECTED) {
+        if (stage == FalconInactivityStage.DISCONNECTED) {
             return
         }
         stage = FalconInactivityStage.ACTIVE
@@ -105,6 +105,9 @@ class FalconInactivityTracker(
         inactivityFollowupStartedMs = 0L
         stage1SpeechObserved = false
         stage1QuestionFinishedMs = 0L
+        farewellSentAtMs = 0L
+        farewellSpeechObserved = false
+        farewellSpeechEndedMs = 0L
         lastInteractionMs = nowMs
     }
 
@@ -163,11 +166,16 @@ class FalconInactivityTracker(
     fun evaluate(
         nowMs: Long,
         isAiSpeaking: Boolean,
-        activeToolCalls: Int = 0
+        activeToolCalls: Int = 0,
+        isUserSpeaking: Boolean = false
     ): FalconInactivityAction {
         if (!initialized) {
             initialized = true
             lastInteractionMs = nowMs
+        }
+        if (stage != FalconInactivityStage.DISCONNECTED && isUserSpeaking) {
+            onUserSpeech(nowMs)
+            return FalconInactivityAction.NONE
         }
         return when (stage) {
             FalconInactivityStage.DISCONNECTED -> FalconInactivityAction.NONE
