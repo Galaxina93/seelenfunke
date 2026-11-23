@@ -739,7 +739,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
                 'message' => 'kDrive-Trichter Übergabe fehlgeschlagen.',
             ], 500);
         }
-    })->middleware('throttle:45,1');
+    })->middleware('throttle:120,1,kdrive_enqueue');
 
     Route::get('/config', function (Request $request) use ($ensureAdminOwner) {
         $ensureAdminOwner($request);
@@ -794,12 +794,13 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
                 'message' => $e->getMessage(),
             ], 422);
         } catch (\Throwable $e) {
+            report($e);
             return response()->json([
                 'success' => false,
                 'message' => 'kDrive-Verbindungsprüfung fehlgeschlagen.',
             ], 502);
         }
-    })->middleware('throttle:12,1');
+    })->middleware('throttle:24,1,kdrive_config');
 
     Route::post('/flush', function (Request $request) use ($ensureAdminOwner) {
         $ensureAdminOwner($request);
@@ -815,7 +816,7 @@ Route::prefix('funki/kdrive-trichter')->group(function () {
             'message' => $msg,
             'data' => $flush,
         ], $ok ? 200 : 422);
-    })->middleware('throttle:12,1');
+    })->middleware('throttle:30,1,kdrive_flush');
 
     Route::get('/pending', function (Request $request) use ($ensureAdminOwner) {
         $ensureAdminOwner($request);

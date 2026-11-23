@@ -496,10 +496,10 @@ Route::prefix('ai')->group(function () {
 
         // --- Zentrales Funkira Universum-Ticketsystem (Android, Funkenwerk Desktop, Mini-PC & Tresor-Worker) ---
         Route::get('/tickets', [AIController::class, 'listUniverseTickets']);
-        Route::post('/tickets', [AIController::class, 'dispatchUniverseMessage'])->middleware('throttle:60,1');
-        Route::post('/tickets/{id}/action', [AIController::class, 'performUniverseTicketAction'])->middleware('throttle:60,1');
-        Route::get('/tresor-queue', [AIController::class, 'pollTresorQueue'])->middleware('throttle:60,1');
-        Route::post('/tresor-queue/{id}/complete', [AIController::class, 'completeTresorOrder'])->middleware('throttle:30,1');
-        Route::post('/antigravity/heartbeat', [AIController::class, 'antigravityHeartbeat'])->middleware('throttle:60,1');
+        Route::post('/tickets', [AIController::class, 'dispatchUniverseMessage'])->middleware('throttle:60,1,ai_tickets');
+        Route::post('/tickets/{id}/action', [AIController::class, 'performUniverseTicketAction'])->middleware('throttle:60,1,ai_tickets');
+        Route::get('/tresor-queue', [AIController::class, 'pollTresorQueue'])->middleware('throttle:120,1,tresor_queue');
+        Route::post('/tresor-queue/{id}/complete', [AIController::class, 'completeTresorOrder'])->middleware('throttle:60,1,tresor_queue_ack');
+        Route::post('/antigravity/heartbeat', [AIController::class, 'antigravityHeartbeat'])->middleware('throttle:120,1,ag_heartbeat');
     });
 });

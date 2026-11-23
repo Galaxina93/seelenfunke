@@ -375,4 +375,30 @@ class KdriveTrichterRelayTest extends TestCase
         $this->assertStringNotContainsString("\u{202E}", KdriveTrichterRelayService::sanitizeFilenameSegment("Scan\u{202E}fdp.exe"));
         $this->assertStringNotContainsString('.exe', KdriveTrichterRelayService::sanitizeFilenameSegment('Rechnung.exe'));
     }
+
+    public function test_background_daemon_polling_never_causes_429_rate_limit_collision_on_kdrive_scan_upload(): void
+    {
+        $admin = Admin::factory()->create();
+        Sanctum::actingAs($admin, ['*']);
+
+        // Simulate 55 rapid background daemon polls within the same minute as the same Admin user
+        for ($i = 0; $i < 30; $i++) {
+            $this->getJson('/api/system/ag-direct-inbox')->assertOk();
+        }
+        for ($i = 0; $i < 30; $i++) {
+            $this->getJson('/api/shop/workshop-focus/laser-relay/poll')->assertOk();
+        }
+
+        // Now upload a scan to /api/funki/kdrive-trichter/enqueue -> must succeed (200 OK), NEVER HTTP 429!
+        $scanFile = UploadedFile::fake()->createWithContent(
+            'Scan_2026-11-23_134959.pdf',
+            "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF"
+        );
+
+        $this->postJson('/api/funki/kdrive-trichter/enqueue', [
+            'file' => $scanFile,
+            'source' => 'android_scanner',
+        ])->assertOk()
+          ->assertJsonPath('success', true);
+    }
 }

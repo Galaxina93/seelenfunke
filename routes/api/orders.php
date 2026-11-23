@@ -328,7 +328,7 @@ Route::group(['middleware' => [function ($request, $next) {
 
     // --- FUNKENWERK NETZWERK-LABELDRUCKER (MUNBYN ITPP941AP) QUEUE API ---
     $registerPrinterQueueRoutes = static function (string $prefix): void {
-        Route::prefix($prefix)->middleware('throttle:120,1')->group(function () {
+        Route::prefix($prefix)->middleware('throttle:120,1,printer_queue')->group(function () {
             Route::get('/jobs', function (Request $request, \App\Services\System\FunkenwerkPrintService $printService) {
                 $includePdf = $request->boolean('include_pdf', true);
                 return response()->json([
@@ -396,7 +396,7 @@ Route::group(['middleware' => [function ($request, $next) {
 
     // --- XTOOL F2 ULTRA UV LIVE-LASER-COCKPIT & FUNKENWERK BRIDGE API ---
     $registerLaserCockpitRoutes = static function (string $prefix): void {
-        Route::prefix($prefix)->middleware('throttle:120,1')->group(function () {
+        Route::prefix($prefix)->middleware('throttle:120,1,laser_cockpit')->group(function () {
             Route::get('/jobs', function (Request $request, \App\Services\Laser\XtoolLaserCockpitService $laserService) {
                 $includeFiles = $request->boolean('include_files', false);
                 return response()->json([
@@ -452,7 +452,7 @@ Route::group(['middleware' => [function ($request, $next) {
     $registerLaserCockpitRoutes('laser');
     $registerLaserCockpitRoutes('funki/laser');
 
-    Route::middleware('throttle:120,1')->group(function () {
+    Route::middleware('throttle:120,1,workshop_focus')->group(function () {
         Route::post('/shop/orders/{id}/print-label', function (string $id, \App\Services\System\FunkenwerkPrintService $printService) {
             try {
                 $order = OrderOrder::with(['items.product', 'shipments'])->findOrFail($id);
@@ -477,7 +477,7 @@ Route::group(['middleware' => [function ($request, $next) {
             Route::post('/shop/workshop-focus/laser-relay/heartbeat', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'heartbeatLaserRelay']),
         ];
         foreach ($relayRoutes as $relayRoute) {
-            $relayRoute->action['middleware'] = ['api', 'auth:sanctum', 'throttle:240,1'];
+            $relayRoute->action['middleware'] = ['api', 'auth:sanctum', 'throttle:240,1,laser_relay'];
         }
 
         // --- WERKSTATT MINI-PC 1-AUFTRAG FOKUS-LEITSTAND API ---

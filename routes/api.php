@@ -148,37 +148,32 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
             'finished_at' => now(),
         ]);
 
-        // --- E-Mail Benachrichtigung an Admin bei Fehlern/Crashes oder abnormalen Abbrüchen (mit Throttling gegen Mail-Bombing) ---
+        // --- Zentrales Universum-Ticket statt E-Mail bei Fehlern/Crashes oder abnormalen Abbrüchen ---
         $isError = in_array($data['type'], ['crash', 'error'], true);
         $isAbnormalDisconnect = ($data['type'] === 'warning' && (!isset($payload['code']) || !in_array((int)$payload['code'], [1000, 1001, 1005, 1006], true)));
 
         if ($isError || $isAbnormalDisconnect) {
-            $mailThrottleKey = 'ws_error_mail_throttle_' . md5(($data['message'] ?? 'ws_error') . '_' . ($payload['code'] ?? ''));
-            $shouldSendMail = true;
+            $alertHash = md5(($data['message'] ?? 'ws_error') . '_' . ($payload['code'] ?? ''));
+            $throttleKey = 'ws_error_ticket_throttle_' . $alertHash;
+            $shouldDispatchTicket = true;
             try {
-                if (\Illuminate\Support\Facades\Cache::has($mailThrottleKey)) {
-                    $shouldSendMail = false;
+                if (\Illuminate\Support\Facades\Cache::has($throttleKey)) {
+                    $shouldDispatchTicket = false;
                 } else {
-                    \Illuminate\Support\Facades\Cache::put($mailThrottleKey, true, now()->addMinutes(15));
+                    \Illuminate\Support\Facades\Cache::put($throttleKey, true, now()->addMinutes(15));
                 }
             } catch (\Throwable $cacheEx) {
-                $shouldSendMail = true;
+                $shouldDispatchTicket = true;
             }
 
-            if ($shouldSendMail) {
+            if ($shouldDispatchTicket) {
                 try {
-                    $recipient = 'kontakt@mein-seelenfunke.de';
-                    if (function_exists('shop_setting')) {
-                        $recipient = shop_setting('owner_email_backup') ?: shop_setting('company_email') ?: shop_setting('owner_email') ?: $recipient;
-                    }
-
-                    $subject = "⚠️ WEBSOCKET BRÜCKEN-FEHLER: " . ucfirst($data['type']);
+                    $subject = "WebSocket Brücken-Fehler: " . ucfirst($data['type']);
                     if ($isAbnormalDisconnect && isset($payload['code'])) {
-                        $subject = "⚠️ WEBSOCKET VERBINDUNGSABBRUCH: Code " . $payload['code'];
+                        $subject = "WebSocket Verbindungsabbruch: Code " . $payload['code'];
                     }
 
-                    $body = "Hallo Admin,\n\n";
-                    $body .= "Es wurde ein technisches Problem auf der WebSocket-Audiobrücke festgestellt.\n\n";
+                    $body = "Es wurde ein technisches Problem auf der WebSocket-Audiobrücke festgestellt.\n\n";
                     $body .= "--- Details ---\n";
                     $body .= "Typ: " . strtoupper($data['type']) . "\n";
                     $body .= "Action-ID: " . $actionId . "\n";
@@ -228,19 +223,25 @@ Route::post('/log/websocket', function (\Illuminate\Http\Request $request) {
                     $body .= "Laravel Env: " . ($env['app_env'] ?? '-') . " | PHP: " . ($env['php_version'] ?? PHP_VERSION) . "\n";
                     $body .= "Treiber (Cache / Session / Queue): " . ($env['cache_driver'] ?? '-') . " / " . ($env['session_driver'] ?? '-') . " / " . ($env['queue_connection'] ?? '-') . "\n\n";
 
-                    if (!empty($payload)) {
-                        $body .= "--- Systemdaten (Payload) ---\n";
-                        $body .= json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n\n";
-                    }
+                    $body .= "Bitte prüfe die Systemlogs und starte ggf. die Node.js-Audiobrücke neu.";
 
-                    $body .= "Bitte prüfe die Systemlogs und starte ggf. die Node.js-Audiobrücke neu.\n\n";
-                    $body .= "Herzliche Grüße,\nFunkira ✨ (System-Überwachung)";
-
-                    \Illuminate\Support\Facades\Mail::to($recipient)->send(
-                        new \App\Services\AI\Mails\AiAgentMessageMail($subject, $body, 'Funkira', [], 'generic')
+                    \App\Services\System\SystemAlertTicketService::upsertSystemTicket(
+                        alertKey: 'ws_bridge_error:' . $alertHash,
+                        title: $subject,
+                        markdownBody: $body,
+                        departmentName: 'System',
+                        agentName: 'Systemi',
+                        ticketType: 'websocket_alert',
+                        priority: $isError ? 'high' : 'normal',
+                        assignToAntigravity: true,
+                        extraPayload: [
+                            'ws_type' => $data['type'],
+                            'ws_code' => $payload['code'] ?? null,
+                            'action_id' => $actionId,
+                        ]
                     );
-                } catch (\Exception $mailEx) {
-                    \Illuminate\Support\Facades\Log::error("Failed to send WebSocket error mail: " . $mailEx->getMessage());
+                } catch (\Exception $ticketEx) {
+                    \Illuminate\Support\Facades\Log::error("Failed to create WebSocket error ticket: " . $ticketEx->getMessage());
                 }
             }
         }
@@ -858,7 +859,7 @@ Route::middleware('auth:sanctum')->group(function () {
     })->withoutMiddleware('throttle:api')->middleware('throttle:monitor-pulse');
 
     // --- 2a-bis. Verschlüsselte Eingang-Trichter Abholung für den Werkstatt-Mini-PC (nur Admin mit ai:funkira oder *) ---
-    Route::prefix('shop/minipc-trichter')->middleware('throttle:60,1')->group(function () {
+    Route::prefix('shop/minipc-trichter')->middleware('throttle:60,1,minipc_trichter')->group(function () {
         $authorizeMiniPcTrichter = static function (\Illuminate\Http\Request $request): void {
             if ($request->bearerToken()) {
                 $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
@@ -961,10 +962,10 @@ Route::middleware('auth:sanctum')->group(function () {
             'ingested' => $ingested,
             'log_ids' => $ids,
         ], 200, ['Cache-Control' => 'no-store, private']);
-    })->middleware('throttle:60,1');
+    })->middleware('throttle:60,1,error_ingest');
 
     // --- 2a-quater. Funkira Telefon-Assistent Relay (Android Smartphone <-> Werkstatt Mini-PC, Zero-Twilio) ---
-    Route::prefix('system/phone-concierge')->middleware('throttle:120,1')->group(function () {
+    Route::prefix('system/phone-concierge')->middleware('throttle:180,1,phone_concierge')->group(function () {
         $authorizePhoneConcierge = function (\Illuminate\Http\Request $request) {
             $user = $request->user();
             if (!$user instanceof \App\Models\Admin\Admin) {
@@ -1055,7 +1056,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // --- 2a-quinquies. Zentraler 24/7 Watchtower & 4-Säulen Health-Puls (Synology NAS, Smartphone, Mini-PC & Desktop) ---
-    Route::prefix('system/health-pulse')->middleware('throttle:120,1')->group(function () {
+    Route::prefix('system/health-pulse')->middleware('throttle:120,1,health_pulse')->group(function () {
         $authorizeHealthPulse = static function (\Illuminate\Http\Request $request, bool $requireFullToken = false): \App\Models\Admin\Admin {
             $user = $request->user();
             if (!$user instanceof \App\Models\Admin\Admin) {
