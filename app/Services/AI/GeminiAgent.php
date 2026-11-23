@@ -191,17 +191,22 @@ class GeminiAgent implements AiProviderInterface
 
         if ($isAdmin && class_exists(\App\Models\Ai\AiWorkspaceDocument::class)) {
             $latestDocs = \Illuminate\Support\Facades\Cache::remember('ai_workspace_latest_3_docs', 30, function () {
-                return \App\Models\Ai\AiWorkspaceDocument::orderBy('created_at', 'desc')->take(3)->get();
+                $scans = \App\Models\Ai\AiWorkspaceDocument::onlyScans()->orderBy('created_at', 'desc')->take(2)->get();
+                $others = \App\Models\Ai\AiWorkspaceDocument::orderBy('created_at', 'desc')->take(3)->get();
+                return $scans->concat($others)->unique('id')->sortByDesc(fn ($d) => $d->created_at?->getTimestamp() ?? 0)->take(3)->values();
             });
             if ($latestDocs->isNotEmpty()) {
-                $systemPromptText .= "\n[WORKSPACE LIVE-STATUS: ZULETZT HOCHGELADENE DATEIEN]\n";
+                $systemPromptText .= "\n[SCAN- & WORKSPACE-CHRONIK: ZULETZT EINGESCANNTE / HOCHGELADENE DOKUMENTE]\n";
                 foreach ($latestDocs as $idx => $d) {
-                    $prefix = $idx === 0 ? "🔥 ALLERLETZTE HOCHGELADENE DATEI: " : "Vorherige Datei: ";
+                    $isScan = method_exists($d, 'isScanDocument') && $d->isScanDocument();
+                    $prefix = $idx === 0
+                        ? ($isScan ? "🔥 ALLERLETZTES EINGESCANNTES DOKUMENT: " : "🔥 ALLERLETZTE HOCHGELADENE DATEI: ")
+                        : ($isScan ? "Vorheriger Scan: " : "Vorherige Datei: ");
                     $uploadTime = $d->created_at ? $d->created_at->format('d.m.Y H:i:s') : 'k.A.';
                     $diff = $d->created_at ? '(' . $d->created_at->diffForHumans() . ')' : '';
-                    $systemPromptText .= "- {$prefix}'{$d->filename}' | Pfad: `{$d->file_path}` | Upload-Zeit: {$uploadTime} {$diff} | Kategorie: {$d->category} | Zweck: {$d->purpose}\n";
+                    $systemPromptText .= "- {$prefix}'{$d->title}' (`{$d->filename}`) | Pfad: `{$d->file_path}` | Zeit: {$uploadTime} {$diff} | Zweck: {$d->purpose}\n";
                 }
-                $systemPromptText .= "WICHTIG: Wenn der Nutzer fragt 'Was war die letzte Datei die hochgeladen wurde?' oder nach kürzlich hochgeladenen Dateien fragt, nenne ihm SOFORT und direkt präzise die Datei `{$latestDocs->first()->filename}` mit ihren Details (Speicherpfad, Kategorie, Zweck)!\n";
+                $systemPromptText .= "WICHTIG: Wenn der Nutzer fragt 'Welches Dokument wurde als letztes eingescannt?' oder 'Was war die letzte Datei?', nenne SOFORT präzise `{$latestDocs->first()->title}` (`{$latestDocs->first()->filename}`) mit Pfad und Zeitpunkt!\n";
             }
         }
 

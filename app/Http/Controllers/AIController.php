@@ -911,6 +911,22 @@ class AIController extends Controller
             if ($blockadeContext['directive'] !== '') {
                 $systemInstruction .= "\n\n" . $blockadeContext['directive'];
             }
+            if (class_exists(\App\Models\Ai\AiWorkspaceDocument::class) && \Illuminate\Support\Facades\Schema::hasTable('ai_workspace_documents')) {
+                $latestLiveScans = \Illuminate\Support\Facades\Cache::remember('ai_workspace_latest_3_docs', 30, function () {
+                    $scans = \App\Models\Ai\AiWorkspaceDocument::onlyScans()->orderBy('created_at', 'desc')->take(2)->get();
+                    $others = \App\Models\Ai\AiWorkspaceDocument::orderBy('created_at', 'desc')->take(3)->get();
+                    return $scans->concat($others)->unique('id')->sortByDesc(fn ($d) => $d->created_at?->getTimestamp() ?? 0)->take(3)->values();
+                });
+                if ($latestLiveScans->isNotEmpty()) {
+                    $scanLines = ["[ZULETZT EINGESCANNTE / ERFASSTE DOKUMENTE (CHRONOLOGISCH)]:"];
+                    foreach ($latestLiveScans as $idx => $d) {
+                        $scanTime = $d->created_at ? $d->created_at->format('d.m.Y H:i') : 'k.A.';
+                        $tagLabel = (method_exists($d, 'isScanDocument') && $d->isScanDocument()) ? 'SCAN' : 'DOKUMENT';
+                        $scanLines[] = ($idx + 1) . ". [{$tagLabel}] {$d->title} ({$d->filename}, am {$scanTime}, Pfad: {$d->file_path})";
+                    }
+                    $systemInstruction .= "\n\n" . implode("\n", $scanLines);
+                }
+            }
         }
 
         $voiceAllowedTools = [
@@ -938,7 +954,7 @@ class AIController extends Controller
                 'contact_search', 'contact_get_all',
                 'finance_get_liquidity_status', 'finance_get_fixed_costs', 'finance_create_expense',
                 'order_get_current_express_status', 'order_get_urgent_tasks', 'order_get_details',
-                'product_check_inventory', 'brain_search',
+                'product_check_inventory', 'brain_search', 'workspace_get_latest_uploads',
             ]);
         }
 

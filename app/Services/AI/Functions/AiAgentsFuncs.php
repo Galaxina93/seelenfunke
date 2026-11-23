@@ -960,11 +960,14 @@ trait AiAgentsFuncs
         $isLatestQuery = false;
         if (!empty($query)) {
             $lowerQ = mb_strtolower($query);
+            if (preg_match('/\b(scans?|gescannt\w*|eingescannt\w*|scanner)\b/iu', $query)) {
+                $q->onlyScans();
+            }
             // Wenn der User nach der letzten/neuesten Datei fragt
             if (str_contains($lowerQ, 'letzte') || str_contains($lowerQ, 'neueste') || str_contains($lowerQ, 'zuletzt') || str_contains($lowerQ, 'kürzlich') || str_contains($lowerQ, 'recent') || str_contains($lowerQ, 'latest')) {
                 $isLatestQuery = true;
                 $sortBy = 'upload_date';
-            } else {
+            } elseif (!preg_match('/^\s*(scans?|gescannt\w*|eingescannt\w*|scanner)\s*$/iu', $query)) {
                 $q->search($query);
             }
         }
@@ -993,7 +996,7 @@ trait AiAgentsFuncs
                     'summary' => $doc->summary,
                     'date' => $doc->extracted_date ? $doc->extracted_date->format('Y-m-d') : null,
                     'size' => $doc->file_size,
-                    'url' => route('admin.ai.workspace.file', ['path' => $doc->file_path])
+                    'url' => $doc->url
                 ];
             })->toArray()
         ];
@@ -1040,7 +1043,7 @@ trait AiAgentsFuncs
                 'key_facts' => $latest->key_facts,
                 'date' => $latest->extracted_date ? $latest->extracted_date->format('d.m.Y') : null,
                 'size' => $latest->file_size,
-                'url' => route('admin.ai.workspace.file', ['path' => $latest->file_path])
+                'url' => $latest->url
             ],
             'recent_documents' => $docs->map(function ($doc) {
                 return [
@@ -1051,7 +1054,7 @@ trait AiAgentsFuncs
                     'category' => $doc->category,
                     'purpose' => $doc->purpose,
                     'size' => $doc->file_size,
-                    'url' => route('admin.ai.workspace.file', ['path' => $doc->file_path])
+                    'url' => $doc->url
                 ];
             })->toArray()
         ];
@@ -1090,7 +1093,7 @@ trait AiAgentsFuncs
                 'date' => $doc->extracted_date ? $doc->extracted_date->format('Y-m-d') : null,
                 'preview' => $doc->content_preview,
                 'size' => $doc->file_size,
-                'url' => route('admin.ai.workspace.file', ['path' => $doc->file_path])
+                'url' => $doc->url
             ]
         ];
     }

@@ -80,7 +80,52 @@ use HasFactory, HasUuids;
      */
     public function getUrlAttribute(): string
     {
-        return route('admin.ai.workspace.file', ['path' => $this->file_path]);
+        $fp = (string) ($this->file_path ?? '');
+        if (str_starts_with($fp, 'kdrive://')) {
+            return 'https://kdrive.infomaniak.com/app/drive/2216011';
+        }
+
+        return route('admin.ai.workspace.file', ['path' => $fp]);
+    }
+
+    /**
+     * Prüft, ob es sich bei dem Eintrag um ein eingescanntes Dokument (Scanner / kDrive / Dateitrichter) handelt.
+     */
+    public function isScanDocument(): bool
+    {
+        $fp = mb_strtolower((string) ($this->file_path ?? ''));
+        if (str_starts_with($fp, 'kdrive://')) {
+            return true;
+        }
+
+        $purpose = mb_strtolower((string) ($this->purpose ?? ''));
+        if (str_contains($purpose, 'eingescannt') || str_contains($purpose, 'scanner') || str_contains($purpose, 'scan')) {
+            return true;
+        }
+
+        $tags = is_array($this->tags) ? $this->tags : [];
+        foreach ($tags as $tag) {
+            $t = mb_strtolower(trim((string) $tag));
+            if (in_array($t, ['scan', 'eingescannt', 'scanner', 'kdrive'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Scope für ausschließlich eingescannte Dokumente (kDrive-Scanner & Dateitrichter-Scans).
+     */
+    public function scopeOnlyScans($query)
+    {
+        return $query->where(function ($sq) {
+            $sq->where('file_path', 'like', 'kdrive://%')
+                ->orWhere('purpose', 'like', '%Eingescannt%')
+                ->orWhere('purpose', 'like', '%Scanner%')
+                ->orWhere('tags', 'like', '%Scan%')
+                ->orWhere('tags', 'like', '%Eingescannt%');
+        });
     }
 
     /**
@@ -141,6 +186,11 @@ use HasFactory, HasUuids;
                 } elseif (str_contains($lower, 'bkk')) {
                     $synonyms[] = 'firmus';
                     $synonyms[] = 'Krankengeld';
+                } elseif (str_contains($lower, 'rente') || $lower === 'drv') {
+                    $synonyms[] = 'Renteninformation';
+                    $synonyms[] = 'Rentenversicherung';
+                    $synonyms[] = 'DRV';
+                    $synonyms[] = 'Rente_Vorsorge';
                 }
 
                 $rootQ->orWhere(function ($segQ) use ($synonyms) {
@@ -167,6 +217,7 @@ use HasFactory, HasUuids;
 
         return self::where('file_path', $clean)
             ->orWhere('file_path', 'agenten/workspace/' . ltrim($clean, '/'))
+            ->orWhere('file_path', 'kdrive://' . ltrim($clean, '/'))
             ->orWhere('filename', $base)
             ->first();
     }

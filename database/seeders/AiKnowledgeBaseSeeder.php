@@ -16240,13 +16240,38 @@ Vielen Dank für Ihren Besuch. Ihre Deutsche Post AG',
             ],
         ];
 
-        AiWorkspaceDocument::query()->delete();
+        AiWorkspaceDocument::where('file_path', 'not like', 'kdrive://%')->delete();
 
+        $seededAt = \Carbon\Carbon::parse('2026-10-05 12:00:00', 'Europe/Berlin');
         foreach ($documents as $item) {
-            AiWorkspaceDocument::updateOrCreate(
+            $doc = AiWorkspaceDocument::updateOrCreate(
                 ['file_path' => $item['file_path']],
                 $item
             );
+            $docTime = !empty($item['extracted_date'])
+                ? \Carbon\Carbon::parse($item['extracted_date'] . ' 12:00:00', 'Europe/Berlin')
+                : $seededAt;
+            $doc->created_at = $docTime;
+            $doc->updated_at = $docTime;
+            $doc->save();
+        }
+
+        // Chronologisch jüngster kDrive-Scan (DRV Renteninformation vom 22.11.2026 17:44:57)
+        if (class_exists(\App\Services\System\KdriveTrichterRelayService::class)) {
+            \App\Services\System\KdriveTrichterRelayService::recordScanInCentralBrain([
+                'sha256' => '0c01d4d75876d8c2300d886dd2ff3d6f02a78d2b34d0fa9186c78ba6f5500aa5',
+                'file_name' => '2026-11-22_DRV_Renteninformation.pdf',
+                'remote_path' => '05_Familie_Ausweise_Vorsorge/Rente_Vorsorge/2026/2026-11-22_DRV_Renteninformation.pdf',
+                'target_folder' => '05_Familie_Ausweise_Vorsorge/Rente_Vorsorge/2026',
+                'extension' => 'pdf',
+                'size_bytes' => 1766237,
+                'title' => 'DRV Renteninformation (Deutsche Rentenversicherung)',
+                'summary' => 'Eingescannte 4-seitige Renteninformation der Deutschen Rentenversicherung (DRV) für Alina Steinhauer, eingescannt am 22.11.2026 um 17:44 Uhr und einsortiert unter 05_Familie_Ausweise_Vorsorge/Rente_Vorsorge/2026.',
+                'extracted_date' => '2026-11-22',
+                'tags' => ['DRV', 'Renteninformation', 'Deutsche Rentenversicherung', 'Rente', 'Vorsorge'],
+                'source' => 'android_scanner',
+                'scanned_at' => \Carbon\Carbon::parse('2026-11-22 17:44:57', 'Europe/Berlin'),
+            ]);
         }
     }
 }

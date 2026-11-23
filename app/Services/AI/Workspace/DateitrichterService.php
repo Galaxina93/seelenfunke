@@ -675,20 +675,29 @@ class DateitrichterService
             $content .= "### Auszug aus dem Dokument\n```text\n" . $doc->content_preview . "\n```\n";
         }
 
+        $kbAttrs = [
+            'title' => $doc->title,
+            'ai_knowledge_base_category_id' => $category->id,
+            'content' => $content,
+            'is_published' => true,
+        ];
+        if (\Illuminate\Support\Facades\Schema::hasColumn('ai_knowledge_bases', 'source_path')) {
+            $kbAttrs['source_path'] = mb_substr('scan:workspace:' . $doc->file_path, 0, 191);
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('ai_knowledge_bases', 'visibility_scope')) {
+            $kbAttrs['visibility_scope'] = AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE;
+        }
+
         $kb = AiKnowledgeBase::updateOrCreate(
             ['slug' => $kbSlug],
-            [
-                'title' => $doc->title,
-                'ai_knowledge_base_category_id' => $category->id,
-                'content' => $content,
-                'is_published' => true,
-            ]
+            $kbAttrs
         );
 
-        // Tags verknüpfen
-        if (!empty($doc->tags)) {
+        // Tags verknüpfen (inkl. Typ-Tag 'Scan')
+        $allTags = array_values(array_unique(array_filter(array_merge(['Scan', 'Eingescannt'], is_array($doc->tags) ? $doc->tags : []))));
+        if (!empty($allTags)) {
             $tagIds = [];
-            foreach ($doc->tags as $tagName) {
+            foreach ($allTags as $tagName) {
                 $tag = AiKnowledgeBaseTag::firstOrCreate(
                     ['name' => $tagName],
                     ['slug' => Str::slug($tagName)]
@@ -697,5 +706,6 @@ class DateitrichterService
             }
             $kb->tags()->sync($tagIds);
         }
+        \Illuminate\Support\Facades\Cache::forget('ai_workspace_latest_3_docs');
     }
 }

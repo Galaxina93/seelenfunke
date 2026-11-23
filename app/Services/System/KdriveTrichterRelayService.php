@@ -249,6 +249,29 @@ class KdriveTrichterRelayService
         File::put($metaPath, json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), true);
         @chmod($metaPath, 0600);
 
+        $heuristic = self::classifyDetailedFallbackHeuristic(
+            $originalName,
+            $cleanTitle,
+            $ext,
+            now('Europe/Berlin')->format('Y-m-d'),
+            $batchIndex,
+            $batchTotal
+        );
+
+        self::recordScanInCentralBrain([
+            'sha256' => $sha256,
+            'file_name' => $safeFileName,
+            'remote_path' => '00_Eingang_Trichter/' . $safeFileName,
+            'target_folder' => '00_Eingang_Trichter',
+            'extension' => $ext,
+            'size_bytes' => $len,
+            'title' => $cleanTitle !== '' ? $cleanTitle : ($heuristic['title'] ?? str_replace('_', ' ', $cleanStem)),
+            'summary' => $heuristic['summary'] ?? ('Eingescanntes Dokument im kDrive Eingang-Trichter (' . $safeFileName . ').'),
+            'extracted_date' => $heuristic['extracted_date'] ?? now('Europe/Berlin')->format('Y-m-d'),
+            'tags' => $heuristic['tags'] ?? [],
+            'source' => $source,
+        ]);
+
         return $meta;
     }
 
@@ -1447,26 +1470,51 @@ PROMPT;
         }
 
         $sha256 = hash('sha256', $rawBytes);
+        $cleanTitle = $customTitle !== null
+            ? trim((string) preg_replace('/[\r\n\t]+/', ' ', $customTitle))
+            : '';
+        $cleanTitle = mb_substr($cleanTitle, 0, 100);
+
         $alreadyUploaded = self::findPreviouslyUploadedPath($sha256);
         if ($alreadyUploaded !== null) {
+            $dedupFileName = basename($alreadyUploaded);
+            $dedupDir = dirname($alreadyUploaded);
+            $dedupHeuristic = self::classifyDetailedFallbackHeuristic(
+                $dedupFileName,
+                $cleanTitle,
+                $ext,
+                now('Europe/Berlin')->format('Y-m-d'),
+                $batchIndex,
+                $batchTotal
+            );
+            self::recordScanInCentralBrain([
+                'sha256' => $sha256,
+                'file_name' => $dedupFileName,
+                'remote_path' => $alreadyUploaded,
+                'target_folder' => $dedupDir,
+                'extension' => $ext,
+                'size_bytes' => $len,
+                'title' => $cleanTitle !== '' ? $cleanTitle : ($dedupHeuristic['title'] ?? pathinfo($dedupFileName, PATHINFO_FILENAME)),
+                'summary' => $dedupHeuristic['summary'] ?? ('Eingescanntes Dokument in kDrive (' . $alreadyUploaded . ').'),
+                'extracted_date' => $dedupHeuristic['extracted_date'] ?? now('Europe/Berlin')->format('Y-m-d'),
+                'tags' => $dedupHeuristic['tags'] ?? [],
+                'source' => $source,
+            ]);
+
             return [
                 'success' => true,
                 'direct_uploaded' => true,
                 'deduplicated' => true,
                 'remote_path' => $alreadyUploaded,
-                'file_name' => basename($alreadyUploaded),
-                'target_folder' => dirname($alreadyUploaded),
+                'file_name' => $dedupFileName,
+                'target_folder' => $dedupDir,
                 'message' => 'Bereits im kDrive Eingang-Trichter abgelegt: ' . $alreadyUploaded,
             ];
         }
 
         $rootFolder = self::sanitizeRootFolder((string) ($activeCfg['root_folder'] ?? 'Meine Daten'));
         $directSort = array_key_exists('direct_sort', $activeCfg) ? (bool) $activeCfg['direct_sort'] : false;
-
-        $cleanTitle = $customTitle !== null
-            ? trim((string) preg_replace('/[\r\n\t]+/', ' ', $customTitle))
-            : '';
-        $cleanTitle = mb_substr($cleanTitle, 0, 100);
+        $sortedMeta = null;
 
         if ($directSort) {
             $sorted = self::classifyBytesForDirectSort(
@@ -1477,6 +1525,7 @@ PROMPT;
                 $batchIndex,
                 $batchTotal
             );
+            $sortedMeta = $sorted;
             $mainFolder = $sorted['main_folder'];
             $subFolder = $sorted['sub_folder'];
             $candidateFileName = $sorted['file_name'];
@@ -1490,6 +1539,14 @@ PROMPT;
             $candidateFileName = $cleanStem . '.' . $ext;
             $targetRelativeDir = "{$rootFolder}/00_Eingang_Trichter";
             $shortDisplayDir = '00_Eingang_Trichter';
+            $sortedMeta = self::classifyDetailedFallbackHeuristic(
+                $originalName,
+                $cleanTitle,
+                $ext,
+                now('Europe/Berlin')->format('Y-m-d'),
+                $batchIndex,
+                $batchTotal
+            );
         }
 
         $finalFileName = ($activeCfg['mode'] ?? 'webdav') === 'api_v3'
@@ -1510,6 +1567,20 @@ PROMPT;
 
         $shortRemotePath = "{$shortDisplayDir}/{$finalFileName}";
         self::recordUploadedSha256($sha256, $shortRemotePath);
+
+        self::recordScanInCentralBrain([
+            'sha256' => $sha256,
+            'file_name' => $finalFileName,
+            'remote_path' => $shortRemotePath,
+            'target_folder' => $shortDisplayDir,
+            'extension' => $ext,
+            'size_bytes' => $len,
+            'title' => $cleanTitle !== '' ? $cleanTitle : ($sortedMeta['title'] ?? str_replace('_', ' ', (string) pathinfo($finalFileName, PATHINFO_FILENAME))),
+            'summary' => $sortedMeta['summary'] ?? ('Eingescanntes Dokument abgelegt unter kDrive ' . $shortRemotePath),
+            'extracted_date' => $sortedMeta['extracted_date'] ?? now('Europe/Berlin')->format('Y-m-d'),
+            'tags' => $sortedMeta['tags'] ?? [],
+            'source' => $source,
+        ]);
 
         $humanMsg = $shortDisplayDir === '00_Eingang_Trichter'
             ? "Im kDrive Eingang-Trichter abgelegt: {$finalFileName}"
@@ -1777,8 +1848,10 @@ Antworte AUSSCHLIESSLICH mit validem JSON ohne Markdown:
   "main_folder": "Exakter Hauptordner",
   "sub_folder": "Exakter Unterordner aus der Liste dieser Säule",
   "document_date": "YYYY-MM-DD (echtes Dokumentdatum oder {$today})",
-  "sender": "Kurzer Absender ohne Sonderzeichen (z.B. PrintEquipment, BKK-firmus, Finanzamt-Gifhorn)",
-  "subject": "Prägnanter Betreff in 2 bis 4 Wörtern mit Bindestrichen (z.B. Rechnung-Rohlinge, Beitragsbescheid)"
+  "sender": "Kurzer Absender ohne Sonderzeichen (z.B. PrintEquipment, DRV, BKK-firmus, Finanzamt-Gifhorn)",
+  "subject": "Prägnanter Betreff in 2 bis 4 Wörtern mit Bindestrichen (z.B. Renteninformation, Rechnung-Rohlinge, Beitragsbescheid)",
+  "summary": "Kurze sachliche Zusammenfassung des eingescannten Dokuments in 1 Satz ohne Gedankenstriche",
+  "tags": ["Tag1", "Tag2"]
 }
 PROMPT;
 
@@ -1896,11 +1969,40 @@ PROMPT;
             $batchTotal
         );
 
+        $cleanSummary = self::sanitizeUntrustedExternalText((string) ($parsed['summary'] ?? ''), 280);
+        $cleanSummary = str_replace([' – ', ' — '], ', ', trim($cleanSummary));
+
+        $tags = [];
+        if (is_array($parsed['tags'] ?? null)) {
+            foreach ($parsed['tags'] as $t) {
+                $cleanTag = self::sanitizeUntrustedExternalText((string) $t, 40);
+                $cleanTag = trim((string) preg_replace('/[^\p{L}\p{N}_\-\s]/u', '', str_ireplace('[gefiltert]', '', $cleanTag)));
+                if ($cleanTag !== '') {
+                    $tags[] = $cleanTag;
+                }
+            }
+        }
+        if ($sender !== '') {
+            $tags[] = str_replace('_', ' ', $sender);
+        }
+        if ($subject !== '') {
+            $tags[] = str_replace(['_', '-'], ' ', $subject);
+        }
+        $tags = array_values(array_unique(array_filter($tags)));
+
+        $humanTitle = trim(($sender !== '' ? str_replace('_', ' ', $sender) . ' ' : '') . str_replace(['_', '-'], ' ', $subject));
+        if ($humanTitle === '') {
+            $humanTitle = $customTitle !== '' ? $customTitle : str_replace('_', ' ', (string) pathinfo($finalFileName, PATHINFO_FILENAME));
+        }
+
         return [
             'main_folder' => $mainFolder,
             'sub_folder' => $subFolder,
             'extracted_date' => $docDate,
             'file_name' => $finalFileName,
+            'title' => $humanTitle,
+            'summary' => $cleanSummary !== '' ? $cleanSummary : ("Eingescanntes Dokument ({$humanTitle}) einsortiert unter {$mainFolder}/{$subFolder}."),
+            'tags' => array_slice($tags, 0, 8),
             'ai_classified' => true,
         ];
     }
@@ -2086,11 +2188,26 @@ PROMPT;
             $batchTotal
         );
 
+        $humanTitle = $customTitle !== ''
+            ? $customTitle
+            : trim(($sender !== '' ? $sender . ' ' : '') . str_replace(['_', '-'], ' ', $subject));
+        if ($humanTitle === '') {
+            $humanTitle = str_replace('_', ' ', (string) pathinfo($finalFileName, PATHINFO_FILENAME));
+        }
+        $heuristicTags = array_values(array_unique(array_filter([
+            $sender !== '' ? $sender : null,
+            $subject !== '' ? str_replace(['_', '-'], ' ', $subject) : null,
+            str_replace('_', ' ', (string) preg_replace('/^\d+_/', '', $main)),
+        ])));
+
         return [
             'main_folder' => $main,
             'sub_folder' => $sub,
             'extracted_date' => $today,
             'file_name' => $finalFileName,
+            'title' => $humanTitle,
+            'summary' => "Eingescanntes Dokument ({$humanTitle}), abgelegt unter {$main}/{$sub}.",
+            'tags' => $heuristicTags,
             'ai_classified' => false,
         ];
     }
@@ -2141,5 +2258,138 @@ PROMPT;
         }
 
         return mb_substr($cleanOrig, 0, 95) . '.' . $ext;
+    }
+
+    /**
+     * Protokolliert jedes real eingescannte Dokument chronologisch und dublettenfrei in
+     * `AiWorkspaceDocument` UND `AiKnowledgeBase` (`CentralBrainService`), damit `brain_search`
+     * und Funkira jederzeit sofort wissen, welches Dokument zuletzt eingescannt wurde.
+     *
+     * @param array<string, mixed> $scanData
+     */
+    public static function recordScanInCentralBrain(array $scanData): void
+    {
+        try {
+            $fileName = trim((string) ($scanData['file_name'] ?? ''));
+            if ($fileName === '' || stripos($fileName, 'Funkenwerk_E2E_Pruefung_') === 0) {
+                return;
+            }
+
+            $sha256 = trim((string) ($scanData['sha256'] ?? ''));
+            if ($sha256 === '') {
+                $sha256 = hash('sha256', $fileName);
+            }
+
+            $remotePath = ltrim(str_replace('\\', '/', trim((string) ($scanData['remote_path'] ?? $fileName))), '/');
+            $targetFolder = trim((string) ($scanData['target_folder'] ?? dirname($remotePath)), '/.');
+            if ($targetFolder === '') {
+                $targetFolder = '00_Eingang_Trichter';
+            }
+
+            $ext = strtolower(trim((string) ($scanData['extension'] ?? pathinfo($fileName, PATHINFO_EXTENSION)), '. '));
+            if ($ext === '') {
+                $ext = 'pdf';
+            }
+            $sizeBytes = max(0, (int) ($scanData['size_bytes'] ?? 0));
+            $source = trim((string) ($scanData['source'] ?? 'android_scanner'));
+            $scannedAt = isset($scanData['scanned_at']) && $scanData['scanned_at'] instanceof \Carbon\Carbon
+                ? $scanData['scanned_at']
+                : now('Europe/Berlin');
+
+            $extractedDate = trim((string) ($scanData['extracted_date'] ?? ''));
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $extractedDate)) {
+                $extractedDate = $scannedAt->format('Y-m-d');
+            }
+
+            $rawTitle = trim((string) ($scanData['title'] ?? ''));
+            if ($rawTitle === '') {
+                $rawTitle = str_replace('_', ' ', (string) pathinfo($fileName, PATHINFO_FILENAME));
+            }
+            $cleanTitle = mb_substr(str_replace([' – ', ' — '], ', ', $rawTitle), 0, 220);
+
+            $rawSummary = trim((string) ($scanData['summary'] ?? ''));
+            if ($rawSummary === '') {
+                $rawSummary = "Eingescanntes Dokument ({$cleanTitle}) abgelegt in kDrive unter {$remotePath}.";
+            }
+            $cleanSummary = mb_substr(str_replace([' – ', ' — '], ', ', $rawSummary), 0, 500);
+
+            $rawTags = is_array($scanData['tags'] ?? null) ? $scanData['tags'] : [];
+            $mergedTags = array_values(array_unique(array_filter(array_merge(
+                ['Scan', 'Eingescannt', 'kDrive'],
+                array_map(static fn ($t): string => trim((string) $t), $rawTags)
+            ), static fn (string $v): bool => $v !== '')));
+
+            $kdriveUri = 'kdrive://' . $remotePath;
+            $purpose = "Eingescanntes Dokument (Scanner -> kDrive {$targetFolder})";
+            $keyFacts = [
+                'typ' => 'Eingescanntes Dokument (Scan)',
+                'eingescannt_am' => $scannedAt->format('d.m.Y H:i:s'),
+                'dokumentdatum' => $extractedDate,
+                'kdrive_pfad' => $remotePath,
+                'quelle' => $source,
+            ];
+
+            if (class_exists(\App\Models\Ai\AiWorkspaceDocument::class)
+                && \Illuminate\Support\Facades\Schema::hasTable('ai_workspace_documents')) {
+                $existingDoc = \App\Models\Ai\AiWorkspaceDocument::where('sha256', $sha256)
+                    ->orWhere('file_path', $kdriveUri)
+                    ->first();
+
+                $docPayload = [
+                    'sha256' => $sha256,
+                    'filename' => $fileName,
+                    'file_path' => $kdriveUri,
+                    'file_type' => $ext,
+                    'file_size' => $sizeBytes,
+                    'title' => $cleanTitle,
+                    'category' => 'Workspace-Dokumentenkatalog',
+                    'tags' => $mergedTags,
+                    'purpose' => $purpose,
+                    'summary' => $cleanSummary,
+                    'key_facts' => $keyFacts,
+                    'extracted_date' => $extractedDate,
+                    'content_preview' => $cleanSummary,
+                    'full_text' => "{$cleanTitle}\nDatei: {$fileName}\nkDrive-Pfad: {$remotePath}\nEingescannt am: {$scannedAt->format('d.m.Y H:i:s')}\n{$cleanSummary}",
+                ];
+
+                if ($existingDoc) {
+                    $existingDoc->fill($docPayload);
+                    $existingDoc->created_at = $scannedAt;
+                    $existingDoc->updated_at = $scannedAt;
+                    $existingDoc->save();
+                } else {
+                    $doc = new \App\Models\Ai\AiWorkspaceDocument($docPayload);
+                    $doc->created_at = $scannedAt;
+                    $doc->updated_at = $scannedAt;
+                    $doc->save();
+                }
+                \Illuminate\Support\Facades\Cache::forget('ai_workspace_latest_3_docs');
+            }
+
+            if (class_exists(\App\Services\AI\CentralBrainService::class)
+                && \Illuminate\Support\Facades\Schema::hasTable('ai_knowledge_bases')) {
+                $kbContent = "# Eingescanntes Dokument: {$cleanTitle}\n\n"
+                    . "- **Typ:** Eingescanntes Dokument (Scan)\n"
+                    . "- **Dateiname:** `{$fileName}`\n"
+                    . "- **kDrive-Ablagepfad:** `{$remotePath}`\n"
+                    . "- **Eingescannt am:** {$scannedAt->format('d.m.Y H:i')} Uhr\n"
+                    . "- **Dokumentdatum:** {$extractedDate}\n"
+                    . "- **Quelle:** {$source}\n\n"
+                    . "## Zusammenfassung\n"
+                    . "{$cleanSummary}\n";
+
+                \App\Services\AI\CentralBrainService::upsertDeduplicatedKnowledge(
+                    title: "Scan: {$cleanTitle} ({$extractedDate})",
+                    content: $kbContent,
+                    categoryName: 'Workspace-Dokumentenkatalog',
+                    tags: $mergedTags,
+                    sourcePath: 'scan:kdrive:' . $remotePath,
+                    visibilityScope: \App\Models\Ai\AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE,
+                    chronologicalDate: $scannedAt
+                );
+            }
+        } catch (\Throwable) {
+            // Niemals den eigentlichen kDrive-Upload durch optionale Brain-Indexierung blockieren
+        }
     }
 }

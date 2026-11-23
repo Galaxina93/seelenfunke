@@ -80,13 +80,23 @@ trait AiBrainFuncs
             ],
             [
                 'name' => 'brain_search',
-                'description' => 'Durchsucht in Millisekunden das gesamte Unternehmens-Gehirn: Alle synchronisierten Abschlussberichte, Konzepte, Workflows und Prüfprotokolle (Abschlussberichte/*), manuelle Wiki-Dossiers UND den privaten Dokumenten-Workspace. Liefert token-sparend exakt die treffendsten Fach-Kapitel inklusive source_path, Kategorie und Tags.',
+                'description' => 'Durchsucht in Millisekunden das gesamte Unternehmens-Gehirn: Eingescannte Dokumente aus Scanner & kDrive (chronologisch nach Scan-Zeitpunkt), den privaten Dokumenten-Workspace, alle synchronisierten Fachberichte, Konzepte, Ticket-Berichte und manuelle Wiki-Dossiers. Bei Fragen nach dem letzten/zuletzt eingescannten Dokument automatisch doc_type="scan" und sort_by="latest" nutzen.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'query' => [
                             'type' => 'string',
-                            'description' => 'Suchbegriff oder kombiniertes Fachthema (z.B. "RA3 Fokuswert xTool", "Marktanalyse Digitale Bestseller", "BKK firmus und Arbeitsamt").',
+                            'description' => 'Suchbegriff oder Frage (z.B. "letzter Scan", "Renteninformation", "RA3 Fokuswert xTool", "BKK firmus und Arbeitsamt").',
+                        ],
+                        'doc_type' => [
+                            'type' => 'string',
+                            'enum' => ['all', 'scan', 'document', 'report', 'ticket'],
+                            'description' => 'Optionaler Typ-Filter: "scan" für eingescannte Dokumente/Briefe/Belege (Scanner & kDrive), "document" für Workspace-Dateien, "report" für Fachberichte, "ticket" für Ticket-Berichte, "all" (Standard) für alles.',
+                        ],
+                        'sort_by' => [
+                            'type' => 'string',
+                            'enum' => ['relevance', 'latest'],
+                            'description' => 'Optional: "latest" sortiert strikt chronologisch (zuletzt eingescanntes/erstelltes Dokument auf Platz 1), "relevance" (Standard) nach Fachrelevanz.',
                         ],
                     ],
                     'required' => ['query'],
@@ -276,8 +286,11 @@ trait AiBrainFuncs
                 return ['status' => 'error', 'message' => 'Es wurde kein Suchbegriff angegeben.'];
             }
 
+            $docType = strtolower(trim((string) ($args['doc_type'] ?? 'all')));
+            $sortBy = strtolower(trim((string) ($args['sort_by'] ?? 'relevance')));
+
             // Cache-Layer: Häufige erfolgreiche Suchanfragen 300 Sekunden cachen (mit Versions-Invalidierung)
-            $cacheKey = 'ai_brain_search_' . md5($queryStr);
+            $cacheKey = 'ai_brain_search_' . md5($queryStr . '|' . $docType . '|' . $sortBy);
             $kbVersion = (int) Cache::get('ai_brain_search_version', 1);
             $cached = Cache::get($cacheKey);
             if (is_array($cached) && ($cached['_kb_ver'] ?? null) === $kbVersion) {
@@ -285,7 +298,10 @@ trait AiBrainFuncs
                 return $cached;
             }
 
-            $freshResult = self::performSearchBrainDirect($queryStr);
+            $freshResult = self::performSearchBrainDirect($queryStr, [
+                'doc_type' => $docType,
+                'sort_by' => $sortBy,
+            ]);
             if (($freshResult['status'] ?? '') === 'success') {
                 $toStore = $freshResult;
                 $toStore['_kb_ver'] = $kbVersion;
@@ -299,11 +315,106 @@ trait AiBrainFuncs
     }
 
     /**
-     * Führt die Suche im Langzeit-Gehirn und Workspace aus.
+     * Erkennt natürlichsprachliche Such-Intentionen für chronologische Abfragen ("zuletzt", "letzter", "neuestes")
+     * und eingescannte Dokumente ("Scan", "eingescannt", "Scanner") und trennt Meta-Operatoren vom echten Fachthema.
+     *
+     * @param array<string, mixed> $options
+     * @return array{is_scan_intent: bool, is_recency_intent: bool, is_document_meta_intent: bool, doc_type: string, subject_query: string, has_subject_filter: bool}
      */
-    protected static function performSearchBrainDirect(string $queryStr): array
+    protected static function detectSearchIntent(string $rawQuery, array $options = []): array
+    {
+        $docType = strtolower(trim((string) ($options['doc_type'] ?? 'all')));
+        if (!in_array($docType, ['all', 'scan', 'document', 'report', 'ticket'], true)) {
+            $docType = 'all';
+        }
+        $sortBy = strtolower(trim((string) ($options['sort_by'] ?? 'relevance')));
+
+        $hasExplicitTechTopic = (bool) preg_match(
+            '/\b(neural\w*|port[\s\-]*scan\w*|viren[\s\-]*scan\w*|security[\s\-]*scan\w*|code[\s\-]*scan\w*|xtool|laser\w*|brennpunkt\w*)\b/iu',
+            $rawQuery
+        );
+
+        $isScanIntent = ($docType === 'scan') || (
+            !$hasExplicitTechTopic
+            && (bool) preg_match('/\b(scans?|gescannt\w*|eingescannt\w*|abfotografiert\w*|scanner|kdrive[\s\-]*scan\w*)\b/iu', $rawQuery)
+        );
+
+        $isRecencyIntent = in_array($sortBy, ['latest', 'newest', 'newest_first', 'chronological'], true)
+            || (bool) preg_match('/\b(letzte[rnms]?|allerletzte[rnms]?|zuletzt|neueste[rnms]?|aktuellste[rnms]?|jüngste[rnms]?|als\s+letztes|gerade\s+eben|kürzlich)\b/iu', $rawQuery);
+
+        $isDocumentMetaIntent = ($docType === 'document') || (
+            $isRecencyIntent
+            && !$hasExplicitTechTopic
+            && (bool) preg_match('/\b(dokument\w*|datei\w*|unterlage\w*|brief\w*|bescheid\w*|beleg\w*|schreiben)\b/iu', $rawQuery)
+        );
+
+        $subjectQuery = $rawQuery;
+        if ($isScanIntent || $isRecencyIntent || $isDocumentMetaIntent) {
+            $stripped = preg_replace('/[\/\\\\|,;:!?()\[\]"\'`]+/u', ' ', $rawQuery) ?? $rawQuery;
+            $stripped = preg_replace(
+                '/\b(welch\w*|was|wer|wann|wie|wo|wurde\w*|worden|ist|sind|war|haben|hat|hab|wir|ich|mir|uns|bitte|zeig\w*|sag\w*|find\w*|such\w*|nenn\w*|gib\w*|als|letzte[rnms]?|allerletzte[rnms]?|zuletzt|neueste[rnms]?|aktuellste[rnms]?|jüngste[rnms]?|gerade|eben|vorhin|kürzlich|scans?|gescannt\w*|eingescannt\w*|abfotografiert\w*|scanner|dokument\w*|datei\w*|unterlage\w*|hochgeladen\w*|abgelegt\w*|gespeichert\w*|erfasst\w*|im|in|ins|aus|auf|vom|von|zu|zum|zur|der|die|das|den|dem|des|ein\w*|und|oder|mit)\b/iu',
+                ' ',
+                $stripped
+            ) ?? $stripped;
+            $stripped = trim(preg_replace('/\s+/u', ' ', $stripped) ?? '');
+            $subjectQuery = $stripped;
+        }
+
+        return [
+            'is_scan_intent' => $isScanIntent,
+            'is_recency_intent' => $isRecencyIntent,
+            'is_document_meta_intent' => $isDocumentMetaIntent,
+            'doc_type' => $docType,
+            'subject_query' => $subjectQuery,
+            'has_subject_filter' => (mb_strlen($subjectQuery) >= 2),
+        ];
+    }
+
+    /**
+     * Prüft, ob ein Wissensdatenbank-Eintrag ein real eingescanntes / erfasstes Dokument repräsentiert
+     * (und KEIN technischer System-/Laser-Abschlussbericht ist).
+     */
+    protected static function isKnowledgeEntryScannedDocument(AiKnowledgeBase $kb): bool
+    {
+        $sourceLow = mb_strtolower(trim((string) ($kb->source_path ?? '')));
+        if (str_starts_with($sourceLow, 'scan:')) {
+            return true;
+        }
+        if (str_starts_with($sourceLow, 'abschlussberichte/') || str_starts_with($sourceLow, 'ticket:')) {
+            return false;
+        }
+
+        $slugLow = mb_strtolower(trim((string) ($kb->slug ?? '')));
+        if (str_starts_with($slugLow, 'dok-')) {
+            return true;
+        }
+
+        foreach ($kb->tags as $t) {
+            $tLow = mb_strtolower(trim((string) $t->name));
+            if (in_array($tLow, ['scan', 'eingescannt', 'scanner', 'kdrive'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Führt die Suche im Langzeit-Gehirn und Workspace aus.
+     *
+     * @param array<string, mixed> $options
+     */
+    protected static function performSearchBrainDirect(string $queryStr, array $options = []): array
     {
         try {
+            $intent = self::detectSearchIntent($queryStr, $options);
+            $isScanIntent = $intent['is_scan_intent'];
+            $isRecencyIntent = $intent['is_recency_intent'];
+            $isDocumentMetaIntent = $intent['is_document_meta_intent'];
+            $docType = $intent['doc_type'];
+            $hasSubjectFilter = $intent['has_subject_filter'];
+            $effectiveQuery = $hasSubjectFilter ? $intent['subject_query'] : $queryStr;
+
             // 1. Konversations-Füllwörter bereinigen
             $fillers = [
                 'dokumente von der', 'dokumente vom', 'dokumente von', 'dokumente zu',
@@ -311,27 +422,143 @@ trait AiBrainFuncs
                 'dateien von der', 'dateien vom', 'dateien von', 'zeigen', 'finde', 'suche',
                 'bitte', 'zeig mir', 'sage mir',
             ];
-            $cleaned = $queryStr;
+            $cleaned = $effectiveQuery;
             foreach ($fillers as $filler) {
                 $cleaned = preg_replace('/\b' . preg_quote($filler, '/') . '\b/iu', ' ', (string) $cleaned) ?? $cleaned;
             }
             $cleaned = trim(preg_replace('/\s+/', ' ', (string) $cleaned) ?? $cleaned);
             if ($cleaned === '') {
-                $cleaned = $queryStr;
+                $cleaned = $effectiveQuery;
             }
 
             // 2. Themen-Segmente & präzise Einzel-Schlüsselwörter extrahieren
             $segments = preg_split('/\s*(?:\bund\b|\boder\b|\band\b|\bor\b|[,&+])\s*/iu', $cleaned, -1, PREG_SPLIT_NO_EMPTY) ?: [];
             if (empty($segments)) {
-                $segments = [$queryStr];
+                $segments = [$cleaned];
             }
 
-            $keywords = self::extractSearchKeywords($cleaned, $segments);
+            $keywords = ($hasSubjectFilter || (!$isScanIntent && !$isDocumentMetaIntent))
+                ? self::extractSearchKeywords($cleaned, $segments)
+                : [];
 
-            // 3. Wissensdatenbank (inkl. aller synchronisierten Abschlussberichte/) mit Relevanz-Ranking durchsuchen
+            // 3. Privaten Dokumenten-Workspace & kDrive-Scan-Chronik durchsuchen
+            $wsList = [];
+            if ($docType !== 'report' && $docType !== 'ticket'
+                && class_exists(\App\Models\Ai\AiWorkspaceDocument::class)
+                && self::cachedHasTable('ai_workspace_documents')) {
+                $wsDocs = collect();
+
+                if ($isScanIntent) {
+                    $scanQuery = \App\Models\Ai\AiWorkspaceDocument::query()->onlyScans();
+                    if ($hasSubjectFilter) {
+                        $scanQuery->search($intent['subject_query']);
+                    }
+                    if ($isRecencyIntent || !$hasSubjectFilter) {
+                        $scanQuery->orderByDesc('created_at')->orderByDesc('extracted_date');
+                    } else {
+                        $scanQuery->orderByDesc('extracted_date')->orderByDesc('created_at');
+                    }
+                    $wsDocs = $scanQuery->limit(10)->get();
+
+                    // Fallback auf reguläre Workspace-Dokumente, falls noch kein expliziter kDrive-Scan existiert
+                    if ($wsDocs->isEmpty() && !$hasSubjectFilter) {
+                        $wsDocs = \App\Models\Ai\AiWorkspaceDocument::query()
+                            ->orderByDesc('created_at')
+                            ->orderByDesc('extracted_date')
+                            ->limit(10)
+                            ->get();
+                    }
+                } elseif ($isDocumentMetaIntent && !$hasSubjectFilter) {
+                    $wsDocs = \App\Models\Ai\AiWorkspaceDocument::query()
+                        ->orderByDesc('created_at')
+                        ->orderByDesc('extracted_date')
+                        ->limit(10)
+                        ->get();
+                } else {
+                    $wsSearchTerm = $hasSubjectFilter ? $intent['subject_query'] : $queryStr;
+                    $wsQuery = \App\Models\Ai\AiWorkspaceDocument::search($wsSearchTerm);
+                    if ($isRecencyIntent) {
+                        $wsQuery->orderByDesc('created_at')->orderByDesc('extracted_date');
+                    } else {
+                        $wsQuery->orderByDesc('extracted_date')->orderByDesc('created_at');
+                    }
+                    $wsDocs = $wsQuery->limit(10)->get();
+                }
+
+                foreach ($wsDocs as $doc) {
+                    $isScanDoc = method_exists($doc, 'isScanDocument') ? $doc->isScanDocument() : str_starts_with((string) $doc->file_path, 'kdrive://');
+                    $wsList[] = [
+                        'type' => $isScanDoc ? 'scanned_document' : 'workspace_file',
+                        'is_scan' => $isScanDoc,
+                        'filename' => $doc->filename,
+                        'path' => $doc->file_path,
+                        'title' => $doc->title,
+                        'category' => $doc->category,
+                        'purpose' => $doc->purpose,
+                        'summary' => $doc->summary,
+                        'date' => $doc->extracted_date ? $doc->extracted_date->format('Y-m-d') : null,
+                        'scanned_at' => $doc->created_at ? $doc->created_at->format('Y-m-d H:i:s') : null,
+                        'size' => $doc->file_size,
+                        '_sort_ts' => $doc->created_at
+                            ? $doc->created_at->getTimestamp()
+                            : ($doc->extracted_date ? $doc->extracted_date->getTimestamp() : 0),
+                    ];
+                }
+            }
+
+            // 4. Wissensdatenbank (inkl. Scan-Dossiers, Fachberichte & Ticket-Abschlussberichte) durchsuchen
             $kbList = [];
-            if (class_exists(AiKnowledgeBase::class) && self::cachedHasTable('ai_knowledge_bases')) {
-                $rankedEntries = self::queryAndRankKnowledgeBase($queryStr, $cleaned, $segments, $keywords, 6);
+            if ($docType !== 'document'
+                && class_exists(AiKnowledgeBase::class)
+                && self::cachedHasTable('ai_knowledge_bases')) {
+                $rankedEntries = [];
+
+                if (($isScanIntent || $isDocumentMetaIntent) && !$hasSubjectFilter) {
+                    // Reine chronologische Scan-/Dokumenten-Abfrage: AUSSCHLIESSLICH echte Scan-Einträge laden!
+                    // Verhindert Falsch-Treffer auf Code-/Laser-Doku mit Wörtern wie "Datei-Scan" oder "Letzter Check".
+                    $hasSourcePath = self::cachedHasColumn('ai_knowledge_bases', 'source_path');
+                    $scanKbQuery = AiKnowledgeBase::with(['category', 'tags'])
+                        ->where('is_published', true)
+                        ->where(function ($sq) use ($hasSourcePath) {
+                            if ($hasSourcePath) {
+                                $sq->where('source_path', 'like', 'scan:%')
+                                    ->orWhere('slug', 'like', 'dok-%');
+                            } else {
+                                $sq->where('slug', 'like', 'dok-%');
+                            }
+                            $sq->orWhereHas('tags', fn ($tq) => $tq->whereIn('slug', ['scan', 'eingescannt', 'kdrive']));
+                        });
+
+                    if ($hasSourcePath) {
+                        $scanKbQuery->where(function ($nq) {
+                            $nq->whereNull('source_path')
+                                ->orWhere(function ($iq) {
+                                    $iq->where('source_path', 'not like', 'Abschlussberichte/%')
+                                        ->where('source_path', 'not like', 'ticket:%');
+                                });
+                        });
+                    }
+
+                    $rankedEntries = $scanKbQuery
+                        ->orderByDesc('created_at')
+                        ->orderByDesc('updated_at')
+                        ->limit(6)
+                        ->get()
+                        ->all();
+                } else {
+                    $rankedEntries = self::queryAndRankKnowledgeBase(
+                        $effectiveQuery,
+                        $cleaned,
+                        $segments,
+                        $keywords,
+                        6,
+                        [
+                            'is_scan_intent' => $isScanIntent,
+                            'is_recency_intent' => $isRecencyIntent,
+                            'doc_type' => $docType,
+                        ]
+                    );
+                }
 
                 foreach ($rankedEntries as $kb) {
                     $rawKbContent = (string) $kb->content;
@@ -350,9 +577,14 @@ trait AiBrainFuncs
                         1800,
                         2400
                     );
+                    $isKbScan = self::isKnowledgeEntryScannedDocument($kb);
+                    $kbTimestamp = $kb->created_at
+                        ? $kb->created_at->getTimestamp()
+                        : ($kb->updated_at ? $kb->updated_at->getTimestamp() : 0);
 
                     $kbList[] = [
-                        'type' => 'knowledge_base',
+                        'type' => $isKbScan ? 'scanned_document' : 'knowledge_base',
+                        'is_scan' => $isKbScan,
                         'title' => $kb->title,
                         'source_path' => $kb->source_path ?? null,
                         'category' => $kb->category ? $kb->category->name : 'Allgemein',
@@ -363,29 +595,8 @@ trait AiBrainFuncs
                         'date' => $kb->updated_at
                             ? $kb->updated_at->format('Y-m-d')
                             : ($kb->created_at ? $kb->created_at->format('Y-m-d') : null),
-                    ];
-                }
-            }
-
-            // 4. Privaten Dokumenten-Workspace durchsuchen
-            $wsList = [];
-            if (class_exists(\App\Models\Ai\AiWorkspaceDocument::class) && self::cachedHasTable('ai_workspace_documents')) {
-                $wsDocs = \App\Models\Ai\AiWorkspaceDocument::search($queryStr)
-                    ->orderBy('extracted_date', 'desc')
-                    ->limit(10)
-                    ->get();
-
-                foreach ($wsDocs as $doc) {
-                    $wsList[] = [
-                        'type' => 'workspace_file',
-                        'filename' => $doc->filename,
-                        'path' => $doc->file_path,
-                        'title' => $doc->title,
-                        'category' => $doc->category,
-                        'purpose' => $doc->purpose,
-                        'summary' => $doc->summary,
-                        'date' => $doc->extracted_date ? $doc->extracted_date->format('Y-m-d') : null,
-                        'size' => $doc->file_size,
+                        'scanned_at' => $isKbScan && $kb->created_at ? $kb->created_at->format('Y-m-d H:i:s') : null,
+                        '_sort_ts' => $kbTimestamp,
                     ];
                 }
             }
@@ -401,13 +612,72 @@ trait AiBrainFuncs
                 ];
             }
 
-            return [
+            // 5. Bei Scan- oder Chronologie-Anfragen Ergebnisse strikt nach Typ (Scan zuerst) & Zeitstempel (neueste zuerst) ordnen
+            if ($isScanIntent || $isDocumentMetaIntent || $isRecencyIntent) {
+                $combined = array_merge($wsList, $kbList);
+                usort($combined, static function (array $a, array $b) use ($isScanIntent, $isRecencyIntent): int {
+                    if ($isScanIntent) {
+                        $scanA = !empty($a['is_scan']) ? 1 : 0;
+                        $scanB = !empty($b['is_scan']) ? 1 : 0;
+                        if ($scanA !== $scanB) {
+                            return $scanB <=> $scanA;
+                        }
+                    }
+                    if ($isRecencyIntent || $isScanIntent) {
+                        $tsA = (int) ($a['_sort_ts'] ?? 0);
+                        $tsB = (int) ($b['_sort_ts'] ?? 0);
+                        if ($tsA !== $tsB) {
+                            return $tsB <=> $tsA;
+                        }
+                    }
+                    return 0;
+                });
+            } else {
+                $combined = array_merge($kbList, $wsList);
+            }
+
+            // Interne Sortier-Hilfsfelder bereinigen
+            $stripInternal = static function (array $item): array {
+                unset($item['_sort_ts']);
+                return $item;
+            };
+            $kbList = array_map($stripInternal, $kbList);
+            $wsList = array_map($stripInternal, $wsList);
+            $combined = array_map($stripInternal, $combined);
+
+            $topResult = $combined[0] ?? null;
+            $latestScanHighlight = null;
+            if (($isScanIntent || $isDocumentMetaIntent) && is_array($topResult)) {
+                $latestScanHighlight = [
+                    'title' => $topResult['title'] ?? ($topResult['filename'] ?? 'Unbekannt'),
+                    'filename' => $topResult['filename'] ?? null,
+                    'path' => $topResult['path'] ?? ($topResult['source_path'] ?? null),
+                    'scanned_at' => $topResult['scanned_at'] ?? ($topResult['date'] ?? null),
+                    'document_date' => $topResult['date'] ?? null,
+                    'summary' => $topResult['summary'] ?? ($topResult['content'] ?? null),
+                ];
+            }
+
+            $message = 'Erfolgreich gefunden: ' . count($kbList) . ' Dossiers in der Wissensdatenbank und ' . count($wsList) . ' Dokumente im privaten Workspace.';
+            if ($latestScanHighlight !== null && $isRecencyIntent) {
+                $label = (string) ($latestScanHighlight['title'] ?? '');
+                $fn = !empty($latestScanHighlight['filename']) ? " (Datei: {$latestScanHighlight['filename']})" : '';
+                $when = !empty($latestScanHighlight['scanned_at']) ? ", eingescannt am {$latestScanHighlight['scanned_at']}" : '';
+                $message = "Zuletzt eingescanntes Dokument auf Platz 1: '{$label}'{$fn}{$when}. Insgesamt " . count($combined) . " passende Einträge gefunden.";
+            }
+
+            $response = [
                 'status' => 'success',
-                'message' => 'Erfolgreich gefunden: ' . count($kbList) . ' Dossiers in der Wissensdatenbank und ' . count($wsList) . ' Dokumente im privaten Workspace.',
+                'message' => $message,
                 'knowledge_base' => $kbList,
                 'workspace_documents' => $wsList,
-                'results' => array_merge($kbList, $wsList),
+                'results' => $combined,
             ];
+            if ($latestScanHighlight !== null) {
+                $response['latest_scan'] = $latestScanHighlight;
+            }
+
+            return $response;
         } catch (\Throwable $e) {
             return ['status' => 'error', 'message' => 'Fehler beim Durchsuchen des Gehirns: ' . $e->getMessage()];
         }
@@ -464,6 +734,10 @@ trait AiBrainFuncs
                 }
             } elseif (str_contains($low, 'bkk')) {
                 foreach (['firmus', 'Krankengeld', 'Sozialrecht'] as $syn) {
+                    $keywords[mb_strtolower($syn)] = $syn;
+                }
+            } elseif (str_contains($low, 'rente') || $low === 'drv') {
+                foreach (['Renteninformation', 'Rentenversicherung', 'DRV', 'Rente_Vorsorge'] as $syn) {
                     $keywords[mb_strtolower($syn)] = $syn;
                 }
             } elseif (str_contains($low, 'krankschreibung') || str_contains($low, 'krankmeldung') || $low === 'au' || $low === 'eau') {
@@ -525,14 +799,25 @@ trait AiBrainFuncs
         string $cleanedQuery,
         array $segments,
         array $keywords,
-        int $limit = 6
+        int $limit = 6,
+        array $options = []
     ): array {
+        $isScanIntent = !empty($options['is_scan_intent']);
+        $isRecencyIntent = !empty($options['is_recency_intent']);
+        $docType = strtolower(trim((string) ($options['doc_type'] ?? 'all')));
         $driver = DB::connection()->getDriverName();
         $isMysqlFamily = in_array($driver, ['mysql', 'mariadb'], true);
         $hasSourcePath = self::cachedHasColumn('ai_knowledge_bases', 'source_path');
         $hasVisibilityScope = self::cachedHasColumn('ai_knowledge_bases', 'visibility_scope');
         $isAdminActor = \App\Services\AI\AiAuthHelper::isAdmin();
-        $applyVisibilityGuard = static function ($query) use ($isAdminActor, $hasVisibilityScope): void {
+        $applyVisibilityGuard = static function ($query) use ($isAdminActor, $hasVisibilityScope, $docType, $hasSourcePath): void {
+            if ($hasSourcePath) {
+                if ($docType === 'ticket') {
+                    $query->where('source_path', 'like', 'ticket:%');
+                } elseif ($docType === 'report') {
+                    $query->where('source_path', 'like', 'Abschlussberichte/%');
+                }
+            }
             if ($isAdminActor) {
                 return;
             }
@@ -718,15 +1003,48 @@ trait AiBrainFuncs
                 $score += ($matchedDistinctKeywords - 1) * 28.0;
             }
 
+            if ($isScanIntent) {
+                if (self::isKnowledgeEntryScannedDocument($entry)) {
+                    $score += 220.0;
+                } elseif (str_starts_with($sourceLow, 'abschlussberichte/') || str_starts_with($sourceLow, 'ticket:')) {
+                    $score -= 260.0;
+                }
+            }
+
+            $entryTs = $entry->created_at
+                ? $entry->created_at->getTimestamp()
+                : ($entry->updated_at ? $entry->updated_at->getTimestamp() : 0);
+
             $scored[] = [
                 'model' => $entry,
                 'score' => $score,
+                'ts' => $entryTs,
             ];
         }
 
-        usort($scored, static function (array $a, array $b): int {
+        if ($isScanIntent) {
+            $positiveOnly = array_values(array_filter($scored, static fn (array $r): bool => $r['score'] > 0.0));
+            if (!empty($positiveOnly)) {
+                $scored = $positiveOnly;
+            }
+        }
+
+        usort($scored, static function (array $a, array $b) use ($isRecencyIntent, $isScanIntent): int {
+            if ($isRecencyIntent && $isScanIntent) {
+                $scanA = self::isKnowledgeEntryScannedDocument($a['model']) ? 1 : 0;
+                $scanB = self::isKnowledgeEntryScannedDocument($b['model']) ? 1 : 0;
+                if ($scanA !== $scanB) {
+                    return $scanB <=> $scanA;
+                }
+                if ($a['ts'] !== $b['ts']) {
+                    return $b['ts'] <=> $a['ts'];
+                }
+            }
             if (abs($b['score'] - $a['score']) > 0.001) {
                 return $b['score'] <=> $a['score'];
+            }
+            if ($isRecencyIntent && $a['ts'] !== $b['ts']) {
+                return $b['ts'] <=> $a['ts'];
             }
             return strcmp((string) $a['model']->title, (string) $b['model']->title);
         });
