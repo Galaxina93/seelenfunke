@@ -264,7 +264,7 @@ fun ChatScreen(
                         )
                         Toast.makeText(
                             context,
-                            if (ok) "✓ Go an Funkira übermittelt!" else "Offline als Direktauftrag gespeichert",
+                            if (ok) "✓ Go an Antigravity übermittelt!" else "Offline als Direktauftrag gespeichert",
                             Toast.LENGTH_SHORT
                         ).show()
                         AgDirectInboxManager.refreshFromServer(context)

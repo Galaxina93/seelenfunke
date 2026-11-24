@@ -282,16 +282,126 @@ object FalconClientTools {
         "idle", "listening", "thinking", "speaking", "happy", "proud", "focused", "sweet", "excited"
     )
 
-    val LOCAL_TOOL_NAMES = setOf(
+    val DECLARED_WS_LOCAL_TOOL_NAMES = setOf(
         "falcon_music_control",
         "falcon_camera_control",
         "falcon_smarthome_control",
         "falcon_send_to_antigravity",
         "falcon_resolve_antigravity_blockade",
         "falcon_check_antigravity_status",
-        "falcon_app_navigate",
+        "falcon_app_navigate"
+    )
+
+    val LOCAL_TOOL_NAMES = DECLARED_WS_LOCAL_TOOL_NAMES + "falcon_set_emotion"
+
+    val SUPERSEDED_SERVER_LIVE_TOOLS = setOf(
+        "ag_send_to_antigravity",
+        "ag_check_antigravity_status",
+        "ag_resolve_pending_blockade",
+        "system_prepare_antigravity_handoff",
+        "system_open_nav_item",
+        "system_open_zentrum",
+        "system_close_zentrum",
+        "system_close_ui",
         "falcon_set_emotion"
     )
+
+    const val POST_SPEECH_ECHO_TAIL_SPEAKER_MS = 450L
+    const val POST_SPEECH_ECHO_TAIL_HEADSET_MS = 150L
+    const val BARGE_IN_REQUIRED_SPEAKER_FRAMES = 3
+    const val BARGE_IN_REQUIRED_HEADSET_FRAMES = 2
+
+    fun isSustainedHumanBargeInFrame(
+        rms: Double,
+        peak: Int,
+        isHeadsetRouted: Boolean
+    ): Boolean {
+        return if (isHeadsetRouted) {
+            rms >= 2200.0 && peak >= 9000
+        } else {
+            rms >= 3800.0 && peak >= 14500
+        }
+    }
+
+    fun requiredBargeInConsecutiveFrames(isHeadsetRouted: Boolean): Int {
+        return if (isHeadsetRouted) BARGE_IN_REQUIRED_HEADSET_FRAMES else BARGE_IN_REQUIRED_SPEAKER_FRAMES
+    }
+
+    fun shouldSuppressMicForAiPlaybackOrEchoTail(
+        isAiSpeakingNow: Boolean,
+        nowUptimeMs: Long,
+        lastAiSpeechActiveUptimeMs: Long,
+        isHeadsetRouted: Boolean
+    ): Boolean {
+        if (isAiSpeakingNow) return true
+        if (lastAiSpeechActiveUptimeMs <= 0L) return false
+        val tailMs = if (isHeadsetRouted) POST_SPEECH_ECHO_TAIL_HEADSET_MS else POST_SPEECH_ECHO_TAIL_SPEAKER_MS
+        val elapsed = nowUptimeMs - lastAiSpeechActiveUptimeMs
+        return elapsed in 0L until tailMs
+    }
+
+    fun inferEmotionFromLiveTurn(transcript: String?, toolName: String? = null): String {
+        val tName = toolName?.trim()?.lowercase(Locale.ROOT).orEmpty()
+        if (tName.isNotEmpty()) {
+            return when {
+                tName == "falcon_music_control" || tName.startsWith("music_") -> "happy"
+                tName.contains("antigravity") || tName.startsWith("ag_") || tName.startsWith("finance_") || tName.startsWith("order_") -> "focused"
+                tName.startsWith("routine_") || tName.startsWith("task_") || tName.startsWith("calendar_") -> "proud"
+                else -> "focused"
+            }
+        }
+        val text = transcript?.trim()?.lowercase(Locale.GERMAN).orEmpty()
+        if (text.isEmpty()) return "speaking"
+        return when {
+            text.contains("erledigt") || text.contains("ausgerollt") || text.contains("perfekt") ||
+                text.contains("geschafft") || text.contains("klasse") || text.contains("stark") -> "proud"
+            text.contains("gerne") || text.contains("freut mich") || text.contains("schlaf gut") ||
+                text.contains("gute nacht") || text.contains("wunderbar") || text.contains("super") -> "happy"
+            text.contains("moment") || text.contains("sekunde") || text.contains("prüfe") ||
+                text.contains("pruefe") || text.contains("schaue") || text.contains("achtung") -> "focused"
+            else -> "speaking"
+        }
+    }
+
+    fun deduplicateFunctionCallsInBatch(calls: JsonArray): List<JsonObject> {
+        val result = ArrayList<JsonObject>(calls.size())
+        val seenSignatures = HashSet<String>()
+        for (i in 0 until calls.size()) {
+            val el = calls.get(i)
+            if (el == null || !el.isJsonObject) continue
+            val obj = el.asJsonObject
+            val name = obj.get("name")?.takeIf { it.isJsonPrimitive }?.asString?.trim().orEmpty()
+            if (name.isEmpty()) continue
+            val argsCanonical = if (obj.has("args") && !obj.get("args").isJsonNull) {
+                gson.toJson(obj.get("args"))
+            } else {
+                "{}"
+            }
+            val sig = "$name|$argsCanonical"
+            if (seenSignatures.add(sig)) {
+                result.add(obj)
+            }
+        }
+        return result
+    }
+
+    fun buildBatchedToolResponsePacket(
+        responses: List<Triple<String, String, JsonElement>>
+    ): JsonObject {
+        return JsonObject().apply {
+            add("toolResponse", JsonObject().apply {
+                add("functionResponses", JsonArray().apply {
+                    for ((callId, fnName, resEl) in responses) {
+                        add(JsonObject().apply {
+                            add("response", resEl)
+                            addProperty("id", callId)
+                            addProperty("name", fnName)
+                        })
+                    }
+                })
+            })
+        }
+    }
 
     private val SMARTHOME_STOP_WORDS = setOf(
         "mach", "mache", "machen", "schalte", "schalt", "schalten",
@@ -821,6 +931,13 @@ object FalconClientTools {
     }
 
     fun appendFalconToolDeclarations(decls: JsonArray) {
+        for (i in decls.size() - 1 downTo 0) {
+            val n = decls.get(i)?.takeIf { it.isJsonObject }?.asJsonObject?.get("name")?.asString
+            if (n != null && n in SUPERSEDED_SERVER_LIVE_TOOLS) {
+                decls.remove(i)
+            }
+        }
+
         val existing = mutableSetOf<String>()
         for (i in 0 until decls.size()) {
             val n = decls.get(i)?.takeIf { it.isJsonObject }?.asJsonObject?.get("name")?.asString
@@ -1071,25 +1188,8 @@ object FalconClientTools {
             })
         }
 
-        if ("falcon_set_emotion" !in existing) {
-            decls.add(JsonObject().apply {
-                addProperty("name", "falcon_set_emotion")
-                addProperty(
-                    "description",
-                    "Setzt Funkiras 3D-Gesichtsausdruck und Körperhaltung passend zur Gesprächssituation."
-                )
-                add("parameters", JsonObject().apply {
-                    addProperty("type", "OBJECT")
-                    add("properties", JsonObject().apply {
-                        add("emotion", JsonObject().apply {
-                            addProperty("type", "STRING")
-                            addProperty("description", "Emotion: idle, listening, thinking, speaking, happy, proud, focused")
-                        })
-                    })
-                    add("required", JsonArray().apply { add("emotion") })
-                })
-            })
-        }
+        // falcon_set_emotion wird bewusst NICHT als WebSocket-Tool registriert, da Emotionen lokal in 0 ms
+        // aus Sprache & Aktionen abgeleitet werden (verhindert zusätzliche ToolResponse-Turns & Doppelantworten).
     }
 
     suspend fun executeLocalFalconTool(

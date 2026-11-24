@@ -132,10 +132,11 @@ class FalconClientToolsAndMusicMatcherTest {
         val names = (0 until decls.size()).map {
             decls.get(it).asJsonObject.get("name").asString
         }
-        assertEquals(FalconClientTools.LOCAL_TOOL_NAMES.size + 1, names.size)
-        for (expected in FalconClientTools.LOCAL_TOOL_NAMES) {
+        assertEquals(FalconClientTools.DECLARED_WS_LOCAL_TOOL_NAMES.size + 1, names.size)
+        for (expected in FalconClientTools.DECLARED_WS_LOCAL_TOOL_NAMES) {
             assertTrue("Expected local Falcone tool $expected to be injected", expected in names)
         }
+        assertFalse("falcon_set_emotion must not be injected as WS roundtrip tool", "falcon_set_emotion" in names)
         val agDecl = (0 until decls.size())
             .map { decls.get(it).asJsonObject }
             .first { it.get("name").asString == "falcon_send_to_antigravity" }
@@ -618,7 +619,7 @@ class FalconClientToolsAndMusicMatcherTest {
         // 2. Strict Gemini 3.1 Live schema hygiene across all local Falcone tools
         val decls = JsonArray()
         FalconClientTools.appendFalconToolDeclarations(decls)
-        assertEquals(FalconClientTools.LOCAL_TOOL_NAMES.size, decls.size())
+        assertEquals(FalconClientTools.DECLARED_WS_LOCAL_TOOL_NAMES.size, decls.size())
         for (i in 0 until decls.size()) {
             val fn = decls.get(i).asJsonObject
             val params = fn.getAsJsonObject("parameters")
@@ -1052,5 +1053,123 @@ class FalconClientToolsAndMusicMatcherTest {
             shutters = emptyList(),
             groups = emptyList()
         )
+    }
+
+    @Test
+    fun liveCallAntiDoubleResponse_prunesOverlappingServerToolsAndBatchesToolResponsesIntoSingleFrame() {
+        val serverDecls = JsonArray().apply {
+            add(JsonObject().apply { addProperty("name", "ag_send_to_antigravity") })
+            add(JsonObject().apply { addProperty("name", "ag_check_antigravity_status") })
+            add(JsonObject().apply { addProperty("name", "ag_resolve_pending_blockade") })
+            add(JsonObject().apply { addProperty("name", "system_open_nav_item") })
+            add(JsonObject().apply { addProperty("name", "falcon_set_emotion") })
+            add(JsonObject().apply { addProperty("name", "calendar_get_events") })
+        }
+
+        FalconClientTools.appendFalconToolDeclarations(serverDecls)
+        val finalNames = (0 until serverDecls.size()).map {
+            serverDecls.get(it).asJsonObject.get("name").asString
+        }.toSet()
+
+        assertTrue(finalNames.contains("calendar_get_events"))
+        assertTrue(finalNames.contains("falcon_send_to_antigravity"))
+        assertTrue(finalNames.contains("falcon_check_antigravity_status"))
+        assertTrue(finalNames.contains("falcon_resolve_antigravity_blockade"))
+        assertTrue(finalNames.contains("falcon_app_navigate"))
+        assertFalse("Duplicate server ag_send_to_antigravity must be pruned", finalNames.contains("ag_send_to_antigravity"))
+        assertFalse("Duplicate server ag_check_antigravity_status must be pruned", finalNames.contains("ag_check_antigravity_status"))
+        assertFalse("Duplicate server ag_resolve_pending_blockade must be pruned", finalNames.contains("ag_resolve_pending_blockade"))
+        assertFalse("Duplicate server system_open_nav_item must be pruned", finalNames.contains("system_open_nav_item"))
+        assertFalse("Roundtrip falcon_set_emotion tool must not be registered", finalNames.contains("falcon_set_emotion"))
+
+        val rawFunctionCalls = JsonArray().apply {
+            add(JsonObject().apply {
+                addProperty("id", "c1")
+                addProperty("name", "calendar_get_events")
+                add("args", JsonObject().apply { addProperty("date", "2026-11-24") })
+            })
+            add(JsonObject().apply {
+                addProperty("id", "c2_dup")
+                addProperty("name", "calendar_get_events")
+                add("args", JsonObject().apply { addProperty("date", "2026-11-24") })
+            })
+            add(JsonObject().apply {
+                addProperty("id", "c3")
+                addProperty("name", "task_get_all")
+                add("args", JsonObject())
+            })
+        }
+
+        val deduped = FalconClientTools.deduplicateFunctionCallsInBatch(rawFunctionCalls)
+        assertEquals(2, deduped.size)
+        assertEquals("c1", deduped[0].get("id").asString)
+        assertEquals("c3", deduped[1].get("id").asString)
+
+        val batchedPacket = FalconClientTools.buildBatchedToolResponsePacket(
+            listOf(
+                Triple("c1", "calendar_get_events", JsonObject().apply { addProperty("status", "ok") }),
+                Triple("c3", "task_get_all", JsonObject().apply { addProperty("count", 3) })
+            )
+        )
+        val fnResps = batchedPacket.getAsJsonObject("toolResponse").getAsJsonArray("functionResponses")
+        assertEquals(2, fnResps.size())
+        assertEquals("c1", fnResps.get(0).asJsonObject.get("id").asString)
+        assertEquals("c3", fnResps.get(1).asJsonObject.get("id").asString)
+    }
+
+    @Test
+    fun liveCallEchoTailAndBargeInGate_suppressesPostSpeechReverbAndSingleConsonantSpikes() {
+        val speechEndedAt = 10_000L
+
+        // Within 450ms speakerphone tail -> mic stays suppressed so AI reverb cannot trigger a 2nd answer
+        assertTrue(
+            FalconClientTools.shouldSuppressMicForAiPlaybackOrEchoTail(
+                isAiSpeakingNow = false,
+                nowUptimeMs = speechEndedAt + 280L,
+                lastAiSpeechActiveUptimeMs = speechEndedAt,
+                isHeadsetRouted = false
+            )
+        )
+        // After 460ms -> mic opens cleanly
+        assertFalse(
+            FalconClientTools.shouldSuppressMicForAiPlaybackOrEchoTail(
+                isAiSpeakingNow = false,
+                nowUptimeMs = speechEndedAt + 460L,
+                lastAiSpeechActiveUptimeMs = speechEndedAt,
+                isHeadsetRouted = false
+            )
+        )
+        // Headset needs only 150ms tail
+        assertFalse(
+            FalconClientTools.shouldSuppressMicForAiPlaybackOrEchoTail(
+                isAiSpeakingNow = false,
+                nowUptimeMs = speechEndedAt + 170L,
+                lastAiSpeechActiveUptimeMs = speechEndedAt,
+                isHeadsetRouted = true
+            )
+        )
+
+        // Single speakerphone consonant spike (high peak 13000, moderate RMS 1900) must NOT trigger barge-in
+        assertFalse(
+            FalconClientTools.isSustainedHumanBargeInFrame(
+                rms = 1900.0,
+                peak = 13000,
+                isHeadsetRouted = false
+            )
+        )
+        // Real human voice close to mic (RMS 4500, peak 16500) qualifies and requires 3 consecutive frames
+        assertTrue(
+            FalconClientTools.isSustainedHumanBargeInFrame(
+                rms = 4500.0,
+                peak = 16500,
+                isHeadsetRouted = false
+            )
+        )
+        assertEquals(3, FalconClientTools.requiredBargeInConsecutiveFrames(isHeadsetRouted = false))
+
+        // Local zero-roundtrip emotion inference
+        assertEquals("proud", FalconClientTools.inferEmotionFromLiveTurn("Alles perfekt erledigt!", null))
+        assertEquals("happy", FalconClientTools.inferEmotionFromLiveTurn("Mach ich super gerne für dich.", null))
+        assertEquals("focused", FalconClientTools.inferEmotionFromLiveTurn(null, "falcon_send_to_antigravity"))
     }
 }

@@ -256,7 +256,7 @@ fun AgDirectInboxSheet(
                         )
                     }
                     Text(
-                        text = "Direktnachricht · Funkira",
+                        text = "Direktnachricht · Antigravity",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
@@ -783,7 +783,7 @@ fun AgDirectInboxSheet(
                 contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
                 Text(
-                    text = "An Funkira senden",
+                    text = "An Antigravity senden",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -875,7 +875,7 @@ fun AgDirectInboxSheet(
                                     )
                                     Toast.makeText(
                                         context,
-                                        if (ok) "✓ Go an Funkira übermittelt!" else "Offline als Direktauftrag gespeichert",
+                                        if (ok) "✓ Go an Antigravity übermittelt!" else "Offline als Direktauftrag gespeichert",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     AgDirectInboxManager.refreshFromServer(context)

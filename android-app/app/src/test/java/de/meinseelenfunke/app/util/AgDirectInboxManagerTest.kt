@@ -58,7 +58,7 @@ class AgDirectInboxManagerTest {
         assertEquals(AgDirectStatus.PENDING, AgDirectInboxManager.mapStatus("pending"))
         assertEquals("Gesendet", AgDirectInboxManager.mapStatus("pending").badgeLabel)
         assertEquals(AgDirectStatus.DELIVERED, AgDirectInboxManager.mapStatus("delivered"))
-        assertEquals("Bei Falcone", AgDirectInboxManager.mapStatus("delivered").badgeLabel)
+        assertEquals("Bei Antigravity", AgDirectInboxManager.mapStatus("delivered").badgeLabel)
         assertEquals(AgDirectStatus.AWAITING_GO, AgDirectInboxManager.mapStatus("awaiting_go"))
         assertEquals("Go / Antwort fehlt", AgDirectInboxManager.mapStatus("awaiting_go").badgeLabel)
         assertEquals(AgDirectStatus.COMPLETED, AgDirectInboxManager.mapStatus("completed"))

@@ -22,12 +22,14 @@ import androidx.core.content.ContextCompat
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import de.meinseelenfunke.app.data.api.CallVerificationReportDto
 import de.meinseelenfunke.app.data.api.LiveCredentialsResponse
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel
 import de.meinseelenfunke.app.util.ErrorSentinelReporter
 import de.meinseelenfunke.app.util.NavigationBridge
 import de.meinseelenfunke.app.util.PhoneConciergeManager
+import de.meinseelenfunke.app.util.VertexClientTokenCache
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,6 +51,10 @@ import okio.ByteString
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.URI
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Collections
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -57,12 +63,18 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.tanh
 
 data class SecretarySessionResult(
     val summary: String,
     val urgency: String,
     val callbackRequested: Boolean,
-    val usedLiveAi: Boolean
+    val usedLiveAi: Boolean,
+    val rahmenbedingungen: List<String> = emptyList(),
+    val actionRequired: String = "",
+    val durationSeconds: Int = 0,
+    val transcript: List<String> = emptyList(),
+    val verification: CallVerificationReportDto? = null
 )
 
 /**
@@ -87,11 +99,13 @@ object StandalonePhoneSecretaryEngine {
     )
 
     private const val WARM_CACHE_TTL_MS = 75_000L
-    private const val ECHO_TAIL_GUARD_MS = 320L
+    private const val ECHO_TAIL_GUARD_MS = 380L
+    private const val OPENING_BARGE_IN_GUARD_MS = 1_200L
 
     @Volatile
     private var preWarmed: WarmCredentials? = null
 
+    private val preWarmScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gson = Gson()
 
     private val wsHttpClient: OkHttpClient by lazy {
@@ -108,26 +122,38 @@ object StandalonePhoneSecretaryEngine {
             .build()
     }
 
+    fun preWarmCredentialsAsync(context: Context) {
+        val appCtx = context.applicationContext
+        preWarmScope.launch {
+            preWarmCredentials(appCtx)
+        }
+    }
+
     /**
-     * Pre-warms Gemini Live credentials while the phone is still ringing so WebSocket handshake
-     * starts in 0 ms the instant the call is answered.
+     * Pre-warms Gemini Live credentials & Vertex token while the phone is still ringing so WebSocket handshake
+     * and post-call verification start in 0 ms.
      */
     suspend fun preWarmCredentials(context: Context) {
         try {
-            ServiceLocator.ensureInitialized(context.applicationContext)
-            val existing = preWarmed
-            if (existing != null && (SystemClock.uptimeMillis() - existing.fetchedAtUptimeMs) < WARM_CACHE_TTL_MS) {
-                return
-            }
+            val appCtx = context.applicationContext
+            ServiceLocator.ensureInitialized(appCtx)
             if (ServiceLocator.getAuthToken().isNullOrBlank()) return
-            val res = ServiceLocator.aiRepository.getLiveCredentials(
-                agentId = null,
-                chatSessionId = "android_secretary_warm_${UUID.randomUUID()}",
-                client = "android_secretary",
-                fallback = "direct"
-            )
-            res.getOrNull()?.let { creds ->
-                preWarmed = WarmCredentials(SystemClock.uptimeMillis(), creds)
+
+            val existing = preWarmed
+            if (existing == null || (SystemClock.uptimeMillis() - existing.fetchedAtUptimeMs) >= WARM_CACHE_TTL_MS) {
+                val res = ServiceLocator.aiRepository.getLiveCredentials(
+                    agentId = null,
+                    chatSessionId = "android_secretary_warm_${UUID.randomUUID()}",
+                    client = "android_secretary",
+                    fallback = "direct"
+                )
+                res.getOrNull()?.let { creds ->
+                    preWarmed = WarmCredentials(SystemClock.uptimeMillis(), creds)
+                    creds.vertex_ephemeral?.let { VertexClientTokenCache.store(it, appCtx) }
+                }
+            }
+            if (VertexClientTokenCache.getValidCachedBundle(appCtx) == null) {
+                VertexClientTokenCache.getOrFetchValidBundle(appCtx)
             }
         } catch (_: Exception) {
         }
@@ -143,6 +169,12 @@ object StandalonePhoneSecretaryEngine {
         val cleanGreeting = greetingName.trim().ifBlank { cleanCaller }
         val cleanRelation = relationType?.trim().orEmpty()
         val extraHint = contactInstructions?.trim()?.take(500).orEmpty()
+        val nowLabel = try {
+            ZonedDateTime.now(ZoneId.of("Europe/Berlin"))
+                .format(DateTimeFormatter.ofPattern("EEEE, dd.MM.yyyy, HH:mm", Locale.GERMAN))
+        } catch (_: Exception) {
+            ""
+        }
 
         val relationLine = if (cleanRelation.isNotBlank()) {
             "- Beziehung zu Alina: $cleanRelation.\n"
@@ -154,6 +186,11 @@ object StandalonePhoneSecretaryEngine {
         } else {
             ""
         }
+        val timeLine = if (nowLabel.isNotBlank()) {
+            "- Aktuelles Datum & Uhrzeit: $nowLabel Uhr.\n"
+        } else {
+            ""
+        }
 
         return buildString {
             append("STRIKTE SPRACHREGEL & SEKRETÄRINNEN-ROLLE (HÖCHSTE PRIORITÄT):\n")
@@ -161,13 +198,15 @@ object StandalonePhoneSecretaryEngine {
             append("- Du bist Funkira, Alinas herzliche, schnelle, aufmerksame persönliche Sekretärin und KI-Assistentin von Mein-Seelenfunke.\n")
             append("- Du gehst gerade direkt an Alinas Smartphone für einen vertrauten Whitelist-Kontakt ans Telefon.\n")
             append("- Anrufer: $cleanCaller (persönliche Anrede: \"$cleanGreeting\").\n")
+            append(timeLine)
             append(relationLine)
             append(extraLine)
             append("- Deine Aufgabe:\n")
             append("  1. Begrüße $cleanGreeting sofort freundlich, warmherzig und natürlich beim Namen als Funkira, Alinas Assistentin. Sag kurz, dass Alina gerade nicht persönlich ans Telefon gehen kann, du aber sehr gerne alles für sie aufnimmst.\n")
-            append("  2. Höre aufmerksam zu, worum es geht. Stelle höchstens EINE kurze, freundliche Rückfrage, falls etwas Wichtiges unklar ist.\n")
-            append("  3. Sobald das Anliegen klar ist, rufe SOFORT das Tool `phone_secretary_finish` mit einer präzisen deutschen Zusammenfassung (`summary`), der Dringlichkeit (`urgency`: hoch, mittel oder niedrig) und `callback_requested` auf.\n")
-            append("  4. Vermittle $cleanGreeting im selben Atemzug bzw. direkt nach dem Tool-Aufruf super nett, herzlich und verbindlich, dass du alles genau notiert hast und Alina die Nachricht sofort bekommen wird, und verabschiede dich freundlich.\n")
+            append("  2. Höre aufmerksam zu, worum es geht. Kläre gezielt wichtige Rahmenbedingungen (Datum, Uhrzeit, Ort, Frist oder Aufgabe) mit höchstens EINER kurzen Rückfrage auf einmal.\n")
+            append("  3. WICHTIG ZUR FEHLERVERMEIDUNG: Wiederhole bei konkreten Zahlen, Uhrzeiten, Daten, Namen oder Orten das Verstandene kurz zur Bestätigung (z. B. 'Also Samstag um 19 Uhr beim Italiener, richtig?'), bevor du abschließt.\n")
+            append("  4. Sobald das Anliegen klar ist, rufe SOFORT das Tool `phone_secretary_finish` mit präziser `summary`, `rahmenbedingungen` (Array), `action_required`, `urgency` (`hoch`, `mittel` oder `niedrig`) und `callback_requested` auf.\n")
+            append("  5. Vermittle $cleanGreeting direkt nach dem Tool-Aufruf super nett, herzlich und verbindlich, dass du alles genau notiert hast und Alina die Nachricht sofort bekommen wird, und verabschiede dich freundlich.\n")
             append("- Halte deine Sätze kurz, lebendig und telefonfreundlich (jeweils 1 bis 2 kurze Sätze ohne Aufzählungen).\n")
             append("- ZERO-PII SANDBOX: Gib am Telefon NIEMALS interne Geschäftsdaten, Bestellungen, Kundendaten, Finanzen oder E-Mails preis.")
         }
@@ -181,14 +220,23 @@ object StandalonePhoneSecretaryEngine {
                         addProperty("name", "phone_secretary_finish")
                         addProperty(
                             "description",
-                            "Speichert die aufgenommene Telefonnachricht sofort als Aufgabe für Alina und bereitet das freundliche Gesprächsende vor."
+                            "Speichert die aufgenommene Telefonnachricht samt Eckdaten sofort als geprüfte Aufgabe für Alina und bereitet das freundliche Gesprächsende vor."
                         )
                         add("parameters", JsonObject().apply {
                             addProperty("type", "OBJECT")
                             add("properties", JsonObject().apply {
                                 add("summary", JsonObject().apply {
                                     addProperty("type", "STRING")
-                                    addProperty("description", "Klare, vollständige deutsche Zusammenfassung des Anliegens für Alina.")
+                                    addProperty("description", "Klare, vollständige deutsche Zusammenfassung des Anliegens für Alina (1-2 Sätze).")
+                                })
+                                add("rahmenbedingungen", JsonObject().apply {
+                                    addProperty("type", "ARRAY")
+                                    add("items", JsonObject().apply { addProperty("type", "STRING") })
+                                    addProperty("description", "Stichpunkte zu geklärten Eckdaten (Datum, Uhrzeit, Ort, Frist, Betrag).")
+                                })
+                                add("action_required", JsonObject().apply {
+                                    addProperty("type", "STRING")
+                                    addProperty("description", "Konkrete Handlungsanweisung für Alina (z. B. 'Heute ab 18 Uhr zurückrufen').")
                                 })
                                 add("urgency", JsonObject().apply {
                                     addProperty("type", "STRING")
@@ -375,7 +423,7 @@ object StandalonePhoneSecretaryEngine {
         val voice = FunkiraLiveViewModel.resolveLiveVoiceName(
             requestedVoice = creds?.voice_name,
             isFunkiraSelected = true,
-            fallbackVoice = "Kore"
+            fallbackVoice = "Aoede"
         )
         val list = mutableListOf<WsCandidate>()
 
@@ -454,9 +502,27 @@ object StandalonePhoneSecretaryEngine {
         val goodbyeTurnDone = AtomicBoolean(false)
 
         val callerFullTranscript = StringBuilder()
+        val currentCallerTurn = StringBuilder()
+        val currentAiTurn = StringBuilder()
+        val transcriptLines = Collections.synchronizedList(mutableListOf<String>())
         val completedSummary = AtomicReference<String?>(null)
+        val completedActionRequired = AtomicReference<String?>(null)
+        val completedRahmen = AtomicReference<List<String>>(emptyList())
         val completedUrgency = AtomicReference("mittel")
         val completedCallback = AtomicBoolean(true)
+
+        fun flushPendingTurns(interruptedAi: Boolean = false) {
+            val uTxt = currentCallerTurn.toString().trim()
+            if (uTxt.isNotEmpty()) {
+                transcriptLines.add("Anrufer: $uTxt")
+                currentCallerTurn.setLength(0)
+            }
+            val aTxt = currentAiTurn.toString().trim()
+            if (aTxt.isNotEmpty()) {
+                transcriptLines.add(if (interruptedAi) "Funkira: $aTxt (unterbrochen)" else "Funkira: $aTxt")
+                currentAiTurn.setLength(0)
+            }
+        }
 
         val audioTrack = createSecretaryAudioTrack()
         var recordJob: Job? = null
@@ -485,7 +551,10 @@ object StandalonePhoneSecretaryEngine {
                     val low = rawPcm[i].toInt() and 0xFF
                     val high = rawPcm[i + 1].toInt()
                     val sample = ((high shl 8) or low).toShort()
-                    val scaled = max(Short.MIN_VALUE.toInt(), min(Short.MAX_VALUE.toInt(), (sample * 1.85f).toInt()))
+                    // Smooth soft-limiter avoids harsh digital clipping at high speaker volume
+                    val normalized = (sample / 32768.0) * 1.45
+                    val softLimited = tanh(normalized) * 32767.0
+                    val scaled = max(Short.MIN_VALUE.toInt(), min(Short.MAX_VALUE.toInt(), softLimited.toInt()))
                     boosted[i] = (scaled and 0xFF).toByte()
                     boosted[i + 1] = ((scaled ushr 8) and 0xFF).toByte()
                     i += 2
@@ -575,12 +644,30 @@ object StandalonePhoneSecretaryEngine {
                         if (inTr != null && inTr.has("text")) {
                             val t = inTr.get("text").asString
                             if (!t.isNullOrBlank()) {
-                                callerFullTranscript.append(' ').append(t.trim())
+                                val cleanChunk = t.trim()
+                                callerFullTranscript.append(' ').append(cleanChunk)
+                                if (currentCallerTurn.isNotEmpty()) currentCallerTurn.append(' ')
+                                currentCallerTurn.append(cleanChunk)
+                            }
+                        }
+
+                        val outTr = when {
+                            sc.has("outputTranscription") -> sc.getAsJsonObject("outputTranscription")
+                            sc.has("outputAudioTranscription") -> sc.getAsJsonObject("outputAudioTranscription")
+                            else -> null
+                        }
+                        if (outTr != null && outTr.has("text")) {
+                            val t = outTr.get("text").asString
+                            if (!t.isNullOrBlank()) {
+                                val cleanChunk = t.trim()
+                                if (currentAiTurn.isNotEmpty()) currentAiTurn.append(' ')
+                                currentAiTurn.append(cleanChunk)
                             }
                         }
 
                         if (sc.has("interrupted") && sc.get("interrupted").asBoolean) {
                             playbackActiveUntilMs.set(0L)
+                            flushPendingTurns(interruptedAi = true)
                             try {
                                 audioTrack?.pause()
                                 audioTrack?.flush()
@@ -608,6 +695,7 @@ object StandalonePhoneSecretaryEngine {
                         }
 
                         if (sc.has("turnComplete") && sc.get("turnComplete").asBoolean) {
+                            flushPendingTurns(interruptedAi = false)
                             if (finishToolTriggered.get()) {
                                 goodbyeTurnDone.set(true)
                             }
@@ -624,7 +712,14 @@ object StandalonePhoneSecretaryEngine {
                                 val args = if (cObj.has("args") && cObj.get("args").isJsonObject) {
                                     cObj.getAsJsonObject("args")
                                 } else null
-                                val sum = args?.get("summary")?.asString?.trim().orEmpty()
+                                val sum = CallNoteVerificationEngine.sanitizeCleanText(args?.get("summary")?.asString)
+                                val actionReq = CallNoteVerificationEngine.sanitizeCleanText(args?.get("action_required")?.asString)
+                                val rahmen = if (args != null && args.has("rahmenbedingungen") && args.get("rahmenbedingungen").isJsonArray) {
+                                    args.getAsJsonArray("rahmenbedingungen")
+                                        .mapNotNull { el -> CallNoteVerificationEngine.sanitizeCleanText(el.asString).takeIf { it.isNotBlank() } }
+                                } else {
+                                    emptyList()
+                                }
                                 val urg = PhoneConciergeManager.normalizeUrgency(args?.get("urgency")?.asString)
                                 val cb = if (args != null && args.has("callback_requested")) {
                                     try { args.get("callback_requested").asBoolean } catch (_: Exception) { true }
@@ -633,12 +728,18 @@ object StandalonePhoneSecretaryEngine {
                                 if (sum.isNotBlank()) {
                                     completedSummary.set(sum)
                                 }
+                                if (actionReq.isNotBlank()) {
+                                    completedActionRequired.set(actionReq)
+                                }
+                                if (rahmen.isNotEmpty()) {
+                                    completedRahmen.set(rahmen)
+                                }
                                 completedUrgency.set(urg)
                                 completedCallback.set(cb)
-                                finishToolTriggered.set(true)
-
-                                val toolResp = buildToolResponsePacketJson(fnId, fnName, greetingName)
-                                webSocket.send(gson.toJson(toolResp))
+                                if (!finishToolTriggered.getAndSet(true)) {
+                                    val toolResp = buildToolResponsePacketJson(fnId, fnName, greetingName)
+                                    webSocket.send(gson.toJson(toolResp))
+                                }
                             }
                         }
                     }
@@ -676,7 +777,7 @@ object StandalonePhoneSecretaryEngine {
         try {
             wsRef = wsHttpClient.newWebSocket(reqBuilder.build(), listener)
 
-            val ready = withTimeoutOrNull(4_500L) { setupReady.await() } == true
+            val ready = withTimeoutOrNull(3_200L) { setupReady.await() } == true
             if (!ready) {
                 return null
             }
@@ -697,7 +798,7 @@ object StandalonePhoneSecretaryEngine {
             var finishDetectedAtMs = 0L
 
             while (scope.isActive && !sessionFinished.isCompleted) {
-                delay(250L)
+                delay(200L)
                 val now = SystemClock.uptimeMillis()
 
                 if (!isCallStillOffhook()) {
@@ -709,23 +810,86 @@ object StandalonePhoneSecretaryEngine {
 
                 if (finishToolTriggered.get()) {
                     if (finishDetectedAtMs == 0L) finishDetectedAtMs = now
-                    val audioFinished = now >= (playbackActiveUntilMs.get() + 550L)
+                    val audioFinished = now >= (playbackActiveUntilMs.get() + 450L)
                     val elapsedSinceFinish = now - finishDetectedAtMs
-                    val silentFinishTimeout = !goodbyeAudioArrived.get() && elapsedSinceFinish >= 4_500L
-                    if ((goodbyeTurnDone.get() && audioFinished) || silentFinishTimeout || elapsedSinceFinish >= 16_000L) {
+                    val silentFinishTimeout = !goodbyeAudioArrived.get() && elapsedSinceFinish >= 4_000L
+                    if ((goodbyeTurnDone.get() && audioFinished) || silentFinishTimeout || elapsedSinceFinish >= 14_000L) {
                         break
                     }
                 }
             }
 
-            val finalSummary = completedSummary.get()?.takeIf { it.isNotBlank() }
+            flushPendingTurns(interruptedAi = false)
+            val durationSec = max(1, ((SystemClock.uptimeMillis() - startedUptime) / 1000L).toInt())
+            val rawTranscript = synchronized(transcriptLines) { transcriptLines.toList() }
+
+            val initialSummary = completedSummary.get()?.takeIf { it.isNotBlank() }
                 ?: buildFallbackSummaryFromTranscript(callerFullTranscript.toString(), greetingName)
+            val initialUrgency = completedUrgency.get()
+            val initialCallback = completedCallback.get()
+            val initialRahmen = completedRahmen.get()
+            val initialAction = completedActionRequired.get()?.takeIf { it.isNotBlank() }
+                ?: if (initialCallback) "$greetingName zurückrufen." else "Zur Kenntnis nehmen."
+
+            // KI-gestützte Gegenprüfung des Verstandenen vs. Gesagten (max. 5,5s)
+            val verification = if (PhoneConciergeManager.isAutoVerifyEnabled(appCtx)) {
+                withTimeoutOrNull(5_500L) {
+                    CallNoteVerificationEngine.verifyCallNotes(
+                        context = appCtx,
+                        input = CallVerificationInput(
+                            callerName = greetingName,
+                            greetingName = greetingName,
+                            transcriptLines = rawTranscript,
+                            understoodSummary = initialSummary,
+                            understoodRahmenbedingungen = initialRahmen,
+                            understoodActionRequired = initialAction,
+                            understoodUrgency = initialUrgency,
+                            understoodCallbackRequested = initialCallback
+                        ),
+                        allowNetwork = true
+                    )
+                }
+            } else {
+                null
+            }
+
+            val useCorrected = verification != null && verification.status == CallNoteVerificationEngine.STATUS_CORRECTED
+            val finalSummary = if (useCorrected && verification!!.corrected_summary.isNotBlank()) {
+                verification.corrected_summary
+            } else {
+                initialSummary
+            }
+            val finalRahmen = if (useCorrected && !verification!!.corrected_rahmenbedingungen.isNullOrEmpty()) {
+                verification.corrected_rahmenbedingungen
+            } else {
+                initialRahmen
+            }
+            val finalAction = if (useCorrected && verification!!.corrected_action_required.isNotBlank()) {
+                verification.corrected_action_required
+            } else {
+                initialAction
+            }
+            val finalUrgency = if (useCorrected && verification!!.corrected_urgency.isNotBlank()) {
+                verification.corrected_urgency
+            } else {
+                initialUrgency
+            }
+            val finalCallback = if (useCorrected) {
+                verification!!.corrected_callback_requested
+            } else {
+                initialCallback
+            }
 
             return SecretarySessionResult(
                 summary = finalSummary,
-                urgency = completedUrgency.get(),
-                callbackRequested = completedCallback.get(),
-                usedLiveAi = true
+                urgency = finalUrgency,
+                callbackRequested = finalCallback,
+                usedLiveAi = true,
+                rahmenbedingungen = finalRahmen,
+                actionRequired = finalAction,
+                durationSeconds = durationSec,
+                transcript = rawTranscript,
+                verification = verification
             )
         } finally {
             closedFlag.set(true)
@@ -801,7 +965,7 @@ object StandalonePhoneSecretaryEngine {
                 // 2) While Funkira's 24 kHz voice is playing on speakerphone, suppress echo back into Gemini VAD.
                 val now = SystemClock.uptimeMillis()
                 val kickAt = kickoffSentUptimeMs.get()
-                if (!firstModelAudioArrived.get() && kickAt > 0L && (now - kickAt) < 1_800L) {
+                if (!firstModelAudioArrived.get() && kickAt > 0L && (now - kickAt) < OPENING_BARGE_IN_GUARD_MS) {
                     continue
                 }
                 if (now < (playbackActiveUntilMs.get() + ECHO_TAIL_GUARD_MS)) {
