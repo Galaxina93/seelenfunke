@@ -583,7 +583,7 @@ fun TasksTabContent(
 
     LaunchedEffect(Unit) {
         try {
-            val res = ServiceLocator.getInstance(context).getOrganizerApi().getTaskAssignees()
+            val res = ServiceLocator.getOrganizerApi().getTaskAssignees()
             if (res.success) {
                 assignableActors = res.data
             }
