@@ -33,16 +33,31 @@ class StageServerResilienceAndPhp85ConfigTest extends TestCase
     public function test_app_service_provider_falls_back_to_file_when_redis_dns_fails(): void
     {
         Config::set('cache.default', 'redis');
+        Config::set('cache.limiter', 'redis');
         Config::set('session.driver', 'redis');
         Config::set('queue.default', 'redis');
         Config::set('database.redis.default.host', 'redis-t4tm3u.pg-s-pis5pf.db.project.host.invalid');
 
+        // Simuliere bereits vorab gecachte RateLimiter-Facade-Instanz (wie bei Facade-Auflösung während boot())
+        \Illuminate\Support\Facades\RateLimiter::for('ota-check', fn () => \Illuminate\Cache\RateLimiting\Limit::perMinute(60));
+
         $provider = new AppServiceProvider($this->app);
         $provider->boot();
 
+        $routeProvider = new \App\Providers\RouteServiceProvider($this->app);
+        $routeProvider->boot();
+
         $this->assertSame('file', Config::get('cache.default'));
+        $this->assertSame('file', Config::get('cache.limiter'));
         $this->assertSame('file', Config::get('session.driver'));
         $this->assertSame('database', Config::get('queue.default'));
+        $this->assertFalse($this->app->resolved('redis'));
+
+        $limiterSingleton = $this->app->make(\Illuminate\Cache\RateLimiter::class);
+        $this->assertNotNull($limiterSingleton->limiter('monitor-pulse'));
+        $this->assertNotNull($limiterSingleton->limiter('api'));
+        $this->assertNotNull($limiterSingleton->limiter('ota-check'));
+        $this->assertSame($limiterSingleton, \Illuminate\Support\Facades\RateLimiter::getFacadeRoot());
     }
 
     public function test_server_twilio_bridge_normalizes_live_model_and_audio_format(): void

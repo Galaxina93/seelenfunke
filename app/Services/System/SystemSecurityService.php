@@ -284,29 +284,38 @@ class SystemSecurityService
         // DNS-Auflösung prüfen (verhindert DNS-Rebinding / Domains, die auf 127.0.0.1, 169.254.169.254 oder Docker-LAN zeigen)
         $resolvedIps = [];
         $dnsOverrides = config('services.mail_host_dns_override', []);
+        $usedCustomResolver = false;
+        $dnsCacheKey = 'safe_mail_host_ips_v1_' . sha1($cleanHost);
 
         if (self::$dnsResolver instanceof \Closure) {
+            $usedCustomResolver = true;
             $resolvedIps = (array) (self::$dnsResolver)($cleanHost);
         } elseif (is_array($dnsOverrides) && array_key_exists($cleanHost, $dnsOverrides)) {
+            $usedCustomResolver = true;
             $resolvedIps = (array) $dnsOverrides[$cleanHost];
         } else {
-            $records = @dns_get_record($cleanHost, DNS_A | DNS_AAAA);
-            if (is_array($records)) {
-                foreach ($records as $rec) {
-                    if (!empty($rec['ip']) && is_string($rec['ip'])) {
-                        $resolvedIps[] = $rec['ip'];
-                    }
-                    if (!empty($rec['ipv6']) && is_string($rec['ipv6'])) {
-                        $resolvedIps[] = $rec['ipv6'];
+            for ($attempt = 0; $attempt < 2 && empty($resolvedIps); $attempt++) {
+                if ($attempt > 0) {
+                    usleep(400000);
+                }
+                $records = @dns_get_record($cleanHost, DNS_A | DNS_AAAA);
+                if (is_array($records)) {
+                    foreach ($records as $rec) {
+                        if (!empty($rec['ip']) && is_string($rec['ip'])) {
+                            $resolvedIps[] = $rec['ip'];
+                        }
+                        if (!empty($rec['ipv6']) && is_string($rec['ipv6'])) {
+                            $resolvedIps[] = $rec['ipv6'];
+                        }
                     }
                 }
-            }
-            if (empty($resolvedIps)) {
-                $v4List = @gethostbynamel($cleanHost);
-                if (is_array($v4List)) {
-                    foreach ($v4List as $ip) {
-                        if (is_string($ip) && $ip !== '') {
-                            $resolvedIps[] = $ip;
+                if (empty($resolvedIps)) {
+                    $v4List = @gethostbynamel($cleanHost);
+                    if (is_array($v4List)) {
+                        foreach ($v4List as $ip) {
+                            if (is_string($ip) && $ip !== '') {
+                                $resolvedIps[] = $ip;
+                            }
                         }
                     }
                 }
@@ -315,13 +324,22 @@ class SystemSecurityService
 
         $resolvedIps = array_values(array_unique(array_filter($resolvedIps, fn ($ip) => is_string($ip) && trim($ip) !== '')));
 
+        if (empty($resolvedIps) && !$usedCustomResolver && !app()->environment('testing')) {
+            try {
+                $cachedIps = \Illuminate\Support\Facades\Cache::store('file')->get($dnsCacheKey);
+                if (is_array($cachedIps) && !empty($cachedIps)) {
+                    $resolvedIps = array_values(array_unique(array_filter($cachedIps, fn ($ip) => is_string($ip) && trim($ip) !== '')));
+                }
+            } catch (\Throwable) {
+            }
+        }
+
         if (empty($resolvedIps)) {
             // In PHPUnit/Testing ohne aktive Internetverbindung syntaktisch saubere Public-Domains zulassen,
             // sofern kein explizites Override auf [] gesetzt wurde; in Produktion/Stage ablehnen.
             if (
                 app()->environment('testing')
-                && !(self::$dnsResolver instanceof \Closure)
-                && !(is_array($dnsOverrides) && array_key_exists($cleanHost, $dnsOverrides))
+                && !$usedCustomResolver
             ) {
                 return true;
             }
@@ -331,6 +349,13 @@ class SystemSecurityService
         foreach ($resolvedIps as $resolvedIp) {
             if (!filter_var($resolvedIp, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
                 return false;
+            }
+        }
+
+        if (!$usedCustomResolver && !app()->environment('testing')) {
+            try {
+                \Illuminate\Support\Facades\Cache::store('file')->put($dnsCacheKey, $resolvedIps, 21600);
+            } catch (\Throwable) {
             }
         }
 

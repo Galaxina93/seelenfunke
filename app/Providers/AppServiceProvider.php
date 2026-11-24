@@ -122,19 +122,6 @@ class AppServiceProvider extends ServiceProvider
             \Laravel\Sanctum\Sanctum::usePersonalAccessTokenModel(\App\Models\System\PersonalAccessToken::class);
         }
 
-        \Illuminate\Support\Facades\RateLimiter::for('ota-check', function (\Illuminate\Http\Request $request) {
-            return \Illuminate\Cache\RateLimiting\Limit::perMinute(60)
-                ->by('ota-check:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
-        });
-        \Illuminate\Support\Facades\RateLimiter::for('ota-download', function (\Illuminate\Http\Request $request) {
-            return \Illuminate\Cache\RateLimiting\Limit::perMinute(20)
-                ->by('ota-download:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
-        });
-        \Illuminate\Support\Facades\RateLimiter::for('ota-publish', function (\Illuminate\Http\Request $request) {
-            return \Illuminate\Cache\RateLimiting\Limit::perMinute(10)
-                ->by('ota-publish:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
-        });
-
         if (class_exists(\Livewire\Livewire::class)) {
             \Livewire\Livewire::addPersistentMiddleware([
                 \App\Http\Middleware\EnforcePasswordChange::class,
@@ -288,6 +275,35 @@ class AppServiceProvider extends ServiceProvider
                 ? (rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . '/sf_redis_cb_' . md5((string) $redisHost . '|' . (string) Config::get('database.redis.default.port', 6379)) . '.state')
                 : null;
 
+            $bindResolvedRedisIp = static function (string $ip): void {
+                Config::set('database.redis.default.host', $ip);
+                Config::set('database.redis.cache.host', $ip);
+
+                foreach (['database.redis.default.url', 'database.redis.cache.url'] as $urlKey) {
+                    $rawUrl = Config::get($urlKey);
+                    if (is_string($rawUrl) && $rawUrl !== '') {
+                        $parsedHost = parse_url($rawUrl, PHP_URL_HOST);
+                        if (is_string($parsedHost) && $parsedHost !== '' && !filter_var($parsedHost, FILTER_VALIDATE_IP)) {
+                            Config::set($urlKey, str_replace($parsedHost, $ip, $rawUrl));
+                        }
+                    }
+                }
+
+                try {
+                    if (app()->resolved('redis')) {
+                        app()->forgetInstance('redis');
+                        app()->forgetInstance('redis.connection');
+                        if (app()->resolved('cache')) {
+                            app('cache')->forgetDriver('redis');
+                        }
+                        if (app()->resolved('session')) {
+                            app()->forgetInstance('session.store');
+                        }
+                    }
+                } catch (\Throwable) {
+                }
+            };
+
             $applyRedisFileFallback = static function (): void {
                 if (Config::get('cache.default') === 'redis') {
                     Config::set('cache.default', 'file');
@@ -312,7 +328,13 @@ class AppServiceProvider extends ServiceProvider
                         app('cache')->forgetDriver('redis');
                     }
                     app()->forgetInstance('cache.store');
+                    app()->forgetInstance('redis');
+                    app()->forgetInstance('redis.connection');
+                    if (app()->resolved('session')) {
+                        app()->forgetInstance('session.store');
+                    }
                     app()->forgetInstance(\Illuminate\Cache\RateLimiter::class);
+                    \Illuminate\Support\Facades\RateLimiter::clearResolvedInstances();
                 } catch (\Throwable) {
                 }
             };
@@ -331,8 +353,7 @@ class AppServiceProvider extends ServiceProvider
                             if ($quickDns === $redisHost) {
                                 $skipRedisNetworkCheck = false;
                             } else {
-                                Config::set('database.redis.default.host', $quickDns);
-                                Config::set('database.redis.cache.host', $quickDns);
+                                $bindResolvedRedisIp($quickDns);
                                 $skipRedisNetworkCheck = true;
                             }
                         } else {
@@ -349,8 +370,7 @@ class AppServiceProvider extends ServiceProvider
                         if ($resolved === $redisHost) {
                             throw new \RuntimeException("DNS resolution failed for Redis host: {$redisHost}");
                         }
-                        Config::set('database.redis.default.host', $resolved);
-                        Config::set('database.redis.cache.host', $resolved);
+                        $bindResolvedRedisIp($resolved);
                     }
                     Cache::store('redis')->get('__redis_health_check__');
                     if ($cbFile !== null) {
@@ -401,6 +421,21 @@ class AppServiceProvider extends ServiceProvider
                 }
             }
         }
+
+        // 2c. OTA-RateLimiter NACH dem Redis-Failover-Block registrieren, damit ein eventueller
+        // RateLimiter-Singleton-Flush die benannten Limiter niemals vor RouteServiceProvider::boot() verwirft!
+        \Illuminate\Support\Facades\RateLimiter::for('ota-check', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(60)
+                ->by('ota-check:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        });
+        \Illuminate\Support\Facades\RateLimiter::for('ota-download', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(20)
+                ->by('ota-download:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        });
+        \Illuminate\Support\Facades\RateLimiter::for('ota-publish', function (\Illuminate\Http\Request $request) {
+            return \Illuminate\Cache\RateLimiting\Limit::perMinute(10)
+                ->by('ota-publish:' . ($request->user()?->getAuthIdentifier() ?: $request->ip()));
+        });
 
         // 3. Shop-Settings & Stripe Config laden
         // WICHTIG: Verhindert, dass Konsolen-Befehle (wie artisan) versuchen die DB abzufragen,
