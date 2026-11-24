@@ -628,6 +628,7 @@ class TicketDeliverableService
 
                 $relPath = (string) ($att['rel_path'] ?? '');
                 $rawAttUrl = (string) ($att['url'] ?? '');
+                $sizeBytes = max(0, (int) ($att['size_bytes'] ?? 0));
                 if (preg_match('#^/api/(?:funkenwerk/ag-inbox|system/ag-direct-inbox)/([A-Za-z0-9_-]+)/attachment$#', $rawAttUrl, $agUrlMatch)) {
                     $agItemId = $agUrlMatch[1];
                     $rawAttUrl = "/admin/ai/ag-attachment/{$agItemId}";
@@ -640,16 +641,16 @@ class TicketDeliverableService
                         } catch (\Throwable) {
                         }
                     }
-                } elseif (preg_match('#^/admin/ai/ag-attachment/([A-Za-z0-9_-]+)$#', $rawAttUrl, $agAdminMatch) && ((int) ($att['size_bytes'] ?? 0)) <= 0) {
+                } elseif (preg_match('#^/admin/ai/ag-attachment/([A-Za-z0-9_-]+)$#', $rawAttUrl, $agAdminMatch) && $sizeBytes <= 0) {
                     try {
                         $resolvedAg = app(\App\Services\System\AntigravityDirectInboxService::class)->resolveAttachmentForStreaming($agAdminMatch[1]);
                         if ($resolvedAg !== null && !empty($resolvedAg['path']) && is_file($resolvedAg['path'])) {
-                            $att['size_bytes'] = (int) filesize($resolvedAg['path']);
+                            $sizeBytes = (int) filesize($resolvedAg['path']);
+                            $att['size_bytes'] = $sizeBytes;
                         }
                     } catch (\Throwable) {
                     }
                 }
-                $sizeBytes = (int) ($att['size_bytes'] ?? ($sizeBytes ?? 0));
                 if ($sizeBytes <= 0 && $relPath !== '' && $disk->exists($relPath)) {
                     $sizeBytes = (int) $disk->size($relPath);
                 }

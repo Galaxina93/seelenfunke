@@ -152,6 +152,36 @@ class AntigravityDirectInboxService
     }
 
     /**
+     * Stellt sicher, dass 3D-Modell-, 3D-Druck-, Konstruktions-, Regal-, Halterungs- und
+     * Produkt-Konfigurator-Aufträge automatisch dem Webportal/Shop-Kanal ('shop') zugeordnet werden
+     * statt dem eingefrorenen Werkstatt-Mini-PC-Kanal ('minipc').
+     */
+    public function resolveEffectiveChannel(mixed $rawChannel, string $title = '', string $body = ''): string
+    {
+        $channel = $this->normalizeChannel($rawChannel);
+        $combined = mb_strtolower(trim($title . ' ' . $body), 'UTF-8');
+        if ($combined === '') {
+            return $channel;
+        }
+
+        $is3dConstructionOrShopModel = (bool) preg_match(
+            '/\b(3d[-\s]*(?:modell\w*|druck\w*|konstruktion\w*|entwurf\w*|vorlage\w*|halter\w*|regal\w*|adapter\w*)|konstruktion\w*|klicksystem\w*|bambu\w*|\.stl\b|\.3mf\b|\.glb\b|cad\b|openscad\w*|wandregal\w*|produktmodell\w*)\b/iu',
+            $combined
+        );
+
+        $isExplicitMiniPcOsIssue = (bool) preg_match(
+            '/\b(kiosk\w*|xrdp|rdp\b|192\.168\.188\.151|funkenwerk-os|linux[-\s]*passwort|bildschirm\s+schwarz|mini[-\s]*pc\s+(?:absturz|fehler|offline|verbind\w*))\b/iu',
+            $combined
+        );
+
+        if ($is3dConstructionOrShopModel && !$isExplicitMiniPcOsIssue && in_array($channel, ['minipc', 'leitung'], true)) {
+            return 'shop';
+        }
+
+        return $channel;
+    }
+
+    /**
      * Normalisiert und validiert die Checkliste (Array oder JSON-String eines Arrays).
      *
      * @return array<int, string>
@@ -473,7 +503,7 @@ class AntigravityDirectInboxService
                 $mode = 'concept';
             }
 
-            $channel = $this->normalizeChannel($payload['channel'] ?? 'leitung');
+            $channel = $this->resolveEffectiveChannel($payload['channel'] ?? 'leitung', $title, $body);
 
             $sourceRaw = isset($payload['source']) ? trim((string) $payload['source']) : '';
             $source = ($sourceRaw !== '' && preg_match('/^[A-Za-z0-9_-]{2,40}$/', $sourceRaw))

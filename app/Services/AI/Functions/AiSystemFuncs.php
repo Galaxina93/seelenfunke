@@ -922,7 +922,7 @@ trait AiSystemFuncs
                         ],
                         'channel' => [
                             'type' => 'string',
-                            'description' => 'Ziel-Kanal im Antigravity-Orchester: leitung (Standard), shop (Laravel/Produkte/Konfigurator), android (Android-App/Widgets), minipc (Mini-PC/Funkenwerk/Laser), buchhaltung (Buchhaltung/Belege/Marketing) oder new.',
+                            'description' => 'Ziel-Kanal im Antigravity-Orchester: leitung (Standard), shop (Webportal/Shop, Produkte, Konfigurator & ALLE 3D-Modelle/3D-Druck-Konstruktionen!), android (Android-App/Widgets), minipc (NUR reine Werkstatt-Mini-PC Linux/Kiosk-Technik, NIEMALS für 3D-Modelle/Konstruktionen!), buchhaltung (Buchhaltung/Belege/Marketing) oder new.',
                             'enum' => ['leitung', 'shop', 'android', 'minipc', 'buchhaltung', 'new']
                         ],
                         'attachment_path' => [
@@ -4890,14 +4890,14 @@ trait AiSystemFuncs
 
             $rawChannel = strtolower(trim((string) ($args['channel'] ?? 'leitung')));
             $mappedChannel = match ($rawChannel) {
-                'shop', 'laravel', 'konfigurator', 'produkte' => 'shop',
+                'shop', 'laravel', 'konfigurator', 'produkte', 'portal', 'webportal', '3d', '3d-modell', '3d-druck', 'konstruktion', 'cad' => 'shop',
                 'android', 'app', 'mobile', 'widget', 'widgets' => 'android',
                 'minipc', 'mini-pc', 'mini_pc', 'funkenwerk', 'laser', 'werkstatt' => 'minipc',
                 'buchhaltung', 'accounting', 'finanzen', 'belege', 'marketing' => 'buchhaltung',
                 'new', 'neu' => 'new',
                 default => 'leitung',
             };
-            $channel = $inbox->normalizeChannel($mappedChannel);
+            $channel = $inbox->resolveEffectiveChannel($mappedChannel, $safeTitle, $safeBody);
 
             $rawMode = strtolower(trim((string) ($args['execution_mode'] ?? 'direct')));
             $mode = in_array($rawMode, \App\Services\System\AntigravityDirectInboxService::ALLOWED_EXECUTION_MODES, true)

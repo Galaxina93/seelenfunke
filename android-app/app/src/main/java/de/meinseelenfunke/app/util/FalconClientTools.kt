@@ -974,7 +974,7 @@ object FalconClientTools {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Optionaler Ziel-Kanal: 'leitung' für abteilungsübergreifende Themen (Standard), 'shop' für Shop/Produkte/Konfigurator, 'android' für Android-App/Widgets, 'minipc' für Mini-PC/Laser/3D-Stadt Funkenwerk, 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
+                                "Optionaler Ziel-Kanal: 'leitung' für abteilungsübergreifende Themen (Standard), 'shop' für Webportal/Shop/Produkte/Konfigurator sowie ALLE 3D-Modelle & 3D-Druck-Konstruktionen, 'android' für Android-App/Widgets, 'minipc' NUR für reine Werkstatt-Mini-PC Linux/Kiosk-Technik (NIEMALS für 3D-Modelle/Konstruktionen!), 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
                             )
                         })
                         add("attach_captured_photo", JsonObject().apply {
@@ -995,7 +995,7 @@ object FalconClientTools {
                             addProperty("type", "STRING")
                             addProperty(
                                 "description",
-                                "Optionaler Ziel-Kanal: 'leitung' für abteilungsübergreifende Themen (Standard), 'shop' für Shop/Produkte/Konfigurator, 'android' für Android-App/Widgets, 'minipc' für Mini-PC/Laser/3D-Stadt Funkenwerk, 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
+                                "Optionaler Ziel-Kanal: 'leitung' für abteilungsübergreifende Themen (Standard), 'shop' für Webportal/Shop/Produkte/Konfigurator sowie ALLE 3D-Modelle & 3D-Druck-Konstruktionen, 'android' für Android-App/Widgets, 'minipc' NUR für reine Werkstatt-Mini-PC Linux/Kiosk-Technik (NIEMALS für 3D-Modelle/Konstruktionen!), 'buchhaltung' für Buchhaltung/Belege/Marketing, 'new' wenn Alina explizit einen ganz neuen Einzel-Chat wünscht."
                             )
                         })
                     }

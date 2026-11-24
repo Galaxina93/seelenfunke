@@ -463,4 +463,37 @@ class AntigravityDirectInboxTest extends TestCase
         $this->getJson("/api/system/ag-direct-inbox/{$id1}/attachment")->assertStatus(404);
         $this->deleteJson("/api/system/ag-direct-inbox/{$id1}")->assertStatus(404);
     }
+
+    public function test_3d_model_and_construction_requests_route_to_shop_instead_of_minipc_and_preserve_android_source(): void
+    {
+        $admin = $this->createAdmin();
+        Sanctum::actingAs($admin, ['*']);
+
+        $resp = $this->postJson('/api/system/ag-direct-inbox', [
+            'channel' => 'minipc',
+            'source' => 'android_app',
+            'title' => 'Konzept: 3D-Modell Klicksystem-Regal für Bad/Waschmittelwand',
+            'body' => 'Bitte als modulare 3D-Druck-Konstruktion (.stl / .3mf) für Bambu Lab anlegen.',
+            'execution_mode' => 'concept',
+        ]);
+
+        $resp->assertStatus(201);
+        $item = $resp->json('data');
+        $this->assertSame('shop', $item['channel'] ?? null);
+        $this->assertSame('android_app', $item['source'] ?? null);
+
+        $ticket = \App\Services\AI\AntigravityUniverseTicketBridge::syncInboxItem($item, 'sync');
+        $this->assertNotNull($ticket);
+        $this->assertSame('android_app', $ticket->source_channel);
+        $this->assertSame('shop', $ticket->action_payload['ag_channel'] ?? null);
+
+        // Echte Mini-PC Kiosk/RDP-Technik bleibt weiterhin auf 'minipc'
+        $kioskItem = $this->inboxService->enqueueMessage([
+            'channel' => 'minipc',
+            'source' => 'workshop_minipc',
+            'title' => 'Mini-PC xrdp Bildschirm schwarz auf 192.168.188.151',
+            'execution_mode' => 'direct',
+        ])['item'];
+        $this->assertSame('minipc', $kioskItem['channel']);
+    }
 }

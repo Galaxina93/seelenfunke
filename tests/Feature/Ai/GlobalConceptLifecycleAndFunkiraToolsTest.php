@@ -101,4 +101,50 @@ class GlobalConceptLifecycleAndFunkiraToolsTest extends TestCase
         $this->assertSame('error', $denied['status']);
         $this->assertNotContains('concept_manage', AgentSkillBudgetGuard::IMMUTABLE_FUNKI_TOOLS);
     }
+
+    public function test_ag_inbox_attachment_without_size_bytes_does_not_crash_deliverables_or_live_credentials(): void
+    {
+        Storage::fake('workspace');
+        config(['services.gemini.key' => 'test-gemini-live-key']);
+        $this->seed(\Database\Seeders\AiCompanyStructureSeeder::class);
+        $this->seed(\Database\Seeders\AiAgentSeeder::class);
+
+        $admin = Admin::factory()->create();
+        $this->actingAs($admin, 'admin');
+
+        $ticket = \App\Models\Ai\AiUniverseTicket::create([
+            'ticket_number' => 'SF-9901',
+            'title' => 'AG Attachment Test',
+            'status' => \App\Models\Ai\AiUniverseTicket::STATUS_NEW,
+            'priority' => 'normal',
+            'ticket_type' => 'ag_direct',
+            'is_business' => true,
+            'source_channel' => 'android_app',
+            'environment_tier' => 'TESTING',
+            'last_activity_at' => now(),
+        ]);
+
+        AiUniverseTicketMessage::create([
+            'ticket_id' => $ticket->id,
+            'sender_role' => 'user',
+            'sender_name' => 'Alina',
+            'content' => 'Anhang ohne size_bytes',
+            'attachments' => [[
+                'name' => 'foto.jpg',
+                'url' => '/api/funkenwerk/ag-inbox/ag_20261124_test_missing_size/attachment',
+                'category' => 'image',
+            ]],
+        ]);
+
+        $res = TicketDeliverableService::collectAllTicketDeliverables('all', 'all', '');
+        $this->assertSame(1, $res['stats']['active_count']);
+        $this->assertSame('/admin/ai/ag-attachment/ag_20261124_test_missing_size', $res['items'][0]['url']);
+
+        $liveResp = $this->actingAs($admin, 'admin')
+            ->getJson('/api/ai/live-credentials?client=android_native');
+
+        $liveResp->assertOk()
+            ->assertJsonPath('agent_name', 'Funkira')
+            ->assertJsonPath('voice_name', 'Aoede');
+    }
 }

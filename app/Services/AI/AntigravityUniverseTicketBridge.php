@@ -38,7 +38,10 @@ class AntigravityUniverseTicketBridge
         if (str_contains($src, 'live')) {
             return 'android_live_call';
         }
-        if (str_contains($src, 'minipc') || $agChannel === 'minipc') {
+        if (str_contains($src, 'android')) {
+            return 'android_app';
+        }
+        if (str_contains($src, 'minipc')) {
             return 'workshop_minipc';
         }
         if (str_contains($src, 'desktop') || str_contains($src, 'funkenwerk')) {
@@ -46,6 +49,9 @@ class AntigravityUniverseTicketBridge
         }
         if (str_contains($src, 'web') || str_contains($src, 'portal')) {
             return 'web_portal';
+        }
+        if ($agChannel === 'minipc') {
+            return 'workshop_minipc';
         }
 
         return 'android_app';
