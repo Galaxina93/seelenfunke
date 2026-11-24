@@ -886,12 +886,30 @@ class SentinelTriageService
             || str_contains($actionIdLower, 'health_fail');
         $targetComponent = strtolower(trim((string) ($payload['component'] ?? $payload['service'] ?? $payload['pillar'] ?? '')));
 
+        // Wenn ein Fingerprint kürzlich explizit von Antigravity behoben wurde ('resolved'),
+        // beginnt ab diesem Rollout-Zeitpunkt ein frisches Rezidiv-Fenster (statt vor-Fix Auto-Heals weiterzuzählen).
+        $latestAntigravityResolution = SystemLog::query()
+            ->where('status', 'resolved')
+            ->where('finished_at', '>=', $cutoff)
+            ->where('payload->fingerprint', $fingerprint)
+            ->max('finished_at');
+        if (!empty($latestAntigravityResolution)) {
+            try {
+                $resTime = Carbon::parse($latestAntigravityResolution)->addSecond();
+                if ($resTime->greaterThan($cutoff)) {
+                    $cutoff = $resTime;
+                }
+            } catch (\Throwable) {
+            }
+        }
+
         $candidates = SystemLog::autoHealedEntries()
             ->where('id', '!=', $log->id)
             ->where(function ($q) use ($cutoff) {
                 $q->where('finished_at', '>=', $cutoff)
-                    ->orWhere('started_at', '>=', $cutoff)
-                    ->orWhere('created_at', '>=', $cutoff);
+                    ->orWhere(function ($q2) use ($cutoff) {
+                        $q2->whereNull('finished_at')->where('created_at', '>=', $cutoff);
+                    });
             })
             ->where(function ($q) use ($fingerprint, $log, $isHealthOrWatchtower) {
                 $q->where('payload->fingerprint', $fingerprint);

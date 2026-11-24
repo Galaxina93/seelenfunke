@@ -761,6 +761,24 @@ class SentinelSelfHealingAndInboxTest extends TestCase
         $thirdEntry->refresh();
         $this->assertSame('error', $thirdEntry->status);
         $this->assertSame('queued_for_antigravity', $thirdEntry->triageState());
+
+        // Sobald Antigravity das Dossier explizit auflöst ('resolved'), startet ab diesem Zeitpunkt ein frisches Rezidiv-Fenster:
+        // Ein einzelner späterer WLAN-/Pulse-Aussetzer nach dem Fix darf wieder normal in Stufe 1 geheilt werden statt sofort als Rezidiv #3 zu eskalieren.
+        $sentinel->resolvePoolItems(fingerprints: [$sharedFp], resolvedBy: 'Antigravity');
+        $postFixEntry = SystemLog::create([
+            'type' => 'system',
+            'action_id' => 'system:http_419_csrf',
+            'title' => 'Einmaliger Ablauf nach Fix',
+            'message' => 'CSRF token mismatch.',
+            'status' => 'warning',
+            'payload' => ['fingerprint' => $sharedFp, 'occurrences_count' => 1],
+            'started_at' => now()->addSecond(),
+            'finished_at' => now()->addSecond(),
+        ]);
+
+        $sentinel->runTriageCycle(probeBridges: false, allowAiEnrichment: false);
+        $postFixEntry->refresh();
+        $this->assertSame('auto_healed', $postFixEntry->triageState());
     }
 
     public function test_scheduler_heartbeat_persists_across_cache_flush_without_false_watchtower_alarm(): void
