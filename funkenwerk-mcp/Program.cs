@@ -1383,7 +1383,7 @@ namespace FunkenwerkMcp
             var sb = new StringBuilder();
             sb.AppendLine($"[SEELENFUNKE SELBSTHEILUNGS-WÄCHTER | Offene Dossiers: {openPoolCount} | Lokale Fehler-Logs: {severeLogFilesCount}]");
             sb.AppendLine();
-            sb.AppendLine("Der stündliche C#-Wächter (`--sentinel-hourly-guard`) hat Stage, Mini-PC, Windows & Lokal synchronisiert und echte ungelöste Befunde erkannt:");
+            sb.AppendLine("Der 6-Stunden-C#-Wächter (`--sentinel-hourly-guard`) hat Stage, Mini-PC, Windows & Lokal synchronisiert und echte ungelöste Befunde erkannt:");
             foreach (string line in summaryLines)
             {
                 sb.AppendLine(line);
@@ -3481,12 +3481,14 @@ namespace FunkenwerkMcp
             new
             {
                 name = "tasks_list",
-                description = "Ruft Aufgaben und Aufgabenlisten synchron aus dem Seelenfunke-Ökosystem (Webportal + Funkenwerk Windows + Android App) ab.",
+                description = "Ruft Aufgaben-Tickets (Meine Tickets, Offene Tickets, alle 4 Status) und Aufgabenlisten synchron aus dem Seelenfunke-Oekosystem (Webportal + Funkenwerk Windows + Android App) ab.",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
                   "properties": {
-                    "onlyOpen": { "type": "boolean", "description": "Nur offene Aufgaben anzeigen (Standard: true)." },
+                    "onlyOpen": { "type": "boolean", "description": "Nur aktive Tickets anzeigen (Standard: true)." },
+                    "onlyMine": { "type": "boolean", "description": "Optional: true = nur Kachel Meine Tickets, false = nur Offene Tickets." },
+                    "status": { "type": "string", "enum": ["open", "waiting", "in_progress", "escalated", "completed"], "description": "Filter nach Status (open = Offen, waiting = Warten, in_progress = In Bearbeitung, completed = Erledigt, escalated = Eskaliert)." },
                     "priority": { "type": "string", "enum": ["hoch", "mittel", "niedrig", "low", "normal", "high", "urgent"] },
                     "listName": { "type": "string" },
                     "search": { "type": "string" },
@@ -3499,19 +3501,25 @@ namespace FunkenwerkMcp
             new
             {
                 name = "tasks_manage",
-                description = "Erstellt, aktualisiert, erledigt (toggle), ergänzt Unteraufgaben (subtask) oder löscht Aufgaben synchron für Webportal, Funkenwerk Windows und Android App.",
+                description = "Verwaltet Aufgaben-Tickets (create, update, set_status, set_mine, get_messages, add_message, edit_message, resolve_escalation, toggle, subtask, delete) inklusive Kachel-Verschiebung ohne Statusaenderung, 5-Minuten-Chat-Anpassung und Kalender-Zeitslot.",
                 inputSchema = JsonNode.Parse("""
                 {
                   "type": "object",
                   "properties": {
-                    "action": { "type": "string", "enum": ["create", "update", "toggle", "subtask", "delete"] },
-                    "taskId": { "type": "string", "description": "Erforderlich bei update, toggle, subtask, delete." },
-                    "title": { "type": "string", "description": "Aufgabentitel (erforderlich bei create und subtask)." },
+                    "action": { "type": "string", "enum": ["create", "update", "set_status", "set_mine", "get_messages", "add_message", "edit_message", "resolve_escalation", "toggle", "subtask", "delete"] },
+                    "taskId": { "type": "string", "description": "Erforderlich bei update, set_status, set_mine, get_messages, add_message, edit_message, resolve_escalation, toggle, subtask, delete." },
+                    "messageId": { "type": "string", "description": "Erforderlich bei edit_message (innerhalb von 5 Minuten nach Erstellung)." },
+                    "title": { "type": "string", "description": "Ticket-Titel (erforderlich bei create und subtask)." },
+                    "status": { "type": "string", "enum": ["open", "waiting", "in_progress", "completed"], "description": "Ticket-Status (open = Offen, waiting = Warten, in_progress = In Bearbeitung, completed = Erledigt)." },
+                    "isMine": { "type": "boolean", "description": "true = Kachel Meine Tickets, false = Kachel Offene Tickets (Status bleibt bei set_mine unveraendert)." },
+                    "position": { "type": "integer", "description": "Optionale 0-basierte Reihenfolge-Position." },
                     "priority": { "type": "string", "enum": ["hoch", "mittel", "niedrig", "low", "normal", "high", "urgent"] },
-                    "listIdOrAlias": { "type": "string", "description": "z. B. 'default', 'my_day', 'important', 'planned' oder Listen-UUID." },
+                    "listIdOrAlias": { "type": "string", "description": "z. B. 'default' oder Listen-UUID." },
                     "listName": { "type": "string" },
-                    "relevantFrom": { "type": "string", "description": "Fälligkeits-/Startdatum YYYY-MM-DD." },
-                    "notes": { "type": "string" },
+                    "relevantFrom": { "type": "string", "description": "Faelligkeits-/Startdatum YYYY-MM-DD (Pflicht bei resolve_escalation)." },
+                    "dueTime": { "type": "string", "description": "Optionale Uhrzeit HH:MM fuer direkte Kalender-Zeitslot-Planung." },
+                    "durationMinutes": { "type": "integer", "description": "Optionale Dauer in Minuten fuer den Kalender-Zeitslot (15-720, Standard: 60)." },
+                    "notes": { "type": "string", "description": "Notiz bzw. Chat-Nachricht (Pflicht bei add_message, edit_message und resolve_escalation)." },
                     "isCompleted": { "type": "boolean" },
                     "environment": { "type": "string", "enum": ["active", "local", "stage", "live"] }
                   },
@@ -4153,7 +4161,9 @@ namespace FunkenwerkMcp
                 case "tasks_list":
                     return await McpOrganizerClient.ListTasksAsync(
                         onlyOpen: GetBool(args, "onlyOpen", true),
+                        onlyMine: args["onlyMine"] != null ? args["onlyMine"]!.GetValue<bool>() : null,
                         priority: GetOptString(args, "priority"),
+                        status: GetOptString(args, "status"),
                         listName: GetOptString(args, "listName"),
                         search: GetOptString(args, "search"),
                         environment: GetOptString(args, "environment") ?? "active");
@@ -4164,9 +4174,16 @@ namespace FunkenwerkMcp
                         taskId: GetOptString(args, "taskId"),
                         title: GetOptString(args, "title"),
                         priority: GetOptString(args, "priority"),
+                        status: GetOptString(args, "status"),
+                        isMine: args["isMine"] != null ? args["isMine"]!.GetValue<bool>() : null,
+                        assigneeKey: GetOptString(args, "assigneeKey"),
+                        messageId: GetOptString(args, "messageId"),
+                        position: args["position"] != null ? args["position"]!.GetValue<int>() : null,
                         listIdOrAlias: GetOptString(args, "listIdOrAlias") ?? "default",
                         listName: GetOptString(args, "listName"),
                         relevantFrom: GetOptString(args, "relevantFrom"),
+                        dueTime: GetOptString(args, "dueTime"),
+                        durationMinutes: args["durationMinutes"] != null ? args["durationMinutes"]!.GetValue<int>() : null,
                         notes: GetOptString(args, "notes", maxLen: 8192),
                         isCompleted: args["isCompleted"] != null ? args["isCompleted"]!.GetValue<bool>() : null,
                         environment: GetOptString(args, "environment") ?? "active");

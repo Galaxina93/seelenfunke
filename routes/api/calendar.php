@@ -104,30 +104,46 @@ Route::prefix('funki/calendar')->group(function () {
             }
         }
 
-        // Include scheduled To-Do tasks (matching /admin/calender)
+        // Include scheduled To-Do tasks (matching /admin/calender; employee-delegated tickets stay out of executive calendar)
         if (class_exists(\App\Models\Management\ManagementTask::class)) {
-            $tasksWithDueDate = \App\Models\Management\ManagementTask::whereNotNull('relevant_from')
+            $calTasksQuery = \App\Models\Management\ManagementTask::whereNotNull('relevant_from')
                 ->whereBetween('relevant_from', [$start, $end])
                 ->where('is_archived', false)
-                ->whereNull('parent_id')
-                ->get();
+                ->whereNull('parent_id');
+            if (\Illuminate\Support\Facades\Schema::hasColumn('management_tasks', 'assignee_type')) {
+                $calTasksQuery->where(function ($q) {
+                    $q->whereNull('assignee_type')->orWhere('assignee_type', '!=', 'employee');
+                });
+            }
+            $tasksWithDueDate = $calTasksQuery->get();
 
             foreach ($tasksWithDueDate as $task) {
                 if (!$task->relevant_from) continue;
+                $hasTime = method_exists($task, 'hasExplicitTime') && $task->hasExplicitTime();
+                $startDt = $hasTime ? $task->getCalendarStartDateTime() : $task->relevant_from->copy()->startOfDay();
+                $endDt = $hasTime ? $task->getCalendarEndDateTime() : $task->relevant_from->copy()->endOfDay();
+                $statusBadge = $task->is_completed
+                    ? 'Erledigt'
+                    : \App\Models\Management\ManagementTask::statusLabelFor($task->status) . ($task->is_escalated ? ' · Eskaliert' : '');
+
                 $expandedEvents->push([
                     'id' => 'task_' . $task->id,
                     'master_id' => 'task_' . $task->id,
-                    'title' => '📋 ' . $task->title,
-                    'start' => $task->relevant_from->copy()->startOfDay()->toIso8601String(),
-                    'end' => $task->relevant_from->copy()->endOfDay()->toIso8601String(),
-                    'is_all_day' => true,
+                    'title' => ($task->is_escalated ? '⚠️ ' : '🎫 ') . $task->title,
+                    'start' => $startDt->toIso8601String(),
+                    'end' => $endDt->toIso8601String(),
+                    'is_all_day' => !$hasTime,
                     'category' => 'task',
-                    'description' => 'Aufgabe: ' . $task->title . ($task->is_completed ? ' (Erledigt)' : ' (Offen)'),
+                    'description' => 'Ticket: ' . $task->title . ' (' . $statusBadge . ')',
                     'recurrence' => 'none',
                     'recurrence_end_date' => null,
                     'reminder_minutes' => null,
-                    'priority' => ($task->priority === 'hoch' || $task->priority === 'high') ? 'high' : 'low',
-                    'is_task' => true
+                    'priority' => ($task->is_escalated || $task->priority === 'hoch' || $task->priority === 'high') ? 'high' : 'low',
+                    'is_task' => true,
+                    'task_status' => $task->status ?? 'open',
+                    'due_time' => $task->due_time,
+                    'duration_minutes' => (int) ($task->duration_minutes ?: 60),
+                    'is_escalated' => (bool) $task->is_escalated,
                 ]);
             }
         }
@@ -199,10 +215,24 @@ Route::prefix('funki/calendar')->group(function () {
             $taskId = substr((string)$id, 5);
             $task = \App\Models\Management\ManagementTask::findOrFail($taskId);
             if ($request->filled('start')) {
-                $task->relevant_from = Carbon::parse($request->input('start'))->setTimezone(config('app.timezone'));
+                $parsedStart = Carbon::parse($request->input('start'))->setTimezone(config('app.timezone'));
+                $task->relevant_from = $parsedStart->copy()->startOfDay();
+                $isAllDayFlag = filter_var($request->input('is_all_day', false), FILTER_VALIDATE_BOOLEAN);
+                if ($isAllDayFlag) {
+                    $task->due_time = null;
+                } elseif ($parsedStart->format('H:i:s') !== '00:00:00' || $request->has('is_all_day')) {
+                    $task->due_time = $parsedStart->format('H:i');
+                    if ($request->filled('end')) {
+                        $parsedEnd = Carbon::parse($request->input('end'))->setTimezone(config('app.timezone'));
+                        $diffMin = (int) $parsedStart->diffInMinutes($parsedEnd, false);
+                        if ($diffMin >= 15 && $diffMin <= 720) {
+                            $task->duration_minutes = $diffMin;
+                        }
+                    }
+                }
             }
             if ($request->filled('title')) {
-                $cleanTitle = preg_replace('/^📋\s*/u', '', (string)$request->input('title'));
+                $cleanTitle = preg_replace('/^(?:📋|🎫|⚠️)\s*/u', '', (string)$request->input('title'));
                 if ($cleanTitle !== '') {
                     $task->title = $cleanTitle;
                 }

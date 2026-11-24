@@ -7,6 +7,7 @@ import de.meinseelenfunke.app.data.api.ManagementDayRoutine
 import de.meinseelenfunke.app.data.api.ManagementDayRoutineStep
 import de.meinseelenfunke.app.data.api.ManagementTask
 import de.meinseelenfunke.app.data.api.ManagementTaskList
+import de.meinseelenfunke.app.data.api.ManagementTaskMessageDto
 import de.meinseelenfunke.app.data.api.ManagementShoppingItem
 import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.di.ServiceLocator
@@ -36,6 +37,12 @@ class OrganizerViewModel : ViewModel() {
 
     private val _tasks = MutableStateFlow<List<ManagementTask>>(emptyList())
     val tasks: StateFlow<List<ManagementTask>> = _tasks.asStateFlow()
+
+    private val _taskMessages = MutableStateFlow<List<ManagementTaskMessageDto>>(emptyList())
+    val taskMessages: StateFlow<List<ManagementTaskMessageDto>> = _taskMessages.asStateFlow()
+
+    private val _taskActionError = MutableStateFlow<String?>(null)
+    val taskActionError: StateFlow<String?> = _taskActionError.asStateFlow()
 
     private val _routines = MutableStateFlow<List<ManagementDayRoutine>>(emptyList())
     val routines: StateFlow<List<ManagementDayRoutine>> = _routines.asStateFlow()
@@ -164,19 +171,155 @@ class OrganizerViewModel : ViewModel() {
         isCompleted: Boolean? = null,
         relevantFrom: String? = null,
         aiPlan: String? = null,
-        taskListId: String? = null
+        taskListId: String? = null,
+        dueTime: String? = null,
+        durationMinutes: Int? = null,
+        status: String? = null
     ) {
         viewModelScope.launch {
-            repository.updateTask(id, title, priority, isCompleted, relevantFrom, aiPlan, taskListId).onSuccess {
+            repository.updateTask(
+                id, title, priority, isCompleted, relevantFrom, aiPlan, taskListId, dueTime, durationMinutes, status
+            ).onSuccess {
+                loadAllOrganizerData(showLoading = false)
+            }.onFailure { err ->
+                _taskActionError.value = err.localizedMessage
+            }
+        }
+    }
+
+    fun setTaskStatus(id: String, status: String) {
+        viewModelScope.launch {
+            _taskActionError.value = null
+            repository.updateTaskStatus(id, status).onSuccess { updated ->
+                _tasks.value = _tasks.value.map { if (it.id == id) updated else it }
+                loadAllOrganizerData(showLoading = false)
+                loadTaskMessages(id)
+            }.onFailure {
+                _taskActionError.value = "Eskaliertes Ticket: Bitte neues Zieldatum und kurzen Status im Chat eintragen."
                 loadAllOrganizerData(showLoading = false)
             }
         }
     }
 
-    fun addTask(listId: String, title: String, priority: String = "niedrig", relevantFrom: String? = null) {
+    fun setTaskMine(id: String, isMine: Boolean) {
+        _tasks.value = _tasks.value.map { if (it.id == id) it.copy(is_mine = isMine) else it }
+        viewModelScope.launch {
+            _taskActionError.value = null
+            repository.updateTaskMine(id, isMine).onSuccess { updated ->
+                _tasks.value = _tasks.value.map { if (it.id == id) updated else it }
+                loadAllOrganizerData(showLoading = false)
+            }.onFailure {
+                loadAllOrganizerData(showLoading = false)
+            }
+        }
+    }
+
+    fun reorderTasks(orderedIds: List<String>, isMine: Boolean, listScope: String = "all") {
+        val posMap = orderedIds.withIndex().associate { it.value to it.index }
+        _tasks.value = _tasks.value.map { t ->
+            val idx = posMap[t.id]
+            if (idx != null) {
+                if (isMine) t.copy(my_position = idx) else t.copy(position = idx)
+            } else t
+        }
+        viewModelScope.launch {
+            repository.reorderTasks(orderedIds, isMine, listScope).onSuccess {
+                loadAllOrganizerData(showLoading = false)
+            }
+        }
+    }
+
+    fun loadTaskMessages(taskId: String) {
+        viewModelScope.launch {
+            repository.getTaskMessages(taskId).onSuccess { msgs ->
+                _taskMessages.value = msgs
+            }
+        }
+    }
+
+    fun clearTaskMessages() {
+        _taskMessages.value = emptyList()
+        _taskActionError.value = null
+    }
+
+    fun sendTaskChatMessage(
+        taskId: String,
+        content: String,
+        files: List<Triple<ByteArray, String, String>> = emptyList()
+    ) {
+        if (content.isBlank() && files.isEmpty()) return
+        viewModelScope.launch {
+            _taskActionError.value = null
+            repository.postTaskMessage(taskId, content, files).onSuccess {
+                loadTaskMessages(taskId)
+                loadAllOrganizerData(showLoading = false)
+            }.onFailure { err ->
+                _taskActionError.value = err.localizedMessage ?: "Nachricht konnte nicht gesendet werden."
+            }
+        }
+    }
+
+    fun editTaskChatMessage(
+        taskId: String,
+        messageId: String,
+        content: String,
+        keepAttachmentPaths: List<String>,
+        newFiles: List<Triple<ByteArray, String, String>> = emptyList()
+    ) {
+        viewModelScope.launch {
+            _taskActionError.value = null
+            repository.editTaskMessage(taskId, messageId, content, keepAttachmentPaths, newFiles).onSuccess {
+                loadTaskMessages(taskId)
+                loadAllOrganizerData(showLoading = false)
+            }.onFailure { err ->
+                _taskActionError.value = err.localizedMessage ?: "Chat-Eintrag kann nur innerhalb von 5 Minuten angepasst werden."
+            }
+        }
+    }
+
+    fun resolveTaskEscalation(
+        taskId: String,
+        relevantFrom: String,
+        dueTime: String?,
+        content: String,
+        durationMinutes: Int? = null,
+        onResolved: () -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            _taskActionError.value = null
+            repository.resolveTaskEscalation(taskId, relevantFrom, dueTime, content, durationMinutes).onSuccess {
+                loadAllOrganizerData(showLoading = false)
+                loadTaskMessages(taskId)
+                onResolved()
+            }.onFailure {
+                _taskActionError.value = "Bitte ein zukuenftiges Datum und einen kurzen Status im Chat angeben."
+            }
+        }
+    }
+
+    fun assignTask(id: String, assigneeKey: String?) {
+        viewModelScope.launch {
+            repository.assignTask(id, assigneeKey).onSuccess { updated ->
+                _tasks.value = _tasks.value.map { if (it.id == id) updated else it }
+                loadAllOrganizerData(showLoading = false)
+                loadTaskMessages(id)
+            }
+        }
+    }
+
+    fun addTask(
+        listId: String,
+        title: String,
+        priority: String = "niedrig",
+        relevantFrom: String? = null,
+        dueTime: String? = null,
+        durationMinutes: Int? = 60,
+        status: String? = "open",
+        assigneeKey: String? = null
+    ) {
         if (title.isBlank()) return
         viewModelScope.launch {
-            repository.addTask(listId, title, priority, relevantFrom).onSuccess {
+            repository.addTask(listId, title, priority, relevantFrom, dueTime, durationMinutes, status, assigneeKey).onSuccess {
                 loadAllOrganizerData(showLoading = false)
             }
         }

@@ -44,6 +44,7 @@ class ManagementEmployees extends Component
     public bool $inviteCanAccessProduction = true;
     public bool $inviteCanAccessSupport = false;
     public bool $inviteCanAccessInventory = false;
+    public bool $inviteCanAccessTasks = true;
 
     #[Locked]
     public ?string $activeInviteId = null;
@@ -71,6 +72,7 @@ class ManagementEmployees extends Component
     public bool $editCanAccessProduction = true;
     public bool $editCanAccessSupport = false;
     public bool $editCanAccessInventory = false;
+    public bool $editCanAccessTasks = true;
 
     public bool $showExplanation = false;
 
@@ -113,6 +115,7 @@ class ManagementEmployees extends Component
         $this->inviteCanAccessProduction = true;
         $this->inviteCanAccessSupport = false;
         $this->inviteCanAccessInventory = false;
+        $this->inviteCanAccessTasks = true;
         $this->showInviteModal = true;
     }
 
@@ -160,6 +163,7 @@ class ManagementEmployees extends Component
             'can_access_production' => $this->inviteCanAccessProduction,
             'can_access_support' => $this->inviteCanAccessSupport,
             'can_access_inventory' => $this->inviteCanAccessInventory,
+            'can_access_tasks' => $this->inviteCanAccessTasks,
         ]);
 
         $this->showInviteModal = false;
@@ -198,6 +202,7 @@ class ManagementEmployees extends Component
         $this->editCanAccessProduction = (bool) $contract->can_access_production;
         $this->editCanAccessSupport = (bool) $contract->can_access_support;
         $this->editCanAccessInventory = (bool) $contract->can_access_inventory;
+        $this->editCanAccessTasks = (bool) ($contract->can_access_tasks ?? true);
     }
 
     public function saveEditContract(EmployeeHrService $service): void
@@ -252,6 +257,7 @@ class ManagementEmployees extends Component
             'can_access_production' => $this->editCanAccessProduction,
             'can_access_support' => $this->editCanAccessSupport,
             'can_access_inventory' => $this->editCanAccessInventory,
+            'can_access_tasks' => $this->editCanAccessTasks,
         ]);
 
         if ($contract->signed_at) {
@@ -265,7 +271,7 @@ class ManagementEmployees extends Component
 
     public function togglePermission(string $contractId, string $field): void
     {
-        if (!in_array($field, ['can_access_production', 'can_access_support', 'can_access_inventory'], true)) {
+        if (!in_array($field, ['can_access_production', 'can_access_support', 'can_access_inventory', 'can_access_tasks'], true)) {
             return;
         }
 

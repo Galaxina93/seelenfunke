@@ -549,6 +549,7 @@ class AiSupportService
             'open_invoices_sum_eur' => $openInvoicesSum,
             'overdue_invoices_sum_eur' => $overdueInvoicesSum,
             'funding_status' => $gzStatus,
+            'company_tax_status' => CentralBrainService::resolveCompanyFoundingAndTaxContext(),
             'garagenhof_project_budget' => 20000.0, // 20k Modernisierung Tore & Türen
         ];
     }

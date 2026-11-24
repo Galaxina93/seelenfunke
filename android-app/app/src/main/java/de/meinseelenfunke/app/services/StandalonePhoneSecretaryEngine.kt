@@ -372,7 +372,11 @@ object StandalonePhoneSecretaryEngine {
         }
 
         val origin = creds?.origin_url?.takeIf { it.isNotBlank() } ?: defaultOrigin
-        val voice = creds?.voice_name?.takeIf { it.isNotBlank() } ?: "Kore"
+        val voice = FunkiraLiveViewModel.resolveLiveVoiceName(
+            requestedVoice = creds?.voice_name,
+            isFunkiraSelected = true,
+            fallbackVoice = "Kore"
+        )
         val list = mutableListOf<WsCandidate>()
 
         // 1. Fastest path: Direct EU Vertex AI Live WebSocket (skips proxy hop for ~250 ms faster greeting)

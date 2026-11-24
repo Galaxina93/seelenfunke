@@ -36,23 +36,43 @@ return new class extends Migration {
             $table->string('icon')->default('list-bullet');
             $table->string('color')->default('#C5A059');
             $table->integer('position')->default(0);
+            $table->boolean('is_team_visible')->default(false)->index();
             $table->boolean('is_archived')->default(false);
             $table->timestamps();
         });
 
-        // Tasks
+        // Tasks (Persönliches Ticket- & Aufgaben-System)
         Schema::create('management_tasks', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('task_list_id')->constrained('management_task_lists')->onDelete('cascade');
             $table->foreignUuid('parent_id')->nullable()->constrained('management_tasks')->onDelete('cascade');
             $table->text('title');
+            $table->string('status', 24)->default('open')->index();
+            $table->boolean('is_mine')->default(false)->index();
+            $table->string('assignee_type', 24)->nullable()->index();
+            $table->uuid('assignee_id')->nullable()->index();
+            $table->string('assignee_name', 120)->nullable();
+            $table->string('assignee_avatar', 255)->nullable();
+            $table->string('created_by_type', 24)->nullable();
+            $table->uuid('created_by_id')->nullable();
             $table->boolean('is_completed')->default(false);
             $table->integer('position')->default(0);
+            $table->integer('my_position')->default(0);
             $table->string('priority')->default('low');
             $table->longText('ai_plan')->nullable();
             $table->boolean('is_archived')->default(false);
             $table->dateTime('relevant_from')->nullable();
+            $table->string('due_time', 5)->nullable();
+            $table->unsignedSmallInteger('duration_minutes')->default(60);
+            $table->timestamp('last_activity_at')->nullable()->index();
+            $table->timestamp('claimed_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamp('waiting_started_at')->nullable();
+            $table->unsignedInteger('waiting_paused_seconds')->default(0);
+            $table->timestamp('escalated_at')->nullable();
+            $table->string('escalation_reason', 255)->nullable();
             $table->json('file_paths')->nullable();
+            $table->json('ep_awarded_flags')->nullable();
             $table->timestamps();
         });
 

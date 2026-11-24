@@ -17,6 +17,15 @@ trait AiFinanceFuncs
                 'callable' => [self::class, 'executeCheckMissingExpenses']
             ],
             [
+                'name' => 'finance_get_tax_and_founding_status',
+                'description' => 'Liefert dynamisch den aktuellen Gründungs- und Steuerstatus von Mein-Seelenfunke: Gewerbeanmeldung (GewA 1, 01.11.2026, Stadt Gifhorn), ELSTER-Anmeldung zur steuerlichen Erfassung (06.11.2026, Finanzamt Gifhorn 2319), aktuellen Zuordnungsstatus von betrieblicher Steuernummer und USt-IdNr. sowie davon abhängige Prozesse (LUCID, Westpack Reverse-Charge, Stripe Live).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => new \stdClass(),
+                ],
+                'callable' => [self::class, 'executeGetTaxAndFoundingStatus']
+            ],
+            [
                 'name' => 'finance_get_monthly_stats',
                 'description' => 'Gibt die streng vertraulichen Buchhaltungs- und Finanzdaten für einen Monat zurück. Enthält rohen Umsatz, Einnahmen, Fixkosten, Sonderausgaben, Gewinn, BWA Metriken. Stichworte: Zeig mir den Umsatz, Wie viel haben wir verdient, Finanzstatus, Gewinn diesen Monat, BWA, Auswertungen.',
                 'parameters' => [
@@ -583,6 +592,18 @@ trait AiFinanceFuncs
         ];
     }
 
+    public static function executeGetTaxAndFoundingStatus(array $args)
+    {
+        if ($denied = self::assertAdminAccess()) {
+            return $denied;
+        }
+
+        return [
+            'status' => 'success',
+            'data' => \App\Services\AI\CentralBrainService::resolveCompanyFoundingAndTaxContext(),
+        ];
+    }
+
     protected static function getAdminId()
     {
         if (\App\Services\AI\AiAuthHelper::check() && !\App\Services\AI\AiAuthHelper::isAdmin()) {
@@ -623,6 +644,7 @@ trait AiFinanceFuncs
                     'private_household_net_balance' => $payoutData['household']['current_net_balance'] ?? 0,
                 ],
                 'potential_vat_refund' => $refundSummary['total_all']['net_refund'] ?? 0,
+                'company_tax_status' => \App\Services\AI\CentralBrainService::resolveCompanyFoundingAndTaxContext(),
                 'is_net' => $isNet,
                 'month' => $month,
                 'year' => $year,

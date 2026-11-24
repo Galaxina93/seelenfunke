@@ -45,6 +45,11 @@ class EmployeeHrService
                     $table->boolean('can_access_inventory')->default(false)->after('can_access_support');
                 });
             }
+            if (!\Illuminate\Support\Facades\Schema::hasColumn('employee_contracts', 'can_access_tasks')) {
+                \Illuminate\Support\Facades\Schema::table('employee_contracts', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->boolean('can_access_tasks')->default(true)->after('can_access_inventory');
+                });
+            }
             return;
         }
 
@@ -103,6 +108,7 @@ class EmployeeHrService
                 $table->boolean('can_access_production')->default(true);
                 $table->boolean('can_access_support')->default(false);
                 $table->boolean('can_access_inventory')->default(false);
+                $table->boolean('can_access_tasks')->default(true);
                 $table->text('internal_notes')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
@@ -229,6 +235,7 @@ class EmployeeHrService
             'can_access_production' => (bool) ($options['can_access_production'] ?? true),
             'can_access_support' => (bool) ($options['can_access_support'] ?? false),
             'can_access_inventory' => (bool) ($options['can_access_inventory'] ?? false),
+            'can_access_tasks' => (bool) ($options['can_access_tasks'] ?? true),
             'internal_notes' => $options['internal_notes'] ?? null,
         ]);
 

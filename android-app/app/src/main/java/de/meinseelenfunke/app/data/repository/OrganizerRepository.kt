@@ -121,10 +121,15 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         isCompleted: Boolean? = null,
         relevantFrom: String? = null,
         aiPlan: String? = null,
-        taskListId: String? = null
+        taskListId: String? = null,
+        dueTime: String? = null,
+        durationMinutes: Int? = null,
+        status: String? = null
     ): Result<ManagementTask> {
         return try {
-            val response = serviceLocator.getOrganizerApi().updateTask(id, title, priority, isCompleted, relevantFrom, aiPlan, taskListId)
+            val response = serviceLocator.getOrganizerApi().updateTask(
+                id, title, priority, isCompleted, relevantFrom, aiPlan, taskListId, dueTime, durationMinutes, status
+            )
             if (response.success) {
                 updateCachedTask(response.data)
                 Result.success(response.data)
@@ -138,14 +143,183 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
         }
     }
 
+    suspend fun updateTaskStatus(id: String, status: String): Result<ManagementTask> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().updateTaskStatus(id, status)
+            if (response.success) {
+                updateCachedTask(response.data)
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Ticket ist eskaliert. Bitte neues Datum und Status im Chat eintragen."))
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateTaskMine(id: String, isMine: Boolean, position: Int? = null): Result<ManagementTask> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().updateTaskMine(id, isMine, position)
+            if (response.success) {
+                updateCachedTask(response.data)
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Ticket konnte nicht verschoben werden."))
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun reorderTasks(orderedIds: List<String>, isMine: Boolean, listScope: String = "all"): Result<Unit> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().reorderTasks(
+                de.meinseelenfunke.app.data.api.TaskReorderBody(orderedIds, isMine, listScope)
+            )
+            if (response.success) Result.success(Unit)
+            else Result.failure(Exception("Reihenfolge konnte nicht gespeichert werden."))
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getTaskMessages(id: String): Result<List<de.meinseelenfunke.app.data.api.ManagementTaskMessageDto>> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().getTaskMessages(id)
+            if (response.success) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Ticket-Chat konnte nicht geladen werden."))
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun postTaskMessage(
+        id: String,
+        content: String,
+        files: List<Triple<ByteArray, String, String>> = emptyList()
+    ): Result<de.meinseelenfunke.app.data.api.ManagementTaskMessageDto> {
+        return try {
+            val textBody = content.toRequestBody("text/plain".toMediaTypeOrNull())
+            val parts = files.map { (bytes, fileName, mimeType) ->
+                val reqFile = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+                MultipartBody.Part.createFormData("files[]", fileName, reqFile)
+            }
+            val response = serviceLocator.getOrganizerApi().postTaskMessage(id, textBody, parts)
+            if (response.success && response.data != null) {
+                response.task?.let { updateCachedTask(it) }
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Nachricht konnte nicht gesendet werden."))
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun editTaskMessage(
+        taskId: String,
+        messageId: String,
+        content: String,
+        keepAttachmentPaths: List<String>,
+        newFiles: List<Triple<ByteArray, String, String>> = emptyList()
+    ): Result<de.meinseelenfunke.app.data.api.ManagementTaskMessageDto> {
+        return try {
+            val plain = "text/plain".toMediaTypeOrNull()
+            val methodPart = "PUT".toRequestBody(plain)
+            val textBody = content.toRequestBody(plain)
+            val keepFlag = "1".toRequestBody(plain)
+            val keepParts = keepAttachmentPaths.map { p ->
+                MultipartBody.Part.createFormData("keep_attachments[]", p)
+            }
+            val fileParts = newFiles.map { (bytes, fileName, mimeType) ->
+                val reqFile = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+                MultipartBody.Part.createFormData("files[]", fileName, reqFile)
+            }
+            val response = serviceLocator.getOrganizerApi().editTaskMessage(
+                taskId, messageId, methodPart, textBody, keepFlag, keepParts, fileParts
+            )
+            if (response.success && response.data != null) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("5-Minuten-Bearbeitungsfenster abgelaufen oder Änderung fehlgeschlagen."))
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun resolveTaskEscalation(
+        id: String,
+        relevantFrom: String,
+        dueTime: String?,
+        content: String,
+        durationMinutes: Int? = null
+    ): Result<ManagementTask> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().resolveTaskEscalation(
+                id = id,
+                relevantFrom = relevantFrom,
+                dueTime = dueTime,
+                durationMinutes = durationMinutes,
+                status = "in_progress",
+                content = content
+            )
+            if (response.success) {
+                updateCachedTask(response.data)
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Eskalation konnte nicht aufgeloest werden."))
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun assignTask(id: String, assigneeKey: String?): Result<ManagementTask> {
+        return try {
+            val response = serviceLocator.getOrganizerApi().assignTask(id, assigneeKey?.ifBlank { "none" } ?: "none")
+            if (response.success) {
+                updateCachedTask(response.data)
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception("Bearbeiter konnte nicht gesetzt werden."))
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun addTask(
         listId: String,
         title: String,
         priority: String = "niedrig",
-        relevantFrom: String? = null
+        relevantFrom: String? = null,
+        dueTime: String? = null,
+        durationMinutes: Int? = null,
+        status: String? = "open",
+        assigneeKey: String? = null
     ): Result<ManagementTask> {
         return try {
-            val smartAliases = setOf("my_day", "important", "planned", "all", "default")
+            val smartAliases = setOf("my_day", "important", "planned", "all", "escalated", "default")
             var targetListId = listId
             if (targetListId.isBlank() || targetListId in smartAliases) {
                 val cachedLists = loadTaskListsFromCache() ?: getTaskLists().getOrNull().orEmpty()
@@ -162,11 +336,13 @@ class OrganizerRepository(private val serviceLocator: ServiceLocator) {
             }
 
             val effPriority = if (listId == "important" && priority == "niedrig") "hoch" else priority
-            val effRelevantFrom = relevantFrom ?: if (listId == "my_day" || listId == "planned") {
+            val effRelevantFrom = relevantFrom ?: if (listId == "my_day" || listId == "planned" || !dueTime.isNullOrBlank()) {
                 java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
             } else null
 
-            val response = serviceLocator.getOrganizerApi().addTask(targetListId, title, effPriority, effRelevantFrom)
+            val response = serviceLocator.getOrganizerApi().addTask(
+                targetListId, title, effPriority, effRelevantFrom, dueTime, durationMinutes, status, assigneeKey
+            )
             if (response.success) {
                 val current = loadTasksFromCache()?.toMutableList() ?: mutableListOf()
                 current.removeAll { it.id == response.data.id }

@@ -1,5 +1,5 @@
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-24 00:38)
+> Generiert via `php artisan ai:generate-map` (2026-11-24 18:33)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -42,7 +42,7 @@
 - **Delivery**: `DeliveryFeedback, DeliverySetting, DeliveryTime`
 - **Employee**: `Employee, EmployeeContract, EmployeePayslip, EmployeeProfile, EmployeeTimeEntry`
 - **Logistics**: `LogisticsShippingRate, LogisticsShippingZone, LogisticsShippingZoneCountry`
-- **Management**: `ManagementCalendarEvent, ManagementContact, ManagementDayRoutine, ManagementDayRoutineLog, ManagementDayRoutineStep, ManagementMission, ManagementPlaylist, ManagementShoppingCategory, ManagementShoppingItem, ManagementTask, ManagementTaskList, ManagementTrack`
+- **Management**: `ManagementCalendarEvent, ManagementContact, ManagementDayRoutine, ManagementDayRoutineLog, ManagementDayRoutineStep, ManagementMission, ManagementPlaylist, ManagementShoppingCategory, ManagementShoppingItem, ManagementTask, ManagementTaskList, ManagementTaskMessage, ManagementTaskOperatorProfile, ManagementTrack`
 - **Management\Mail**: `MailAccount, MailAttachment, MailFolder, MailMessage, MailRule`
 - **Marketing**: `MarketingBlogCategory, MarketingBlogPost, MarketingCoupon, MarketingGiftVoucher, MarketingGiftVoucherLog, MarketingHerzensprojektAction, MarketingHerzensprojektTransaction, MarketingInfluencer, MarketingInfluencerCommission, MarketingInfluencerPayout, MarketingLandingPage, MarketingLinktree, MarketingLinktreeClick, MarketingLinktreeVisit, MarketingNewsletter, MarketingNewsletterSubscriber, MarketingReferral, MarketingTrackingLink, MarketingTrackingLinkHit, MarketingVoucher`
 - **Order**: `OrderOrder, OrderOrderItem, OrderQuoteRequest, OrderQuoteRequestItem, OrderRevocation, OrderShipment`
@@ -106,7 +106,7 @@
 - **Export**: `FileDownloadService`
 - **Gamification**: `FunkenreichSsoBridgeService, GameConfig, GamificationService, LavaParkourService, LobbyInstanceService, PlayerNameValidator`
 - **Laser**: `LaserPhotoPreprocessor, LaserQrCodeService, XtoolLaserCockpitService`
-- **Management**: `MailAiSortService, MailAttachmentFunnelService`
+- **Management**: `MailAiSortService, MailAttachmentFunnelService, ManagementTaskTicketService`
 - **Marketing**: `HolidayOfferAutopilotService, InfluencerService`
 - **Navigation**: `BackendNavigationService`
 - **Order**: `OrderProductionBatchService, ShopCapacityService`

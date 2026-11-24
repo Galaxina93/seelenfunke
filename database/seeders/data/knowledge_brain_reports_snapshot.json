@@ -1,6 +1,6 @@
 {
-    "generated_at": "2026-11-23T11:42:47+01:00",
-    "count": 174,
+    "generated_at": "2026-11-24T15:04:43+01:00",
+    "count": 178,
     "entries": [
         {
             "source_path": "Abschlussberichte\/Buchhaltung\/Buchhaltung_Steuer_Dokumentation.md",
@@ -3472,6 +3472,84 @@
             ],
             "content": "# Abschlussbericht: Zentrale Konzept-Verwaltung (\/admin\/tickets?view=files&ftype=concept) & Globale Funkira-Synchronit?t\n\n- **Datum:** 23.11.2026\n- **Zentrale Ansicht:** \/admin\/tickets?view=files&ftype=concept\n- **Kernklassen:** App\\Services\\AI\\ConceptLifecycleService, App\\Services\\AI\\TicketDeliverableService, App\\Livewire\\Shop\\Ai\\AiUniverseTickets, App\\Services\\AI\\Functions\\AiBrainFuncs (concept_manage)\n\n## Umgesetzte Architektur\n1. **Verbindlicher Lebenszyklus (Offen -> Fertig & Gepr?ft):**\n   - Jedes neue Konzept startet mit concept_status = 'open' (Offen) und ist automatisch gegen die 28-Tage-Auto-Archivierung gesch?tzt.\n   - Nach erfolgreicher Umsetzung und gr?ner Test-Pr?fung wechselt der Status auf completed_verified (? Fertig & Gepr?ft) und synchronisiert das gepr?fte Konzept dublettenfrei in AiKnowledgeBase (source_path = concept:<slug>).\n2. **4-Stufen-Dublettenschutz & 1-Klick-L?schung:**\n   - ConceptLifecycleService::findExistingConcept() pr?ft ID\/Pfad, kanonischen Themen-Slug (inkl. Teil-Slug), SHA-256-Hash und Token-Jaccard-?hnlichkeit (>= 0.72) und aktualisiert bestehende Konzepte mit Versionsz?hler (\u000b1 -> v2), statt Duplikate anzulegen.\n   - 1-Klick-L?schen-Button in der Tabelle und im Konzept-Lesemodal entfernt Datei, Archiv-Kopie und Wissenseintrag r?ckstandsfrei.\n3. **Globale Funkira-Integration (100 % Air-Gap zu Funki):**\n   - Multi-Action-Werkzeug concept_manage (list, \nead, save, set_status, delete) + 0-Token-Sofortkontext offener Konzepte in Web-Chat, Live-Widget, Android Live-Call und Werkstatt Mini-PC. Funki bleibt vollst?ndig isoliert.",
             "date": "2026-11-23T11:42:47+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/System\/Abschlussbericht_Docker_Desktop_WSL_Ubuntu_Integration_und_JobObject_Entkopplung.md",
+            "rel_path": "System\/Abschlussbericht_Docker_Desktop_WSL_Ubuntu_Integration_und_JobObject_Entkopplung.md",
+            "category": "System",
+            "title": "Abschlussbericht: Docker Desktop WSL-Ubuntu Integration, Job-Object Entkopplung & Antigravity Update-Schutz",
+            "tags": [
+                "abschlussbericht",
+                "system",
+                "docker",
+                "docker-desktop",
+                "wsl",
+                "ubuntu",
+                "docker-sock",
+                "job-object",
+                "explorer",
+                "antigravity",
+                "funki"
+            ],
+            "content": "# Abschlussbericht: Docker Desktop WSL-Ubuntu Integration, Job-Object Entkopplung & Antigravity Update-Schutz\n\n**Datum:** 24.11.2026\n**Kategorie:** System & Lokale Infrastruktur (Windows 11 + WSL2 Ubuntu + Docker Desktop)\n**Status:** Verifiziert & Produktiv (100 % Grün)\n\n## 1. Fehlerbild A: Docker Desktop Popup beim Windows-Kaltstart (`WSL integration with distro Ubuntu unexpectedly stopped`)\n- **Symptome:** Beim Start von Windows erscheint `Docker Desktop - Ubuntu: WSL integration with distro 'Ubuntu' unexpectedly stopped` und `.\/funki start` bzw. `.\/funki start all` meldet `Cannot connect to the Docker daemon at unix:\/\/\/var\/run\/docker.sock`.\n- **Technische Ursache (Log `%LOCALAPPDATA%\\Docker\\log\\host\\com.docker.backend.exe.log`):** Kaltstart-Race-Condition in Docker Desktop 4.x: `docker-desktop-user-distro proxy --distro-name ubuntu` versucht wenige Sekunden zu früh `dial unix \/mnt\/wsl\/docker-desktop\/shared-sockets\/host-services\/backend.sock` zu öffnen, bevor die `docker-desktop`-VM den Socket fertig gemountet hat.\n\n## 2. Fehlerbild B: `\/var\/run\/docker.sock` bricht sofort nach KI-Terminalbefehl wieder ab (Windows Job-Object Falle)\n- **Symptome:** Startet ein KI-Agent `docker desktop restart` oder `Docker Desktop.exe` direkt als Kindprozess innerhalb einer temporären Befehls-Session (`run_command`) oder löscht einen temporären `schtasks`-Eintrag unmittelbar nach `\/Run`, funktioniert Docker nur für die Laufzeit dieses einen Befehls und stirbt in exakt derselben Millisekunde, in der der Befehl endet.\n- **Technische Ursache:** Die Befehls-Sandbox nutzt unter Windows ein Job Object mit `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Wird `com.docker.backend.exe` innerhalb dieses Job Objects gestartet, beendet Windows beim Schließen des Befehls automatisch `com.docker.backend.exe` samt `docker-desktop-user-distro`.\n\n## 3. Verifizierte Sofort-Lösung (< 5 Sekunden, 100 % dauerhaft stabil)\n1. **Entkoppelter Start über die interaktive Windows-Desktop-Shell (`explorer.exe`):**\n   - Aus PowerShell immer `explorer.exe \"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe\"` aufrufen.\n   - Hintergrund: `explorer.exe` delegiert den Prozessstart per COM an die bereits laufende Desktop-Shell der Benutzer-Session (außerhalb jedes KI-Job-Objects, inklusive regulärem Tray-Icon). Falls `com.docker.backend` vorher in einem halb-offenen Zustand hängt, zuerst sauber `docker desktop stop` ausführen und danach per `explorer.exe \"C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe\"` neu starten.\n2. **Bereitschaft in Ubuntu prüfen & Seelenfunke starten:**\n   - Warten bis `wsl.exe -d Ubuntu bash -c \"docker info --format '{{.ServerVersion}}'\"` antwortet (typisch 2 bis 6 Sekunden).\n   - Anschließend `cd \/home\/ubuntuxina\/meine-projekte\/seelenfunke && .\/funki start` (bzw. im Terminal `funki start all` für Docker + Reverb WebSocket + Queue-Worker + NPM Watch) ausführen und `http:\/\/127.0.0.1\/` = `HTTP 200` gegenprüfen.\n\n## 4. Verwandter Schutz: Antigravity Windows Update-Fehler (`: 2` \/ `ERROR_FILE_NOT_FOUND`)\n- **Ursache:** Wird ohne geöffneten Workspace in WSL gearbeitet, darf niemals versehentlich in `\/mnt\/c\/Users\/konta\/AppData\/Local\/Programs\/Antigravity` umgeleitet werden. Dateinamen mit nachgestelltem Leerzeichen (`U+0020`) oder WSL-DrvFS-Sonderzeichen (`U+F03A`, `U+F03E`, `U+F07C`) führen im Win32-NSIS-Uninstaller (`Uninstall Antigravity.exe`) bei `DeleteFileW` zu `ERROR_FILE_NOT_FOUND (2)`.\n- **Lösung:** Fremddateien über Python in WSL (`os.unlink` auf `\/mnt\/c\/Users\/konta\/AppData\/Local\/Programs\/Antigravity\/...`) bereinigen und `InstallLocation` in `HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\121a0be4-63bd-531e-acf8-fc3924c7e984` sauber halten.",
+            "date": "2026-11-24T09:28:09+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/Workflows\/Workflow_Tokenarme_Vorabpruefung_Abschlussberichte.md",
+            "rel_path": "Workflows\/Workflow_Tokenarme_Vorabpruefung_Abschlussberichte.md",
+            "category": "Workflows",
+            "title": "Workflow: Token-Arme Vorab-Prüfung auf bestehende Abschlussberichte (0 Doppel-Erklärungen)",
+            "tags": [
+                "abschlussbericht",
+                "workflows",
+                "wissensdatenbank",
+                "token-spar-modus",
+                "brain_search",
+                "agenten",
+                "workflow"
+            ],
+            "content": "# Verbindlicher Agenten-Workflow: Token-Arme Vorab-Prüfung auf Abschlussberichte\n\n**Datum:** 24.11.2026\n**Geltungsbereich:** Alle internen KI-Agenten (Funkira, Abteilungsleiter, Ticket-Autopilot & Antigravity\/Falcone; öffentlicher Shop-Support Funki bleibt 100 % isoliert)\n\n## 1. Kernprinzip (Niemals doppelt erklären müssen)\n- Bevor eine technische Diagnose, ein Konzept oder eine Fachantwort gestartet wird, prüfen Agenten kurz und tokenarm (`< 5 ms`, `0` zusätzliche LLM-Aufrufe), ob zum Thema bereits ein **Abschlussbericht** oder **Wissenseintrag** in `AiKnowledgeBase` (`\/admin\/tickets?view=knowledge`) vorliegt.\n- Bereits dokumentierte Fehlerursachen, Architekturentscheidungen, Hardware-Parameter und Workflows werden direkt angewendet, ohne Alina erneut nach denselben Hintergründen zu fragen.\n\n## 2. Technische Umsetzung im System\n- **Automatischer 0-LLM Vorab-Check (`CentralBrainService::findCompactPriorReportsContext`):** Durchsucht vor jedem internen Agenten-Lauf (`GeminiAgent::ask` und `FunkiraTicketRouter`) deterministisch Titel und Volltext von `AiKnowledgeBase` mit Priorität auf `Abschlussberichte\/*` und `ticket:SF-*`, liefert bei Smalltalk\/Kurzkommandos `0 Byte` Overhead und injiziert bei Treffern maximal die Top-3 kompakten Ausschnitte (`ca. 80 bis 150 Tokens`).\n- **Gezielter Tiefenabruf (`brain_search`):** Reicht der Kurz-Ausschnitt für Details nicht aus, ruft der Agent gezielt `brain_search` mit 2 bis 3 präzisen Schlüsselwörtern auf (liefert Kapitel-Slicing statt ganzer Großdateien).\n- **Persistenz vor Livegang:** Neue Abschlussberichte werden immer dublettenfrei über `CentralBrainService::saveMilestoneReport(...)` in `AiKnowledgeBase` gespeichert, im Git-Snapshot `database\/seeders\/data\/knowledge_brain_reports_snapshot.json` synchronisiert und über `AiKnowledgeBaseSeeder` reproduzierbar geseedet.",
+            "date": "2026-11-24T09:28:09+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/Leitung\/Abschlussbericht_ManagementTasks_Persoenliches_Ticketsystem_Chat_Eskalation_Kalender.md",
+            "rel_path": "Leitung\/Abschlussbericht_ManagementTasks_Persoenliches_Ticketsystem_Chat_Eskalation_Kalender.md",
+            "category": "Leitung & Organisation",
+            "title": "Abschlussbericht: Umbau ManagementTasks zum persönlichen & Team-Ticketsystem v3 inkl. Bearbeiter, Effizienz-Score & Clean Mitarbeiter-Dashboard",
+            "tags": [
+                "abschlussbericht",
+                "leitung-organisation",
+                "management-tasks",
+                "ticketsystem",
+                "bearbeiter",
+                "mitarbeiter-dashboard",
+                "score",
+                "gamification",
+                "funkira",
+                "funkenwerk",
+                "android"
+            ],
+            "content": "# Abschlussbericht: Persönliches & Team-Ticketsystem v3 inkl. Bearbeiter, Effizienz-Score & Clean Mitarbeiter-Dashboard\n\n**Datum:** 24.11.2026\n**Kategorie:** Leitung & Organisation (`\/admin\/tasks`, `\/admin\/employees`, `\/employee\/dashboard`, `\/admin\/calendar`, Funkira, Funkenwerk & Android)\n**Konzept-Referenz:** `#SF-0129` (`Fertig & Geprüft`)\n\n## 1. Architekturentscheidung: 3-Domänen-Trennung, Polymorphe Bearbeiter & Datenschutz-Isolation\n- `SupportTicket`: Öffentliche Kunden-Anfragen, Reklamationen & DSGVO-Isolation.\n- `AiUniverseTicket`: Interne KI-Aufträge, Antigravity-Deliverables & System-Wächter.\n- `ManagementTask` + `ManagementTaskMessage` + `ManagementTaskOperatorProfile`: Alinas persönliches & teamfähiges Aufgaben-Ticketsystem.\n- **Polymorpher `Bearbeiter` (`assignee_type = admin | employee`, `assignee_id`) & Auto-Zuweisung:** Setzt eine Person ein Ticket auf `In Bearbeitung` (`in_progress`), wird sie automatisch als `Bearbeiter` eingetragen und das Ticket landet personenbezogen in ihren `Meine Tickets`. Zieht man ein Ticket per Drag & Drop in `Meine Tickets`, bleibt der Status unverändert (`is_mine` entkoppelt von `status`).\n- **Fehlertolerantes Fuzzy-Such-Dropdown:** Live-Suche beim Anlegen, in der Tabellenzeile und im Ticket-Detail (Umlaute, Initialen, Teilworte, Levenshtein-Tippfehler) über alle aktiven Admins und internen Mitarbeiter (`influencer` und `tax_advisor` 100 % ausgeschlossen).\n- **Chef-Datenschutz (`Privat` vs. `Team-Liste`) & Kalender-Trennung:** Listen sind standardmäßig `Privat (Nur Leitung)`. Mitarbeiter sehen im `\/employee\/dashboard` ausschließlich direkt ihnen zugewiesene Tickets sowie Tickets aus explizit freigegebenen `Team-Listen` (`is_team_visible = true`). An Mitarbeiter delegierte Tickets erscheinen niemals in Alinas Leitungs-Kalender (`\/admin\/calendar`), bleiben für Alina aber in der Haupttabelle samt Bearbeiter sichtbar.\n\n## 2. Clean 2-Spalten-Layout, Auto-Grow Beschreibung, 5-Min-Chat-Edit & Clean Mitarbeiter-Dashboard\n- **2-Spalten-Layout mit Config-DB-Persistenz:** Links oben `Meine Tickets`, darunter `Listen`; rechts die Inline-Tabelle `[Titel | Bearbeiter | Erstellt am | Status]` bzw. bei Klick `Ticket-Detail & Chat` (mit `←` Zurück oben links und 1 Status-Dropdown oben rechts: `Offen` Rot, `Warten` Gelb, `In Bearbeitung` Orange, `Erledigt` Grün). Splitter & Sortierung speichern in `system_check_configs`.\n- **Auto-Grow `Ticket-Beschreibung`:** Zeigt die Beschreibung beim Öffnen sofort in voller Inhaltshöhe ohne abgeschnittenen Innenscrollbalken.\n- **Clean Mitarbeiter-Dashboard (`\/employee\/dashboard`):** Startet im Tab `Übersicht` mit der zentralen **Datenkachel** (Profil, Rang\/EP, Live-Stempeluhr, Monatsstunden, Resturlaub, Vertrag-\/Stundenzettel-PDF) und direkt darunter der eingebetteten **Ticketkachel**.\n\n## 3. Positiver Effizienz-Score, Warten-Pause, Anti-Exploit & Klickbares `Profil`-Modal\n- **Rechtssicher & Fair (§ 26 BDSG):** Reines Positiv-Aufstiegssystem (`ManagementTaskOperatorProfile` mit `HasSystemBlueprint`), einmalige EP-Vergabe pro Meilenstein (`+10 EP` Übernahme, `+30\/+15 EP` pünktlicher Abschluss, `+20\/+10 EP` Eskalations-Rettung, `+5 EP` Chat-Reaktion) sowie automatische **Warten-Pause** (`waiting_paused_seconds`) bei Behörden-\/Lieferanten-Wartezeit.\n- **Ränge, Titel & Matte Backgrounds:** 10 Stufen über `KLASSE C` -> `KLASSE B` -> `KLASSE A` -> `KLASSE S` mit freischaltbaren Titeln und matten Karten-Hintergründen, per 1 Klick auf jedes Profilbild\/Namen im Chat, in der Tabelle oder in der Datenkachel als `Profil`-Modal aufrufbar.",
+            "date": "2026-11-24T15:04:43+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/Buchhaltung\/Stammdaten_Gewerbeanmeldung_und_Steuerstatus.md",
+            "rel_path": "Buchhaltung\/Stammdaten_Gewerbeanmeldung_und_Steuerstatus.md",
+            "category": "Buchhaltung & Steuern",
+            "title": "Stammdaten & Steuerstatus: Gewerbeanmeldung (01.11.2026), ELSTER-Erfassung & Ausstehende Steuernummern (Finanzamt Gifhorn)",
+            "tags": [
+                "abschlussbericht",
+                "buchhaltung-steuern",
+                "gewerbeanmeldung",
+                "gewa1",
+                "01.11.2026",
+                "steuernummer",
+                "ust-idnr",
+                "finanzamt gifhorn",
+                "elster"
+            ],
+            "content": "# Gründungsdaten, Gewerbeanmeldung & Steuerstatus (Mein-Seelenfunke)\n\n**Unternehmen:** Mein-Seelenfunke (Einzelunternehmen im Haupterwerb, Neugründung, Hauptniederlassung)\n**Inhaberin:** Alina Steinhauer | **Betriebsstätte:** Carl-Goerdeler-Ring 26, 38518 Gifhorn | **Bank:** FYRST (`DE76 2507 0370 0079 8629 00`, BIC `DEUTDE2HP24`)\n\n## 1. Erfolgte Gewerbeanmeldung zum 01.11.2026 (GewA 1)\n- **Status:** Amtlich angemeldet und bescheinigt (`§ 14 \/ § 55c GewO`) bei der **Stadt Gifhorn** (Gemeindekennzahl `03151009`).\n- **Datum des Beginns der angemeldeten Tätigkeit (Feld 20):** **`01.11.2026`**.\n- **Bescheinigt am:** `28.10.2026` (i.A. Ceylan, Dienstsiegel 68) | **Aktenzeichen:** `gew \/ 28-10-2026 \/ Ce \/ 402` | **Vorgangsnummer:** `gew \/ 28-10-2026 \/ Ce \/ 893`.\n- **Tätigkeitsschwerpunkt:** Online-Einzelhandel mit physischen und digitalen Produkten (personalisierte Geschenkartikel, Deko- und Wohnaccessoires), Veredelung\/Personalisierung (Lasergravur und UV-Druck), Grafik-\/Mediengestaltung sowie Laser-Lohnarbeiten.\n- **Original-Belege (`AccountingSeeder.php`):** `storage\/app\/buchhaltung\/receipts\/2026\/10\/2026-10-28_Stadt-Gifhorn_Gewerbeanmeldung-GewA1-Bescheinigung.pdf` (inkl. Vorgangsabschluss `A0007510` und Zahlungsbeleg `32,50 €`).\n\n## 2. Steuerliche Erfassung (ELSTER) & Status der Steuernummern (Finanzamt Gifhorn 2319)\n- **ELSTER-Fragebogen zur steuerlichen Erfassung:** Übermittelt am **`06.11.2026` um `15:35:38 Uhr`** an das **Finanzamt Gifhorn** (`2319`, `poststelle@fa-gf.niedersachsen.de`) unter Ordnungskriterium **`Ohne Steuernummer (Finanzamt Gifhorn)`**.\n- **ELSTER-Transferticket:** `ep3104hvg8fm3b1m4zrwrd3djc6ieugc` | **ELSTER-Referenz:** `2169193168 -B41`.\n- **Beantragte Besteuerung:** **Regelbesteuerung** (Verzicht auf Kleinunternehmerregelung nach § 19 Abs. 3 UStG mit Vorsteuerabzug, 19 % \/ 7 % USt) + **Istversteuerung** (§ 20 UStG) + **neue betriebliche Steuernummer** + **Umsatzsteuer-Identifikationsnummer (USt-IdNr.)** beim BZSt.\n- **Sachstandsanfrage:** Am **`17.11.2026`** per E-Mail an `poststelle@fa-gf.niedersachsen.de` versendet (Ticket `SF-0090`, automatische Eingangsbestätigung liegt vor).\n- **ELSTER-Nachweis:** `storage\/app\/buchhaltung\/receipts\/2026\/11\/2026-11-06_Finanzamt-Gifhorn_ELSTER-Steuerliche-Erfassung-Versandbestaetigung.pdf`.\n\n## 3. Dynamischer Status im System (`shop_settings` & Tool `finance_get_tax_and_founding_status`)\n- **Neue betriebliche Steuernummer (`owner_tax_id`, `tax_number_status`):** Solange noch kein neuer Bescheid vom Finanzamt Gifhorn vorliegt (`tax_number_status = pending`), steht im System noch der Alt-\/Defaultwert `19\/143\/11624`. Für neue Geschäftsprozesse (LUCID, Stripe Live, Steuerberater-Eröffnungsabstimmung) gilt die neue Betriebs-Steuernummer bis zur Zuteilung als **noch ausstehend**.\n- **USt-IdNr. (`owner_ust_id`, `ust_id_status`):** Solange noch keine `DE...`-Nummer vom BZSt zugeteilt wurde, bleibt der Shop-Platzhalter `'XXX'` aktiv (`SF-0048`), damit Impressum und XRechnung-Validierung sauber bleiben.\n- **Bereits vorliegende IDs:** Persönliche Steuer-ID `66324780911` (`owner_tax_ident_nr`), Wirtschafts-Identifikationsnummer `DE410594485` (`owner_economic_ident_nr`, nicht mit USt-IdNr. verwechseln!).\n- **Dynamische KI-Abfrage:** Das System prüft den Status in Echtzeit über `CentralBrainService::resolveCompanyFoundingAndTaxContext()` bzw. Tool `finance_get_tax_and_founding_status`. Sobald Alina eine neue Steuernummer oder `DE...`-USt-IdNr. in `\/admin\/settings` einträgt, aktualisiert sich die KI-Kontextualisierung automatisch.",
+            "date": "2026-11-24T13:53:03+01:00"
         }
     ]
 }

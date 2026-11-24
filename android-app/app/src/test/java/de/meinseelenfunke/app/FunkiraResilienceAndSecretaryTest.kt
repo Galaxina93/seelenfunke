@@ -219,6 +219,26 @@ class FunkiraResilienceAndSecretaryTest {
     }
 
     @Test
+    fun resolveLiveVoiceName_blocksMaleVoiceFallbackForFunkiraAndPreservesFemaleOrExplicitAgentVoices() {
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName(null, isFunkiraSelected = true))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName("", isFunkiraSelected = true))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName("Orus", isFunkiraSelected = true))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName("orus", isFunkiraSelected = true))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName("Charon", isFunkiraSelected = true))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName("Puck", isFunkiraSelected = true))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName("Fenrir", isFunkiraSelected = true))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName("Iapetus", isFunkiraSelected = true))
+        assertEquals("Kore", FunkiraLiveViewModel.resolveLiveVoiceName("Kore", isFunkiraSelected = true))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName("Aoede", isFunkiraSelected = true))
+        assertEquals(
+            "Kore",
+            FunkiraLiveViewModel.resolveLiveVoiceName("Orus", isFunkiraSelected = true, fallbackVoice = "Kore")
+        )
+        assertEquals("Orus", FunkiraLiveViewModel.resolveLiveVoiceName("Orus", isFunkiraSelected = false))
+        assertEquals("Aoede", FunkiraLiveViewModel.resolveLiveVoiceName(null, isFunkiraSelected = false))
+    }
+
+    @Test
     fun conciergeForegroundServiceType_preventsAndroid14BackgroundMicCrashUntilCallAccepted() {
         // Android 14+ (API 34): During RINGING (before OFFHOOK), must NOT request MICROPHONE FGS type
         assertEquals(

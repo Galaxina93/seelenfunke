@@ -13,7 +13,7 @@ class ProductSupplierSeeder extends Seeder
     public function run(): void
     {
         // 1. HÄNDLER 1: Seelenkristall
-        ProductSupplier::firstOrCreate(
+        ProductSupplier::updateOrCreate(
             ['name' => 'Pujiang Wangzhe Crafts Co., Ltd.'],
             [
                 'contact_person' => 'Sales',
@@ -25,6 +25,18 @@ class ProductSupplierSeeder extends Seeder
                 'lead_time_land_days' => 60,
                 'lead_time_air_days' => 12,
                 'shipping_method' => 'land',
+                'notes' => "Produkt: Der Seelen Kristall (K9-Kristall, 50 Stk. Abnahme)\n\n"
+                    . "Landweg (Standard / Empfohlen):\n"
+                    . "- Produktpreis: 3,40 USD / Stk.\n"
+                    . "- Versandkosten: 206,00 USD (DDP)\n"
+                    . "- Lieferzeit: ca. 40-50 Tage\n"
+                    . "- Gesamtpreis (50 Stk.): 3,40 x 50 + 206 = 376,00 USD (7,52 USD / Stk. inkl. DDP)\n\n"
+                    . "Flugzeug (nur für echte Notfälle):\n"
+                    . "- Produktpreis: 3,40 USD / Stk.\n"
+                    . "- Versandkosten: 515,00 USD (DDP)\n"
+                    . "- Lieferzeit: ca. 12-15 Tage\n"
+                    . "- Gesamtpreis (50 Stk.): 3,40 x 50 + 515 = 685,00 USD (13,70 USD / Stk. inkl. DDP)\n\n"
+                    . "Einkaufs-Regel: Standardmäßig immer den Landweg (DDP) wählen (Ersparnis: 309,00 USD pro 50 Stk. gegenüber Luftfracht) und frühzeitig nachbestellen.",
                 'dynamic_links' => [
                     [
                         'title' => 'Alibaba Shop', 

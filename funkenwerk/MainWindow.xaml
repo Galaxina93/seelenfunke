@@ -1462,200 +1462,350 @@
             </Grid>
 
             <!-- ===================================================================== -->
-            <!-- MODULE 4: TO DO (Microsoft To Do / Seelenfunke Tasks)                 -->
+            <!-- MODULE 4: PERSOENLICHES TICKET-, CHAT-, ESKALATIONS- & ZEIT-SYSTEM     -->
             <!-- ===================================================================== -->
             <Grid x:Name="TodoViewGrid" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition x:Name="TodoColSidebar" Width="270" MinWidth="190" MaxWidth="480"/>
-                    <ColumnDefinition Width="5"/>
-                    <ColumnDefinition Width="*" MinWidth="280"/>
+                    <ColumnDefinition x:Name="TodoColSidebar" Width="320" MinWidth="230" MaxWidth="560"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="*" MinWidth="480"/>
                     <ColumnDefinition x:Name="TodoColSplitterDetail" Width="0"/>
                     <ColumnDefinition x:Name="TodoColDetail" Width="0"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Left Todo Sidebar -->
-                <Border Grid.Column="0" Background="#161922" Padding="14,18">
-                    <DockPanel LastChildFill="True">
-                        <StackPanel DockPanel.Dock="Top">
-                            <Border Background="#1E222D" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="10" Padding="10,7" Margin="0,0,0,14">
+                <!-- Left Column: Top = Meine Tickets | Draggable Horizontal Splitter | Bottom = Listen + Neue Liste -->
+                <Border Grid.Column="0" Background="#13161F" Padding="12,14">
+                    <Grid x:Name="TodoLeftSplitGrid">
+                        <Grid.RowDefinitions>
+                            <RowDefinition x:Name="TodoRowMyTickets" Height="1.15*" MinHeight="145"/>
+                            <RowDefinition Height="8"/>
+                            <RowDefinition x:Name="TodoRowLists" Height="*" MinHeight="145"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- TOP LEFT TILE: MEINE TICKETS (Drag & Drop Ziel, Status bleibt gleich!) -->
+                        <Border x:Name="MyTicketsTileBorder" Grid.Row="0" Background="#161922" BorderBrush="#242936" BorderThickness="1" CornerRadius="14" Padding="12,12"
+                                AllowDrop="True" DragOver="MyTicketsTile_DragOver" Drop="MyTicketsTile_Drop">
+                            <DockPanel LastChildFill="True">
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Width="8" Height="8" CornerRadius="4" Background="#C5A059" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Meine Tickets" Foreground="#F9FAFB" FontSize="14.5" FontWeight="Bold" VerticalAlignment="Center"
+                                                   ToolTip="Ziehe Tickets aus Offene Tickets hierher. Der Status bleibt dabei unveraendert."/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#26231F" BorderBrush="#382D18" BorderThickness="1" CornerRadius="8" Padding="8,2">
+                                        <TextBlock x:Name="CountMyTicketsPill" Text="0" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold"/>
+                                    </Border>
+                                </Grid>
+
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="0,0,3,0">
+                                        <StackPanel x:Name="MyTicketsPanel"/>
+                                        <TextBlock x:Name="MyTicketsEmptyText" Text="Ticket per Drag &amp; Drop hierher ziehen" Foreground="#6B7280" FontSize="12" HorizontalAlignment="Center" Margin="0,24,0,0" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Draggable Horizontal Transition Line (Meine Tickets <-> Listen) -->
+                        <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      Background="#232734" Cursor="SizeNS"
+                                      ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
+                                      DragCompleted="TodoHorizontalSplitter_DragCompleted"/>
+
+                        <!-- BOTTOM LEFT TILE: LISTEN + NEUE LISTE... -->
+                        <Border Grid.Row="2" Background="#161922" BorderBrush="#242936" BorderThickness="1" CornerRadius="14" Padding="12,12">
+                            <DockPanel LastChildFill="True">
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Listen" Foreground="#F9FAFB" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="CountAll" Grid.Column="1" Text="" Foreground="#9CA3AF" FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                </Grid>
+
+                                <Border DockPanel.Dock="Bottom" BorderBrush="#232734" BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,8,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                        <Border Background="#1E222D" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="9" Padding="9,6">
+                                            <Grid>
+                                                <TextBox x:Name="NewTodoListBox" Background="Transparent" BorderThickness="0" Foreground="#F3F4F6" CaretBrush="#C5A059" FontSize="12.5" KeyDown="NewTodoListBox_KeyDown" TextChanged="NewTodoListBox_TextChanged"/>
+                                                <TextBlock x:Name="NewTodoListPlaceholder" Text="Neue Liste..." Foreground="#6B7280" FontSize="12.5" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                            </Grid>
+                                        </Border>
+                                        <Border Grid.Column="1" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="9" Margin="6,0,0,0">
+                                            <Button Click="CreateTodoList_Click" Background="Transparent" Foreground="#C5A059" FontWeight="Bold" FontSize="12" BorderThickness="0" Padding="11,6" Cursor="Hand" Content="Anlegen"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="0,0,3,0">
+                                        <Border x:Name="SmartAllBorder" Tag="all" MouseLeftButtonUp="SmartList_Click" CornerRadius="9" Padding="10,7" Margin="0,0,0,2" Background="Transparent" Cursor="Hand">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="22"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                                <TextBlock Text="☰" Foreground="#C5A059" FontSize="12.5" VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1" Text="Alle Listen" Foreground="#E5E7EB" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="CountAllRowBadge" Grid.Column="2" Text="" Foreground="#C5A059" FontSize="11.5" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                        <StackPanel x:Name="CustomTodoListsPanel"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- Draggable Vertical Transition Line (Left Column <-> Right Column) -->
+                <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                              Background="#232734" Cursor="SizeWE"
+                              ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                              DragCompleted="TodoVerticalSplitter_DragCompleted"/>
+
+                <!-- Right Main Column: Offene Tickets Inline-Table <-> Ticket-Detail & Chat -->
+                <Border x:Name="RightTicketTileBorder" Grid.Column="2" Background="#0F1117" Padding="20,16"
+                        AllowDrop="True" DragOver="TicketDetail_DragOver" Drop="TicketDetail_Drop">
+                    <Grid>
+                        <!-- SUBVIEW A: OFFENE TICKETS INLINE-TABELLE -->
+                        <DockPanel x:Name="OpenTicketsSubView" LastChildFill="True"
+                                   AllowDrop="True" DragOver="OpenTicketsTile_DragOver" Drop="OpenTicketsTile_Drop">
+                            <!-- Top Header + Search + Sound Toggle -->
+                            <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="230"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBox x:Name="TodoHeaderTitle" Style="{StaticResource SelectableHeaderTextBox}" Text="Offene Tickets" Foreground="#F9FAFB" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="TodoHeaderSubtitle" Style="{StaticResource SelectableHeaderTextBox}" Text="" Foreground="#9CA3AF" FontSize="12" Margin="10,4,0,0" Visibility="Collapsed"/>
+                                </StackPanel>
+
+                                <Border Grid.Column="1" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Padding="9,5" Margin="10,0,8,0" VerticalAlignment="Center">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <TextBlock Text="🔍" Foreground="#9CA3AF" FontSize="11.5" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="TodoSearchBox" Grid.Column="1" Background="Transparent" BorderThickness="0" Foreground="#F3F4F6" CaretBrush="#C5A059" FontSize="12.5" TextChanged="TodoSearchBox_TextChanged"/>
+                                        <TextBlock x:Name="TodoSearchPlaceholder" Grid.Column="1" Text="Tickets suchen..." Foreground="#6B7280" FontSize="12.5" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Column="2" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Margin="0,0,8,0" VerticalAlignment="Center">
+                                    <Button x:Name="TodoSoundToggleBtn" Click="ToggleTodoSound_Click" Background="Transparent" Foreground="#C5A059" BorderThickness="0" Padding="9,5" Cursor="Hand" FontSize="13" Content="🔊" ToolTip="Interaktive Klick-Sounds an/aus"/>
+                                </Border>
+
+                                <Border Grid.Column="3" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="9" Padding="11,5" VerticalAlignment="Center">
+                                    <TextBox x:Name="TodoStatusCounter" Style="{StaticResource SelectableHeaderTextBox}" Text="0 Meine · 0 Offen" Foreground="#D1D5DB" FontSize="12" FontWeight="SemiBold"/>
+                                </Border>
+                            </Grid>
+
+                            <!-- Quick-Create Bar -->
+                            <Border x:Name="TodoBottomInputBorder" DockPanel.Dock="Top" Background="#161922" BorderBrush="#262A36" BorderThickness="1" CornerRadius="12" Padding="12,7" Margin="0,0,0,12">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="22"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="🔍" Foreground="#9CA3AF" FontSize="12" VerticalAlignment="Center"/>
-                                    <TextBox x:Name="TodoSearchBox" Grid.Column="1" Background="Transparent" BorderThickness="0"
-                                             Foreground="#F3F4F6" CaretBrush="#C5A059" FontSize="13" TextChanged="TodoSearchBox_TextChanged"/>
-                                    <TextBlock x:Name="TodoSearchPlaceholder" Grid.Column="1" Text="Aufgaben suchen..."
-                                               Foreground="#6B7280" FontSize="13" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                    <TextBlock Text="+" Foreground="#C5A059" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <Grid Grid.Column="1">
+                                        <TextBox x:Name="NewTaskBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="13" VerticalContentAlignment="Center" KeyDown="NewTaskBox_KeyDown" TextChanged="NewTaskBox_TextChanged"/>
+                                        <TextBlock x:Name="NewTaskPlaceholder" Text="Neues Ticket erfassen..." Foreground="#6B7280" FontSize="13" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                    </Grid>
+                                    <Border x:Name="NewTaskAssigneeBorder" Grid.Column="2" Background="#14171F" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="8" Margin="8,0,4,0" VerticalAlignment="Center" ToolTip="Bearbeiter auswaehlen (mit Live-Suche)">
+                                        <Button x:Name="NewTaskAssigneeBtn" Click="NewTaskAssigneeBtn_Click" Background="Transparent" Foreground="#D1D5DB" BorderThickness="0" Padding="10,5" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="👤 Bearbeiter ▾"/>
+                                    </Border>
+                                    <DatePicker x:Name="NewTaskDatePicker" Grid.Column="3" Width="128" Margin="4,0,4,0" VerticalAlignment="Center" Background="#14171F" Foreground="#111827" BorderThickness="0" ToolTip="Faelligkeitsdatum"/>
+                                    <Border Grid.Column="4" Background="#14171F" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="8" Padding="6,3" Margin="0,0,6,0" VerticalAlignment="Center" ToolTip="Uhrzeit HH:MM (fuer Kalender)">
+                                        <TextBox x:Name="NewTaskTimeBox" Width="44" MaxLength="5" Background="Transparent" BorderThickness="0" Foreground="#E5E7EB" CaretBrush="#C5A059" FontSize="12" HorizontalContentAlignment="Center" Text=""/>
+                                    </Border>
+                                    <Button x:Name="NewTaskImportantBtn" Grid.Column="5" Click="ToggleNewTaskImportant_Click" Background="Transparent" BorderThickness="0" FontSize="17" Foreground="#6B7280" Margin="2,0,8,0" Cursor="Hand" Content="☆" ToolTip="Hohe Prioritaet"/>
+                                    <Border Grid.Column="6" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="9">
+                                        <Button Click="AddTask_Click" Background="Transparent" Foreground="#C5A059" FontWeight="Bold" FontSize="12" BorderThickness="0" Padding="13,5" Cursor="Hand" Content="Anlegen"/>
+                                    </Border>
                                 </Grid>
                             </Border>
 
-                            <StackPanel x:Name="SmartListsPanel" Margin="0,0,0,8">
-                                <Border x:Name="SmartMyDayBorder" Tag="my_day" MouseLeftButtonUp="SmartList_Click" CornerRadius="10" Padding="12,9" Margin="0,1" Background="Transparent" Cursor="Hand">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="26"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Text="☀" Foreground="#C5A059" FontSize="15" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1" Text="Mein Tag" Foreground="#E5E7EB" FontSize="13.5" FontWeight="Medium" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="CountMyDay" Grid.Column="2" Text="" Foreground="#C5A059" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Border>
-
-                                <Border x:Name="SmartImportantBorder" Tag="important" MouseLeftButtonUp="SmartList_Click" CornerRadius="10" Padding="12,9" Margin="0,1" Background="Transparent" Cursor="Hand">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="26"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Text="★" Foreground="#C5A059" FontSize="15" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1" Text="Wichtig" Foreground="#E5E7EB" FontSize="13.5" FontWeight="Medium" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="CountImportant" Grid.Column="2" Text="" Foreground="#C5A059" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Border>
-
-                                <Border x:Name="SmartPlannedBorder" Tag="planned" MouseLeftButtonUp="SmartList_Click" CornerRadius="10" Padding="12,9" Margin="0,1" Background="Transparent" Cursor="Hand">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="26"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Text="📅" Foreground="#34D399" FontSize="14" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1" Text="Geplant" Foreground="#E5E7EB" FontSize="13.5" FontWeight="Medium" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="CountPlanned" Grid.Column="2" Text="" Foreground="#34D399" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Border>
-
-                                <Border x:Name="SmartAllBorder" Tag="all" MouseLeftButtonUp="SmartList_Click" CornerRadius="10" Padding="12,9" Margin="0,1" Background="Transparent" Cursor="Hand">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="26"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                        <TextBlock Text="🏠" Foreground="#60A5FA" FontSize="14" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1" Text="Alle Aufgaben" Foreground="#E5E7EB" FontSize="13.5" FontWeight="Medium" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="CountAll" Grid.Column="2" Text="" Foreground="#60A5FA" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    </Grid>
-                                </Border>
-                            </StackPanel>
-
-                            <Border Height="1" Background="#232734" Margin="4,6,4,10"/>
-                        </StackPanel>
-
-                        <Border DockPanel.Dock="Bottom" BorderBrush="#232734" BorderThickness="0,1,0,0" Padding="0,10,0,0" Margin="0,8,0,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <Border Background="#1E222D" CornerRadius="10" Padding="10,7">
-                                    <TextBox x:Name="NewTodoListBox" Background="Transparent" BorderThickness="0" Foreground="#F3F4F6" CaretBrush="#C5A059" FontSize="13" KeyDown="NewTodoListBox_KeyDown"/>
-                                </Border>
-                                <Button Grid.Column="1" Click="CreateTodoList_Click" Background="#C5A059" Foreground="#111827" FontWeight="Bold" FontSize="12" BorderThickness="0" Padding="12,7" Margin="6,0,0,0" Cursor="Hand" Content="+ Liste">
-                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
-                                </Button>
-                            </Grid>
-                        </Border>
-
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel x:Name="CustomTodoListsPanel" Margin="0,0,4,0"/>
-                        </ScrollViewer>
-                    </DockPanel>
-                </Border>
-
-                <!-- Resizable Splitter -->
-                <GridSplitter Grid.Column="1" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" DragCompleted="Splitter_DragCompleted"/>
-
-                <!-- Center Todo List -->
-                <Border Grid.Column="2" Background="#0F1117" Padding="28,22">
-                    <DockPanel LastChildFill="True">
-                        <Grid DockPanel.Dock="Top" Margin="0,0,0,18">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBox x:Name="TodoHeaderTitle" Style="{StaticResource SelectableHeaderTextBox}" Text="Mein Tag" Foreground="#F9FAFB" FontSize="26" FontWeight="Bold"/>
-                                <TextBox x:Name="TodoHeaderSubtitle" Style="{StaticResource SelectableHeaderTextBox}" Text="Mittwoch, 4. November" Foreground="#9CA3AF" FontSize="13" Margin="0,2,0,0"/>
-                            </StackPanel>
-                            <Border Grid.Column="1" Background="#181B24" BorderBrush="#262A36" BorderThickness="1" CornerRadius="10" Padding="12,6" VerticalAlignment="Center">
-                                <TextBox x:Name="TodoStatusCounter" Style="{StaticResource SelectableHeaderTextBox}" Text="0 offen · 0 erledigt" Foreground="#D1D5DB" FontSize="12" FontWeight="SemiBold"/>
-                            </Border>
-                        </Grid>
-
-                        <Border x:Name="TodoBottomInputBorder" DockPanel.Dock="Bottom" Background="#181B24" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="14" Padding="14,10" Margin="0,14,0,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="26"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Text="+" Foreground="#C5A059" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
-                                <TextBox x:Name="NewTaskBox" Grid.Column="1" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="14" VerticalContentAlignment="Center" KeyDown="NewTaskBox_KeyDown"/>
-                                <Button x:Name="NewTaskImportantBtn" Grid.Column="2" Click="ToggleNewTaskImportant_Click" Background="Transparent" BorderThickness="0" FontSize="18" Foreground="#6B7280" Margin="8,0" Cursor="Hand" Content="☆"/>
-                                <Button Grid.Column="3" Click="AddTask_Click" Background="#C5A059" Foreground="#111827" FontWeight="Bold" FontSize="12.5" BorderThickness="0" Padding="14,7" Cursor="Hand" Content="Hinzufügen">
-                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="10"/></Style></Button.Resources>
-                                </Button>
-                            </Grid>
-                        </Border>
-
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="0,0,6,0">
-                                <StackPanel x:Name="OpenTasksPanel"/>
-                                <StackPanel x:Name="CompletedSectionWrapper" Margin="0,14,0,0" Visibility="Collapsed">
-                                    <Button Click="ToggleCompletedSection_Click" HorizontalAlignment="Left" Background="#1E222D" Foreground="#C5A059" BorderThickness="0" Padding="12,6" Cursor="Hand">
-                                        <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock x:Name="CompletedChevron" Text="▼" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <TextBlock x:Name="CompletedHeaderLabel" Text="Erledigt (0)" FontSize="12.5" FontWeight="Bold"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <StackPanel x:Name="CompletedTasksPanel" Margin="0,8,0,0"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </DockPanel>
-                </Border>
-
-                <!-- Resizable Splitter before Todo Detail -->
-                <GridSplitter x:Name="TodoDetailSplitter" Grid.Column="3" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Visibility="Collapsed" DragCompleted="Splitter_DragCompleted"/>
-
-                <!-- Right Todo Detail Inspector -->
-                <Border x:Name="TodoDetailBorder" Grid.Column="4" Background="#161922" Padding="18,20" Visibility="Collapsed">
-                    <DockPanel LastChildFill="True">
-                        <Grid DockPanel.Dock="Top" Margin="0,0,0,14">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                            <TextBlock Text="AUFGABENDETAILS" Foreground="#9CA3AF" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Click="CloseTodoDetail_Click" Background="Transparent" BorderThickness="0" Foreground="#9CA3AF" FontSize="15" Cursor="Hand" Content="✕"/>
-                        </Grid>
-
-                        <Border DockPanel.Dock="Bottom" BorderBrush="#232734" BorderThickness="0,1,0,0" Padding="0,12,0,0" Margin="0,12,0,0">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock x:Name="DetailCreatedText" Text="Erstellt" Foreground="#6B7280" FontSize="11.5" VerticalAlignment="Center"/>
-                                <Button Grid.Column="1" Click="DeleteSelectedTask_Click" Background="#2D161B" Foreground="#F87171" BorderThickness="0" Padding="10,6" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="🗑 Löschen">
-                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
-                                </Button>
-                            </Grid>
-                        </Border>
-
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="0,0,4,0">
-                                <Border Background="#1E222D" CornerRadius="12" Padding="14" Margin="0,0,0,10">
-                                    <StackPanel>
-                                        <TextBox x:Name="DetailTitleBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" LostFocus="DetailTitleBox_LostFocus"/>
-                                        <Border Height="1" Background="#2A2F3D" Margin="0,10"/>
-                                        <StackPanel x:Name="SubtasksPanel"/>
-                                        <Grid Margin="0,6,0,0">
-                                            <Grid.ColumnDefinitions><ColumnDefinition Width="20"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <TextBlock Text="+" Foreground="#C5A059" FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
-                                            <TextBox x:Name="NewSubtaskBox" Grid.Column="1" Background="Transparent" BorderThickness="0" Foreground="#F3F4F6" CaretBrush="#C5A059" FontSize="13" KeyDown="NewSubtaskBox_KeyDown" Tag="Schritt hinzufügen (Enter)..."/>
+                            <!-- Inline-Editable Offene Tickets Table -->
+                            <Border Background="#141720" BorderBrush="#242936" BorderThickness="1" CornerRadius="14">
+                                <DockPanel LastChildFill="True">
+                                    <!-- Table Column Header -->
+                                    <Border DockPanel.Dock="Top" Background="#181C27" BorderBrush="#242936" BorderThickness="0,0,0,1" CornerRadius="14,14,0,0" Padding="14,9">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="26"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="154"/>
+                                                <ColumnDefinition Width="116"/>
+                                                <ColumnDefinition Width="148"/>
+                                                <ColumnDefinition Width="68"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="1" Text="TITEL" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                            <TextBlock Grid.Column="2" Text="BEARBEITER" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                            <TextBlock Grid.Column="3" Text="ERSTELLT AM" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                            <TextBlock Grid.Column="4" Text="STATUS" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold"/>
+                                            <TextBlock Grid.Column="5" Text="CHAT" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" HorizontalAlignment="Right"/>
                                         </Grid>
-                                    </StackPanel>
+                                    </Border>
+
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Margin="0,0,0,8">
+                                            <StackPanel x:Name="OpenTasksPanel"/>
+                                            <TextBlock x:Name="OpenTicketsEmptyText" Text="Keine offenen Tickets in dieser Ansicht" Foreground="#6B7280" FontSize="12.5" HorizontalAlignment="Center" Margin="0,32,0,24" Visibility="Collapsed"/>
+
+                                            <StackPanel x:Name="CompletedSectionWrapper" Margin="14,12,14,4" Visibility="Collapsed">
+                                                <Button Click="ToggleCompletedSection_Click" HorizontalAlignment="Left" Background="#1A1E29" Foreground="#34D399" BorderThickness="0" Padding="11,5" Cursor="Hand">
+                                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="8"/></Style></Button.Resources>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock x:Name="CompletedChevron" Text="▼" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <TextBlock x:Name="CompletedHeaderLabel" Text="Erledigt (0)" FontSize="12" FontWeight="Bold"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <StackPanel x:Name="CompletedTasksPanel" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </DockPanel>
+                            </Border>
+                        </DockPanel>
+
+                        <!-- SUBVIEW B: INLINE TICKET-DETAIL & CHAT (Zurueck oben links, Bearbeiter + Status oben rechts) -->
+                        <DockPanel x:Name="TicketDetailSubView" LastChildFill="True" Visibility="Collapsed">
+                            <!-- Top Bar: Left = Zurueck | Right = Bearbeiter + Meine Tickets Toggle + Single Status Dropdown + Delete -->
+                            <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Background="#181C27" BorderBrush="#2E3446" BorderThickness="1" CornerRadius="9">
+                                    <Button Click="CloseTodoDetail_Click" Background="Transparent" Foreground="#F3F4F6" BorderThickness="0" Padding="12,6" Cursor="Hand" FontWeight="Bold" FontSize="12.5" Content="← Zurück"/>
                                 </Border>
 
-                                <Button x:Name="DetailMyDayBtn" Click="ToggleSelectedMyDay_Click" Background="#1E222D" Foreground="#E5E7EB" BorderThickness="0" Padding="14,11" Margin="0,0,0,10" Cursor="Hand" HorizontalContentAlignment="Left">
-                                    <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="12"/></Style></Button.Resources>
-                                    <TextBlock x:Name="DetailMyDayText" Text="☀  Zu 'Mein Tag' hinzufügen" FontSize="13" FontWeight="SemiBold"/>
-                                </Button>
-
-                                <Border Background="#1E222D" CornerRadius="12" Padding="14" Margin="0,0,0,10">
-                                    <StackPanel>
-                                        <TextBlock Text="FÄLLIGKEITSDATUM" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
-                                        <DatePicker x:Name="DetailDatePicker" SelectedDateChanged="DetailDatePicker_SelectedDateChanged" Background="#14171F" Foreground="#111827" BorderThickness="0"/>
-                                    </StackPanel>
+                                <Border x:Name="DetailAssigneeBorder" Grid.Column="2" Background="#181C27" BorderBrush="#2E3446" BorderThickness="1" CornerRadius="9" Margin="6,0,0,0">
+                                    <Button x:Name="DetailAssigneeBtn" Click="DetailAssigneeBtn_Click" Background="Transparent" Foreground="#E5E7EB" BorderThickness="0" Padding="11,6" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="👤 Frei ▾" ToolTip="Bearbeiter auswaehlen (mit Live-Suche)"/>
                                 </Border>
 
-                                <Border Background="#1E222D" CornerRadius="12" Padding="14">
-                                    <StackPanel>
-                                        <TextBlock Text="NOTIZ" Foreground="#9CA3AF" FontSize="10.5" FontWeight="Bold" Margin="0,0,0,6"/>
-                                        <TextBox x:Name="DetailNoteBox" Background="#14171F" BorderThickness="0" Foreground="#E5E7EB" CaretBrush="#C5A059" FontSize="13" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="120" Padding="10" LostFocus="DetailNoteBox_LostFocus"/>
-                                    </StackPanel>
+                                <Border Grid.Column="3" Background="#181C27" BorderBrush="#2E3446" BorderThickness="1" CornerRadius="9" Margin="6,0,0,0">
+                                    <Button x:Name="DetailClaimOrReleaseBtn" Click="DetailClaimOrRelease_Click" Background="Transparent" Foreground="#C5A059" BorderThickness="0" Padding="11,6" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="In Meine Tickets"/>
                                 </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </DockPanel>
+
+                                <!-- Single Status Dropdown Top-Right (Only status word colored!) -->
+                                <Border Grid.Column="4" Background="#181C27" BorderBrush="#2E3446" BorderThickness="1" CornerRadius="9" Padding="4,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                                    <ComboBox x:Name="DetailStatusCombo" Width="152" Background="Transparent" BorderThickness="0" FontSize="12.5" FontWeight="Bold"
+                                              SelectionChanged="DetailStatusCombo_SelectionChanged" Cursor="Hand" ToolTip="Ticket-Status aendern">
+                                        <ComboBoxItem Tag="open" Content="Offen" Foreground="#F87171" FontWeight="Bold"/>
+                                        <ComboBoxItem Tag="waiting" Content="Warten" Foreground="#FACC15" FontWeight="Bold"/>
+                                        <ComboBoxItem Tag="in_progress" Content="In Bearbeitung" Foreground="#FB923C" FontWeight="Bold"/>
+                                        <ComboBoxItem Tag="completed" Content="Erledigt" Foreground="#34D399" FontWeight="Bold"/>
+                                    </ComboBox>
+                                </Border>
+
+                                <Border Grid.Column="5" Background="#2D161B" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="9" Margin="8,0,0,0">
+                                    <Button Click="DeleteSelectedTask_Click" Background="Transparent" Foreground="#F87171" BorderThickness="0" Padding="10,6" Cursor="Hand" FontSize="12" FontWeight="SemiBold" Content="🗑" ToolTip="Ticket loeschen"/>
+                                </Border>
+                            </Grid>
+
+                            <!-- Compact Ticket Meta Card -->
+                            <Border DockPanel.Dock="Top" Background="#161922" BorderBrush="#262B3A" BorderThickness="1" CornerRadius="12" Padding="14,10" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBox x:Name="DetailTitleBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="15.5" FontWeight="Bold" TextWrapping="Wrap" LostFocus="DetailTitleBox_LostFocus" KeyDown="DetailTitleBox_KeyDown"/>
+                                    <WrapPanel Margin="0,8,0,0" VerticalAlignment="Center">
+                                        <DatePicker x:Name="DetailDatePicker" SelectedDateChanged="DetailDatePicker_SelectedDateChanged" Width="118" Background="#14171F" Foreground="#111827" BorderThickness="0" Margin="0,0,6,4" ToolTip="Faelligkeitsdatum"/>
+                                        <Border Background="#14171F" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="7" Padding="6,3" Margin="0,0,6,4" VerticalAlignment="Center" ToolTip="Uhrzeit HH:MM">
+                                            <TextBox x:Name="DetailTimeBox" Width="46" MaxLength="5" Background="Transparent" BorderThickness="0" Foreground="#E5E7EB" CaretBrush="#C5A059" FontSize="12" HorizontalContentAlignment="Center" LostFocus="DetailTimeBox_LostFocus" KeyDown="DetailTimeBox_KeyDown"/>
+                                        </Border>
+                                        <ComboBox x:Name="DetailDurationCombo" Width="78" Margin="0,0,8,4" SelectionChanged="DetailDurationCombo_SelectionChanged" FontSize="11.5" ToolTip="Kalender-Dauer">
+                                            <ComboBoxItem Tag="30" Content="30 Min"/>
+                                            <ComboBoxItem Tag="45" Content="45 Min"/>
+                                            <ComboBoxItem Tag="60" Content="60 Min" IsSelected="True"/>
+                                            <ComboBoxItem Tag="90" Content="90 Min"/>
+                                            <ComboBoxItem Tag="120" Content="120 Min"/>
+                                        </ComboBox>
+                                        <ComboBox x:Name="DetailListCombo" Width="165" Margin="0,0,8,4" SelectionChanged="DetailListCombo_SelectionChanged" FontSize="11.5" ToolTip="Liste wechseln"/>
+                                        <Button x:Name="ToggleTicketMetaExtrasBtn" Click="ToggleTicketMetaExtras_Click" Background="#14171F" Foreground="#9CA3AF" BorderThickness="0" Padding="10,4" Margin="0,0,0,4" Cursor="Hand">
+                                            <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
+                                            <TextBlock x:Name="ToggleTicketMetaExtrasText" Text="▸ Schritte &amp; Beschreibung" FontSize="11.5" FontWeight="SemiBold"/>
+                                        </Button>
+                                    </WrapPanel>
+
+                                    <StackPanel x:Name="TicketMetaExtrasPanel" Visibility="Collapsed" Margin="0,8,0,0">
+                                        <Border Height="1" Background="#262B3A" Margin="0,0,0,8"/>
+                                        <StackPanel x:Name="SubtasksPanel"/>
+                                        <Grid Margin="0,4,0,8">
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                            <TextBlock Text="+" Foreground="#C5A059" FontSize="14" FontWeight="Bold" VerticalAlignment="Center"/>
+                                            <TextBox x:Name="NewSubtaskBox" Grid.Column="1" Background="Transparent" BorderThickness="0" Foreground="#F3F4F6" CaretBrush="#C5A059" FontSize="12.5" KeyDown="NewSubtaskBox_KeyDown"/>
+                                        </Grid>
+                                        <TextBox x:Name="DetailNoteBox" Background="#14171F" BorderBrush="#262B3A" BorderThickness="1" Foreground="#E5E7EB" CaretBrush="#C5A059" FontSize="12.5" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="54" Padding="8" LostFocus="DetailNoteBox_LostFocus"/>
+                                        <TextBlock x:Name="DetailCreatedText" Text="" Foreground="#6B7280" FontSize="10.5" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- MANDATORY ESCALATION RESOLUTION BOX -->
+                            <Border x:Name="EscalationGateBorder" DockPanel.Dock="Top" Background="#241317" BorderBrush="#991B1B" BorderThickness="1" CornerRadius="12" Padding="12,10" Margin="0,0,0,8" Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock x:Name="EscalationReasonText" Text="⚠ Ticket eskaliert" Foreground="#FCA5A5" FontSize="12.5" FontWeight="Bold" TextWrapping="Wrap"/>
+                                    <WrapPanel Margin="0,8,0,6" VerticalAlignment="Center">
+                                        <DatePicker x:Name="EscalationDatePicker" Width="122" Background="#14171F" Foreground="#111827" BorderThickness="0" Margin="0,0,6,0"/>
+                                        <Border Background="#14171F" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="7" Padding="6,3" Margin="0,0,8,0">
+                                            <TextBox x:Name="EscalationTimeBox" Width="46" MaxLength="5" Background="Transparent" BorderThickness="0" Foreground="#F3F4F6" CaretBrush="#C5A059" FontSize="12" HorizontalContentAlignment="Center"/>
+                                        </Border>
+                                        <Border Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="8">
+                                            <Button Click="ResolveEscalation_Click" Background="Transparent" Foreground="#C5A059" BorderThickness="0" Padding="12,5" Cursor="Hand" FontSize="12" FontWeight="Bold" Content="Eskalation auflösen"/>
+                                        </Border>
+                                    </WrapPanel>
+                                    <Border Background="#14171F" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="8" Padding="8,6">
+                                        <TextBox x:Name="EscalationNoteBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="12.5" TextWrapping="Wrap" AcceptsReturn="True" MinHeight="36"/>
+                                    </Border>
+                                    <TextBlock x:Name="EscalationErrorText" Text="" Foreground="#FCA5A5" FontSize="11.5" Margin="0,4,0,0" Visibility="Collapsed" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Bottom Chat Composer (Multi-Upload + Drag & Drop) -->
+                            <Border DockPanel.Dock="Bottom" Background="#161922" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="12" Padding="10,8" Margin="0,8,0,0">
+                                <StackPanel>
+                                    <WrapPanel x:Name="PendingChatFilesWrapPanel" Margin="0,0,0,6" Visibility="Collapsed"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Background="#14171F" BorderBrush="#2A2F3D" BorderThickness="1" CornerRadius="8" Margin="0,0,8,0" VerticalAlignment="Bottom">
+                                            <Button Click="AttachChatFiles_Click" Background="Transparent" Foreground="#C5A059" BorderThickness="0" Padding="9,6" Cursor="Hand" FontSize="14" Content="📎" ToolTip="Dateien anhaengen (oder per Drag &amp; Drop hineinziehen)"/>
+                                        </Border>
+                                        <Border Grid.Column="1" Background="#14171F" BorderBrush="#262B3A" BorderThickness="1" CornerRadius="9" Padding="9,6">
+                                            <TextBox x:Name="TicketChatInputBox" Background="Transparent" BorderThickness="0" Foreground="#F9FAFB" CaretBrush="#C5A059" FontSize="13" TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="90" KeyDown="TicketChatInputBox_KeyDown"/>
+                                        </Border>
+                                        <Border Grid.Column="2" Background="#26231F" BorderBrush="#C5A059" BorderThickness="1" CornerRadius="9" Margin="8,0,0,0" VerticalAlignment="Bottom">
+                                            <Button Click="SendTicketChat_Click" Background="Transparent" Foreground="#C5A059" BorderThickness="0" Padding="14,7" Cursor="Hand" FontSize="12.5" FontWeight="Bold" Content="Senden"/>
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Chronological Ticket-Chat Stream (with 5-min inline edit) -->
+                            <Border Background="#10131B" BorderBrush="#202533" BorderThickness="1" CornerRadius="12" Padding="12,10">
+                                <ScrollViewer x:Name="TicketChatScrollViewer" VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="TicketChatMessagesPanel"/>
+                                </ScrollViewer>
+                            </Border>
+                        </DockPanel>
+                    </Grid>
                 </Border>
+
+                <!-- Legacy Splitter/Detail placeholders kept collapsed -->
+                <GridSplitter x:Name="TodoDetailSplitter" Grid.Column="3" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" Visibility="Collapsed" DragCompleted="Splitter_DragCompleted"/>
+                <Border x:Name="TodoDetailBorder" Grid.Column="4" Background="#161922" Visibility="Collapsed"/>
             </Grid>
 
             <!-- ===================================================================== -->

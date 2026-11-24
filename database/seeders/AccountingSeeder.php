@@ -552,6 +552,27 @@ class AccountingSeeder extends Seeder
                 'tags'        => ['Vertrag', 'IT', 'Gewerbe', 'KI', 'Google'],
                 'contract_file_path' => 'buchhaltung/contracts/2026/04/2026-04-01_Google_Gemini-Ultra.pdf'
             ],
+            [
+                'group'                 => 'Vertrag & Lizenz',
+                'name'                  => 'Suno AI Pro',
+                'amount'                => -10.71,
+                'interval'              => 1,
+                'start_date'            => '2026-11-24',
+                'is_business'           => 1,
+                'tax_rate'              => 19,
+                'provider_company'      => 'Suno, Inc.',
+                'provider_street'       => 'Dunster Street, Floor 4',
+                'provider_house_number' => '17',
+                'provider_zip'          => '02138',
+                'provider_city'         => 'Cambridge, Massachusetts (USA)',
+                'provider_email'        => 'billing@suno.com',
+                'provider_website'      => 'https://suno.com/account?source=sideNav&plan_key=premier',
+                'contract_number'       => 'KTQ7QFHH-0001',
+                'notice_period'         => 'Monatlich kündbar',
+                'description'           => "Suno Pro Monatsabo (Gewerbliche KI-Musik- & Audio-Lizenz für Social-Media-Reels, Produktvideos & Ökosystem).\nErst-Rechnung: KTQ7QFHH-0001 vom 24.11.2026 (Leistungszeitraum: 24.11.2026 bis 24.12.2026) | Netto: 9,00 € | USt. Deutschland (19 %): 1,71 € | Gesamtbetrag (Brutto): 10,71 € mtl.\nRechnungsarchiv: buchhaltung/receipts/2026/11/2026-11-24_Suno_Suno-AI-Pro-Abo_Rechnung-KTQ7QFHH-0001.pdf\nKunden-E-Mail: kontakt@mein-seelenfunke.de\nAbo-Verwaltung: https://suno.com/account?source=sideNav&plan_key=premier",
+                'tags'                  => ['Vertrag', 'IT', 'Gewerbe', 'KI', 'Musik', 'Marketing', 'Suno'],
+                'contract_file_path'    => 'buchhaltung/contracts/2026/11/2026-11-24_Suno_Suno-AI-Pro-Abo_Rechnung-KTQ7QFHH-0001.pdf',
+            ],
 
             // Auto (Ausgaben = Negativ)
 /*            [
@@ -706,9 +727,10 @@ class AccountingSeeder extends Seeder
                 'date'           => '2026-11-20',
                 'category'       => 'Verpackungen',
                 'tax_rate'       => 19,
-                'invoice_number' => 'VPJ21171 (PayPal 1SW87551V09465610)',
-                'note'           => "Bestellnummer: VPJ21171 | Bestellt & bezahlt am: 20.11.2026 via PayPal Checkout (Transaktionscode: 1SW87551V09465610, Volksbank eG Braunschweig Wolfsburg ••6000) | Versand am: 22.11.2026 (Sendungsnr.: 01925028357057)\nHändler: RAPIDPACK GmbH (verpacking.com), Neuenhagener Chaussee 2, 15366 Hoppegarten, USt-IdNr.: DE292411306, HRB 20121 FF AG Frankfurt (Oder), Tel.: +49 30 221846600\nPositionen:\n- Pos. 1: 100x Versandtasche Vollpappe 167x240 mm DIN A5 selbstklebend weiß (Art.-Nr.: 3895-001): 41,65 € brutto (0,42 € brutto / Stk.)\n- Pos. 2: Standardversand DE Paketversand: 4,95 € brutto\nGesamt (Netto): 39,16 € | inkl. 19 % USt.: 7,44 € | Gesamtsumme (Brutto): 46,60 €\nEinsatzzweck: 100 % plastikfreie, knickgeschützte Vollpapp-Versandtasche (PKG-ENV-VOUCHER) für den Postversand gravierter Geschenkgutscheine im Schwarz-Gold-Umschlag (Deutsche Post Großbrief).\nProdukt-Link: https://www.verpacking.com/Versandtasche-Vollpappe-167x240-mm-DIN-A5-selbstklebend-weiss",
+                'invoice_number' => '202611-614343RE (Bestellnr. VPJ21171)',
+                'note'           => "Rechnungs-Nr.: 202611-614343RE | Rechnungs- & Lieferdatum: 24.11.2026 | Kunden-Nr.: 202611-1456114KD | Ext. Bestellnr.: VPJ21171 | Bezahlt am: 20.11.2026 via PayPal Checkout (46,60 €, offener Betrag: 0,00 €, Transaktionscode: 1SW87551V09465610) | DPD Classic Tracking-ID: 01925028357057\nHändler: RAPIDPACK GmbH (GF: Alexander Lichtenberg, verpacking.com), Neuenhagener Chaussee 2, 15366 Hoppegarten, USt-IdNr.: DE292411306, HRB 20121 FF AG Frankfurt (Oder), Tel.: +49 30 221846600, E-Mail: info@verpacking.com\nPositionen:\n- Pos. 1: 100 Stk. Versandtasche aus Vollpappe weiß 167mm x 240mm A5 (Art.-Nr.: 3895-001, 19 % MwSt.): je 0,35 € netto = 35,00 € netto (41,65 € brutto)\n- Pos. 2: 1x DPD Classic Versand (19 % MwSt.): 4,16 € netto (4,95 € brutto)\nGesamtpreis Netto: 39,16 € | MwSt. (19,00 %): 7,44 € | Gesamtpreis Brutto: 46,60 €\nEinsatzzweck: 100 % plastikfreie, knickgeschützte Vollpapp-Versandtasche (PKG-ENV-VOUCHER) für den Postversand gravierter Geschenkgutscheine im Schwarz-Gold-Umschlag (Deutsche Post Großbrief).\nProdukt-Link: https://www.verpacking.com/Versandtasche-Vollpappe-167x240-mm-DIN-A5-selbstklebend-weiss",
                 'file_paths'     => [
+                    'buchhaltung/receipts/2026/11/2026-11-24_Rapidpack-verpacking_100x-Vollpapp-Versandtasche-DIN-A5-3895-001_Rechnung-202611-614343RE.pdf',
                     'buchhaltung/receipts/2026/11/2026-11-20_Rapidpack-verpacking_100x-Vollpapp-Versandtasche-DIN-A5-3895-001_Order-VPJ21171.pdf',
                 ]
             ],

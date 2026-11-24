@@ -15,6 +15,48 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/routine', \App\Livewire\Shop\Management\ManagementRoutine::class)->name('admin.routine');
     Route::get('/admin/tasks', \App\Livewire\Shop\Management\ManagementTask::class)->name('admin.tasks');
+    Route::get('/admin/tasks/{taskId}/attachment', function (\Illuminate\Http\Request $request, string $taskId) {
+        if ($request->hasSession()) {
+            $request->session()->save();
+        }
+        if (function_exists('session_write_close')) {
+            @session_write_close();
+        }
+
+        $path = ltrim(str_replace('\\', '/', (string) $request->query('path', '')), '/');
+        if (
+            $path === ''
+            || str_contains($path, '..')
+            || str_contains($path, "\0")
+            || !str_starts_with($path, 'leitung/tasks/')
+            || !\Illuminate\Support\Facades\Storage::disk('local')->exists($path)
+        ) {
+            abort(404);
+        }
+
+        $task = \App\Models\Management\ManagementTask::findOrFail($taskId);
+        $fullPath = \Illuminate\Support\Facades\Storage::disk('local')->path($path);
+        if (is_link($fullPath) || !is_file($fullPath)) {
+            abort(404);
+        }
+
+        $downloadName = trim((string) $request->query('name', basename($path)));
+        $safeName = str_replace(['"', "\r", "\n", "\0", '/', '\\'], '_', $downloadName) ?: basename($path);
+        $mime = \Illuminate\Support\Facades\Storage::disk('local')->mimeType($path) ?: 'application/octet-stream';
+
+        if ($request->boolean('inline')) {
+            return response()->file($fullPath, [
+                'Content-Type' => $mime,
+                'Content-Disposition' => 'inline; filename="' . $safeName . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+
+        return response()->download($fullPath, $safeName, [
+            'Content-Type' => $mime,
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    })->name('admin.tasks.attachment');
     Route::get('/admin/shopping', \App\Livewire\Shop\Management\ManagementShoppingList::class)->name('admin.shopping');
     Route::get('/admin/calender', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calender');
     Route::get('/admin/calendar', \App\Livewire\Shop\Management\ManagementCalender::class)->name('admin.calendar');

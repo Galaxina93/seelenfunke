@@ -60,7 +60,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 10. **Token-Spar-Modus, Lokal-First, Wissensdatenbank-Berichte & Ticket-Pflicht statt Mail-Spam:**
     - Strikt lokal entwickeln (`http://127.0.0.1`). Kein `git push` oder `--stage-deploy` ohne explizite Freigabe von Alina.
     - Direkt mit kleinen Datei-Ausschnitten arbeiten statt Subagenten-Ketten; keine losen Test-Skripte im Projekt-Root.
-    - **Abschlussberichte in die Wissensdatenbank (`AiKnowledgeBase`):** Abschlussberichte, Prüfprotokolle und Workflows werden **niemals** in einen losen Dateiordner `Abschlussberichte/` geschrieben, sondern gebündelt bei Meilensteinen logisch und dublettenfrei direkt in die zentrale Wissensdatenbank (`/admin/tickets?view=knowledge`, via `CentralBrainService::saveMilestoneReport(...)` inkl. `database/seeders/data/knowledge_brain_reports_snapshot.json`) sowie `php artisan ai:generate-map` gepflegt.
+    - **Token-Arme Vorab-Prüfung auf Abschlussberichte (`0 Doppel-Erklärungen`) & Knowledge-Seeder-Pflicht:** Vor jeder Diagnose, Konzepterstellung oder Fachaufgabe prüfen alle internen Agenten (inkl. Antigravity/Falcone sowie Funkira & Abteilungsleiter über `CentralBrainService::findCompactPriorReportsContext(...)` / `brain_search`; öffentlicher `Funki` bleibt 100 % isoliert) kurz und tokenarm (`< 5 ms`), ob zur Anfrage bereits ein Abschlussbericht im Wissensgehirn vorliegt, damit Alina niemals Dinge doppelt erklären muss. Abschlussberichte, Prüfprotokolle und Workflows werden **niemals** in einen losen Dateiordner `Abschlussberichte/` geschrieben, sondern dublettenfrei über `CentralBrainService::saveMilestoneReport(...)` in `AiKnowledgeBase` (`/admin/tickets?view=knowledge`), `database/seeders/data/knowledge_brain_reports_snapshot.json` und vor Livegang reproduzierbar in `database/seeders/AiKnowledgeBaseSeeder.php` sowie `php artisan ai:generate-map` gepflegt.
     - **Zentrale Konzept-Verwaltung (`/admin/tickets?view=files&ftype=concept`):** Neue Konzepte landen über `ConceptLifecycleService` zentral unter `/admin/tickets?view=files&ftype=concept` mit Initial-Status **`Offen`** (`open`, geschützt vor Auto-Archivierung), 4-Stufen-Dublettenschutz, 1-Klick-Löschung und globaler Funkira-Synchronität (`concept_manage`), und wechseln nach Umsetzung & grüner Prüfung auf **`Fertig & Geprüft`** (`completed_verified`).
     - **Zentrale Tickets statt interner Warn-Mails:** Kein Cronjob und kein System-Wächter darf interne Warn- oder Fehlermails ans E-Mail-Postfach senden; alle internen System-, Sicherheits-, Blueprint- und Cronjob-Meldungen laufen ausschließlich dublettenfrei über `SystemAlertTicketService` als `AiUniverseTicket` (`/admin/tickets`).
     - **360°-Feature-Schalter, Laser-Schutz, Blueprint-Gate & Live-Air-Gap:** Deaktivierte Feature-Schalter (z. B. `quote_calculator_enabled`) steuern zentral alle 6 Ebenen (Route `404`, Menü/Footer/Startseiten-Teaser, Portale, Rechtstexte, SEO-Feeds, `system:check-routes`). Im Laser-Studio bleibt `An Laser senden` bei ungespeicherten Änderungen gesperrt (`focus_mm`-Sync + 1:1 Kontur-Mathematik). Neue Eloquent-Models implementieren immer `HasSystemBlueprint`; Abschluss lokal immer mit `./funki rights` + `./funki check` (`0 Fehler`). Auf `Live` niemals Produkt-/Bestands-/Buchhaltungs-/Bestell-Seeder ausführen (`SHOW COLUMNS`-Parität prüfen; `buchhaltung/` + Musik = `0 Byte` extern).
@@ -73,7 +73,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 
 <!-- AI_MAP_START -->
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-24 00:38)
+> Generiert via `php artisan ai:generate-map` (2026-11-24 18:33)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -116,7 +116,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Delivery**: `DeliveryFeedback, DeliverySetting, DeliveryTime`
 - **Employee**: `Employee, EmployeeContract, EmployeePayslip, EmployeeProfile, EmployeeTimeEntry`
 - **Logistics**: `LogisticsShippingRate, LogisticsShippingZone, LogisticsShippingZoneCountry`
-- **Management**: `ManagementCalendarEvent, ManagementContact, ManagementDayRoutine, ManagementDayRoutineLog, ManagementDayRoutineStep, ManagementMission, ManagementPlaylist, ManagementShoppingCategory, ManagementShoppingItem, ManagementTask, ManagementTaskList, ManagementTrack`
+- **Management**: `ManagementCalendarEvent, ManagementContact, ManagementDayRoutine, ManagementDayRoutineLog, ManagementDayRoutineStep, ManagementMission, ManagementPlaylist, ManagementShoppingCategory, ManagementShoppingItem, ManagementTask, ManagementTaskList, ManagementTaskMessage, ManagementTaskOperatorProfile, ManagementTrack`
 - **Management\Mail**: `MailAccount, MailAttachment, MailFolder, MailMessage, MailRule`
 - **Marketing**: `MarketingBlogCategory, MarketingBlogPost, MarketingCoupon, MarketingGiftVoucher, MarketingGiftVoucherLog, MarketingHerzensprojektAction, MarketingHerzensprojektTransaction, MarketingInfluencer, MarketingInfluencerCommission, MarketingInfluencerPayout, MarketingLandingPage, MarketingLinktree, MarketingLinktreeClick, MarketingLinktreeVisit, MarketingNewsletter, MarketingNewsletterSubscriber, MarketingReferral, MarketingTrackingLink, MarketingTrackingLinkHit, MarketingVoucher`
 - **Order**: `OrderOrder, OrderOrderItem, OrderQuoteRequest, OrderQuoteRequestItem, OrderRevocation, OrderShipment`
@@ -180,7 +180,7 @@ Sofern keine andere Codebase genannt wird, beziehen sich alle Anfragen auf **Mei
 - **Export**: `FileDownloadService`
 - **Gamification**: `FunkenreichSsoBridgeService, GameConfig, GamificationService, LavaParkourService, LobbyInstanceService, PlayerNameValidator`
 - **Laser**: `LaserPhotoPreprocessor, LaserQrCodeService, XtoolLaserCockpitService`
-- **Management**: `MailAiSortService, MailAttachmentFunnelService`
+- **Management**: `MailAiSortService, MailAttachmentFunnelService, ManagementTaskTicketService`
 - **Marketing**: `HolidayOfferAutopilotService, InfluencerService`
 - **Navigation**: `BackendNavigationService`
 - **Order**: `OrderProductionBatchService, ShopCapacityService`

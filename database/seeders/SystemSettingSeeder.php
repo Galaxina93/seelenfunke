@@ -82,13 +82,20 @@ class SystemSettingSeeder extends Seeder
             'owner_bic'                 => 'DEUTDE2HP24',
             'owner_iban'                => 'DE76 2507 0370 0079 8629 00',
 
-            // Erweiterte behördliche Daten (Platzhalter)
-            'owner_finanzamt_nr'        => '2319',
-            'owner_social_security_nr'  => '29 010993 S 512', // Sozialversicherungsnr
-            'owner_tax_ident_nr'        => '66324780911', // Persönliche Steuer-ID
-            'owner_health_insurance_nr' => 'O603571189',
-            'owner_agency_labor_nr'     => '241D129534',
-            'owner_economic_ident_nr'   => 'DE410594485', // W-IdNr.
+            // Erweiterte behördliche Daten & Gründungsstatus
+            'owner_finanzamt_nr'                   => '2319',
+            'owner_social_security_nr'             => '29 010993 S 512', // Sozialversicherungsnr
+            'owner_tax_ident_nr'                   => '66324780911', // Persönliche Steuer-ID
+            'owner_health_insurance_nr'            => 'O603571189',
+            'owner_agency_labor_nr'                => '241D129534',
+            'owner_economic_ident_nr'              => 'DE410594485', // W-IdNr.
+            'business_registration_date'           => '2026-11-01', // GewA 1 Feld 20 (Tätigkeitsbeginn)
+            'business_registration_certified_at'   => '2026-10-28', // GewA 1 Bescheinigung Stadt Gifhorn
+            'business_registration_ref'            => 'gew / 28-10-2026 / Ce / 402',
+            'tax_registration_elster_submitted_at' => '2026-11-06', // ELSTER steuerliche Erfassung
+            'tax_registration_elster_ticket'       => 'ep3104hvg8fm3b1m4zrwrd3djc6ieugc',
+            'tax_number_status'                    => 'pending', // 'pending' | 'assigned'
+            'ust_id_status'                        => 'pending', // 'pending' | 'assigned'
 
             // Versand & Logistik (Preise in Cents)
             'shipping_cost'             => '490',   // 4,90 €
@@ -152,6 +159,10 @@ class SystemSettingSeeder extends Seeder
             'google_tag_id',
             'google_ads_conversion_label',
             'google_shopping_require_real_photos',
+            'owner_tax_id',
+            'owner_ust_id',
+            'tax_number_status',
+            'ust_id_status',
         ];
 
         foreach ($settings as $key => $value) {

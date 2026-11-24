@@ -536,5 +536,47 @@ class AllAnalyticsPagesAndLogHardeningTest extends TestCase
         $deepInner = new \PDOException("SQLSTATE[42S22]: Unknown column 'ticket_code' in Standard input code:5");
         $outerPayload = SystemErrorLogger::buildExceptionPayload(new \RuntimeException('Wrapped DB error', 0, $deepInner));
         $this->assertSame('cli_stdin_eval_error', $outerPayload['diagnosis']['category'] ?? null);
+
+        // SF-0152: Einmalige flüchtige /tmp/*.php CLI-Skripte (z. B. /tmp/finalize_ticket_system.php:54)
+        // lösen weder SystemLog, ZeroTokenSelfHealer-Ticket noch LogArchiveService-Ingestion aus
+        $tmpScriptDiag = SystemErrorLogger::diagnose(
+            'Unknown named parameter $markdownContent',
+            \Error::class,
+            '/tmp/finalize_ticket_system.php'
+        );
+        $this->assertSame('cli_stdin_eval_error', $tmpScriptDiag['category']);
+
+        $tmpHealer = \App\Services\System\ZeroTokenSelfHealer::handleSystemError(
+            'Unknown named parameter $markdownContent',
+            \Error::class,
+            '/tmp/finalize_ticket_system.php',
+            54,
+            ['category' => 'application_runtime_error']
+        );
+        $this->assertSame('ignored', $tmpHealer['action']);
+
+        $this->assertNull(SystemErrorLogger::recordFatalShutdownError([
+            'type' => E_ERROR,
+            'message' => 'Unknown named parameter $markdownContent',
+            'file' => '/tmp/finalize_ticket_system.php',
+            'line' => 54,
+        ]));
+
+        // Kompilierte Blade-Views unter /tmp/sf_views_* werden NICHT fälschlich als Scratch-Skript ignoriert
+        $this->assertFalse(SystemErrorLogger::isTemporaryCliScratchScriptPath('/tmp/sf_views_abc/view123.php'));
+        $this->assertTrue(SystemErrorLogger::isTemporaryCliScratchScriptPath('/tmp/finalize_ticket_system.php'));
+
+        $tmpScratchLog = tempnam(sys_get_temp_dir(), 'sf_tmp_script_');
+        $this->assertNotFalse($tmpScratchLog);
+        try {
+            file_put_contents(
+                $tmpScratchLog,
+                "[2026-11-24 11:04:34] local.ERROR: Unknown named parameter \$markdownContent {\"exception\":\"[object] (Error(code: 0): Unknown named parameter \$markdownContent at /tmp/finalize_ticket_system.php:54)\n[stacktrace]\n#0 {main}\n\"}\n"
+            );
+            $this->assertFalse(LogArchiveService::fileHasErrorLines($tmpScratchLog));
+            $this->assertSame(0, LogArchiveService::ingestSingleLogFileIntoSentinel($tmpScratchLog, 'laravel.log'));
+        } finally {
+            @unlink($tmpScratchLog);
+        }
     }
 }

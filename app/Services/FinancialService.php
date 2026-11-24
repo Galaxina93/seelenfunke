@@ -2051,7 +2051,7 @@ class FinancialService
         }
 
         // 8. Software, Cloud, Server, Domains & KI-Lizenzen (SKR03 4964)
-        if (\Illuminate\Support\Str::contains($haystack, ['software', 'hosting', 'server', 'domain', 'mittwald', 'google', 'cloud', 'it &', 'lizenz'])) {
+        if (\Illuminate\Support\Str::contains($haystack, ['software', 'hosting', 'server', 'domain', 'mittwald', 'google', 'suno', 'cloud', 'it &', 'lizenz'])) {
             return ['account' => '4964', 'bu_key' => $buKey, 'label' => 'EDV & Hosting'];
         }
 

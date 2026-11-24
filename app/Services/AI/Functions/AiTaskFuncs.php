@@ -67,26 +67,174 @@ trait AiTaskFuncs
         return null;
     }
 
+    /**
+     * Löst ein Aufgaben-Ticket schnell per UUID, exaktem Titel oder normalisiertem Teil-Titel auf.
+     */
+    public static function resolveTaskRecord(?string $input, bool $includeCompleted = true): ?ManagementTask
+    {
+        if (empty($input)) {
+            return null;
+        }
+
+        $input = trim($input);
+        if ($input === '') {
+            return null;
+        }
+
+        if (Str::isUuid($input)) {
+            $task = ManagementTask::where('is_archived', false)->find($input);
+            if ($task) {
+                return $task;
+            }
+        }
+
+        $baseQuery = fn () => ManagementTask::where('is_archived', false)
+            ->when(!$includeCompleted, fn ($q) => $q->where('is_completed', false));
+
+        $exact = $baseQuery()
+            ->whereNull('parent_id')
+            ->whereRaw('LOWER(TRIM(title)) = ?', [mb_strtolower($input)])
+            ->first();
+        if ($exact) {
+            return $exact;
+        }
+
+        $escaped = addcslashes($input, '%_\\');
+        $likeParent = $baseQuery()
+            ->whereNull('parent_id')
+            ->where('title', 'LIKE', '%' . $escaped . '%')
+            ->orderBy('is_completed', 'asc')
+            ->orderBy('is_mine', 'desc')
+            ->orderBy('position', 'asc')
+            ->first();
+        if ($likeParent) {
+            return $likeParent;
+        }
+
+        $normalize = fn (string $s) => preg_replace('/[^a-z0-9äöüß]/u', '', mb_strtolower($s));
+        $normInput = $normalize($input);
+        if (mb_strlen($normInput) >= 3) {
+            $candidates = $baseQuery()->whereNull('parent_id')->limit(200)->get();
+            foreach ($candidates as $candidate) {
+                $normTitle = $normalize((string) $candidate->title);
+                if ($normTitle !== '' && (str_contains($normTitle, $normInput) || str_contains($normInput, $normTitle))) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return $baseQuery()->where('title', 'LIKE', '%' . $escaped . '%')->first();
+    }
+
+    /**
+     * Übersetzt deutsche und englische Status-Begriffe auf die 4 Ticket-Statuswerte.
+     */
+    public static function normalizeAiTaskStatus(?string $raw): ?string
+    {
+        if ($raw === null || trim($raw) === '') {
+            return null;
+        }
+
+        $clean = mb_strtolower(trim($raw));
+
+        return match ($clean) {
+            'open', 'offen', 'rot' => ManagementTask::STATUS_OPEN,
+            'waiting', 'warten', 'wartend', 'gelb' => ManagementTask::STATUS_WAITING,
+            'in_progress', 'in bearbeitung', 'bearbeitung', 'in arbeit', 'orange' => ManagementTask::STATUS_IN_PROGRESS,
+            'completed', 'done', 'erledigt', 'abgeschlossen', 'grün', 'gruen' => ManagementTask::STATUS_COMPLETED,
+            default => in_array($clean, ManagementTask::VALID_STATUSES, true) ? $clean : null,
+        };
+    }
+
+    /**
+     * Sammelt alle Dateianhänge eines Tickets (Legacy file_paths + Ticket-Chat Anhänge) dublettenfrei.
+     *
+     * @return array<int, array{filename: string, path: string, source: string, message_id?: string}>
+     */
+    private static function collectTaskAttachments(ManagementTask $task): array
+    {
+        $seen = [];
+        $attachments = [];
+
+        if (!empty($task->file_paths) && is_array($task->file_paths)) {
+            foreach ($task->file_paths as $path) {
+                $pathStr = trim((string) $path);
+                if ($pathStr === '' || isset($seen[$pathStr])) {
+                    continue;
+                }
+                $seen[$pathStr] = true;
+                $attachments[] = [
+                    'filename' => basename($pathStr),
+                    'path' => $pathStr,
+                    'source' => 'ticket',
+                ];
+            }
+        }
+
+        $messages = $task->relationLoaded('messages')
+            ? $task->messages
+            : $task->messages()->orderBy('created_at', 'asc')->get();
+
+        foreach ($messages as $msg) {
+            foreach ((array) ($msg->attachments ?? []) as $att) {
+                $pathStr = trim((string) ($att['path'] ?? ''));
+                if ($pathStr === '' || isset($seen[$pathStr])) {
+                    continue;
+                }
+                $seen[$pathStr] = true;
+                $attachments[] = [
+                    'filename' => (string) ($att['original_name'] ?? basename($pathStr)),
+                    'path' => $pathStr,
+                    'source' => 'chat',
+                    'message_id' => $msg->id,
+                ];
+            }
+        }
+
+        return $attachments;
+    }
+
     public static function getAiTaskFuncsSchema(): array
     {
         return [
             [
                 'name' => 'task_get_all',
-                'description' => 'Ruft aktuell offene System-Aufgaben ab (inklusive Listenname, Teilschritte und Dateianhänge). Filterbar nach Listenname oder Suchbegriff. Stichworte: Zeig mir meine Todos, Was muss ich tun, offene Aufgaben, Taskliste, TODO Liste. ACHTUNG: Dies ist NICHT für die Einkaufsliste. Nutze für Einkäufe `system_switch_agent` zu Einkaufi.',
+                'description' => 'Liest Alinas Aufgaben-Tickets schnell und tokenarm aus (Kacheln "Meine Tickets" via only_mine=true oder "Offene Tickets" via only_mine=false, die 4 Status open/waiting/in_progress/completed, Ticket-Chat-Verlauf, Beschreibung, Fälligkeit mit Uhrzeit, Listen und alle Dateianhänge). Übergib task_id oder search + include_messages=true, um ein konkretes Ticket samt Chat und Dateien vollständig zu lesen. ACHTUNG: Nicht für die Einkaufsliste.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
+                        'task_id' => [
+                            'type' => 'string',
+                            'description' => 'Optional: UUID oder Teil-Titel eines konkreten Tickets, um dessen Details, Chat-Nachrichten und Dateianhänge direkt zu lesen.'
+                        ],
+                        'only_mine' => [
+                            'type' => 'boolean',
+                            'description' => 'Optional: true = nur Kachel "Meine Tickets", false = nur Kachel "Offene Tickets". Weglassen für beide Kacheln.'
+                        ],
                         'list_name' => [
                             'type' => 'string',
-                            'description' => 'Optional: Filtert Aufgaben nach Listenname (z.B. "PHASE 1 - PRODUKTE", "Marketing", "Existenzgründung").'
+                            'description' => 'Optional: Filter nach Listenname (z.B. "Fahrplan bis Livegang", "Kanzlei & Steuern").'
                         ],
                         'task_list_id' => [
                             'type' => 'string',
                             'description' => 'Optional: Exakte ID oder Name der Liste.'
                         ],
+                        'status' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Filter nach Status ("open" = Offen/Rot, "waiting" = Warten/Gelb, "in_progress" = In Bearbeitung/Orange, "completed" = Erledigt/Grün, "escalated" = Eskaliert).',
+                            'enum' => ['open', 'waiting', 'in_progress', 'completed', 'escalated']
+                        ],
                         'search' => [
                             'type' => 'string',
-                            'description' => 'Optional: Suchbegriff im Titel der Aufgaben.'
+                            'description' => 'Optional: Suchbegriff im Titel, Bearbeiter oder der Beschreibung des Tickets.'
+                        ],
+                        'assignee' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Filter nach Bearbeiter-Name (z.B. "Alina" oder Mitarbeitername, oder "none" für unzugewiesene Tickets).'
+                        ],
+                        'include_messages' => [
+                            'type' => 'boolean',
+                            'description' => 'Optional: true lädt die Ticket-Beschreibung und die letzten Chat-Einträge direkt mit (automatisch aktiv bei task_id).'
                         ]
                     ],
                 ],
@@ -94,7 +242,7 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_get_lists',
-                'description' => 'Ruft alle existierenden Aufgabenlisten (To-Do Listen Kategorien) mit Namen und IDs ab. Stichworte: Welche Listen gibt es, Meine To-Do Listen, Tasklisten.',
+                'description' => 'Ruft alle existierenden Aufgabenlisten (unterhalb von "Meine Tickets") mit Namen, Reihenfolge und offenen Ticket-Zahlen ab.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => new \stdClass(),
@@ -103,35 +251,64 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_create',
-                'description' => 'Erstellt eine neue Aufgabe (To-Do). Kann direkt einer Liste per Name (z.B. "Phase 1 - Produkte", "Marketing") oder ID zugewiesen werden. Stichworte: Schreib auf die Todo-Liste, Erinnere mich daran das zu tun, Neue Aufgabe anlegen, Todo erstellen. ACHTUNG: Dies ist NICHT für die Einkaufsliste.',
+                'description' => 'Erstellt ein neues Aufgaben-Ticket. Standardmäßig landet es mit Status "open" (Offen) in "Offene Tickets"; mit is_mine=true landet es direkt in "Meine Tickets" (Status bleibt frei wählbar). Optional mit Beschreibung, erstem Chat-Eintrag, Datum, Uhrzeit und Liste. ACHTUNG: Nicht für die Einkaufsliste.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'title' => [
                             'type' => 'string',
-                            'description' => 'Die genaue Aufgabe / Titel.'
+                            'description' => 'Titel des neuen Tickets.'
                         ],
                         'priority' => [
                             'type' => 'string',
-                            'description' => 'Priorität der Aufgabe (Standard: mittel)',
+                            'description' => 'Priorität (Standard: mittel)',
                             'enum' => ['hoch', 'mittel', 'niedrig']
                         ],
                         'list_name' => [
                             'type' => 'string',
-                            'description' => 'Name oder Teilname der Ziel-Liste (z.B. "PHASE 1 - PRODUKTE", "Marketing", "Existenzgründung"). Kann anstelle oder zusammen mit task_list_id übergeben werden.'
+                            'description' => 'Name oder Teilname der Ziel-Liste (z.B. "Fahrplan bis Livegang", "Kanzlei & Steuern").'
                         ],
                         'task_list_id' => [
                             'type' => 'string',
-                            'description' => 'Optionale ID, Name oder Slug der Liste (z.B. "phase_1_produkte").'
+                            'description' => 'Optionale ID, Name oder Slug der Liste.'
                         ],
                         'relevant_from' => [
                             'type' => 'string',
-                            'description' => 'Optionales Planungs- oder Fälligkeitsdatum (z.B. "2026-10-25" oder "heute", "morgen").'
+                            'description' => 'Optionales Fälligkeitsdatum (z.B. "2026-11-28", "heute", "morgen").'
+                        ],
+                        'due_time' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Uhrzeit im Format HH:MM (z.B. "14:30") für direkte Kalender-Einplanung.'
+                        ],
+                        'duration_minutes' => [
+                            'type' => 'integer',
+                            'description' => 'Optionale Dauer in Minuten für den Kalender-Zeitslot (Standard: 60).'
+                        ],
+                        'status' => [
+                            'type' => 'string',
+                            'description' => 'Optionaler Ticket-Status ("open" = Offen, "waiting" = Warten, "in_progress" = In Bearbeitung, "completed" = Erledigt). Standard: open.',
+                            'enum' => ['open', 'waiting', 'in_progress', 'completed']
+                        ],
+                        'is_mine' => [
+                            'type' => 'boolean',
+                            'description' => 'Optional: true legt das Ticket direkt in die Kachel "Meine Tickets" (ohne den Status zwangsweise zu ändern). Standard: false.'
+                        ],
+                        'assign_to' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Name oder Rolle des gewünschten Bearbeiters (z.B. "Alina" oder Name eines Mitarbeiters; unscharfe Suche aktiv).'
+                        ],
+                        'description' => [
+                            'type' => 'string',
+                            'description' => 'Optionale Ticket-Beschreibung / Notiz.'
+                        ],
+                        'chat_note' => [
+                            'type' => 'string',
+                            'description' => 'Optionaler erster Eintrag direkt im Ticket-Chat.'
                         ],
                         'subtasks' => [
                             'type' => 'array',
                             'items' => ['type' => 'string'],
-                            'description' => 'Optionale Teilschritte / Unterpunkte, die direkt mit angelegt werden sollen.'
+                            'description' => 'Optionale Teilschritte, die direkt mit angelegt werden.'
                         ]
                     ],
                     'required' => ['title']
@@ -140,13 +317,13 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_add_subtask',
-                'description' => 'Fügt einer bestehenden Aufgabe einen Teilschritt (Unterschritt) hinzu. Stichworte: Schritt hinzufügen, Teilschritt anlegen, Unterpunkt zu Aufgabe.',
+                'description' => 'Fügt einem bestehenden Ticket einen Teilschritt hinzu.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'task_id' => [
                             'type' => 'string',
-                            'description' => 'Die ID oder der genaue Titel der übergeordneten Hauptaufgabe.'
+                            'description' => 'UUID oder Teil-Titel des Tickets.'
                         ],
                         'title' => [
                             'type' => 'string',
@@ -159,17 +336,42 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_update',
-                'description' => 'Bearbeitet den Titel, die Priorität, das Fälligkeitsdatum oder die Liste einer bestehenden Aufgabe. Stichworte: Ändere die Aufgabe, setze Priorität auf hoch, verschiebe Todo.',
+                'description' => 'Zentrales Schnell-Werkzeug für Ticket-Änderungen: Schiebt ein Ticket in/aus "Meine Tickets" (is_mine=true/false, Status bleibt unverändert!), ändert den Status (open=Offen, waiting=Warten, in_progress=In Bearbeitung, completed=Erledigt), schreibt in den Ticket-Chat (chat_note), passt den letzten eigenen Chat-Eintrag innerhalb von 5 Minuten an (edit_last_chat_note), ändert Titel, Reihenfolge (new_position), Liste oder Datum/Uhrzeit.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'task_id' => [
                             'type' => 'string',
-                            'description' => 'Die ID oder der Titel der zu bearbeitenden Aufgabe.'
+                            'description' => 'UUID oder Titel / Teil-Titel des Tickets.'
+                        ],
+                        'is_mine' => [
+                            'type' => 'boolean',
+                            'description' => 'Optional: true schiebt das Ticket in "Meine Tickets", false schiebt es zurück in "Offene Tickets" (der Status bleibt dabei unverändert!).'
+                        ],
+                        'assign_to' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Weist das Ticket einem Bearbeiter per Namen/Kürzel zu (z.B. "Alina", Mitarbeitername oder "none" zum Aufheben der Zuweisung).'
+                        ],
+                        'new_status' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Neuer Status ("open" = Offen/Rot, "waiting" = Warten/Gelb, "in_progress" = In Bearbeitung/Orange, "completed" = Erledigt/Grün).',
+                            'enum' => ['open', 'waiting', 'in_progress', 'completed']
+                        ],
+                        'chat_note' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Schreibt eine neue Nachricht / ein Update direkt in den Ticket-Chat.'
+                        ],
+                        'edit_last_chat_note' => [
+                            'type' => 'string',
+                            'description' => 'Optional: Korrigiert den Text des letzten Chat-Eintrags (innerhalb des 5-Minuten-Bearbeitungsfensters).'
                         ],
                         'new_title' => [
                             'type' => 'string',
-                            'description' => 'Neuer Titel der Aufgabe (optional).'
+                            'description' => 'Neuer Titel des Tickets (optional).'
+                        ],
+                        'new_description' => [
+                            'type' => 'string',
+                            'description' => 'Neue Ticket-Beschreibung / Notiz (optional).'
                         ],
                         'new_priority' => [
                             'type' => 'string',
@@ -177,7 +379,7 @@ trait AiTaskFuncs
                         ],
                         'new_list_name' => [
                             'type' => 'string',
-                            'description' => 'Name der neuen Ziel-Liste (optional, z.B. "Marketing", "PHASE 1 - PRODUKTE").'
+                            'description' => 'Name der neuen Ziel-Liste (optional).'
                         ],
                         'new_list_id' => [
                             'type' => 'string',
@@ -185,7 +387,19 @@ trait AiTaskFuncs
                         ],
                         'new_relevant_from' => [
                             'type' => 'string',
-                            'description' => 'Neues Planungs- oder Fälligkeitsdatum (z.B. YYYY-MM-DD).'
+                            'description' => 'Neues Fälligkeitsdatum (z.B. YYYY-MM-DD, "heute", "morgen" oder leer zum Entfernen).'
+                        ],
+                        'new_due_time' => [
+                            'type' => 'string',
+                            'description' => 'Neue Uhrzeit im Format HH:MM (z.B. "09:30") oder leer zum Entfernen.'
+                        ],
+                        'new_duration_minutes' => [
+                            'type' => 'integer',
+                            'description' => 'Neue Dauer in Minuten (15 bis 720).'
+                        ],
+                        'new_position' => [
+                            'type' => 'integer',
+                            'description' => 'Optionale 0-basierte Zielposition innerhalb der Kachel (0 = ganz nach oben).'
                         ]
                     ],
                     'required' => ['task_id']
@@ -321,13 +535,17 @@ trait AiTaskFuncs
             ],
             [
                 'name' => 'task_read_file',
-                'description' => 'Liest den Inhalt einer angehängten Datei zu einer Aufgabe (z.B. PDF, TXT, CSV, JSON, XML, MD) oder analysiert ein Bild (PNG, JPG, WEBP, GIF). Erfordert den exakten Pfad der Datei (path), den du durch task_get_all erhältst.',
+                'description' => 'Liest den Inhalt einer angehängten Datei aus einem Ticket oder Ticket-Chat (PDF, TXT, CSV, JSON, XML, MD) oder analysiert ein Bild (PNG, JPG, WEBP, GIF). Du kannst entweder den Pfad aus task_get_all ("leitung/tasks/attachments/...") oder einfach den Dateinamen zusammen mit task_id übergeben.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'file_path' => [
                             'type' => 'string',
-                            'description' => 'Der exakte Pfad der Datei aus den Task-Details (z.B. "leitung/tasks/attachments/filename.pdf").'
+                            'description' => 'Pfad der Datei ("leitung/tasks/attachments/filename.pdf") oder Dateiname (z.B. "angebot.pdf").'
+                        ],
+                        'task_id' => [
+                            'type' => 'string',
+                            'description' => 'Optional: UUID oder Titel des zugehörigen Tickets zur schnellen Dateinamen-Auflösung.'
                         ]
                     ],
                     'required' => ['file_path']
@@ -350,10 +568,36 @@ trait AiTaskFuncs
         if ($denied = self::assertTaskStaffAccess()) return $denied;
 
         try {
-            $query = ManagementTask::where('is_completed', false)
-                ->where('is_archived', false)
+            $ticketService = app(\App\Services\Management\ManagementTaskTicketService::class);
+            $ticketService->evaluateEscalations();
+
+            $specificTaskQuery = trim((string) ($args['task_id'] ?? ''));
+            $statusRaw = isset($args['status']) ? strtolower(trim((string) $args['status'])) : null;
+            $normalizedStatus = self::normalizeAiTaskStatus($statusRaw);
+            $includeCompleted = ($normalizedStatus === ManagementTask::STATUS_COMPLETED) || ($specificTaskQuery !== '');
+
+            $query = ManagementTask::where('is_archived', false)
                 ->whereNull('parent_id')
-                ->with(['list', 'subtasks']);
+                ->with(['list', 'subtasks', 'messages'])
+                ->withCount('messages');
+
+            if (!$includeCompleted) {
+                $query->where('is_completed', false);
+            }
+
+            if ($specificTaskQuery !== '') {
+                $resolved = self::resolveTaskRecord($specificTaskQuery, true);
+                if ($resolved) {
+                    $query->where('id', $resolved->id);
+                } else {
+                    $escaped = addcslashes($specificTaskQuery, '%_\\');
+                    $query->where('title', 'like', '%' . $escaped . '%');
+                }
+            }
+
+            if (array_key_exists('only_mine', $args) && $args['only_mine'] !== null) {
+                $query->where('is_mine', (bool) $args['only_mine']);
+            }
 
             $listFilter = $args['task_list_id'] ?? $args['list_name'] ?? null;
             if (!empty($listFilter)) {
@@ -363,26 +607,61 @@ trait AiTaskFuncs
                 }
             }
 
-            if (!empty($args['search'])) {
-                $escapedSearch = addcslashes((string) $args['search'], '%_\\');
-                $query->where('title', 'like', '%' . $escapedSearch . '%');
+            if ($statusRaw === 'escalated') {
+                $query->where('is_escalated', true);
+            } elseif ($normalizedStatus !== null) {
+                if ($normalizedStatus === ManagementTask::STATUS_COMPLETED) {
+                    $query->where(function ($q) {
+                        $q->where('status', ManagementTask::STATUS_COMPLETED)->orWhere('is_completed', true);
+                    });
+                } elseif ($normalizedStatus === ManagementTask::STATUS_OPEN) {
+                    $query->where(function ($q) {
+                        $q->where('status', ManagementTask::STATUS_OPEN)->orWhereNull('status');
+                    });
+                } else {
+                    $query->where('status', $normalizedStatus);
+                }
             }
 
-            $tasks = $query->orderByRaw("CASE COALESCE(priority, 'niedrig') WHEN 'hoch' THEN 1 WHEN 'mittel' THEN 2 WHEN 'niedrig' THEN 3 ELSE 4 END")
-                ->orderBy('created_at', 'desc')
-                ->limit(25)
-                ->get();
-
-            $formattedTasks = $tasks->map(function ($task) {
-                $attachments = [];
-                if (!empty($task->file_paths)) {
-                    foreach ($task->file_paths as $path) {
-                        $attachments[] = [
-                            'filename' => basename($path),
-                            'path' => $path
-                        ];
+            if (!empty($args['assignee']) && \Illuminate\Support\Facades\Schema::hasColumn('management_tasks', 'assignee_id')) {
+                $rawAss = trim((string) $args['assignee']);
+                if (in_array(strtolower($rawAss), ['none', 'unassigned', 'niemand', 'keiner', 'frei'], true)) {
+                    $query->whereNull('assignee_id');
+                } else {
+                    $matchedActor = $ticketService->resolveActorByKey($rawAss);
+                    if ($matchedActor) {
+                        $query->where('assignee_type', $matchedActor['type'])
+                            ->where('assignee_id', $matchedActor['id']);
+                    } else {
+                        $escAss = addcslashes($rawAss, '%_\\');
+                        $query->where('assignee_name', 'like', '%' . $escAss . '%');
                     }
                 }
+            }
+
+            if (!empty($args['search'])) {
+                $escapedSearch = addcslashes((string) $args['search'], '%_\\');
+                $query->where(function ($q) use ($escapedSearch) {
+                    $q->where('title', 'like', '%' . $escapedSearch . '%')
+                      ->orWhere('ai_plan', 'like', '%' . $escapedSearch . '%')
+                      ->orWhere('assignee_name', 'like', '%' . $escapedSearch . '%');
+                });
+            }
+
+            $tasks = $query
+                ->orderByDesc('is_mine')
+                ->orderBy('my_position', 'asc')
+                ->orderBy('position', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->limit(30)
+                ->get();
+
+            $includeMessages = !empty($args['include_messages'])
+                || $specificTaskQuery !== ''
+                || (!empty($args['search']) && $tasks->count() <= 3);
+
+            $formattedTasks = $tasks->map(function (ManagementTask $task) use ($includeMessages, $ticketService) {
+                $attachments = self::collectTaskAttachments($task);
 
                 $subtasks = $task->subtasks->map(function ($sub) {
                     return [
@@ -392,18 +671,47 @@ trait AiTaskFuncs
                     ];
                 })->toArray();
 
-                return [
+                $effectiveStatus = $task->is_completed
+                    ? ManagementTask::STATUS_COMPLETED
+                    : ManagementTask::normalizeStatus($task->status);
+
+                $entry = [
                     'id' => $task->id,
                     'title' => $task->title,
+                    'is_mine' => (bool) $task->is_mine,
+                    'tile' => $task->is_mine ? 'Meine Tickets' : 'Offene Tickets',
+                    'assignee' => $task->assignee_name ?: 'Kein Bearbeiter',
+                    'assignee_key' => $task->assignee_key,
+                    'status' => $effectiveStatus,
+                    'status_label' => ManagementTask::statusLabelFor($effectiveStatus),
                     'priority' => $task->priority,
-                    'created_at' => $task->created_at?->toDateTimeString(),
+                    'is_escalated' => (bool) $task->is_escalated,
+                    'escalation_reason' => $task->escalation_reason,
+                    'created_at' => $task->created_at?->format('d.m.Y H:i'),
                     'relevant_from' => $task->relevant_from?->format('Y-m-d'),
+                    'due_time' => $task->due_time,
+                    'duration_minutes' => (int) ($task->duration_minutes ?: 60),
+                    'messages_count' => (int) ($task->messages_count ?? $task->messages->count()),
                     'task_list_id' => $task->task_list_id,
                     'list_name' => $task->list?->name ?? 'Ohne Liste',
                     'subtasks' => $subtasks,
                     'has_attachments' => !empty($attachments),
-                    'attachments' => $attachments
+                    'attachments' => $attachments,
                 ];
+
+                if ($includeMessages) {
+                    $entry['description'] = $task->ai_plan;
+                    $entry['messages'] = $task->messages
+                        ->sortBy('created_at')
+                        ->take(-15)
+                        ->values()
+                        ->map(fn ($m) => $ticketService->serializeMessage($m))
+                        ->all();
+                } elseif (!empty($task->ai_plan)) {
+                    $entry['description_preview'] = Str::limit((string) $task->ai_plan, 180);
+                }
+
+                return $entry;
             });
 
             return [
@@ -425,7 +733,9 @@ trait AiTaskFuncs
                 ->withCount(['tasks as open_tasks_count' => function ($q) {
                     $q->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false);
                 }])
-                ->get(['id', 'name', 'color', 'icon']);
+                ->orderBy('position', 'asc')
+                ->orderBy('created_at', 'asc')
+                ->get(['id', 'name', 'color', 'icon', 'position']);
 
             return [
                 'status' => 'success',
@@ -458,7 +768,6 @@ trait AiTaskFuncs
             }
 
             if (!empty($listQuery) && !$targetListId) {
-                // Falls der Nutzer eine neue Liste benannt hat, die noch nicht existiert
                 $newList = ManagementTaskList::firstOrCreate(
                     ['name' => trim($listQuery)],
                     ['icon' => 'clipboard-document-list', 'color' => '#C5A059']
@@ -471,7 +780,6 @@ trait AiTaskFuncs
             }
 
             if (!$targetListId) {
-                // Fallback: Erste aktive Liste verwenden
                 $defaultList = ManagementTaskList::where('is_archived', false)
                     ->orderBy('position', 'asc')
                     ->orderBy('created_at', 'asc')
@@ -500,7 +808,7 @@ trait AiTaskFuncs
             if ($exactExisting) {
                 return [
                     'status' => 'success',
-                    'message' => "Die Aufgabe '{$exactExisting->title}' existiert bereits in der Liste '{$targetListName}' und ist noch offen.",
+                    'message' => "Das Ticket '{$exactExisting->title}' existiert bereits in der Liste '{$targetListName}' und ist noch aktiv.",
                     'task_id' => $exactExisting->id,
                     'list_name' => $targetListName,
                     'already_existed' => true
@@ -530,16 +838,58 @@ trait AiTaskFuncs
                 $priority = 'mittel';
             }
 
-            // 5. Aufgabe anlegen
-            $task = ManagementTask::create([
-                'title' => substr($title, 0, 255),
-                'priority' => $priority,
-                'is_completed' => false,
-                'task_list_id' => $targetListId,
-                'relevant_from' => $relevantFrom
-            ]);
+            // 5. Status, Meine-Tickets-Flag, Uhrzeit & Dauer normalisieren
+            $status = self::normalizeAiTaskStatus($args['status'] ?? null) ?? ManagementTask::STATUS_OPEN;
+            $isMine = !empty($args['is_mine']);
+            $dueTime = ManagementTask::normalizeDueTime($args['due_time'] ?? null);
+            $durationMinutes = max(15, min(720, (int) ($args['duration_minutes'] ?? 60)));
+            $isCompleted = $status === ManagementTask::STATUS_COMPLETED;
 
-            // 6. Teilschritte anlegen falls übergeben
+            $nextPos = $isMine
+                ? ((int) ManagementTask::where('is_mine', true)->whereNull('parent_id')->max('my_position') + 1)
+                : ((int) ManagementTask::where('is_mine', false)->whereNull('parent_id')->max('position') + 1);
+
+            // 6. Ticket anlegen (inkl. optionalem Bearbeiter via Fuzzy-Auflösung)
+            $ticketService = app(\App\Services\Management\ManagementTaskTicketService::class);
+            $actor = $ticketService->resolveCurrentActor();
+            $resolvedAssignee = !empty($args['assign_to'])
+                ? $ticketService->resolveActorByKey((string) $args['assign_to'])
+                : (($isMine || $status === ManagementTask::STATUS_IN_PROGRESS) ? $actor : null);
+
+            $createPayload = [
+                'title' => substr($title, 0, 255),
+                'ai_plan' => !empty($args['description']) ? trim((string) $args['description']) : null,
+                'status' => $status,
+                'is_mine' => $isMine,
+                'position' => $isMine ? 0 : $nextPos,
+                'my_position' => $isMine ? $nextPos : 0,
+                'priority' => $priority,
+                'is_completed' => $isCompleted,
+                'completed_at' => $isCompleted ? now() : null,
+                'task_list_id' => $targetListId,
+                'relevant_from' => $relevantFrom,
+                'due_time' => $dueTime,
+                'duration_minutes' => $durationMinutes,
+                'last_activity_at' => now(),
+            ];
+            if (\Illuminate\Support\Facades\Schema::hasColumn('management_tasks', 'assignee_id')) {
+                $createPayload['assignee_type'] = $resolvedAssignee['type'] ?? null;
+                $createPayload['assignee_id'] = $resolvedAssignee['id'] ?? null;
+                $createPayload['assignee_name'] = $resolvedAssignee['name'] ?? null;
+                $createPayload['assignee_avatar'] = $resolvedAssignee['avatar'] ?? null;
+                $createPayload['created_by_type'] = $actor['type'];
+                $createPayload['created_by_id'] = $actor['id'];
+            }
+            $task = ManagementTask::create($createPayload);
+
+            if (!empty(trim((string) ($args['chat_note'] ?? '')))) {
+                app(\App\Services\Management\ManagementTaskTicketService::class)->postMessage(
+                    $task,
+                    trim((string) $args['chat_note'])
+                );
+            }
+
+            // 7. Teilschritte anlegen falls übergeben
             $subtasksCreated = [];
             if (!empty($args['subtasks']) && is_array($args['subtasks'])) {
                 foreach ($args['subtasks'] as $subTitle) {
@@ -556,18 +906,23 @@ trait AiTaskFuncs
                 }
             }
 
-            $msg = "Die Aufgabe '{$task->title}' wurde erfolgreich in der Liste '{$targetListName}' mit Priorität '{$task->priority}' angelegt.";
+            $tileLabel = $task->is_mine ? 'Meine Tickets' : 'Offene Tickets';
+            $statusLabel = ManagementTask::statusLabelFor($task->status);
+            $msg = "Ticket '{$task->title}' wurde in '{$tileLabel}' (Liste '{$targetListName}', Status '{$statusLabel}') angelegt.";
             if (!empty($subtasksCreated)) {
                 $msg .= " Inklusive " . count($subtasksCreated) . " Teilschritten (" . implode(', ', $subtasksCreated) . ").";
             }
             if ($relevantFrom) {
-                $msg .= " Fällig/Geplant ab: " . $relevantFrom->format('d.m.Y') . ".";
+                $msg .= " Fällig/Geplant ab: " . $relevantFrom->format('d.m.Y') . ($dueTime ? ' um ' . $dueTime . ' Uhr' : '') . ".";
             }
 
             return [
                 'status' => 'success',
                 'message' => $msg,
                 'task_id' => $task->id,
+                'ticket_status' => $task->status,
+                'status_label' => $statusLabel,
+                'is_mine' => (bool) $task->is_mine,
                 'title' => $task->title,
                 'list_name' => $targetListName,
                 'list_id' => $targetListId
@@ -589,19 +944,7 @@ trait AiTaskFuncs
                 return ['status' => 'error', 'message' => 'Es wurde kein Titel für den Teilschritt angegeben.'];
             }
 
-            $parentTask = null;
-            if (Str::isUuid($args['task_id'])) {
-                $parentTask = ManagementTask::find($args['task_id']);
-            }
-            if (!$parentTask) {
-                $taskIdQuery = trim((string)$args['task_id']);
-                if (mb_strlen($taskIdQuery) >= 3) {
-                    $parentTask = ManagementTask::whereNull('parent_id')
-                        ->where('is_completed', false)
-                        ->where('title', 'like', '%' . addcslashes($taskIdQuery, '%_\\') . '%')
-                        ->first();
-                }
-            }
+            $parentTask = self::resolveTaskRecord((string) $args['task_id'], false);
 
             if (!$parentTask) {
                 return ['status' => 'error', 'message' => "Übergeordnete Aufgabe '{$args['task_id']}' nicht gefunden."];
@@ -635,28 +978,76 @@ trait AiTaskFuncs
                 return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID oder Titel angegeben.'];
             }
 
-            $task = null;
-            if (Str::isUuid($args['task_id'])) {
-                $task = ManagementTask::find($args['task_id']);
-            }
-            if (!$task) {
-                $taskIdQuery = trim((string) $args['task_id']);
-                if (mb_strlen($taskIdQuery) >= 2) {
-                    $task = ManagementTask::where('title', 'like', '%' . addcslashes($taskIdQuery, '%_\\') . '%')->first();
-                }
-            }
+            $task = self::resolveTaskRecord((string) $args['task_id'], true);
 
             if (!$task) {
-                return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden.'];
+                return ['status' => 'error', 'message' => 'Ticket nicht gefunden.'];
             }
 
             $changed = false;
             $updates = [];
 
+            $ticketService = app(\App\Services\Management\ManagementTaskTicketService::class);
+            $requestedStatus = isset($args['new_status']) ? self::normalizeAiTaskStatus((string) $args['new_status']) : null;
+
+            if ($task->is_escalated && (!empty($args['new_relevant_from']) || ($requestedStatus !== null && $requestedStatus !== ManagementTask::STATUS_COMPLETED)) && empty(trim((string) ($args['chat_note'] ?? '')))) {
+                return [
+                    'status' => 'error',
+                    'message' => 'Dieses Ticket ist eskaliert. Zum Auflösen der Eskalation werden zwingend ein neues zukünftiges Fälligkeitsdatum (new_relevant_from) UND ein Status-Eintrag im Ticket-Chat (chat_note) benötigt.',
+                ];
+            }
+
+            if ($task->is_escalated && !empty($args['new_relevant_from']) && !empty(trim((string) ($args['chat_note'] ?? '')))) {
+                try {
+                    $ticketService->resolveEscalation(
+                        task: $task,
+                        newDueDate: (string) $args['new_relevant_from'],
+                        newDueTime: $args['new_due_time'] ?? $task->due_time,
+                        chatStatusText: trim((string) $args['chat_note']),
+                        targetStatus: $requestedStatus ?? $task->status ?? ManagementTask::STATUS_IN_PROGRESS,
+                        durationMinutes: isset($args['new_duration_minutes']) ? (int) $args['new_duration_minutes'] : null
+                    );
+                } catch (\InvalidArgumentException $e) {
+                    return ['status' => 'error', 'message' => $e->getMessage()];
+                }
+                $task->refresh();
+                $changed = true;
+                $updates[] = 'Eskalation aufgelöst';
+                unset($args['new_relevant_from'], $args['new_due_time'], $args['chat_note']);
+                $requestedStatus = null;
+            }
+
+            // Bearbeiter-Zuweisung per Namen/Kuerzel/UUID (unscharfe Suche)
+            if (array_key_exists('assign_to', $args) && $args['assign_to'] !== null) {
+                $rawTarget = trim((string) $args['assign_to']);
+                $task = $ticketService->assignTicket($task, $rawTarget);
+                $changed = true;
+                $updates[] = $task->assignee_name
+                    ? ("Bearbeiter auf '{$task->assignee_name}' gesetzt")
+                    : 'Bearbeiter-Zuweisung aufgehoben';
+            }
+
+            // Kachel-Wechsel ("Meine Tickets" <-> "Offene Tickets") OHNE Status-Änderung!
+            if (array_key_exists('is_mine', $args) && $args['is_mine'] !== null) {
+                $targetMine = (bool) $args['is_mine'];
+                $targetPos = isset($args['new_position']) ? max(0, (int) $args['new_position']) : null;
+                $task = $ticketService->moveToMine($task, $targetMine, $targetPos);
+                $changed = true;
+                $updates[] = $targetMine ? "in 'Meine Tickets' verschoben (Status unverändert)" : "in 'Offene Tickets' verschoben (Status unverändert)";
+                unset($args['new_position']);
+            }
+
             if (!empty($args['new_title'])) {
                 $task->title = substr(trim($args['new_title']), 0, 255);
                 $changed = true;
                 $updates[] = "Titel geändert";
+            }
+
+            if (array_key_exists('new_description', $args)) {
+                $desc = trim((string) ($args['new_description'] ?? ''));
+                $task->ai_plan = $desc !== '' ? $desc : null;
+                $changed = true;
+                $updates[] = "Beschreibung aktualisiert";
             }
 
             if (!empty($args['new_priority'])) {
@@ -682,11 +1073,19 @@ trait AiTaskFuncs
             if (isset($args['new_relevant_from'])) {
                 if (empty($args['new_relevant_from'])) {
                     $task->relevant_from = null;
+                    $task->due_time = null;
                     $changed = true;
                     $updates[] = "Fälligkeitsdatum entfernt";
                 } else {
                     try {
-                        $task->relevant_from = \Carbon\Carbon::parse($args['new_relevant_from'])->startOfDay();
+                        $relStr = strtolower(trim((string) $args['new_relevant_from']));
+                        if ($relStr === 'heute') {
+                            $task->relevant_from = now()->startOfDay();
+                        } elseif ($relStr === 'morgen') {
+                            $task->relevant_from = now()->addDay()->startOfDay();
+                        } else {
+                            $task->relevant_from = \Carbon\Carbon::parse($args['new_relevant_from'])->startOfDay();
+                        }
                         $changed = true;
                         $updates[] = "Fälligkeitsdatum auf " . $task->relevant_from->format('d.m.Y') . " gesetzt";
                     } catch (\Exception $e) {
@@ -695,12 +1094,81 @@ trait AiTaskFuncs
                 }
             }
 
+            if (array_key_exists('new_due_time', $args)) {
+                $task->due_time = ManagementTask::normalizeDueTime($args['new_due_time']);
+                $changed = true;
+                $updates[] = $task->due_time ? "Uhrzeit auf {$task->due_time} gesetzt" : "Uhrzeit entfernt";
+            }
+
+            if (isset($args['new_duration_minutes'])) {
+                $task->duration_minutes = max(15, min(720, (int) $args['new_duration_minutes']));
+                $changed = true;
+                $updates[] = "Dauer auf {$task->duration_minutes} Min. gesetzt";
+            }
+
+            if ($requestedStatus !== null) {
+                if ($changed) {
+                    $task->save();
+                }
+                $task = $ticketService->changeStatus($task, $requestedStatus);
+                $changed = true;
+                $updates[] = "Status auf '" . ManagementTask::statusLabelFor($requestedStatus) . "' gesetzt";
+            }
+
+            if (isset($args['new_position'])) {
+                $pos = max(0, (int) $args['new_position']);
+                $poolQuery = ManagementTask::whereNull('parent_id')
+                    ->where('is_archived', false)
+                    ->where('is_completed', false)
+                    ->where('is_mine', (bool) $task->is_mine)
+                    ->orderBy($task->is_mine ? 'my_position' : 'position', 'asc')
+                    ->pluck('id')
+                    ->values()
+                    ->all();
+                $withoutCurrent = array_values(array_filter($poolQuery, fn ($id) => $id !== $task->id));
+                $clamped = min($pos, count($withoutCurrent));
+                array_splice($withoutCurrent, $clamped, 0, [$task->id]);
+                $ticketService->reorderTickets($withoutCurrent, (bool) $task->is_mine, 'all');
+                $task->refresh();
+                $changed = true;
+                $updates[] = "auf Position " . ($clamped + 1) . " sortiert";
+            }
+
+            if (!empty(trim((string) ($args['edit_last_chat_note'] ?? '')))) {
+                $lastEditable = $task->messages()
+                    ->whereIn('message_type', [
+                        \App\Models\Management\ManagementTaskMessage::TYPE_COMMENT,
+                        \App\Models\Management\ManagementTaskMessage::TYPE_ESCALATION_RESOLUTION,
+                    ])
+                    ->orderByDesc('created_at')
+                    ->first();
+                if (!$lastEditable) {
+                    return ['status' => 'error', 'message' => 'Kein anpassbarer Chat-Eintrag in diesem Ticket gefunden.'];
+                }
+                if (!$lastEditable->isEditable()) {
+                    return ['status' => 'error', 'message' => 'Das 5-Minuten-Bearbeitungsfenster für den letzten Chat-Eintrag ist bereits abgelaufen. Nutze chat_note für einen neuen Eintrag.'];
+                }
+                $ticketService->editMessage($lastEditable, trim((string) $args['edit_last_chat_note']));
+                $changed = true;
+                $updates[] = "letzten Chat-Eintrag angepasst";
+            }
+
+            if (!empty(trim((string) ($args['chat_note'] ?? '')))) {
+                $ticketService->postMessage($task, trim((string) $args['chat_note']));
+                $changed = true;
+                $updates[] = "Chat-Nachricht eingetragen";
+            }
+
             if ($changed) {
+                $task->last_activity_at = now();
                 $task->save();
                 return [
                     'status' => 'success',
-                    'message' => "Die Aufgabe '{$task->title}' wurde erfolgreich aktualisiert (" . implode(', ', $updates) . ").",
-                    'task_id' => $task->id
+                    'message' => "Ticket '{$task->title}' aktualisiert (" . implode(', ', $updates) . ").",
+                    'task_id' => $task->id,
+                    'ticket_status' => $task->status,
+                    'status_label' => ManagementTask::statusLabelFor($task->status),
+                    'is_mine' => (bool) $task->is_mine,
                 ];
             }
 
@@ -720,31 +1188,19 @@ trait AiTaskFuncs
                 return ['status' => 'error', 'message' => 'Es wurde keine Aufgaben ID oder Titel angegeben.'];
             }
 
-            $task = null;
-            if (Str::isUuid($args['task_id'])) {
-                $task = ManagementTask::find($args['task_id']);
-            }
-            if (!$task) {
-                $taskQuery = trim((string)$args['task_id']);
-                if (mb_strlen($taskQuery) >= 3) {
-                    $task = ManagementTask::where('is_completed', false)
-                        ->where('title', 'like', '%' . addcslashes($taskQuery, '%_\\') . '%')
-                        ->first();
-                }
-            }
+            $task = self::resolveTaskRecord((string) $args['task_id'], false);
 
             if (!$task) {
-                return ['status' => 'error', 'message' => 'Aufgabe nicht gefunden oder bereits erledigt.'];
+                return ['status' => 'error', 'message' => 'Ticket nicht gefunden oder bereits erledigt.'];
             }
 
-            $task->is_completed = true;
-            $task->save();
+            $task = app(\App\Services\Management\ManagementTaskTicketService::class)->changeStatus($task, ManagementTask::STATUS_COMPLETED);
 
-            $listName = $task->list?->name ?? 'Deine Liste';
+            $listName = $task->list?->name ?? 'Ohne Liste';
 
             return [
                 'status' => 'success',
-                'message' => "Die Aufgabe '{$task->title}' (aus Liste '{$listName}') wurde als erledigt markiert.",
+                'message' => "Ticket '{$task->title}' (Liste '{$listName}') wurde auf Status 'Erledigt' gesetzt.",
                 'task_id' => $task->id
             ];
         } catch (\Exception $e) {
@@ -1029,9 +1485,48 @@ trait AiTaskFuncs
                 return ['status' => 'success', 'message' => 'Kein Dateipfad angegeben.'];
             }
 
-            $filePath = (string) $args['file_path'];
+            $filePath = trim((string) $args['file_path']);
 
-            // Security check to avoid path traversal
+            // Direkte Abwehr von Path-Traversal-Versuchen
+            if (
+                str_contains($filePath, '..')
+                || str_contains($filePath, '\\')
+                || str_contains($filePath, "\0")
+            ) {
+                return ['status' => 'success', 'message' => 'Zugriff verweigert: Ungültiger Pfad.'];
+            }
+
+            // Falls Funkira nur einen reinen Dateinamen (ohne Ordnerpfad) übergibt, aus Ticket-Anhängen auflösen
+            if (!str_starts_with($filePath, 'leitung/tasks/attachments/') && !str_contains($filePath, '/')) {
+                $needle = mb_strtolower($filePath);
+                $candidateTasks = collect();
+                if (!empty($args['task_id'])) {
+                    $resolvedTask = self::resolveTaskRecord((string) $args['task_id'], true);
+                    if ($resolvedTask) {
+                        $candidateTasks->push($resolvedTask->loadMissing('messages'));
+                    }
+                }
+                if ($candidateTasks->isEmpty()) {
+                    $candidateTasks = ManagementTask::where('is_archived', false)
+                        ->whereNull('parent_id')
+                        ->with('messages')
+                        ->orderByDesc('updated_at')
+                        ->limit(50)
+                        ->get();
+                }
+
+                foreach ($candidateTasks as $candTask) {
+                    foreach (self::collectTaskAttachments($candTask) as $att) {
+                        $attName = mb_strtolower((string) ($att['filename'] ?? ''));
+                        $attBase = mb_strtolower(basename((string) ($att['path'] ?? '')));
+                        if ($attName === $needle || $attBase === $needle || str_contains($attName, $needle)) {
+                            $filePath = (string) $att['path'];
+                            break 2;
+                        }
+                    }
+                }
+            }
+
             if (
                 str_contains($filePath, '..')
                 || str_contains($filePath, '\\')

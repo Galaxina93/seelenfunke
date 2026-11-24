@@ -36,10 +36,12 @@ class AiPromptService
                                  "WICHTIG: Du verinnerlichst diese Rolle und beantwortest Fragen zu deiner Funktion ENTSPRECHEND dieser Rolle!\n";
         }
 
-        // Buchhaltungs-Regel für Ausgaben (nur für interne Admin-/Mitarbeiter-Agenten)
-        if (!$isPublicSupportChat && ($isAdmin || AiAuthHelper::isEmployee())) {
+        // Buchhaltungs- & Wissens-Vorrang-Regel (nur für interne Admin-/Mitarbeiter-Agenten, niemals für öffentlichen Funki!)
+        if (!$isPublicSupportChat && !$isFunkiSupportOnly && ($isAdmin || AiAuthHelper::isEmployee())) {
             $systemPromptText .= "\n\n[BUCHHALTUNG & FINANZEN REGEL]\n" .
-                                 "WICHTIG: Alle Ausgaben, Kosten, Kassenbons und Rechnungen (z.B. Zahnarzt, Tanken, Software, Material, Einkäufe) müssen im System (AccountingSpecialIssue / finance_create_expense) zwingend als NEGATIVER Betrag mit Minuszeichen übergeben werden (z.B. -110.32 statt +110.32). Positive Beträge gelten als Einnahmen!\n";
+                                 "WICHTIG: Alle Ausgaben, Kosten, Kassenbons und Rechnungen (z.B. Zahnarzt, Tanken, Software, Material, Einkäufe) müssen im System (AccountingSpecialIssue / finance_create_expense) zwingend als NEGATIVER Betrag mit Minuszeichen übergeben werden (z.B. -110.32 statt +110.32). Positive Beträge gelten als Einnahmen!\n" .
+                                 "\n[TOKEN-ARME VORAB-PRÜFUNG AUF ABSCHLUSSBERICHTE (0 DOPPEL-ERKLÄRUNGEN)]\n" .
+                                 "WICHTIG: Prüfe bei jeder Fach-, Fehler- oder System-Anfrage zuerst kurz und tokenarm, ob unter `[BEREITS DOKUMENTIERTE ABSCHLUSSBERICHTE & WISSENSDATENBANK-TREFFER]` bereits ein Abschlussbericht oder Wissenseintrag vorliegt (und nutze bei tieferem Detailbedarf gezielt `brain_search` mit 2 bis 3 Schlüsselwörtern). Alina darf dir bereits gelöste Themen, Ursachen oder Entscheidungen NIEMALS doppelt erklären müssen!\n";
         }
         
         // Super-Intelligenz-Identität & Easter-Egg-Erinnerung für Funkira (niemals für externe Kunden!)

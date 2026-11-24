@@ -8,6 +8,8 @@ use App\Models\Customer\CustomerGamification;
 use App\Models\Employee\Employee;
 use App\Models\Employee\EmployeeContract;
 use App\Models\Employee\EmployeeTimeEntry;
+use App\Models\Management\ManagementTask;
+use App\Models\Management\ManagementTaskList;
 use App\Models\Order\OrderOrder;
 use App\Models\Order\OrderOrderItem;
 use App\Models\Order\OrderShipment;
@@ -16,19 +18,22 @@ use App\Models\Product\ProductLoss;
 use App\Models\Support\SupportTicket;
 use App\Models\Support\SupportTicketMessage;
 use App\Services\Employee\EmployeeHrService;
+use App\Services\Management\ManagementTaskTicketService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Layout('components.layouts.backend_layout', ['guard' => 'employee'])]
 class EmployeeDashboard extends Component
 {
-    public string $activeTab = 'production'; // production, support, inventory, time, payslips
+    public string $activeTab = 'overview'; // overview, tasks, production, support, inventory, time, payslips
 
     public int $selectedYear;
     public int $selectedMonth;
@@ -50,7 +55,7 @@ class EmployeeDashboard extends Component
 
     // Urlaub / Krankmeldung
     public bool $showLeaveForm = false;
-    public string $leaveType = 'vacation'; // vacation, sick
+    public string $leaveType = 'vacation';
     public string $leaveStartDate = '';
     public string $leaveEndDate = '';
     public string $leaveNote = '';
@@ -67,6 +72,16 @@ class EmployeeDashboard extends Component
     public string $lossProductId = '';
     public int $lossQuantity = 1;
     public string $lossReason = '';
+
+    // Operator Profil-Modal in der Datenkachel
+    public bool $profileModalOpen = false;
+    public array $profileModalData = [];
+
+    #[On('operator-profile-updated')]
+    public function refreshProfileStats(): void
+    {
+        // Trigger re-render of header EP & Rank badge
+    }
 
     public function boot(): void
     {
@@ -94,20 +109,7 @@ class EmployeeDashboard extends Component
         $this->leaveStartDate = now()->format('Y-m-d');
         $this->leaveEndDate = now()->format('Y-m-d');
 
-        $contract = $this->getContract();
-        if ($contract) {
-            if ($contract->can_access_production) {
-                $this->activeTab = 'production';
-            } elseif ($contract->can_access_support) {
-                $this->activeTab = 'support';
-            } elseif ($contract->can_access_inventory) {
-                $this->activeTab = 'inventory';
-            } else {
-                $this->activeTab = 'time';
-            }
-        } else {
-            $this->activeTab = 'time';
-        }
+        $this->activeTab = 'overview';
     }
 
     protected function getContract(): ?EmployeeContract
@@ -129,6 +131,9 @@ class EmployeeDashboard extends Component
     public function switchTab(string $tab): void
     {
         $contract = $this->getContract();
+        if ($tab === 'tasks' && (!$contract || !($contract->can_access_tasks ?? true))) {
+            return;
+        }
         if ($tab === 'production' && (!$contract || !$contract->can_access_production)) {
             return;
         }
@@ -138,9 +143,57 @@ class EmployeeDashboard extends Component
         if ($tab === 'inventory' && (!$contract || !$contract->can_access_inventory)) {
             return;
         }
-        if (in_array($tab, ['production', 'support', 'inventory', 'time', 'payslips'], true)) {
+        if (in_array($tab, ['overview', 'tasks', 'production', 'support', 'inventory', 'time', 'payslips'], true)) {
             $this->activeTab = $tab;
         }
+    }
+
+    // --- OPERATOR PROFIL-MODAL (EP, RANG, TITEL & BACKGROUNDS) ---
+
+    public function openOperatorProfileModal(): void
+    {
+        /** @var Employee|null $employee */
+        $employee = Auth::guard('employee')->user();
+        if (!$employee) {
+            return;
+        }
+        $ticketService = app(ManagementTaskTicketService::class);
+        $actor = $ticketService->buildEmployeeActor($employee);
+        $this->profileModalData = $ticketService->getOperatorProfileModalPayload('employee', (string) $employee->id, $actor);
+        $this->profileModalOpen = true;
+    }
+
+    public function closeOperatorProfileModal(): void
+    {
+        $this->profileModalOpen = false;
+    }
+
+    public function equipOperatorTitle(string $titleKey): void
+    {
+        /** @var Employee|null $employee */
+        $employee = Auth::guard('employee')->user();
+        if (!$employee) {
+            return;
+        }
+        $ticketService = app(ManagementTaskTicketService::class);
+        $actor = $ticketService->buildEmployeeActor($employee);
+        $ticketService->equipOperatorCosmetic('employee', (string) $employee->id, $titleKey, null);
+        $this->profileModalData = $ticketService->getOperatorProfileModalPayload('employee', (string) $employee->id, $actor);
+        $this->dispatch('refreshComponent');
+    }
+
+    public function equipOperatorBackground(string $backgroundKey): void
+    {
+        /** @var Employee|null $employee */
+        $employee = Auth::guard('employee')->user();
+        if (!$employee) {
+            return;
+        }
+        $ticketService = app(ManagementTaskTicketService::class);
+        $actor = $ticketService->buildEmployeeActor($employee);
+        $ticketService->equipOperatorCosmetic('employee', (string) $employee->id, null, $backgroundKey);
+        $this->profileModalData = $ticketService->getOperatorProfileModalPayload('employee', (string) $employee->id, $actor);
+        $this->dispatch('refreshComponent');
     }
 
     // --- 1. STEMPELUHR & ZEITEN / URLAUB ---
@@ -483,6 +536,7 @@ class EmployeeDashboard extends Component
     {
         /** @var Employee $employee */
         $employee = Auth::guard('employee')->user();
+        $employee->loadMissing('profile');
         $contract = $this->getContract();
 
         $runningEntry = null;
@@ -499,6 +553,29 @@ class EmployeeDashboard extends Component
                 ->orderByDesc('period_year')
                 ->orderByDesc('period_month')
                 ->get();
+        }
+
+        $canAccessTasks = $contract ? (bool) ($contract->can_access_tasks ?? true) : false;
+        $ticketService = app(ManagementTaskTicketService::class);
+        $empActor = $ticketService->buildEmployeeActor($employee);
+        $operatorProfile = Schema::hasTable('management_task_operator_profiles')
+            ? $ticketService->getOrCreateOperatorProfile(
+                'employee',
+                (string) $employee->id,
+                $empActor['name'],
+                $empActor['avatar'],
+                $empActor['role_label']
+            )->toModalPayload(true)
+            : null;
+
+        $assignedOpenCount = 0;
+        if ($canAccessTasks && Schema::hasColumn('management_tasks', 'assignee_id')) {
+            $assignedOpenCount = ManagementTask::whereNull('parent_id')
+                ->where('is_completed', false)
+                ->where('is_archived', false)
+                ->where('assignee_type', 'employee')
+                ->where('assignee_id', $employee->id)
+                ->count();
         }
 
         $openOrders = collect();
@@ -545,6 +622,9 @@ class EmployeeDashboard extends Component
         return view('livewire.employee.employee-dashboard', [
             'employee' => $employee,
             'contract' => $contract,
+            'canAccessTasks' => $canAccessTasks,
+            'operatorProfile' => $operatorProfile,
+            'assignedOpenCount' => $assignedOpenCount,
             'runningEntry' => $runningEntry,
             'stats' => $stats,
             'payslips' => $payslips,

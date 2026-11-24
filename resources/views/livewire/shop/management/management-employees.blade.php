@@ -200,6 +200,10 @@
 
                         {{-- 1-Klick Berechtigungs-Schalter --}}
                         <div class="flex flex-wrap items-center gap-1.5 pt-1">
+                            <button type="button" wire:click="togglePermission('{{ $contract->id }}', 'can_access_tasks')"
+                                    class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer {{ ($contract->can_access_tasks ?? true) ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-gray-50 text-gray-400 border-gray-200 dark:bg-gray-950 dark:border-gray-800' }}">
+                                {{ ($contract->can_access_tasks ?? true) ? '✓' : '○' }} Aufgaben & Tickets
+                            </button>
                             <button type="button" wire:click="togglePermission('{{ $contract->id }}', 'can_access_production')"
                                     class="px-2.5 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer {{ $contract->can_access_production ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-gray-50 text-gray-400 border-gray-200 dark:bg-gray-950 dark:border-gray-800' }}">
                                 {{ $contract->can_access_production ? '✓' : '○' }} Packtisch & Laser
@@ -462,7 +466,11 @@
                     {{-- 3. Was darf der Mitarbeiter sehen & machen? --}}
                     <div class="space-y-2 pt-1">
                         <label class="text-[11px] font-bold text-gray-600 dark:text-gray-400 block">3. Freigeschaltete Arbeitsbereiche</label>
-                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition {{ $inviteCanAccessTasks ? 'border-gray-900 bg-gray-50 dark:border-[#C5A059] dark:bg-gray-950' : 'border-gray-200 dark:border-gray-800' }}">
+                                <input type="checkbox" wire:model.live="inviteCanAccessTasks" class="rounded text-gray-900 dark:text-[#C5A059]" />
+                                <span class="text-xs font-bold text-gray-900 dark:text-white">Aufgaben & Tickets</span>
+                            </label>
                             <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition {{ $inviteCanAccessProduction ? 'border-gray-900 bg-gray-50 dark:border-[#C5A059] dark:bg-gray-950' : 'border-gray-200 dark:border-gray-800' }}">
                                 <input type="checkbox" wire:model.live="inviteCanAccessProduction" class="rounded text-gray-900 dark:text-[#C5A059]" />
                                 <span class="text-xs font-bold text-gray-900 dark:text-white">Packtisch & Laser</span>

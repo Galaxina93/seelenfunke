@@ -1,94 +1,179 @@
-<div class="min-h-screen bg-slate-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 sm:p-6 lg:p-8 space-y-5 transition-colors">
-
-    {{-- Top-Bar: Name, PDF-Dokumente & 1-Klick Stempeluhr --}}
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div class="flex flex-wrap items-center gap-3">
-            <h1 class="text-lg font-bold text-gray-900 dark:text-white">
-                {{ $employee->first_name }} {{ $employee->last_name }}
-            </h1>
-            @if($contract)
-                <a href="{{ route('employee.contract.pdf') }}" target="_blank"
-                   class="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold">
-                    Vertrag PDF
-                </a>
-                <a href="{{ route('employee.timesheet.pdf', ['year' => $selectedYear, 'month' => $selectedMonth]) }}" target="_blank"
-                   class="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-semibold">
-                    Stundenzettel PDF
-                </a>
-            @endif
-        </div>
-
-        @if($contract)
-            <div class="flex items-center gap-2">
-                @if($runningEntry)
-                    <span class="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
-                        ● Läuft seit {{ $runningEntry->started_at?->format('H:i') }} Uhr
-                    </span>
-                    <button type="button" wire:click="clockOut"
-                            class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs cursor-pointer">
-                        ⏹ Ausstempeln
-                    </button>
-                @else
-                    <button type="button" wire:click="clockIn"
-                            class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer">
-                        ▶ Einstempeln
-                    </button>
-                @endif
-            </div>
-        @endif
-    </div>
+<div style="--theme-color: #C5A059; --theme-color-10: #C5A0591A; --theme-color-15: #C5A05926; --theme-color-20: #C5A05933; --theme-color-30: #C5A0594D; --theme-color-50: #C5A05980;"
+     class="min-h-screen bg-slate-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-3 sm:p-5 lg:p-6 space-y-4 font-sans transition-colors">
 
     {{-- Feedback --}}
     @if (session()->has('success'))
-        <div class="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-semibold">
+        <div class="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-bold">
             ✓ {{ session('success') }}
         </div>
     @endif
 
+    @if (session()->has('error'))
+        <div class="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-800 dark:text-rose-300 text-xs font-bold">
+            {{ session('error') }}
+        </div>
+    @endif
+
     @if(!$contract)
-        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 text-center text-sm font-semibold text-gray-500">
+        <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 text-center text-sm font-bold text-gray-500">
             Noch kein aktiver Arbeitsvertrag hinterlegt.
         </div>
     @else
-        {{-- Navigation (Nur freigeschaltete Bereiche sichtbar) --}}
+        {{-- ========================================================================= --}}
+        {{-- 1. ZENTRALE DATENKACHEL (Profil, Rang/EP, Live-Stempeluhr, Stunden & PDFs) --}}
+        {{-- ========================================================================= --}}
+        <div class="bg-white dark:bg-gray-900/90 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+
+                {{-- Links: Klickbares Profilbild + Name + Rang/Titel + Dokumenten-Buttons --}}
+                <div class="flex flex-wrap items-center gap-3.5 min-w-0">
+                    <button type="button"
+                            wire:click="openOperatorProfileModal"
+                            title="Mein Profil öffnen"
+                            class="flex items-center gap-3 group cursor-pointer text-left">
+                        @if(!empty($operatorProfile['avatar_url']))
+                            <img src="{{ $operatorProfile['avatar_url'] }}"
+                                 alt="{{ $employee->first_name }}"
+                                 class="w-12 h-12 rounded-2xl object-cover border-2 border-[#C5A059] group-hover:scale-105 transition-transform shrink-0" />
+                        @else
+                            <div class="w-12 h-12 rounded-2xl bg-[#C5A059]/15 border-2 border-[#C5A059] flex items-center justify-center text-sm font-black text-[#C5A059] group-hover:scale-105 transition-transform shrink-0">
+                                {{ $operatorProfile['initials'] ?? 'SF' }}
+                            </div>
+                        @endif
+
+                        <div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h1 class="text-base sm:text-lg font-black text-gray-900 dark:text-white group-hover:text-[#C5A059] transition-colors">
+                                    {{ $employee->first_name }} {{ $employee->last_name }}
+                                </h1>
+                                @if($operatorProfile)
+                                    <span class="px-2 py-0.5 rounded-lg bg-[#C5A059]/15 border border-[#C5A059]/40 text-[10px] font-black text-[#C5A059]">
+                                        {{ $operatorProfile['rank_class'] }} · {{ $operatorProfile['title_label'] }} ({{ $operatorProfile['ep_total'] }} EP)
+                                    </span>
+                                @endif
+                            </div>
+                            <div class="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                {{ $contract->job_title }} · {{ $contract->department }}
+                            </div>
+                        </div>
+                    </button>
+                </div>
+
+                {{-- Rechts: 1-Klick Stempeluhr & PDF-Schnellzugriff --}}
+                <div class="flex flex-wrap items-center gap-2">
+                    <a href="{{ route('employee.contract.pdf') }}" target="_blank"
+                       class="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs font-bold transition-colors">
+                        Vertrag PDF
+                    </a>
+                    <a href="{{ route('employee.timesheet.pdf', ['year' => $selectedYear, 'month' => $selectedMonth]) }}" target="_blank"
+                       class="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs font-bold transition-colors">
+                        Stundenzettel PDF
+                    </a>
+
+                    @if($runningEntry)
+                        <span class="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-xs font-black">
+                            ● Aktiv seit {{ $runningEntry->started_at?->format('H:i') }} Uhr
+                        </span>
+                        <button type="button" wire:click="clockOut"
+                                class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs cursor-pointer transition-colors">
+                            ⏹ Ausstempeln
+                        </button>
+                    @else
+                        <button type="button" wire:click="clockIn"
+                                class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs cursor-pointer transition-colors">
+                            ▶ Einstempeln
+                        </button>
+                    @endif
+                </div>
+            </div>
+
+            {{-- 4 Kompakte Kennzahlen-Kacheln innerhalb der Datenkachel --}}
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-950/70 border border-gray-200/70 dark:border-gray-800 flex items-center justify-between gap-2">
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">Monatsstunden</span>
+                    <strong class="text-sm font-black text-gray-900 dark:text-white">{{ $stats['worked_hours_formatted'] ?? '0,0 Std.' }}</strong>
+                </div>
+
+                <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-950/70 border border-gray-200/70 dark:border-gray-800 flex items-center justify-between gap-2">
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">Resturlaub</span>
+                    <strong class="text-sm font-black text-gray-900 dark:text-white">{{ $contract->remaining_vacation_days }} / {{ $contract->vacation_days_per_year }} Tg.</strong>
+                </div>
+
+                <div class="p-3 rounded-xl bg-gray-50 dark:bg-gray-950/70 border border-gray-200/70 dark:border-gray-800 flex items-center justify-between gap-2">
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">Meine Aufgaben</span>
+                    <strong class="text-sm font-black text-[#C5A059]">{{ $assignedOpenCount }} offen</strong>
+                </div>
+
+                <button type="button"
+                        wire:click="openOperatorProfileModal"
+                        class="p-3 rounded-xl bg-gray-50 dark:bg-gray-950/70 border border-gray-200/70 dark:border-gray-800 hover:border-[#C5A059] flex items-center justify-between gap-2 cursor-pointer transition-colors text-left">
+                    <span class="text-[11px] font-bold text-gray-500 dark:text-gray-400">Score & Profil</span>
+                    <strong class="text-sm font-black text-emerald-600 dark:text-emerald-400">{{ $operatorProfile['efficiency_score'] ?? 100 }} %</strong>
+                </button>
+            </div>
+        </div>
+
+        {{-- ========================================================================= --}}
+        {{-- MODUL-NAVIGATION (Start = Übersicht mit Daten- & Ticketkachel)            --}}
+        {{-- ========================================================================= --}}
         <div class="flex flex-wrap items-center gap-2">
+            <button type="button" wire:click="switchTab('overview')"
+                    class="px-4 py-2 rounded-xl text-xs font-black border transition cursor-pointer {{ $activeTab === 'overview' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+                Übersicht
+            </button>
+
             @if($contract->can_access_production)
                 <button type="button" wire:click="switchTab('production')"
-                        class="px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer {{ $activeTab === 'production' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+                        class="px-4 py-2 rounded-xl text-xs font-black border transition cursor-pointer {{ $activeTab === 'production' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
                     Packtisch & Laser ({{ $openOrders->count() }})
                 </button>
             @endif
 
             @if($contract->can_access_support)
                 <button type="button" wire:click="switchTab('support')"
-                        class="px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer {{ $activeTab === 'support' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+                        class="px-4 py-2 rounded-xl text-xs font-black border transition cursor-pointer {{ $activeTab === 'support' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
                     Support ({{ $openTickets->count() }})
                 </button>
             @endif
 
             @if($contract->can_access_inventory)
                 <button type="button" wire:click="switchTab('inventory')"
-                        class="px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer {{ $activeTab === 'inventory' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+                        class="px-4 py-2 rounded-xl text-xs font-black border transition cursor-pointer {{ $activeTab === 'inventory' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
                     Bruch melden
                 </button>
             @endif
 
             <button type="button" wire:click="switchTab('time')"
-                    class="px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer {{ $activeTab === 'time' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+                    class="px-4 py-2 rounded-xl text-xs font-black border transition cursor-pointer {{ $activeTab === 'time' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
                 Zeiten & Urlaub
             </button>
 
             <button type="button" wire:click="switchTab('payslips')"
-                    class="px-4 py-2.5 rounded-xl text-xs font-bold border transition cursor-pointer {{ $activeTab === 'payslips' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
+                    class="px-4 py-2 rounded-xl text-xs font-black border transition cursor-pointer {{ $activeTab === 'payslips' ? 'bg-gray-900 text-white border-gray-900 dark:bg-[#C5A059] dark:text-gray-950 dark:border-[#C5A059]' : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-800' }}">
                 Lohnzettel ({{ $payslips->count() }})
             </button>
         </div>
 
         {{-- ========================================================================= --}}
-        {{-- TAB 1: PACKTISCH & LASER (Schritt 1 -> 2 -> 3)                            --}}
+        {{-- 2. TICKETKACHEL AUF DER STARTSEITE (Meine Tickets + Team-Tickets + Chat)  --}}
         {{-- ========================================================================= --}}
-        @if($activeTab === 'production' && $contract->can_access_production)
-            <div class="space-y-4">
+        @if(($activeTab === 'overview' || $activeTab === 'tasks') && $canAccessTasks)
+            <div wire:key="employee-tasks-kachel">
+                <livewire:shop.management.management-task :embeddedMode="true" :key="'emp-tasks-board-' . $employee->id" />
+            </div>
+        @endif
+
+        {{-- ========================================================================= --}}
+        {{-- PACKTISCH & LASER (Im Tab "production" oder bei offenen Auftraegen)       --}}
+        {{-- ========================================================================= --}}
+        @if($contract->can_access_production && ($activeTab === 'production' || ($activeTab === 'overview' && $openOrders->isNotEmpty())))
+            <div class="space-y-3">
+                @if($activeTab === 'overview')
+                    <div class="flex items-center justify-between px-1">
+                        <span class="text-xs font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">Offene Fertigung ({{ $openOrders->count() }})</span>
+                    </div>
+                @endif
+
                 @forelse($openOrders as $order)
                     @php
                         $addr = $order->shipping_address ?: $order->billing_address ?: [];
@@ -193,11 +278,10 @@
         @endif
 
         {{-- ========================================================================= --}}
-        {{-- TAB 2: SUPPORT (Ticket wählen -> Antworten -> Erledigt)                   --}}
+        {{-- TAB: SUPPORT                                                              --}}
         {{-- ========================================================================= --}}
         @if($activeTab === 'support' && $contract->can_access_support)
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {{-- 1. Ticket-Liste --}}
                 <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-3 space-y-2">
                     <div class="text-xs font-bold text-gray-900 dark:text-white px-1">1. Offene Anfragen</div>
                     @forelse($openTickets as $t)
@@ -216,7 +300,6 @@
                     @endforelse
                 </div>
 
-                {{-- 2. Verlauf & Antworten --}}
                 <div class="lg:col-span-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4">
                     @if($activeTicket)
                         <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
@@ -234,7 +317,7 @@
                             @foreach($activeTicket->messages as $msg)
                                 <div class="p-3 rounded-xl text-xs {{ $msg->sender_type === 'customer' ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white mr-8' : 'bg-gray-900 text-white dark:bg-[#C5A059]/20 dark:text-white ml-8' }}">
                                     <div class="text-[10px] opacity-60 mb-1">
-                                        {{ $msg->sender_type === 'customer' ? 'Kunde' : 'Support' }} • {{ $msg->created_at?->format('d.m.Y H:i') }}
+                                        {{ $msg->sender_type === 'customer' ? 'Kunde' : 'Support' }} · {{ $msg->created_at?->format('d.m.Y H:i') }}
                                     </div>
                                     <div class="whitespace-pre-line">{{ $msg->message }}</div>
                                 </div>
@@ -259,7 +342,7 @@
         @endif
 
         {{-- ========================================================================= --}}
-        {{-- TAB 3: BRUCH MELDEN (1. Produkt -> 2. Menge -> 3. Grund -> Speichern)     --}}
+        {{-- TAB: BRUCH MELDEN                                                         --}}
         {{-- ========================================================================= --}}
         @if($activeTab === 'inventory' && $contract->can_access_inventory)
             <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 space-y-4">
@@ -268,7 +351,7 @@
                         <label class="text-[11px] font-bold text-gray-600 dark:text-gray-400">1. Produkt wählen</label>
                         <select wire:model="lossProductId"
                                 class="w-full mt-1 bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2.5 text-xs text-gray-900 dark:text-white outline-none">
-                            <option value="">-- Produkt auswählen --</option>
+                            <option value="">Produkt auswählen</option>
                             @foreach($physicalProducts as $prod)
                                 <option value="{{ $prod->id }}">{{ $prod->name }} (Bestand: {{ $prod->quantity }})</option>
                             @endforeach
@@ -312,7 +395,7 @@
         @endif
 
         {{-- ========================================================================= --}}
-        {{-- TAB 4: ZEITEN & URLAUB                                                    --}}
+        {{-- TAB: ZEITEN & URLAUB                                                      --}}
         {{-- ========================================================================= --}}
         @if($activeTab === 'time')
             <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4">
@@ -340,7 +423,6 @@
                     </div>
                 </div>
 
-                {{-- Formular: Arbeitszeit nachtragen --}}
                 @if($showManualEntryForm)
                     <form wire:submit.prevent="saveManualTimeEntry" class="p-4 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
                         <div>
@@ -365,7 +447,6 @@
                     </form>
                 @endif
 
-                {{-- Formular: Urlaub / Krank melden --}}
                 @if($showLeaveForm)
                     <form wire:submit.prevent="saveLeaveEntry" class="p-4 rounded-xl bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
                         <div>
@@ -393,7 +474,6 @@
                     </form>
                 @endif
 
-                {{-- Liste der Einträge --}}
                 <div class="divide-y divide-gray-100 dark:divide-gray-800">
                     @forelse($stats['entries'] as $entry)
                         <div class="py-2.5 flex items-center justify-between gap-3 text-xs">
@@ -404,7 +484,7 @@
                                 @elseif($entry->entry_type === 'sick')
                                     <span class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 font-bold">Krank</span>
                                 @else
-                                    <span class="font-mono text-gray-500">{{ $entry->started_at?->format('H:i') }}–{{ $entry->ended_at?->format('H:i') }} ({{ $entry->formatted_hours }})</span>
+                                    <span class="font-mono text-gray-500">{{ $entry->started_at?->format('H:i') }} bis {{ $entry->ended_at?->format('H:i') }} ({{ $entry->formatted_hours }})</span>
                                 @endif
                                 <span class="text-gray-400">{{ $entry->activity_note }}</span>
                             </div>
@@ -432,7 +512,7 @@
         @endif
 
         {{-- ========================================================================= --}}
-        {{-- TAB 5: LOHNZETTEL                                                         --}}
+        {{-- TAB: LOHNZETTEL                                                           --}}
         {{-- ========================================================================= --}}
         @if($activeTab === 'payslips')
             <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 sm:p-5 divide-y divide-gray-100 dark:divide-gray-800">
@@ -453,4 +533,7 @@
             </div>
         @endif
     @endif
+
+    {{-- OPERATOR PROFIL-MODAL FUER DEN MITARBEITER --}}
+    @include('livewire.shop.management.partials.task-operator-profile-modal')
 </div>

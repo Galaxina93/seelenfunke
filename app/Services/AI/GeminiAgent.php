@@ -162,7 +162,8 @@ class GeminiAgent implements AiProviderInterface
                                      "- Offene Bestell-Pipeline: " . ($f['pending_orders_count'] ?? 0) . " wartende Bestellung(en) (Auftragsvolumen: " . number_format($f['pending_orders_volume_eur'] ?? 0, 2, ',', '.') . " €)\n" .
                                      "- Offene Rechnungen / Forderungen: " . number_format($f['open_invoices_sum_eur'] ?? 0, 2, ',', '.') . " €\n" .
                                      "- Soll-Monatsumsatz laut Tragfähigkeitsplan: " . number_format($f['target_sales_current_month_eur'] ?? 0, 2, ',', '.') . " € (Differenz: " . (($f['sales_delta_eur'] ?? 0) >= 0 ? '+' : '') . number_format($f['sales_delta_eur'] ?? 0, 2, ',', '.') . " €)\n" .
-                                     "- Förderstatus: " . ($f['funding_status'] ?? '-') . "\n";
+                                     "- Förderstatus: " . ($f['funding_status'] ?? '-') . "\n" .
+                                     CentralBrainService::formatCompactFoundingAndTaxContext() . "\n";
             }
 
             if (!empty($aiCommand['strategic_vision'])) {
@@ -207,6 +208,29 @@ class GeminiAgent implements AiProviderInterface
                     $systemPromptText .= "- {$prefix}'{$d->title}' (`{$d->filename}`) | Pfad: `{$d->file_path}` | Zeit: {$uploadTime} {$diff} | Zweck: {$d->purpose}\n";
                 }
                 $systemPromptText .= "WICHTIG: Wenn der Nutzer fragt 'Welches Dokument wurde als letztes eingescannt?' oder 'Was war die letzte Datei?', nenne SOFORT präzise `{$latestDocs->first()->title}` (`{$latestDocs->first()->filename}`) mit Pfad und Zeitpunkt!\n";
+            }
+        }
+
+        // Token-armer 0-LLM Vorab-Check (< 5 ms) auf bestehende Abschlussberichte & Wissensdatenbank für alle internen Agenten (niemals für öffentlichen Funki!)
+        if (
+            !$isPublicSupportChat
+            && !$isFunkiSupportOnly
+            && ($isAdmin || $isEmployee)
+            && $latestUserMessage !== ''
+            && !str_contains($this->dynamicSystemPrompt, '[SOFORT-KONTEXT AUS ZENTRALEM WISSENSGEHIRN')
+        ) {
+            try {
+                $priorReportsCtx = CentralBrainService::findCompactPriorReportsContext(
+                    $latestUserMessage,
+                    $this->agent->ai_department_id ?? null,
+                    3,
+                    250,
+                    true
+                );
+                if ($priorReportsCtx !== '') {
+                    $systemPromptText .= "\n\n" . $priorReportsCtx . "\n";
+                }
+            } catch (\Throwable $ignoreBrainErr) {
             }
         }
 

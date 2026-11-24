@@ -58,7 +58,14 @@ use HasUuids;
         'icon',
         'color',
         'position',
-        'is_archived'
+        'is_team_visible',
+        'is_archived',
+    ];
+
+    protected $casts = [
+        'position' => 'integer',
+        'is_team_visible' => 'boolean',
+        'is_archived' => 'boolean',
     ];
 
     /**

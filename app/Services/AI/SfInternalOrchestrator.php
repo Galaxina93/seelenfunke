@@ -37,6 +37,7 @@ class SfInternalOrchestrator
                 'finance_search_variable_costs',
                 'finance_list_categories',
                 'finance_get_monthly_stats',
+                'finance_get_tax_and_founding_status',
             ],
             'directive' => 'Du bist der isolierte Buchi-Worker von Mein-Seelenfunke. Arbeite cent-exakt, übergib Ausgaben immer negativ (z. B. -49.90), trenne strikt Gewerblich vs. Privat, prüfe Dubletten und buche niemals ohne Alinas Bestätigung.',
         ],

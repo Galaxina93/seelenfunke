@@ -107,6 +107,7 @@ use HasFactory, HasUuids, SoftDeletes;
         'can_access_production',
         'can_access_support',
         'can_access_inventory',
+        'can_access_tasks',
         'internal_notes',
     ];
 
@@ -150,6 +151,7 @@ use HasFactory, HasUuids, SoftDeletes;
         'can_access_production' => 'boolean',
         'can_access_support' => 'boolean',
         'can_access_inventory' => 'boolean',
+        'can_access_tasks' => 'boolean',
     ];
 
     public function employee()

@@ -99,6 +99,7 @@ class TasksRemoteViewsFactory(
                 .filter { it.parent_id == null }
                 .sortedWith(
                     compareBy<ManagementTask> { it.is_completed }
+                        .thenBy { if (it.isEscalatedEffective) 0 else if (it.isInMyTickets) 1 else 2 }
                         .thenByDescending { priorityWeight(it.priority) }
                 )
 
@@ -229,20 +230,34 @@ class TasksRemoteViewsFactory(
             views.setInt(R.id.task_title, "setPaintFlags", Paint.ANTI_ALIAS_FLAG)
         }
 
-        // Priority dot color
-        val priorityColor = when (task.priority?.lowercase(Locale.ROOT)) {
-            "hoch" -> Color.parseColor("#EF4444")
-            "mittel" -> Color.parseColor("#F59E0B")
-            else -> Color.parseColor("#3B82F6")
+        val priorityColor = when {
+            task.is_completed -> Color.parseColor("#10B981")
+            task.normalizedStatus == "waiting" -> Color.parseColor("#FACC15")
+            task.normalizedStatus == "in_progress" -> Color.parseColor("#FB923C")
+            else -> Color.parseColor("#F87171")
         }
         views.setInt(R.id.task_priority_dot, "setColorFilter", priorityColor)
 
-        // Metadata line (Relevant date, Subtask progress, Attachments)
         val metaParts = mutableListOf<String>()
-        formatRelevantDateShort(task.relevant_from)?.let { metaParts.add(it) }
+        if (!task.is_completed) {
+            metaParts.add(task.statusLabel)
+        }
+        if (task.isEscalatedEffective) {
+            metaParts.add("⚠ Eskaliert")
+        }
+        if (task.isInMyTickets) {
+            metaParts.add("📌 Meine")
+        }
+        formatRelevantDateShort(task.relevant_from)?.let { dateShort ->
+            val withTime = if (!task.due_time.isNullOrBlank()) "$dateShort ${task.due_time.take(5)}" else dateShort
+            metaParts.add(withTime)
+        }
         if (subtasks.isNotEmpty()) {
             val doneCount = subtasks.count { it.is_completed }
             metaParts.add("✓ $doneCount/${subtasks.size}")
+        }
+        if (task.messages_count > 0) {
+            metaParts.add("💬 ${task.messages_count}")
         }
         val attachmentCount = task.file_paths?.size ?: 0
         if (attachmentCount > 0) {

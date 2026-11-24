@@ -141,13 +141,12 @@ class ManagementCalender extends Component
             $taskId = substr($eventId, 5);
             $task = \App\Models\Management\ManagementTask::find($taskId);
             if ($task) {
-                $oldDt = $task->relevant_from ? $task->relevant_from->copy() : $newDay->copy();
-                $newDt = $newDay->copy()->setTimeFrom($oldDt);
+                $updates = ['relevant_from' => $newDay->copy()->startOfDay()];
                 if ($targetHour !== null && $targetHour !== '' && is_numeric($targetHour)) {
-                    $newDt->setTime(max(0, min(23, (int)$targetHour)), 0, 0);
+                    $updates['due_time'] = sprintf('%02d:00', max(0, min(23, (int) $targetHour)));
                 }
-                $task->update(['relevant_from' => $newDt]);
-                session()->flash('calendar_success', 'Aufgabe verschoben.');
+                $task->update($updates);
+                session()->flash('calendar_success', 'Ticket-Termin im Kalender verschoben.');
             }
             return;
         }
@@ -518,25 +517,40 @@ class ManagementCalender extends Component
             }
         }
 
-        // Aufgaben mit Fälligkeit / Planungsdatum als Kalender-Items einbinden
+        // Aufgaben mit Fälligkeit / Planungsdatum als Kalender-Items einbinden (an Mitarbeiter delegierte Tickets erscheinen nicht im Leitungs-Kalender)
         $taskEvents = collect();
-        $tasksWithDueDate = \App\Models\Management\ManagementTask::whereNotNull('relevant_from')
+        $calTasksQuery = \App\Models\Management\ManagementTask::whereNotNull('relevant_from')
             ->whereBetween('relevant_from', [$start, $end])
             ->where('is_archived', false)
-            ->get();
+            ->whereNull('parent_id');
+        if (\Illuminate\Support\Facades\Schema::hasColumn('management_tasks', 'assignee_type')) {
+            $calTasksQuery->where(function ($q) {
+                $q->whereNull('assignee_type')->orWhere('assignee_type', '!=', 'employee');
+            });
+        }
+        $tasksWithDueDate = $calTasksQuery->get();
 
         foreach ($tasksWithDueDate as $task) {
+            $hasTime = method_exists($task, 'hasExplicitTime') && $task->hasExplicitTime();
+            $startDt = $hasTime ? $task->getCalendarStartDateTime() : $task->relevant_from->copy()->startOfDay();
+            $endDt = $hasTime ? $task->getCalendarEndDateTime() : $task->relevant_from->copy()->endOfDay();
+            $statusBadge = $task->is_completed
+                ? 'Erledigt'
+                : \App\Models\Management\ManagementTask::statusLabelFor($task->status) . ($task->is_escalated ? ' · Eskaliert' : '');
+
             $taskItem = new ManagementCalendarEvent([
-                'title' => '📋 ' . $task->title,
-                'start_date' => $task->relevant_from->copy()->startOfDay(),
-                'end_date' => $task->relevant_from->copy()->endOfDay(),
-                'is_all_day' => true,
+                'title' => ($task->is_escalated ? '⚠️ ' : '🎫 ') . $task->title,
+                'start_date' => $startDt,
+                'end_date' => $endDt,
+                'is_all_day' => !$hasTime,
                 'category' => 'task',
-                'description' => 'Aufgabe: ' . $task->title . ($task->is_completed ? ' (Erledigt)' : ' (Offen)'),
+                'priority' => ($task->is_escalated || $task->priority === 'hoch') ? 'high' : 'low',
+                'description' => 'Ticket: ' . $task->title . ' (' . $statusBadge . ')',
             ]);
             $taskItem->id = 'task_' . $task->id;
             $taskItem->is_task_item = true;
             $taskItem->is_completed = $task->is_completed;
+            $taskItem->status_label = $statusBadge;
             $taskEvents->push($taskItem);
         }
 

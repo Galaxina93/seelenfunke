@@ -8,6 +8,7 @@ import de.meinseelenfunke.app.util.SmartShutterDevice
 import de.meinseelenfunke.app.util.TimerPresetItem
 import de.meinseelenfunke.app.util.WakeUpLogEntry
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.Field
@@ -35,13 +36,77 @@ data class ManagementTask(
     val task_list_id: String,
     val parent_id: String?,
     val title: String,
+    val status: String? = "open",
+    val is_mine: Boolean = false,
+    val assignee_name: String? = null,
+    val assignee_key: String? = null,
+    val position: Int = 0,
+    val my_position: Int = 0,
     val priority: String?,
     val is_completed: Boolean,
+    val is_escalated: Boolean = false,
+    val escalation_reason: String? = null,
     val parent_title: String?,
     val relevant_from: String?,
+    val due_time: String? = null,
+    val duration_minutes: Int? = 60,
+    val messages_count: Int = 0,
     val ai_plan: String? = null,
     val created_at: String? = null,
     val file_paths: List<String>? = null
+) {
+    val normalizedStatus: String
+        get() = when {
+            is_completed -> "completed"
+            status.equals("waiting", ignoreCase = true) -> "waiting"
+            status.equals("in_progress", ignoreCase = true) -> "in_progress"
+            status.equals("completed", ignoreCase = true) -> "completed"
+            else -> "open"
+        }
+
+    val statusLabel: String
+        get() = when (normalizedStatus) {
+            "waiting" -> "Warten"
+            "in_progress" -> "In Bearbeitung"
+            "completed" -> "Erledigt"
+            else -> "Offen"
+        }
+
+    val isEscalatedEffective: Boolean
+        get() = !is_completed && (is_escalated || status.equals("escalated", ignoreCase = true))
+
+    val isInMyTickets: Boolean
+        get() = !is_completed && is_mine
+}
+
+data class ManagementTaskChatAttachment(
+    val path: String? = null,
+    val name: String? = null,
+    val mime: String? = null,
+    val size: Long = 0
+)
+
+data class ManagementTaskMessageDto(
+    val id: String,
+    val management_task_id: String? = null,
+    val sender_type: String? = null,
+    val sender_name: String? = null,
+    val sender_avatar_url: String? = null,
+    val message_type: String? = null,
+    val content: String? = null,
+    val attachments: List<ManagementTaskChatAttachment>? = null,
+    val created_at: String? = null,
+    val created_human: String? = null,
+    val edited_at: String? = null,
+    val edited_human: String? = null,
+    val can_edit: Boolean = false,
+    val remaining_edit_seconds: Int = 0
+)
+
+data class TaskReorderBody(
+    val ordered_ids: List<String>,
+    val is_mine: Boolean = false,
+    val list_scope: String = "all"
 )
 
 data class ManagementDayRoutineStep(
@@ -94,11 +159,21 @@ data class CalendarEvent(
     val priority: String?
 )
 
+data class TaskAssigneeDto(
+    val key: String = "",
+    val name: String = "",
+    val role_label: String? = null,
+    val initials: String? = null
+)
+
 // Response wrappers
+data class TaskAssigneesResponse(val success: Boolean, val data: List<TaskAssigneeDto>)
 data class TaskListsResponse(val success: Boolean, val data: List<ManagementTaskList>)
 data class TasksResponse(val success: Boolean, val data: List<ManagementTask>)
 data class TaskDetailResponse(val success: Boolean, val data: ManagementTask)
 data class TaskListDetailResponse(val success: Boolean, val data: ManagementTaskList)
+data class TaskMessagesResponse(val success: Boolean, val data: List<ManagementTaskMessageDto>)
+data class TaskMessagePostResponse(val success: Boolean, val data: ManagementTaskMessageDto?, val task: ManagementTask? = null)
 data class RoutinesResponse(val success: Boolean, val data: List<ManagementDayRoutine>)
 data class RoutineDetailResponse(val success: Boolean, val data: ManagementDayRoutine)
 data class RoutineStepResponse(val success: Boolean, val data: ManagementDayRoutineStep)
@@ -295,7 +370,76 @@ interface OrganizerApi {
         @Field("is_completed") isCompleted: Boolean?,
         @Field("relevant_from") relevantFrom: String?,
         @Field("ai_plan") aiPlan: String? = null,
-        @Field("task_list_id") taskListId: String? = null
+        @Field("task_list_id") taskListId: String? = null,
+        @Field("due_time") dueTime: String? = null,
+        @Field("duration_minutes") durationMinutes: Int? = null,
+        @Field("status") status: String? = null
+    ): TaskDetailResponse
+
+    @GET("funki/tasks/assignees")
+    suspend fun getTaskAssignees(): TaskAssigneesResponse
+
+    @FormUrlEncoded
+    @PUT("funki/tasks/{id}/assign")
+    suspend fun assignTask(
+        @Path("id") id: String,
+        @Field("assignee_key") assigneeKey: String
+    ): TaskDetailResponse
+
+    @FormUrlEncoded
+    @PUT("funki/tasks/{id}/status")
+    suspend fun updateTaskStatus(
+        @Path("id") id: String,
+        @Field("status") status: String
+    ): TaskDetailResponse
+
+    @FormUrlEncoded
+    @PUT("funki/tasks/{id}/mine")
+    suspend fun updateTaskMine(
+        @Path("id") id: String,
+        @Field("is_mine") isMine: Boolean,
+        @Field("position") position: Int? = null
+    ): TaskDetailResponse
+
+    @POST("funki/tasks/reorder")
+    suspend fun reorderTasks(
+        @Body body: TaskReorderBody
+    ): SimpleSuccessResponse
+
+    @GET("funki/tasks/{id}/messages")
+    suspend fun getTaskMessages(
+        @Path("id") id: String
+    ): TaskMessagesResponse
+
+    @Multipart
+    @POST("funki/tasks/{id}/messages")
+    suspend fun postTaskMessage(
+        @Path("id") id: String,
+        @Part("content") content: RequestBody,
+        @Part files: List<MultipartBody.Part>
+    ): TaskMessagePostResponse
+
+    @Multipart
+    @POST("funki/tasks/{id}/messages/{messageId}")
+    suspend fun editTaskMessage(
+        @Path("id") id: String,
+        @Path("messageId") messageId: String,
+        @Part("_method") method: RequestBody,
+        @Part("content") content: RequestBody,
+        @Part("keep_attachments_present") keepPresent: RequestBody,
+        @Part keepAttachments: List<MultipartBody.Part>,
+        @Part files: List<MultipartBody.Part>
+    ): TaskMessagePostResponse
+
+    @FormUrlEncoded
+    @POST("funki/tasks/{id}/resolve-escalation")
+    suspend fun resolveTaskEscalation(
+        @Path("id") id: String,
+        @Field("relevant_from") relevantFrom: String,
+        @Field("due_time") dueTime: String? = null,
+        @Field("duration_minutes") durationMinutes: Int? = null,
+        @Field("status") status: String = "in_progress",
+        @Field("content") content: String
     ): TaskDetailResponse
 
     @FormUrlEncoded
@@ -304,7 +448,11 @@ interface OrganizerApi {
         @Path("listId") listId: String,
         @Field("title") title: String,
         @Field("priority") priority: String = "niedrig",
-        @Field("relevant_from") relevantFrom: String? = null
+        @Field("relevant_from") relevantFrom: String? = null,
+        @Field("due_time") dueTime: String? = null,
+        @Field("duration_minutes") durationMinutes: Int? = null,
+        @Field("status") status: String? = null,
+        @Field("assignee_key") assigneeKey: String? = null
     ): TaskDetailResponse
 
     @DELETE("funki/tasks/{id}")

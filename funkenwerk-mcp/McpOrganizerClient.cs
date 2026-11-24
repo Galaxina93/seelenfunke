@@ -150,7 +150,9 @@ namespace FunkenwerkMcp
 
         public static async Task<object> ListTasksAsync(
             bool onlyOpen = true,
+            bool? onlyMine = null,
             string? priority = null,
+            string? status = null,
             string? listName = null,
             string? search = null,
             string? environment = "active")
@@ -174,13 +176,32 @@ namespace FunkenwerkMcp
             }
 
             string? normalizedFilterPrio = NormalizeTaskPriority(priority);
+            string? normalizedFilterStatus = string.IsNullOrWhiteSpace(status) ? null : status.Trim().ToLowerInvariant();
             var tasks = new List<object>();
             if (tasksDoc.RootElement.TryGetProperty("data", out var tArr) && tArr.ValueKind == JsonValueKind.Array)
             {
                 foreach (var t in tArr.EnumerateArray())
                 {
                     bool isCompleted = t.TryGetProperty("is_completed", out var ic) && ic.ValueKind == JsonValueKind.True;
-                    if (onlyOpen && isCompleted) continue;
+                    if (onlyOpen && isCompleted && normalizedFilterStatus != "completed") continue;
+
+                    bool isMine = t.TryGetProperty("is_mine", out var imProp) && imProp.ValueKind == JsonValueKind.True;
+                    if (onlyMine.HasValue && isMine != onlyMine.Value) continue;
+
+                    string rawStatus = t.TryGetProperty("status", out var stProp) && stProp.ValueKind == JsonValueKind.String
+                        ? (stProp.GetString() ?? (isCompleted ? "completed" : "open"))
+                        : (isCompleted ? "completed" : "open");
+                    bool isEscalated = (t.TryGetProperty("is_escalated", out var escProp) && escProp.ValueKind == JsonValueKind.True)
+                                       || string.Equals(rawStatus, "escalated", StringComparison.OrdinalIgnoreCase);
+
+                    if (!string.IsNullOrWhiteSpace(normalizedFilterStatus))
+                    {
+                        if (normalizedFilterStatus == "escalated" && !isEscalated) continue;
+                        if (normalizedFilterStatus == "waiting" && !string.Equals(rawStatus, "waiting", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (normalizedFilterStatus == "in_progress" && !string.Equals(rawStatus, "in_progress", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (normalizedFilterStatus == "open" && !string.Equals(rawStatus, "open", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (normalizedFilterStatus == "completed" && !isCompleted) continue;
+                    }
 
                     string prio = t.TryGetProperty("priority", out var pr) ? (pr.GetString() ?? "niedrig") : "niedrig";
                     if (!string.IsNullOrWhiteSpace(normalizedFilterPrio) && !string.Equals(prio, normalizedFilterPrio, StringComparison.OrdinalIgnoreCase))
@@ -198,11 +219,20 @@ namespace FunkenwerkMcp
                     {
                         id = t.TryGetProperty("id", out var tid) ? tid.GetString() : "",
                         title = McpSecurityGuard.ScrubSecrets(title),
+                        isMine,
+                        assigneeName = t.TryGetProperty("assignee_name", out var anProp) && anProp.ValueKind == JsonValueKind.String ? anProp.GetString() : null,
+                        assigneeKey = t.TryGetProperty("assignee_key", out var akProp) && akProp.ValueKind == JsonValueKind.String ? akProp.GetString() : null,
+                        status = rawStatus,
                         priority = prio,
                         isCompleted,
+                        isEscalated,
+                        escalationReason = t.TryGetProperty("escalation_reason", out var er) && er.ValueKind == JsonValueKind.String ? er.GetString() : null,
                         listName = lName,
                         parentId = t.TryGetProperty("parent_id", out var pid) && pid.ValueKind == JsonValueKind.String ? pid.GetString() : null,
-                        relevantFrom = t.TryGetProperty("relevant_from", out var rf) && rf.ValueKind == JsonValueKind.String ? rf.GetString() : null
+                        relevantFrom = t.TryGetProperty("relevant_from", out var rf) && rf.ValueKind == JsonValueKind.String ? rf.GetString() : null,
+                        dueTime = t.TryGetProperty("due_time", out var dtProp) && dtProp.ValueKind == JsonValueKind.String ? dtProp.GetString() : null,
+                        durationMinutes = t.TryGetProperty("duration_minutes", out var dmProp) && dmProp.TryGetInt32(out int dmv) ? dmv : 60,
+                        messagesCount = t.TryGetProperty("messages_count", out var mcProp) && mcProp.TryGetInt32(out int mcv) ? mcv : 0
                     });
                 }
             }
@@ -221,9 +251,16 @@ namespace FunkenwerkMcp
             string? taskId = null,
             string? title = null,
             string? priority = null,
+            string? status = null,
+            bool? isMine = null,
+            string? assigneeKey = null,
+            string? messageId = null,
+            int? position = null,
             string? listIdOrAlias = "default",
             string? listName = null,
             string? relevantFrom = null,
+            string? dueTime = null,
+            int? durationMinutes = null,
             string? notes = null,
             bool? isCompleted = null,
             string? environment = "active")
@@ -242,9 +279,14 @@ namespace FunkenwerkMcp
                     var body = new Dictionary<string, object?>
                     {
                         ["title"] = title.Trim(),
+                        ["status"] = NormalizeTaskStatus(status) ?? "open",
+                        ["is_mine"] = isMine ?? false,
+                        ["assignee_key"] = string.IsNullOrWhiteSpace(assigneeKey) ? null : assigneeKey.Trim(),
                         ["priority"] = NormalizeTaskPriority(priority) ?? "mittel",
                         ["list_name"] = listName,
                         ["relevant_from"] = string.IsNullOrWhiteSpace(relevantFrom) ? null : ValidateIsoDateString(relevantFrom, "relevantFrom"),
+                        ["due_time"] = ValidateOptionalHmTimeString(dueTime, "dueTime"),
+                        ["duration_minutes"] = durationMinutes.HasValue ? Math.Clamp(durationMinutes.Value, 15, 720) : 60,
                         ["ai_plan"] = notes,
                         ["is_completed"] = isCompleted ?? false
                     };
@@ -258,11 +300,88 @@ namespace FunkenwerkMcp
                     var body = new Dictionary<string, object?>();
                     if (!string.IsNullOrWhiteSpace(title)) body["title"] = title.Trim();
                     if (!string.IsNullOrWhiteSpace(priority)) body["priority"] = NormalizeTaskPriority(priority);
+                    if (!string.IsNullOrWhiteSpace(status)) body["status"] = NormalizeTaskStatus(status);
+                    if (isMine.HasValue) body["is_mine"] = isMine.Value;
+                    if (position.HasValue) body["position"] = Math.Max(0, position.Value);
                     if (isCompleted.HasValue) body["is_completed"] = isCompleted.Value;
                     if (!string.IsNullOrWhiteSpace(relevantFrom)) body["relevant_from"] = ValidateIsoDateString(relevantFrom, "relevantFrom");
+                    if (dueTime != null) body["due_time"] = ValidateOptionalHmTimeString(dueTime, "dueTime");
+                    if (durationMinutes.HasValue) body["duration_minutes"] = Math.Clamp(durationMinutes.Value, 15, 720);
                     if (notes != null) body["ai_plan"] = notes;
 
                     using var doc = await SendJsonAsync(HttpMethod.Put, $"funki/tasks/{Uri.EscapeDataString(taskId!)}", body, environment);
+                    return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
+                }
+
+                case "set_status":
+                {
+                    ValidateSafeResourceId(taskId, "taskId");
+                    string? normStatus = NormalizeTaskStatus(status);
+                    if (string.IsNullOrWhiteSpace(normStatus))
+                        throw new ArgumentException("Fuer 'set_status' ist 'status' ('open', 'waiting', 'in_progress' oder 'completed') erforderlich.");
+                    using var doc = await SendJsonAsync(HttpMethod.Put, $"funki/tasks/{Uri.EscapeDataString(taskId!)}/status", new { status = normStatus }, environment);
+                    return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
+                }
+
+                case "set_mine":
+                {
+                    ValidateSafeResourceId(taskId, "taskId");
+                    var minePayload = new Dictionary<string, object?>
+                    {
+                        ["is_mine"] = isMine ?? true
+                    };
+                    if (position.HasValue) minePayload["position"] = Math.Max(0, position.Value);
+                    using var doc = await SendJsonAsync(HttpMethod.Put, $"funki/tasks/{Uri.EscapeDataString(taskId!)}/mine", minePayload, environment);
+                    return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
+                }
+
+                case "assign":
+                {
+                    ValidateSafeResourceId(taskId, "taskId");
+                    using var doc = await SendJsonAsync(HttpMethod.Put, $"funki/tasks/{Uri.EscapeDataString(taskId!)}/assign", new { assignee_key = assigneeKey }, environment);
+                    return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
+                }
+
+                case "get_messages":
+                {
+                    ValidateSafeResourceId(taskId, "taskId");
+                    using var doc = await SendJsonAsync(HttpMethod.Get, $"funki/tasks/{Uri.EscapeDataString(taskId!)}/messages", null, environment);
+                    return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
+                }
+
+                case "add_message":
+                {
+                    ValidateSafeResourceId(taskId, "taskId");
+                    if (string.IsNullOrWhiteSpace(notes))
+                        throw new ArgumentException("Fuer 'add_message' ist der Nachrichtentext in 'notes' erforderlich.");
+                    using var doc = await SendJsonAsync(HttpMethod.Post, $"funki/tasks/{Uri.EscapeDataString(taskId!)}/messages", new { content = notes.Trim() }, environment);
+                    return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
+                }
+
+                case "edit_message":
+                {
+                    ValidateSafeResourceId(taskId, "taskId");
+                    ValidateSafeResourceId(messageId, "messageId");
+                    if (string.IsNullOrWhiteSpace(notes))
+                        throw new ArgumentException("Fuer 'edit_message' ist der angepasste Text in 'notes' erforderlich (5-Minuten-Fenster).");
+                    using var doc = await SendJsonAsync(HttpMethod.Put, $"funki/tasks/{Uri.EscapeDataString(taskId!)}/messages/{Uri.EscapeDataString(messageId!)}", new { content = notes.Trim() }, environment);
+                    return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
+                }
+
+                case "resolve_escalation":
+                {
+                    ValidateSafeResourceId(taskId, "taskId");
+                    if (string.IsNullOrWhiteSpace(relevantFrom) || string.IsNullOrWhiteSpace(notes))
+                        throw new ArgumentException("Fuer 'resolve_escalation' sind 'relevantFrom' (neues Zieldatum) UND 'notes' (Status-Update fuer den Ticket-Chat) erforderlich.");
+                    var body = new Dictionary<string, object?>
+                    {
+                        ["relevant_from"] = ValidateIsoDateString(relevantFrom, "relevantFrom"),
+                        ["due_time"] = ValidateOptionalHmTimeString(dueTime, "dueTime"),
+                        ["duration_minutes"] = durationMinutes.HasValue ? Math.Clamp(durationMinutes.Value, 15, 720) : null,
+                        ["status"] = NormalizeTaskStatus(status) ?? "in_progress",
+                        ["content"] = notes.Trim()
+                    };
+                    using var doc = await SendJsonAsync(HttpMethod.Post, $"funki/tasks/{Uri.EscapeDataString(taskId!)}/resolve-escalation", body, environment);
                     return JsonSerializer.Deserialize<object>(doc.RootElement.GetRawText())!;
                 }
 
@@ -290,7 +409,7 @@ namespace FunkenwerkMcp
                 }
 
                 default:
-                    throw new ArgumentException($"Unbekannte Aufgaben-Aktion '{action}'. Erlaubt: create, update, toggle, subtask, delete.");
+                    throw new ArgumentException($"Unbekannte Aufgaben-Aktion '{action}'. Erlaubt: create, update, set_status, set_mine, get_messages, add_message, edit_message, resolve_escalation, toggle, subtask, delete.");
             }
         }
 
@@ -512,6 +631,29 @@ namespace FunkenwerkMcp
             catch { }
 
             return null;
+        }
+
+        private static string? NormalizeTaskStatus(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            return raw.Trim().ToLowerInvariant() switch
+            {
+                "open" or "offen" => "open",
+                "waiting" or "warten" or "wartend" => "waiting",
+                "in_progress" or "in bearbeitung" or "mine" or "meine_tickets" or "active" => "in_progress",
+                "completed" or "done" or "erledigt" => "completed",
+                _ => throw new ArgumentException($"Ungueltiger Ticket-Status '{raw}'. Erlaubt: open, waiting, in_progress, completed.")
+            };
+        }
+
+        private static string? ValidateOptionalHmTimeString(string? raw, string paramName)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            string trimmed = raw.Trim();
+            var m = Regex.Match(trimmed, @"^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$");
+            if (!m.Success)
+                throw new ArgumentException($"Ungueltiges Uhrzeit-Format fuer '{paramName}' (erwartet HH:MM).");
+            return $"{int.Parse(m.Groups[1].Value):D2}:{int.Parse(m.Groups[2].Value):D2}";
         }
 
         private static string ValidateIsoDateString(string raw, string paramName)

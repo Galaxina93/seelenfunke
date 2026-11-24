@@ -1,9 +1,9 @@
 # Seelenfunke Architecture, Theme, Clean-Design, Central Brain & Concept Rules
 
-1. **Always use the Central Knowledge Brain (`/admin/tickets?view=knowledge`) & `ai_map.md` (NO `Abschlussberichte/` folder!)**:
+1. **Always use the Central Knowledge Brain (`/admin/tickets?view=knowledge`), Token-Lean Prior-Report Check & `ai_map.md` (NO `Abschlussberichte/` folder!)**:
    - The legacy root folder `Abschlussberichte/` is permanently retired and migrated into the Central Knowledge Brain (`AiKnowledgeBase` via `App\Services\AI\CentralBrainService`). **NEVER** create or recreate an `Abschlussberichte/` directory in the project root!
-   - Before implementing or modifying features, check `ai_map.md` and query `AiKnowledgeBase` / `CentralBrainService` (`brain_search`) for instant millisecond context.
-   - Write all new architectural, security, and milestone completion reports ("Abschlussberichte") directly and deduplicated into `AiKnowledgeBase` via `CentralBrainService::upsertDeduplicatedKnowledge()` (completed tickets `STATUS_COMPLETED` also auto-sync as `source_path = ticket:SF-XXXX`).
+   - **Mandatory Token-Lean Prior-Report Check (`0 Doppel-Erklärungen`):** Before starting any diagnosis, feature concept, or implementation, ALWAYS run a fast, token-lean check (`< 5 ms`, `CentralBrainService::findCompactPriorReportsContext(...)` / `brain_search`) to see if a completion report ("Abschlussbericht") or knowledge entry already exists for the user's topic, so Alina NEVER has to explain anything twice!
+   - **Pre-Live Knowledge Seeder Persistence:** Write all new architectural, infrastructure, security, and milestone completion reports deduplicated into `AiKnowledgeBase` via `CentralBrainService::saveMilestoneReport(...)` (persists to `database/seeders/data/knowledge_brain_reports_snapshot.json`) AND keep core infrastructure/workflow reports anchored in `database/seeders/AiKnowledgeBaseSeeder.php` (completed tickets `STATUS_COMPLETED` also auto-sync as `source_path = ticket:SF-XXXX`).
    - Run `php artisan ai:generate-map` whenever Models, Livewire components, Controllers, Services, or Seeders are added or renamed (auto-syncs `ai_map.md` and `GEMINI.md`).
 2. **Enforce Central Concept Lifecycle Management (`/admin/tickets?view=files&ftype=concept`)**:
    - Every new architectural or feature concept MUST be stored centrally under `/admin/tickets?view=files&ftype=concept` via `App\Services\AI\ConceptLifecycleService` (`TicketDeliverableService`, `category = concept`).

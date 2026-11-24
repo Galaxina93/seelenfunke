@@ -11,6 +11,60 @@ Route::middleware(['auth:employee'])->group(function () {
         Route::get('/employee/dashboard', \App\Livewire\Employee\EmployeeDashboard::class)
             ->name('employee.dashboard');
 
+        // Geschützter Anhangs-Download für freigegebene Aufgaben-Tickets im Mitarbeiter-Cockpit
+        Route::get('/employee/tasks/{taskId}/attachment', function (\Illuminate\Http\Request $request, string $taskId) {
+            /** @var \App\Models\Employee\Employee|null $employee */
+            $employee = auth('employee')->user();
+            if (!$employee) {
+                abort(403);
+            }
+
+            $task = \App\Models\Management\ManagementTask::with('list')->findOrFail($taskId);
+            if (!app(\App\Services\Management\ManagementTaskTicketService::class)->isTaskVisibleToEmployee($task, $employee)) {
+                abort(403, 'Kein Zugriff auf dieses Ticket.');
+            }
+
+            if ($request->hasSession()) {
+                $request->session()->save();
+            }
+            if (function_exists('session_write_close')) {
+                @session_write_close();
+            }
+
+            $path = ltrim(str_replace('\\', '/', (string) $request->query('path', '')), '/');
+            if (
+                $path === ''
+                || str_contains($path, '..')
+                || str_contains($path, "\0")
+                || !str_starts_with($path, 'leitung/tasks/')
+                || !Storage::disk('local')->exists($path)
+            ) {
+                abort(404);
+            }
+
+            $fullPath = Storage::disk('local')->path($path);
+            if (is_link($fullPath) || !is_file($fullPath)) {
+                abort(404);
+            }
+
+            $downloadName = trim((string) $request->query('name', basename($path)));
+            $safeName = str_replace(['"', "\r", "\n", "\0", '/', '\\'], '_', $downloadName) ?: basename($path);
+            $mime = Storage::disk('local')->mimeType($path) ?: 'application/octet-stream';
+
+            if ($request->boolean('inline')) {
+                return response()->file($fullPath, [
+                    'Content-Type' => $mime,
+                    'Content-Disposition' => 'inline; filename="' . $safeName . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                ]);
+            }
+
+            return response()->download($fullPath, $safeName, [
+                'Content-Type' => $mime,
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        })->name('employee.tasks.attachment')->middleware('throttle:60,1');
+
         // Alte Unterseiten leiten direkt auf das zentrale Mitarbeiter-Cockpit weiter
         Route::get('/employee/projects', function () {
             return redirect()->route('employee.dashboard');

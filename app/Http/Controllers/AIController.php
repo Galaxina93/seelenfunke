@@ -639,7 +639,7 @@ class AIController extends Controller
                     $cleanText = strip_tags($cleanText);
                 }
 
-                $voiceName = $aiAgent->tts_voice ?: 'Puck';
+                $voiceName = $aiAgent->tts_voice ?: 'Aoede';
                 $synthesizedWav = \App\Services\AI\GeminiTtsService::synthesizeWav($cleanText, $voiceName, 8);
                 if (is_string($synthesizedWav) && $synthesizedWav !== '') {
                     $base64Audio = $synthesizedWav;
@@ -961,12 +961,13 @@ class AIController extends Controller
                 'finance_get_liquidity_status', 'finance_get_fixed_costs', 'finance_create_expense',
                 'order_get_current_express_status', 'order_get_urgent_tasks', 'order_get_details',
                 'product_check_inventory', 'brain_search', 'concept_manage', 'workspace_get_latest_uploads',
+                'task_read_file', 'task_delete', 'task_list_add', 'task_list_update', 'task_list_delete',
             ]);
         }
 
         $allowedMap = array_fill_keys($voiceAllowedTools, true);
         $useAgentSpecificTools = ($aiAgent && array_key_exists('tools', $payload) && !$isFunkiraAgent);
-        $declCacheKey = 'gemini_live_decls_v2_' . ($useAgentSpecificTools ? ('agent_' . $aiAgent->id) : 'registry') . '_' . substr(sha1(implode(',', $voiceAllowedTools)), 0, 16);
+        $declCacheKey = 'gemini_live_decls_v3_' . ($useAgentSpecificTools ? ('agent_' . $aiAgent->id) : 'registry') . '_' . substr(sha1(implode(',', $voiceAllowedTools)), 0, 16);
 
         $functionDeclarations = \Illuminate\Support\Facades\Cache::remember($declCacheKey, 600, function () use ($useAgentSpecificTools, $payload, $allowedMap) {
             $schemaTools = $useAgentSpecificTools

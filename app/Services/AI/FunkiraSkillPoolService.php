@@ -239,9 +239,11 @@ class FunkiraSkillPoolService
         $keywordMap = [
             'finance' => [
                 'buchhaltung', 'finanz', 'fixkosten', 'sonderausgab', 'ausgabe', 'einnahme', 'umsatz',
-                'steuer', 'elster', 'ust', 'mwst', 'kassenbon', 'beleg', 'quittung', 'konto', 'fyrst',
-                'bank', 'rechnung', 'gutschrift', 'vertrag', 'versicherung', 'gewinn', 'cashflow', 'euro', 'buchi',
-                'stripe', 'auszahlung', 'payout', 'gebühr', 'gebuehr', 'dispute', 'chargeback',
+                'steuer', 'steuernummer', 'elster', 'ust', 'ust-id', 'ustid', 'mwst', 'finanzamt',
+                'gewerbe', 'gewerbeanmeldung', 'gründung', 'gruendung', 'kassenbon', 'beleg', 'quittung',
+                'konto', 'fyrst', 'bank', 'rechnung', 'gutschrift', 'vertrag', 'versicherung', 'gewinn',
+                'cashflow', 'euro', 'buchi', 'stripe', 'auszahlung', 'payout', 'gebühr', 'gebuehr',
+                'dispute', 'chargeback',
             ],
             'orders' => [
                 'bestellung', 'auftrag', 'aufträge', 'auftraege', 'versand', 'dhl', 'sendung', 'tracking',

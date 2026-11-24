@@ -42,6 +42,7 @@ class BuchiReceiptPipelineService
         'makeblock' => ['merchant' => 'xTool', 'category' => 'Arbeitsmaterial', 'is_business' => true, 'tax_rate' => 19],
         'mittwald' => ['merchant' => 'Mittwald', 'category' => 'Software & Lizenzen', 'is_business' => true, 'tax_rate' => 19],
         'google cloud' => ['merchant' => 'Google Cloud', 'category' => 'Software & Lizenzen', 'is_business' => true, 'tax_rate' => 19],
+        'suno' => ['merchant' => 'Suno', 'category' => 'Software & Lizenzen', 'is_business' => true, 'tax_rate' => 19],
         'hiscox' => ['merchant' => 'Hiscox', 'category' => 'Beratung & Gründung', 'is_business' => true, 'tax_rate' => 0],
         'interzero' => ['merchant' => 'Interzero / Lizenzero', 'category' => 'Verpackungen', 'is_business' => true, 'tax_rate' => 19],
         'stripe' => ['merchant' => 'Stripe', 'category' => 'Software & Lizenzen', 'is_business' => true, 'tax_rate' => 0],
@@ -394,6 +395,61 @@ class BuchiReceiptPipelineService
                         'existing_id' => (string) $cand->id,
                         'existing_title' => (string) $cand->title,
                         'existing_date' => $dateStr,
+                    ];
+                }
+            }
+
+            // 4. Abgleich gegen aktive Fixkosten-Verträge (AccountingCostItem), damit Monatsrechnungen von Abos nicht doppelt als Sonderausgabe landen
+            $costItemQuery = \App\Models\Accounting\AccountingCostItem::with('group');
+            if ($adminId !== null && $adminId !== '') {
+                $costItemQuery->whereHas('group', fn ($gq) => $gq->where('admin_id', $adminId));
+            }
+            $finService = app(\App\Services\FinancialService::class);
+            $parsedCheckDate = Carbon::parse($date);
+            foreach ($costItemQuery->get() as $costItem) {
+                $costCents = (int) round(((float) $costItem->amount) * 100);
+                if (($costCents < 0) !== ($amountCents < 0) || abs(abs($costCents) - abs($amountCents)) > 2) {
+                    continue;
+                }
+                if (!$finService->isDueInMonth($costItem, (int) $parsedCheckDate->month, (int) $parsedCheckDate->year)) {
+                    continue;
+                }
+                $costHaystack = mb_strtolower(trim(implode(' ', [
+                    (string) $costItem->name,
+                    (string) ($costItem->provider_company ?? ''),
+                    (string) ($costItem->contract_number ?? ''),
+                    (string) ($costItem->description ?? ''),
+                ])));
+                if ($cleanInv !== '' && mb_strlen($cleanInv) >= 4 && str_contains($costHaystack, mb_strtolower($cleanInv))) {
+                    $euro = number_format($costCents / 100, 2, ',', '.');
+                    return [
+                        'is_duplicate' => true,
+                        'reason' => "Bereits über aktiven Fixkosten-Vertrag '{$costItem->name}' ({$euro} €) erfasst.",
+                        'existing_id' => (string) $costItem->id,
+                        'existing_title' => (string) $costItem->name,
+                        'existing_date' => $date,
+                    ];
+                }
+                $providerMatch = $needleMerchant !== '' && mb_strlen($needleMerchant) >= 4 && str_contains($costHaystack, $needleMerchant);
+                if (!$providerMatch && !empty($merchantTokens)) {
+                    foreach ($merchantTokens as $tok) {
+                        if (in_array($tok, ['amazon', 'paypal', 'ebay', 'google'], true)) {
+                            continue;
+                        }
+                        if (str_contains($costHaystack, $tok)) {
+                            $providerMatch = true;
+                            break;
+                        }
+                    }
+                }
+                if ($providerMatch) {
+                    $euro = number_format($costCents / 100, 2, ',', '.');
+                    return [
+                        'is_duplicate' => true,
+                        'reason' => "Bereits über aktiven Fixkosten-Vertrag '{$costItem->name}' ({$euro} €) abgedeckt.",
+                        'existing_id' => (string) $costItem->id,
+                        'existing_title' => (string) $costItem->name,
+                        'existing_date' => $date,
                     ];
                 }
             }

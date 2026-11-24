@@ -467,6 +467,137 @@ class CentralBrainService
     }
 
     /**
+     * Liefert die dynamisch aus den aktuellen Systemeinstellungen aufgelösten Gründungs-,
+     * Gewerbeanmeldungs- und Steuernummern-Daten für interne KI-Agenten (0 Tokens, niemals für Funki).
+     *
+     * @return array<string, mixed>
+     */
+    public static function resolveCompanyFoundingAndTaxContext(): array
+    {
+        $companyName = trim((string) shop_setting('company_name', 'Mein Seelenfunke'));
+        $proprietor = trim((string) shop_setting('owner_proprietor', 'Alina Steinhauer'));
+        $finanzamtNr = trim((string) shop_setting('owner_finanzamt_nr', '2319'));
+        $taxId = trim((string) shop_setting('owner_tax_id', '19/143/11624'));
+        $ustId = trim((string) shop_setting('owner_ust_id', 'XXX'));
+        $taxIdentNr = trim((string) shop_setting('owner_tax_ident_nr', '66324780911'));
+        $economicIdentNr = trim((string) shop_setting('owner_economic_ident_nr', 'DE410594485'));
+        $isSmallBusiness = filter_var(shop_setting('is_small_business', false), FILTER_VALIDATE_BOOLEAN);
+
+        $regDateIso = trim((string) shop_setting('business_registration_date', '2026-11-01')) ?: '2026-11-01';
+        $regCertifiedIso = trim((string) shop_setting('business_registration_certified_at', '2026-10-28')) ?: '2026-10-28';
+        $regRef = trim((string) shop_setting('business_registration_ref', 'gew / 28-10-2026 / Ce / 402')) ?: 'gew / 28-10-2026 / Ce / 402';
+
+        $elsterDateIso = trim((string) shop_setting('tax_registration_elster_submitted_at', '2026-11-06')) ?: '2026-11-06';
+        $elsterTicket = trim((string) shop_setting('tax_registration_elster_ticket', 'ep3104hvg8fm3b1m4zrwrd3djc6ieugc')) ?: 'ep3104hvg8fm3b1m4zrwrd3djc6ieugc';
+        $taxNumberStatusSetting = strtolower(trim((string) shop_setting('tax_number_status', 'pending')));
+        $ustIdStatusSetting = strtolower(trim((string) shop_setting('ust_id_status', 'pending')));
+
+        $formatGermanDate = static function (string $iso): string {
+            try {
+                return Carbon::parse($iso)->format('d.m.Y');
+            } catch (\Throwable) {
+                return $iso;
+            }
+        };
+
+        $isPlaceholder = static function (string $val): bool {
+            $lower = mb_strtolower(trim($val));
+            return $lower === ''
+                || $lower === 'xxx'
+                || str_contains($lower, 'ausstehend')
+                || str_contains($lower, 'beantragt')
+                || str_contains($lower, 'nachgereicht')
+                || str_contains($lower, 'placeholder');
+        };
+
+        $steuernummerPending = $isPlaceholder($taxId)
+            || ($taxId === '19/143/11624' && $taxNumberStatusSetting !== 'assigned');
+        $ustIdPending = $isPlaceholder($ustId)
+            || ($ustIdStatusSetting !== 'assigned' && preg_match('/^DE[0-9]{9}$/i', $ustId) !== 1);
+
+        $steuernummerSummary = $steuernummerPending
+            ? "NOCH AUSSTEHEND beim Finanzamt Gifhorn ({$finanzamtNr}): ELSTER-Fragebogen am {$formatGermanDate($elsterDateIso)} ohne Steuernummer übermittelt (System-Alt-/Testwert: " . ($taxId !== '' ? $taxId : 'leer') . ')'
+            : "Zugeordnet ({$taxId}, Finanzamt Gifhorn {$finanzamtNr})";
+
+        $ustIdSummary = $ustIdPending
+            ? "NOCH AUSSTEHEND beim BZSt: am {$formatGermanDate($elsterDateIso)} über ELSTER mitbeantragt (Shop-Platzhalter: " . ($ustId !== '' ? $ustId : 'leer') . ')'
+            : "Zugeordnet ({$ustId})";
+
+        $waitingDependencies = [];
+        if ($steuernummerPending || $ustIdPending) {
+            $waitingDependencies = [
+                'LUCID Verpackungsregister & Lizenzero Jahreslizenzierung (vor erstem Live-Paketversand)',
+                'Westpack Reverse-Charge-Rechnungskorrektur Order #29000069521 (29,19 EUR dänische MwSt.) & 100 m Geschenkpapier-Nachschub',
+                'Stripe Live-Unternehmensdaten (Steuernummer & USt-IdNr. DE...)',
+                'FBM (Friedrich Binder GmbH) Händlerkonto-Finalisierung & Steuerberater-Eröffnungsabstimmung',
+            ];
+        }
+
+        return [
+            'company_name' => $companyName,
+            'proprietor' => $proprietor,
+            'legal_form' => 'Einzelunternehmen (Haupterwerb, Hauptniederlassung, Neugründung)',
+            'tax_regime' => $isSmallBusiness
+                ? 'Kleinunternehmerregelung (§ 19 UStG)'
+                : 'Regelbesteuerung (19 % / 7 % USt mit Vorsteuerabzug, Istversteuerung § 20 UStG)',
+            'business_registration' => [
+                'status' => 'registered',
+                'status_label' => 'Angemeldet & amtlich bescheinigt (GewA 1)',
+                'start_date' => $regDateIso,
+                'start_date_de' => $formatGermanDate($regDateIso),
+                'certified_date' => $regCertifiedIso,
+                'certified_date_de' => $formatGermanDate($regCertifiedIso),
+                'authority' => 'Stadt Gifhorn (Gemeindekennzahl 03151009)',
+                'file_reference' => $regRef,
+                'process_number' => 'gew / 28-10-2026 / Ce / 893',
+                'receipt_path' => 'storage/app/buchhaltung/receipts/2026/10/2026-10-28_Stadt-Gifhorn_Gewerbeanmeldung-GewA1-Bescheinigung.pdf',
+            ],
+            'tax_registration' => [
+                'finanzamt' => 'Finanzamt Gifhorn',
+                'finanzamt_nr' => $finanzamtNr,
+                'finanzamt_email' => 'poststelle@fa-gf.niedersachsen.de',
+                'elster_submitted_at' => $elsterDateIso,
+                'elster_submitted_at_de' => $formatGermanDate($elsterDateIso),
+                'elster_transfer_ticket' => $elsterTicket,
+                'elster_reference' => '2169193168 -B41',
+                'follow_up_sent_at' => '2026-11-17',
+                'follow_up_note' => 'Dringende Sachstandsanfrage am 17.11.2026 an poststelle@fa-gf.niedersachsen.de versendet (Ticket SF-0090).',
+                'receipt_path' => 'storage/app/buchhaltung/receipts/2026/11/2026-11-06_Finanzamt-Gifhorn_ELSTER-Steuerliche-Erfassung-Versandbestaetigung.pdf',
+            ],
+            'tax_numbers' => [
+                'steuernummer' => [
+                    'status' => $steuernummerPending ? 'pending' : 'assigned',
+                    'is_pending' => $steuernummerPending,
+                    'configured_value' => $taxId,
+                    'summary' => $steuernummerSummary,
+                ],
+                'ust_id' => [
+                    'status' => $ustIdPending ? 'pending' : 'assigned',
+                    'is_pending' => $ustIdPending,
+                    'configured_value' => $ustId,
+                    'summary' => $ustIdSummary,
+                ],
+                'steuer_ident_nr' => $taxIdentNr,
+                'wirtschafts_ident_nr' => $economicIdentNr,
+            ],
+            'waiting_processes' => $waitingDependencies,
+        ];
+    }
+
+    /**
+     * Erzeugt einen kompakten 2-Zeilen-Statusblock für interne Agenten-Prompts (0 Token-Ballast).
+     */
+    public static function formatCompactFoundingAndTaxContext(): string
+    {
+        $ctx = self::resolveCompanyFoundingAndTaxContext();
+        $reg = $ctx['business_registration'];
+        $tax = $ctx['tax_numbers'];
+
+        return "- Gründung & Gewerbe: {$ctx['company_name']} (Inh. {$ctx['proprietor']}), Gewerbeanmeldung GewA 1 Stadt Gifhorn zum {$reg['start_date_de']} (bescheinigt {$reg['certified_date_de']}, Az. `{$reg['file_reference']}`), {$ctx['tax_regime']}.\n"
+            . "- Steuerstatus Finanzamt Gifhorn ({$ctx['tax_registration']['finanzamt_nr']}, ELSTER {$ctx['tax_registration']['elster_submitted_at_de']}): Steuernummer: {$tax['steuernummer']['summary']} | USt-IdNr.: {$tax['ust_id']['summary']} (bei Details Tool `finance_get_tax_and_founding_status` nutzen).";
+    }
+
+    /**
      * Millisekunden-Kontext-Injektor (0 API-Tokens!) für ALLE internen Agenten (niemals für Frontend-Support Funki!):
      * Baut vor jedem Agenten-Lauf in < 8 ms den exakten Kontext aus:
      * 1. Gelernte Dauer-Entscheidungen (`AiLearnedPreference`) der Abteilung
@@ -489,7 +620,8 @@ class CentralBrainService
         $blocks[] = "[GLOBALE SYSTEM-ARCHITEKTUR (0-TOKEN DIREKTWISSEN)]:\n"
             . "- Kommandozentrale: `/admin/dashboard` (`MasterAnalytics`, `ManagementTask`) | Zentrales Ticketsystem & Gehirn: `/admin/tickets` (`AiUniverseTickets`, Tabs: `Tickets`, `Dateien`, `Organigramm`, `Wissen`).\n"
             . "- Buchhaltung: `AccountingSeeder.php` (Cent-Integer, Gewerblich vs. Privat, FYRST), `/admin/financial-variable-costs`, `/admin/financial-fix-costs`.\n"
-            . "- Produkte & Laser: `/admin/products` (`Product*Seeder.php`), `/admin/orders` (`OrderOverview`), xTool F2 Ultra UV (`5W UV`, `140x140 mm` Raster, K9 Seelen-Kristall Fokus `32,8-33,1 mm`), 3D-Druck Bambu Lab A1 (`256x256x256 mm`, `0 % Support`, `Funkenwerk 3D`).";
+            . "- Produkte & Laser: `/admin/products` (`Product*Seeder.php`), `/admin/orders` (`OrderOverview`), xTool F2 Ultra UV (`5W UV`, `140x140 mm` Raster, K9 Seelen-Kristall Fokus `32,8-33,1 mm`), 3D-Druck Bambu Lab A1 (`256x256x256 mm`, `0 % Support`, `Funkenwerk 3D`).\n"
+            . self::formatCompactFoundingAndTaxContext();
 
         // 2. Gelernte Dauer-Entscheidungen von Alina
         if (Schema::hasTable('ai_learned_preferences')) {
@@ -523,90 +655,207 @@ class CentralBrainService
         }
 
         // 3. Themenbezogener Millisekunden-Treffer aus Wissensgehirn & früheren Ticket-Abschlussberichten
-        if (Schema::hasTable('ai_knowledge_bases')) {
-            $keywords = self::extractSignificantTokens($prompt, 6);
-            $deptName = $departmentId && Schema::hasTable('ai_departments')
-                ? (string) (AiDepartment::where('id', $departmentId)->value('name') ?? '')
-                : '';
-
-            $cacheKey = 'sf_instant_ctx_' . md5(($departmentId ?? 'all') . '|' . implode(',', $keywords) . '|' . Cache::get('ai_brain_search_version', 1));
-
-            $matchedBlock = Cache::remember($cacheKey, 180, function () use ($keywords, $deptName): string {
-                $query = AiKnowledgeBase::with('category')
-                    ->where('is_published', true);
-
-                if (!AiAuthHelper::isAdmin()) {
-                    $query->where(function ($q) {
-                        $q->whereNull('visibility_scope')
-                            ->orWhere('visibility_scope', '!=', AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE);
-                    });
-                }
-
-                if (!empty($keywords)) {
-                    $query->where(function ($q) use ($keywords) {
-                        foreach ($keywords as $kw) {
-                            $esc = addcslashes($kw, '%_\\');
-                            $q->orWhere('title', 'like', '%' . $esc . '%')
-                                ->orWhere('content', 'like', '%' . $esc . '%');
-                        }
-                    });
-                } elseif ($deptName !== '') {
-                    $query->whereHas('category', fn ($cq) => $cq->where('name', $deptName));
-                }
-
-                $candidates = $query->latest('updated_at')->limit(18)->get(['id', 'title', 'content', 'ai_knowledge_base_category_id', 'source_path', 'updated_at']);
-                if ($candidates->isEmpty()) {
-                    return '';
-                }
-
-                // In-Memory-Scoring nach Titel-Treffern, Abteilungs-Nähe und Keyword-Dichte (< 2 ms)
-                $scored = [];
-                foreach ($candidates as $cand) {
-                    $raw = (string) $cand->content;
-                    if (str_starts_with($raw, '[TS_ENC_V1]:')) {
-                        continue;
-                    }
-                    $score = 0;
-                    $titleLower = mb_strtolower((string) $cand->title);
-                    $bodyLower = mb_strtolower(mb_substr($raw, 0, 4000));
-                    foreach ($keywords as $kw) {
-                        if (str_contains($titleLower, $kw)) {
-                            $score += 12;
-                        }
-                        if (str_contains($bodyLower, $kw)) {
-                            $score += 4;
-                        }
-                    }
-                    if ($deptName !== '' && strcasecmp((string) ($cand->category?->name ?? ''), $deptName) === 0) {
-                        $score += 5;
-                    }
-                    $scored[] = ['score' => $score, 'entry' => $cand];
-                }
-
-                usort($scored, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
-                $top = array_slice($scored, 0, 4);
-                if (empty($top)) {
-                    return '';
-                }
-
-                $lines = ['[SOFORT-KONTEXT AUS ZENTRALEM WISSENSGEHIRN & FRÜHEREN TICKETS]:'];
-                foreach ($top as $row) {
-                    /** @var AiKnowledgeBase $entry */
-                    $entry = $row['entry'];
-                    $snippet = self::extractRelevantSnippet((string) $entry->content, $keywords, 340);
-                    $catLabel = $entry->category?->name ?? 'Wissen';
-                    $lines[] = "- [{$catLabel}] {$entry->title}: {$snippet}";
-                }
-
-                return implode("\n", $lines);
-            });
-
-            if ($matchedBlock !== '') {
-                $blocks[] = $matchedBlock;
-            }
+        $matchedBlock = self::findCompactPriorReportsContext($prompt, $departmentId, 4, 320, false);
+        if ($matchedBlock !== '') {
+            $blocks[] = $matchedBlock;
         }
 
         return implode("\n\n", $blocks);
+    }
+
+    /**
+     * Ultra-kompakter, 0-LLM-Token Vorab-Check (< 5 ms) gegen alle Abschlussberichte,
+     * Ticket-Lösungen und Wissenseinträge in `AiKnowledgeBase`.
+     * Liefert leer zurück, wenn kein belastbarer Treffer zur Anfrage vorliegt (0 Token-Overhead bei Smalltalk/"Go").
+     */
+    public static function findCompactPriorReportsContext(
+        string $prompt,
+        ?string $departmentId = null,
+        int $limit = 3,
+        int $snippetMaxChars = 250,
+        bool $includeDirectiveHeader = true
+    ): string {
+        if (!Schema::hasTable('ai_knowledge_bases')) {
+            return '';
+        }
+
+        $keywords = self::extractSignificantTokens($prompt, 6);
+        $deptName = $departmentId && Schema::hasTable('ai_departments')
+            ? (string) (AiDepartment::where('id', $departmentId)->value('name') ?? '')
+            : '';
+
+        if (empty($keywords) && ($includeDirectiveHeader || $deptName === '')) {
+            return '';
+        }
+
+        $isAdminScope = AiAuthHelper::isAdmin();
+        $hasSourcePath = Schema::hasColumn('ai_knowledge_bases', 'source_path');
+        $cacheKey = 'sf_prior_reports_ctx_' . md5(
+            ($isAdminScope ? 'adm' : 'emp')
+            . '|' . ($departmentId ?? 'all')
+            . '|' . $limit
+            . '|' . $snippetMaxChars
+            . '|' . ($includeDirectiveHeader ? '1' : '0')
+            . '|' . implode(',', $keywords)
+            . '|' . Cache::get('ai_brain_search_version', 1)
+        );
+
+        return Cache::remember($cacheKey, 180, function () use (
+            $keywords,
+            $deptName,
+            $limit,
+            $snippetMaxChars,
+            $includeDirectiveHeader,
+            $isAdminScope,
+            $hasSourcePath
+        ): string {
+            $baseScope = function ($q) use ($isAdminScope) {
+                $q->where('is_published', true);
+                if (!$isAdminScope && Schema::hasColumn('ai_knowledge_bases', 'visibility_scope')) {
+                    $q->where(function ($sq) {
+                        $sq->whereNull('visibility_scope')
+                            ->orWhere('visibility_scope', '!=', AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE);
+                    });
+                }
+            };
+
+            $selectCols = ['id', 'title', 'content', 'ai_knowledge_base_category_id', 'updated_at'];
+            if ($hasSourcePath) {
+                $selectCols[] = 'source_path';
+            }
+
+            $candidates = collect();
+
+            if (!empty($keywords)) {
+                // 1. Vorrangige Suche im Titel (findet auch ältere exakte Abschlussberichte zuverlässig)
+                $titleMatches = AiKnowledgeBase::with('category')
+                    ->tap($baseScope)
+                    ->where(function ($q) use ($keywords) {
+                        foreach ($keywords as $kw) {
+                            $esc = addcslashes($kw, '%_\\');
+                            $q->orWhere('title', 'like', '%' . $esc . '%');
+                        }
+                    })
+                    ->latest('updated_at')
+                    ->limit(20)
+                    ->get($selectCols);
+
+                // 2. Ergänzende Volltext-Kandidaten (bevorzugt Abschlussberichte & Ticket-Berichte)
+                $bodyQuery = AiKnowledgeBase::with('category')
+                    ->tap($baseScope)
+                    ->where(function ($q) use ($keywords) {
+                        foreach ($keywords as $kw) {
+                            $esc = addcslashes($kw, '%_\\');
+                            $q->orWhere('content', 'like', '%' . $esc . '%');
+                        }
+                    });
+
+                if ($hasSourcePath) {
+                    $bodyQuery->orderByRaw("CASE WHEN source_path LIKE 'Abschlussberichte/%' OR source_path LIKE 'ticket:%' THEN 1 ELSE 0 END DESC");
+                }
+
+                $bodyMatches = $bodyQuery
+                    ->latest('updated_at')
+                    ->limit(20)
+                    ->get($selectCols);
+
+                $candidates = $titleMatches->concat($bodyMatches)->unique('id')->values();
+            } elseif ($deptName !== '') {
+                $candidates = AiKnowledgeBase::with('category')
+                    ->tap($baseScope)
+                    ->whereHas('category', fn ($cq) => $cq->where('name', $deptName))
+                    ->latest('updated_at')
+                    ->limit(12)
+                    ->get($selectCols);
+            }
+
+            if ($candidates->isEmpty()) {
+                return '';
+            }
+
+            $minRawScore = !empty($keywords) ? 15 : 1;
+            $scored = [];
+
+            foreach ($candidates as $cand) {
+                $raw = (string) $cand->content;
+                if (str_starts_with($raw, '[TS_ENC_V1]:')) {
+                    continue;
+                }
+
+                $rawScore = 0;
+                $titleLower = mb_strtolower((string) $cand->title);
+                $bodyLower = mb_strtolower(mb_substr($raw, 0, 5000));
+                $srcPath = $hasSourcePath ? (string) ($cand->source_path ?? '') : '';
+                $isCompletionReport = str_starts_with($srcPath, 'Abschlussberichte/')
+                    || str_starts_with($srcPath, 'ticket:')
+                    || str_contains($titleLower, 'abschlussbericht');
+
+                $matchedKeywordCount = 0;
+                foreach ($keywords as $kw) {
+                    $hitThisKw = false;
+                    if (str_contains($titleLower, $kw)) {
+                        $rawScore += 16;
+                        $hitThisKw = true;
+                    }
+                    if (str_contains($bodyLower, $kw)) {
+                        $rawScore += 5;
+                        $hitThisKw = true;
+                    }
+                    if ($hitThisKw) {
+                        $matchedKeywordCount++;
+                    }
+                }
+
+                if ($matchedKeywordCount >= 2) {
+                    $rawScore += ($matchedKeywordCount - 1) * 6;
+                }
+                if (empty($keywords) && $deptName !== '' && strcasecmp((string) ($cand->category?->name ?? ''), $deptName) === 0) {
+                    $rawScore += 5;
+                }
+
+                if ($rawScore < $minRawScore) {
+                    continue;
+                }
+
+                $score = $rawScore;
+                if ($isCompletionReport) {
+                    $score += 6;
+                }
+                if ($deptName !== '' && strcasecmp((string) ($cand->category?->name ?? ''), $deptName) === 0) {
+                    $score += 5;
+                }
+
+                $scored[] = [
+                    'score' => $score,
+                    'entry' => $cand,
+                    'is_report' => $isCompletionReport,
+                ];
+            }
+
+            if (empty($scored)) {
+                return '';
+            }
+
+            usort($scored, static fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+            $top = array_slice($scored, 0, max(1, $limit));
+
+            $header = $includeDirectiveHeader
+                ? "[BEREITS DOKUMENTIERTE ABSCHLUSSBERICHTE & WISSENSDATENBANK-TREFFER (VORAB-CHECK)]:\n"
+                    . "WICHTIG: Zu dieser Anfrage liegt bereits dokumentiertes Systemwissen vor. Nutze diese Fakten direkt (bei Detailbedarf `brain_search`), damit Alina nichts doppelt erklären muss:"
+                : '[SOFORT-KONTEXT AUS ZENTRALEM WISSENSGEHIRN & FRÜHEREN TICKETS]:';
+
+            $lines = [$header];
+            foreach ($top as $row) {
+                /** @var AiKnowledgeBase $entry */
+                $entry = $row['entry'];
+                $snippet = self::extractRelevantSnippet((string) $entry->content, $keywords, $snippetMaxChars);
+                $catLabel = $entry->category?->name ?? 'Wissen';
+                $badge = $row['is_report'] ? "{$catLabel} · Abschlussbericht" : $catLabel;
+                $lines[] = "- [{$badge}] {$entry->title}: {$snippet}";
+            }
+
+            return implode("\n", $lines);
+        });
     }
 
     /**

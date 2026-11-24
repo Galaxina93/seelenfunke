@@ -2094,7 +2094,7 @@
                             speechConfig: {
                                 voiceConfig: {
                                     prebuiltVoiceConfig: {
-                                        voiceName: creds.voice_name || "Puck"
+                                        voiceName: creds.voice_name || "Aoede"
                                     }
                                 }
                             }

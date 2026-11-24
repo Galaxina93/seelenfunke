@@ -74,7 +74,11 @@ class ZeroTokenSelfHealer
         $category = (string) ($diag['category'] ?? 'application_error');
         $fingerprint = self::computeFingerprint($message, $exceptionClass, $file, $line, $category);
 
-        if (self::$isHandling || in_array($category, self::IGNORED_CATEGORIES, true)) {
+        if (
+            self::$isHandling
+            || in_array($category, self::IGNORED_CATEGORIES, true)
+            || SystemErrorLogger::isCliEvalOrStdinError($message, $file)
+        ) {
             return [
                 'action' => 'ignored',
                 'fingerprint' => $fingerprint,

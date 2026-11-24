@@ -1009,8 +1009,9 @@ namespace Funkenwerk
                     MailColList.Width = new GridLength(_layoutSettings.MailListWidth);
                 if (_layoutSettings.ContactsSidebarWidth >= 220 && _layoutSettings.ContactsSidebarWidth <= 620)
                     ContactsColSidebar.Width = new GridLength(_layoutSettings.ContactsSidebarWidth);
-                if (_layoutSettings.TodoSidebarWidth >= 190 && _layoutSettings.TodoSidebarWidth <= 480)
+                if (_layoutSettings.TodoSidebarWidth >= 230 && _layoutSettings.TodoSidebarWidth <= 560)
                     TodoColSidebar.Width = new GridLength(_layoutSettings.TodoSidebarWidth);
+                ApplyTodoVerticalSplitRatio(_layoutSettings.TodoMyTicketsHeightPct);
                 if (_layoutSettings.TodoDetailWidth >= 260 && _layoutSettings.TodoDetailWidth <= 520)
                     _todoDetailSavedWidth = _layoutSettings.TodoDetailWidth;
 
@@ -1052,7 +1053,16 @@ namespace Funkenwerk
                 if (MailColSidebar.ActualWidth >= 190) _layoutSettings.MailSidebarWidth = MailColSidebar.ActualWidth;
                 if (MailColList.ActualWidth >= 240) _layoutSettings.MailListWidth = MailColList.ActualWidth;
                 if (ContactsColSidebar.ActualWidth >= 220) _layoutSettings.ContactsSidebarWidth = ContactsColSidebar.ActualWidth;
-                if (TodoColSidebar.ActualWidth >= 190) _layoutSettings.TodoSidebarWidth = TodoColSidebar.ActualWidth;
+                if (TodoColSidebar.ActualWidth >= 230) _layoutSettings.TodoSidebarWidth = TodoColSidebar.ActualWidth;
+                if (TodoRowMyTickets != null && TodoRowLists != null)
+                {
+                    double topH = TodoRowMyTickets.ActualHeight;
+                    double botH = TodoRowLists.ActualHeight;
+                    if (topH > 50 && botH > 50)
+                    {
+                        _layoutSettings.TodoMyTicketsHeightPct = Math.Clamp(Math.Round(topH / (topH + botH) * 100.0, 1), 22.0, 78.0);
+                    }
+                }
                 if (TodoColDetail.ActualWidth >= 260)
                 {
                     _todoDetailSavedWidth = TodoColDetail.ActualWidth;
@@ -1417,7 +1427,12 @@ namespace Funkenwerk
                 // Avoid disturbing active modal dialogs or text editing
                 bool isEditingTask = (DetailTitleBox != null && DetailTitleBox.IsKeyboardFocusWithin) ||
                                      (DetailNoteBox != null && DetailNoteBox.IsKeyboardFocusWithin) ||
+                                     (DetailTimeBox != null && DetailTimeBox.IsKeyboardFocusWithin) ||
+                                     (TicketChatInputBox != null && TicketChatInputBox.IsKeyboardFocusWithin) ||
+                                     (EscalationNoteBox != null && EscalationNoteBox.IsKeyboardFocusWithin) ||
+                                     (EscalationTimeBox != null && EscalationTimeBox.IsKeyboardFocusWithin) ||
                                      (NewTaskBox != null && NewTaskBox.IsKeyboardFocusWithin) ||
+                                     (NewTaskTimeBox != null && NewTaskTimeBox.IsKeyboardFocusWithin) ||
                                      (NewSubtaskBox != null && NewSubtaskBox.IsKeyboardFocusWithin);
                 bool isEditingCalendar = CalendarEditorOverlay != null && CalendarEditorOverlay.Visibility == Visibility.Visible;
                 bool isComposingMail = (ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible) ||
@@ -11251,9 +11266,20 @@ namespace Funkenwerk
         }
 
         // =========================================================================
-        // MODULE 4: TO DO (Microsoft To Do / Seelenfunke Tasks via /api/funki/tasks)
+        // MODULE 4: PERSOENLICHES TICKET-, CHAT-, ESKALATIONS- & ZEIT-SYSTEM
         // =========================================================================
         private readonly HashSet<string> _recentlyDeletedTaskKeys = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<string> _pendingTaskChatFiles = new();
+        private List<TaskChatMessageDto> _selectedTaskMessages = new();
+        private bool _showTicketMetaExtras = false;
+        private Point _chatAttachmentDragStartPoint;
+
+        private void PlayTicketSound(string type)
+        {
+            if (!_layoutSettings.SoundsEnabled) return;
+            double vol = Math.Clamp(_layoutSettings.SoundVolume / 100.0, 0.05, 1.0);
+            FunkenwerkSoundEngine.PlayTicketEvent(type, vol);
+        }
 
         private List<(string BaseUrl, string Token)> GetTaskSyncEndpoints()
         {
@@ -11283,7 +11309,15 @@ namespace Funkenwerk
         private static bool IsSmartTodoListId(string? listId)
         {
             if (string.IsNullOrWhiteSpace(listId)) return true;
-            return listId is "my_day" or "important" or "planned" or "all" or "default";
+            return listId is "my_day" or "important" or "planned" or "all" or "escalated" or "default";
+        }
+
+        private static string? NormalizeDesktopDueTime(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            var m = Regex.Match(raw.Trim(), @"^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$");
+            if (!m.Success) return null;
+            return $"{int.Parse(m.Groups[1].Value):D2}:{int.Parse(m.Groups[2].Value):D2}";
         }
 
         private async Task<(List<TaskListDto> Lists, List<TaskItemDto> Tasks, bool Ok)> FetchTasksSnapshotFromEndpointAsync(string baseUrl, string token)
@@ -11424,7 +11458,6 @@ namespace Funkenwerk
                         .Where(t => !_recentlyDeletedTaskKeys.Contains(t.Id) && !_recentlyDeletedTaskKeys.Contains($"title:{NormalizeTaskSyncKey(t.Title)}"))
                         .ToList();
 
-                    // 1. Merge any custom lists from secondary that don't exist on primary by Name
                     foreach (var sl in secLists)
                     {
                         if (string.IsNullOrWhiteSpace(sl.Name)) continue;
@@ -11437,7 +11470,6 @@ namespace Funkenwerk
                         }
                     }
 
-                    // 2. Map list IDs -> list Names on both sides
                     var secListNameById = secLists
                         .Where(l => !string.IsNullOrWhiteSpace(l.Id))
                         .GroupBy(l => l.Id)
@@ -11455,7 +11487,6 @@ namespace Funkenwerk
 
                     var defaultPrimList = lists.FirstOrDefault(l => string.Equals(l.Name, "Aufgaben", StringComparison.OrdinalIgnoreCase)) ?? lists.FirstOrDefault();
 
-                    // 3. Bring tasks from secondary -> primary if missing on primary
                     foreach (var st in secTasks.Where(t => string.IsNullOrWhiteSpace(t.ParentId)))
                     {
                         if (string.IsNullOrWhiteSpace(st.Title)) continue;
@@ -11476,17 +11507,24 @@ namespace Funkenwerk
                                 TaskListId = targetPrimListId,
                                 ParentId = null,
                                 Title = st.Title,
+                                Status = st.Status,
+                                IsMine = st.IsMine,
+                                MyPosition = st.MyPosition,
                                 IsCompleted = st.IsCompleted,
+                                IsEscalated = st.IsEscalated,
+                                EscalationReason = st.EscalationReason,
                                 Priority = st.Priority,
                                 Position = st.Position,
                                 AiPlan = st.AiPlan,
                                 RelevantFrom = st.RelevantFrom,
+                                DueTime = st.DueTime,
+                                DurationMinutes = st.DurationMinutes,
+                                MessagesCount = st.MessagesCount,
                                 CreatedAt = st.CreatedAt,
                                 UpdatedAt = st.UpdatedAt
                             };
                             rawTasks.Add(imported);
 
-                            // Mirror missing task to primary endpoint in background
                             string pUrl = primaryEndpoint.BaseUrl;
                             string pTok = primaryEndpoint.Token;
                             string pListId = targetPrimListId;
@@ -11501,8 +11539,12 @@ namespace Funkenwerk
                                     {
                                         id = st.Id,
                                         title = st.Title,
+                                        status = string.IsNullOrWhiteSpace(st.Status) ? "open" : st.Status,
+                                        is_mine = st.IsMine,
                                         priority = string.IsNullOrWhiteSpace(st.Priority) ? "niedrig" : st.Priority,
                                         relevant_from = st.RelevantFrom,
+                                        due_time = st.DueTime,
+                                        duration_minutes = st.DurationMinutes > 0 ? st.DurationMinutes : 60,
                                         ai_plan = st.AiPlan,
                                         is_completed = st.IsCompleted,
                                         list_name = pListName
@@ -11520,22 +11562,30 @@ namespace Funkenwerk
                                 catch { }
                             });
                         }
-                        else if (matchOnPrim.IsCompleted != st.IsCompleted || !string.Equals(matchOnPrim.Priority, st.Priority, StringComparison.OrdinalIgnoreCase))
+                        else if (matchOnPrim.IsCompleted != st.IsCompleted
+                                 || matchOnPrim.IsMine != st.IsMine
+                                 || !string.Equals(matchOnPrim.Status, st.Status, StringComparison.OrdinalIgnoreCase)
+                                 || !string.Equals(matchOnPrim.Priority, st.Priority, StringComparison.OrdinalIgnoreCase))
                         {
-                            // Keep newer UpdatedAt state across servers
                             DateTimeOffset.TryParse(matchOnPrim.UpdatedAt, out var primUpdated);
                             DateTimeOffset.TryParse(st.UpdatedAt, out var secUpdated);
                             if (secUpdated > primUpdated)
                             {
                                 matchOnPrim.IsCompleted = st.IsCompleted;
+                                matchOnPrim.IsMine = st.IsMine;
+                                matchOnPrim.MyPosition = st.MyPosition;
+                                matchOnPrim.Status = st.Status;
+                                matchOnPrim.IsEscalated = st.IsEscalated;
+                                matchOnPrim.EscalationReason = st.EscalationReason;
                                 matchOnPrim.Priority = st.Priority;
                                 matchOnPrim.RelevantFrom = st.RelevantFrom;
+                                matchOnPrim.DueTime = st.DueTime;
+                                matchOnPrim.DurationMinutes = st.DurationMinutes;
                                 matchOnPrim.AiPlan = st.AiPlan;
                             }
                         }
                     }
 
-                    // 4. Push any recently created tasks on primary -> secondary if missing on secondary
                     var secListByName = secLists
                         .Where(l => !string.IsNullOrWhiteSpace(l.Name))
                         .GroupBy(l => NormalizeTaskSyncKey(l.Name))
@@ -11570,8 +11620,12 @@ namespace Funkenwerk
                                     {
                                         id = pt.Id,
                                         title = pt.Title,
+                                        status = string.IsNullOrWhiteSpace(pt.Status) ? "open" : pt.Status,
+                                        is_mine = pt.IsMine,
                                         priority = string.IsNullOrWhiteSpace(pt.Priority) ? "niedrig" : pt.Priority,
                                         relevant_from = pt.RelevantFrom,
+                                        due_time = pt.DueTime,
+                                        duration_minutes = pt.DurationMinutes > 0 ? pt.DurationMinutes : 60,
                                         ai_plan = pt.AiPlan,
                                         is_completed = pt.IsCompleted,
                                         list_name = primListName
@@ -11619,48 +11673,578 @@ namespace Funkenwerk
                     _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
                 }
 
-                // If "my_day" is currently selected on first load and has 0 tasks for today, default to "all" so all tasks are immediately visible
-                if (_activeTodoListId == "my_day" && !_allTasks.Any(t => !t.IsCompleted && IsToday(t.RelevantFrom)) && _allTasks.Count > 0)
+                if (IsSmartTodoListId(_activeTodoListId))
                 {
                     _activeTodoListId = "all";
                 }
 
+                _ = LoadTaskAssigneesAsync();
+                _ = SyncTodoUiConfigFromServerAsync();
                 RenderTodoAll();
                 UpdateSpacesBadges();
             }
             catch { }
         }
 
+        private const string SfTaskDragFormat = "SF_TASK_ID";
+        private Point _ticketCardDragStartPoint;
+        private string? _editingChatMessageId = null;
+        private string _editingChatMessageText = "";
+        private HashSet<string> _editingChatKeepPaths = new(StringComparer.OrdinalIgnoreCase);
+        private List<TaskAssigneeOptionDto> _taskAssignees = new();
+        private string? _newTaskAssigneeKey = null;
+        private string? _newTaskAssigneeName = null;
+        private System.Windows.Controls.Primitives.Popup? _activeAssigneePopup = null;
+
+        private async Task LoadTaskAssigneesAsync()
+        {
+            try
+            {
+                var merged = new Dictionary<string, TaskAssigneeOptionDto>(StringComparer.OrdinalIgnoreCase);
+                foreach (var ep in GetTaskSyncEndpoints())
+                {
+                    try
+                    {
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(4));
+                        using var req = new HttpRequestMessage(HttpMethod.Get, $"{ep.BaseUrl.TrimEnd('/')}/funki/tasks/assignees");
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        if (!string.IsNullOrWhiteSpace(ep.Token))
+                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.Token);
+                        using var res = await _http.SendAsync(req, cts.Token);
+                        if (!res.IsSuccessStatusCode) continue;
+
+                        var raw = await res.Content.ReadAsStringAsync();
+                        using var doc = JsonDocument.Parse(raw);
+                        if (doc.RootElement.TryGetProperty("data", out var arr) && arr.ValueKind == JsonValueKind.Array)
+                        {
+                            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                            var list = JsonSerializer.Deserialize<List<TaskAssigneeOptionDto>>(arr.GetRawText(), opts) ?? new();
+                            foreach (var item in list)
+                            {
+                                if (!string.IsNullOrWhiteSpace(item.Key) && !merged.ContainsKey(item.Key))
+                                    merged[item.Key] = item;
+                            }
+                        }
+                        if (merged.Count > 0) break;
+                    }
+                    catch { }
+                }
+
+                foreach (var existingTask in _allTasks)
+                {
+                    if (!string.IsNullOrWhiteSpace(existingTask.AssigneeKey) &&
+                        !string.IsNullOrWhiteSpace(existingTask.AssigneeName) &&
+                        !merged.ContainsKey(existingTask.AssigneeKey))
+                    {
+                        merged[existingTask.AssigneeKey] = new TaskAssigneeOptionDto
+                        {
+                            Key = existingTask.AssigneeKey,
+                            Name = existingTask.AssigneeName,
+                            RoleLabel = existingTask.AssigneeKey.StartsWith("admin:", StringComparison.OrdinalIgnoreCase) ? "Leitung" : "Team"
+                        };
+                    }
+                }
+
+                if (merged.Count > 0)
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        _taskAssignees = merged.Values.ToList();
+                    });
+                }
+            }
+            catch { }
+        }
+
+        private static string NormalizeFuzzyAssigneeText(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return "";
+            return input.Trim().ToLowerInvariant()
+                .Replace("ä", "ae")
+                .Replace("ö", "oe")
+                .Replace("ü", "ue")
+                .Replace("ß", "ss");
+        }
+
+        private static bool MatchesAssigneeFuzzy(TaskAssigneeOptionDto actor, string query)
+        {
+            string q = NormalizeFuzzyAssigneeText(query);
+            if (string.IsNullOrEmpty(q)) return true;
+
+            string full = NormalizeFuzzyAssigneeText(actor.Name);
+            string role = NormalizeFuzzyAssigneeText(actor.RoleLabel);
+            string initials = NormalizeFuzzyAssigneeText(actor.ComputedInitials);
+            if (full.Contains(q) || role.Contains(q) || initials.Contains(q)) return true;
+
+            var parts = full.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                if (part.StartsWith(q)) return true;
+                int cmpLen = Math.Min(part.Length, q.Length);
+                if (cmpLen >= 3 && ComputeLevenshteinDistance(part.Substring(0, cmpLen), q) <= (q.Length >= 5 ? 2 : 1))
+                    return true;
+            }
+            return ComputeLevenshteinDistance(full.Substring(0, Math.Min(full.Length, q.Length)), q) <= 2;
+        }
+
+        private void OpenTaskAssigneePickerPopup(FrameworkElement target, string? currentKey, Func<TaskAssigneeOptionDto?, Task> onSelected)
+        {
+            PlayTicketSound("click");
+            if (_activeAssigneePopup != null)
+            {
+                _activeAssigneePopup.IsOpen = false;
+                _activeAssigneePopup = null;
+            }
+
+            if (_taskAssignees.Count == 0)
+            {
+                _ = LoadTaskAssigneesAsync();
+            }
+
+            var popup = new System.Windows.Controls.Primitives.Popup
+            {
+                PlacementTarget = target,
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+                StaysOpen = false,
+                AllowsTransparency = true,
+                VerticalOffset = 4
+            };
+
+            var outer = new Border
+            {
+                Width = 264,
+                Background = BrushFromHex("#141720"),
+                BorderBrush = BrushFromHex("#C5A059"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(8),
+                Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    BlurRadius = 18,
+                    ShadowDepth = 4,
+                    Opacity = 0.65,
+                    Color = Colors.Black
+                }
+            };
+
+            var rootStack = new StackPanel();
+
+            var searchBorder = new Border
+            {
+                Background = BrushFromHex("#0F1117"),
+                BorderBrush = BrushFromHex("#262B3A"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 5, 8, 5),
+                Margin = new Thickness(0, 0, 0, 6)
+            };
+            var searchGrid = new Grid();
+            searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
+            searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            searchGrid.Children.Add(new TextBlock { Text = "🔍", Foreground = BrushFromHex("#9CA3AF"), FontSize = 11, VerticalAlignment = VerticalAlignment.Center });
+
+            var searchBox = new TextBox
+            {
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = BrushFromHex("#F9FAFB"),
+                CaretBrush = BrushFromHex("#C5A059"),
+                FontSize = 12
+            };
+            var searchPlaceholder = new TextBlock
+            {
+                Text = "Bearbeiter suchen...",
+                Foreground = BrushFromHex("#6B7280"),
+                FontSize = 12,
+                IsHitTestVisible = false,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(searchBox, 1);
+            Grid.SetColumn(searchPlaceholder, 1);
+            searchGrid.Children.Add(searchBox);
+            searchGrid.Children.Add(searchPlaceholder);
+            searchBorder.Child = searchGrid;
+            rootStack.Children.Add(searchBorder);
+
+            var listPanel = new StackPanel();
+            var listScroll = new ScrollViewer
+            {
+                MaxHeight = 230,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Content = listPanel
+            };
+            rootStack.Children.Add(listScroll);
+
+            void RebuildCandidateRows(string filter)
+            {
+                listPanel.Children.Clear();
+
+                if (string.IsNullOrWhiteSpace(filter) || "frei kein bearbeiter niemand".Contains(NormalizeFuzzyAssigneeText(filter)))
+                {
+                    bool noneActive = string.IsNullOrWhiteSpace(currentKey);
+                    var freeRow = new Border
+                    {
+                        Background = BrushFromHex(noneActive ? "#26231F" : "Transparent"),
+                        CornerRadius = new CornerRadius(8),
+                        Padding = new Thickness(8, 6, 8, 6),
+                        Margin = new Thickness(0, 0, 0, 2),
+                        Cursor = Cursors.Hand
+                    };
+                    var fg = new Grid();
+                    fg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    fg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    fg.Children.Add(new TextBlock { Text = "✕ Frei (Kein Bearbeiter)", Foreground = BrushFromHex("#9CA3AF"), FontSize = 12, FontWeight = FontWeights.SemiBold });
+                    if (noneActive)
+                    {
+                        var chk = new TextBlock { Text = "✓", Foreground = BrushFromHex("#C5A059"), FontSize = 12, FontWeight = FontWeights.Bold };
+                        Grid.SetColumn(chk, 1);
+                        fg.Children.Add(chk);
+                    }
+                    freeRow.Child = fg;
+                    freeRow.MouseLeftButtonUp += async (s, e) =>
+                    {
+                        popup.IsOpen = false;
+                        await onSelected(null);
+                    };
+                    listPanel.Children.Add(freeRow);
+                }
+
+                var matches = _taskAssignees.Where(a => MatchesAssigneeFuzzy(a, filter)).ToList();
+                if (matches.Count == 0)
+                {
+                    listPanel.Children.Add(new TextBlock
+                    {
+                        Text = _taskAssignees.Count == 0 ? "Lade Bearbeiter..." : "Kein passender Bearbeiter gefunden",
+                        Foreground = BrushFromHex("#6B7280"),
+                        FontSize = 11.5,
+                        Margin = new Thickness(8, 10, 8, 10),
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    });
+                    return;
+                }
+
+                foreach (var actor in matches)
+                {
+                    bool isCurrent = string.Equals(currentKey, actor.Key, StringComparison.OrdinalIgnoreCase);
+                    var row = new Border
+                    {
+                        Background = BrushFromHex(isCurrent ? "#26231F" : "Transparent"),
+                        BorderBrush = BrushFromHex(isCurrent ? "#4D3D1E" : "Transparent"),
+                        BorderThickness = new Thickness(isCurrent ? 1 : 0),
+                        CornerRadius = new CornerRadius(8),
+                        Padding = new Thickness(8, 6, 8, 6),
+                        Margin = new Thickness(0, 0, 0, 2),
+                        Cursor = Cursors.Hand
+                    };
+                    var rg = new Grid();
+                    rg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+                    rg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    rg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    var avatarBadge = new Border
+                    {
+                        Width = 22,
+                        Height = 22,
+                        CornerRadius = new CornerRadius(11),
+                        Background = BrushFromHex("#26231F"),
+                        BorderBrush = BrushFromHex("#C5A059"),
+                        BorderThickness = new Thickness(1),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        HorizontalAlignment = HorizontalAlignment.Left
+                    };
+                    avatarBadge.Child = new TextBlock
+                    {
+                        Text = actor.ComputedInitials,
+                        Foreground = BrushFromHex("#C5A059"),
+                        FontSize = 9.5,
+                        FontWeight = FontWeights.Bold,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    rg.Children.Add(avatarBadge);
+
+                    var infoStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    infoStack.Children.Add(new TextBlock
+                    {
+                        Text = actor.Name,
+                        Foreground = BrushFromHex("#F3F4F6"),
+                        FontSize = 12,
+                        FontWeight = FontWeights.Bold,
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    });
+                    if (!string.IsNullOrWhiteSpace(actor.RoleLabel))
+                    {
+                        infoStack.Children.Add(new TextBlock
+                        {
+                            Text = actor.RoleLabel,
+                            Foreground = BrushFromHex("#9CA3AF"),
+                            FontSize = 10
+                        });
+                    }
+                    Grid.SetColumn(infoStack, 1);
+                    rg.Children.Add(infoStack);
+
+                    if (isCurrent)
+                    {
+                        var chk = new TextBlock { Text = "✓", Foreground = BrushFromHex("#C5A059"), FontSize = 12, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) };
+                        Grid.SetColumn(chk, 2);
+                        rg.Children.Add(chk);
+                    }
+
+                    row.Child = rg;
+                    var capturedActor = actor;
+                    row.MouseLeftButtonUp += async (s, e) =>
+                    {
+                        popup.IsOpen = false;
+                        await onSelected(capturedActor);
+                    };
+                    listPanel.Children.Add(row);
+                }
+            }
+
+            searchBox.TextChanged += (s, e) =>
+            {
+                searchPlaceholder.Visibility = string.IsNullOrEmpty(searchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+                RebuildCandidateRows(searchBox.Text);
+            };
+
+            RebuildCandidateRows("");
+            outer.Child = rootStack;
+            popup.Child = outer;
+            _activeAssigneePopup = popup;
+            popup.Opened += async (s, e) =>
+            {
+                searchBox.Focus();
+                if (_taskAssignees.Count == 0)
+                {
+                    await LoadTaskAssigneesAsync();
+                    RebuildCandidateRows(searchBox.Text);
+                }
+            };
+            popup.IsOpen = true;
+        }
+
+        private void UpdateNewTaskAssigneeButtonLabel()
+        {
+            if (NewTaskAssigneeBtn == null || NewTaskAssigneeBorder == null) return;
+            if (string.IsNullOrWhiteSpace(_newTaskAssigneeKey) || string.IsNullOrWhiteSpace(_newTaskAssigneeName))
+            {
+                NewTaskAssigneeBtn.Content = "👤 Bearbeiter ▾";
+                NewTaskAssigneeBtn.Foreground = BrushFromHex("#D1D5DB");
+                NewTaskAssigneeBorder.BorderBrush = BrushFromHex("#2A2F3D");
+            }
+            else
+            {
+                NewTaskAssigneeBtn.Content = $"👤 {_newTaskAssigneeName} ▾";
+                NewTaskAssigneeBtn.Foreground = BrushFromHex("#C5A059");
+                NewTaskAssigneeBorder.BorderBrush = BrushFromHex("#C5A059");
+            }
+        }
+
+        private void NewTaskAssigneeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            OpenTaskAssigneePickerPopup(NewTaskAssigneeBorder, _newTaskAssigneeKey, selected =>
+            {
+                _newTaskAssigneeKey = selected?.Key;
+                _newTaskAssigneeName = selected?.Name;
+                UpdateNewTaskAssigneeButtonLabel();
+                PlayTicketSound("click");
+                return Task.CompletedTask;
+            });
+        }
+
+        private void DetailAssigneeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTask == null) return;
+            string tid = _selectedTask.Id;
+            OpenTaskAssigneePickerPopup(DetailAssigneeBorder, _selectedTask.AssigneeKey, async selected =>
+            {
+                await AssignTicketToAsync(tid, selected?.Key, selected?.Name);
+            });
+        }
+
+        private async Task AssignTicketToAsync(string taskId, string? assigneeKey, string? optimisticName = null)
+        {
+            var t = _allTasks.FirstOrDefault(x => x.Id == taskId);
+            if (t != null)
+            {
+                t.AssigneeKey = string.IsNullOrWhiteSpace(assigneeKey) ? null : assigneeKey;
+                t.AssigneeName = string.IsNullOrWhiteSpace(assigneeKey) ? null : optimisticName;
+            }
+            PlayTicketSound("click");
+            RenderTodoAll();
+
+            try
+            {
+                string jsonBody = JsonSerializer.Serialize(new { assignee_key = string.IsNullOrWhiteSpace(assigneeKey) ? "none" : assigneeKey });
+                var endpoints = GetTaskSyncEndpoints();
+                var jobs = endpoints.Select(async ep =>
+                {
+                    try
+                    {
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var req = new HttpRequestMessage(HttpMethod.Put, $"{ep.BaseUrl.TrimEnd('/')}/funki/tasks/{Uri.EscapeDataString(taskId)}/assign")
+                        {
+                            Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
+                        };
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        if (!string.IsNullOrWhiteSpace(ep.Token))
+                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.Token);
+                        await _http.SendAsync(req, cts.Token);
+                    }
+                    catch { }
+                }).ToArray();
+
+                await Task.WhenAll(jobs);
+                await LoadTodoListsAsync();
+                _ = LoadCalendarEventsAsync();
+                if (_selectedTask != null && _selectedTask.Id == taskId)
+                {
+                    _ = LoadSelectedTicketMessagesAsync(taskId);
+                }
+            }
+            catch { }
+        }
+
+        private void ApplyTodoVerticalSplitRatio(double pct)
+        {
+            if (TodoRowMyTickets == null || TodoRowLists == null) return;
+            double clamped = Math.Clamp(pct, 22.0, 78.0);
+            TodoRowMyTickets.Height = new GridLength(clamped, GridUnitType.Star);
+            TodoRowLists.Height = new GridLength(100.0 - clamped, GridUnitType.Star);
+        }
+
+        private async Task SyncTodoUiConfigFromServerAsync()
+        {
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(4));
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBaseUrl.TrimEnd('/')}/funki/tasks/ui-config");
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(_apiToken))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+                using var res = await _http.SendAsync(req, cts.Token);
+                if (!res.IsSuccessStatusCode) return;
+
+                var json = await res.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+                if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+                    return;
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (data.TryGetProperty("left_col_width_px", out var lw) && lw.TryGetDouble(out double lwVal) && lwVal >= 230 && lwVal <= 560)
+                    {
+                        _layoutSettings.TodoSidebarWidth = lwVal;
+                        TodoColSidebar.Width = new GridLength(lwVal);
+                    }
+                    if (data.TryGetProperty("my_tickets_height_pct", out var mh) && mh.TryGetDouble(out double mhVal) && mhVal >= 22 && mhVal <= 78)
+                    {
+                        _layoutSettings.TodoMyTicketsHeightPct = mhVal;
+                        ApplyTodoVerticalSplitRatio(mhVal);
+                    }
+                });
+            }
+            catch { }
+        }
+
+        private async Task SaveTodoUiConfigToServerAsync()
+        {
+            try
+            {
+                var body = JsonSerializer.Serialize(new
+                {
+                    left_col_width_px = (int)Math.Round(Math.Clamp(_layoutSettings.TodoSidebarWidth, 230, 560)),
+                    my_tickets_height_pct = (int)Math.Round(Math.Clamp(_layoutSettings.TodoMyTicketsHeightPct, 22, 78)),
+                    sound_muted = !_layoutSettings.SoundsEnabled
+                });
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(4));
+                using var req = new HttpRequestMessage(HttpMethod.Put, $"{_apiBaseUrl.TrimEnd('/')}/funki/tasks/ui-config")
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json")
+                };
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(_apiToken))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+                await _http.SendAsync(req, cts.Token);
+            }
+            catch { }
+        }
+
+        private void TodoVerticalSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            SaveSettingsToFile();
+            _ = SaveTodoUiConfigToServerAsync();
+        }
+
+        private void TodoHorizontalSplitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            SaveSettingsToFile();
+            _ = SaveTodoUiConfigToServerAsync();
+        }
+
+        private void ToggleTodoSound_Click(object sender, RoutedEventArgs e)
+        {
+            _layoutSettings.SoundsEnabled = !_layoutSettings.SoundsEnabled;
+            if (TodoSoundToggleBtn != null)
+            {
+                TodoSoundToggleBtn.Content = _layoutSettings.SoundsEnabled ? "🔊" : "🔇";
+                TodoSoundToggleBtn.Foreground = BrushFromHex(_layoutSettings.SoundsEnabled ? "#C5A059" : "#6B7280");
+            }
+            if (_layoutSettings.SoundsEnabled) PlayTicketSound("click");
+            SaveSettingsToFile();
+            _ = SaveTodoUiConfigToServerAsync();
+        }
+
+        private void NewTaskBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (NewTaskPlaceholder != null)
+                NewTaskPlaceholder.Visibility = string.IsNullOrEmpty(NewTaskBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void NewTodoListBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (NewTodoListPlaceholder != null)
+                NewTodoListPlaceholder.Visibility = string.IsNullOrEmpty(NewTodoListBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private void RenderTodoAll()
         {
-            UpdateTodoSmartCounts();
-            HighlightActiveTodoSmartList();
-            RenderCustomTodoLists();
-            RenderTodoMainList();
-            RenderTodoDetailPanel();
+            string prevSpaceKey = _currentRenderingSpaceKey;
+            _currentRenderingSpaceKey = "todo";
+            try
+            {
+                if (TodoSoundToggleBtn != null)
+                {
+                    TodoSoundToggleBtn.Content = _layoutSettings.SoundsEnabled ? "🔊" : "🔇";
+                    TodoSoundToggleBtn.Foreground = BrushFromHex(_layoutSettings.SoundsEnabled ? "#C5A059" : "#6B7280");
+                }
+                UpdateTodoSmartCounts();
+                HighlightActiveTodoSmartList();
+                RenderCustomTodoLists();
+                RenderTodoMainList();
+                RenderTodoDetailPanel();
+            }
+            finally
+            {
+                _currentRenderingSpaceKey = prevSpaceKey;
+            }
         }
 
         private void UpdateTodoSmartCounts()
         {
-            int myDay = _allTasks.Count(t => !t.IsCompleted && IsToday(t.RelevantFrom));
-            int important = _allTasks.Count(t => !t.IsCompleted && string.Equals(t.Priority, "hoch", StringComparison.OrdinalIgnoreCase));
-            int planned = _allTasks.Count(t => !t.IsCompleted && !string.IsNullOrWhiteSpace(t.RelevantFrom));
-            int all = _allTasks.Count(t => !t.IsCompleted);
-
-            CountMyDay.Text = myDay > 0 ? myDay.ToString() : "";
-            CountImportant.Text = important > 0 ? important.ToString() : "";
-            CountPlanned.Text = planned > 0 ? planned.ToString() : "";
-            CountAll.Text = all > 0 ? all.ToString() : "";
+            int activeTotal = _allTasks.Count(t => !t.IsCompleted);
+            CountAll.Text = $"{_todoLists.Count} Listen";
+            if (CountAllRowBadge != null)
+                CountAllRowBadge.Text = activeTotal > 0 ? activeTotal.ToString() : "";
         }
 
         private void HighlightActiveTodoSmartList()
         {
-            var activeBg = BrushFromHex("#26231F");
-            var transparent = Brushes.Transparent;
-            SmartMyDayBorder.Background = (_activeTodoListId == "my_day" && string.IsNullOrEmpty(_todoSearchQuery)) ? activeBg : transparent;
-            SmartImportantBorder.Background = (_activeTodoListId == "important" && string.IsNullOrEmpty(_todoSearchQuery)) ? activeBg : transparent;
-            SmartPlannedBorder.Background = (_activeTodoListId == "planned" && string.IsNullOrEmpty(_todoSearchQuery)) ? activeBg : transparent;
-            SmartAllBorder.Background = (_activeTodoListId == "all" && string.IsNullOrEmpty(_todoSearchQuery)) ? activeBg : transparent;
+            bool allActive = IsSmartTodoListId(_activeTodoListId) && string.IsNullOrEmpty(_todoSearchQuery);
+            SmartAllBorder.Background = allActive ? BrushFromHex("#26231F") : Brushes.Transparent;
+            SmartAllBorder.BorderBrush = allActive ? BrushFromHex("#4D3D1E") : Brushes.Transparent;
+            SmartAllBorder.BorderThickness = new Thickness(allActive ? 1 : 0);
         }
 
         private void RenderCustomTodoLists()
@@ -11674,23 +12258,23 @@ namespace Funkenwerk
 
                 var border = new Border
                 {
-                    CornerRadius = new CornerRadius(10),
-                    Padding = new Thickness(12, 9, 12, 9),
+                    CornerRadius = new CornerRadius(9),
+                    Padding = new Thickness(10, 7, 10, 7),
                     Margin = new Thickness(0, 1, 0, 1),
                     Background = isActive ? BrushFromHex("#26231F") : Brushes.Transparent,
-                    BorderBrush = isEmailTasksList ? BrushFromHex("#4D3D1E") : Brushes.Transparent,
-                    BorderThickness = new Thickness(isEmailTasksList ? 1 : 0),
+                    BorderBrush = (isActive || isEmailTasksList) ? BrushFromHex("#4D3D1E") : Brushes.Transparent,
+                    BorderThickness = new Thickness((isActive || isEmailTasksList) ? 1 : 0),
                     Cursor = Cursors.Hand
                 };
 
                 var grid = new Grid();
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
                 grid.Children.Add(new TextBlock
                 {
-                    Text = isEmailTasksList ? "✨" : "☰",
+                    Text = isEmailTasksList ? "✨" : "•",
                     Foreground = BrushFromHex("#C5A059"),
                     FontSize = 13,
                     VerticalAlignment = VerticalAlignment.Center
@@ -11701,7 +12285,7 @@ namespace Funkenwerk
                     Text = list.Name,
                     Foreground = isActive ? BrushFromHex("#C5A059") : BrushFromHex("#E5E7EB"),
                     FontWeight = (isActive || isEmailTasksList) ? FontWeights.Bold : FontWeights.Medium,
-                    FontSize = 13.5,
+                    FontSize = 13,
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 };
@@ -11714,10 +12298,10 @@ namespace Funkenwerk
                     {
                         Text = openCount.ToString(),
                         Foreground = isActive ? BrushFromHex("#C5A059") : BrushFromHex("#9CA3AF"),
-                        FontSize = 12,
+                        FontSize = 11.5,
                         FontWeight = FontWeights.SemiBold,
                         VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(8, 0, 0, 0)
+                        Margin = new Thickness(6, 0, 0, 0)
                     };
                     Grid.SetColumn(badge, 2);
                     grid.Children.Add(badge);
@@ -11727,7 +12311,7 @@ namespace Funkenwerk
                 string listId = list.Id;
                 border.MouseLeftButtonUp += (s, e) =>
                 {
-                    PlaySoundNav();
+                    PlayTicketSound("click");
                     _activeTodoListId = listId;
                     _selectedTask = null;
                     RenderTodoAll();
@@ -11738,38 +12322,35 @@ namespace Funkenwerk
 
         private void RenderTodoMainList()
         {
-            var cult = new CultureInfo("de-DE");
+            string prevSpaceKey = _currentRenderingSpaceKey;
+            _currentRenderingSpaceKey = "todo";
+            try
+            {
+                RenderTodoMainListCore();
+            }
+            finally
+            {
+                _currentRenderingSpaceKey = prevSpaceKey;
+            }
+        }
+
+        private void RenderTodoMainListCore()
+        {
+            TodoHeaderSubtitle.Text = "";
+            TodoHeaderSubtitle.Visibility = Visibility.Collapsed;
+
             if (!string.IsNullOrWhiteSpace(_todoSearchQuery))
             {
                 TodoHeaderTitle.Text = $"Suche: \"{_todoSearchQuery}\"";
-                TodoHeaderSubtitle.Text = "Suchergebnisse";
+            }
+            else if (!IsSmartTodoListId(_activeTodoListId))
+            {
+                string listTitle = _todoLists.FirstOrDefault(x => x.Id == _activeTodoListId)?.Name ?? "Tickets";
+                TodoHeaderTitle.Text = $"{listTitle} · Offene Tickets";
             }
             else
             {
-                switch (_activeTodoListId)
-                {
-                    case "my_day":
-                        TodoHeaderTitle.Text = "Mein Tag";
-                        TodoHeaderSubtitle.Text = DateTime.Now.ToString("dddd, d. MMMM", cult);
-                        break;
-                    case "important":
-                        TodoHeaderTitle.Text = "Wichtig";
-                        TodoHeaderSubtitle.Text = "Aufgaben mit hoher Priorität";
-                        break;
-                    case "planned":
-                        TodoHeaderTitle.Text = "Geplant";
-                        TodoHeaderSubtitle.Text = "Aufgaben mit Fälligkeitsdatum";
-                        break;
-                    case "all":
-                        TodoHeaderTitle.Text = "Alle Aufgaben";
-                        TodoHeaderSubtitle.Text = "Alle Listen kombiniert";
-                        break;
-                    default:
-                        var l = _todoLists.FirstOrDefault(x => x.Id == _activeTodoListId);
-                        TodoHeaderTitle.Text = l?.Name ?? "Aufgaben";
-                        TodoHeaderSubtitle.Text = l?.Name == "E-Mail Aufgaben" ? "Von der Funkenwerk KI aus deinen E-Mails extrahierte Aufgaben" : "Benutzerdefinierte Liste";
-                        break;
-                }
+                TodoHeaderTitle.Text = "Offene Tickets";
             }
 
             IEnumerable<TaskItemDto> filtered = _allTasks;
@@ -11778,24 +12359,44 @@ namespace Funkenwerk
                 string q = _todoSearchQuery.Trim().ToLowerInvariant();
                 filtered = filtered.Where(t => (t.Title ?? "").ToLowerInvariant().Contains(q) || (t.AiPlan ?? "").ToLowerInvariant().Contains(q));
             }
-            else
+            else if (!IsSmartTodoListId(_activeTodoListId))
             {
-                filtered = _activeTodoListId switch
-                {
-                    "my_day" => filtered.Where(t => IsToday(t.RelevantFrom)),
-                    "important" => filtered.Where(t => string.Equals(t.Priority, "hoch", StringComparison.OrdinalIgnoreCase)),
-                    "planned" => filtered.Where(t => !string.IsNullOrWhiteSpace(t.RelevantFrom)),
-                    "all" => filtered,
-                    _ => filtered.Where(t => t.TaskListId == _activeTodoListId)
-                };
+                filtered = filtered.Where(t => t.TaskListId == _activeTodoListId);
             }
 
-            var open = filtered.Where(t => !t.IsCompleted).OrderBy(t => t.Position).ToList();
-            var done = filtered.Where(t => t.IsCompleted).OrderByDescending(t => t.UpdatedAt).ToList();
-            TodoStatusCounter.Text = $"{open.Count} offen · {done.Count} erledigt";
+            var myTickets = filtered
+                .Where(t => !t.IsCompleted && t.IsMine)
+                .OrderBy(t => t.MyPosition)
+                .ThenBy(t => t.Position)
+                .ToList();
+
+            var openPool = filtered
+                .Where(t => !t.IsCompleted && !t.IsMine)
+                .OrderBy(t => t.Position)
+                .ThenByDescending(t => t.CreatedAt)
+                .ToList();
+
+            var done = filtered
+                .Where(t => t.IsCompleted)
+                .OrderByDescending(t => t.UpdatedAt)
+                .ToList();
+
+            TodoStatusCounter.Text = $"{myTickets.Count} Meine · {openPool.Count} Offen";
+            CountMyTicketsPill.Text = myTickets.Count.ToString();
+
+            MyTicketsPanel.Children.Clear();
+            foreach (var mt in myTickets)
+            {
+                MyTicketsPanel.Children.Add(BuildMyTicketCard(mt, myTickets));
+            }
+            MyTicketsEmptyText.Visibility = myTickets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             OpenTasksPanel.Children.Clear();
-            foreach (var t in open) OpenTasksPanel.Children.Add(BuildTaskCard(t, false));
+            foreach (var ot in openPool)
+            {
+                OpenTasksPanel.Children.Add(BuildOpenTicketTableRow(ot, openPool, false));
+            }
+            OpenTicketsEmptyText.Visibility = openPool.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             if (done.Count > 0)
             {
@@ -11806,7 +12407,10 @@ namespace Funkenwerk
                 CompletedTasksPanel.Children.Clear();
                 if (_showCompletedTasks)
                 {
-                    foreach (var t in done) CompletedTasksPanel.Children.Add(BuildTaskCard(t, true));
+                    foreach (var t in done)
+                    {
+                        CompletedTasksPanel.Children.Add(BuildOpenTicketTableRow(t, done, true));
+                    }
                 }
             }
             else
@@ -11815,129 +12419,704 @@ namespace Funkenwerk
             }
         }
 
-        private UIElement BuildTaskCard(TaskItemDto task, bool isCompleted)
+        private ContextMenu BuildTicketContextMenu(TaskItemDto task)
+        {
+            var menu = new ContextMenu
+            {
+                Background = BrushFromHex("#181B24"),
+                BorderBrush = BrushFromHex("#C5A059"),
+                BorderThickness = new Thickness(1),
+                Foreground = BrushFromHex("#F3F4F6"),
+                Padding = new Thickness(4)
+            };
+
+            MenuItem MakeItem(string header, string fgHex, Action onClick)
+            {
+                var mi = new MenuItem
+                {
+                    Header = header,
+                    Foreground = BrushFromHex(fgHex),
+                    Background = BrushFromHex("#181B24"),
+                    FontWeight = FontWeights.SemiBold,
+                    Padding = new Thickness(8, 5, 8, 5),
+                    Cursor = Cursors.Hand
+                };
+                mi.Click += (s, e) => onClick();
+                return mi;
+            }
+
+            if (!task.IsCompleted)
+            {
+                if (!task.IsMine)
+                    menu.Items.Add(MakeItem("📌 In Meine Tickets schieben (Status bleibt)", "#C5A059", () => _ = MoveTicketToMineAsync(task.Id, true)));
+                else
+                    menu.Items.Add(MakeItem("↩ Aus Meine Tickets lösen (Status bleibt)", "#93C5FD", () => _ = MoveTicketToMineAsync(task.Id, false)));
+            }
+
+            menu.Items.Add(MakeItem("💬 Ticket & Chat öffnen", "#F3F4F6", () => OpenTicketDetail(task)));
+
+            if (_taskAssignees.Count > 0)
+            {
+                var assignSub = new MenuItem
+                {
+                    Header = "👤 Bearbeiter zuweisen",
+                    Foreground = BrushFromHex("#E5E7EB"),
+                    Background = BrushFromHex("#181B24"),
+                    FontWeight = FontWeights.SemiBold,
+                    Padding = new Thickness(8, 5, 8, 5)
+                };
+                assignSub.Items.Add(MakeItem("✕ Frei (Kein Bearbeiter)", "#9CA3AF", () => _ = AssignTicketToAsync(task.Id, null, null)));
+                foreach (var act in _taskAssignees)
+                {
+                    var captured = act;
+                    bool isCur = string.Equals(task.AssigneeKey, captured.Key, StringComparison.OrdinalIgnoreCase);
+                    assignSub.Items.Add(MakeItem((isCur ? "✓ " : "   ") + captured.Name, isCur ? "#C5A059" : "#F3F4F6", () => _ = AssignTicketToAsync(task.Id, captured.Key, captured.Name)));
+                }
+                menu.Items.Add(assignSub);
+            }
+
+            menu.Items.Add(new Separator { Background = BrushFromHex("#2A2F3D") });
+            menu.Items.Add(MakeItem("Status: Offen", "#F87171", () => _ = SetTicketStatusAsync(task.Id, "open")));
+            menu.Items.Add(MakeItem("Status: Warten", "#FACC15", () => _ = SetTicketStatusAsync(task.Id, "waiting")));
+            menu.Items.Add(MakeItem("Status: In Bearbeitung", "#FB923C", () => _ = SetTicketStatusAsync(task.Id, "in_progress")));
+            menu.Items.Add(MakeItem("Status: Erledigt", "#34D399", () => _ = SetTicketStatusAsync(task.Id, "completed")));
+            menu.Items.Add(new Separator { Background = BrushFromHex("#2A2F3D") });
+            menu.Items.Add(MakeItem("🗑 Ticket löschen", "#F87171", () => _ = DeleteTaskByIdAsync(task.Id)));
+
+            return menu;
+        }
+
+        private void OpenTicketDetail(TaskItemDto task)
+        {
+            PlayTicketSound("click");
+            _selectedTask = task;
+            _editingChatMessageId = null;
+            _pendingTaskChatFiles.Clear();
+            EscalationErrorText.Visibility = Visibility.Collapsed;
+            RenderTodoMainList();
+            RenderTodoDetailPanel();
+            _ = LoadSelectedTicketMessagesAsync(task.Id);
+        }
+
+        private static string FormatCreatedAtShort(string? iso)
+        {
+            if (string.IsNullOrWhiteSpace(iso)) return "-";
+            if (DateTimeOffset.TryParse(iso, out var dto))
+                return dto.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
+            return iso.Length > 16 ? iso.Substring(0, 16) : iso;
+        }
+
+        private void AttachTicketDragSource(FrameworkElement handleOrCard, string taskId)
+        {
+            handleOrCard.PreviewMouseLeftButtonDown += (s, e) =>
+            {
+                _ticketCardDragStartPoint = e.GetPosition(null);
+            };
+            handleOrCard.MouseMove += (s, e) =>
+            {
+                if (e.LeftButton == MouseButtonState.Pressed)
+                {
+                    var diff = _ticketCardDragStartPoint - e.GetPosition(null);
+                    if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                        Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+                    {
+                        var data = new DataObject(SfTaskDragFormat, taskId);
+                        DragDrop.DoDragDrop(handleOrCard, data, DragDropEffects.Move);
+                    }
+                }
+            };
+        }
+
+        private UIElement BuildMyTicketCard(TaskItemDto task, List<TaskItemDto> currentPool)
         {
             bool isSelected = _selectedTask != null && _selectedTask.Id == task.Id;
-            bool isStarred = string.Equals(task.Priority, "hoch", StringComparison.OrdinalIgnoreCase);
-            var subs = task.Subtasks ?? new();
-            int subDone = subs.Count(s => s.IsCompleted);
-            bool compact = _layoutSettings.CompactMode;
+            bool isEscalated = task.IsEscalatedEffective;
 
             var card = new Border
             {
-                CornerRadius = new CornerRadius(12),
-                Padding = compact ? new Thickness(12, 7, 12, 7) : new Thickness(14, 11, 14, 11),
-                Margin = new Thickness(0, 0, 0, compact ? 4 : 6),
-                Background = isSelected ? BrushFromHex("#24211D") : BrushFromHex("#181B24"),
-                BorderBrush = isSelected ? BrushFromHex("#C5A059") : BrushFromHex("#232734"),
+                CornerRadius = new CornerRadius(11),
+                Padding = new Thickness(11, 9, 11, 9),
+                Margin = new Thickness(0, 0, 0, 6),
+                Background = BrushFromHex(isSelected ? "#26231F" : (isEscalated ? "#231317" : "#1C202C")),
+                BorderBrush = BrushFromHex(isSelected ? "#C5A059" : (isEscalated ? "#991B1B" : "#262B3A")),
                 BorderThickness = new Thickness(1),
-                Cursor = Cursors.Hand
+                Cursor = Cursors.Hand,
+                AllowDrop = true,
+                ToolTip = task.Title,
+                ContextMenu = BuildTicketContextMenu(task)
             };
 
             var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(18) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var chk = new Border
+            var dragGrip = new TextBlock
             {
-                Width = 20,
-                Height = 20,
-                CornerRadius = new CornerRadius(10),
-                BorderThickness = new Thickness(2),
-                BorderBrush = isCompleted ? BrushFromHex("#C5A059") : BrushFromHex("#6B7280"),
-                Background = isCompleted ? (_isDarkMode ? BrushFromHex("#000000") : BrushFromHex("#C5A059")) : Brushes.Transparent,
+                Text = "⠿",
+                Foreground = BrushFromHex("#6B7280"),
+                FontSize = 13,
                 VerticalAlignment = VerticalAlignment.Top,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 2, 0, 0),
-                Child = isCompleted ? new TextBlock { Text = "✓", Foreground = _isDarkMode ? BrushFromHex("#C5A059") : BrushFromHex("#111827"), FontSize = 12, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } : null
+                Margin = new Thickness(0, 1, 0, 0),
+                Cursor = Cursors.SizeAll,
+                ToolTip = "Ziehen zum Sortieren oder zurueck zu Offene Tickets"
             };
-            string tid = task.Id;
-            chk.MouseLeftButtonUp += async (s, e) =>
-            {
-                e.Handled = true;
-                await ToggleTaskCompletionAsync(tid);
-            };
-            grid.Children.Add(chk);
+            AttachTicketDragSource(dragGrip, task.Id);
+            grid.Children.Add(dragGrip);
 
             var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             stack.Children.Add(new TextBlock
             {
                 Text = task.Title,
-                Foreground = isCompleted ? BrushFromHex("#6B7280") : BrushFromHex("#F3F4F6"),
-                FontSize = 14,
+                Foreground = BrushFromHex("#F3F4F6"),
+                FontSize = 12.5,
+                LineHeight = 18.5,
+                LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
                 FontWeight = FontWeights.SemiBold,
                 TextWrapping = TextWrapping.Wrap,
-                TextDecorations = isCompleted ? TextDecorations.Strikethrough : null
+                Margin = new Thickness(0, 0, 2, 2)
             });
 
-            var meta = new WrapPanel { Margin = new Thickness(0, 3, 0, 0) };
-            var listObj = _todoLists.FirstOrDefault(l => l.Id == task.TaskListId);
-            if (listObj != null && (_activeTodoListId is "my_day" or "important" or "planned" or "all"))
-                meta.Children.Add(new TextBlock { Text = listObj.Name, Foreground = BrushFromHex("#9CA3AF"), FontSize = 11.5, Margin = new Thickness(0, 0, 10, 0) });
-            if (subs.Count > 0)
-                meta.Children.Add(new TextBlock { Text = $"✓ {subDone} von {subs.Count}", Foreground = BrushFromHex("#34D399"), FontSize = 11.5, Margin = new Thickness(0, 0, 10, 0) });
-            if (!string.IsNullOrWhiteSpace(task.RelevantFrom))
-                meta.Children.Add(new TextBlock { Text = $"📅 {FormatShortDate(task.RelevantFrom)}", Foreground = BrushFromHex("#C5A059"), FontSize = 11.5, Margin = new Thickness(0, 0, 10, 0) });
-            if (meta.Children.Count > 0) stack.Children.Add(meta);
-
+            var metaRow = new WrapPanel { Margin = new Thickness(0, 3, 0, 0) };
+            metaRow.Children.Add(new TextBlock
+            {
+                Text = task.StatusLabel,
+                Foreground = BrushFromHex(task.StatusForegroundHex),
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 0, 8, 0)
+            });
+            if (!string.IsNullOrWhiteSpace(task.AssigneeName))
+            {
+                metaRow.Children.Add(new TextBlock
+                {
+                    Text = $"👤 {task.AssigneeName}",
+                    Foreground = BrushFromHex("#D1D5DB"),
+                    FontSize = 10.5,
+                    Margin = new Thickness(0, 0, 8, 0)
+                });
+            }
+            if (isEscalated)
+            {
+                metaRow.Children.Add(new TextBlock
+                {
+                    Text = "⚠ Eskaliert",
+                    Foreground = BrushFromHex("#FCA5A5"),
+                    FontSize = 10.5,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 8, 0)
+                });
+            }
+            if (task.MessagesCount > 0)
+            {
+                metaRow.Children.Add(new TextBlock
+                {
+                    Text = $"💬 {task.MessagesCount}",
+                    Foreground = BrushFromHex("#9CA3AF"),
+                    FontSize = 10.5
+                });
+            }
+            stack.Children.Add(metaRow);
             Grid.SetColumn(stack, 1);
             grid.Children.Add(stack);
 
-            var star = new TextBlock
+            var releaseBtn = new TextBlock
             {
-                Text = isStarred ? "★" : "☆",
-                Foreground = isStarred ? BrushFromHex("#C5A059") : BrushFromHex("#6B7280"),
-                FontSize = 18,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(10, 0, 0, 0)
+                Text = "✕",
+                Foreground = BrushFromHex("#6B7280"),
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(6, 0, 0, 0),
+                Cursor = Cursors.Hand,
+                ToolTip = "Aus Meine Tickets loesen (Status bleibt gleich)"
             };
-            star.MouseLeftButtonUp += async (s, e) =>
+            string tid = task.Id;
+            releaseBtn.MouseLeftButtonUp += async (s, e) =>
             {
                 e.Handled = true;
-                await ToggleTaskImportantAsync(tid);
+                await MoveTicketToMineAsync(tid, false);
             };
-            Grid.SetColumn(star, 2);
-            grid.Children.Add(star);
+            Grid.SetColumn(releaseBtn, 2);
+            grid.Children.Add(releaseBtn);
 
             card.Child = grid;
-            card.MouseLeftButtonUp += (s, e) =>
+            AttachTicketDragSource(card, task.Id);
+            card.MouseLeftButtonUp += (s, e) => OpenTicketDetail(task);
+
+            card.DragOver += (s, e) =>
             {
-                PlaySoundNav();
-                _selectedTask = task;
-                RenderTodoMainList();
-                RenderTodoDetailPanel();
+                if (e.Data.GetDataPresent(SfTaskDragFormat))
+                {
+                    e.Effects = DragDropEffects.Move;
+                    e.Handled = true;
+                }
             };
+            card.Drop += async (s, e) =>
+            {
+                if (!e.Data.GetDataPresent(SfTaskDragFormat)) return;
+                e.Handled = true;
+                string? draggedId = e.Data.GetData(SfTaskDragFormat) as string;
+                if (string.IsNullOrWhiteSpace(draggedId) || draggedId == task.Id) return;
+                await HandleTicketDropOntoTargetAsync(draggedId, true, task.Id, currentPool);
+            };
+
             return card;
+        }
+
+        private UIElement BuildOpenTicketTableRow(TaskItemDto task, List<TaskItemDto> currentPool, bool isCompletedSection)
+        {
+            bool isEscalated = !isCompletedSection && task.IsEscalatedEffective;
+
+            var rowBorder = new Border
+            {
+                Background = BrushFromHex(isEscalated ? "#1E1216" : "Transparent"),
+                BorderBrush = BrushFromHex("#242936"),
+                BorderThickness = new Thickness(0, 0, 0, 1),
+                Padding = new Thickness(14, 7, 14, 7),
+                AllowDrop = true,
+                ContextMenu = BuildTicketContextMenu(task)
+            };
+
+            var grid = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(154) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(116) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(148) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(68) });
+
+            var dragHandle = new TextBlock
+            {
+                Text = "⠿",
+                Foreground = BrushFromHex("#6B7280"),
+                FontSize = 14,
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.SizeAll,
+                ToolTip = "Ziehen zum Sortieren oder nach links in Meine Tickets schieben"
+            };
+            AttachTicketDragSource(dragHandle, task.Id);
+            grid.Children.Add(dragHandle);
+
+            var titleBox = new TextBox
+            {
+                Text = task.Title,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                Foreground = BrushFromHex(isCompletedSection ? "#6B7280" : "#F3F4F6"),
+                CaretBrush = BrushFromHex("#C5A059"),
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(2, 3, 8, 3),
+                TextWrapping = TextWrapping.NoWrap,
+                ToolTip = "Direkt klicken zum Bearbeiten des Titels · Doppelklick oder Chat-Button oeffnet das Ticket"
+            };
+            string taskId = task.Id;
+            string originalTitle = task.Title;
+            async Task SaveInlineTitleAsync()
+            {
+                string next = (titleBox.Text ?? "").Trim();
+                if (string.IsNullOrEmpty(next))
+                {
+                    titleBox.Text = originalTitle;
+                    return;
+                }
+                if (next == originalTitle) return;
+                string prevTitle = originalTitle;
+                originalTitle = next;
+                task.Title = next;
+                PlayTicketSound("click");
+                await UpdateTaskAcrossEndpointsAsync(taskId, prevTitle, new { title = next });
+            }
+            titleBox.LostFocus += async (s, e) => await SaveInlineTitleAsync();
+            titleBox.KeyDown += async (s, e) =>
+            {
+                if (e.Key == Key.Enter)
+                {
+                    e.Handled = true;
+                    Keyboard.ClearFocus();
+                    await SaveInlineTitleAsync();
+                }
+            };
+            titleBox.MouseDoubleClick += (s, e) =>
+            {
+                e.Handled = true;
+                OpenTicketDetail(task);
+            };
+            Grid.SetColumn(titleBox, 1);
+            grid.Children.Add(titleBox);
+
+            bool hasAssignee = !string.IsNullOrWhiteSpace(task.AssigneeName);
+            var assigneePill = new Border
+            {
+                Background = BrushFromHex(hasAssignee ? "#1D2130" : "#151822"),
+                BorderBrush = BrushFromHex(hasAssignee ? "#384158" : "#242936"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(7),
+                Padding = new Thickness(8, 3, 8, 3),
+                Margin = new Thickness(0, 0, 10, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.Hand,
+                ToolTip = "Klicken, um Bearbeiter zuzuweisen oder zu aendern"
+            };
+            var assigneeRowGrid = new Grid();
+            assigneeRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            assigneeRowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var assigneeTxt = new TextBlock
+            {
+                Text = hasAssignee ? $"👤 {task.AssigneeName}" : "+ Frei",
+                Foreground = BrushFromHex(hasAssignee ? "#F3F4F6" : "#9CA3AF"),
+                FontSize = 11.5,
+                FontWeight = hasAssignee ? FontWeights.SemiBold : FontWeights.Normal,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 112,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var assigneeCaret = new TextBlock
+            {
+                Text = "▾",
+                Foreground = BrushFromHex("#C5A059"),
+                FontSize = 10,
+                Margin = new Thickness(5, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(assigneeCaret, 1);
+            assigneeRowGrid.Children.Add(assigneeTxt);
+            assigneeRowGrid.Children.Add(assigneeCaret);
+            assigneePill.Child = assigneeRowGrid;
+            assigneePill.MouseEnter += (s, e) => assigneePill.BorderBrush = BrushFromHex("#C5A059");
+            assigneePill.MouseLeave += (s, e) => assigneePill.BorderBrush = BrushFromHex(hasAssignee ? "#384158" : "#242936");
+            string currentAssigneeKey = task.AssigneeKey ?? "";
+            assigneePill.MouseLeftButtonUp += (s, e) =>
+            {
+                e.Handled = true;
+                OpenTaskAssigneePickerPopup(assigneePill, currentAssigneeKey, async selected =>
+                {
+                    await AssignTicketToAsync(taskId, selected?.Key, selected?.Name);
+                });
+            };
+            Grid.SetColumn(assigneePill, 2);
+            grid.Children.Add(assigneePill);
+
+            var createdTxt = new TextBlock
+            {
+                Text = FormatCreatedAtShort(task.CreatedAt),
+                Foreground = BrushFromHex("#9CA3AF"),
+                FontSize = 11.5,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(createdTxt, 3);
+            grid.Children.Add(createdTxt);
+
+            var statusCombo = new ComboBox
+            {
+                Width = 138,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Background = Brushes.Transparent,
+                BorderBrush = BrushFromHex("#262B3A"),
+                BorderThickness = new Thickness(1),
+                Foreground = BrushFromHex(task.StatusForegroundHex),
+                FontWeight = FontWeights.Bold,
+                FontSize = 12,
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var statuses = new (string Key, string Label, string Hex)[]
+            {
+                ("open", "Offen", "#F87171"),
+                ("waiting", "Warten", "#FACC15"),
+                ("in_progress", "In Bearbeitung", "#FB923C"),
+                ("completed", "Erledigt", "#34D399")
+            };
+            ComboBoxItem? selectedStatusItem = null;
+            foreach (var st in statuses)
+            {
+                var item = new ComboBoxItem
+                {
+                    Tag = st.Key,
+                    Content = st.Label,
+                    Foreground = BrushFromHex(st.Hex),
+                    FontWeight = FontWeights.Bold
+                };
+                if (st.Key == task.NormalizedStatus) selectedStatusItem = item;
+                statusCombo.Items.Add(item);
+            }
+            statusCombo.SelectedItem = selectedStatusItem ?? statusCombo.Items[0];
+            statusCombo.SelectionChanged += async (s, e) =>
+            {
+                if (statusCombo.SelectedItem is ComboBoxItem cbi && cbi.Tag is string targetSt && targetSt != task.NormalizedStatus)
+                {
+                    statusCombo.Foreground = cbi.Foreground;
+                    await SetTicketStatusAsync(taskId, targetSt);
+                }
+            };
+            Grid.SetColumn(statusCombo, 4);
+            grid.Children.Add(statusCombo);
+
+            var openBtnBorder = new Border
+            {
+                Background = BrushFromHex("#1A1E2B"),
+                BorderBrush = BrushFromHex("#2A3042"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(7),
+                Padding = new Thickness(8, 3, 8, 3),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Cursor = Cursors.Hand,
+                ToolTip = "Ticket-Details & Chat oeffnen"
+            };
+            openBtnBorder.Child = new TextBlock
+            {
+                Text = task.MessagesCount > 0 ? $"💬 {task.MessagesCount} →" : "Öffnen →",
+                Foreground = BrushFromHex("#D4AF37"),
+                FontSize = 11,
+                FontWeight = FontWeights.Bold
+            };
+            openBtnBorder.MouseLeftButtonUp += (s, e) =>
+            {
+                e.Handled = true;
+                OpenTicketDetail(task);
+            };
+            Grid.SetColumn(openBtnBorder, 5);
+            grid.Children.Add(openBtnBorder);
+
+            rowBorder.Child = grid;
+
+            rowBorder.DragOver += (s, e) =>
+            {
+                if (e.Data.GetDataPresent(SfTaskDragFormat))
+                {
+                    e.Effects = DragDropEffects.Move;
+                    e.Handled = true;
+                }
+            };
+            rowBorder.Drop += async (s, e) =>
+            {
+                if (!e.Data.GetDataPresent(SfTaskDragFormat)) return;
+                e.Handled = true;
+                string? draggedId = e.Data.GetData(SfTaskDragFormat) as string;
+                if (string.IsNullOrWhiteSpace(draggedId) || draggedId == task.Id) return;
+                await HandleTicketDropOntoTargetAsync(draggedId, false, task.Id, currentPool);
+            };
+
+            return rowBorder;
+        }
+
+        private void MyTicketsTile_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(SfTaskDragFormat))
+            {
+                e.Effects = DragDropEffects.Move;
+                e.Handled = true;
+            }
+        }
+
+        private async void MyTicketsTile_Drop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(SfTaskDragFormat)) return;
+            e.Handled = true;
+            string? draggedId = e.Data.GetData(SfTaskDragFormat) as string;
+            if (string.IsNullOrWhiteSpace(draggedId)) return;
+            await MoveTicketToMineAsync(draggedId, true);
+        }
+
+        private void OpenTicketsTile_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(SfTaskDragFormat))
+            {
+                e.Effects = DragDropEffects.Move;
+                e.Handled = true;
+            }
+        }
+
+        private async void OpenTicketsTile_Drop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(SfTaskDragFormat)) return;
+            e.Handled = true;
+            string? draggedId = e.Data.GetData(SfTaskDragFormat) as string;
+            if (string.IsNullOrWhiteSpace(draggedId)) return;
+            var t = _allTasks.FirstOrDefault(x => x.Id == draggedId);
+            if (t != null && t.IsMine)
+            {
+                await MoveTicketToMineAsync(draggedId, false);
+            }
+        }
+
+        private async Task HandleTicketDropOntoTargetAsync(string draggedId, bool targetIsMine, string beforeTaskId, List<TaskItemDto> poolSnapshot)
+        {
+            var dragged = _allTasks.FirstOrDefault(x => x.Id == draggedId);
+            if (dragged == null) return;
+
+            PlayTicketSound("click");
+
+            var orderedIds = poolSnapshot.Select(x => x.Id).Where(id => id != draggedId).ToList();
+            int idx = orderedIds.IndexOf(beforeTaskId);
+            if (idx < 0) orderedIds.Add(draggedId);
+            else orderedIds.Insert(idx, draggedId);
+
+            if (dragged.IsMine != targetIsMine)
+            {
+                dragged.IsMine = targetIsMine;
+                await MoveTicketToMineAsync(draggedId, targetIsMine, idx >= 0 ? idx : null, reloadAfter: false);
+            }
+
+            await PersistTicketOrderAsync(orderedIds, targetIsMine);
+            await LoadTodoListsAsync();
+        }
+
+        private async Task MoveTicketToMineAsync(string taskId, bool isMine, int? targetPosition = null, bool reloadAfter = true)
+        {
+            var t = _allTasks.FirstOrDefault(x => x.Id == taskId);
+            if (t != null) t.IsMine = isMine;
+            PlayTicketSound("click");
+
+            try
+            {
+                var bodyObj = new Dictionary<string, object?> { ["is_mine"] = isMine };
+                if (targetPosition.HasValue) bodyObj["position"] = Math.Max(0, targetPosition.Value);
+                string jsonBody = JsonSerializer.Serialize(bodyObj);
+
+                var endpoints = GetTaskSyncEndpoints();
+                var jobs = endpoints.Select(async ep =>
+                {
+                    try
+                    {
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var req = new HttpRequestMessage(HttpMethod.Put, $"{ep.BaseUrl.TrimEnd('/')}/funki/tasks/{Uri.EscapeDataString(taskId)}/mine")
+                        {
+                            Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
+                        };
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        if (!string.IsNullOrWhiteSpace(ep.Token))
+                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.Token);
+                        await _http.SendAsync(req, cts.Token);
+                    }
+                    catch { }
+                }).ToArray();
+
+                await Task.WhenAll(jobs);
+                if (reloadAfter)
+                {
+                    await LoadTodoListsAsync();
+                }
+            }
+            catch { }
+        }
+
+        private async Task PersistTicketOrderAsync(List<string> orderedIds, bool isMinePool)
+        {
+            if (orderedIds.Count == 0) return;
+            try
+            {
+                string scope = IsSmartTodoListId(_activeTodoListId) ? "all" : _activeTodoListId;
+                string jsonBody = JsonSerializer.Serialize(new
+                {
+                    ordered_ids = orderedIds,
+                    is_mine = isMinePool,
+                    list_scope = scope
+                });
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBaseUrl.TrimEnd('/')}/funki/tasks/reorder")
+                {
+                    Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
+                };
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(_apiToken))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+                await _http.SendAsync(req, cts.Token);
+            }
+            catch { }
         }
 
         private void RenderTodoDetailPanel()
         {
+            string prevSpaceKey = _currentRenderingSpaceKey;
+            _currentRenderingSpaceKey = "todo";
+            try
+            {
+                RenderTodoDetailPanelCore();
+            }
+            finally
+            {
+                _currentRenderingSpaceKey = prevSpaceKey;
+            }
+        }
+
+        private void RenderTodoDetailPanelCore()
+        {
+            TodoColSplitterDetail.Width = new GridLength(0);
+            TodoDetailSplitter.Visibility = Visibility.Collapsed;
+            TodoColDetail.Width = new GridLength(0);
+            TodoDetailBorder.Visibility = Visibility.Collapsed;
+
             if (_selectedTask == null)
             {
-                TodoColSplitterDetail.Width = new GridLength(0);
-                TodoDetailSplitter.Visibility = Visibility.Collapsed;
-                TodoColDetail.Width = new GridLength(0);
-                TodoDetailBorder.Visibility = Visibility.Collapsed;
+                TicketDetailSubView.Visibility = Visibility.Collapsed;
+                OpenTicketsSubView.Visibility = Visibility.Visible;
                 return;
             }
 
+            OpenTicketsSubView.Visibility = Visibility.Collapsed;
+            TicketDetailSubView.Visibility = Visibility.Visible;
+
             _suppressDetailEvents = true;
-            TodoColSplitterDetail.Width = new GridLength(5);
-            TodoDetailSplitter.Visibility = Visibility.Visible;
-            if (TodoColDetail.Width.Value < 260)
-                TodoColDetail.Width = new GridLength(_todoDetailSavedWidth, GridUnitType.Pixel);
-            TodoDetailBorder.Visibility = Visibility.Visible;
+
+            bool isEsc = !_selectedTask.IsCompleted && _selectedTask.IsEscalatedEffective;
+
+            DetailClaimOrReleaseBtn.Content = _selectedTask.IsMine ? "↩ Aus Meine Tickets" : "📌 In Meine Tickets";
+            if (DetailAssigneeBtn != null && DetailAssigneeBorder != null)
+            {
+                bool hasDetailAssignee = !string.IsNullOrWhiteSpace(_selectedTask.AssigneeName);
+                DetailAssigneeBtn.Content = hasDetailAssignee ? $"👤 {_selectedTask.AssigneeName} ▾" : "👤 Frei ▾";
+                DetailAssigneeBtn.Foreground = BrushFromHex(hasDetailAssignee ? "#C5A059" : "#D1D5DB");
+                DetailAssigneeBorder.BorderBrush = BrushFromHex(hasDetailAssignee ? "#C5A059" : "#2E3446");
+            }
+
+            string currentSt = _selectedTask.NormalizedStatus;
+            foreach (ComboBoxItem cbi in DetailStatusCombo.Items)
+            {
+                if (cbi.Tag is string tg && tg == currentSt)
+                {
+                    DetailStatusCombo.SelectedItem = cbi;
+                    DetailStatusCombo.Foreground = cbi.Foreground;
+                    break;
+                }
+            }
 
             DetailTitleBox.Text = _selectedTask.Title;
             DetailNoteBox.Text = _selectedTask.AiPlan ?? "";
+            DetailTimeBox.Text = NormalizeDesktopDueTime(_selectedTask.DueTime) ?? "";
+            DetailCreatedText.Text = $"Erstellt am: {FormatCreatedAtShort(_selectedTask.CreatedAt)}";
 
-            bool isMyDay = IsToday(_selectedTask.RelevantFrom);
-            DetailMyDayText.Text = isMyDay ? "☀  Zu 'Mein Tag' hinzugefügt (Aktiv)" : "☀  Zu 'Mein Tag' hinzufügen";
-            DetailMyDayText.Foreground = isMyDay ? BrushFromHex("#C5A059") : BrushFromHex("#E5E7EB");
+            int dur = _selectedTask.DurationMinutes > 0 ? _selectedTask.DurationMinutes : 60;
+            foreach (ComboBoxItem cbi in DetailDurationCombo.Items)
+            {
+                if (cbi.Tag is string tg && int.TryParse(tg, out int v) && v == dur)
+                {
+                    DetailDurationCombo.SelectedItem = cbi;
+                    break;
+                }
+            }
+
+            DetailListCombo.Items.Clear();
+            ComboBoxItem? activeListCbi = null;
+            foreach (var l in _todoLists)
+            {
+                var li = new ComboBoxItem { Tag = l.Id, Content = l.Name };
+                if (l.Id == _selectedTask.TaskListId) activeListCbi = li;
+                DetailListCombo.Items.Add(li);
+            }
+            if (activeListCbi != null) DetailListCombo.SelectedItem = activeListCbi;
 
             if (DateTime.TryParse(_selectedTask.RelevantFrom, out var dt)) DetailDatePicker.SelectedDate = dt;
             else DetailDatePicker.SelectedDate = null;
+
+            int subCount = (_selectedTask.Subtasks ?? new()).Count;
+            bool hasNote = !string.IsNullOrWhiteSpace(_selectedTask.AiPlan);
+            bool showExtrasEffective = _showTicketMetaExtras || hasNote;
+            ToggleTicketMetaExtrasText.Text = (showExtrasEffective ? "▾ " : "▸ ")
+                + (subCount > 0 ? $"Schritte ({subCount}) & Beschreibung" : "Schritte & Beschreibung");
+            TicketMetaExtrasPanel.Visibility = showExtrasEffective ? Visibility.Visible : Visibility.Collapsed;
 
             SubtasksPanel.Children.Clear();
             foreach (var sub in _selectedTask.Subtasks ?? new())
@@ -11976,14 +13155,803 @@ namespace Funkenwerk
 
                 SubtasksPanel.Children.Add(g);
             }
+
+            if (isEsc)
+            {
+                EscalationGateBorder.Visibility = Visibility.Visible;
+                EscalationReasonText.Text = string.IsNullOrWhiteSpace(_selectedTask.EscalationReason)
+                    ? "⚠ Ticket eskaliert: Neues Zieldatum + Status im Chat erforderlich"
+                    : $"⚠ {_selectedTask.EscalationReason}";
+                if (!EscalationDatePicker.SelectedDate.HasValue || EscalationDatePicker.SelectedDate.Value.Date <= DateTime.Today)
+                {
+                    EscalationDatePicker.SelectedDate = DateTime.Today.AddDays(1);
+                }
+                if (string.IsNullOrWhiteSpace(EscalationTimeBox.Text))
+                {
+                    EscalationTimeBox.Text = NormalizeDesktopDueTime(_selectedTask.DueTime) ?? "";
+                }
+            }
+            else
+            {
+                EscalationGateBorder.Visibility = Visibility.Collapsed;
+            }
+
+            RenderPendingChatFiles();
+            RenderTicketChatMessages();
+
             _suppressDetailEvents = false;
+        }
+
+        private void ToggleTicketMetaExtras_Click(object sender, RoutedEventArgs e)
+        {
+            PlayTicketSound("click");
+            _showTicketMetaExtras = !_showTicketMetaExtras;
+            RenderTodoDetailPanel();
+        }
+
+        private async void DetailClaimOrRelease_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTask == null) return;
+            await MoveTicketToMineAsync(_selectedTask.Id, !_selectedTask.IsMine);
+        }
+
+        private async void DetailStatusCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressDetailEvents || _selectedTask == null) return;
+            if (DetailStatusCombo.SelectedItem is ComboBoxItem cbi && cbi.Tag is string targetStatus)
+            {
+                DetailStatusCombo.Foreground = cbi.Foreground;
+                if (targetStatus != _selectedTask.NormalizedStatus)
+                {
+                    await SetTicketStatusAsync(_selectedTask.Id, targetStatus);
+                }
+            }
+        }
+
+        private async void DetailListCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressDetailEvents || _selectedTask == null) return;
+            if (DetailListCombo.SelectedItem is ComboBoxItem cbi && cbi.Tag is string listId && listId != _selectedTask.TaskListId)
+            {
+                PlayTicketSound("click");
+                await UpdateTaskAcrossEndpointsAsync(_selectedTask.Id, _selectedTask.Title, new { task_list_id = listId });
+                await LoadTodoListsAsync();
+            }
+        }
+
+        private void DetailTitleBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                Keyboard.ClearFocus();
+            }
+        }
+
+        private async Task SetTicketStatusAsync(string taskId, string targetStatus)
+        {
+            var t = _allTasks.FirstOrDefault(x => x.Id == taskId);
+            if (t == null) return;
+
+            if (!string.Equals(targetStatus, "completed", StringComparison.OrdinalIgnoreCase) && t.IsEscalatedEffective)
+            {
+                _selectedTask = t;
+                PlayTicketSound("escalate");
+                RenderTodoMainList();
+                RenderTodoDetailPanel();
+                EscalationErrorText.Text = "Eskaliertes Ticket erfordert ein neues Zieldatum und ein Status-Update im Chat.";
+                EscalationErrorText.Visibility = Visibility.Visible;
+                _ = LoadSelectedTicketMessagesAsync(t.Id);
+                return;
+            }
+
+            try
+            {
+                PlayTicketSound("click");
+
+                string jsonBody = JsonSerializer.Serialize(new { status = targetStatus });
+                var endpoints = GetTaskSyncEndpoints();
+                var jobs = endpoints.Select(async ep =>
+                {
+                    try
+                    {
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                        using var req = new HttpRequestMessage(HttpMethod.Put, $"{ep.BaseUrl.TrimEnd('/')}/funki/tasks/{Uri.EscapeDataString(taskId)}/status")
+                        {
+                            Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
+                        };
+                        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                        if (!string.IsNullOrWhiteSpace(ep.Token))
+                            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.Token);
+                        await _http.SendAsync(req, cts.Token);
+                    }
+                    catch { }
+                }).ToArray();
+
+                await Task.WhenAll(jobs);
+                await LoadTodoListsAsync();
+                _ = LoadCalendarEventsAsync();
+                if (_selectedTask != null && _selectedTask.Id == taskId)
+                {
+                    _ = LoadSelectedTicketMessagesAsync(taskId);
+                }
+            }
+            catch { }
+        }
+
+        private async void ResolveEscalation_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedTask == null) return;
+            if (!EscalationDatePicker.SelectedDate.HasValue)
+            {
+                PlayTicketSound("escalate");
+                EscalationErrorText.Text = "Bitte ein neues Faelligkeitsdatum in der Zukunft waehlen.";
+                EscalationErrorText.Visibility = Visibility.Visible;
+                return;
+            }
+            string note = (EscalationNoteBox.Text ?? "").Trim();
+            if (note.Length < 3)
+            {
+                PlayTicketSound("escalate");
+                EscalationErrorText.Text = "Bitte kurzen Status im Textfeld eintragen (z. B. Warte weiter auf Rueckmeldung).";
+                EscalationErrorText.Visibility = Visibility.Visible;
+                return;
+            }
+
+            string dueDate = EscalationDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd");
+            string? dueTime = NormalizeDesktopDueTime(EscalationTimeBox.Text);
+            string taskId = _selectedTask.Id;
+
+            try
+            {
+                var body = JsonSerializer.Serialize(new
+                {
+                    relevant_from = dueDate,
+                    due_time = dueTime,
+                    status = _selectedTask.NormalizedStatus == "completed" ? "in_progress" : _selectedTask.NormalizedStatus,
+                    content = note
+                });
+
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(8));
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBaseUrl.TrimEnd('/')}/funki/tasks/{Uri.EscapeDataString(taskId)}/resolve-escalation")
+                {
+                    Content = new StringContent(body, Encoding.UTF8, "application/json")
+                };
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(_apiToken))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+
+                using var res = await _http.SendAsync(req, cts.Token);
+                var raw = await res.Content.ReadAsStringAsync();
+                if (!res.IsSuccessStatusCode)
+                {
+                    PlayTicketSound("escalate");
+                    string errMsg = "Eskalation konnte nicht aufgeloest werden (Datum muss in der Zukunft liegen).";
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(raw);
+                        if (doc.RootElement.TryGetProperty("message", out var mp) && mp.ValueKind == JsonValueKind.String)
+                            errMsg = mp.GetString() ?? errMsg;
+                    }
+                    catch { }
+                    EscalationErrorText.Text = errMsg;
+                    EscalationErrorText.Visibility = Visibility.Visible;
+                    return;
+                }
+
+                EscalationNoteBox.Text = "";
+                EscalationErrorText.Visibility = Visibility.Collapsed;
+                PlayTicketSound("click");
+                await LoadTodoListsAsync();
+                _ = LoadCalendarEventsAsync();
+                await LoadSelectedTicketMessagesAsync(taskId);
+            }
+            catch (Exception ex)
+            {
+                EscalationErrorText.Text = ex.Message;
+                EscalationErrorText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private async Task LoadSelectedTicketMessagesAsync(string taskId)
+        {
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6));
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"{_apiBaseUrl.TrimEnd('/')}/funki/tasks/{Uri.EscapeDataString(taskId)}/messages");
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(_apiToken))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+
+                using var res = await _http.SendAsync(req, cts.Token);
+                if (!res.IsSuccessStatusCode) return;
+
+                var json = await res.Content.ReadAsStringAsync();
+                var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("data", out var dataEl) && dataEl.ValueKind == JsonValueKind.Array)
+                {
+                    var msgs = JsonSerializer.Deserialize<List<TaskChatMessageDto>>(dataEl.GetRawText(), opts) ?? new();
+                    if (_selectedTask != null && _selectedTask.Id == taskId)
+                    {
+                        _selectedTaskMessages = msgs;
+                        RenderTicketChatMessages();
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void RenderPendingChatFiles()
+        {
+            string prevSpaceKey = _currentRenderingSpaceKey;
+            _currentRenderingSpaceKey = "todo";
+            try
+            {
+                RenderPendingChatFilesCore();
+            }
+            finally
+            {
+                _currentRenderingSpaceKey = prevSpaceKey;
+            }
+        }
+
+        private void RenderPendingChatFilesCore()
+        {
+            PendingChatFilesWrapPanel.Children.Clear();
+            if (_pendingTaskChatFiles.Count == 0)
+            {
+                PendingChatFilesWrapPanel.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            PendingChatFilesWrapPanel.Visibility = Visibility.Visible;
+            for (int i = 0; i < _pendingTaskChatFiles.Count; i++)
+            {
+                int idx = i;
+                string fPath = _pendingTaskChatFiles[i];
+                var chip = new Border
+                {
+                    Background = BrushFromHex("#26231F"),
+                    BorderBrush = BrushFromHex("#C5A059"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(7),
+                    Padding = new Thickness(8, 3, 8, 3),
+                    Margin = new Thickness(0, 0, 6, 4)
+                };
+                var sp = new StackPanel { Orientation = Orientation.Horizontal };
+                sp.Children.Add(new TextBlock
+                {
+                    Text = "📎 " + System.IO.Path.GetFileName(fPath),
+                    Foreground = BrushFromHex("#F3F4F6"),
+                    FontSize = 11.5,
+                    MaxWidth = 180,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                var rm = new TextBlock
+                {
+                    Text = " ✕",
+                    Foreground = BrushFromHex("#F87171"),
+                    FontSize = 11.5,
+                    FontWeight = FontWeights.Bold,
+                    Cursor = Cursors.Hand,
+                    Margin = new Thickness(4, 0, 0, 0)
+                };
+                rm.MouseLeftButtonUp += (s, e) =>
+                {
+                    if (idx >= 0 && idx < _pendingTaskChatFiles.Count)
+                    {
+                        _pendingTaskChatFiles.RemoveAt(idx);
+                        RenderPendingChatFiles();
+                    }
+                };
+                sp.Children.Add(rm);
+                chip.Child = sp;
+                PendingChatFilesWrapPanel.Children.Add(chip);
+            }
+        }
+
+        private async Task SubmitEditedTicketChatMessageAsync(string taskId, string messageId)
+        {
+            try
+            {
+                using var form = new MultipartFormDataContent();
+                form.Add(new StringContent("PUT", Encoding.UTF8), "_method");
+                form.Add(new StringContent((_editingChatMessageText ?? "").Trim(), Encoding.UTF8), "content");
+                form.Add(new StringContent("1", Encoding.UTF8), "keep_attachments_present");
+                foreach (var keepPath in _editingChatKeepPaths)
+                {
+                    form.Add(new StringContent(keepPath, Encoding.UTF8), "keep_attachments[]");
+                }
+
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(12));
+                using var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBaseUrl.TrimEnd('/')}/funki/tasks/{Uri.EscapeDataString(taskId)}/messages/{Uri.EscapeDataString(messageId)}")
+                {
+                    Content = form
+                };
+                req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(_apiToken))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+
+                using var res = await _http.SendAsync(req, cts.Token);
+                if (res.IsSuccessStatusCode)
+                {
+                    PlayTicketSound("click");
+                    _editingChatMessageId = null;
+                    await LoadSelectedTicketMessagesAsync(taskId);
+                }
+            }
+            catch { }
+        }
+
+        private void RenderTicketChatMessages()
+        {
+            string prevSpaceKey = _currentRenderingSpaceKey;
+            _currentRenderingSpaceKey = "todo";
+            try
+            {
+                RenderTicketChatMessagesCore();
+            }
+            finally
+            {
+                _currentRenderingSpaceKey = prevSpaceKey;
+            }
+        }
+
+        private void RenderTicketChatMessagesCore()
+        {
+            TicketChatMessagesPanel.Children.Clear();
+            if (_selectedTask == null) return;
+
+            if (_selectedTaskMessages.Count == 0)
+            {
+                TicketChatMessagesPanel.Children.Add(new TextBlock
+                {
+                    Text = "Noch keine Chat-Einträge. Schreibe ein Update oder ziehe Dateien per Drag & Drop hinein.",
+                    Foreground = BrushFromHex("#6B7280"),
+                    FontSize = 12,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Margin = new Thickness(0, 24, 0, 0),
+                    TextWrapping = TextWrapping.Wrap
+                });
+                return;
+            }
+
+            string currentTaskId = _selectedTask.Id;
+            foreach (var msg in _selectedTaskMessages)
+            {
+                bool isSystemEsc = string.Equals(msg.MessageType, "system_escalation", StringComparison.OrdinalIgnoreCase);
+                bool isStatusChange = string.Equals(msg.MessageType, "status_change", StringComparison.OrdinalIgnoreCase);
+                bool isEditingThis = !string.IsNullOrWhiteSpace(_editingChatMessageId) && _editingChatMessageId == msg.Id;
+
+                string cardBg = isSystemEsc ? "#241317" : (isStatusChange ? "#161923" : "#161922");
+                string cardBorder = isEditingThis ? "#C5A059" : (isSystemEsc ? "#7F1D1D" : (isStatusChange ? "#262B3A" : "#2D3345"));
+
+                var bubble = new Border
+                {
+                    Background = BrushFromHex(cardBg),
+                    BorderBrush = BrushFromHex(cardBorder),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(11),
+                    Padding = new Thickness(11, 8, 11, 8),
+                    Margin = new Thickness(0, 0, 0, 7)
+                };
+
+                var outer = new StackPanel();
+
+                var headerGrid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                string sender = string.IsNullOrWhiteSpace(msg.SenderName) ? "Alina Steinhauer" : msg.SenderName;
+                string initials = string.Join("", sender.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+                if (string.IsNullOrEmpty(initials)) initials = "AS";
+
+                var avatarCircle = new Border
+                {
+                    Width = 22,
+                    Height = 22,
+                    CornerRadius = new CornerRadius(11),
+                    Background = BrushFromHex(isSystemEsc ? "#7F1D1D" : "#26231F"),
+                    BorderBrush = BrushFromHex(isSystemEsc ? "#F87171" : "#C5A059"),
+                    BorderThickness = new Thickness(1),
+                    Margin = new Thickness(0, 0, 7, 0),
+                    Child = new TextBlock
+                    {
+                        Text = isSystemEsc ? "!" : initials,
+                        Foreground = BrushFromHex(isSystemEsc ? "#FCA5A5" : "#C5A059"),
+                        FontSize = 9.5,
+                        FontWeight = FontWeights.Bold,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
+                };
+                headerGrid.Children.Add(avatarCircle);
+
+                var senderText = new TextBlock
+                {
+                    Text = sender,
+                    Foreground = BrushFromHex(isSystemEsc ? "#FCA5A5" : "#E5E7EB"),
+                    FontSize = 11.5,
+                    FontWeight = FontWeights.Bold,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(senderText, 1);
+                headerGrid.Children.Add(senderText);
+
+                if (!isEditingThis && msg.CanEditEffective)
+                {
+                    var editBtn = new TextBlock
+                    {
+                        Text = "✎ Anpassen",
+                        Foreground = BrushFromHex("#C5A059"),
+                        FontSize = 10.5,
+                        FontWeight = FontWeights.SemiBold,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(8, 0, 8, 0),
+                        Cursor = Cursors.Hand,
+                        ToolTip = "Innerhalb von 5 Minuten nach dem Absenden anpassbar"
+                    };
+                    var capturedMsg = msg;
+                    editBtn.MouseLeftButtonUp += (s, e) =>
+                    {
+                        e.Handled = true;
+                        PlayTicketSound("click");
+                        _editingChatMessageId = capturedMsg.Id;
+                        _editingChatMessageText = capturedMsg.Content ?? "";
+                        _editingChatKeepPaths = new HashSet<string>(
+                            (capturedMsg.Attachments ?? new()).Select(a => a.Path ?? "").Where(p => !string.IsNullOrWhiteSpace(p)),
+                            StringComparer.OrdinalIgnoreCase);
+                        RenderTicketChatMessages();
+                    };
+                    Grid.SetColumn(editBtn, 2);
+                    headerGrid.Children.Add(editBtn);
+                }
+
+                string timeDisplay = msg.CreatedHuman ?? "";
+                if (!string.IsNullOrWhiteSpace(msg.EditedAt))
+                    timeDisplay += " · angepasst";
+
+                var timeText = new TextBlock
+                {
+                    Text = timeDisplay,
+                    Foreground = BrushFromHex("#6B7280"),
+                    FontSize = 10.5,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(timeText, 3);
+                headerGrid.Children.Add(timeText);
+
+                outer.Children.Add(headerGrid);
+
+                if (isEditingThis)
+                {
+                    var editPanel = new StackPanel { Margin = new Thickness(29, 4, 0, 2) };
+                    var editBoxBorder = new Border
+                    {
+                        Background = BrushFromHex("#12151E"),
+                        BorderBrush = BrushFromHex("#C5A059"),
+                        BorderThickness = new Thickness(1),
+                        CornerRadius = new CornerRadius(8),
+                        Padding = new Thickness(8, 6, 8, 6)
+                    };
+                    var editBox = new TextBox
+                    {
+                        Text = _editingChatMessageText,
+                        Background = Brushes.Transparent,
+                        BorderThickness = new Thickness(0),
+                        Foreground = BrushFromHex("#F9FAFB"),
+                        CaretBrush = BrushFromHex("#C5A059"),
+                        FontSize = 12.5,
+                        AcceptsReturn = true,
+                        TextWrapping = TextWrapping.Wrap,
+                        MinHeight = 44
+                    };
+                    editBox.TextChanged += (s, e) => _editingChatMessageText = editBox.Text;
+                    editBoxBorder.Child = editBox;
+                    editPanel.Children.Add(editBoxBorder);
+
+                    if (msg.Attachments != null && msg.Attachments.Count > 0)
+                    {
+                        var editAttWrap = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+                        foreach (var att in msg.Attachments)
+                        {
+                            string p = att.Path ?? "";
+                            if (!_editingChatKeepPaths.Contains(p)) continue;
+                            string nm = string.IsNullOrWhiteSpace(att.Name) ? System.IO.Path.GetFileName(p) : att.Name;
+                            var chip = new Border
+                            {
+                                Background = BrushFromHex("#26231F"),
+                                BorderBrush = BrushFromHex("#382D18"),
+                                BorderThickness = new Thickness(1),
+                                CornerRadius = new CornerRadius(6),
+                                Padding = new Thickness(7, 3, 7, 3),
+                                Margin = new Thickness(0, 0, 6, 4),
+                                Cursor = Cursors.Hand
+                            };
+                            chip.Child = new TextBlock { Text = $"📎 {nm} ✕", Foreground = BrushFromHex("#F87171"), FontSize = 11 };
+                            chip.MouseLeftButtonUp += (s, e) =>
+                            {
+                                _editingChatKeepPaths.Remove(p);
+                                RenderTicketChatMessages();
+                            };
+                            editAttWrap.Children.Add(chip);
+                        }
+                        editPanel.Children.Add(editAttWrap);
+                    }
+
+                    var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
+                    var cancelBtn = new Button
+                    {
+                        Content = "Abbrechen",
+                        Background = BrushFromHex("#1E222D"),
+                        Foreground = BrushFromHex("#D1D5DB"),
+                        BorderBrush = BrushFromHex("#2E3446"),
+                        BorderThickness = new Thickness(1),
+                        Padding = new Thickness(10, 4, 10, 4),
+                        Margin = new Thickness(0, 0, 6, 0),
+                        Cursor = Cursors.Hand,
+                        FontSize = 11.5
+                    };
+                    cancelBtn.Click += (s, e) =>
+                    {
+                        PlayTicketSound("click");
+                        _editingChatMessageId = null;
+                        RenderTicketChatMessages();
+                    };
+                    string msgIdCapture = msg.Id;
+                    var saveBtn = new Button
+                    {
+                        Content = "Speichern",
+                        Background = BrushFromHex("#C5A059"),
+                        Foreground = BrushFromHex("#111827"),
+                        FontWeight = FontWeights.Bold,
+                        BorderThickness = new Thickness(0),
+                        Padding = new Thickness(12, 4, 12, 4),
+                        Cursor = Cursors.Hand,
+                        FontSize = 11.5
+                    };
+                    saveBtn.Click += async (s, e) => await SubmitEditedTicketChatMessageAsync(currentTaskId, msgIdCapture);
+                    btnRow.Children.Add(cancelBtn);
+                    btnRow.Children.Add(saveBtn);
+                    editPanel.Children.Add(btnRow);
+
+                    outer.Children.Add(editPanel);
+                }
+                else
+                {
+                    if (!string.IsNullOrWhiteSpace(msg.Content))
+                    {
+                        outer.Children.Add(new TextBlock
+                        {
+                            Text = msg.Content,
+                            Foreground = BrushFromHex("#F3F4F6"),
+                            FontSize = 12.5,
+                            TextWrapping = TextWrapping.Wrap,
+                            Margin = new Thickness(29, 0, 0, 0)
+                        });
+                    }
+
+                    if (msg.Attachments != null && msg.Attachments.Count > 0)
+                    {
+                        var attWrap = new WrapPanel { Margin = new Thickness(29, 6, 0, 0) };
+                        foreach (var att in msg.Attachments)
+                        {
+                            string attPath = att.Path ?? "";
+                            string attName = string.IsNullOrWhiteSpace(att.Name) ? System.IO.Path.GetFileName(attPath) : att.Name;
+                            var attChip = new Border
+                            {
+                                Background = BrushFromHex("#26231F"),
+                                BorderBrush = BrushFromHex("#382D18"),
+                                BorderThickness = new Thickness(1),
+                                CornerRadius = new CornerRadius(7),
+                                Padding = new Thickness(8, 4, 8, 4),
+                                Margin = new Thickness(0, 0, 6, 4),
+                                Cursor = Cursors.Hand,
+                                ToolTip = "Klicken zum Oeffnen / Ziehen zum Ablegen auf dem Desktop"
+                            };
+                            attChip.Child = new TextBlock
+                            {
+                                Text = "📄 " + attName,
+                                Foreground = BrushFromHex("#C5A059"),
+                                FontSize = 11.5,
+                                FontWeight = FontWeights.SemiBold
+                            };
+                            attChip.PreviewMouseLeftButtonDown += (s, e) => _chatAttachmentDragStartPoint = e.GetPosition(null);
+                            attChip.MouseMove += async (s, e) =>
+                            {
+                                if (e.LeftButton == MouseButtonState.Pressed)
+                                {
+                                    var diff = _chatAttachmentDragStartPoint - e.GetPosition(null);
+                                    if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                                        Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+                                    {
+                                        string? localFile = await DownloadTaskAttachmentToTempAsync(currentTaskId, attPath, attName);
+                                        if (!string.IsNullOrEmpty(localFile) && File.Exists(localFile))
+                                        {
+                                            PlayTicketSound("click");
+                                            var dataObj = new DataObject(DataFormats.FileDrop, new[] { localFile });
+                                            DragDrop.DoDragDrop(attChip, dataObj, DragDropEffects.Copy);
+                                        }
+                                    }
+                                }
+                            };
+                            attChip.MouseLeftButtonUp += async (s, e) =>
+                            {
+                                string? localFile = await DownloadTaskAttachmentToTempAsync(currentTaskId, attPath, attName);
+                                if (!string.IsNullOrEmpty(localFile) && File.Exists(localFile))
+                                {
+                                    PlayTicketSound("click");
+                                    try { Process.Start(new ProcessStartInfo(localFile) { UseShellExecute = true }); } catch { }
+                                }
+                            };
+                            attWrap.Children.Add(attChip);
+                        }
+                        outer.Children.Add(attWrap);
+                    }
+                }
+
+                bubble.Child = outer;
+                TicketChatMessagesPanel.Children.Add(bubble);
+            }
+
+            TicketChatScrollViewer.ScrollToEnd();
+        }
+
+        private async Task<string?> DownloadTaskAttachmentToTempAsync(string taskId, string serverPath, string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(serverPath)) return null;
+            try
+            {
+                string safeFile = string.Join("_", fileName.Split(System.IO.Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
+                if (string.IsNullOrWhiteSpace(safeFile)) safeFile = "anhang.bin";
+
+                string tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "FunkenwerkTicketAttachments", taskId);
+                Directory.CreateDirectory(tempDir);
+                string targetFile = System.IO.Path.Combine(tempDir, safeFile);
+                if (File.Exists(targetFile) && new FileInfo(targetFile).Length > 0)
+                    return targetFile;
+
+                string url = $"{_apiBaseUrl.TrimEnd('/')}/funki/tasks/{Uri.EscapeDataString(taskId)}/attachment?path={Uri.EscapeDataString(serverPath)}&name={Uri.EscapeDataString(safeFile)}";
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                if (!string.IsNullOrWhiteSpace(_apiToken))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+
+                using var res = await _http.SendAsync(req, cts.Token);
+                if (!res.IsSuccessStatusCode) return null;
+
+                var bytes = await res.Content.ReadAsByteArrayAsync();
+                await File.WriteAllBytesAsync(targetFile, bytes);
+                return targetFile;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private void AttachChatFiles_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Dateien an Ticket-Chat anhaengen",
+                Multiselect = true
+            };
+            if (dlg.ShowDialog(this) == true && dlg.FileNames.Length > 0)
+            {
+                foreach (var f in dlg.FileNames)
+                {
+                    if (File.Exists(f) && !_pendingTaskChatFiles.Contains(f, StringComparer.OrdinalIgnoreCase))
+                        _pendingTaskChatFiles.Add(f);
+                }
+                PlayTicketSound("drop");
+                RenderPendingChatFiles();
+            }
+        }
+
+        private void TicketDetail_DragOver(object sender, DragEventArgs e)
+        {
+            if (_selectedTask != null && e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                e.Effects = DragDropEffects.Copy;
+                e.Handled = true;
+            }
+            else
+            {
+                e.Effects = DragDropEffects.None;
+            }
+        }
+
+        private void TicketDetail_Drop(object sender, DragEventArgs e)
+        {
+            if (_selectedTask == null || !e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+            if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+            {
+                foreach (var f in files)
+                {
+                    if (File.Exists(f) && !_pendingTaskChatFiles.Contains(f, StringComparer.OrdinalIgnoreCase))
+                        _pendingTaskChatFiles.Add(f);
+                }
+                PlayTicketSound("drop");
+                RenderPendingChatFiles();
+                TicketChatInputBox.Focus();
+            }
+        }
+
+        private async void TicketChatInputBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+            {
+                e.Handled = true;
+                await SubmitTicketChatMessageAsync();
+            }
+        }
+
+        private async void SendTicketChat_Click(object sender, RoutedEventArgs e) => await SubmitTicketChatMessageAsync();
+
+        private async Task SubmitTicketChatMessageAsync()
+        {
+            if (_selectedTask == null) return;
+            string text = (TicketChatInputBox.Text ?? "").Trim();
+            if (string.IsNullOrEmpty(text) && _pendingTaskChatFiles.Count == 0) return;
+
+            string taskId = _selectedTask.Id;
+            var filesToUpload = _pendingTaskChatFiles.ToList();
+            TicketChatInputBox.Text = "";
+            _pendingTaskChatFiles.Clear();
+            RenderPendingChatFiles();
+
+            try
+            {
+                using var form = new MultipartFormDataContent();
+                form.Add(new StringContent(text, Encoding.UTF8), "content");
+
+                var openedStreams = new List<FileStream>();
+                try
+                {
+                    foreach (var fp in filesToUpload)
+                    {
+                        if (!File.Exists(fp)) continue;
+                        var fs = File.OpenRead(fp);
+                        openedStreams.Add(fs);
+                        var sc = new StreamContent(fs);
+                        sc.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                        form.Add(sc, "files[]", System.IO.Path.GetFileName(fp));
+                    }
+
+                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(20));
+                    using var req = new HttpRequestMessage(HttpMethod.Post, $"{_apiBaseUrl.TrimEnd('/')}/funki/tasks/{Uri.EscapeDataString(taskId)}/messages")
+                    {
+                        Content = form
+                    };
+                    req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                    if (!string.IsNullOrWhiteSpace(_apiToken))
+                        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiToken);
+
+                    using var res = await _http.SendAsync(req, cts.Token);
+                    if (res.IsSuccessStatusCode)
+                    {
+                        PlayTicketSound("send");
+                        await LoadTodoListsAsync();
+                        await LoadSelectedTicketMessagesAsync(taskId);
+                    }
+                }
+                finally
+                {
+                    foreach (var s in openedStreams) s.Dispose();
+                }
+            }
+            catch { }
         }
 
         private void SmartList_Click(object sender, MouseButtonEventArgs e)
         {
             if (sender is FrameworkElement el && el.Tag is string id)
             {
-                PlaySoundNav();
+                PlayTicketSound("back");
                 _activeTodoListId = id;
                 _selectedTask = null;
                 RenderTodoAll();
@@ -12010,7 +13978,7 @@ namespace Funkenwerk
                 var endpoints = GetTaskSyncEndpoints();
                 var createTasks = endpoints.Select(ep => EnsureRealListIdOnEndpointAsync(ep.BaseUrl, ep.Token, name)).ToArray();
                 await Task.WhenAll(createTasks);
-                PlaySoundActionPop();
+                PlayTicketSound("send");
                 await LoadTodoListsAsync();
             }
             catch { }
@@ -12036,7 +14004,23 @@ namespace Funkenwerk
 
             string activeId = string.IsNullOrWhiteSpace(_activeTodoListId) ? "all" : _activeTodoListId;
             string priority = (_newTaskIsImportant || activeId == "important") ? "hoch" : "niedrig";
-            string? relevantFrom = (activeId is "my_day" or "planned") ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") : null;
+            string? dueTime = NormalizeDesktopDueTime(NewTaskTimeBox.Text);
+            string? relevantFrom = null;
+            if (NewTaskDatePicker.SelectedDate.HasValue)
+            {
+                relevantFrom = NewTaskDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd");
+            }
+            else if (activeId is "my_day" or "planned" || !string.IsNullOrEmpty(dueTime))
+            {
+                relevantFrom = DateTime.Now.ToString("yyyy-MM-dd");
+            }
+
+            NewTaskDatePicker.SelectedDate = null;
+            NewTaskTimeBox.Text = "";
+            string? selectedAssigneeKey = _newTaskAssigneeKey;
+            _newTaskAssigneeKey = null;
+            _newTaskAssigneeName = null;
+            UpdateNewTaskAssigneeButtonLabel();
 
             TaskListDto? selectedList = null;
             if (!IsSmartTodoListId(activeId))
@@ -12072,8 +14056,12 @@ namespace Funkenwerk
                         {
                             id = newTaskId,
                             title,
+                            status = "open",
                             priority,
                             relevant_from = relevantFrom,
+                            due_time = dueTime,
+                            duration_minutes = 60,
+                            assignee_key = selectedAssigneeKey,
                             list_name = desiredListName
                         });
                         using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -12090,7 +14078,7 @@ namespace Funkenwerk
                 }).ToArray();
 
                 await Task.WhenAll(postJobs);
-                PlaySoundActionPop();
+                PlayTicketSound("send");
                 await LoadTodoListsAsync();
                 _ = LoadCalendarEventsAsync();
             }
@@ -12140,17 +14128,19 @@ namespace Funkenwerk
         {
             try
             {
-                PlaySoundTaskDone();
                 var target = _allTasks.FirstOrDefault(x => x.Id == id)
                              ?? _allTasks.SelectMany(x => x.Subtasks ?? new()).FirstOrDefault(x => x.Id == id);
                 if (target != null)
                 {
                     bool nextCompleted = !target.IsCompleted;
+                    PlayTicketSound(nextCompleted ? "complete" : "claim");
                     target.IsCompleted = nextCompleted;
-                    await UpdateTaskAcrossEndpointsAsync(id, target.Title, new { is_completed = nextCompleted });
+                    target.Status = nextCompleted ? "completed" : "open";
+                    await UpdateTaskAcrossEndpointsAsync(id, target.Title, new { is_completed = nextCompleted, status = target.Status });
                 }
                 else
                 {
+                    PlayTicketSound("complete");
                     await _http.PutAsync($"{_apiBaseUrl}/funki/tasks/{id}/toggle", new StringContent("{}", Encoding.UTF8, "application/json"));
                 }
                 await LoadTodoListsAsync();
@@ -12168,7 +14158,7 @@ namespace Funkenwerk
             string next = string.Equals(t.Priority, "hoch", StringComparison.OrdinalIgnoreCase) ? "niedrig" : "hoch";
             try
             {
-                PlaySoundActionPop();
+                PlayTicketSound("claim");
                 t.Priority = next;
                 await UpdateTaskAcrossEndpointsAsync(id, t.Title, new { priority = next });
                 await LoadTodoListsAsync();
@@ -12178,15 +14168,17 @@ namespace Funkenwerk
 
         private void ToggleCompletedSection_Click(object sender, RoutedEventArgs e)
         {
-            PlaySoundNav();
+            PlayTicketSound("open");
             _showCompletedTasks = !_showCompletedTasks;
             RenderTodoMainList();
         }
 
         private void CloseTodoDetail_Click(object sender, RoutedEventArgs e)
         {
-            if (TodoColDetail.ActualWidth >= 260) _todoDetailSavedWidth = TodoColDetail.ActualWidth;
+            PlayTicketSound("back");
             _selectedTask = null;
+            _selectedTaskMessages.Clear();
+            _pendingTaskChatFiles.Clear();
             RenderTodoMainList();
             RenderTodoDetailPanel();
         }
@@ -12208,13 +14200,68 @@ namespace Funkenwerk
             await LoadTodoListsAsync();
         }
 
+        private async void DetailTimeBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter) await SaveSelectedTaskScheduleAsync();
+        }
+
+        private async void DetailTimeBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_suppressDetailEvents || _selectedTask == null) return;
+            await SaveSelectedTaskScheduleAsync();
+        }
+
+        private async void DetailDurationCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressDetailEvents || _selectedTask == null) return;
+            await SaveSelectedTaskScheduleAsync();
+        }
+
+        private async Task SaveSelectedTaskScheduleAsync()
+        {
+            if (_suppressDetailEvents || _selectedTask == null) return;
+            if (_selectedTask.IsEscalatedEffective)
+            {
+                PlayTicketSound("escalate");
+                EscalationErrorText.Text = "Eskaliertes Ticket: Bitte neues Datum + Status im Aufloesungsfeld eintragen.";
+                EscalationErrorText.Visibility = Visibility.Visible;
+                RenderTodoDetailPanel();
+                return;
+            }
+
+            string? dueDate = DetailDatePicker.SelectedDate.HasValue
+                ? DetailDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd")
+                : null;
+            string? dueTime = dueDate != null ? NormalizeDesktopDueTime(DetailTimeBox.Text) : null;
+            int dur = 60;
+            if (DetailDurationCombo.SelectedItem is ComboBoxItem cbi && cbi.Tag is string tg && int.TryParse(tg, out int parsedDur))
+                dur = parsedDur;
+
+            PlayTicketSound("schedule");
+            await UpdateTaskAcrossEndpointsAsync(_selectedTask.Id, _selectedTask.Title, new
+            {
+                relevant_from = dueDate,
+                due_time = dueTime,
+                duration_minutes = dur
+            });
+            await LoadTodoListsAsync();
+            _ = LoadCalendarEventsAsync();
+        }
+
         private async void ToggleSelectedMyDay_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedTask == null) return;
+            if (_selectedTask.IsEscalatedEffective)
+            {
+                PlayTicketSound("escalate");
+                EscalationErrorText.Text = "Eskaliertes Ticket: Bitte neues Datum + Status im Aufloesungsfeld eintragen.";
+                EscalationErrorText.Visibility = Visibility.Visible;
+                return;
+            }
             bool isMyDay = IsToday(_selectedTask.RelevantFrom);
-            string? next = isMyDay ? null : DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            string? next = isMyDay ? null : DateTime.Now.ToString("yyyy-MM-dd");
             await UpdateTaskAcrossEndpointsAsync(_selectedTask.Id, _selectedTask.Title, new { relevant_from = next });
-            PlaySoundActionPop();
+            PlayTicketSound("schedule");
             await LoadTodoListsAsync();
             _ = LoadCalendarEventsAsync();
             _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
@@ -12224,10 +14271,7 @@ namespace Funkenwerk
         private async void DetailDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_suppressDetailEvents || _selectedTask == null) return;
-            string? next = DetailDatePicker.SelectedDate.HasValue ? DetailDatePicker.SelectedDate.Value.ToString("yyyy-MM-dd HH:mm:ss") : null;
-            await UpdateTaskAcrossEndpointsAsync(_selectedTask.Id, _selectedTask.Title, new { relevant_from = next });
-            await LoadTodoListsAsync();
-            _ = LoadCalendarEventsAsync();
+            await SaveSelectedTaskScheduleAsync();
         }
 
         private async void NewSubtaskBox_KeyDown(object sender, KeyEventArgs e)
@@ -12273,7 +14317,7 @@ namespace Funkenwerk
                 }).ToArray();
 
                 await Task.WhenAll(jobs);
-                PlaySoundActionPop();
+                PlayTicketSound("send");
                 await LoadTodoListsAsync();
                 _selectedTask = _allTasks.FirstOrDefault(t => t.Id == parentId);
                 RenderTodoDetailPanel();
@@ -12338,7 +14382,7 @@ namespace Funkenwerk
                 }).ToArray();
 
                 await Task.WhenAll(deleteJobs);
-                PlaySoundActionPop();
+                PlayTicketSound("back");
                 await LoadTodoListsAsync();
                 _ = LoadCalendarEventsAsync();
                 if (_selectedTask != null) _selectedTask = _allTasks.FirstOrDefault(t => t.Id == _selectedTask.Id);
@@ -13466,6 +15510,7 @@ namespace Funkenwerk
             ["#0B0D13"] = "#E2E8F0",
             ["#0D0F14"] = "#F1F5F9",
             ["#0F1117"] = "#F3F4F6",
+            ["#10131B"] = "#F8FAFC",
             ["#11131A"] = "#FFFFFF",
             ["#12151E"] = "#F8FAFC",
             ["#122B22"] = "#D1FAE5",
@@ -13482,8 +15527,11 @@ namespace Funkenwerk
             ["#18191C"] = "#E2E8F0",
             ["#181B24"] = "#F9FAFB",
             ["#181C26"] = "#E2E8F0",
+            ["#181C27"] = "#F1F5F9",
             ["#1A1E29"] = "#F1F5F9",
+            ["#1A1E2B"] = "#F8FAFC",
             ["#1A1F2E"] = "#FFFFFF",
+            ["#1C202C"] = "#F8FAFC",
             ["#1D212D"] = "#F1F5F9",
             ["#1D2230"] = "#E2E8F0",
             ["#1E1F22"] = "#F1F5F9",
@@ -13518,6 +15566,7 @@ namespace Funkenwerk
             ["#3F4147"] = "#CBD5E1",
             ["#374151"] = "#CBD5E1",
             ["#272B36"] = "#CBD5E1",
+            ["#202533"] = "#E2E8F0",
             ["#222634"] = "#CBD5E1",
             ["#222736"] = "#E2E8F0",
             ["#232734"] = "#E2E8F0",
@@ -13531,6 +15580,7 @@ namespace Funkenwerk
             ["#2A3042"] = "#CBD5E1",
             ["#2C3242"] = "#CBD5E1",
             ["#2D3343"] = "#CBD5E1",
+            ["#2D3345"] = "#CBD5E1",
             ["#2D3346"] = "#CBD5E1",
             ["#2E3446"] = "#CBD5E1",
             ["#2E3546"] = "#94A3B8",
@@ -13547,6 +15597,7 @@ namespace Funkenwerk
             ["#2C2415"] = "#F5EFE0",
             ["#2E1D12"] = "#FEF3C7",
             ["#2E291F"] = "#F5EFE0",
+            ["#382D18"] = "#D6C08D",
             ["#4D3D1E"] = "#D6C08D",
             ["#59482A"] = "#C5A059",
             ["#D4AF37"] = "#8A6414",
@@ -13557,7 +15608,10 @@ namespace Funkenwerk
             ["#132226"] = "#ECFDF5",
             ["#104E3B"] = "#6EE7B7",
             ["#10B981"] = "#059669",
+            ["#1E1216"] = "#FFF1F2",
             ["#1F1216"] = "#FFF1F2",
+            ["#231317"] = "#FFF1F2",
+            ["#241317"] = "#FFF1F2",
             ["#28151A"] = "#FFE4E6",
             ["#291418"] = "#FFF1F2",
             ["#2A1216"] = "#FFE4E6",
@@ -13620,6 +15674,7 @@ namespace Funkenwerk
             ["#F87171"] = "#DC2626",
             ["#F59E0B"] = "#B45309",
             ["#FBBF24"] = "#B45309",
+            ["#FACC15"] = "#B45309",
             ["#FDE68A"] = "#92400E",
             ["#F5DFB0"] = "#92400E",
             ["#FB923C"] = "#C2410C",
@@ -13646,6 +15701,7 @@ namespace Funkenwerk
             ["#0B0D13"] = "#000000",
             ["#0D0F14"] = "#000000",
             ["#0F1117"] = "#000000",
+            ["#10131B"] = "#000000",
             ["#111214"] = "#000000",
             ["#11131A"] = "#000000",
             ["#11141C"] = "#000000",
@@ -13664,8 +15720,11 @@ namespace Funkenwerk
             ["#18191C"] = "#000000",
             ["#181B24"] = "#000000",
             ["#181C26"] = "#000000",
+            ["#181C27"] = "#000000",
             ["#1A1E29"] = "#000000",
+            ["#1A1E2B"] = "#000000",
             ["#1A1F2E"] = "#000000",
+            ["#1C202C"] = "#000000",
             ["#1D212D"] = "#000000",
             ["#1D2230"] = "#000000",
             ["#1E1F22"] = "#000000",
@@ -13695,7 +15754,10 @@ namespace Funkenwerk
             ["#0A221A"] = "#000000",
             ["#11261D"] = "#000000",
             ["#132226"] = "#000000",
+            ["#1E1216"] = "#000000",
             ["#1F1216"] = "#000000",
+            ["#231317"] = "#000000",
+            ["#241317"] = "#000000",
             ["#28151A"] = "#000000",
             ["#291418"] = "#000000",
             ["#2A1216"] = "#000000",
@@ -13719,7 +15781,6 @@ namespace Funkenwerk
             ["#3B1629"] = "#000000",
             ["#132A38"] = "#000000",
             ["#271B3A"] = "#000000",
-            ["#991B1B"] = "#000000",
             ["#DC2626"] = "#000000",
             ["#E11D48"] = "#000000",
             ["#059669"] = "#000000",
@@ -13738,6 +15799,7 @@ namespace Funkenwerk
             ["#3F4147"] = "#382D18",
             ["#374151"] = "#382D18",
             ["#272B36"] = "#382D18",
+            ["#202533"] = "#382D18",
             ["#222634"] = "#382D18",
             ["#222736"] = "#382D18",
             ["#232734"] = "#382D18",
@@ -13751,6 +15813,7 @@ namespace Funkenwerk
             ["#2A3042"] = "#382D18",
             ["#2C3242"] = "#382D18",
             ["#2D3343"] = "#382D18",
+            ["#2D3345"] = "#382D18",
             ["#2D3346"] = "#382D18",
             ["#2E3446"] = "#382D18",
             ["#2E3546"] = "#382D18",
@@ -13777,6 +15840,7 @@ namespace Funkenwerk
             ["#155E75"] = "#C5A059",
             ["#581C87"] = "#C5A059",
             ["#7F1D1D"] = "#C5A059",
+            ["#991B1B"] = "#C5A059",
 
             // Typography & Icons -> Pure White (#FFFFFF) or Seelenfunke Gold (#C5A059)
             ["#111827"] = "#000000",
@@ -13806,6 +15870,7 @@ namespace Funkenwerk
             ["#FECACA"] = "#C5A059",
             ["#F59E0B"] = "#C5A059",
             ["#FBBF24"] = "#C5A059",
+            ["#FACC15"] = "#C5A059",
             ["#FB923C"] = "#C5A059",
             ["#34D399"] = "#C5A059",
             ["#2DD4BF"] = "#C5A059",
@@ -22352,6 +24417,120 @@ namespace Funkenwerk
             });
         }
 
+        private static int _lastRandomTicketSoundIdx = -1;
+        private static readonly object _rngLock = new();
+
+        public static void PlayRandomTicketClick(double volume)
+        {
+            int idx;
+            lock (_rngLock)
+            {
+                do
+                {
+                    idx = Random.Shared.Next(0, 8);
+                } while (idx == _lastRandomTicketSoundIdx);
+                _lastRandomTicketSoundIdx = idx;
+            }
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    switch (idx)
+                    {
+                        case 0: // 1. Kristall-Tropfen (D5 -> A5)
+                            PlayWave(0.085, volume * 0.28, t =>
+                            {
+                                double env = Math.Min(1.0, t / 0.004) * Math.Exp(-t * 48.0);
+                                return (Math.Sin(2.0 * Math.PI * 587.33 * t) + 0.35 * Math.Sin(2.0 * Math.PI * 880.0 * t)) * env * 0.72;
+                            });
+                            break;
+                        case 1: // 2. Sanfter Fokus-Impuls (A4 -> E5 Aufstieg)
+                            PlayWave(0.092, volume * 0.27, t =>
+                            {
+                                double env = Math.Min(1.0, t / 0.005) * Math.Exp(-t * 42.0);
+                                double freq = 440.0 + 219.25 * (t / 0.092);
+                                return Math.Sin(2.0 * Math.PI * freq * t) * env;
+                            });
+                            break;
+                        case 2: // 3. Seiden-Glocke (F#5 Oberton)
+                            PlayWave(0.105, volume * 0.26, t =>
+                            {
+                                double env = Math.Min(1.0, t / 0.004) * Math.Exp(-t * 38.0);
+                                return (Math.Sin(2.0 * Math.PI * 739.99 * t) + 0.24 * Math.Sin(2.0 * Math.PI * 1479.98 * t) * Math.Exp(-t * 60.0)) * env * 0.76;
+                            });
+                            break;
+                        case 3: // 4. Warmer Holz-Marimba-Tap (C5 -> G5)
+                            PlayWave(0.072, volume * 0.30, t =>
+                            {
+                                double env = Math.Min(1.0, t / 0.003) * Math.Exp(-t * 64.0);
+                                double freq = 523.25 + 140.0 * Math.Exp(-t * 110.0);
+                                return (Math.Sin(2.0 * Math.PI * freq * t) + 0.20 * Math.Sin(2.0 * Math.PI * 783.99 * t)) * env * 0.78;
+                            });
+                            break;
+                        case 4: // 5. Gold-Harfen-Doppelpuls (E5 -> B5)
+                            PlayWave(0.115, volume * 0.26, t =>
+                            {
+                                double n1 = Math.Sin(2.0 * Math.PI * 659.25 * t) * Math.Min(1.0, t / 0.004) * Math.Exp(-t * 36.0);
+                                double dt2 = t - 0.038;
+                                double n2 = dt2 > 0 ? Math.Sin(2.0 * Math.PI * 987.77 * dt2) * Math.Min(1.0, dt2 / 0.004) * Math.Exp(-dt2 * 34.0) : 0.0;
+                                return (n1 + n2 * 0.75) * 0.58;
+                            });
+                            break;
+                        case 5: // 6. Samtiger Fokus-Drop (G5 -> D5)
+                            PlayWave(0.088, volume * 0.27, t =>
+                            {
+                                double env = Math.Min(1.0, t / 0.005) * Math.Exp(-t * 46.0);
+                                double freq = 783.99 - 196.66 * (t / 0.088);
+                                return Math.Sin(2.0 * Math.PI * freq * t) * env;
+                            });
+                            break;
+                        case 6: // 7. Sternenfunken-Mikroakkord (A5 + C#6)
+                            PlayWave(0.096, volume * 0.24, t =>
+                            {
+                                double env = Math.Min(1.0, t / 0.004) * Math.Exp(-t * 44.0);
+                                return (Math.Sin(2.0 * Math.PI * 880.0 * t) + 0.42 * Math.Sin(2.0 * Math.PI * 1108.73 * t)) * env * 0.68;
+                            });
+                            break;
+                        default: // 8. Ruhiger Zen-Klangstein (B4 -> F#5)
+                            PlayWave(0.108, volume * 0.28, t =>
+                            {
+                                double n1 = Math.Sin(2.0 * Math.PI * 493.88 * t) * Math.Min(1.0, t / 0.005) * Math.Exp(-t * 32.0);
+                                double dt2 = t - 0.042;
+                                double n2 = dt2 > 0 ? Math.Sin(2.0 * Math.PI * 739.99 * dt2) * Math.Min(1.0, dt2 / 0.005) * Math.Exp(-dt2 * 30.0) : 0.0;
+                                return (n1 + n2 * 0.7) * 0.60;
+                            });
+                            break;
+                    }
+                }
+                catch { }
+            });
+        }
+
+        public static void PlayTicketEvent(string type, double volume)
+        {
+            if (string.Equals(type, "escalate", StringComparison.OrdinalIgnoreCase))
+            {
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        PlayWave(0.22, volume * 0.32, t =>
+                        {
+                            double n1 = Math.Sin(2.0 * Math.PI * 370.0 * t) * Math.Min(1.0, t / 0.006) * Math.Exp(-t * 16.0);
+                            double dt2 = t - 0.085;
+                            double n2 = dt2 > 0 ? Math.Sin(2.0 * Math.PI * 311.13 * dt2) * Math.Min(1.0, dt2 / 0.006) * Math.Exp(-dt2 * 14.0) : 0;
+                            return (n1 + n2) * 0.5;
+                        });
+                    }
+                    catch { }
+                });
+                return;
+            }
+
+            PlayRandomTicketClick(volume);
+        }
+
         private static void PlayWave(double durationSeconds, double masterGain, Func<double, double> sampleFunc)
         {
             int sampleRate = 44100;
@@ -22434,7 +24613,8 @@ namespace Funkenwerk
         public double MailListWidth { get; set; } = 360;
         public double ContactsSidebarWidth { get; set; } = 350;
         public double CalendarSidebarWidth { get; set; } = 450;
-        public double TodoSidebarWidth { get; set; } = 270;
+        public double TodoSidebarWidth { get; set; } = 320;
+        public double TodoMyTicketsHeightPct { get; set; } = 52;
         public double TodoDetailWidth { get; set; } = 340;
         public double MusicSidebarWidth { get; set; } = 270;
         public double MusicPlayerWidth { get; set; } = 350;
@@ -22620,14 +24800,131 @@ namespace Funkenwerk
         [JsonPropertyName("task_list_id")] public string? TaskListId { get; set; }
         [JsonPropertyName("parent_id")] public string? ParentId { get; set; }
         [JsonPropertyName("title")] public string Title { get; set; } = "";
+        [JsonPropertyName("status")] public string? Status { get; set; }
+        [JsonPropertyName("is_mine")] public bool IsMine { get; set; }
+        [JsonPropertyName("assignee_name")] public string? AssigneeName { get; set; }
+        [JsonPropertyName("assignee_key")] public string? AssigneeKey { get; set; }
+        [JsonPropertyName("my_position")] public int MyPosition { get; set; }
         [JsonPropertyName("is_completed")] public bool IsCompleted { get; set; }
+        [JsonPropertyName("is_escalated")] public bool IsEscalated { get; set; }
+        [JsonPropertyName("escalation_reason")] public string? EscalationReason { get; set; }
         [JsonPropertyName("priority")] public string? Priority { get; set; }
         [JsonPropertyName("position")] public int Position { get; set; }
         [JsonPropertyName("ai_plan")] public string? AiPlan { get; set; }
         [JsonPropertyName("relevant_from")] public string? RelevantFrom { get; set; }
+        [JsonPropertyName("due_time")] public string? DueTime { get; set; }
+        [JsonPropertyName("duration_minutes")] public int DurationMinutes { get; set; } = 60;
+        [JsonPropertyName("messages_count")] public int MessagesCount { get; set; }
         [JsonPropertyName("created_at")] public string? CreatedAt { get; set; }
         [JsonPropertyName("updated_at")] public string? UpdatedAt { get; set; }
         [JsonPropertyName("subtasks")] public List<TaskItemDto>? Subtasks { get; set; }
+
+        [JsonIgnore]
+        public string NormalizedStatus
+        {
+            get
+            {
+                if (IsCompleted) return "completed";
+                string s = (Status ?? "open").Trim().ToLowerInvariant();
+                return s switch
+                {
+                    "waiting" => "waiting",
+                    "in_progress" => "in_progress",
+                    "completed" => "completed",
+                    _ => "open"
+                };
+            }
+        }
+
+        [JsonIgnore]
+        public string StatusLabel => NormalizedStatus switch
+        {
+            "waiting" => "Warten",
+            "in_progress" => "In Bearbeitung",
+            "completed" => "Erledigt",
+            _ => "Offen"
+        };
+
+        [JsonIgnore]
+        public string StatusForegroundHex => NormalizedStatus switch
+        {
+            "waiting" => "#FACC15",
+            "in_progress" => "#FB923C",
+            "completed" => "#34D399",
+            _ => "#F87171"
+        };
+
+        [JsonIgnore]
+        public bool IsEscalatedEffective => !IsCompleted && (IsEscalated || string.Equals(Status, "escalated", StringComparison.OrdinalIgnoreCase));
+
+        [JsonIgnore]
+        public bool IsInMyTickets => !IsCompleted && IsMine;
+    }
+
+    public class TaskAssigneeOptionDto
+    {
+        [JsonPropertyName("key")] public string Key { get; set; } = "";
+        [JsonPropertyName("name")] public string Name { get; set; } = "";
+        [JsonPropertyName("role_label")] public string? RoleLabel { get; set; }
+        [JsonPropertyName("initials")] public string? Initials { get; set; }
+        [JsonPropertyName("avatar_url")] public string? AvatarUrl { get; set; }
+
+        [JsonIgnore]
+        public string ComputedInitials
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(Initials)) return Initials.Trim().ToUpperInvariant();
+                var parts = (Name ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2) return (parts[0][0].ToString() + parts[1][0].ToString()).ToUpperInvariant();
+                if (parts.Length == 1 && parts[0].Length > 0) return parts[0][0].ToString().ToUpperInvariant();
+                return "SF";
+            }
+        }
+    }
+
+    public class TaskChatMessageDto
+    {
+        [JsonPropertyName("id")] public string Id { get; set; } = "";
+        [JsonPropertyName("management_task_id")] public string? ManagementTaskId { get; set; }
+        [JsonPropertyName("sender_type")] public string? SenderType { get; set; }
+        [JsonPropertyName("sender_name")] public string? SenderName { get; set; }
+        [JsonPropertyName("sender_avatar_url")] public string? SenderAvatarUrl { get; set; }
+        [JsonPropertyName("message_type")] public string? MessageType { get; set; }
+        [JsonPropertyName("content")] public string? Content { get; set; }
+        [JsonPropertyName("attachments")] public List<TaskChatAttachmentDto>? Attachments { get; set; }
+        [JsonPropertyName("created_at")] public string? CreatedAt { get; set; }
+        [JsonPropertyName("created_human")] public string? CreatedHuman { get; set; }
+        [JsonPropertyName("edited_at")] public string? EditedAt { get; set; }
+        [JsonPropertyName("edited_human")] public string? EditedHuman { get; set; }
+        [JsonPropertyName("can_edit")] public bool CanEdit { get; set; }
+        [JsonPropertyName("remaining_edit_seconds")] public int RemainingEditSeconds { get; set; }
+
+        [JsonIgnore]
+        public bool CanEditEffective
+        {
+            get
+            {
+                if (string.Equals(SenderType, "system", StringComparison.OrdinalIgnoreCase)) return false;
+                if (string.Equals(MessageType, "system_escalation", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(MessageType, "status_change", StringComparison.OrdinalIgnoreCase))
+                    return false;
+                if (CanEdit) return true;
+                if (DateTimeOffset.TryParse(CreatedAt, out var created))
+                {
+                    return (DateTimeOffset.UtcNow - created.ToUniversalTime()).TotalSeconds <= 300;
+                }
+                return false;
+            }
+        }
+    }
+
+    public class TaskChatAttachmentDto
+    {
+        [JsonPropertyName("path")] public string? Path { get; set; }
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("mime")] public string? Mime { get; set; }
+        [JsonPropertyName("size")] public long Size { get; set; }
     }
 
     public class EmailRecipientSuggestion

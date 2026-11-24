@@ -120,7 +120,7 @@ class FunkiraLiveViewModel : ViewModel() {
     private var fallbackOriginUrl: String = "https://mein-seelenfunke.de"
     private var activeLiveModel: String = de.meinseelenfunke.app.data.api.VertexEphemeralResponse.DEFAULT_LIVE_MODEL
     private var activeSysInstruction: String = ""
-    private var activeVoiceName: String = "Orus"
+    private var activeVoiceName: String = "Aoede"
     private var activeToolsJson: String? = null
     @Volatile private var pendingProactiveKickPrompt: String? = null
     @Volatile private var lastSyncedAttachmentKeyForSocket: String? = null
@@ -323,6 +323,7 @@ class FunkiraLiveViewModel : ViewModel() {
         _falconEmotion.value = "idle"
         _shouldCloseScreen.value = false
         _liveSubtitle.value = null
+        activeVoiceName = "Aoede"
         aiTurnTranscript.clear()
         userTurnTranscript.clear()
         // Set live call active immediately to yield microphone from background service
@@ -419,16 +420,11 @@ class FunkiraLiveViewModel : ViewModel() {
                     } else {
                         creds.system_instruction
                     }
-                    activeVoiceName = if (isFunkiraSelected) {
-                        val serverVoice = creds.voice_name.trim()
-                        if (serverVoice.isBlank() || serverVoice.equals("Orus", ignoreCase = true) || serverVoice.equals("Charon", ignoreCase = true)) {
-                            "Aoede"
-                        } else {
-                            serverVoice
-                        }
-                    } else {
-                        creds.voice_name.ifBlank { "Aoede" }
-                    }
+                    activeVoiceName = resolveLiveVoiceName(
+                        requestedVoice = creds.voice_name,
+                        isFunkiraSelected = isFunkiraSelected,
+                        fallbackVoice = "Aoede"
+                    )
                     activeToolsJson = creds.tools?.toString()
                     pendingProactiveKickPrompt = if (!isMidCallReconnect) {
                         val serverKick = creds.proactive_kick_prompt?.trim()?.takeIf { it.isNotEmpty() }
@@ -513,8 +509,14 @@ class FunkiraLiveViewModel : ViewModel() {
                                 "STRIKTE SPRACHREGEL (HÖCHSTE PRIORITÄT): Sprich und antworte ZU 100% AUSSCHLIESSLICH auf DEUTSCH! Du bist Funkira, Alinas Stabschefin von Mein-Seelenfunke. Antworte herzlich, natürlich und prägnant auf Deutsch."
                             }
                         }
-                        if (activeVoiceName.isBlank()) {
-                            activeVoiceName = if (useFunkiraFallback) "Aoede" else "Kore"
+                        activeVoiceName = if (useFunkiraFallback) {
+                            "Aoede"
+                        } else {
+                            resolveLiveVoiceName(
+                                requestedVoice = activeVoiceName,
+                                isFunkiraSelected = true,
+                                fallbackVoice = "Kore"
+                            )
                         }
                         de.meinseelenfunke.app.util.ErrorSentinelReporter.captureAutoHeal(
                             context = ServiceLocator.context,
@@ -2098,6 +2100,29 @@ class FunkiraLiveViewModel : ViewModel() {
     companion object {
         val RECONNECT_BACKOFF_MS = longArrayOf(350L, 800L, 1500L, 2500L)
         const val STABLE_CONNECTION_RESET_MS = 10_000L
+
+        private val MALE_VOICE_NAMES = setOf(
+            "orus", "charon", "puck", "fenrir", "iapetus", "umbriel",
+            "alnilam", "sadachbia", "algieba", "schedar", "enceladus",
+            "algenib", "rasalgethi", "zubenelgenubi"
+        )
+
+        fun resolveLiveVoiceName(
+            requestedVoice: String?,
+            isFunkiraSelected: Boolean,
+            fallbackVoice: String = "Aoede"
+        ): String {
+            val clean = requestedVoice?.trim().orEmpty()
+            val safeFallback = fallbackVoice.trim().ifBlank { "Aoede" }
+            if (isFunkiraSelected) {
+                return if (clean.isBlank() || MALE_VOICE_NAMES.contains(clean.lowercase(java.util.Locale.ROOT))) {
+                    safeFallback
+                } else {
+                    clean
+                }
+            }
+            return clean.ifBlank { safeFallback }
+        }
 
         fun parseServerErrorElement(errEl: com.google.gson.JsonElement?): Pair<Int, String> {
             if (errEl == null || errEl.isJsonNull) {

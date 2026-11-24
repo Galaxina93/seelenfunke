@@ -69,13 +69,37 @@ class SystemErrorLogger
     }
 
     /**
-     * Erkennt einmalige manuelle PHP CLI-/Eval-/Stdin-Aufrufe ("Command line code", "Standard input code"),
-     * einschließlich mehrzeiliger Stack-Trace-Frames wie "#9 Command line code(5):" oder "Standard input code:5".
+     * Prüft, ob ein Dateipfad auf ein flüchtiges CLI-Einmalskript direkt unter /tmp/*.php außerhalb des Projekt-Roots zeigt
+     * (ausgenommen kompilierte Blade-Views wie /tmp/sf_views_*).
+     */
+    public static function isTemporaryCliScratchScriptPath(?string $path): bool
+    {
+        $norm = str_replace('\\', '/', trim((string) $path));
+        if ($norm === '' || str_contains(strtolower($norm), 'sf_views_')) {
+            return false;
+        }
+
+        $baseNorm = rtrim(str_replace('\\', '/', base_path()), '/');
+        if ($baseNorm !== '' && str_starts_with(strtolower($norm), strtolower($baseNorm . '/'))) {
+            return false;
+        }
+
+        return preg_match('#^(?:/private)?/tmp/[^/\s:()]+\.php$#i', $norm) === 1;
+    }
+
+    /**
+     * Erkennt einmalige manuelle PHP CLI-/Eval-/Stdin-Aufrufe ("Command line code", "Standard input code")
+     * sowie flüchtige /tmp/*.php Einmalskripte außerhalb des Repositories,
+     * einschließlich mehrzeiliger Stack-Trace-Frames wie "#9 Command line code(5):" oder "at /tmp/script.php:54".
      */
     public static function isCliEvalOrStdinError(string $message, ?string $file = null, ?string $traceText = null): bool
     {
         $fileLower = strtolower(trim((string) $file));
-        if (str_contains($fileLower, 'standard input code') || str_contains($fileLower, 'command line code')) {
+        if (
+            str_contains($fileLower, 'standard input code')
+            || str_contains($fileLower, 'command line code')
+            || self::isTemporaryCliScratchScriptPath($file)
+        ) {
             return true;
         }
 
@@ -100,6 +124,10 @@ class SystemErrorLogger
             if (str_contains($haystack, $marker)) {
                 return true;
             }
+        }
+
+        if (preg_match('~(?:^|[\s(\["\'])(?:at\s+|in\s+|#\d+\s+)?(?:/private)?/tmp/(?!sf_views_)[^/\s:()"\']+\.php(?::\d+|\(\d+\)|\s+on\s+line\s+\d+)~i', $haystack) === 1) {
+            return true;
         }
 
         return false;
