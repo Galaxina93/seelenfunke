@@ -29,6 +29,7 @@ import de.meinseelenfunke.app.data.api.PhoneConciergeSignalBody
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.util.CachedWhitelistContact
 import de.meinseelenfunke.app.util.ErrorSentinelReporter
+import de.meinseelenfunke.app.util.NavigationBridge
 import de.meinseelenfunke.app.util.PendingPhoneSecretaryNote
 import de.meinseelenfunke.app.util.PhoneConciergeManager
 import kotlinx.coroutines.CoroutineScope
@@ -70,7 +71,7 @@ class FunkiraPhoneConciergeService : Service() {
         private const val CHANNEL_ID = "funkira_phone_concierge_channel"
         private const val ACTIVE_NOTIF_ID = 1044
         private const val SUMMARY_NOTIF_ID = 1045
-        internal const val SOFORT_RINGING_SETTLE_MS = 450L
+        internal const val SOFORT_RINGING_SETTLE_MS = 280L
 
         internal fun computeEffectiveRingWaitMs(ringDelaySec: Int): Long {
             val clamped = ringDelaySec.coerceIn(0, 30)
@@ -330,7 +331,7 @@ class FunkiraPhoneConciergeService : Service() {
             // Phase 2: Wait effective ring duration ("Sofort" = 450ms settle so Telecom finishes binding InCallService;
             // >0s = exact ringDelaySec countdown), aborting immediately if Alina answers or declines!
             val targetRingWaitMs = computeEffectiveRingWaitMs(ringDelaySec)
-            val preWarmAtRemainingMs = 2_500L
+            val preWarmAtRemainingMs = 3_500L
             while (true) {
                 val elapsedRingingMs = android.os.SystemClock.elapsedRealtime() - ringingStartedElapsedMs
                 val remainingMs = targetRingWaitMs - elapsedRingingMs
@@ -371,7 +372,10 @@ class FunkiraPhoneConciergeService : Service() {
                 return
             }
 
+            // Pause WakeWord mic before picking up so AudioRecord has zero contention
+            NavigationBridge.isLiveCallActive = true
             if (!acceptIncomingCallSafe()) {
+                NavigationBridge.isLiveCallActive = false
                 PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Fehler: acceptRingingCall fehlgeschlagen")
                 ErrorSentinelReporter.captureError(
                     context = applicationContext,
@@ -512,11 +516,25 @@ class FunkiraPhoneConciergeService : Service() {
                     callerPhone = callerPhone,
                     summary = result.summary,
                     urgency = result.urgency,
-                    callbackRequested = result.callbackRequested
+                    callbackRequested = result.callbackRequested,
+                    rahmenbedingungen = result.rahmenbedingungen,
+                    actionRequired = result.actionRequired,
+                    durationSeconds = result.durationSeconds,
+                    transcript = result.transcript,
+                    verification = result.verification
                 )
                 PhoneConciergeManager.persistOrQueueSecretaryCompletion(applicationContext, note)
-                postSummaryNotification(displayLabel, result.summary)
-                PhoneConciergeManager.appendDiagnosticTrace(applicationContext, "Gespräch beendet & Notiz gespeichert")
+                val statusHint = when (result.verification?.status) {
+                    CallNoteVerificationEngine.STATUS_CORRECTED -> " (KI-korrigiert)"
+                    CallNoteVerificationEngine.STATUS_UNCERTAIN -> " (Bitte prüfen)"
+                    CallNoteVerificationEngine.STATUS_VERIFIED -> " (Geprüft)"
+                    else -> ""
+                }
+                postSummaryNotification(displayLabel + statusHint, result.summary)
+                PhoneConciergeManager.appendDiagnosticTrace(
+                    applicationContext,
+                    "Gespräch beendet & Notiz gespeichert$statusHint"
+                )
 
                 if (readUnifiedCallState(telephony, telecom, audioManager, subStates, false) != TelephonyManager.CALL_STATE_IDLE) {
                     hangUpCallIfOffhook()
@@ -535,6 +553,7 @@ class FunkiraPhoneConciergeService : Service() {
                 hangUpCallIfOffhook()
             }
         } finally {
+            NavigationBridge.isLiveCallActive = false
             unregisterAllSubscriptionCallStateListeners(registeredCallbacks)
             currentFgsIncludesMic = false
             restoreAudioRouting()
@@ -851,10 +870,16 @@ class FunkiraPhoneConciergeService : Service() {
 
     private fun postSummaryNotification(callerLabel: String, summary: String) {
         val nm = getSystemService(NotificationManager::class.java) ?: return
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("navigate_to", "organizer")
+            putExtra("open_subtab", 7)
+            de.meinseelenfunke.app.util.SecurityIntentHelper.signIntent(this@FunkiraPhoneConciergeService, this)
+        }
         val openPending = PendingIntent.getActivity(
             this,
             2,
-            Intent(this, MainActivity::class.java),
+            tapIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)

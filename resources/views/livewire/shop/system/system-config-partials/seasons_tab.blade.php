@@ -1,4 +1,4 @@
-<div x-show="activeTab === 'seasons'" class="space-y-8 animate-fade-in" style="display: none;">
+<div data-config-tab="seasons" data-config-tab-label="Jahreszeiten" x-show="isTabVisible('seasons')" class="space-y-8 animate-fade-in" style="display: none;">
     @php
         $isAutoMode = filter_var($settings['season_auto_mode'] ?? true, FILTER_VALIDATE_BOOLEAN);
         $manualAnimKey = (string) ($settings['manual_active_animation'] ?? '');

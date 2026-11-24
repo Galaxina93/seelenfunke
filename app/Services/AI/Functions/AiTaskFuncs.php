@@ -576,13 +576,15 @@ trait AiTaskFuncs
             $normalizedStatus = self::normalizeAiTaskStatus($statusRaw);
             $includeCompleted = ($normalizedStatus === ManagementTask::STATUS_COMPLETED) || ($specificTaskQuery !== '');
 
-            $query = ManagementTask::where('is_archived', false)
-                ->whereNull('parent_id')
+            $query = ManagementTask::rootTickets()
                 ->with(['list', 'subtasks', 'messages'])
                 ->withCount('messages');
 
             if (!$includeCompleted) {
-                $query->where('is_completed', false);
+                $query->where('is_completed', false)
+                    ->where(function ($q) {
+                        $q->whereNull('status')->orWhere('status', '!=', ManagementTask::STATUS_COMPLETED);
+                    });
             }
 
             if ($specificTaskQuery !== '') {
@@ -608,7 +610,7 @@ trait AiTaskFuncs
             }
 
             if ($statusRaw === 'escalated') {
-                $query->where('is_escalated', true);
+                $query->whereNotNull('escalated_at');
             } elseif ($normalizedStatus !== null) {
                 if ($normalizedStatus === ManagementTask::STATUS_COMPLETED) {
                     $query->where(function ($q) {

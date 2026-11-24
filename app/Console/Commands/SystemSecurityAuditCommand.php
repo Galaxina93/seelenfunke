@@ -690,7 +690,31 @@ class SystemSecurityAuditCommand extends Command
             'detail' => $blueprintDetail,
         ];
 
-        // 6. Admin 2FA Status (informativ in Local/Testing, Pflicht-Hinweis auf Live)
+        // 6. Route-Middleware & RouteRegistrar Integrität (verhindert RouteRegistrar.php:130 Closure-Crashes)
+        $routeSafetyOk = true;
+        $routeSafetyDetail = 'Keine Closure-/Variablen-Middleware in routes/';
+        if (class_exists(\App\Services\System\SystemBrainDiagnosticsService::class)) {
+            try {
+                $routeSafetyAudit = app(\App\Services\System\SystemBrainDiagnosticsService::class)->auditRouteDefinitionsSafety();
+                $routeSafetyOk = !empty($routeSafetyAudit['passed']);
+                if ($routeSafetyOk) {
+                    $routeSafetyDetail = ($routeSafetyAudit['files_scanned'] ?? 0) . ' Dateien / ' . ($routeSafetyAudit['routes_scanned'] ?? 0) . ' Routen sauber';
+                } else {
+                    $firstViolation = $routeSafetyAudit['violations'][0]['message'] ?? 'Unsichere Route-Middleware gefunden';
+                    $routeSafetyDetail = mb_substr((string) $firstViolation, 0, 140);
+                }
+            } catch (\Throwable $e) {
+                $routeSafetyOk = false;
+                $routeSafetyDetail = 'Route-Safety-Audit fehlgeschlagen: ' . $e->getMessage();
+            }
+        }
+        $checks['route_middleware_safety'] = [
+            'label' => 'Route-Middleware & RouteRegistrar Guard',
+            'passed' => $routeSafetyOk,
+            'detail' => $routeSafetyDetail,
+        ];
+
+        // 7. Admin 2FA Status (informativ in Local/Testing, Pflicht-Hinweis auf Live)
         $adminTotal = class_exists(Admin::class) ? Admin::count() : 0;
         $admin2fa = class_exists(Admin::class)
             ? Admin::whereHas('profile', fn ($q) => $q->where('two_factor_is_active', true))->count()

@@ -95,6 +95,10 @@
             'hMm'                   => (float) $cockpitData['height_mm'],
             'defaultWMm'            => (float) $cockpitData['width_mm'],
             'defaultHMm'            => (float) $cockpitData['height_mm'],
+            'baseWMm'               => (float) ($cockpitData['base_width_mm'] ?? $cockpitData['width_mm']),
+            'baseHMm'               => (float) ($cockpitData['base_height_mm'] ?? $cockpitData['height_mm']),
+            'otherSideWMm'          => isset($cockpitData['other_side_w_mm']) && $cockpitData['other_side_w_mm'] !== null ? (float) $cockpitData['other_side_w_mm'] : null,
+            'otherSideHMm'          => isset($cockpitData['other_side_h_mm']) && $cockpitData['other_side_h_mm'] !== null ? (float) $cockpitData['other_side_h_mm'] : null,
             'framingMode'           => (string) ($cockpitData['framing_mode'] ?? 'contour'),
             'preflight'             => is_array($cockpitData['preflight'] ?? null) ? $cockpitData['preflight'] : [],
             'hasLaserOverrides'     => (bool) ($lp['has_overrides'] ?? false),
@@ -146,6 +150,10 @@
             startHMm: 40,
             defaultWMm: 40,
             defaultHMm: 40,
+            baseWMm: 40,
+            baseHMm: 40,
+            otherSideWMm: null,
+            otherSideHMm: null,
             startResizeDistPx: 40,
             lastResizeDistPx: 40,
             _rawXMm: 100,
@@ -154,6 +162,13 @@
             _rawWMm: 40,
             _rawHMm: 40,
             shiftHeld: false,
+            altHeld: false,
+            cockpitHovered: false,
+            xrayToggle: false,
+            xrayKeyHeld: false,
+            frameLocked: Boolean(window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'] && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].frameLocked),
+            historyIndex: 0,
+            historyLength: 1,
             _keyPersistTimer: null,
             xMm: 100,
             yMm: 100,
@@ -166,6 +181,7 @@
             _zoomFocusX: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].focusX : null,
             _zoomFocusY: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}']) ? window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].focusY : null,
             bedBgDim: (window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'] && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].bgDim !== undefined) ? Number(window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].bgDim || 0) : 0,
+            edgeFocusFilter: Boolean(window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'] && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].edgeFocus),
             highContrastOverlay: Boolean(window.__sfLaserCockpitZoom && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'] && window.__sfLaserCockpitZoom['{{ $openScopeKey }}'].highContrast),
             startPanX: 0,
             startPanY: 0,
@@ -288,6 +304,10 @@
                 this.productProfiles = Array.isArray(d.productProfiles) ? d.productProfiles : [];
                 this.defaultWMm = Number(d.defaultWMm) || 40;
                 this.defaultHMm = Number(d.defaultHMm) || 40;
+                this.baseWMm = Number(d.baseWMm) || this.defaultWMm;
+                this.baseHMm = Number(d.baseHMm) || this.defaultHMm;
+                this.otherSideWMm = (d.otherSideWMm !== null && d.otherSideWMm !== undefined && Number(d.otherSideWMm) > 0.5) ? Number(d.otherSideWMm) : null;
+                this.otherSideHMm = (d.otherSideHMm !== null && d.otherSideHMm !== undefined && Number(d.otherSideHMm) > 0.5) ? Number(d.otherSideHMm) : null;
                 this.startWMm = this.defaultWMm;
                 this.startHMm = this.defaultHMm;
                 this.xMm = Number(d.xMm) || 100;
@@ -300,6 +320,7 @@
                 this._rawAngleDeg = this.angleDeg;
                 this._rawWMm = this.wMm;
                 this._rawHMm = this.hMm;
+                this.ensureHistoryStore();
                 if (d.framingMode) {
                     this.framingMode = d.framingMode === 'rect' ? 'rect' : 'contour';
                 }
@@ -412,6 +433,15 @@
                 const ang = Number(active.angle) || 0;
                 return `left: ${lx}%; top: ${ty}%; width: ${wd}%; height: ${ht}%; transform: translate(-50%, -50%) rotate(${ang}deg);`;
             },
+            get isXrayActive() {
+                return Boolean(this.xrayToggle || this.xrayKeyHeld);
+            },
+            get canUndo() {
+                return !this.frameLocked && this.historyIndex > 0;
+            },
+            get canRedo() {
+                return !this.frameLocked && (this.historyIndex + 1) < this.historyLength;
+            },
             saveCockpitZoomScope() {
                 window.__sfLaserCockpitZoom = window.__sfLaserCockpitZoom || {};
                 window.__sfLaserCockpitZoom[this.openScopeKey] = {
@@ -421,11 +451,174 @@
                     focusX: this._zoomFocusX,
                     focusY: this._zoomFocusY,
                     bgDim: this.bedBgDim,
-                    highContrast: this.highContrastOverlay
+                    edgeFocus: this.edgeFocusFilter,
+                    highContrast: this.highContrastOverlay,
+                    frameLocked: this.frameLocked
                 };
+            },
+            toggleFrameLock() {
+                this.frameLocked = !this.frameLocked;
+                this.saveCockpitZoomScope();
+            },
+            toggleFocusZoomOnFrame() {
+                if (this.cockpitZoom >= 2.2) {
+                    this.resetCockpitZoom();
+                    return;
+                }
+                this._zoomFocusX = this.frameCenterX;
+                this._zoomFocusY = this.frameCenterY;
+                this.setCockpitZoom(3.2);
+            },
+            recordSideDimensionMirror() {
+                window.__sfLaserSideDims = window.__sfLaserSideDims || {};
+                window.__sfLaserSideDims[this.itemId + ':' + this.sideKey] = {
+                    w: Math.round((Number(this.wMm) || this.defaultWMm) * 100) / 100,
+                    h: Math.round((Number(this.hMm) || this.defaultHMm) * 100) / 100
+                };
+            },
+            ensureHistoryStore() {
+                window.__sfLaserCockpitHistory = window.__sfLaserCockpitHistory || {};
+                let store = window.__sfLaserCockpitHistory[this.openScopeKey];
+                const snap = {
+                    x: Math.round((Number(this.xMm) || 100) * 100) / 100,
+                    y: Math.round((Number(this.yMm) || 100) * 100) / 100,
+                    angle: Math.round((Number(this.angleDeg) || 0) * 100) / 100,
+                    w: Math.round((Number(this.wMm) || this.defaultWMm) * 100) / 100,
+                    h: Math.round((Number(this.hMm) || this.defaultHMm) * 100) / 100
+                };
+                if (!store || !Array.isArray(store.stack) || store.stack.length === 0) {
+                    store = { stack: [snap], index: 0 };
+                    window.__sfLaserCockpitHistory[this.openScopeKey] = store;
+                }
+                this.historyIndex = Math.max(0, Math.min(store.stack.length - 1, Number(store.index) || 0));
+                this.historyLength = store.stack.length;
+                this.recordSideDimensionMirror();
+                return store;
+            },
+            pushCoordHistory() {
+                const store = this.ensureHistoryStore();
+                const nextSnap = {
+                    x: Math.round((Number(this.xMm) || 100) * 100) / 100,
+                    y: Math.round((Number(this.yMm) || 100) * 100) / 100,
+                    angle: Math.round((Number(this.angleDeg) || 0) * 100) / 100,
+                    w: Math.round((Number(this.wMm) || this.defaultWMm) * 100) / 100,
+                    h: Math.round((Number(this.hMm) || this.defaultHMm) * 100) / 100
+                };
+                const curr = store.stack[store.index] || null;
+                if (
+                    curr
+                    && Math.abs(curr.x - nextSnap.x) < 0.005
+                    && Math.abs(curr.y - nextSnap.y) < 0.005
+                    && Math.abs(curr.angle - nextSnap.angle) < 0.005
+                    && Math.abs(curr.w - nextSnap.w) < 0.005
+                    && Math.abs(curr.h - nextSnap.h) < 0.005
+                ) {
+                    this.recordSideDimensionMirror();
+                    return;
+                }
+                if (store.index < store.stack.length - 1) {
+                    store.stack = store.stack.slice(0, store.index + 1);
+                }
+                store.stack.push(nextSnap);
+                if (store.stack.length > 50) {
+                    store.stack.shift();
+                }
+                store.index = store.stack.length - 1;
+                this.historyIndex = store.index;
+                this.historyLength = store.stack.length;
+                this.recordSideDimensionMirror();
+            },
+            applyHistorySnapshot(entry) {
+                if (!entry) return;
+                this.xMm = Number(entry.x);
+                this.yMm = Number(entry.y);
+                this.angleDeg = Number(entry.angle);
+                this.wMm = Number(entry.w);
+                this.hMm = Number(entry.h);
+                this._rawXMm = this.xMm;
+                this._rawYMm = this.yMm;
+                this._rawAngleDeg = this.angleDeg;
+                this._rawWMm = this.wMm;
+                this._rawHMm = this.hMm;
+                this.recordSideDimensionMirror();
+                this.lockCurrentCoords();
+                this.debouncedPersistCoords(120, false);
+            },
+            undoCoords() {
+                if (this.frameLocked) return;
+                const store = this.ensureHistoryStore();
+                if (store.index <= 0) return;
+                store.index -= 1;
+                this.historyIndex = store.index;
+                this.historyLength = store.stack.length;
+                this.applyHistorySnapshot(store.stack[store.index]);
+            },
+            redoCoords() {
+                if (this.frameLocked) return;
+                const store = this.ensureHistoryStore();
+                if (store.index + 1 >= store.stack.length) return;
+                store.index += 1;
+                this.historyIndex = store.index;
+                this.historyLength = store.stack.length;
+                this.applyHistorySnapshot(store.stack[store.index]);
+            },
+            resetFrameAxis(axis) {
+                if (this.frameLocked) return;
+                if (axis === 'w' || axis === 'both') {
+                    this._rawWMm = Math.max(2.5, Math.min(195, Number(this.baseWMm) || this.defaultWMm));
+                    this.wMm = Math.round(this._rawWMm * 100) / 100;
+                }
+                if (axis === 'h' || axis === 'both') {
+                    this._rawHMm = Math.max(2.5, Math.min(195, Number(this.baseHMm) || this.defaultHMm));
+                    this.hMm = Math.round(this._rawHMm * 100) / 100;
+                }
+                if (axis === 'angle') {
+                    this._rawAngleDeg = 0;
+                    this.angleDeg = 0;
+                }
+                this.persistCoords(true);
+            },
+            getAvailableOtherSideDims() {
+                const otherSide = this.sideKey === 'back' ? 'front' : 'back';
+                const live = window.__sfLaserSideDims ? window.__sfLaserSideDims[this.itemId + ':' + otherSide] : null;
+                if (live && Number(live.w) > 0.5 && Number(live.h) > 0.5) {
+                    return { w: Number(live.w), h: Number(live.h) };
+                }
+                if (this.otherSideWMm !== null && this.otherSideHMm !== null && Number(this.otherSideWMm) > 0.5 && Number(this.otherSideHMm) > 0.5) {
+                    return { w: Number(this.otherSideWMm), h: Number(this.otherSideHMm) };
+                }
+                return null;
+            },
+            copyDimensionsFromOtherSide() {
+                if (this.frameLocked) return;
+                const dims = this.getAvailableOtherSideDims();
+                if (dims) {
+                    this._rawWMm = Math.max(2.5, Math.min(195, dims.w));
+                    this._rawHMm = Math.max(2.5, Math.min(195, dims.h));
+                    this.wMm = Math.round(this._rawWMm * 100) / 100;
+                    this.hMm = Math.round(this._rawHMm * 100) / 100;
+                    this.persistCoords(true);
+                    return;
+                }
+                const p = $wire.copyOtherSideLaserDimensions(this.itemId, this.sideKey);
+                if (p && typeof p.then === 'function') {
+                    p.then((res) => {
+                        if (res && res.ok && Number(res.w_mm) > 0.5 && Number(res.h_mm) > 0.5) {
+                            this._rawWMm = Number(res.w_mm);
+                            this._rawHMm = Number(res.h_mm);
+                            this.wMm = Math.round(this._rawWMm * 100) / 100;
+                            this.hMm = Math.round(this._rawHMm * 100) / 100;
+                            this.pushCoordHistory();
+                        }
+                    });
+                }
             },
             setBedBgDim(val) {
                 this.bedBgDim = Math.max(0, Math.min(65, Math.round(Number(val) || 0)));
+                this.saveCockpitZoomScope();
+            },
+            toggleEdgeFocusFilter() {
+                this.edgeFocusFilter = !this.edgeFocusFilter;
                 this.saveCockpitZoomScope();
             },
             toggleHighContrastOverlay() {
@@ -433,11 +626,17 @@
                 this.saveCockpitZoomScope();
             },
             getCameraBgFilterStyle() {
+                const parts = [];
+                if (this.edgeFocusFilter) {
+                    parts.push('url(#sf-edge-focus-' + this.openScopeKey + ')');
+                }
                 const dim = Math.max(0, Math.min(65, Number(this.bedBgDim) || 0));
-                if (dim <= 0) return '';
-                const br = (1 - (dim / 100)).toFixed(3);
-                const ct = (1 + (dim / 220)).toFixed(3);
-                return `filter: brightness(${br}) contrast(${ct});`;
+                if (dim > 0) {
+                    const br = (1 - (dim / 100)).toFixed(3);
+                    const ct = (1 + (dim / 220)).toFixed(3);
+                    parts.push(`brightness(${br}) contrast(${ct})`);
+                }
+                return parts.length > 0 ? `filter: ${parts.join(' ')};` : '';
             },
             getOverlayContrastStyle() {
                 if (!this.highContrastOverlay) return '';
@@ -849,6 +1048,7 @@
                 if (p.angle !== undefined) { this.angleDeg = Number(p.angle); this._rawAngleDeg = this.angleDeg; }
                 if (p.w !== undefined) { this.wMm = Number(p.w); this._rawWMm = this.wMm; }
                 if (p.h !== undefined) { this.hMm = Number(p.h); this._rawHMm = this.hMm; }
+                this.pushCoordHistory();
                 if (this.cockpitZoom > 1.01) {
                     this._zoomFocusX = this.frameCenterX;
                     this._zoomFocusY = this.frameCenterY;
@@ -867,10 +1067,15 @@
                 };
                 return seq;
             },
-            persistCoords() {
+            persistCoords(recordHistory = true) {
                 if (this._keyPersistTimer) {
                     clearTimeout(this._keyPersistTimer);
                     this._keyPersistTimer = null;
+                }
+                if (recordHistory) {
+                    this.pushCoordHistory();
+                } else {
+                    this.recordSideDimensionMirror();
                 }
                 const seq = this.lockCurrentCoords();
                 $wire.updateLaserCoordinates(
@@ -884,13 +1089,13 @@
                 );
                 this.scheduleLiveFramingReplace(160);
             },
-            debouncedPersistCoords(delayMs = 250) {
+            debouncedPersistCoords(delayMs = 250, recordHistory = true) {
                 if (this._keyPersistTimer) {
                     clearTimeout(this._keyPersistTimer);
                 }
                 this._keyPersistTimer = setTimeout(() => {
                     this._keyPersistTimer = null;
-                    this.persistCoords();
+                    this.persistCoords(recordHistory);
                 }, delayMs);
             },
             normalizeAngleDeg(deg) {
@@ -903,6 +1108,7 @@
                 return wrapped;
             },
             nudge(dx, dy, da, fineMode = false) {
+                if (this.frameLocked) return;
                 const scale = fineMode ? 0.04 : 1.0;
                 this._rawXMm = Math.max(5, Math.min(195, (Number(this.xMm) || 100) + dx * scale));
                 this._rawYMm = Math.max(5, Math.min(195, (Number(this.yMm) || 100) + dy * scale));
@@ -910,7 +1116,53 @@
                 this.xMm = Math.round(this._rawXMm * 100) / 100;
                 this.yMm = Math.round(this._rawYMm * 100) / 100;
                 this.angleDeg = Math.round(this._rawAngleDeg * 100) / 100;
-                this.persistCoords();
+                this.persistCoords(true);
+            },
+            handleGlobalKeydown(e) {
+                if (e.key === 'Shift') this.shiftHeld = true;
+                if (e.key === 'Alt') this.altHeld = true;
+                if (!this.$el || !this.$el.isConnected || this.$el.offsetParent === null) return;
+                const tag = (e.target && e.target.tagName) ? String(e.target.tagName).toUpperCase() : '';
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target && e.target.isContentEditable)) {
+                    return;
+                }
+                const mod = Boolean(e.ctrlKey || e.metaKey);
+                const k = String(e.key || '').toLowerCase();
+                if (mod && !e.altKey && k === 'z') {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        this.redoCoords();
+                    } else {
+                        this.undoCoords();
+                    }
+                    return;
+                }
+                if (mod && !e.altKey && !e.shiftKey && k === 'y') {
+                    e.preventDefault();
+                    this.redoCoords();
+                    return;
+                }
+                const inCockpit = Boolean(this.cockpitHovered || (this.$refs.bedViewport && document.activeElement === this.$refs.bedViewport));
+                if (!inCockpit) return;
+                if (mod && !e.altKey && !e.shiftKey && k === 'l') {
+                    e.preventDefault();
+                    this.toggleFrameLock();
+                    return;
+                }
+                if (!mod && !e.altKey && k === 'x') {
+                    this.xrayKeyHeld = true;
+                    return;
+                }
+                if (!mod && !e.altKey && !e.shiftKey && k === 'f') {
+                    e.preventDefault();
+                    this.toggleFocusZoomOnFrame();
+                }
+            },
+            handleGlobalKeyup(e) {
+                if (e.key === 'Shift') this.shiftHeld = false;
+                if (e.key === 'Alt') this.altHeld = false;
+                const k = String(e.key || '').toLowerCase();
+                if (k === 'x') this.xrayKeyHeld = false;
             },
             handleViewportKeydown(e) {
                 const tag = (e.target && e.target.tagName) ? String(e.target.tagName).toUpperCase() : '';
@@ -921,8 +1173,11 @@
                     return;
                 }
                 e.preventDefault();
+                if (this.frameLocked) return;
                 const fineMode = !!e.shiftKey;
+                const symMode = !!e.altKey;
                 this.shiftHeld = fineMode;
+                this.altHeld = symMode;
                 const step = fineMode ? 0.02 : 0.20;
                 let dx = 0;
                 let dy = 0;
@@ -936,17 +1191,25 @@
                 this.xMm = Math.round(this._rawXMm * 100) / 100;
                 this.yMm = Math.round(this._rawYMm * 100) / 100;
                 this.lockCurrentCoords();
-                this.debouncedPersistCoords(250);
+                this.debouncedPersistCoords(250, true);
             },
             startDrag(e, mode = 'move') {
                 if (e.button !== undefined && e.button !== 0) return;
                 if (this.$refs.bedViewport && typeof this.$refs.bedViewport.focus === 'function') {
                     this.$refs.bedViewport.focus({ preventScroll: true });
                 }
+                if (this.frameLocked && mode !== 'pan') {
+                    if (this.cockpitZoom > 1.01) {
+                        mode = 'pan';
+                    } else {
+                        return;
+                    }
+                }
                 this.dragging = true;
                 this.dragMode = mode;
                 this._hasMovedDuringDrag = false;
                 this.shiftHeld = !!e.shiftKey;
+                this.altHeld = !!e.altKey;
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 this.startClientX = clientX;
@@ -993,7 +1256,9 @@
                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                 const fineMode = !!e.shiftKey;
+                const symMode = !!e.altKey;
                 this.shiftHeld = fineMode;
+                this.altHeld = symMode;
 
                 if (this.dragMode === 'pan') {
                     const z = Math.max(1.01, Number(this.cockpitZoom || 1.01));
@@ -1073,6 +1338,60 @@
                     return;
                 }
 
+                if (this.dragMode === 'resize-n' || this.dragMode === 'resize-e' || this.dragMode === 'resize-s' || this.dragMode === 'resize-w') {
+                    const edgeGear = fineMode ? 0.12 : 1.0;
+                    const dMxMm = (frameDx / rect.width) * 200 * edgeGear;
+                    const dMyMm = (frameDy / rect.height) * 200 * edgeGear;
+                    const rad = (this._rawAngleDeg * Math.PI) / 180;
+                    const cosA = Math.cos(rad);
+                    const sinA = Math.sin(rad);
+                    const dLocalX = (dMxMm * cosA) + (dMyMm * sinA);
+                    const dLocalY = (-dMxMm * sinA) + (dMyMm * cosA);
+
+                    if (symMode) {
+                        if (this.dragMode === 'resize-e') {
+                            this._rawWMm = Math.max(2.5, Math.min(195, this._rawWMm + (dLocalX * 2)));
+                        } else if (this.dragMode === 'resize-w') {
+                            this._rawWMm = Math.max(2.5, Math.min(195, this._rawWMm - (dLocalX * 2)));
+                        } else if (this.dragMode === 'resize-s') {
+                            this._rawHMm = Math.max(2.5, Math.min(195, this._rawHMm + (dLocalY * 2)));
+                        } else if (this.dragMode === 'resize-n') {
+                            this._rawHMm = Math.max(2.5, Math.min(195, this._rawHMm - (dLocalY * 2)));
+                        }
+                    } else if (this.dragMode === 'resize-e') {
+                        const nextW = Math.max(2.5, Math.min(195, this._rawWMm + dLocalX));
+                        const appliedDw = nextW - this._rawWMm;
+                        this._rawWMm = nextW;
+                        this._rawXMm = Math.max(5, Math.min(195, this._rawXMm + (appliedDw * 0.5) * cosA));
+                        this._rawYMm = Math.max(5, Math.min(195, this._rawYMm + (appliedDw * 0.5) * sinA));
+                    } else if (this.dragMode === 'resize-w') {
+                        const nextW = Math.max(2.5, Math.min(195, this._rawWMm - dLocalX));
+                        const appliedDw = nextW - this._rawWMm;
+                        this._rawWMm = nextW;
+                        this._rawXMm = Math.max(5, Math.min(195, this._rawXMm - (appliedDw * 0.5) * cosA));
+                        this._rawYMm = Math.max(5, Math.min(195, this._rawYMm - (appliedDw * 0.5) * sinA));
+                    } else if (this.dragMode === 'resize-s') {
+                        const nextH = Math.max(2.5, Math.min(195, this._rawHMm + dLocalY));
+                        const appliedDh = nextH - this._rawHMm;
+                        this._rawHMm = nextH;
+                        this._rawXMm = Math.max(5, Math.min(195, this._rawXMm - (appliedDh * 0.5) * sinA));
+                        this._rawYMm = Math.max(5, Math.min(195, this._rawYMm + (appliedDh * 0.5) * cosA));
+                    } else if (this.dragMode === 'resize-n') {
+                        const nextH = Math.max(2.5, Math.min(195, this._rawHMm - dLocalY));
+                        const appliedDh = nextH - this._rawHMm;
+                        this._rawHMm = nextH;
+                        this._rawXMm = Math.max(5, Math.min(195, this._rawXMm + (appliedDh * 0.5) * sinA));
+                        this._rawYMm = Math.max(5, Math.min(195, this._rawYMm - (appliedDh * 0.5) * cosA));
+                    }
+
+                    this.xMm = Math.round(this._rawXMm * 100) / 100;
+                    this.yMm = Math.round(this._rawYMm * 100) / 100;
+                    this.wMm = Math.round(this._rawWMm * 100) / 100;
+                    this.hMm = Math.round(this._rawHMm * 100) / 100;
+                    this.lockCurrentCoords();
+                    return;
+                }
+
                 const stepDxMm = (frameDx / rect.width) * 200 * gear;
                 const stepDyMm = (frameDy / rect.height) * 200 * gear;
                 this._rawXMm = Math.max(5, Math.min(195, this._rawXMm + stepDxMm));
@@ -1097,11 +1416,13 @@
                 }
             }
          }"
+         @mouseenter="cockpitHovered = true"
+         @mouseleave="cockpitHovered = false; xrayKeyHeld = false"
          @laser-cockpit-sync.window="syncCoordsFromServer($event.detail)"
          @laser-params-sync.window="syncLaserParamsFromServer($event.detail)"
-         @keydown.window="if ($event.key === 'Shift') shiftHeld = true"
-         @keyup.window="if ($event.key === 'Shift') shiftHeld = false"
-         @blur.window="shiftHeld = false"
+         @keydown.window="handleGlobalKeydown($event)"
+         @keyup.window="handleGlobalKeyup($event)"
+         @blur.window="shiftHeld = false; altHeld = false; xrayKeyHeld = false"
          wire:key="laser-cockpit-{{ $previewItem->id }}-{{ $cockpitData['side'] }}"
          class="bg-white dark:bg-gray-900/90 rounded-[1.5rem] sm:rounded-[2rem] border border-gray-200 dark:border-gray-800 shrink-0 relative">
 
@@ -1224,7 +1545,7 @@
                             <div class="font-black uppercase tracking-wider text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-1.5">
                                 xTool F2 Ultra UV ({{ $cockpitData['device_sn'] }})
                             </div>
-                            <p>200 × 200 mm entzerrtes Live-Kamerabild (10 px = 1,0 mm). Die cyanfarbene 1:1 Kontur umschließt bündig die Gravurfläche und lässt sich per Maus verschieben, drehen und skalieren.</p>
+                            <p>200 × 200 mm entzerrtes Live-Kamerabild (10 px = 1,0 mm). 4 Eckpunkte skalieren proportional, 4 Seiten-Punkte ziehen einzelne Kanten (mit ALT symmetrisch aus der Mitte, mit Shift im 0,01-mm-Feingang, Doppelklick auf einen Punkt = Originalmaß/0°). Verlauf: STRG+Z (Zurück) / STRG+Y (Vorwärts). Taste X oder Auge = Röntgen-Blick, Taste F = Fokus-Zoom, STRG+L = Rahmen-Sperre.</p>
                         </div>
                     </div>
                 </div>
@@ -1300,6 +1621,18 @@
                             @endif
                         </button>
                     </div>
+
+                    <button type="button"
+                            x-cloak
+                            x-show="getAvailableOtherSideDims() !== null"
+                            data-cockpit-sync-side-dims
+                            :disabled="frameLocked"
+                            @click.stop="copyDimensionsFromOtherSide()"
+                            :title="sideKey === 'back' ? 'Feinjustierte Breite und Höhe der Vorderseite übernehmen' : 'Feinjustierte Breite und Höhe der Rückseite übernehmen'"
+                            :class="frameLocked ? 'opacity-40 cursor-not-allowed' : 'hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] cursor-pointer'"
+                            class="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-[9px] font-black uppercase tracking-wider transition-all shrink-0">
+                        <span>&#8644; Maß übernehmen</span>
+                    </button>
                 </div>
             @endif
         </div>
@@ -1341,12 +1674,73 @@
                 </div>
             </div>
 
-            {{-- Schlanke Zoom-Steuerleiste (100 % bis 400 %) + 0 ms Anti-Blend-Sichtbarkeitshilfe --}}
+            {{-- Schlanke Zoom-Steuerleiste + Undo/Redo + Fokus/Röntgen/Sperre + Anti-Blend-Hilfe --}}
             <div data-cockpit-zoom-bar
                  @mousedown.stop
                  @touchstart.stop
-                 class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 px-3 py-1.5 rounded-xl border w-full max-w-[680px] mx-auto bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
-                <div class="flex items-center gap-1.5 flex-1 min-w-[160px]">
+                 class="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2 px-3 py-1.5 rounded-xl border w-full max-w-[680px] mx-auto bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 select-none">
+                {{-- Undo / Redo + Fokus-Zoom + Röntgen-Blick + Rahmen-Sperre --}}
+                <div class="inline-flex items-center gap-1 shrink-0">
+                    <button type="button"
+                            data-cockpit-undo
+                            @click.stop="undoCoords()"
+                            :disabled="!canUndo"
+                            :class="canUndo ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] cursor-pointer active:scale-95' : 'bg-gray-100/70 dark:bg-gray-900/40 text-gray-400 dark:text-gray-600 border-gray-200/70 dark:border-gray-800/70 opacity-50 cursor-not-allowed'"
+                            title="Rückgängig (STRG + Z)"
+                            class="w-6 h-6 rounded-lg border flex items-center justify-center text-xs font-black transition-all">
+                        &#8630;
+                    </button>
+                    <button type="button"
+                            data-cockpit-redo
+                            @click.stop="redoCoords()"
+                            :disabled="!canRedo"
+                            :class="canRedo ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)] hover:text-[var(--theme-color)] cursor-pointer active:scale-95' : 'bg-gray-100/70 dark:bg-gray-900/40 text-gray-400 dark:text-gray-600 border-gray-200/70 dark:border-gray-800/70 opacity-50 cursor-not-allowed'"
+                            title="Wiederherstellen (STRG + Y / STRG + Shift + Z)"
+                            class="w-6 h-6 rounded-lg border flex items-center justify-center text-xs font-black transition-all">
+                        &#8631;
+                    </button>
+                    <button type="button"
+                            data-cockpit-focus-zoom
+                            @click.stop="toggleFocusZoomOnFrame()"
+                            :class="cockpitZoom >= 2.2 ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]'"
+                            title="Direkt auf Rahmen-Mitte zoomen (320 %) / Zurücksetzen (Taste F)"
+                            class="w-6 h-6 rounded-lg border flex items-center justify-center transition-all cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <circle cx="12" cy="12" r="7"></circle>
+                            <path stroke-linecap="round" d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+                        </svg>
+                    </button>
+                    <button type="button"
+                            data-cockpit-xray-toggle
+                            @click.stop="xrayToggle = !xrayToggle"
+                            :class="isXrayActive ? 'bg-cyan-500 text-gray-950 border-cyan-500' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-cyan-400'"
+                            title="Röntgen-Blick: Motiv &amp; Punkte kurz ausblenden für freie Sicht auf die Produktkante (Anklicken oder Taste X gedrückt halten)"
+                            class="w-6 h-6 rounded-lg border flex items-center justify-center transition-all cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.1">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                    </button>
+                    <button type="button"
+                            data-cockpit-frame-lock
+                            @click.stop="toggleFrameLock()"
+                            :class="frameLocked ? 'bg-[var(--theme-color)] text-gray-950 border-[var(--theme-color)]' : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-[var(--theme-color)]'"
+                            title="Rahmen gegen versehentliches Verschieben sperren / entsperren (STRG + L)"
+                            class="w-6 h-6 rounded-lg border flex items-center justify-center transition-all cursor-pointer">
+                        <svg x-show="!frameLocked" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.1">
+                            <rect x="5" y="11" width="14" height="10" rx="2"></rect>
+                            <path stroke-linecap="round" d="M8 11V7a4 4 0 017.75-1.3"></path>
+                        </svg>
+                        <svg x-cloak x-show="frameLocked" style="display: none;" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <rect x="5" y="11" width="14" height="10" rx="2"></rect>
+                            <path stroke-linecap="round" d="M8 11V7a4 4 0 118 0v4"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="hidden sm:block h-4 w-px bg-gray-200 dark:bg-gray-800 shrink-0"></div>
+
+                <div class="flex items-center gap-1.5 flex-1 min-w-[130px]">
                     <button type="button"
                             data-cockpit-zoom-out
                             @click.stop="stepCockpitZoom(-0.25)"
@@ -1389,8 +1783,8 @@
 
                 <div class="hidden sm:block h-4 w-px bg-gray-200 dark:bg-gray-800 shrink-0"></div>
 
-                {{-- 0 ms Sichtbarkeits-Hilfe gegen Metall-Blendung: Abdunkeln (0-65 %) & Motiv-Kontrast --}}
-                <div class="flex items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto shrink-0">
+                {{-- 0 ms Sichtbarkeits-Hilfe gegen Metall-Blendung: Abdunkeln (0-65 %), Kanten-Fokus & Motiv-Kontrast --}}
+                <div class="flex flex-wrap items-center justify-between sm:justify-end gap-1.5 w-full sm:w-auto shrink-0">
                     <label data-cockpit-bg-dimmer
                            title="Kamerabild abdunkeln gegen Metall-Spiegelungen (0 % bis 65 %)"
                            class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-[9px] font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
@@ -1407,6 +1801,17 @@
                     </label>
 
                     <button type="button"
+                            data-cockpit-edge-focus
+                            @click.stop="toggleEdgeFocusFilter()"
+                            :class="edgeFocusFilter
+                                ? 'bg-cyan-500 text-gray-950 border-cyan-500'
+                                : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:border-cyan-400'"
+                            title="Weiße LED-/Metall-Überstrahlungen dämpfen und innere Rohling-Kante scharfzeichnen"
+                            class="px-2 py-1 rounded-lg border text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0">
+                        Kanten-Fokus
+                    </button>
+
+                    <button type="button"
                             data-cockpit-overlay-contrast
                             @click.stop="toggleHighContrastOverlay()"
                             :class="highContrastOverlay
@@ -1418,6 +1823,23 @@
                     </button>
                 </div>
             </div>
+
+            {{-- GPU-SVG-Filter für Kanten-Fokus (Spitzlicht-Kompression + 3x3 Kanten-Scharfzeichnung ohne Latenz) --}}
+            <svg width="0" height="0" class="absolute pointer-events-none" aria-hidden="true">
+                <defs>
+                    <filter id="sf-edge-focus-{{ $openScopeKey }}" color-interpolation-filters="sRGB">
+                        <feComponentTransfer result="glareRolled">
+                            <feFuncR type="table" tableValues="0 0.09 0.23 0.39 0.55 0.67 0.75 0.80 0.83 0.85" />
+                            <feFuncG type="table" tableValues="0 0.09 0.23 0.39 0.55 0.67 0.75 0.80 0.83 0.85" />
+                            <feFuncB type="table" tableValues="0 0.09 0.23 0.39 0.55 0.67 0.75 0.80 0.83 0.85" />
+                        </feComponentTransfer>
+                        <feConvolveMatrix in="glareRolled"
+                                          order="3"
+                                          kernelMatrix="0 -0.45 0 -0.45 2.8 -0.45 0 -0.45 0"
+                                          preserveAlpha="true" />
+                    </filter>
+                </defs>
+            </svg>
 
             {{-- 200x200 mm Live-Kamera-Arbeitsfläche (Zoom 100 %-400 %, Pan, Minimap, Shift 0,01 mm Fein-Getriebe) --}}
             <div x-ref="bedViewport"
@@ -1451,11 +1873,11 @@
                     <div class="absolute inset-0 pointer-events-none opacity-20"
                          style="background-image: linear-gradient(to right, rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.22) 1px, transparent 1px); background-size: 10% 10%;"></div>
 
-                    {{-- Doppel-Kontrast-Rahmen (haarfeine dunkle Kontur + #00d8ff Cyan) + WYSIWYG-Motiv + Drehgriff + 4 Resize-Handles --}}
+                    {{-- Haarfeiner Doppel-Kontrast-Rahmen (0.75px Schatten + 0.45px #00d8ff Cyan) + WYSIWYG-Motiv + Drehgriff + 8 Handles --}}
                     <div data-cockpit-blue-frame
                          @mousedown.stop.prevent="startDrag($event, 'move')"
                          @touchstart.stop.passive="startDrag($event, 'move')"
-                         :class="dragging && dragMode === 'move' ? 'cursor-grabbing' : 'cursor-move'"
+                         :class="frameLocked ? (cockpitZoom > 1.01 ? 'cursor-grab' : 'cursor-default') : (dragging && dragMode === 'move' ? 'cursor-grabbing' : 'cursor-move')"
                          class="absolute z-10 pointer-events-auto touch-none {{ $isCircleContour ? 'rounded-full' : '' }}"
                          style="left: {{ $initFrameLeftPct }}%; top: {{ $initFrameTopPct }}%; width: {{ $initFrameWidthPct }}%; height: {{ $initFrameHeightPct }}%; transform: translate(-50%, -50%) rotate({{ $initFrameAngle }}deg);"
                          :style="getBlueFrameStyle()">
@@ -1464,72 +1886,127 @@
                              class="w-full h-full overflow-visible pointer-events-none">
                             <path d="{{ $cockpitData['ghost_d_path'] }}"
                                   fill="none"
-                                  stroke="rgba(15, 23, 42, 0.70)"
-                                  stroke-width="1.45"
+                                  stroke="rgba(2, 6, 23, 0.78)"
+                                  stroke-width="0.75"
                                   vector-effect="non-scaling-stroke" />
                             <path d="{{ $cockpitData['ghost_d_path'] }}"
                                   fill="none"
+                                  :stroke="frameLocked ? '#f59e0b' : '#00d8ff'"
                                   stroke="#00d8ff"
-                                  stroke-width="0.85"
-                                  stroke-dasharray="3.5,2.5"
+                                  stroke-width="0.45"
+                                  stroke-dasharray="2.4,1.8"
                                   vector-effect="non-scaling-stroke" />
                         </svg>
                         <img src="{{ $cockpitData['preview_data_url'] }}"
                              alt="Gravur-Overlay"
                              :style="getOverlayContrastStyle()"
-                             class="absolute inset-0 w-full h-full object-fill pointer-events-none {{ $isDarkSurfaceOverlay ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]' : 'drop-shadow-[0_0_1.5px_rgba(255,255,255,0.55)]' }}"
+                             :class="isXrayActive ? 'opacity-0' : ''"
+                             class="absolute inset-0 w-full h-full object-fill pointer-events-none transition-opacity duration-75 {{ $isDarkSurfaceOverlay ? 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.45)]' : 'drop-shadow-[0_0_1.5px_rgba(255,255,255,0.55)]' }}"
                              draggable="false">
 
-                        {{-- Dreh-Griff (leicht über die Kerbe abgesetzt, per scale(1 / cockpitZoom) kompakt gehalten) --}}
+                        {{-- Dreh-Griff (Doppelklick setzt Winkel auf 0,0° zurück) --}}
                         <button type="button"
                                 data-rotate-handle
                                 @mousedown.stop.prevent="startDrag($event, 'rotate')"
                                 @touchstart.stop.passive="startDrag($event, 'rotate')"
-                                title="Gedrückt halten zum Drehen"
-                                style="left: 50%; top: 0%; transform: translate(-50%, -85%) scale(1);"
-                                :style="`left: 50%; top: 0%; transform: translate(-50%, -85%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-gray-950 border-[0.75px] border-gray-950 shadow-sm flex items-center justify-center text-[8px] leading-none font-black cursor-grab active:cursor-grabbing after:content-[''] after:absolute after:-inset-2">
+                                @dblclick.stop.prevent="resetFrameAxis('angle')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Gedrückt halten zum Drehen · Doppelklick = 0°"
+                                style="left: 50%; top: 0%; transform: translate(-50%, -155%) scale(1);"
+                                :style="`left: 50%; top: 0%; transform: translate(-50%, -155%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="touch-none absolute w-3.5 h-3.5 rounded-full bg-cyan-400 hover:bg-cyan-300 text-gray-950 border-[0.75px] border-gray-950 shadow-sm flex items-center justify-center text-[8px] leading-none font-black cursor-grab active:cursor-grabbing transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2">
                             &#8635;
                         </button>
 
-                        {{-- 4 Proportionale Resize-Handles (NW, NE, SE, SW) dezent auf der blauen Kontur --}}
+                        {{-- 4 Proportionale Eck-Handles (NW, NE, SE, SW · Doppelklick = Originalmaß) --}}
                         <button type="button"
                                 data-resize-handle="nw"
                                 @mousedown.stop.prevent="startDrag($event, 'resize')"
                                 @touchstart.stop.passive="startDrag($event, 'resize')"
-                                title="Größe ändern"
+                                @dblclick.stop.prevent="resetFrameAxis('both')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Proportional skalieren · Doppelklick = Originalmaß"
                                 style="left: {{ $hPosMin }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(1);"
                                 :style="`left: {{ $hPosMin }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nwse-resize after:content-[''] after:absolute after:-inset-2"></button>
+                                class="touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nwse-resize transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2"></button>
                         <button type="button"
                                 data-resize-handle="ne"
                                 @mousedown.stop.prevent="startDrag($event, 'resize')"
                                 @touchstart.stop.passive="startDrag($event, 'resize')"
-                                title="Größe ändern"
+                                @dblclick.stop.prevent="resetFrameAxis('both')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Proportional skalieren · Doppelklick = Originalmaß"
                                 style="left: {{ $hPosMax }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(1);"
                                 :style="`left: {{ $hPosMax }}; top: {{ $hPosMin }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nesw-resize after:content-[''] after:absolute after:-inset-2"></button>
+                                class="touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nesw-resize transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2"></button>
                         <button type="button"
                                 data-resize-handle="se"
                                 @mousedown.stop.prevent="startDrag($event, 'resize')"
                                 @touchstart.stop.passive="startDrag($event, 'resize')"
-                                title="Größe ändern"
+                                @dblclick.stop.prevent="resetFrameAxis('both')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Proportional skalieren · Doppelklick = Originalmaß"
                                 style="left: {{ $hPosMax }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(1);"
                                 :style="`left: {{ $hPosMax }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nwse-resize after:content-[''] after:absolute after:-inset-2"></button>
+                                class="touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nwse-resize transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2"></button>
                         <button type="button"
                                 data-resize-handle="sw"
                                 @mousedown.stop.prevent="startDrag($event, 'resize')"
                                 @touchstart.stop.passive="startDrag($event, 'resize')"
-                                title="Größe ändern"
+                                @dblclick.stop.prevent="resetFrameAxis('both')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Proportional skalieren · Doppelklick = Originalmaß"
                                 style="left: {{ $hPosMin }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(1);"
                                 :style="`left: {{ $hPosMin }}; top: {{ $hPosMax }}; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                                class="pointer-events-auto touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nesw-resize after:content-[''] after:absolute after:-inset-2"></button>
+                                class="touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-nesw-resize transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2"></button>
+
+                        {{-- 4 Einseitige Kanten-Handles (N, E, S, W · mit ALT symmetrisch · Doppelklick = Original-Achsenmaß) --}}
+                        <button type="button"
+                                data-resize-handle="n"
+                                @mousedown.stop.prevent="startDrag($event, 'resize-n')"
+                                @touchstart.stop.passive="startDrag($event, 'resize-n')"
+                                @dblclick.stop.prevent="resetFrameAxis('h')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Oberkante anpassen · Mit ALT symmetrisch · Doppelklick = Original-Höhe"
+                                style="left: 50%; top: 0%; transform: translate(-50%, -50%) scale(1);"
+                                :style="`left: 50%; top: 0%; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-ns-resize transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2"></button>
+                        <button type="button"
+                                data-resize-handle="e"
+                                @mousedown.stop.prevent="startDrag($event, 'resize-e')"
+                                @touchstart.stop.passive="startDrag($event, 'resize-e')"
+                                @dblclick.stop.prevent="resetFrameAxis('w')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Rechte Kante anpassen · Mit ALT symmetrisch · Doppelklick = Original-Breite"
+                                style="left: 100%; top: 50%; transform: translate(-50%, -50%) scale(1);"
+                                :style="`left: 100%; top: 50%; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-ew-resize transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2"></button>
+                        <button type="button"
+                                data-resize-handle="s"
+                                @mousedown.stop.prevent="startDrag($event, 'resize-s')"
+                                @touchstart.stop.passive="startDrag($event, 'resize-s')"
+                                @dblclick.stop.prevent="resetFrameAxis('h')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Unterkante anpassen · Mit ALT symmetrisch · Doppelklick = Original-Höhe"
+                                style="left: 50%; top: 100%; transform: translate(-50%, -50%) scale(1);"
+                                :style="`left: 50%; top: 100%; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-ns-resize transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2"></button>
+                        <button type="button"
+                                data-resize-handle="w"
+                                @mousedown.stop.prevent="startDrag($event, 'resize-w')"
+                                @touchstart.stop.passive="startDrag($event, 'resize-w')"
+                                @dblclick.stop.prevent="resetFrameAxis('w')"
+                                :class="(isXrayActive || frameLocked) ? 'opacity-0 pointer-events-none' : 'pointer-events-auto'"
+                                title="Linke Kante anpassen · Mit ALT symmetrisch · Doppelklick = Original-Breite"
+                                style="left: 0%; top: 50%; transform: translate(-50%, -50%) scale(1);"
+                                :style="`left: 0%; top: 50%; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
+                                class="touch-none absolute w-2 h-2 rounded-full bg-cyan-400 hover:bg-cyan-300 border-[0.75px] border-gray-950 shadow-sm cursor-ew-resize transition-opacity duration-75 after:content-[''] after:absolute after:-inset-2"></button>
 
                         {{-- Mittelpunkt-Fadenkreuz --}}
                         <div style="left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1);"
                              :style="`left: 50%; top: 50%; transform: translate(-50%, -50%) scale(${(1 / cockpitZoom).toFixed(4)});`"
-                             class="pointer-events-none absolute w-1.5 h-1.5 rounded-full bg-cyan-400 border-[0.75px] border-gray-950 shadow-sm"></div>
+                             :class="isXrayActive ? 'opacity-0' : ''"
+                             class="pointer-events-none absolute w-1.5 h-1.5 rounded-full bg-cyan-400 border-[0.75px] border-gray-950 shadow-sm transition-opacity duration-75"></div>
                     </div>
                 </div>
 
@@ -1572,6 +2049,27 @@
                               data-cockpit-shift-badge
                               class="px-2.5 py-1 rounded-lg bg-[var(--theme-color)] text-gray-950 font-mono text-[10px] font-black uppercase tracking-wider shadow-md">
                             SHIFT · FEIN-MODUS (0,01 MM / 0,01°)
+                        </span>
+                        <span x-cloak
+                              x-show="altHeld"
+                              style="display: none;"
+                              data-cockpit-alt-badge
+                              class="px-2.5 py-1 rounded-lg bg-cyan-500 text-gray-950 font-mono text-[10px] font-black uppercase tracking-wider shadow-md">
+                            ALT · SYMMETRISCH
+                        </span>
+                        <span x-cloak
+                              x-show="isXrayActive"
+                              style="display: none;"
+                              data-cockpit-xray-badge
+                              class="px-2.5 py-1 rounded-lg bg-cyan-950/90 border border-cyan-400 text-cyan-200 font-mono text-[10px] font-black uppercase tracking-wider shadow-md">
+                            RÖNTGEN-BLICK
+                        </span>
+                        <span x-cloak
+                              x-show="frameLocked"
+                              style="display: none;"
+                              data-cockpit-lock-badge
+                              class="px-2.5 py-1 rounded-lg bg-gray-950/90 border border-[var(--theme-color)] text-[var(--theme-color)] font-mono text-[10px] font-black uppercase tracking-wider shadow-md">
+                            GESPERRT
                         </span>
                         <span x-cloak
                               x-show="showLaserDetails"
@@ -1641,9 +2139,10 @@
                            step="0.01"
                            min="5"
                            max="195"
+                           :disabled="frameLocked"
                            x-model.number="xMm"
-                           @change="persistCoords()"
-                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                           @change="_rawXMm = Number(xMm) || 100; persistCoords(true)"
+                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none disabled:opacity-50">
                 </div>
                 <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
                     <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">Y (mm)</span>
@@ -1651,9 +2150,10 @@
                            step="0.01"
                            min="5"
                            max="195"
+                           :disabled="frameLocked"
                            x-model.number="yMm"
-                           @change="persistCoords()"
-                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                           @change="_rawYMm = Number(yMm) || 100; persistCoords(true)"
+                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none disabled:opacity-50">
                 </div>
                 <div class="flex items-center justify-between gap-2 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-800">
                     <span class="text-[9px] font-black uppercase tracking-wider text-gray-400">Winkel</span>
@@ -1661,11 +2161,12 @@
                            step="0.01"
                            min="-180"
                            max="180"
+                           :disabled="frameLocked"
                            x-model.number="angleDeg"
-                           @change="angleDeg = Math.round(normalizeAngleDeg(angleDeg) * 100) / 100; _rawAngleDeg = angleDeg; persistCoords()"
-                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none">
+                           @change="angleDeg = Math.round(normalizeAngleDeg(angleDeg) * 100) / 100; _rawAngleDeg = angleDeg; persistCoords(true)"
+                           class="w-16 text-right font-mono text-xs font-black bg-transparent text-gray-900 dark:text-white focus:outline-none disabled:opacity-50">
                 </div>
-                <div class="flex items-center justify-center gap-1">
+                <div class="flex items-center justify-center gap-1" :class="frameLocked ? 'opacity-40 pointer-events-none' : ''">
                     <button type="button" @click="nudge(-0.5, 0, 0, $event.shiftKey)" title="Nach links (Shift = 0,02 mm)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&larr;</button>
                     <button type="button" @click="nudge(0, -0.5, 0, $event.shiftKey)" title="Nach oben (Shift = 0,02 mm)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&uarr;</button>
                     <button type="button" @click="nudge(0, 0.5, 0, $event.shiftKey)" title="Nach unten (Shift = 0,02 mm)" class="px-2 py-1.5 rounded-lg bg-white dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-800 text-xs font-black text-gray-700 dark:text-gray-200 cursor-pointer">&darr;</button>

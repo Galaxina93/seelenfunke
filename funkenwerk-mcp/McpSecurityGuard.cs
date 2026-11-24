@@ -386,11 +386,14 @@ namespace FunkenwerkMcp
                     }
                 }
 
+                string localProgramsCol = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Funkenwerk Collection");
+                if (Directory.Exists(localProgramsCol)) return localProgramsCol;
+                if (Directory.Exists(@"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection")) return @"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection";
                 string desktopCol = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Funkenwerk Collection");
                 if (Directory.Exists(desktopCol)) return desktopCol;
                 if (Directory.Exists(@"C:\Users\konta\Desktop\Funkenwerk Collection")) return @"C:\Users\konta\Desktop\Funkenwerk Collection";
                 if (Directory.Exists(@"C:\Funkenwerk Collection")) return @"C:\Funkenwerk Collection";
-                return desktopCol;
+                return localProgramsCol;
             }
         }
 

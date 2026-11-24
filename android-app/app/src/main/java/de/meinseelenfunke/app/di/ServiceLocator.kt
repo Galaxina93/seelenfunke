@@ -92,6 +92,8 @@ object ServiceLocator {
     private const val KEY_WAKE_WORD_ENABLED = "wake_word_enabled"
     private const val KEY_FCM_TOKEN = "fcm_token"
     private const val KEY_USER_TYPE = "user_type"
+    private const val KEY_EMP_CAN_TASKS = "emp_can_tasks"
+    private const val KEY_EMP_CAN_PRODUCTION = "emp_can_production"
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_SAVED_PASSWORD = "saved_password"
     private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
@@ -298,6 +300,12 @@ object ServiceLocator {
     private val _userTypeState = MutableStateFlow<String?>(null)
     val userTypeState = _userTypeState.asStateFlow()
 
+    private val _employeeCanTasksState = MutableStateFlow(true)
+    val employeeCanTasksState = _employeeCanTasksState.asStateFlow()
+
+    private val _employeeCanProductionState = MutableStateFlow(false)
+    val employeeCanProductionState = _employeeCanProductionState.asStateFlow()
+
     private val _themeModeState = MutableStateFlow(ThemeMode.LIGHT)
     val themeModeState = _themeModeState.asStateFlow()
 
@@ -334,8 +342,35 @@ object ServiceLocator {
     }
 
     fun clearUserType() {
-        sharedPreferences.edit().remove(KEY_USER_TYPE).apply()
+        sharedPreferences.edit()
+            .remove(KEY_USER_TYPE)
+            .remove(KEY_EMP_CAN_TASKS)
+            .remove(KEY_EMP_CAN_PRODUCTION)
+            .apply()
         _userTypeState.value = null
+        _employeeCanTasksState.value = true
+        _employeeCanProductionState.value = false
+    }
+
+    fun saveEmployeePermissions(canTasks: Boolean, canProduction: Boolean) {
+        if (::sharedPreferences.isInitialized) {
+            sharedPreferences.edit()
+                .putBoolean(KEY_EMP_CAN_TASKS, canTasks)
+                .putBoolean(KEY_EMP_CAN_PRODUCTION, canProduction)
+                .apply()
+        }
+        _employeeCanTasksState.value = canTasks
+        _employeeCanProductionState.value = canProduction
+    }
+
+    fun canEmployeeAccessTasks(): Boolean {
+        if (!::sharedPreferences.isInitialized) return true
+        return sharedPreferences.getBoolean(KEY_EMP_CAN_TASKS, true)
+    }
+
+    fun canEmployeeAccessProduction(): Boolean {
+        if (!::sharedPreferences.isInitialized) return false
+        return sharedPreferences.getBoolean(KEY_EMP_CAN_PRODUCTION, false)
     }
 
     fun getFcmToken(): String? {
@@ -437,6 +472,8 @@ object ServiceLocator {
         sessionFallbackSecrets.remove(KEY_SAVED_PASSWORD)
 
         _userTypeState.value = sharedPreferences.getString(KEY_USER_TYPE, null)
+        _employeeCanTasksState.value = sharedPreferences.getBoolean(KEY_EMP_CAN_TASKS, true)
+        _employeeCanProductionState.value = sharedPreferences.getBoolean(KEY_EMP_CAN_PRODUCTION, false)
         _themeModeState.value = getThemeMode()
 
         val defaultUrl = getDynamicDefaultBaseUrl()

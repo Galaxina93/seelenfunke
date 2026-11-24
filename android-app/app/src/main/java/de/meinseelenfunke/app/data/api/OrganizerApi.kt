@@ -231,6 +231,34 @@ data class PhoneWhitelistToggleBody(
     val funkira_call_whitelist: Boolean
 )
 
+data class CallFactCheckDto(
+    val fact: String = "",
+    val evidence_quote: String = "",
+    val matched: Boolean = true
+)
+
+data class CallDiscrepancyDto(
+    val category: String = "",
+    val understood: String = "",
+    val spoken: String = "",
+    val severity: String = "warning",
+    val resolved_by_correction: Boolean = false
+)
+
+data class CallVerificationReportDto(
+    val status: String = "pending", // verified, corrected, uncertain, pending, user_confirmed
+    val confidence_score: Int = 0,
+    val verification_summary: String = "",
+    val verified_facts: List<CallFactCheckDto>? = emptyList(),
+    val discrepancies: List<CallDiscrepancyDto>? = emptyList(),
+    val corrected_summary: String = "",
+    val corrected_rahmenbedingungen: List<String>? = emptyList(),
+    val corrected_action_required: String = "",
+    val corrected_urgency: String = "mittel",
+    val corrected_callback_requested: Boolean = true,
+    val checked_at_iso: String = ""
+)
+
 data class PhoneSecretaryCallSummaryDto(
     val id: String = "",
     val caller_name: String = "",
@@ -241,7 +269,9 @@ data class PhoneSecretaryCallSummaryDto(
     val action_required: String = "",
     val urgency: String = "mittel",
     val callback_requested: Boolean = true,
-    val transcript: List<String>? = emptyList()
+    val transcript: List<String>? = emptyList(),
+    val handled_by: String = "",
+    val verification: CallVerificationReportDto? = null
 )
 
 data class PhoneConciergeConfigPayload(

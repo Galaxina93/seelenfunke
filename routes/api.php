@@ -1191,35 +1191,31 @@ Route::middleware('auth:sanctum')->group(function () {
     })->middleware('throttle:10,1');
 
     // --- 2b. Vollzugriffs-Schranke: Eingeschränkte Geräte-Tokens (z.B. monitor:pulse) werden für das gesamte restliche Portal blockiert ---
-    Route::group(['middleware' => [function ($request, $next) {
-        $user = $request->user();
-        if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*')) {
-            if (!$request->is('api/logout')) {
-                abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
-            }
-        }
-        return $next($request);
-    }]], function () {
+    Route::middleware([\App\Http\Middleware\EnsureFullAccessToken::class])->group(function () {
 
         // Basis User- & Geräte-Funktionen (Für alle authentifizierten Benutzer: Admin, Mitarbeiter, Kunde)
         require __DIR__ . '/api/core.php';
 
+        // Gemeinsame interne Manufaktur-Endpunkte (Admin + aktive interne Mitarbeiter gemäß EmployeeContract-Rechten)
+        Route::middleware([\App\Http\Middleware\EnsureFunkenwerkDomainAccess::class])->group(function () {
+            // Tasks (Aufgaben - bei Mitarbeitern strikt auf eigene zugewiesene Aufgaben isoliert)
+            require __DIR__ . '/api/tasks.php';
+
+            // Shop Orders (Bestellungen - bei Mitarbeitern nur mit can_access_production)
+            require __DIR__ . '/api/orders.php';
+
+            // Privater Funkenwerk Android & Windows OTA Update-Kanal (Publish strikt Admin-only)
+            require __DIR__ . '/api/system_ota.php';
+        });
+
         // Admin Back-Office (Ausschließlich für Administratoren zugänglich)
-        Route::group(['middleware' => [function ($request, $next) {
-            if (!$request->user() instanceof \App\Models\Admin\Admin) {
-                abort(403, 'Zugriff verweigert. Nur Administratoren dürfen auf das Back-Office zugreifen.');
-            }
-            return $next($request);
-        }]], function () {
+        Route::middleware([\App\Http\Middleware\EnsureAdminApiAccess::class])->group(function () {
 
             // Finanz-Manager
             require __DIR__ . '/api/finance.php';
 
             // Tagesroutine
             require __DIR__ . '/api/routine.php';
-
-            // Tasks (Aufgaben)
-            require __DIR__ . '/api/tasks.php';
 
             // E-Mails
             require __DIR__ . '/api/emails.php';
@@ -1236,14 +1232,8 @@ Route::middleware('auth:sanctum')->group(function () {
             // Musik & Soundplayer
             require __DIR__ . '/api/music.php';
 
-            // Shop Orders (Bestellungen)
-            require __DIR__ . '/api/orders.php';
-
             // Dateiverwaltung (Workspace & Dateitrichter)
             require __DIR__ . '/api/files.php';
-
-            // Privater Funkenwerk Android OTA Update-Kanal
-            require __DIR__ . '/api/system_ota.php';
 
             // Marketing & Content-Planer Live-Kontext (Shop-Produkte, Margen, Jahreszeiten & Feiertage)
             Route::get('/funki/marketing/live-context', function (\App\Services\Marketing\HolidayOfferAutopilotService $autopilot) {

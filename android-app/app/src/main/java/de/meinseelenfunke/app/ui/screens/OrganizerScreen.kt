@@ -193,10 +193,15 @@ fun OrganizerScreen(
 
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
-    val pagerState = rememberPagerState(
-        initialPage = initialTab.coerceIn(0, 7),
-        pageCount = { 8 }
-    )
+    val userType by ServiceLocator.userTypeState.collectAsState(initial = ServiceLocator.getUserType())
+    val isAdmin = userType == "admin"
+    val maxTabIndex = if (isAdmin) 7 else 0
+    val pagerState = androidx.compose.runtime.key(isAdmin) {
+        rememberPagerState(
+            initialPage = initialTab.coerceIn(0, maxTabIndex),
+            pageCount = { if (isAdmin) 8 else 1 }
+        )
+    }
     var isFirstLoad by remember { mutableStateOf(true) }
 
     LaunchedEffect(pagerState.currentPage) {
@@ -205,8 +210,8 @@ fun OrganizerScreen(
         }
     }
 
-    LaunchedEffect(initialTab, navTrigger) {
-        val target = initialTab.coerceIn(0, 7)
+    LaunchedEffect(initialTab, navTrigger, isAdmin) {
+        val target = initialTab.coerceIn(0, maxTabIndex)
         if (pagerState.currentPage != target) {
             pagerState.scrollToPage(target)
         }
@@ -288,76 +293,80 @@ fun OrganizerScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "ORGANIZER",
+                        text = if (isAdmin) "ORGANIZER" else "AUFGABEN",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Gold,
                         letterSpacing = 2.sp
                     )
-                    Text(
-                        text = tabTitles.getOrElse(pagerState.currentPage) { "Aufgaben" },
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Gold
-                    )
+                    if (isAdmin) {
+                        Text(
+                            text = tabTitles.getOrElse(pagerState.currentPage) { "Aufgaben" },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Gold
+                        )
+                    }
                 }
                 Text(
-                    text = "Behalte deinen Tag im Blick",
+                    text = if (isAdmin) "Behalte deinen Tag im Blick" else "Deine Team-Aufgaben im Blick",
                     fontSize = 12.sp,
                     color = AppTheme.colors.textMuted
                 )
             }
 
-            // Compact Icon Tab bar (8 Tabs: Aufgaben, Kalender, Routine, Einkauf, E-Mail, Musik, Wecker, Telefon)
-            TabRow(
-                selectedTabIndex = pagerState.currentPage,
-                containerColor = Color.Transparent,
-                contentColor = AppTheme.colors.textPrimary,
-                indicator = { tabPositions ->
-                    if (pagerState.currentPage < tabPositions.size) {
-                        TabRowDefaults.SecondaryIndicator(
-                            Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
-                            color = Gold
+            // Compact Icon Tab bar (Admin only: 8 Tabs; Employees strictly see Aufgaben only)
+            if (isAdmin) {
+                TabRow(
+                    selectedTabIndex = pagerState.currentPage,
+                    containerColor = Color.Transparent,
+                    contentColor = AppTheme.colors.textPrimary,
+                    indicator = { tabPositions ->
+                        if (pagerState.currentPage < tabPositions.size) {
+                            TabRowDefaults.SecondaryIndicator(
+                                Modifier.tabIndicatorOffset(tabPositions[pagerState.currentPage]),
+                                color = Gold
+                            )
+                        }
+                    }
+                ) {
+                    tabTitles.forEachIndexed { index, title ->
+                        val isSelected = pagerState.currentPage == index
+                        Tab(
+                            selected = isSelected,
+                            onClick = {
+                                scope.launch {
+                                    if (kotlin.math.abs(pagerState.currentPage - index) > 1) {
+                                        pagerState.scrollToPage(index)
+                                    } else {
+                                        pagerState.animateScrollToPage(index)
+                                    }
+                                }
+                            },
+                            selectedContentColor = Gold,
+                            unselectedContentColor = AppTheme.colors.textMuted,
+                            icon = {
+                                Box {
+                                    Icon(
+                                        imageVector = tabIcons[index],
+                                        contentDescription = title,
+                                        modifier = Modifier.size(20.dp),
+                                        tint = if (isSelected) Gold else AppTheme.colors.textMuted
+                                    )
+                                    if (index == 7 && unseenPhoneEntries > 0 && !isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .align(Alignment.TopEnd)
+                                                .offset(x = 2.dp, y = (-2).dp)
+                                                .clip(CircleShape)
+                                                .background(Gold)
+                                        )
+                                    }
+                                }
+                            }
                         )
                     }
-                }
-            ) {
-                tabTitles.forEachIndexed { index, title ->
-                    val isSelected = pagerState.currentPage == index
-                    Tab(
-                        selected = isSelected,
-                        onClick = {
-                            scope.launch {
-                                if (kotlin.math.abs(pagerState.currentPage - index) > 1) {
-                                    pagerState.scrollToPage(index)
-                                } else {
-                                    pagerState.animateScrollToPage(index)
-                                }
-                            }
-                        },
-                        selectedContentColor = Gold,
-                        unselectedContentColor = AppTheme.colors.textMuted,
-                        icon = {
-                            Box {
-                                Icon(
-                                    imageVector = tabIcons[index],
-                                    contentDescription = title,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = if (isSelected) Gold else AppTheme.colors.textMuted
-                                )
-                                if (index == 7 && unseenPhoneEntries > 0 && !isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .align(Alignment.TopEnd)
-                                            .offset(x = 2.dp, y = (-2).dp)
-                                            .clip(CircleShape)
-                                            .background(Gold)
-                                    )
-                                }
-                            }
-                        }
-                    )
                 }
             }
 
@@ -487,6 +496,11 @@ fun OrganizerScreen(
                                     scope.launch {
                                         pagerState.animateScrollToPage(0)
                                     }
+                                },
+                                onVerifyCall = { call -> viewModel.verifySecretaryCall(call) },
+                                onConfirmCall = { callId -> viewModel.confirmSecretaryCall(callId) },
+                                onUpdateCallNote = { callId, sum, act, rahmen ->
+                                    viewModel.updateSecretaryCallNote(callId, sum, act, rahmen)
                                 }
                             )
                         }

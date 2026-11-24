@@ -127,6 +127,51 @@
         (function () {
             const STATE_KEY = 'fw_music_player_state_v1';
             const PREFS_KEY = 'fw_music_prefs_v1';
+            const OWNER_KEY = 'fw_music_active_owner_v1';
+            const CHANNEL_NAME = 'fw_music_cross_tab_v1';
+            const OWNER_TTL_MS = 12000;
+            const TAB_ID = (window.crypto && typeof window.crypto.randomUUID === 'function')
+                ? window.crypto.randomUUID()
+                : ('fw_tab_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+
+            let crossTabChannel = null;
+            try {
+                if (typeof window.BroadcastChannel !== 'undefined') {
+                    crossTabChannel = new window.BroadcastChannel(CHANNEL_NAME);
+                }
+            } catch (e) {
+                crossTabChannel = null;
+            }
+
+            function readActiveOwner() {
+                try {
+                    const raw = localStorage.getItem(OWNER_KEY);
+                    if (!raw) return null;
+                    const parsed = JSON.parse(raw);
+                    return (parsed && typeof parsed === 'object') ? parsed : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+
+            function isAnotherTabActivelyPlaying() {
+                const owner = readActiveOwner();
+                if (!owner || !owner.ownerId || owner.ownerId === TAB_ID) {
+                    return false;
+                }
+                if (owner.releasedForNav === true) {
+                    return false;
+                }
+                const age = Date.now() - (typeof owner.ts === 'number' ? owner.ts : 0);
+                return Boolean(owner.isPlaying && age >= 0 && age < OWNER_TTL_MS);
+            }
+
+            function postCrossTabMessage(payload) {
+                if (!crossTabChannel) return;
+                try {
+                    crossTabChannel.postMessage(Object.assign({ senderId: TAB_ID, ts: Date.now() }, payload));
+                } catch (e) {}
+            }
 
             function createFwMusicStoreObject() {
                 return {
@@ -147,6 +192,60 @@
                     _lastPreloadedUrl: '',
                     _lastSavedAt: 0,
                     _engineReady: false,
+                    _suppressPausePersist: false,
+
+                    claimAudioFocus(playing = true) {
+                        try {
+                            localStorage.setItem(OWNER_KEY, JSON.stringify({
+                                ownerId: TAB_ID,
+                                isPlaying: Boolean(playing),
+                                releasedForNav: false,
+                                trackId: this.currentTrack ? this.currentTrack.id : null,
+                                ts: Date.now(),
+                            }));
+                        } catch (e) {}
+
+                        if (playing) {
+                            postCrossTabMessage({
+                                type: 'CLAIM_AUDIO',
+                                trackId: this.currentTrack ? this.currentTrack.id : null,
+                            });
+                        }
+                    },
+
+                    releaseAudioFocus(forNavigation = false) {
+                        try {
+                            const owner = readActiveOwner();
+                            if (!owner || owner.ownerId !== TAB_ID) return;
+                            if (forNavigation) {
+                                localStorage.setItem(OWNER_KEY, JSON.stringify({
+                                    ownerId: TAB_ID,
+                                    isPlaying: Boolean(this.isPlaying),
+                                    releasedForNav: true,
+                                    trackId: this.currentTrack ? this.currentTrack.id : null,
+                                    ts: Date.now(),
+                                }));
+                            } else {
+                                localStorage.removeItem(OWNER_KEY);
+                            }
+                        } catch (e) {}
+                    },
+
+                    yieldToOtherTab() {
+                        const audio = window.__fwGlobalAudio;
+                        this._playRequestId++;
+                        if (audio && !audio.paused) {
+                            this._suppressPausePersist = true;
+                            try { audio.pause(); } catch (e) {}
+                            this._suppressPausePersist = false;
+                        }
+                        this.isPlaying = false;
+                        this.isBuffering = false;
+                        if (!this.isOnMusicPage) {
+                            this.hasActiveSession = false;
+                        }
+                        try { sessionStorage.removeItem(STATE_KEY); } catch (e) {}
+                    },
 
                     getAudio() {
                         if (!window.__fwGlobalAudio) {
@@ -223,6 +322,7 @@
                                 if (s) {
                                     s.isPlaying = true;
                                     s.hasActiveSession = true;
+                                    s.claimAudioFocus(true);
                                     s.saveSessionState(true);
                                     s.updateMediaSession();
                                 }
@@ -234,6 +334,7 @@
                                     s.isPlaying = true;
                                     s.isBuffering = false;
                                     s.hasActiveSession = true;
+                                    s.claimAudioFocus(true);
                                 }
                             });
 
@@ -241,7 +342,10 @@
                                 const s = window.Alpine ? Alpine.store('fwMusic') : null;
                                 if (s && !audio.seeking && !audio.ended) {
                                     s.isPlaying = false;
-                                    s.saveSessionState(true);
+                                    if (!s._suppressPausePersist) {
+                                        s.claimAudioFocus(false);
+                                        s.saveSessionState(true);
+                                    }
                                 }
                             });
 
@@ -255,6 +359,9 @@
                                 const now = Date.now();
                                 if (now - s._lastSavedAt > 1500) {
                                     s._lastSavedAt = now;
+                                    if (!audio.paused) {
+                                        s.claimAudioFocus(true);
+                                    }
                                     s.saveSessionState(false);
                                 }
                             });
@@ -305,9 +412,70 @@
                                 }
                             });
 
-                            window.addEventListener('beforeunload', () => {
+                            const handlePageUnload = () => {
                                 const s = window.Alpine ? Alpine.store('fwMusic') : null;
-                                if (s) s.saveSessionState(true);
+                                if (s) {
+                                    s.saveSessionState(true);
+                                    s.releaseAudioFocus(true);
+                                }
+                            };
+                            window.addEventListener('pagehide', handlePageUnload);
+                            window.addEventListener('beforeunload', handlePageUnload);
+
+                            // Heartbeat for background tabs so OWNER_KEY never expires while actively playing
+                            setInterval(() => {
+                                const s = window.Alpine ? Alpine.store('fwMusic') : null;
+                                const a = window.__fwGlobalAudio;
+                                if (s && a && !a.paused && s.isPlaying) {
+                                    s.claimAudioFocus(true);
+                                }
+                            }, 2500);
+
+                            // Cross-tab BroadcastChannel listener: guarantee at most 1 tab plays audio at any time
+                            if (crossTabChannel) {
+                                crossTabChannel.addEventListener('message', (ev) => {
+                                    const msg = ev && ev.data ? ev.data : null;
+                                    if (!msg || !msg.senderId || msg.senderId === TAB_ID) return;
+                                    const s = window.Alpine ? Alpine.store('fwMusic') : null;
+                                    const a = window.__fwGlobalAudio;
+                                    if (!s) return;
+
+                                    if (msg.type === 'CLAIM_AUDIO' || msg.type === 'PONG_ACTIVE_OWNER') {
+                                        s.yieldToOtherTab();
+                                    } else if (msg.type === 'PING_ACTIVE_OWNER') {
+                                        if (a && !a.paused && s.isPlaying) {
+                                            s.claimAudioFocus(true);
+                                            postCrossTabMessage({ type: 'PONG_ACTIVE_OWNER' });
+                                        }
+                                    }
+                                });
+                            }
+
+                            // Storage fallback listener (works even if BroadcastChannel is unavailable)
+                            window.addEventListener('storage', (ev) => {
+                                if (!ev) return;
+                                const s = window.Alpine ? Alpine.store('fwMusic') : null;
+                                if (!s) return;
+
+                                if (ev.key === OWNER_KEY && ev.newValue) {
+                                    try {
+                                        const nextOwner = JSON.parse(ev.newValue);
+                                        if (nextOwner && nextOwner.ownerId && nextOwner.ownerId !== TAB_ID && nextOwner.isPlaying && !nextOwner.releasedForNav) {
+                                            s.yieldToOtherTab();
+                                        }
+                                    } catch (e) {}
+                                } else if (ev.key === PREFS_KEY && ev.newValue) {
+                                    try {
+                                        const prefs = JSON.parse(ev.newValue);
+                                        if (typeof prefs.volume === 'number' && !isNaN(prefs.volume)) {
+                                            s.volume = Math.max(0, Math.min(1, prefs.volume));
+                                            const a = window.__fwGlobalAudio;
+                                            if (a) a.volume = s.volume;
+                                        }
+                                        if (typeof prefs.isShuffle === 'boolean') s.isShuffle = prefs.isShuffle;
+                                        if (typeof prefs.isRepeat === 'boolean') s.isRepeat = prefs.isRepeat;
+                                    } catch (e) {}
+                                }
                             });
 
                             // Intercept plain internal /admin/... links when music session is active so wire:navigate keeps the JS context alive
@@ -381,10 +549,21 @@
 
                     restoreSessionState() {
                         try {
+                            // Never auto-resume cloned sessionStorage in a newly opened second tab while Tab 1 is already playing!
+                            if (isAnotherTabActivelyPlaying()) {
+                                sessionStorage.removeItem(STATE_KEY);
+                                this.isPlaying = false;
+                                this.hasActiveSession = false;
+                                return;
+                            }
+
                             const raw = sessionStorage.getItem(STATE_KEY);
                             if (!raw) return;
                             const data = JSON.parse(raw);
                             if (!data || !data.currentTrack || !data.currentTrack.id) return;
+
+                            // Ask any live background tab whether it is actively playing right now
+                            postCrossTabMessage({ type: 'PING_ACTIVE_OWNER' });
 
                             this.tracks = Array.isArray(data.tracks) ? data.tracks : [data.currentTrack];
                             this.currentTrack = data.currentTrack;
@@ -408,14 +587,26 @@
                                 audio.load();
 
                                 if (data.isPlaying) {
-                                    const p = audio.play();
-                                    if (p !== undefined) {
-                                        p.then(() => {
-                                            this.isPlaying = true;
-                                        }).catch(() => {
-                                            this.isPlaying = false;
-                                        });
-                                    }
+                                    // Brief 60ms settle window so any active sibling tab's PONG_ACTIVE_OWNER cancels duplicate start before sound emits
+                                    setTimeout(() => {
+                                        if (isAnotherTabActivelyPlaying() || !this.hasActiveSession) {
+                                            this.yieldToOtherTab();
+                                            return;
+                                        }
+                                        const p = audio.play();
+                                        if (p !== undefined) {
+                                            p.then(() => {
+                                                if (isAnotherTabActivelyPlaying()) {
+                                                    this.yieldToOtherTab();
+                                                    return;
+                                                }
+                                                this.isPlaying = true;
+                                                this.claimAudioFocus(true);
+                                            }).catch(() => {
+                                                this.isPlaying = false;
+                                            });
+                                        }
+                                    }, 60);
                                 }
                             }
                         } catch (e) {}
@@ -531,6 +722,9 @@
                         const reqId = ++this._playRequestId;
                         const audio = this.getAudio();
 
+                        // Immediately stop playback in any other open tab before starting here
+                        this.claimAudioFocus(true);
+
                         this.isPlaying = true;
                         this.isBuffering = true;
                         this.hasActiveSession = true;
@@ -575,22 +769,26 @@
 
                         if (audio.paused) {
                             const reqId = ++this._playRequestId;
+                            this.claimAudioFocus(true);
                             this.isPlaying = true;
                             const p = audio.play();
                             if (p !== undefined) {
                                 p.then(() => {
                                     if (reqId !== this._playRequestId) return;
                                     this.isPlaying = true;
+                                    this.claimAudioFocus(true);
                                     this.saveSessionState(true);
                                 }).catch((err) => {
                                     if (reqId !== this._playRequestId) return;
                                     if (err && err.name === 'AbortError') return;
                                     this.isPlaying = false;
+                                    this.claimAudioFocus(false);
                                 });
                             }
                         } else {
                             audio.pause();
                             this.isPlaying = false;
+                            this.claimAudioFocus(false);
                             this.saveSessionState(true);
                         }
                     },
@@ -672,6 +870,7 @@
                         }
                         this.isPlaying = false;
                         this.hasActiveSession = false;
+                        this.releaseAudioFocus(false);
                         try { sessionStorage.removeItem(STATE_KEY); } catch (e) {}
                     },
 

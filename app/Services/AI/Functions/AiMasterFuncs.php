@@ -155,7 +155,7 @@ trait AiMasterFuncs
             }
 
             if (class_exists(\App\Models\Management\ManagementTask::class)) {
-                $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->count();
+                $openTasks = \App\Models\Management\ManagementTask::countOpenRootTickets();
                 if ($openTasks > 0) $issues[] = "- Leitung: $openTasks offene Todos für den CEO";
             }
             

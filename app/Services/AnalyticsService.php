@@ -626,8 +626,11 @@ class AnalyticsService
     private function checkTasks(): ?array
     {
         if (!class_exists(\App\Models\Management\ManagementTask::class)) return null;
-        $totalTasks = \App\Models\Management\ManagementTask::count();
-        $openTasks = \App\Models\Management\ManagementTask::where('is_completed', false)->count();
+        if (class_exists(\App\Services\Management\ManagementTaskTicketService::class)) {
+            app(\App\Services\Management\ManagementTaskTicketService::class)->healDataIntegrity();
+        }
+        $totalTasks = \App\Models\Management\ManagementTask::countTotalRootTickets();
+        $openTasks = \App\Models\Management\ManagementTask::countOpenRootTickets();
         $status = $openTasks > 0 ? 'todo' : 'success';
         $msg = $openTasks > 0 ? $openTasks . ' Todos offen' : 'Alles erledigt';
         if ($totalTasks === 0) { $msg = 'Keine Aufgaben vorhanden'; $status = 'success'; }

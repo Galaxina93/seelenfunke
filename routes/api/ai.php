@@ -24,69 +24,7 @@ Route::prefix('ai')->group(function () {
     Route::post('/save-live-transcript', [AIController::class, 'saveLiveTranscript'])->middleware('throttle:120,1');
 
     // Admin & interne aktive Mitarbeiter geschützte KI-Endpunkte
-    Route::group(['middleware' => ['web', 'auth:sanctum,web,admin,employee', function ($request, $next) {
-        $user = $request->user() ?: auth()->guard('admin')->user() ?: auth()->guard('employee')->user();
-        $isAdminOrEmployee = ($user instanceof \App\Models\Admin\Admin)
-            || ($user instanceof \App\Models\Employee\Employee && $user->isInternalEmployee() && $user->isAccountActive())
-            || \App\Services\AI\AiAuthHelper::isAdmin()
-            || \App\Services\AI\AiAuthHelper::isEmployee();
-
-        if (!$isAdminOrEmployee) {
-            abort(403, 'Zugriff verweigert. Nur Administratoren und interne Mitarbeiter.');
-        }
-
-        if ($user && method_exists($user, 'currentAccessToken') && $user->currentAccessToken() && !$user->tokenCan('*') && !$user->tokenCan('ai:funkira')) {
-            abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
-        }
-        if ($request->bearerToken()) {
-            $pat = \Laravel\Sanctum\PersonalAccessToken::findToken((string) $request->bearerToken());
-            if ($pat && $pat->expires_at && $pat->expires_at->isPast()) {
-                abort(401, 'Token abgelaufen.');
-            }
-            if ($pat && !$pat->can('*') && !$pat->can('ai:funkira')) {
-                abort(403, 'Zugriff verweigert: Eingeschränktes Manufaktur-Monitor-Token.');
-            }
-        }
-
-        // CSRF- & Cross-Origin-Schutz für Cookie-basierte (nicht-Bearer) schreibende Anfragen
-        if (!$request->isMethodSafe() && !$request->bearerToken()) {
-            $secFetchSite = strtolower((string) $request->header('Sec-Fetch-Site', ''));
-            if ($secFetchSite === 'cross-site') {
-                \App\Services\System\SystemSecurityService::logEvent(
-                    'security:ai_csrf_blocked',
-                    'Cross-Site KI-API Aufruf blockiert',
-                    'Cross-Site Request (Sec-Fetch-Site: cross-site) auf ' . $request->path() . ' abgewehrt.',
-                    'error'
-                );
-                abort(403, 'Cross-site request blocked.');
-            }
-
-            $origin = (string) $request->header('Origin', '');
-            if ($origin !== '') {
-                $originHost = strtolower((string) parse_url($origin, PHP_URL_HOST));
-                $requestHost = strtolower((string) $request->getHost());
-                if ($originHost === '' || $originHost !== $requestHost) {
-                    \App\Services\System\SystemSecurityService::logEvent(
-                        'security:ai_csrf_blocked',
-                        'Cross-Origin KI-API Aufruf blockiert',
-                        "Abweichender Origin-Header ({$origin}) auf " . $request->path() . " abgewehrt.",
-                        'error'
-                    );
-                    abort(403, 'Cross-origin request blocked.');
-                }
-            }
-
-            if (!app()->runningUnitTests() && $request->hasSession()) {
-                $sessionToken = (string) $request->session()->token();
-                $providedToken = (string) ($request->header('X-CSRF-TOKEN') ?: $request->input('_token', ''));
-                if ($sessionToken === '' || $providedToken === '' || !hash_equals($sessionToken, $providedToken)) {
-                    abort(419, 'CSRF token mismatch.');
-                }
-            }
-        }
-
-        return $next($request);
-    }]], function () {
+    Route::middleware(['web', 'auth:sanctum,web,admin,employee', \App\Http\Middleware\EnsureAiEndpointAccess::class])->group(function () {
         // Gibt das JSON-Schema für die Ollama Function-Calling Tools zurück
         Route::get('/schema', [AIController::class, 'schema']);
         

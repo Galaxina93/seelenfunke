@@ -13,33 +13,67 @@
         </div>
     @endif
 
-    <!-- Header Row (In Focus Mode nur der Switch-Button rechts oben) -->
-    <div class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" x-transition.opacity.duration.250ms>
-            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
-                <i class="solar-pulse-bold-duotone text-primary"></i>Datenanalysezentrum
-            </h1>
-            <p class="text-gray-500 dark:text-gray-400 mt-2 text-sm">
-                Echtzeitanalyse von Systemstatus, Finanzen und Performance.
-            </p>
+    <!-- Header Row + Systemweite Projekt-Suche unterhalb Datenanalysezentrum (Sichtbar in Vollansicht & Fokus-Modus) -->
+    <div class="w-full flex flex-col gap-4">
+        <div class="w-full flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" x-transition.opacity.duration.250ms>
+                <h1 class="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white tracking-tight flex items-center gap-3">
+                    <i class="solar-pulse-bold-duotone text-primary"></i>Datenanalysezentrum
+                </h1>
+            </div>
+
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full" :class="focusMode ? 'md:justify-between' : 'md:w-auto md:ml-auto'">
+                {{-- Kompakte Seelenfunke Magie-Suchleiste im Fokus-Modus direkt links neben dem Modus-Switch --}}
+                <div x-show="focusMode" style="{{ $focusMode ? '' : 'display: none;' }}" class="flex-1 max-w-2xl">
+                    <button type="button"
+                            @click="$dispatch('open-sf-global-search')"
+                            class="relative overflow-hidden w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-white/95 dark:bg-gray-900/90 border border-[#C5A059]/35 hover:border-[#C5A059] shadow-sm transition-all group cursor-pointer text-left">
+                        <span class="flex items-center gap-2.5 min-w-0">
+                            <span class="sf-magic-search-star text-xs font-bold">✦</span>
+                            <x-heroicon-m-magnifying-glass class="w-4 h-4 text-[#C5A059] shrink-0" />
+                            <span class="text-xs sm:text-sm font-semibold text-gray-500 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white truncate transition-colors">
+                                Projekt durchsuchen: Einstellung, Bestellung, Produkt, Aufgabe, Rechnung...
+                            </span>
+                        </span>
+                        <span class="px-2.5 py-0.5 rounded-lg bg-[#C5A059]/15 text-[#C5A059] text-[10px] font-black uppercase tracking-widest shrink-0">Suche</span>
+                    </button>
+                </div>
+
+                <button type="button"
+                        @click="focusMode = !focusMode; $wire.saveFocusMode(focusMode); window.sfPlaySound && window.sfPlaySound('switch'); setTimeout(() => window.dispatchEvent(new Event('resize')), 50)"
+                        @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
+                        :class="focusMode
+                            ? 'bg-[#C5A059]/15 text-[#C5A059] border-[#C5A059]/40 dark:shadow-[0_0_15px_rgba(197,160,89,0.2)]'
+                            : 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
+                        class="px-4 py-2.5 rounded-xl border text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2.5 transition-all duration-200 active:scale-95 shrink-0 cursor-pointer {{ $focusMode ? 'bg-[#C5A059]/15 text-[#C5A059] border-[#C5A059]/40 dark:shadow-[0_0_15px_rgba(197,160,89,0.2)]' : 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
+                        title="Zwischen Fokus-Ansicht (nur offene Punkte) und Vollansicht (alle Kacheln) wechseln">
+                    <span x-show="focusMode" style="{{ $focusMode ? '' : 'display: none;' }}" class="inline-flex items-center shrink-0">
+                        <x-heroicon-s-sparkles class="w-4 h-4 text-[#C5A059]" />
+                    </span>
+                    <span x-show="!focusMode" style="{{ !$focusMode ? '' : 'display: none;' }}" class="inline-flex items-center shrink-0">
+                        <x-heroicon-o-squares-2x2 class="w-4 h-4" />
+                    </span>
+                    <span x-text="focusMode ? 'Alle Kacheln' : 'Fokus-Modus'">{{ $focusMode ? 'Alle Kacheln' : 'Fokus-Modus' }}</span>
+                </button>
+            </div>
         </div>
-        <div class="flex items-center gap-3 w-full md:w-auto justify-end ml-auto">
-            <button type="button"
-                    @click="focusMode = !focusMode; $wire.saveFocusMode(focusMode); window.sfPlaySound && window.sfPlaySound('switch'); setTimeout(() => window.dispatchEvent(new Event('resize')), 50)"
-                    @mouseenter="window.sfPlaySound && window.sfPlaySound('hover')"
-                    :class="focusMode
-                        ? 'bg-[#C5A059]/15 text-[#C5A059] border-[#C5A059]/40 dark:shadow-[0_0_15px_rgba(197,160,89,0.2)]'
-                        : 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'"
-                    class="px-4 py-2.5 rounded-xl border text-xs font-black uppercase tracking-widest flex items-center gap-2.5 transition-all duration-200 active:scale-95 {{ $focusMode ? 'bg-[#C5A059]/15 text-[#C5A059] border-[#C5A059]/40 dark:shadow-[0_0_15px_rgba(197,160,89,0.2)]' : 'bg-gray-100 dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white' }}"
-                    title="Zwischen Fokus-Ansicht (nur offene Punkte) und Vollansicht (alle Kacheln) wechseln">
-                <span x-show="focusMode" style="{{ $focusMode ? '' : 'display: none;' }}" class="inline-flex items-center shrink-0">
-                    <x-heroicon-s-sparkles class="w-4 h-4 text-[#C5A059]" />
-                </span>
-                <span x-show="!focusMode" style="{{ !$focusMode ? '' : 'display: none;' }}" class="inline-flex items-center shrink-0">
-                    <x-heroicon-o-squares-2x2 class="w-4 h-4" />
-                </span>
-                <span x-text="focusMode ? 'Alle Kacheln' : 'Fokus-Modus'">{{ $focusMode ? 'Alle Kacheln' : 'Fokus-Modus' }}</span>
-            </button>
+
+        {{-- Volle Systemweite Projekt-Suche direkt unterhalb Datenanalysezentrum --}}
+        <div x-show="!focusMode" style="{{ $focusMode ? 'display: none;' : '' }}" x-transition.opacity.duration.250ms>
+            <div class="relative overflow-hidden rounded-2xl bg-white/95 dark:bg-gray-900/90 border border-[#C5A059]/35 hover:border-[#C5A059] shadow-sm transition-all">
+                <div class="sf-magic-search-ring opacity-70"></div>
+                <div class="relative z-10 flex items-center gap-3 px-4 py-3">
+                    <span class="sf-magic-search-star text-sm font-bold">✦</span>
+                    <x-heroicon-m-magnifying-glass class="w-5 h-5 text-[#C5A059] shrink-0" />
+                    <input type="text"
+                           readonly
+                           @focus="$el.blur(); $dispatch('open-sf-global-search')"
+                           @click="$dispatch('open-sf-global-search')"
+                           placeholder="Systemweit suchen: Shop-Einstellungen, Bestellungen, Produkte, Aufgaben, Buchhaltung, Konzepte & Wissen..."
+                           class="flex-1 min-w-0 bg-transparent border-0 focus:ring-0 focus:outline-none text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 cursor-pointer" />
+                    <span class="px-3 py-1 rounded-xl bg-[#C5A059] text-gray-950 text-[10px] font-black uppercase tracking-widest shrink-0">Projekt-Suche</span>
+                </div>
+            </div>
         </div>
     </div>
 

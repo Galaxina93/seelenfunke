@@ -188,6 +188,13 @@ class OrderOverview extends Component
         if (is_string($sessionFocus) && $sessionFocus !== '') {
             $this->activeBatchProductId = $sessionFocus;
         }
+
+        $openOrderId = trim((string) request()->query('openOrder', ''));
+        if ($openOrderId !== '' && OrderOrder::where('id', $openOrderId)->exists()) {
+            $this->openDetail($openOrderId);
+        } elseif (request()->filled('search')) {
+            $this->search = trim((string) request()->query('search', ''));
+        }
     }
 
     private function invalidateSmartQueueCache(): void
@@ -2378,7 +2385,11 @@ class OrderOverview extends Component
 
         $effectiveSide = $this->laserCockpitSide === 'back' ? 'back' : 'front';
         $conf = is_array($item->configuration) ? $item->configuration : [];
-        $this->laserCameraLightMode = $this->normalizeCameraLightMode($conf['laser_camera_light_mode'] ?? 'normal');
+        $this->laserCameraLightMode = \App\Services\Laser\XtoolLaserCockpitService::resolveDefaultCameraLightMode(
+            $item->product,
+            $conf,
+            $effectiveSide
+        );
         $this->laserFramingMode = \App\Services\Laser\XtoolLaserCockpitService::normalizeFramingMode(
             $conf['laser_framing_mode'] ?? null,
             $conf
@@ -2453,6 +2464,61 @@ class OrderOverview extends Component
         $this->laserWorkflowStep = 1;
         $this->laserLastActionStatus = null;
         $this->initializeLaserCockpitForPreviewItem(false);
+    }
+
+    /**
+     * Übernimmt die feinjustierte Rahmen-Breite & -Höhe (w_mm x h_mm) der jeweils anderen Seite
+     * (z. B. Vorderseite -> Rückseite bei beidseitigen Anhängern mit Chargen-Toleranz), ohne X/Y/Winkel zu überschreiben.
+     *
+     * @return array{ok: bool, w_mm?: float, h_mm?: float}
+     */
+    public function copyOtherSideLaserDimensions(string $itemId, ?string $targetSide = null): array
+    {
+        $item = $this->resolveOrderItemForLaserAction($itemId);
+        if (!$item) {
+            return ['ok' => false];
+        }
+
+        $dstSide = ($targetSide ?? $this->laserCockpitSide) === 'back' ? 'back' : 'front';
+        $srcSide = $dstSide === 'back' ? 'front' : 'back';
+        $conf = is_array($item->configuration) ? $item->configuration : [];
+        $srcSaved = is_array($conf['laser_cockpit_coordinates'][$srcSide] ?? null)
+            ? $conf['laser_cockpit_coordinates'][$srcSide]
+            : [];
+
+        $srcW = isset($srcSaved['w_mm']) && is_numeric($srcSaved['w_mm']) ? (float) $srcSaved['w_mm'] : 0.0;
+        $srcH = isset($srcSaved['h_mm']) && is_numeric($srcSaved['h_mm']) ? (float) $srcSaved['h_mm'] : 0.0;
+        if ($srcW <= 0.5 || $srcH <= 0.5) {
+            return ['ok' => false];
+        }
+
+        $this->laserWidthMm = round(max(2.5, min(195.0, $srcW)), 2);
+        $this->laserHeightMm = round(max(2.5, min(195.0, $srcH)), 2);
+
+        $this->persistLaserCoordinatesOnItem(
+            $item,
+            $dstSide,
+            $this->laserCenterXMm,
+            $this->laserCenterYMm,
+            $this->laserAngleDeg,
+            $this->laserWidthMm,
+            $this->laserHeightMm
+        );
+
+        $this->dispatch(
+            'laser-cockpit-sync',
+            x: $this->laserCenterXMm,
+            y: $this->laserCenterYMm,
+            angle: $this->laserAngleDeg,
+            w: $this->laserWidthMm,
+            h: $this->laserHeightMm
+        );
+
+        return [
+            'ok'   => true,
+            'w_mm' => $this->laserWidthMm,
+            'h_mm' => $this->laserHeightMm,
+        ];
     }
 
     public function refreshLaserCameraAndAlign(?string $side = null, ?array $inlineParams = null): void
@@ -3213,6 +3279,16 @@ class OrderOverview extends Component
             }
 
             $savedSide = $conf['laser_cockpit_coordinates'][$effectiveSide] ?? null;
+            $otherSideKey = $effectiveSide === 'back' ? 'front' : 'back';
+            $savedOtherSide = $hasBack && is_array($conf['laser_cockpit_coordinates'][$otherSideKey] ?? null)
+                ? $conf['laser_cockpit_coordinates'][$otherSideKey]
+                : null;
+            $otherSideWMm = is_array($savedOtherSide) && isset($savedOtherSide['w_mm']) && is_numeric($savedOtherSide['w_mm']) && (float) $savedOtherSide['w_mm'] > 0.5
+                ? round(max(2.5, min(195.0, (float) $savedOtherSide['w_mm'])), 2)
+                : null;
+            $otherSideHMm = is_array($savedOtherSide) && isset($savedOtherSide['h_mm']) && is_numeric($savedOtherSide['h_mm']) && (float) $savedOtherSide['h_mm'] > 0.5
+                ? round(max(2.5, min(195.0, (float) $savedOtherSide['h_mm'])), 2)
+                : null;
             $activeWidthMm = ($this->laserWidthMm > 0.5)
                 ? $this->laserWidthMm
                 : (is_array($savedSide) && isset($savedSide['w_mm']) && is_numeric($savedSide['w_mm']) && (float) $savedSide['w_mm'] > 0.5
@@ -3239,6 +3315,8 @@ class OrderOverview extends Component
                 'height_mm'         => $activeHeightMm,
                 'base_width_mm'     => (float) $baseWidthMm,
                 'base_height_mm'    => (float) $baseHeightMm,
+                'other_side_w_mm'   => $otherSideWMm,
+                'other_side_h_mm'   => $otherSideHMm,
                 'contour_shape'     => $contourShape,
                 'is_dark_surface'   => $isDarkSurface,
                 'center_x_mm'       => $this->laserCenterXMm,
@@ -3255,7 +3333,9 @@ class OrderOverview extends Component
                 'ghost_d_path'      => $ghostDPath,
                 'preview_data_url'  => $previewUrl,
                 'last_status'       => $this->laserLastActionStatus,
-                'camera_light_mode' => $this->normalizeCameraLightMode($conf['laser_camera_light_mode'] ?? $this->laserCameraLightMode),
+                'camera_light_mode' => isset($conf['laser_camera_light_mode'])
+                    ? $this->normalizeCameraLightMode($conf['laser_camera_light_mode'])
+                    : \App\Services\Laser\XtoolLaserCockpitService::resolveDefaultCameraLightMode($item->product, $conf, $effectiveSide),
                 'framing_mode'      => \App\Services\Laser\XtoolLaserCockpitService::normalizeFramingMode(
                     $conf['laser_framing_mode'] ?? $this->laserFramingMode,
                     $conf

@@ -1,4 +1,4 @@
-<div x-show="activeTab === 'shipping'" class="space-y-6 md:space-y-8 animate-fade-in" style="display: none;">
+<div data-config-tab="shipping" data-config-tab-label="Versand & Lieferzeit" x-show="isTabVisible('shipping')" class="space-y-6 md:space-y-8 animate-fade-in" style="display: none;">
     {{-- Versandkosten & Konditionen --}}
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8">
         <h3 class="text-sm sm:text-base font-serif font-bold text-gray-900 dark:text-white mb-8 flex items-center gap-3 tracking-wide border-b border-gray-100 dark:border-gray-800 pb-4">

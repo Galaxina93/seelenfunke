@@ -1,4 +1,4 @@
-<div x-show="activeTab === 'general'" class="space-y-6 md:space-y-8 animate-fade-in">
+<div data-config-tab="general" data-config-tab-label="Allgemein & Steuern" x-show="isTabVisible('general')" class="space-y-6 md:space-y-8 animate-fade-in">
     {{-- KARTE 1: SHOP-DOMAINS & LIVEGANG-STATUS --}}
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-8 relative z-30">
         <div class="hidden dark:block absolute inset-0 overflow-hidden rounded-[2.5rem] pointer-events-none">

@@ -346,8 +346,7 @@ class AiSupportService
         // ------------------------------------------------------------------
         // 5. TASKS (Score 20 - 300)
         // ------------------------------------------------------------------
-        $nextTask = ManagementTask::where('is_completed', false)
-            ->whereNull('parent_id')
+        $nextTask = ManagementTask::openRootTickets()
             ->where(function($query) {
                 $query->whereNull('relevant_from')
                       ->orWhere('relevant_from', '<=', now());

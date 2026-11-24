@@ -21,6 +21,22 @@ class SystemQuickRouteCheckCommand extends Command
         $routesOnly = (bool) $this->option('routes-only');
 
         $routeSweep = $diagnostics->executeIsolatedHttpRouteSweep();
+        $routeSafety = $diagnostics->auditRouteDefinitionsSafety();
+        if (empty($routeSafety['passed'])) {
+            $routeSweep['passed'] = false;
+            foreach ($routeSafety['violations'] ?? [] as $v) {
+                $routeSweep['failures'][] = [
+                    'scope' => 'route_safety',
+                    'uri' => 'routes/*',
+                    'label' => 'Route-Middleware Integrität',
+                    'status' => 500,
+                    'file_path' => $v['file'] ?? 'routes/api.php',
+                    'error' => (string) ($v['message'] ?? 'Unsichere Route-Middleware erkannt'),
+                ];
+            }
+            $routeSweep['failures_count'] = count($routeSweep['failures'] ?? []);
+        }
+        $routeSweep['route_safety'] = $routeSafety;
 
         if ($routesOnly) {
             if ($asJson) {
@@ -127,6 +143,11 @@ class SystemQuickRouteCheckCommand extends Command
                 'Rollen-Portale',
                 $routeSweep['portal_checked'] . ' Portale',
                 collect($routeSweep['failures'])->where('scope', 'portal_routes')->isEmpty() ? 'GRÜN (100% OK)' : 'FEHLER',
+            ],
+            [
+                'Route-Middleware Integrität',
+                (string) (($routeSweep['route_safety']['files_scanned'] ?? 0) . ' Dateien / ' . ($routeSweep['route_safety']['routes_scanned'] ?? 0) . ' Routen'),
+                !empty($routeSweep['route_safety']['passed']) ? 'GRÜN (0 Closures)' : 'FEHLER',
             ],
         ];
 

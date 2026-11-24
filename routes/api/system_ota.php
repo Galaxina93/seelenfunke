@@ -1,25 +1,31 @@
 <?php
 
 use App\Http\Controllers\Api\AntigravityDirectInboxController;
+use App\Http\Middleware\EnsureAdminApiAccess;
 use App\Services\System\AndroidReleaseService;
+use App\Services\System\WindowsReleaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('system/ag-direct-inbox')->middleware('throttle:180,1,ag_inbox')->group(function () {
-    Route::get('/', [AntigravityDirectInboxController::class, 'index']);
-    Route::post('/', [AntigravityDirectInboxController::class, 'store']);
-    Route::post('/{id}/resolve', [AntigravityDirectInboxController::class, 'resolve']);
-    Route::get('/{id}/attachment', [AntigravityDirectInboxController::class, 'attachment']);
-    Route::delete('/{id}', [AntigravityDirectInboxController::class, 'destroy']);
-});
+Route::prefix('system/ag-direct-inbox')
+    ->middleware([EnsureAdminApiAccess::class, 'throttle:180,1,ag_inbox'])
+    ->group(function () {
+        Route::get('/', [AntigravityDirectInboxController::class, 'index']);
+        Route::post('/', [AntigravityDirectInboxController::class, 'store']);
+        Route::post('/{id}/resolve', [AntigravityDirectInboxController::class, 'resolve']);
+        Route::get('/{id}/attachment', [AntigravityDirectInboxController::class, 'attachment']);
+        Route::delete('/{id}', [AntigravityDirectInboxController::class, 'destroy']);
+    });
 
-Route::prefix('funkenwerk/ag-inbox')->middleware('throttle:180,1,ag_inbox')->group(function () {
-    Route::get('/', [AntigravityDirectInboxController::class, 'index']);
-    Route::post('/', [AntigravityDirectInboxController::class, 'store']);
-    Route::post('/{id}/resolve', [AntigravityDirectInboxController::class, 'resolve']);
-    Route::get('/{id}/attachment', [AntigravityDirectInboxController::class, 'attachment']);
-    Route::delete('/{id}', [AntigravityDirectInboxController::class, 'destroy']);
-});
+Route::prefix('funkenwerk/ag-inbox')
+    ->middleware([EnsureAdminApiAccess::class, 'throttle:180,1,ag_inbox'])
+    ->group(function () {
+        Route::get('/', [AntigravityDirectInboxController::class, 'index']);
+        Route::post('/', [AntigravityDirectInboxController::class, 'store']);
+        Route::post('/{id}/resolve', [AntigravityDirectInboxController::class, 'resolve']);
+        Route::get('/{id}/attachment', [AntigravityDirectInboxController::class, 'attachment']);
+        Route::delete('/{id}', [AntigravityDirectInboxController::class, 'destroy']);
+    });
 
 Route::prefix('funki/system/app-update')->group(function () {
 
@@ -40,8 +46,11 @@ Route::prefix('funki/system/app-update')->group(function () {
     })->middleware('throttle:ota-download');
 
     Route::post('/publish', function (Request $request, AndroidReleaseService $releaseService) {
+        if (!$request->user() instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Zugriff verweigert. Nur Administratoren dürfen Releases bereitstellen.');
+        }
         $validated = $request->validate([
-            'apk' => 'required|file|max:97280', // max ~95 MB in KB
+            'apk' => 'required|file|max:97280',
             'version_code' => 'required|integer|min:1|max:100000000',
             'version_name' => ['required', 'string', 'max:32', 'regex:/^[0-9]+(\.[0-9]+){1,3}(-[A-Za-z0-9._]+)?$/'],
             'sha256' => ['nullable', 'string', 'size:64', 'regex:/^[A-Fa-f0-9]{64}$/'],
@@ -80,5 +89,70 @@ Route::prefix('funki/system/app-update')->group(function () {
                 'message' => $e->getMessage(),
             ], 422);
         }
-    })->middleware('throttle:ota-publish');
+    })->middleware([EnsureAdminApiAccess::class, 'throttle:ota-publish']);
+});
+
+Route::prefix('funki/system/windows-update')->group(function () {
+
+    Route::get('/check', function (WindowsReleaseService $releaseService) {
+        $manifest = $releaseService->getLatestManifest();
+
+        return response()->json([
+            'success' => true,
+            'has_release' => $manifest !== null,
+            'data' => $manifest,
+        ], 200, [
+            'Cache-Control' => 'private, no-store, no-cache, must-revalidate',
+        ]);
+    })->middleware('throttle:ota-check');
+
+    Route::get('/download', function (Request $request, WindowsReleaseService $releaseService) {
+        return $releaseService->streamLatestSuite($request);
+    })->middleware('throttle:ota-download');
+
+    Route::post('/publish', function (Request $request, WindowsReleaseService $releaseService) {
+        if (!$request->user() instanceof \App\Models\Admin\Admin) {
+            abort(403, 'Zugriff verweigert. Nur Administratoren dürfen Releases bereitstellen.');
+        }
+        $validated = $request->validate([
+            'suite' => 'required|file|max:524288',
+            'version_code' => 'required|integer|min:1|max:100000000',
+            'version_name' => ['required', 'string', 'max:32', 'regex:/^[0-9]+(\.[0-9]+){1,3}(-[A-Za-z0-9._]+)?$/'],
+            'sha256' => ['nullable', 'string', 'size:64', 'regex:/^[A-Fa-f0-9]{64}$/'],
+            'expected_sha256' => ['nullable', 'string', 'size:64', 'regex:/^[A-Fa-f0-9]{64}$/'],
+            'release_notes' => 'nullable|string|max:500',
+        ]);
+
+        $uploadedFile = $request->file('suite');
+        if (!$uploadedFile || !$uploadedFile->isValid()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ungültiger Datei-Upload.',
+            ], 422);
+        }
+
+        $expectedSha = $validated['sha256'] ?? $validated['expected_sha256'] ?? null;
+
+        try {
+            $manifest = $releaseService->storeVerifiedRelease(
+                sourceTempFile: $uploadedFile->getRealPath(),
+                versionCode: (int) $validated['version_code'],
+                versionName: (string) $validated['version_name'],
+                expectedSha256: $expectedSha,
+                releaseNotes: $validated['release_notes'] ?? null,
+                allowSameVersionRebuild: true
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Windows-Release verifiziert und im Tresor aktiviert.',
+                'data' => $manifest,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    })->middleware([EnsureAdminApiAccess::class, 'throttle:ota-publish']);
 });

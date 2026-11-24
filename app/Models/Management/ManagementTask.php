@@ -12,10 +12,12 @@ use App\Support\Blueprint\Enums\RetentionPolicy;
 use App\Support\Blueprint\Enums\SystemDepartment;
 use App\Support\Blueprint\ModelBlueprint;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Schema;
 
 class ManagementTask extends Model implements HasSystemBlueprint
 {
@@ -125,11 +127,24 @@ class ManagementTask extends Model implements HasSystemBlueprint
     protected static function booted(): void
     {
         static::creating(function (self $task) {
-            if (empty($task->status) || !in_array($task->status, self::VALID_STATUSES, true)) {
-                $task->status = $task->is_completed ? self::STATUS_COMPLETED : self::STATUS_OPEN;
-            } elseif ($task->status === self::STATUS_COMPLETED) {
-                $task->is_completed = true;
+            if ($task->parent_id !== null) {
+                $task->is_mine = false;
+                $task->escalated_at = null;
+                $task->escalation_reason = null;
             }
+
+            if ($task->is_completed || $task->status === self::STATUS_COMPLETED) {
+                $task->is_completed = true;
+                $task->status = self::STATUS_COMPLETED;
+                $task->escalated_at = null;
+                $task->escalation_reason = null;
+            } elseif (empty($task->status) || !in_array($task->status, self::VALID_STATUSES, true)) {
+                $task->status = self::STATUS_OPEN;
+                $task->is_completed = false;
+            } else {
+                $task->is_completed = false;
+            }
+
             if ($task->is_mine === null) {
                 $task->is_mine = false;
             }
@@ -149,12 +164,33 @@ class ManagementTask extends Model implements HasSystemBlueprint
                 $task->due_time = self::normalizeDueTime($task->due_time);
             }
 
-            if ($task->status === self::STATUS_ESCALATED) {
-                $task->status = self::STATUS_OPEN;
-                $task->escalated_at = $task->escalated_at ?: now();
+            if ($task->parent_id !== null) {
+                $task->is_mine = false;
+                $task->escalated_at = null;
+                $task->escalation_reason = null;
             }
 
-            if ($task->isDirty('is_completed') && !$task->isDirty('status')) {
+            if ($task->status === self::STATUS_ESCALATED) {
+                $task->status = self::STATUS_OPEN;
+                if ($task->parent_id === null) {
+                    $task->escalated_at = $task->escalated_at ?: now();
+                }
+            }
+
+            if (!$task->exists) {
+                // New record: saving() fires BEFORE creating() in Eloquent!
+                if ($task->is_completed || $task->status === self::STATUS_COMPLETED) {
+                    $task->is_completed = true;
+                    $task->status = self::STATUS_COMPLETED;
+                    $task->escalated_at = null;
+                    $task->escalation_reason = null;
+                } else {
+                    $task->is_completed = false;
+                    if (empty($task->status) || !in_array($task->status, self::VALID_STATUSES, true)) {
+                        $task->status = self::STATUS_OPEN;
+                    }
+                }
+            } elseif ($task->isDirty('is_completed') && !$task->isDirty('status')) {
                 if ($task->is_completed) {
                     $task->status = self::STATUS_COMPLETED;
                     $task->escalated_at = null;
@@ -165,7 +201,7 @@ class ManagementTask extends Model implements HasSystemBlueprint
                 if (!$task->isDirty('last_activity_at')) {
                     $task->last_activity_at = now();
                 }
-            } elseif ($task->isDirty('status')) {
+            } elseif ($task->isDirty('status') && !$task->isDirty('is_completed')) {
                 if ($task->status === self::STATUS_COMPLETED) {
                     $task->is_completed = true;
                     $task->escalated_at = null;
@@ -176,8 +212,93 @@ class ManagementTask extends Model implements HasSystemBlueprint
                 if (!$task->isDirty('last_activity_at')) {
                     $task->last_activity_at = now();
                 }
+            } elseif ($task->isDirty('status') && $task->isDirty('is_completed')) {
+                if ($task->is_completed && $task->status !== self::STATUS_COMPLETED) {
+                    if (!(bool) $task->getOriginal('is_completed')) {
+                        $task->status = self::STATUS_COMPLETED;
+                        $task->escalated_at = null;
+                        $task->escalation_reason = null;
+                    } else {
+                        $task->is_completed = false;
+                    }
+                } elseif (!$task->is_completed && $task->status === self::STATUS_COMPLETED) {
+                    if ($task->getOriginal('status') !== self::STATUS_COMPLETED) {
+                        $task->is_completed = true;
+                        $task->escalated_at = null;
+                        $task->escalation_reason = null;
+                    } else {
+                        $task->status = self::STATUS_OPEN;
+                    }
+                }
+                if (!$task->isDirty('last_activity_at')) {
+                    $task->last_activity_at = now();
+                }
+            } elseif ((bool) $task->is_completed !== ($task->status === self::STATUS_COMPLETED)) {
+                // Self-heal pre-existing status <-> is_completed divergence
+                $task->status = $task->is_completed ? self::STATUS_COMPLETED : ($task->status ?: self::STATUS_OPEN);
+                if ($task->is_completed) {
+                    $task->escalated_at = null;
+                    $task->escalation_reason = null;
+                }
             }
         });
+
+        static::deleting(function (self $task) {
+            if ($task->parent_id === null) {
+                self::where('parent_id', $task->id)->delete();
+            }
+            if (Schema::hasTable('management_task_messages')) {
+                ManagementTaskMessage::where('management_task_id', $task->id)->delete();
+            }
+        });
+    }
+
+    /**
+     * Kanonischer Scope fuer echte Haupt-Tickets (schliesst Checklisten-Teilschritte,
+     * archivierte Tickets und archivierte Listen fehlerresistent aus).
+     */
+    public function scopeRootTickets(Builder $query): Builder
+    {
+        $query->whereNull('parent_id')
+            ->where('is_archived', false);
+
+        if (Schema::hasTable('management_task_lists')) {
+            $query->whereDoesntHave('list', fn (Builder $lq) => $lq->where('is_archived', true));
+        }
+
+        return $query;
+    }
+
+    /**
+     * Kanonischer Scope fuer alle aktiven/unerledigten Haupt-Tickets (Single Source of Truth
+     * fuer Dashboard, Navigation, Funkira & Aufgaben-Ansicht).
+     */
+    public function scopeOpenRootTickets(Builder $query): Builder
+    {
+        return $query->rootTickets()
+            ->where('is_completed', false)
+            ->where(function (Builder $q) {
+                $q->whereNull('status')
+                    ->orWhere('status', '!=', self::STATUS_COMPLETED);
+            });
+    }
+
+    public static function countOpenRootTickets(): int
+    {
+        if (!Schema::hasTable('management_tasks')) {
+            return 0;
+        }
+
+        return (int) static::query()->openRootTickets()->count();
+    }
+
+    public static function countTotalRootTickets(): int
+    {
+        if (!Schema::hasTable('management_tasks')) {
+            return 0;
+        }
+
+        return (int) static::query()->rootTickets()->count();
     }
 
     public static function normalizeStatus(?string $raw): string

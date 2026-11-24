@@ -158,6 +158,9 @@ namespace Funkenwerk
         private bool _isAuthPasswordVisible = false;
         private bool _suppressAuthPasswordSync = false;
         private string _authSelectedEnvKey = "stage";
+        private WindowsOtaManifestDto? _pendingWindowsOtaManifest = null;
+        private bool _isDownloadingWindowsOta = false;
+        private DateTime _lastWindowsOtaCheckUtc = DateTime.MinValue;
         private readonly MediaPlayer _loginAmbientPlayer = new MediaPlayer();
         private readonly System.Windows.Threading.DispatcherTimer _loginAudioFadeTimer = new System.Windows.Threading.DispatcherTimer();
         private double _loginAudioTargetVolume = 0.0;
@@ -227,17 +230,31 @@ namespace Funkenwerk
                 }
 
                 _showCompletedTasks = _layoutSettings.ShowCompletedDefault;
-                LoadFunkenwerkFilesDatabase();
+                bool initialAdmin = FunkenwerkSharedSession.IsAdminSession();
+                if (initialAdmin)
+                {
+                    LoadFunkenwerkFilesDatabase();
+                }
                 _agentEngine?.StartLocalControlPipeServer();
-                RenderAgentAll();
+                if (initialAdmin)
+                {
+                    RenderAgentAll();
+                }
                 EnsureLauncherInitialized();
+                ApplyRoleBasedUiVisibility();
                 SwitchSpaceUI(_activeSpace);
 
-                LoadSmartHomeConfig();
-                EnsurePrinterQueueTimerStarted();
-                EnsureKdriveTrichterTimerStarted();
-                EnsureEingangTrichterAutoWatcherStarted();
-                LoadEmailRecipientsCache();
+                if (initialAdmin)
+                {
+                    LoadSmartHomeConfig();
+                    EnsureKdriveTrichterTimerStarted();
+                    EnsureEingangTrichterAutoWatcherStarted();
+                    LoadEmailRecipientsCache();
+                }
+                if (FunkenwerkSharedSession.IsSpaceAllowed("orders"))
+                {
+                    EnsurePrinterQueueTimerStarted();
+                }
                 if (!FunkenwerkSecurityVault.IsUsingTemporaryAppData)
                 {
                     _ = Task.Run(CollectionFileAssociationHealer.EnsureCollectionAssociationsRegistered);
@@ -302,13 +319,18 @@ namespace Funkenwerk
                 if (connected)
                 {
                     SyncSharedSessionSnapshot();
-                    await LoadMailAccountsAsync();
-                    _ = HarvestAllEmailRecipientsInBackgroundAsync();
-                    await LoadTodoListsAsync();
-                    await LoadContactsAsync();
-                    await LoadCalendarEventsAsync();
-                    _ = PollShopPrinterQueueAsync(forceLogAndRefresh: true);
-                    _ = PollKdriveTrichterRelayAsync(showToastIfEmpty: false);
+                    ApplyRoleBasedUiVisibility();
+                    await ReloadAllModulesDataAsync();
+                    if (FunkenwerkSharedSession.IsAdminSession())
+                    {
+                        _ = HarvestAllEmailRecipientsInBackgroundAsync();
+                        _ = PollKdriveTrichterRelayAsync(showToastIfEmpty: false);
+                    }
+                    if (FunkenwerkSharedSession.IsSpaceAllowed("orders"))
+                    {
+                        _ = PollShopPrinterQueueAsync(forceLogAndRefresh: true);
+                    }
+                    _ = CheckForWindowsSuiteOtaUpdateInBackgroundAsync();
                 }
                 UpdateApiConnectionDotVisual();
                 _apiHealthTimer.Start();
@@ -1229,7 +1251,14 @@ namespace Funkenwerk
             sb.AppendLine(statusHeadline);
             sb.AppendLine($"🌐 Server: {_apiBaseUrl}");
             sb.AppendLine($"⚡ Status: {_lastApiStatusDetail} ({_lastApiLatencyMs} ms · Geprüft: {checkTimeStr})");
-            sb.AppendLine($"📊 Geladen: {_mailAccounts.Count} Postfächer · {_contacts.Count} Kontakte · {_todoLists.Count} Listen ({_allTasks.Count} Aufgaben)");
+            if (FunkenwerkSharedSession.IsAdminSession())
+            {
+                sb.AppendLine($"📊 Geladen: {_mailAccounts.Count} Postfächer · {_contacts.Count} Kontakte · {_todoLists.Count} Listen ({_allTasks.Count} Aufgaben)");
+            }
+            else
+            {
+                sb.AppendLine($"📊 Geladen: {_todoLists.Count} Team-Listen ({_allTasks.Count} eigene Aufgaben)");
+            }
             sb.Append("💡 Klicken zum Prüfen & Synchronisieren");
 
             ApiConnectionDotBorder.ToolTip = sb.ToString();
@@ -1261,7 +1290,7 @@ namespace Funkenwerk
             {
                 var sw = Stopwatch.StartNew();
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(6));
-                using var req = new HttpRequestMessage(HttpMethod.Get, $"{cleanUrl}/funki/emails/accounts");
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"{cleanUrl}/user");
                 req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenToUse);
 
@@ -1270,6 +1299,13 @@ namespace Funkenwerk
 
                 if (res.IsSuccessStatusCode)
                 {
+                    try
+                    {
+                        string userJson = await res.Content.ReadAsStringAsync(cts.Token);
+                        using var uDoc = JsonDocument.Parse(userJson);
+                        ApplyAuthPermissionsFromJsonElement(uDoc.RootElement);
+                    }
+                    catch { }
                     return (true, sw.ElapsedMilliseconds, $"HTTP {(int)res.StatusCode} OK", tokenToUse);
                 }
 
@@ -1401,13 +1437,21 @@ namespace Funkenwerk
 
         private async Task ReloadAllModulesDataAsync()
         {
-            await LoadMailAccountsAsync();
-            await LoadTodoListsAsync();
-            await LoadContactsAsync();
-            await LoadCalendarEventsAsync();
-            if (_activeSpace == "files")
+            var s = FunkenwerkSharedSession.Load();
+            bool isAdmin = FunkenwerkSharedSession.IsAdminSession(s);
+            if (isAdmin)
             {
-                await LoadFilesWorkspaceAsync();
+                await LoadMailAccountsAsync();
+                await LoadContactsAsync();
+                await LoadCalendarEventsAsync();
+                if (_activeSpace == "files")
+                {
+                    await LoadFilesWorkspaceAsync();
+                }
+            }
+            if (FunkenwerkSharedSession.IsSpaceAllowed("todo", s))
+            {
+                await LoadTodoListsAsync();
             }
             UpdateApiConnectionDotVisual();
         }
@@ -1438,33 +1482,39 @@ namespace Funkenwerk
                 bool isComposingMail = (ComposeModalOverlay != null && ComposeModalOverlay.Visibility == Visibility.Visible) ||
                                        (MailAccountSettingsModalOverlay != null && MailAccountSettingsModalOverlay.Visibility == Visibility.Visible);
 
-                // 1. Thunderbird-Style Background IMAP Listener (alle 60s stumm im Hintergrund, unabhängig vom aktiven Tab!)
+                // 1. Thunderbird-Style Background IMAP Listener (Admin only, alle 60s stumm im Hintergrund!)
+                var sessionSnap = FunkenwerkSharedSession.Load();
+                bool isAdminUser = FunkenwerkSharedSession.IsAdminSession(sessionSnap);
                 var nowUtc = DateTime.UtcNow;
-                if (!_isMailSyncRunning && !_isAutoImapSyncRunning && (nowUtc - _lastAutoImapSyncUtc).TotalSeconds >= 60.0)
+                if ((nowUtc - _lastWindowsOtaCheckUtc).TotalMinutes >= 15.0)
+                {
+                    _ = CheckForWindowsSuiteOtaUpdateInBackgroundAsync();
+                }
+                if (isAdminUser && !_isMailSyncRunning && !_isAutoImapSyncRunning && (nowUtc - _lastAutoImapSyncUtc).TotalSeconds >= 60.0)
                 {
                     _lastAutoImapSyncUtc = nowUtc;
                     _ = TriggerSilentAutoImapSyncAsync();
                 }
-                else if (!_isMailSyncRunning && !isComposingMail && (nowUtc - _lastMailCountProbeUtc).TotalSeconds >= 24.0)
+                else if (isAdminUser && !_isMailSyncRunning && !isComposingMail && (nowUtc - _lastMailCountProbeUtc).TotalSeconds >= 24.0)
                 {
                     // 2. Leichtgewichtiger Delta-Check (falls Mails im Webportal/Handy gelesen oder sortiert wurden)
                     _lastMailCountProbeUtc = nowUtc;
                     await RefreshMailIfFingerprintChangedAsync();
                 }
 
-                if (_activeSpace == "calendar" && !isEditingCalendar)
+                if (isAdminUser && _activeSpace == "calendar" && !isEditingCalendar)
                 {
                     await LoadCalendarEventsAsync();
                 }
-                else if (_activeSpace == "todo" && !isEditingTask)
+                else if (FunkenwerkSharedSession.IsSpaceAllowed("todo", sessionSnap) && _activeSpace == "todo" && !isEditingTask)
                 {
                     await LoadTodoListsAsync();
                 }
-                else if (_activeSpace == "contacts")
+                else if (isAdminUser && _activeSpace == "contacts")
                 {
                     await LoadContactsAsync();
                 }
-                else if (_activeSpace == "files" &&
+                else if (isAdminUser && _activeSpace == "files" &&
                          (FilesRenameModalOverlay == null || FilesRenameModalOverlay.Visibility != Visibility.Visible) &&
                          (FilesMoveModalOverlay == null || FilesMoveModalOverlay.Visibility != Visibility.Visible) &&
                          (FilesPreviewModalOverlay == null || FilesPreviewModalOverlay.Visibility != Visibility.Visible))
@@ -1473,7 +1523,7 @@ namespace Funkenwerk
                 }
 
                 // Always keep Tasks in sync with Android App & Webportal
-                if (!isEditingTask)
+                if (FunkenwerkSharedSession.IsSpaceAllowed("todo", sessionSnap) && !isEditingTask)
                 {
                     await LoadTodoListsAsync();
                 }
@@ -1970,7 +2020,7 @@ namespace Funkenwerk
 
             string email = !string.IsNullOrWhiteSpace(_layoutSettings.SavedAuthEmail)
                 ? _layoutSettings.SavedAuthEmail.Trim()
-                : "kontakt@mein-seelenfunke.de";
+                : "";
             AuthLoginEmailBox.Text = email;
             AuthLoginRememberCheck.IsChecked = _layoutSettings.RememberCredentials;
 
@@ -2076,14 +2126,17 @@ namespace Funkenwerk
             catch { }
 
             FadeOutAndStopLoginAmbientMusic();
-            EnsurePrinterQueueTimerStarted();
+            if (FunkenwerkSharedSession.IsSpaceAllowed("orders"))
+            {
+                EnsurePrinterQueueTimerStarted();
+            }
 
             if (HeaderLogoutLockBtn != null)
             {
                 HeaderLogoutLockBtn.Visibility = Visibility.Visible;
                 string who = !string.IsNullOrWhiteSpace(_layoutSettings.SavedAuthEmail)
                     ? _layoutSettings.SavedAuthEmail
-                    : "kontakt@mein-seelenfunke.de";
+                    : "Angemeldet";
                 HeaderLogoutLockBtn.ToolTip = $"Angemeldet als {who} ({GetApiEnvironmentLabel(_apiBaseUrl)}) · Klicken zum Abmelden / Sperren";
             }
         }
@@ -2268,6 +2321,15 @@ namespace Funkenwerk
             if (_layoutSettings.IsSessionLocked) return false;
             if (!_layoutSettings.RememberCredentials) return false;
             if (!string.IsNullOrEmpty(passwordInput)) return false;
+
+            string typedEmail = (AuthLoginEmailBox?.Text ?? "").Trim();
+            string savedEmail = (_layoutSettings.SavedAuthEmail ?? "").Trim();
+            if (!string.IsNullOrWhiteSpace(typedEmail) &&
+                !string.Equals(typedEmail, savedEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
             string savedTok = GetSavedTokenForUrl(targetUrl);
             if (!string.IsNullOrWhiteSpace(savedTok)) return true;
             return string.Equals(_apiBaseUrl.TrimEnd('/'), (targetUrl ?? "").TrimEnd('/'), StringComparison.OrdinalIgnoreCase) &&
@@ -2443,19 +2505,27 @@ namespace Funkenwerk
 
                 _apiBaseUrl = targetUrl;
                 _apiToken = existingTokenForEnv;
-                _layoutSettings.SavedAuthEmail = string.IsNullOrWhiteSpace(email) ? "kontakt@mein-seelenfunke.de" : email;
+                if (!string.IsNullOrWhiteSpace(email))
+                {
+                    _layoutSettings.SavedAuthEmail = email;
+                }
                 _layoutSettings.RememberCredentials = true;
                 _layoutSettings.IsSessionLocked = false;
                 ConfigureHttpClient();
                 SyncSharedSessionSnapshot();
                 SaveSettingsToFile();
+                ApplyRoleBasedUiVisibility();
                 SwitchSpaceUI("launcher");
 
                 var reloadTask = ReloadAllModulesDataAsync();
                 await RunMagicActivationTransitionAsync();
                 HideAuthLoginOverlay();
                 await reloadTask;
-                _ = HarvestAllEmailRecipientsInBackgroundAsync();
+                if (FunkenwerkSharedSession.IsAdminSession())
+                {
+                    _ = HarvestAllEmailRecipientsInBackgroundAsync();
+                }
+                _ = CheckForWindowsSuiteOtaUpdateInBackgroundAsync();
                 _apiHealthTimer.Start();
                 return;
             }
@@ -2544,6 +2614,19 @@ namespace Funkenwerk
                 }
 
                 bool remember = AuthLoginRememberCheck.IsChecked == true;
+                bool isAccountSwitch = !string.Equals(
+                    (_layoutSettings.SavedAuthEmail ?? "").Trim(),
+                    email,
+                    StringComparison.OrdinalIgnoreCase);
+
+                if (isAccountSwitch)
+                {
+                    _layoutSettings.ApiTokenLocal = "";
+                    _layoutSettings.ApiTokenStage = "";
+                    _layoutSettings.ApiTokenLive = "";
+                    ClearInMemoryUserSessionData();
+                }
+
                 _apiBaseUrl = targetUrl;
                 _apiToken = freshToken;
                 RememberTokenForCurrentPreset(_apiBaseUrl, _apiToken);
@@ -2554,7 +2637,21 @@ namespace Funkenwerk
 
                 ConfigureHttpClient();
                 SyncSharedSessionSnapshot(verifiedPassword: password);
+                ApplyAuthPermissionsFromJsonElement(doc.RootElement);
+                if (FunkenwerkSharedSession.IsAdminSession())
+                {
+                    LoadFunkenwerkFilesDatabase();
+                    LoadSmartHomeConfig();
+                    EnsureKdriveTrichterTimerStarted();
+                    EnsureEingangTrichterAutoWatcherStarted();
+                    LoadEmailRecipientsCache();
+                }
+                else
+                {
+                    ClearInMemoryUserSessionData();
+                }
                 SaveSettingsToFile();
+                ApplyRoleBasedUiVisibility();
                 SwitchSpaceUI("launcher");
 
                 _apiConnectionState = "connected";
@@ -2568,15 +2665,22 @@ namespace Funkenwerk
 
                 HideAuthLoginOverlay();
                 await reloadTask;
-                _ = HarvestAllEmailRecipientsInBackgroundAsync();
+                if (FunkenwerkSharedSession.IsAdminSession())
+                {
+                    _ = HarvestAllEmailRecipientsInBackgroundAsync();
+                }
+                _ = CheckForWindowsSuiteOtaUpdateInBackgroundAsync();
                 _apiHealthTimer.Start();
             }
             catch (Exception ex)
             {
-                // 100 % Offline Unlock: once verified online at least once, verify PBKDF2-SHA512 offline hash (or Windows LogonUserW)
+                // 100 % Offline Unlock: strictly bound to the exact verified account email via PBKDF2-SHA512
                 var shared = FunkenwerkSharedSession.Load();
-                bool offlineVerified = (shared.HasVerifiedOnlineOnce && FunkenwerkSharedSession.VerifyOfflinePassword(email, password)) ||
-                                       (!string.IsNullOrWhiteSpace(existingTokenForEnv) && VerifyCurrentWindowsUserPassword(password));
+                bool sameOfflineAccount = !string.IsNullOrWhiteSpace(shared.UserEmail) &&
+                                          string.Equals(email, shared.UserEmail.Trim(), StringComparison.OrdinalIgnoreCase);
+                bool offlineVerified = shared.HasVerifiedOnlineOnce &&
+                                       sameOfflineAccount &&
+                                       FunkenwerkSharedSession.VerifyOfflinePassword(email, password);
                 if (offlineVerified)
                 {
                     _apiBaseUrl = targetUrl;
@@ -2623,8 +2727,10 @@ namespace Funkenwerk
             else if (key == "live") _layoutSettings.ApiTokenLive = "";
 
             _layoutSettings.IsSessionLocked = true;
+            ClearInMemoryUserSessionData();
             ConfigureHttpClient();
             SaveSettingsToFile();
+            SyncSharedSessionSnapshot();
 
             _apiConnectionState = "offline";
             _lastApiStatusDetail = "Abgemeldet / Gesperrt";
@@ -2653,6 +2759,228 @@ namespace Funkenwerk
         {
             PlaySoundNav();
             SwitchSpaceUI("launcher");
+        }
+
+        private void ApplyAuthPermissionsFromJsonElement(JsonElement root)
+        {
+            try
+            {
+                string userType = "employee";
+                if (root.TryGetProperty("user_type", out var ut) && ut.ValueKind == JsonValueKind.String)
+                {
+                    userType = (ut.GetString() ?? "employee").Trim().ToLowerInvariant();
+                }
+
+                JsonElement? permNode = null;
+                if (root.TryGetProperty("permissions", out var p1) && p1.ValueKind == JsonValueKind.Object)
+                {
+                    permNode = p1;
+                }
+                else if (root.TryGetProperty("user", out var uObj) &&
+                         uObj.ValueKind == JsonValueKind.Object &&
+                         uObj.TryGetProperty("permissions", out var p2) &&
+                         p2.ValueKind == JsonValueKind.Object)
+                {
+                    permNode = p2;
+                }
+
+                List<string>? spaces = null;
+                List<string>? modules = null;
+                if (permNode.HasValue)
+                {
+                    var p = permNode.Value;
+                    if (p.TryGetProperty("allowed_spaces", out var spArr) && spArr.ValueKind == JsonValueKind.Array)
+                    {
+                        spaces = new List<string>();
+                        foreach (var item in spArr.EnumerateArray())
+                        {
+                            if (item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()))
+                                spaces.Add(item.GetString()!.Trim());
+                        }
+                    }
+                    if (p.TryGetProperty("allowed_modules", out var modArr) && modArr.ValueKind == JsonValueKind.Array)
+                    {
+                        modules = new List<string>();
+                        foreach (var item in modArr.EnumerateArray())
+                        {
+                            if (item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()))
+                                modules.Add(item.GetString()!.Trim());
+                        }
+                    }
+                }
+
+                FunkenwerkSharedSession.SaveRolePermissions(userType, spaces, modules);
+                Dispatcher.Invoke(ApplyRoleBasedUiVisibility);
+            }
+            catch { }
+        }
+
+        private void ClearInMemoryUserSessionData()
+        {
+            try
+            {
+                _mailAccounts.Clear();
+                _mailMessages.Clear();
+                _selectedMail = null;
+                _processedTotalCount = 0;
+                _processedImportantCount = 0;
+                _processedNormalCount = 0;
+                _processedUnreadCount = 0;
+                _processedArchivedCount = 0;
+                _recipientFrequencyMap.Clear();
+                _indexedMessageIds.Clear();
+
+                _contacts.Clear();
+                _selectedContact = null;
+
+                _calendarEvents.Clear();
+                _selectedCalendarEvent = null;
+
+                _todoLists.Clear();
+                _allTasks.Clear();
+                _selectedTask = null;
+
+                _pendingPrintJobs.Clear();
+                _historyPrintJobs.Clear();
+                _previewedPrintJob = null;
+
+                _filesDbByRelPath.Clear();
+                _archiveKnowledgeIndex.Rebuild(Array.Empty<FunkenwerkFileDbRecord>());
+
+                _printerPollTimer?.Stop();
+                _kdriveTrichterTimer?.Stop();
+                if (_eingangTrichterWatcher != null)
+                {
+                    _eingangTrichterWatcher.EnableRaisingEvents = false;
+                }
+
+                UpdateSpacesBadges();
+            }
+            catch { }
+        }
+
+        private void ApplyRoleBasedUiVisibility()
+        {
+            var s = FunkenwerkSharedSession.Load();
+            bool isAdmin = FunkenwerkSharedSession.IsAdminSession(s);
+            if (!isAdmin)
+            {
+                _kdriveTrichterTimer?.Stop();
+                if (_eingangTrichterWatcher != null)
+                {
+                    _eingangTrichterWatcher.EnableRaisingEvents = false;
+                }
+                if (!FunkenwerkSharedSession.IsSpaceAllowed("orders", s))
+                {
+                    _printerPollTimer?.Stop();
+                }
+            }
+
+            if (SpaceMailBtn != null)
+                SpaceMailBtn.Visibility = FunkenwerkSharedSession.IsSpaceAllowed("mail", s) ? Visibility.Visible : Visibility.Collapsed;
+            if (SpaceContactsBtn != null)
+                SpaceContactsBtn.Visibility = FunkenwerkSharedSession.IsSpaceAllowed("contacts", s) ? Visibility.Visible : Visibility.Collapsed;
+            if (SpaceCalendarBtn != null)
+                SpaceCalendarBtn.Visibility = FunkenwerkSharedSession.IsSpaceAllowed("calendar", s) ? Visibility.Visible : Visibility.Collapsed;
+            if (SpaceTodoBtn != null)
+                SpaceTodoBtn.Visibility = FunkenwerkSharedSession.IsSpaceAllowed("todo", s) ? Visibility.Visible : Visibility.Collapsed;
+            if (SpaceOrdersBtn != null)
+                SpaceOrdersBtn.Visibility = FunkenwerkSharedSession.IsSpaceAllowed("orders", s) ? Visibility.Visible : Visibility.Collapsed;
+            if (SpaceFilesBtn != null)
+                SpaceFilesBtn.Visibility = FunkenwerkSharedSession.IsSpaceAllowed("files", s) ? Visibility.Visible : Visibility.Collapsed;
+            if (SpaceAgentBtn != null)
+                SpaceAgentBtn.Visibility = FunkenwerkSharedSession.IsSpaceAllowed("agent", s) ? Visibility.Visible : Visibility.Collapsed;
+
+            RenderLauncherDeck();
+            if (!FunkenwerkSharedSession.IsSpaceAllowed(_activeSpace, s))
+            {
+                SwitchSpaceUI("launcher");
+            }
+        }
+
+        private async Task CheckForWindowsSuiteOtaUpdateInBackgroundAsync()
+        {
+            if (_isDownloadingWindowsOta) return;
+            _lastWindowsOtaCheckUtc = DateTime.UtcNow;
+
+            string token = !string.IsNullOrWhiteSpace(_apiToken) ? _apiToken : GetSavedTokenForUrl(_apiBaseUrl);
+            if (string.IsNullOrWhiteSpace(token)) return;
+
+            var manifest = await FunkenwerkAutoUpdater.CheckForUpdateAsync(_http, _apiBaseUrl, token);
+            _pendingWindowsOtaManifest = manifest;
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (HeaderOtaUpdateBtn == null || HeaderOtaUpdateTxt == null) return;
+                if (manifest != null)
+                {
+                    HeaderOtaUpdateTxt.Text = $"Update v{manifest.VersionName}";
+                    HeaderOtaUpdateBtn.ToolTip = $"Neues Funkenwerk-Update verfügbar: v{manifest.VersionName} (Build #{manifest.VersionCode})";
+                    HeaderOtaUpdateBtn.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    HeaderOtaUpdateBtn.Visibility = Visibility.Collapsed;
+                }
+            });
+        }
+
+        private async void HeaderOtaUpdateBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isDownloadingWindowsOta || _pendingWindowsOtaManifest == null) return;
+            var manifest = _pendingWindowsOtaManifest;
+
+            var answer = MessageBox.Show(
+                $"Neues Update für Funkenwerk Windows Suite verfügbar:\n\nVersion: v{manifest.VersionName} (Build #{manifest.VersionCode})\n\nJetzt herunterladen, SHA-256-Signatur prüfen und automatisch neu starten?",
+                "Funkenwerk Auto-Updater",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Information);
+
+            if (answer != MessageBoxResult.Yes) return;
+
+            string token = !string.IsNullOrWhiteSpace(_apiToken) ? _apiToken : GetSavedTokenForUrl(_apiBaseUrl);
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                MessageBox.Show("Bitte zuerst anmelden, um das Update herunterzuladen.", "Funkenwerk Auto-Updater", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _isDownloadingWindowsOta = true;
+            if (HeaderOtaUpdateBtn != null) HeaderOtaUpdateBtn.IsEnabled = false;
+
+            try
+            {
+                var progress = new Progress<int>(pct =>
+                {
+                    if (HeaderOtaUpdateTxt != null)
+                    {
+                        HeaderOtaUpdateTxt.Text = $"Update {pct}%";
+                    }
+                });
+
+                var result = await FunkenwerkAutoUpdater.DownloadVerifyAndApplyUpdateAsync(
+                    _http,
+                    _apiBaseUrl,
+                    token,
+                    manifest,
+                    progress);
+
+                if (!result.Ok)
+                {
+                    if (HeaderOtaUpdateTxt != null) HeaderOtaUpdateTxt.Text = $"Update v{manifest.VersionName}";
+                    if (HeaderOtaUpdateBtn != null) HeaderOtaUpdateBtn.IsEnabled = true;
+                    MessageBox.Show(result.Message, "Funkenwerk Auto-Updater", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                SaveSettingsToFile();
+                SyncSharedSessionSnapshot();
+                Application.Current.Shutdown();
+            }
+            finally
+            {
+                _isDownloadingWindowsOta = false;
+            }
         }
 
         // =========================================================================
@@ -2694,7 +3022,10 @@ namespace Funkenwerk
         private void SwitchSpaceUI(string space)
         {
             space = NormalizeSpaceKey(space);
-            if (!AllSpaceKeys.Contains(space)) space = "launcher";
+            if (!AllSpaceKeys.Contains(space) || !FunkenwerkSharedSession.IsSpaceAllowed(space))
+            {
+                space = "launcher";
+            }
             _activeSpace = space;
             _currentRenderingSpaceKey = space;
             if (_isLoaded)
@@ -17663,6 +17994,11 @@ namespace Funkenwerk
         {
             if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.K)
             {
+                if (!FunkenwerkSharedSession.IsSpaceAllowed("agent"))
+                {
+                    e.Handled = true;
+                    return;
+                }
                 if (AuthLoginOverlayGrid == null || AuthLoginOverlayGrid.Visibility != Visibility.Visible)
                 {
                     e.Handled = true;
@@ -19365,7 +19701,19 @@ namespace Funkenwerk
                                 rec.SearchText.Contains("Deutsche Rentenversicherung", StringComparison.OrdinalIgnoreCase);
                     bool originalGone = !File.Exists(dropFile);
 
-                    return movedToRente && inDb && originalGone;
+                    // Pruefe alle neuen Saeulen-Pfade der Datenablageschablone (03_Haus, 04_Versicherungen, 05_Verträge, 06_Gesundheit/Befunde, 01_Mein-Seelenfunke)
+                    var cHaus = FunkenwerkZeroTokenDocumentPipeline.ClassifyDocument(dropFile, "LSW Energie Stromabrechnung Zählerstand 2026", tmpRoot);
+                    var cVers = FunkenwerkZeroTokenDocumentPipeline.ClassifyDocument(dropFile, "Barmenia Wohngebäudeversicherung Police 2026", tmpRoot);
+                    var cVert = FunkenwerkZeroTokenDocumentPipeline.ClassifyDocument(dropFile, "SimplyTel Handyvertrag Mobilfunk Rechnung 2026", tmpRoot);
+                    var cBef = FunkenwerkZeroTokenDocumentPipeline.ClassifyDocument(dropFile, "Augenarzt Befund Dr. Fiedler Rezept 2026", tmpRoot);
+                    var cHost = FunkenwerkZeroTokenDocumentPipeline.ClassifyDocument(dropFile, "Mein-Seelenfunke Mittwald Hosting Rechnung 2026", tmpRoot);
+                    bool schemaOk = cHaus.MainFolder == "03_Haus" && cHaus.SubFolder.StartsWith("Gas_Wasser_Strom/Zaehlerstaende/", StringComparison.Ordinal) &&
+                                    cVers.MainFolder == "04_Versicherungen" && cVers.SubFolder == "Gebaeudeversicherung" &&
+                                    cVert.MainFolder == "05_Verträge" && cVert.SubFolder == "Handy" &&
+                                    cBef.MainFolder == "06_Gesundheit" && cBef.SubFolder == "Befunde" &&
+                                    cHost.MainFolder == "01_Mein-Seelenfunke" && cHost.SubFolder == "Hosting/Mittwald";
+
+                    return movedToRente && inDb && originalGone && schemaOk;
                 }
                 finally
                 {
@@ -19397,12 +19745,12 @@ namespace Funkenwerk
                         Tags = new List<string> { "Rente", "Rentenbescheid", "2025" },
                         SearchText = "Deutsche Rentenversicherung Renteninformation 2025"
                     };
-                    _filesDbByRelPath["04_Versicherungen_Vertraege_Mobilitaet/Versicherungen_Privat/2026-11-22_deutsche_Rentenversicherung.pdf"] = new FunkenwerkFileDbRecord
+                    _filesDbByRelPath["04_Versicherungen/Gebaeudeversicherung/06_-_Barmenia/2026-11-22_deutsche_Rentenversicherung.pdf"] = new FunkenwerkFileDbRecord
                     {
                         Filename = "2026-11-22_deutsche_Rentenversicherung.pdf",
-                        RelPath = "04_Versicherungen_Vertraege_Mobilitaet/Versicherungen_Privat/2026-11-22_deutsche_Rentenversicherung.pdf",
-                        MainFolder = "04_Versicherungen_Vertraege_Mobilitaet",
-                        SubFolder = "Versicherungen_Privat",
+                        RelPath = "04_Versicherungen/Gebaeudeversicherung/06_-_Barmenia/2026-11-22_deutsche_Rentenversicherung.pdf",
+                        MainFolder = "04_Versicherungen",
+                        SubFolder = "Gebaeudeversicherung/06_-_Barmenia",
                         Ext = "pdf",
                         ExtractedDate = "2026-08-02",
                         FileMtime = "2026-11-22 17:44:57",
@@ -21719,11 +22067,18 @@ namespace Funkenwerk
                 return (PickExistingFolder("07_Behoerden_Recht_Berufshistorie", "Behoerden_Recht", "Beruf_Arbeitgeber", "Berufsleben"), "", "Beh\u00F6rden, Recht & Beruf", new List<string> { "Beh\u00F6rden", "Beruf" }, "Beh\u00F6rden-, Rechts- oder Berufsdokument.");
             }
 
-            if (combined.Contains("versicherung") || combined.Contains("arag") || combined.Contains("haftpflicht") || combined.Contains("police") || combined.Contains("kfz") || combined.Contains("mobilitaet"))
-                return (PickExistingFolder("04_Versicherungen_Vertraege_Mobilitaet", "Versicherungen", "Vertraege_Alltag", "Dokumente"), "", "Versicherungen & Vertr\u00E4ge", new List<string> { "Versicherung", "Vertrag" }, "Versicherungspolice / Vertragsunterlage.");
+            if (combined.Contains("simplytel") || combined.Contains("handyvertrag") || combined.Contains("mobilfunk") ||
+                combined.Contains("telekom") || combined.Contains("vodafone") || combined.Contains("glasfaser") || combined.Contains("internetvertrag"))
+                return (PickExistingFolder("05_Verträge", "05_Vertraege", "Vertraege_Alltag", "Dokumente"), "", "Vertr\u00E4ge", new List<string> { "Vertrag", "Handy & Internet" }, "Handy- oder Internet-Vertragsunterlage.");
 
-            if (combined.Contains("haus") || combined.Contains("immobilie") || combined.Contains("miete") || combined.Contains("nebenkosten") || combined.Contains("strom") || combined.Contains("grundsteuer"))
-                return (PickExistingFolder("03_Haus_Immobilie", "Haus_Immobilien", "Dokumente"), "", "Haus & Immobilie", new List<string> { "Haus", "Immobilie" }, "Immobilien-Unterlage.");
+            if (combined.Contains("versicherung") || combined.Contains("arag") || combined.Contains("haftpflicht") ||
+                combined.Contains("geb\u00E4udeversicherung") || combined.Contains("gebaeudeversicherung") ||
+                combined.Contains("zahnzusatz") || combined.Contains("unfall") || combined.Contains("barmenia") ||
+                combined.Contains("devk") || combined.Contains("neodigital") || combined.Contains("police") || combined.Contains("kfz"))
+                return (PickExistingFolder("04_Versicherungen", "Versicherungen", "Dokumente"), "", "Versicherungen", new List<string> { "Versicherung", "Police" }, "Versicherungspolice / Vertragsunterlage.");
+
+            if (combined.Contains("haus") || combined.Contains("immobilie") || combined.Contains("miete") || combined.Contains("nebenkosten") || combined.Contains("strom") || combined.Contains("grundsteuer") || combined.Contains("photovoltaik") || combined.Contains("z\u00E4hler"))
+                return (PickExistingFolder("03_Haus", "Haus_Immobilien", "Dokumente"), "", "Haus", new List<string> { "Haus", "Immobilie" }, "Immobilien-Unterlage.");
 
             if (combined.Contains("tresor") || combined.Contains("keepass") || combined.Contains("recovery") || combined.Contains("backup"))
                 return (PickExistingFolder("08_Tresor_Backups", "Keepass", "Dokumente"), "", "Tresor & Backups", new List<string> { "Tresor", "Backup" }, "Sicherheits- oder Backup-Unterlage.");
@@ -21735,7 +22090,7 @@ namespace Funkenwerk
                 return (PickExistingFolder("02_Finanzen_Steuern_Banken", "Banken_Finanzen", "Steuern_Privat", "Rechnungen_Privat", "Dokumente"), "", "Finanzen, Steuern & Banken", new List<string> { "Finanzen", "Steuern" }, "Finanz-, Bank- oder Steuerunterlage.");
             }
 
-            return (PickExistingFolder("04_Versicherungen_Vertraege_Mobilitaet", "02_Finanzen_Steuern_Banken", "Vertraege_Alltag", "Dokumente"), "", "Allgemeine Unterlagen", new List<string> { "Archiv" }, "Archiviertes Dokument.");
+            return (PickExistingFolder("02_Finanzen_Steuern_Banken", "04_Versicherungen", "05_Verträge", "Dokumente"), "", "Allgemeine Unterlagen", new List<string> { "Archiv" }, "Archiviertes Dokument.");
         }
 
         private async Task UploadLocalFilesToWorkspaceAsync(string[] filePaths, string targetWorkspacePath)

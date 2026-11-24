@@ -514,6 +514,20 @@ class SystemBrainDiagnosticsService
             ];
         }
 
+        $routeSafety = $this->auditRouteDefinitionsSafety();
+        if (empty($routeSafety['passed'])) {
+            foreach ($routeSafety['violations'] ?? [] as $v) {
+                $securityFailures++;
+                $issues[] = [
+                    'category' => 'security_guards',
+                    'severity' => 'error',
+                    'title' => 'Unsichere Route-Middleware (' . ($v['file'] ?? 'routes/') . ')',
+                    'message' => (string) ($v['message'] ?? 'Closure/Variable in RouteRegistrar::middleware() erkannt.'),
+                    'file_path' => $v['file'] ?? 'routes/api.php',
+                ];
+            }
+        }
+
         $sections[] = [
             'key' => 'security_guards',
             'label' => 'Sicherheits-Guards & Portale',
@@ -2339,5 +2353,311 @@ class SystemBrainDiagnosticsService
         }
 
         return SystemErrorLogger::sanitizeSensitiveText(Str::limit($fallbackMessage, 600));
+    }
+
+    /**
+     * Prüft alle Routen-Dateien via PHP-Tokenizer sowie optional alle registrierten Router-Einträge
+     * auf Closure- oder Variablen-Übergaben an RouteRegistrar::middleware() / Route::group(['middleware' => ...]),
+     * um RouteRegistrar.php:130 (Object of class Closure could not be converted to string) dauerhaft auszuschließen.
+     */
+    public function auditRouteDefinitionsSafety(?string $routesDirectory = null, bool $includeRegisteredRoutes = true): array
+    {
+        $dir = $routesDirectory ?: base_path('routes');
+        $violations = [];
+        $filesScanned = 0;
+
+        if (is_dir($dir)) {
+            $baseRoot = str_replace('\\', '/', rtrim(base_path(), '/\\')) . '/';
+            foreach (File::allFiles($dir) as $file) {
+                if (strtolower($file->getExtension()) !== 'php') {
+                    continue;
+                }
+                $filesScanned++;
+                $absPath = $file->getPathname();
+                $normAbs = str_replace('\\', '/', $absPath);
+                $relPath = str_starts_with($normAbs, $baseRoot)
+                    ? substr($normAbs, strlen($baseRoot))
+                    : $file->getFilename();
+
+                foreach ($this->scanRouteFileMiddlewareSafety($absPath, $relPath) as $violation) {
+                    $violations[] = $violation;
+                }
+            }
+        }
+
+        $routesScanned = 0;
+        if ($includeRegisteredRoutes) {
+            foreach (Route::getRoutes()->getRoutes() as $route) {
+                $routesScanned++;
+                $uri = (string) ($route->uri() ?? '?');
+                $actionMiddlewares = (array) ($route->action['middleware'] ?? []);
+                foreach (array_merge($actionMiddlewares, $route->gatherMiddleware()) as $mw) {
+                    if (!is_string($mw)) {
+                        $mwType = is_object($mw) ? get_class($mw) : gettype($mw);
+                        $violations[] = [
+                            'file' => 'routes/',
+                            'line' => 0,
+                            'rule' => 'registered_route_non_string_middleware',
+                            'message' => "Registrierte Route [{$uri}] enthält nicht-stringfähige Middleware ({$mwType}).",
+                        ];
+                        break;
+                    }
+                }
+            }
+        }
+
+        return [
+            'passed' => empty($violations),
+            'files_scanned' => $filesScanned,
+            'routes_scanned' => $routesScanned,
+            'violations_count' => count($violations),
+            'violations' => $violations,
+        ];
+    }
+
+    /**
+     * @return array<int, array{file: string, line: int, rule: string, message: string}>
+     */
+    protected function scanRouteFileMiddlewareSafety(string $filePath, string $relativePath): array
+    {
+        if (!is_file($filePath)) {
+            return [];
+        }
+
+        $source = @file_get_contents($filePath);
+        if (!is_string($source) || $source === '') {
+            return [];
+        }
+
+        $rawTokens = token_get_all($source);
+        $tokens = [];
+        $currentLine = 1;
+        foreach ($rawTokens as $tok) {
+            if (is_array($tok)) {
+                $currentLine = $tok[2];
+                if (in_array($tok[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)) {
+                    continue;
+                }
+                $tokens[] = [$tok[0], $tok[1], $tok[2]];
+            } else {
+                $tokens[] = [$tok, $tok, $currentLine];
+                $currentLine += substr_count($tok, "\n");
+            }
+        }
+
+        $violations = [];
+        $count = count($tokens);
+
+        $isTokenType = static function (array $token, array $types): bool {
+            return in_array($token[0], $types, true);
+        };
+
+        $inspectArgumentSpan = static function (int $startIndex, int $endIndex, bool $allowVariables = false) use ($tokens, $relativePath): ?array {
+            for ($k = $startIndex; $k <= $endIndex; $k++) {
+                $type = $tokens[$k][0];
+                $text = $tokens[$k][1];
+                $line = $tokens[$k][2];
+                if ($type === T_FUNCTION || $type === T_FN) {
+                    return [
+                        'file' => $relativePath,
+                        'line' => $line,
+                        'rule' => 'closure_in_route_middleware',
+                        'message' => "Inline-Closure in Route-Middleware/Attribut erkannt ({$relativePath}:{$line}). Nutze eine dedizierte Middleware-Klasse unter app/Http/Middleware/.",
+                    ];
+                }
+                if (!$allowVariables && $type === T_VARIABLE) {
+                    return [
+                        'file' => $relativePath,
+                        'line' => $line,
+                        'rule' => 'variable_in_route_middleware',
+                        'message' => "Variable {$text} in Route-Middleware erkannt ({$relativePath}:{$line}). Kann eine Closure enthalten und RouteRegistrar.php:130 / Route.php:1090 auslösen.",
+                    ];
+                }
+            }
+
+            return null;
+        };
+
+        $findClosingParen = static function (int $openIdx) use ($tokens, $count): int {
+            $depth = 0;
+            for ($j = $openIdx; $j < $count; $j++) {
+                if ($tokens[$j][0] === '(') {
+                    $depth++;
+                } elseif ($tokens[$j][0] === ')') {
+                    $depth--;
+                    if ($depth === 0) {
+                        return $j;
+                    }
+                }
+            }
+
+            return $openIdx;
+        };
+
+        for ($i = 0; $i < $count; $i++) {
+            // 1. Route::middleware(...) / Route::withoutMiddleware(...) / ->middleware(...) / ->withoutMiddleware(...)
+            $isMethodChain = $i + 3 < $count
+                && $isTokenType($tokens[$i], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR])
+                && $tokens[$i + 1][0] === T_STRING
+                && in_array(strtolower($tokens[$i + 1][1]), ['middleware', 'withoutmiddleware'], true)
+                && $tokens[$i + 2][0] === '(';
+
+            $isStaticRouteCall = $i + 4 < $count
+                && $tokens[$i][0] === T_STRING
+                && strtolower($tokens[$i][1]) === 'route'
+                && $tokens[$i + 1][0] === T_DOUBLE_COLON
+                && $tokens[$i + 2][0] === T_STRING
+                && in_array(strtolower($tokens[$i + 2][1]), ['middleware', 'withoutmiddleware'], true)
+                && $tokens[$i + 3][0] === '(';
+
+            if ($isMethodChain || $isStaticRouteCall) {
+                $openIdx = $isMethodChain ? $i + 2 : $i + 3;
+                $closeIdx = $findClosingParen($openIdx);
+                if ($closeIdx > $openIdx + 1) {
+                    $v = $inspectArgumentSpan($openIdx + 1, $closeIdx - 1);
+                    if ($v !== null) {
+                        $violations[] = $v;
+                    }
+                }
+                $i = $closeIdx;
+                continue;
+            }
+
+            // 1b. String-Attribute auf Route/RouteRegistrar (prefix, name, domain, namespace, as) ohne Closures
+            $isStringAttrChain = $i + 3 < $count
+                && $isTokenType($tokens[$i], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR])
+                && $tokens[$i + 1][0] === T_STRING
+                && in_array(strtolower($tokens[$i + 1][1]), ['prefix', 'name', 'domain', 'namespace', 'as'], true)
+                && $tokens[$i + 2][0] === '(';
+
+            $isStaticStringAttr = $i + 4 < $count
+                && $tokens[$i][0] === T_STRING
+                && strtolower($tokens[$i][1]) === 'route'
+                && $tokens[$i + 1][0] === T_DOUBLE_COLON
+                && $tokens[$i + 2][0] === T_STRING
+                && in_array(strtolower($tokens[$i + 2][1]), ['prefix', 'name', 'domain', 'namespace', 'as'], true)
+                && $tokens[$i + 3][0] === '(';
+
+            if ($isStringAttrChain || $isStaticStringAttr) {
+                $openIdx = $isStringAttrChain ? $i + 2 : $i + 3;
+                $closeIdx = $findClosingParen($openIdx);
+                if ($closeIdx > $openIdx + 1) {
+                    $v = $inspectArgumentSpan($openIdx + 1, $closeIdx - 1, true);
+                    if ($v !== null) {
+                        $violations[] = $v;
+                    }
+                }
+                $i = $closeIdx;
+                continue;
+            }
+
+            // 1c. Direkte Zuweisung $route->action['middleware'] = ...
+            if (
+                $i + 6 < $count
+                && $isTokenType($tokens[$i], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR])
+                && $tokens[$i + 1][0] === T_STRING
+                && strtolower($tokens[$i + 1][1]) === 'action'
+                && $tokens[$i + 2][0] === '['
+                && $tokens[$i + 3][0] === T_CONSTANT_ENCAPSED_STRING
+                && trim($tokens[$i + 3][1], "'\"") === 'middleware'
+                && $tokens[$i + 4][0] === ']'
+                && $tokens[$i + 5][0] === '='
+            ) {
+                $assignStart = $i + 6;
+                $assignEnd = $assignStart;
+                for ($m = $assignStart; $m < $count; $m++) {
+                    if ($tokens[$m][0] === ';') {
+                        $assignEnd = $m - 1;
+                        break;
+                    }
+                    $assignEnd = $m;
+                }
+                if ($assignEnd >= $assignStart) {
+                    $v = $inspectArgumentSpan($assignStart, $assignEnd);
+                    if ($v !== null) {
+                        $violations[] = $v;
+                    }
+                }
+                $i = $assignEnd;
+                continue;
+            }
+
+            // 2. Route::group(['middleware' => ...], ...)
+            if (
+                $i + 4 < $count
+                && $tokens[$i][0] === T_STRING
+                && strtolower($tokens[$i][1]) === 'route'
+                && $tokens[$i + 1][0] === T_DOUBLE_COLON
+                && $tokens[$i + 2][0] === T_STRING
+                && strtolower($tokens[$i + 2][1]) === 'group'
+                && $tokens[$i + 3][0] === '('
+            ) {
+                $groupOpen = $i + 3;
+                $parenDepth = 0;
+                $bracketDepth = 0;
+                for ($j = $groupOpen; $j < $count; $j++) {
+                    $tok = $tokens[$j][0];
+                    if ($tok === '(') {
+                        $parenDepth++;
+                    } elseif ($tok === ')') {
+                        $parenDepth--;
+                        if ($parenDepth === 0) {
+                            break;
+                        }
+                    } elseif ($tok === '[') {
+                        $bracketDepth++;
+                    } elseif ($tok === ']') {
+                        $bracketDepth--;
+                    }
+
+                    // Erste Argument-Ebene des Route::group([...]) Options-Arrays
+                    if (
+                        $parenDepth === 1
+                        && $bracketDepth === 1
+                        && $j + 2 < $count
+                        && $tokens[$j][0] === T_CONSTANT_ENCAPSED_STRING
+                        && in_array(trim($tokens[$j][1], "'\""), ['middleware', 'withoutMiddleware'], true)
+                        && $tokens[$j + 1][0] === T_DOUBLE_ARROW
+                    ) {
+                        $valStart = $j + 2;
+                        $valEnd = $valStart;
+                        $subParen = 0;
+                        $subBracket = 0;
+                        for ($m = $valStart; $m < $count; $m++) {
+                            $mt = $tokens[$m][0];
+                            if ($mt === '(') {
+                                $subParen++;
+                            } elseif ($mt === ')') {
+                                if ($subParen === 0) {
+                                    $valEnd = $m - 1;
+                                    break;
+                                }
+                                $subParen--;
+                            } elseif ($mt === '[') {
+                                $subBracket++;
+                            } elseif ($mt === ']') {
+                                if ($subBracket === 0) {
+                                    $valEnd = $m - 1;
+                                    break;
+                                }
+                                $subBracket--;
+                            } elseif ($mt === ',' && $subParen === 0 && $subBracket === 0) {
+                                $valEnd = $m - 1;
+                                break;
+                            }
+                            $valEnd = $m;
+                        }
+                        if ($valEnd >= $valStart) {
+                            $v = $inspectArgumentSpan($valStart, $valEnd);
+                            if ($v !== null) {
+                                $violations[] = $v;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return $violations;
     }
 }

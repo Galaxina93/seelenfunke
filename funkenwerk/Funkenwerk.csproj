@@ -9,10 +9,10 @@
     <AssemblyName>Funkenwerk</AssemblyName>
     <RootNamespace>Funkenwerk</RootNamespace>
     <ApplicationIcon>funkenwerk.ico</ApplicationIcon>
-    <Version>2.6.0</Version>
-    <AssemblyVersion>2.6.0.52</AssemblyVersion>
-    <FileVersion>2.6.0.52</FileVersion>
-    <InformationalVersion>2.6.0+b52</InformationalVersion>
+    <Version>2.7.1</Version>
+    <AssemblyVersion>2.7.1.54</AssemblyVersion>
+    <FileVersion>2.7.1.54</FileVersion>
+    <InformationalVersion>2.7.1+b54</InformationalVersion>
     <Product>Funkenwerk</Product>
     <Company>Mein-Seelenfunke</Company>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

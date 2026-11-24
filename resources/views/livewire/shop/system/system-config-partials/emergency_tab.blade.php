@@ -1,4 +1,4 @@
-<div x-show="activeTab === 'emergency'" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
+<div data-config-tab="emergency" data-config-tab-label="Notfallplan" x-show="isTabVisible('emergency')" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0" style="display: none;">
     <div class="bg-white dark:bg-[#0a0a0a] border border-red-200 dark:border-red-900/30 rounded-2xl p-6 sm:p-8 shadow-sm dark:shadow-2xl relative overflow-hidden">
         
         <!-- Background Element -->

@@ -16437,5 +16437,43 @@ Vielen Dank für Ihren Besuch. Ihre Deutsche Post AG',
                 'scanned_at' => \Carbon\Carbon::parse('2026-11-22 17:44:57', 'Europe/Berlin'),
             ]);
         }
+
+        // Verbindliche Datenablageschablone für C:\Users\konta\kDrive\Meine Daten (9 Säulen + 00_Eingang_Trichter)
+        if (class_exists(\App\Services\AI\CentralBrainService::class)) {
+            $schemaContent = <<<SCHEMA
+# kDrive Meine Daten: Verbindliche Datenablageschablone (9 Säulen + Eingang-Trichter)
+
+Alle privaten und geschäftlichen Dokumente unter `C:\\Users\\konta\\kDrive\\Meine Daten` (bzw. kDrive `Meine Daten`) folgen strikt dieser 9-Säulen-Struktur plus Auto-Eingang:
+
+- `00_Eingang_Trichter`: Automatischer Eingangs-Trichter für neue Scans/Downloads (wird 0-Token-basiert sofort in die 9 Zielsäulen einsortiert).
+- `01_Mein-Seelenfunke`: Gewerbliche Unterlagen und Assets:
+  - `Anleitungen`, `Banken/FYRST` (inkl. `FIN API`), `Businessplan` (`Alt`, `Qualifikationsnachweise`, `Tragfähigkeitsbescheinigung - Anfrage`), `Design`, `Hosting/Mittwald`, `Markenschutz_DPMA`, `Marketing` (`Banner für Zaun`, `Vorstellungsvideo`), `Medien` (`Funki & Marke`, `Manufaktur`, `Produkte`, `Shop & Screencasts`), `Rechnungen/<YYYY>/<MM>` (und `Hosting`, `Archiv_Belege/<YYYY>`), `Steuern` (`2022`, `2024`, `2025`, `Elster`, `Gewerbeanmeldung`), `Versicherungen` (`Betriebshaftpflicht_Hiscox`, `Rechtsschutz_ARAG_Gekuendigt`, `Uebersicht_Vertraege`), `Zertifikate`.
+- `02_Finanzen_Steuern_Banken`: Private Finanzen:
+  - `Banken/Volksbank_BraWo` (`Hauptkonto`, `Hauskredit_-_Konto`, `Kontoauszuege/<YYYY>`, `Umsaetze_CSV_PDF`, `Vollmaechte`), `Darlehen`, `Rechnungen/<YYYY>` (und `Workspace_2026`), `Schufa`, `Steuern_Elster/<YYYY>` (inkl. `Elster`, `Finanzamt_Gifhorn/<YYYY>`).
+- `03_Haus`: Eigenheim, Baustelle, Energie und Vermietung (ohne Wohngebäudeversicherung):
+  - `Angebote_Handwerker`, `Bauakten_Grundriss`, `Gas_Wasser_Strom` (`GAS`, `STROM`, `WASSER`, `Zaehlerstaende/<YYYY>`), `Kaufvertrag_Notar`, `Kredit_Lastenzuschuss`, `Photovoltaik_Waermepumpe`, `Vermietung`.
+- `04_Versicherungen`: Private Versicherungen:
+  - `Autoversicherung`, `Gebaeudeversicherung` (ERGO, Allianz, Neodigital, allsafe domo easy, Barmenia, DEVK), `Gekuendigt` (BU, Hausrat, ARAG Rechtsschutz, Risikoleben Baloise), `Haftpflichversicherung` (GEV, AXA), `Rentenversicherung` (privat), `Unfallversicherung`, `Zahnzusatzversicherung` (Allianz, AXA).
+- `05_Familie_Ausweise_Vorsorge`: Persönliche und Familien-Dokumente:
+  - `Antraege_Elterngeld_Kindergeld`, `Ausweise_Fuehrerschein`, `Erbe_Vorsorge` (+ `Erbe_Vorsorgevollmacht`), `Familie`, `Rente_Vorsorge/<YYYY>` (DRV Renteninformationen/Bescheide, Kontenklärung, Sozialversicherungsausweis), `Urkunden`.
+- `05_Verträge`: Telekommunikationsverträge:
+  - `Handy` (1&1, SimplyTel, Handyvertrag.de), `Internet` (Telekom, Vodafone, O2, Deutsche Glasfaser, 1&1).
+- `06_Gesundheit`: Medizinische Dokumente und Krankenkassen:
+  - `Befunde` (Augen, Gynaekologe, Haut, Impfungen, Koerperdokumentation, Krankenhausbesuche, Arm/Ohr/Schulter, Urologe, Zaehne), `Krankenkasse` (`1_-_Barmer_GEK`, `2_-_Salus_BKK`, `3_-_HEK`, `4_-_BKK_firmus`, `4_BKK_firmus`), `Krankmeldungen/<YYYY>` (`Chronologisch_AU_2016_2026`), `Transition` (`Behandlungen`, `Indikationsschreiben`, `Klinik_Dr_Lubos`, `Lebenslauf`, `OPs`).
+- `07_Behoerden_Recht_Berufshistorie`: Behörden und frühere Arbeitgeber:
+  - `Agentur_fuer_Arbeit/<YYYY>` (`Arbeitslosenversicherung`, `Workspace_2026`), `Arbeitgeber_Historie` (`01_-_Bel_Net` bis `09_-_S-KON_eKontor_24_GmbH`, `Sozialversicherung`), `Gifhorn_Behoerden` (`Amtsgericht_Gifhorn`, `BundID`, `Landkreis_Gifhorn`, `Stadt_Gifhorn`), `Polizei_Recht`.
+- `08_Tresor_Backups`: Kritische Zugangsdaten und Sicherheitskopien:
+  - `Keepass_Backups`, `Nummern_Daten`.
+SCHEMA;
+
+            \App\Services\AI\CentralBrainService::upsertDeduplicatedKnowledge(
+                title: 'kDrive Meine Daten: Aktuelle Datenablageschablone (9 Säulen)',
+                content: $schemaContent,
+                categoryName: 'Workspace-Dokumentenkatalog',
+                tags: ['kDrive', 'Meine Daten', 'Datenablageschablone', 'Ordnerstruktur', 'Trichter', '05_Verträge', '03_Haus', '04_Versicherungen'],
+                sourcePath: 'schema:kdrive:meine-daten-ablageschablone',
+                visibilityScope: \App\Models\Ai\AiKnowledgeBase::VISIBILITY_ADMIN_EXECUTIVE
+            );
+        }
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureFunkenwerkDomainAccess;
 use App\Models\Management\ManagementTask;
 use App\Models\Management\ManagementTaskList;
 use App\Models\Management\ManagementTaskMessage;
@@ -10,7 +11,40 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-Route::prefix('funki/tasks')->group(function () {
+Route::prefix('funki/tasks')
+    ->middleware([EnsureFunkenwerkDomainAccess::class . ':tasks'])
+    ->group(function () {
+
+    $applyEmployeeTaskScope = static function ($query, Request $request): void {
+        $u = $request->user();
+        if ($u instanceof \App\Models\Employee\Employee) {
+            $empId = (string) $u->id;
+            $query->where(function ($sub) use ($empId) {
+                $sub->where(function ($a) use ($empId) {
+                    $a->where('assignee_type', 'employee')->where('assignee_id', $empId);
+                })->orWhere(function ($c) use ($empId) {
+                    $c->where('created_by_type', 'employee')->where('created_by_id', $empId);
+                });
+            });
+        }
+    };
+
+    $findAuthorizedTask = static function (Request $request, $id, array $with = []): ManagementTask {
+        $query = empty($with) ? ManagementTask::query() : ManagementTask::with($with);
+        $task = $query->findOrFail($id);
+        $u = $request->user();
+        if ($u instanceof \App\Models\Employee\Employee) {
+            $empId = (string) $u->id;
+            $checkTarget = $task->parent_id ? (ManagementTask::find($task->parent_id) ?: $task) : $task;
+            $isOwn = ($checkTarget->assignee_type === 'employee' && (string) $checkTarget->assignee_id === $empId)
+                || ($checkTarget->created_by_type === 'employee' && (string) $checkTarget->created_by_id === $empId);
+            if (!$isOwn) {
+                abort(403, 'Zugriff auf fremde oder private Aufgaben verweigert.');
+            }
+        }
+
+        return $task;
+    };
 
     // --- UI CONFIG (Splitter Widths, Sound Mute & Saved Drag-Order in SystemCheckConfig) ---
     Route::get('/ui-config', function (ManagementTaskTicketService $ticketService) {
@@ -91,16 +125,24 @@ Route::prefix('funki/tasks')->group(function () {
     });
 
     // --- LISTS ---
-    Route::get('/lists', function () {
-        $lists = ManagementTaskList::withCount([
-            'tasks as open_count' => function ($q) {
+    Route::get('/lists', function (Request $request) use ($applyEmployeeTaskScope) {
+        $isEmployee = $request->user() instanceof \App\Models\Employee\Employee;
+        $listsQuery = ManagementTaskList::withCount([
+            'tasks as open_count' => function ($q) use ($request, $applyEmployeeTaskScope) {
                 $q->where('is_completed', false)->whereNull('parent_id')->where('is_archived', false);
+                $applyEmployeeTaskScope($q, $request);
             },
-            'tasks as completed_count' => function ($q) {
+            'tasks as completed_count' => function ($q) use ($request, $applyEmployeeTaskScope) {
                 $q->where('is_completed', true)->whereNull('parent_id')->where('is_archived', false);
+                $applyEmployeeTaskScope($q, $request);
             }
-        ])
-            ->where('is_archived', false)
+        ])->where('is_archived', false);
+
+        if ($isEmployee) {
+            $listsQuery->where('is_team_visible', true);
+        }
+
+        $lists = $listsQuery
             ->orderBy('position', 'asc')
             ->orderBy('created_at', 'asc')
             ->get();
@@ -108,6 +150,9 @@ Route::prefix('funki/tasks')->group(function () {
     });
 
     Route::post('/lists', function (Request $request) {
+        if ($request->user() instanceof \App\Models\Employee\Employee) {
+            abort(403, 'Listen können nur von der Leitung angelegt werden.');
+        }
         $data = $request->validate([
             'id' => 'nullable|string|max:64',
             'name' => 'required|string|max:100',
@@ -149,6 +194,9 @@ Route::prefix('funki/tasks')->group(function () {
     });
 
     Route::put('/lists/{id}', function (Request $request, $id) {
+        if ($request->user() instanceof \App\Models\Employee\Employee) {
+            abort(403, 'Listen können nur von der Leitung bearbeitet werden.');
+        }
         $list = ManagementTaskList::findOrFail($id);
         $data = $request->validate([
             'name' => 'sometimes|required|string|max:100',
@@ -169,7 +217,10 @@ Route::prefix('funki/tasks')->group(function () {
         return response()->json(['success' => true, 'data' => $list]);
     });
 
-    Route::delete('/lists/{id}', function ($id, ManagementTaskTicketService $ticketService) {
+    Route::delete('/lists/{id}', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
+        if ($request->user() instanceof \App\Models\Employee\Employee) {
+            abort(403, 'Listen können nur von der Leitung gelöscht werden.');
+        }
         $list = ManagementTaskList::findOrFail($id);
         $tasks = ManagementTask::with('messages')->where('task_list_id', $list->id)->get();
         foreach ($tasks as $t) {
@@ -181,7 +232,7 @@ Route::prefix('funki/tasks')->group(function () {
     });
 
     // --- TASKS / PERSONAL TICKETS ---
-    Route::get('/', function (ManagementTaskTicketService $ticketService) {
+    Route::get('/', function (Request $request, ManagementTaskTicketService $ticketService) use ($applyEmployeeTaskScope) {
         $ticketService->evaluateEscalations();
 
         $hasMessagesTable = Schema::hasTable('management_task_messages');
@@ -189,6 +240,7 @@ Route::prefix('funki/tasks')->group(function () {
         if ($hasMessagesTable) {
             $query->withCount('messages');
         }
+        $applyEmployeeTaskScope($query, $request);
 
         $tasks = $query
             ->where('is_archived', false)
@@ -279,9 +331,11 @@ Route::prefix('funki/tasks')->group(function () {
 
         $ticketService = app(ManagementTaskTicketService::class);
         $actor = $ticketService->resolveCurrentActor();
-        $resolvedAssignee = $request->filled('assignee_key')
-            ? $ticketService->resolveActorByKey((string) $request->input('assignee_key'))
-            : ($status === ManagementTask::STATUS_IN_PROGRESS || $isMine ? $actor : null);
+        $resolvedAssignee = ($actor['type'] ?? '') === 'employee'
+            ? $actor
+            : ($request->filled('assignee_key')
+                ? $ticketService->resolveActorByKey((string) $request->input('assignee_key'))
+                : ($status === ManagementTask::STATUS_IN_PROGRESS || $isMine ? $actor : null));
 
         $task = ManagementTask::create([
             'id' => !empty($data['id']) ? $data['id'] : (string) Str::uuid(),
@@ -316,8 +370,8 @@ Route::prefix('funki/tasks')->group(function () {
     Route::post('/', fn (Request $request) => $createTaskHandler($request, 'default'));
     Route::post('/lists/{listId}/tasks', fn (Request $request, $listId) => $createTaskHandler($request, (string) $listId));
 
-    Route::put('/{id}', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
-        $task = ManagementTask::findOrFail($id);
+    Route::put('/{id}', function (Request $request, $id, ManagementTaskTicketService $ticketService) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $data = $request->validate([
             'title' => 'sometimes|required|string|max:255',
             'status' => 'sometimes|in:open,waiting,in_progress,escalated,completed',
@@ -374,8 +428,8 @@ Route::prefix('funki/tasks')->group(function () {
         return response()->json(['success' => true, 'data' => $task->fresh()]);
     });
 
-    Route::put('/{id}/mine', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
-        $task = ManagementTask::findOrFail($id);
+    Route::put('/{id}/mine', function (Request $request, $id, ManagementTaskTicketService $ticketService) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $data = $request->validate([
             'is_mine' => 'required|boolean',
             'position' => 'nullable|integer|min:1',
@@ -384,8 +438,11 @@ Route::prefix('funki/tasks')->group(function () {
         return response()->json(['success' => true, 'data' => $updated]);
     });
 
-    Route::put('/{id}/assign', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
-        $task = ManagementTask::findOrFail($id);
+    Route::put('/{id}/assign', function (Request $request, $id, ManagementTaskTicketService $ticketService) use ($findAuthorizedTask) {
+        if ($request->user() instanceof \App\Models\Employee\Employee) {
+            abort(403, 'Aufgaben-Zuweisung an Dritte ist der Leitung vorbehalten.');
+        }
+        $task = $findAuthorizedTask($request, $id);
         $data = $request->validate([
             'assignee_key' => 'nullable|string|max:120',
         ]);
@@ -393,8 +450,8 @@ Route::prefix('funki/tasks')->group(function () {
         return response()->json(['success' => true, 'data' => $updated]);
     });
 
-    Route::put('/{id}/status', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
-        $task = ManagementTask::findOrFail($id);
+    Route::put('/{id}/status', function (Request $request, $id, ManagementTaskTicketService $ticketService) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $data = $request->validate([
             'status' => 'required|in:open,waiting,in_progress,completed',
         ]);
@@ -411,8 +468,8 @@ Route::prefix('funki/tasks')->group(function () {
         }
     });
 
-    Route::put('/{id}/toggle', function ($id) {
-        $task = ManagementTask::findOrFail($id);
+    Route::put('/{id}/toggle', function (Request $request, $id) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $nextCompleted = !$task->is_completed;
         $task->update([
             'is_completed' => $nextCompleted,
@@ -422,8 +479,8 @@ Route::prefix('funki/tasks')->group(function () {
     });
 
     // --- TICKET CHAT, 5-MIN EDIT & ESCALATION RESOLUTION ---
-    Route::get('/{id}/messages', function ($id) {
-        $task = ManagementTask::with(['messages', 'subtasks', 'list'])->findOrFail($id);
+    Route::get('/{id}/messages', function (Request $request, $id) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id, ['messages', 'subtasks', 'list']);
         $messages = $task->messages->map(fn ($msg) => ManagementTaskTicketService::serializeMessage($msg))->values();
 
         return response()->json([
@@ -433,8 +490,8 @@ Route::prefix('funki/tasks')->group(function () {
         ]);
     });
 
-    Route::post('/{id}/messages', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
-        $task = ManagementTask::findOrFail($id);
+    Route::post('/{id}/messages', function (Request $request, $id, ManagementTaskTicketService $ticketService) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $content = $request->input('content', $request->input('message', ''));
         $rawFiles = $request->file('files', $request->file('file', []));
         $files = is_array($rawFiles) ? $rawFiles : ($rawFiles ? [$rawFiles] : []);
@@ -451,8 +508,8 @@ Route::prefix('funki/tasks')->group(function () {
         }
     });
 
-    $editMessageHandler = function (Request $request, $id, $messageId, ManagementTaskTicketService $ticketService) {
-        $task = ManagementTask::findOrFail($id);
+    $editMessageHandler = function (Request $request, $id, $messageId, ManagementTaskTicketService $ticketService) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $msg = ManagementTaskMessage::where('management_task_id', $task->id)->findOrFail($messageId);
 
         $content = $request->input('content', $request->input('message', $msg->content));
@@ -475,8 +532,8 @@ Route::prefix('funki/tasks')->group(function () {
     Route::put('/{id}/messages/{messageId}', $editMessageHandler);
     Route::post('/{id}/messages/{messageId}', $editMessageHandler);
 
-    Route::post('/{id}/resolve-escalation', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
-        $task = ManagementTask::findOrFail($id);
+    Route::post('/{id}/resolve-escalation', function (Request $request, $id, ManagementTaskTicketService $ticketService) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $dueDate = (string) $request->input('relevant_from', $request->input('due_date', ''));
         $dueTime = $request->input('due_time');
         $duration = $request->filled('duration_minutes') ? (int) $request->input('duration_minutes') : null;
@@ -501,8 +558,8 @@ Route::prefix('funki/tasks')->group(function () {
         }
     });
 
-    Route::get('/{id}/attachment', function (Request $request, $id) {
-        ManagementTask::findOrFail($id);
+    Route::get('/{id}/attachment', function (Request $request, $id) use ($findAuthorizedTask) {
+        $findAuthorizedTask($request, $id);
         $path = ltrim(str_replace('\\', '/', (string) $request->query('path', '')), '/');
         if (
             $path === ''
@@ -522,9 +579,9 @@ Route::prefix('funki/tasks')->group(function () {
         return response()->download($fullPath, $safeName);
     });
 
-    Route::post('/{id}/subtask', function (Request $request, $id) {
+    Route::post('/{id}/subtask', function (Request $request, $id) use ($findAuthorizedTask) {
         $data = $request->validate(['title' => 'required|string']);
-        $task = ManagementTask::findOrFail($id);
+        $task = $findAuthorizedTask($request, $id);
         $maxPos = (int) ManagementTask::where('parent_id', $task->id)->max('position');
 
         $subtask = ManagementTask::create([
@@ -543,7 +600,10 @@ Route::prefix('funki/tasks')->group(function () {
         return response()->json(['success' => true, 'data' => $subtask]);
     });
 
-    Route::delete('/{id}', function ($id, ManagementTaskTicketService $ticketService) {
+    Route::delete('/{id}', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
+        if ($request->user() instanceof \App\Models\Employee\Employee) {
+            abort(403, 'Aufgaben können nur von der Leitung endgültig gelöscht werden.');
+        }
         $task = ManagementTask::with('messages')->findOrFail($id);
         $subtasks = ManagementTask::with('messages')->where('parent_id', $task->id)->get();
         foreach ($subtasks as $sub) {
@@ -555,8 +615,8 @@ Route::prefix('funki/tasks')->group(function () {
         return response()->json(['success' => true]);
     });
 
-    Route::post('/{id}/files', function (Request $request, $id, ManagementTaskTicketService $ticketService) {
-        $task = ManagementTask::findOrFail($id);
+    Route::post('/{id}/files', function (Request $request, $id, ManagementTaskTicketService $ticketService) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $request->validate(['file' => 'required']);
         $files = is_array($request->file('file')) ? $request->file('file') : [$request->file('file')];
         $stored = $ticketService->storeUploadedFiles($task, $files);
@@ -573,8 +633,8 @@ Route::prefix('funki/tasks')->group(function () {
         return response()->json(['success' => true, 'data' => $task->fresh()]);
     });
 
-    Route::delete('/{id}/files', function (Request $request, $id) {
-        $task = ManagementTask::findOrFail($id);
+    Route::delete('/{id}/files', function (Request $request, $id) use ($findAuthorizedTask) {
+        $task = $findAuthorizedTask($request, $id);
         $path = $request->input('path');
         if (!$path) {
             return response()->json(['success' => false, 'message' => 'Path missing'], 400);

@@ -94,4 +94,9 @@ protected $fillable = [
     {
         return $this->belongsTo(\App\Models\Accounting\AccountingCategory::class, 'accounting_category_id');
     }
+
+    public function financeCategory()
+    {
+        return $this->accountingCategory();
+    }
 }

@@ -601,8 +601,72 @@ class ManagementTaskTicketService
      * Prueft alle nicht erledigten Haupt-Tickets deterministisch auf ueberschrittene Faelligkeit
      * oder >= 72h Stillstand in "Meine Tickets".
      */
+    public function healDataIntegrity(bool $force = false): void
+    {
+        if (!Schema::hasTable('management_tasks')) {
+            return;
+        }
+
+        $cacheKey = 'sf_management_tasks_integrity_v1';
+        if (!$force && \Illuminate\Support\Facades\Cache::has($cacheKey)) {
+            return;
+        }
+
+        try {
+            // 1. Synchronize status <-> is_completed divergences from raw DB inserts/updates
+            DB::table('management_tasks')
+                ->where('is_completed', true)
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', ManagementTask::STATUS_COMPLETED);
+                })
+                ->update([
+                    'status' => ManagementTask::STATUS_COMPLETED,
+                    'escalated_at' => null,
+                    'escalation_reason' => null,
+                ]);
+
+            DB::table('management_tasks')
+                ->where('status', ManagementTask::STATUS_COMPLETED)
+                ->where('is_completed', false)
+                ->update([
+                    'is_completed' => true,
+                    'escalated_at' => null,
+                    'escalation_reason' => null,
+                ]);
+
+            // 2. Subtasks (parent_id IS NOT NULL) must never sit in "Meine Tickets" or escalate independently
+            DB::table('management_tasks')
+                ->whereNotNull('parent_id')
+                ->where(function ($q) {
+                    $q->where('is_mine', true)->orWhereNotNull('escalated_at');
+                })
+                ->update([
+                    'is_mine' => false,
+                    'escalated_at' => null,
+                    'escalation_reason' => null,
+                ]);
+
+            // 3. Remove orphaned subtasks whose parent ticket no longer exists
+            $existingIds = DB::table('management_tasks')->whereNull('parent_id')->pluck('id')->all();
+            if (empty($existingIds)) {
+                DB::table('management_tasks')->whereNotNull('parent_id')->delete();
+            } else {
+                DB::table('management_tasks')
+                    ->whereNotNull('parent_id')
+                    ->whereNotIn('parent_id', $existingIds)
+                    ->delete();
+            }
+
+            \Illuminate\Support\Facades\Cache::put($cacheKey, true, 120);
+        } catch (\Throwable $e) {
+            // Non-blocking guard
+        }
+    }
+
     public function evaluateEscalations(?Carbon $now = null): int
     {
+        $this->healDataIntegrity();
+
         if (
             !Schema::hasTable('management_tasks')
             || !Schema::hasColumn('management_tasks', 'escalated_at')

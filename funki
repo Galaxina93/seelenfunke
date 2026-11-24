@@ -24,9 +24,17 @@ require_local() {
 # Helper-Funktion: Wählt automatisch das aktuellste lokale FunkenwerkMcp.exe Binary
 resolve_mcp_exe() {
     local cli_exe="/mnt/c/Users/konta/AppData/Local/Funkenwerk/SentinelCli/FunkenwerkMcp.exe"
+    local prog_mod_exe="/mnt/c/Users/konta/AppData/Local/Programs/Funkenwerk Collection/Module/Funkenwerk MCP/FunkenwerkMcp.exe"
+    local prog_col_exe="/mnt/c/Users/konta/AppData/Local/Programs/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
     local mod_exe="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Module/Funkenwerk MCP/FunkenwerkMcp.exe"
     local col_exe="/mnt/c/Users/konta/Desktop/Funkenwerk Collection/Funkenwerk MCP/FunkenwerkMcp.exe"
-    local best_col="$mod_exe"
+    local best_col="$prog_mod_exe"
+    if [ ! -f "$best_col" ] && [ -f "$prog_col_exe" ]; then
+        best_col="$prog_col_exe"
+    fi
+    if [ ! -f "$best_col" ] && [ -f "$mod_exe" ]; then
+        best_col="$mod_exe"
+    fi
     if [ ! -f "$best_col" ] && [ -f "$col_exe" ]; then
         best_col="$col_exe"
     fi

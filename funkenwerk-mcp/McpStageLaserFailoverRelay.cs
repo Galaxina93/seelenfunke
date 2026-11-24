@@ -124,6 +124,8 @@ namespace FunkenwerkMcp
             public string JobId { get; set; } = "";
             public string Action { get; set; } = "";
             public string LaserIp { get; set; } = DefaultLaserIp;
+            public string LightMode { get; set; } = "normal";
+            public double? FocusMm { get; set; }
             public string? XfBase64 { get; set; }
             public string? Gcode { get; set; }
             public double CenterXMm { get; set; } = 100.0;
@@ -471,6 +473,8 @@ namespace FunkenwerkMcp
                     return null;
 
                 string rawIp = ReadJsonString(jobEl, "laser_ip", "ip");
+                string rawLightMode = NormalizeCameraLightMode(ReadJsonString(jobEl, "light_mode", "lightMode"));
+                double? focusMm = ReadJsonNullableDouble(jobEl, "focus_mm", "focusMm");
                 string? xfB64 = ReadJsonNullableString(jobEl, "xf_base64", "xfBase64");
                 string? gcode = ReadJsonNullableString(jobEl, "gcode", "border_gcode");
 
@@ -479,6 +483,8 @@ namespace FunkenwerkMcp
                     JobId = jobId.Trim(),
                     Action = action,
                     LaserIp = rawIp,
+                    LightMode = rawLightMode,
+                    FocusMm = focusMm,
                     XfBase64 = xfB64,
                     Gcode = gcode,
                     CenterXMm = ReadJsonDouble(jobEl, 100.0, "center_x_mm", "centerXMm"),
@@ -492,6 +498,36 @@ namespace FunkenwerkMcp
             {
                 return null;
             }
+        }
+
+        public static string NormalizeCameraLightMode(string? raw)
+        {
+            string k = (raw ?? "").Trim().ToLowerInvariant();
+            return k switch
+            {
+                "anti_glare" or "off" or "aus" or "led_off" => "anti_glare",
+                "dim" or "dimmed" or "low" or "10%" => "dim",
+                _ => "normal"
+            };
+        }
+
+        private static double? ReadJsonNullableDouble(JsonElement obj, params string[] keys)
+        {
+            foreach (string k in keys)
+            {
+                if (obj.TryGetProperty(k, out var el))
+                {
+                    if (el.ValueKind == JsonValueKind.Number && el.TryGetDouble(out double dv) && double.IsFinite(dv))
+                        return dv;
+                    if (el.ValueKind == JsonValueKind.String &&
+                        double.TryParse(el.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double sv) &&
+                        double.IsFinite(sv))
+                    {
+                        return sv;
+                    }
+                }
+            }
+            return null;
         }
 
         private static string ReadJsonString(JsonElement obj, params string[] keys)
@@ -985,7 +1021,32 @@ namespace FunkenwerkMcp
             }
         }
 
-        public static (byte[]? WarpedJpeg, bool UsedCalibGrid) TryWarpRawCameraJpeg2000x2000(byte[] rawJpegBytes, string? calibJson)
+        private static readonly byte[] s_antiGlareToneLut = BuildAntiGlareToneLut();
+
+        private static byte[] BuildAntiGlareToneLut()
+        {
+            var lut = new byte[256];
+            for (int i = 0; i < 256; i++)
+            {
+                if (i <= 185)
+                {
+                    lut[i] = (byte)i;
+                }
+                else
+                {
+                    // Sanftes Highlight-Rolloff ab 185 -> max. 236, damit glänzende Silberränder nicht weiß ausfressen
+                    double t = (i - 185.0) / 70.0;
+                    int rolled = 185 + (int)Math.Round(51.0 * Math.Pow(t, 0.56));
+                    lut[i] = (byte)Math.Clamp(rolled, 0, 236);
+                }
+            }
+            return lut;
+        }
+
+        public static (byte[]? WarpedJpeg, bool UsedCalibGrid) TryWarpRawCameraJpeg2000x2000(
+            byte[] rawJpegBytes,
+            string? calibJson,
+            bool antiGlareRolloff = false)
         {
             if (rawJpegBytes == null || rawJpegBytes.Length < 128)
                 return (null, false);
@@ -1056,7 +1117,7 @@ namespace FunkenwerkMcp
                             float sx = (w00 * gridX[i00]) + (w10 * gridX[i00 + 1]) + (w01 * gridX[i01]) + (w11 * gridX[i01 + 1]);
                             float sy = (w00 * gridY[i00]) + (w10 * gridY[i00 + 1]) + (w01 * gridY[i01]) + (w11 * gridY[i01 + 1]);
 
-                            SampleBilinearBgra32(srcPixels, srcStride, sx, sy, maxSrcX, maxSrcY, dstPixels, dstRowOffset + (dx * 4));
+                            SampleBilinearBgra32(srcPixels, srcStride, sx, sy, maxSrcX, maxSrcY, dstPixels, dstRowOffset + (dx * 4), antiGlareRolloff);
                         }
                     }
                 }
@@ -1074,7 +1135,7 @@ namespace FunkenwerkMcp
                         for (int dx = 0; dx < outDim; dx++)
                         {
                             float sx = cropX + (dx * step);
-                            SampleBilinearBgra32(srcPixels, srcStride, sx, sy, maxSrcX, maxSrcY, dstPixels, dstRowOffset + (dx * 4));
+                            SampleBilinearBgra32(srcPixels, srcStride, sx, sy, maxSrcX, maxSrcY, dstPixels, dstRowOffset + (dx * 4), antiGlareRolloff);
                         }
                     }
                 }
@@ -1110,7 +1171,8 @@ namespace FunkenwerkMcp
             float maxSrcX,
             float maxSrcY,
             byte[] dstPixels,
-            int dstOffset)
+            int dstOffset,
+            bool antiGlareRolloff = false)
         {
             float cx = Math.Clamp(sx, 0.0f, maxSrcX);
             float cy = Math.Clamp(sy, 0.0f, maxSrcY);
@@ -1131,9 +1193,20 @@ namespace FunkenwerkMcp
             int p01 = p00 + srcStride;
             int p11 = p01 + 4;
 
-            dstPixels[dstOffset] = (byte)Math.Clamp((int)((w00 * srcPixels[p00]) + (w10 * srcPixels[p10]) + (w01 * srcPixels[p01]) + (w11 * srcPixels[p11]) + 0.5f), 0, 255);
-            dstPixels[dstOffset + 1] = (byte)Math.Clamp((int)((w00 * srcPixels[p00 + 1]) + (w10 * srcPixels[p10 + 1]) + (w01 * srcPixels[p01 + 1]) + (w11 * srcPixels[p11 + 1]) + 0.5f), 0, 255);
-            dstPixels[dstOffset + 2] = (byte)Math.Clamp((int)((w00 * srcPixels[p00 + 2]) + (w10 * srcPixels[p10 + 2]) + (w01 * srcPixels[p01 + 2]) + (w11 * srcPixels[p11 + 2]) + 0.5f), 0, 255);
+            byte b = (byte)Math.Clamp((int)((w00 * srcPixels[p00]) + (w10 * srcPixels[p10]) + (w01 * srcPixels[p01]) + (w11 * srcPixels[p11]) + 0.5f), 0, 255);
+            byte g = (byte)Math.Clamp((int)((w00 * srcPixels[p00 + 1]) + (w10 * srcPixels[p10 + 1]) + (w01 * srcPixels[p01 + 1]) + (w11 * srcPixels[p11 + 1]) + 0.5f), 0, 255);
+            byte r = (byte)Math.Clamp((int)((w00 * srcPixels[p00 + 2]) + (w10 * srcPixels[p10 + 2]) + (w01 * srcPixels[p01 + 2]) + (w11 * srcPixels[p11 + 2]) + 0.5f), 0, 255);
+
+            if (antiGlareRolloff)
+            {
+                b = s_antiGlareToneLut[b];
+                g = s_antiGlareToneLut[g];
+                r = s_antiGlareToneLut[r];
+            }
+
+            dstPixels[dstOffset] = b;
+            dstPixels[dstOffset + 1] = g;
+            dstPixels[dstOffset + 2] = r;
             dstPixels[dstOffset + 3] = 255;
         }
 
@@ -1237,7 +1310,25 @@ namespace FunkenwerkMcp
             return null;
         }
 
-        public static async Task<LaserCameraCaptureResult> CaptureLiveCameraDetailedAsync(string ip = DefaultLaserIp)
+        private static async Task SendLegacyHttpFillLightFallbackAsync(string safeIp, int front, int back)
+        {
+            if (!IsValidPrivateLanIpv4(safeIp))
+                return;
+
+            try
+            {
+                string body = $"{{\"action\":\"set_bri\",\"front\":{Math.Clamp(front, 0, 255)},\"back\":{Math.Clamp(back, 0, 255)}}}";
+                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(450));
+                using var content = new StringContent(body, new UTF8Encoding(false), "application/json");
+                using var _ = await LanCameraHttp.PostAsync($"http://{safeIp}:8080/peripheral/fill_light", content, cts.Token).ConfigureAwait(false);
+            }
+            catch { }
+        }
+
+        public static async Task<LaserCameraCaptureResult> CaptureLiveCameraDetailedAsync(
+            string ip = DefaultLaserIp,
+            string lightMode = "normal",
+            double? focusMm = null)
         {
             if (!IsValidPrivateLanIpv4(ip))
             {
@@ -1250,6 +1341,14 @@ namespace FunkenwerkMcp
             }
 
             string safeIp = ip.Trim();
+            string resolvedLightMode = NormalizeCameraLightMode(lightMode);
+            (int Front, int Back)? fillLightTargets = resolvedLightMode switch
+            {
+                "anti_glare" => (0, 0),
+                "dim" => (0, 20),
+                _ => null
+            };
+
             bool v2Open = await ProbeLaserReachableAsync(safeIp, DefaultV2Port, 750).ConfigureAwait(false);
             byte[]? rawJpeg = null;
             string calibJson = LoadCachedCalibJson();
@@ -1257,7 +1356,7 @@ namespace FunkenwerkMcp
 
             if (v2Open)
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(18));
                 string uuid = Guid.NewGuid().ToString("D");
                 using var mainWs = await ConnectV2WsAsync(safeIp, DefaultV2Port, $"/websocket?id={uuid}&function=instruction", cts.Token).ConfigureAwait(false);
                 using var fileWs = mainWs != null
@@ -1266,13 +1365,18 @@ namespace FunkenwerkMcp
 
                 if (mainWs != null && fileWs != null)
                 {
+                    var mainBuf = new List<byte>(4096);
+                    var fileBuf = new List<byte>(65536);
+                    var txId = new RefInt();
+                    string sessionToken = "";
+                    bool fillLightChanged = false;
+                    bool peripheralsDimmed = false;
+                    int restoreFrontBri = 255;
+                    int restoreBackBri = 255;
+
                     try
                     {
-                        var mainBuf = new List<byte>(4096);
-                        var fileBuf = new List<byte>(65536);
-                        var txId = new RefInt();
-
-                        string sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, cts.Token).ConfigureAwait(false);
+                        sessionToken = await AuthenticateParityAsync(mainWs, mainBuf, txId, cts.Token).ConfigureAwait(false);
                         if (!string.IsNullOrWhiteSpace(sessionToken))
                         {
                             if (string.IsNullOrWhiteSpace(calibJson) || !calibJson.Contains("data0", StringComparison.Ordinal))
@@ -1289,10 +1393,110 @@ namespace FunkenwerkMcp
                                 }
                             }
 
+                            if (fillLightTargets.HasValue)
+                            {
+                                try
+                                {
+                                    var devCfg = await SendV2JsonCmdAsync(
+                                        mainWs,
+                                        mainBuf,
+                                        txId,
+                                        sessionToken,
+                                        "GET",
+                                        "/v1/device/configs",
+                                        new JsonObject(),
+                                        new JsonObject
+                                        {
+                                            ["alias"] = "config",
+                                            ["type"] = "user",
+                                            ["kv"] = new JsonArray("fillLightBrightFront", "fillLightBrightBack")
+                                        },
+                                        cts.Token).ConfigureAwait(false);
+                                    var cfgNode = devCfg?["data"]?["configs"] ?? devCfg?["data"];
+                                    int? fVal = cfgNode?["fillLightBrightFront"]?.GetValue<int>();
+                                    int? bVal = cfgNode?["fillLightBrightBack"]?.GetValue<int>();
+                                    if (fVal.HasValue) restoreFrontBri = Math.Clamp(fVal.Value, 0, 255);
+                                    if (bVal.HasValue) restoreBackBri = Math.Clamp(bVal.Value, 0, 255);
+                                    if (restoreFrontBri == 0 && restoreBackBri == 0)
+                                    {
+                                        restoreFrontBri = 255;
+                                        restoreBackBri = 255;
+                                    }
+                                }
+                                catch { }
+                            }
+
+                            if (focusMm.HasValue && focusMm.Value > 0.0 && focusMm.Value <= 150.0)
+                            {
+                                try
+                                {
+                                    double targetZ = Math.Round(focusMm.Value + 6.0, 2);
+                                    _ = await SendV2JsonCmdAsync(
+                                        mainWs,
+                                        mainBuf,
+                                        txId,
+                                        sessionToken,
+                                        "POST",
+                                        "/v1/laser-head/focus/control",
+                                        new JsonObject(),
+                                        new JsonObject { ["action"] = "goTo", ["stopFirst"] = 1, ["z"] = targetZ },
+                                        cts.Token).ConfigureAwait(false);
+                                    await Task.Delay(350, cts.Token).ConfigureAwait(false);
+                                }
+                                catch { }
+                            }
+
+                            peripheralsDimmed = true;
                             _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "off", ["index"] = 0 }, cts.Token).ConfigureAwait(false);
                             _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 0 }, cts.Token).ConfigureAwait(false);
 
+                            if (fillLightTargets.HasValue)
+                            {
+                                var flResp = await SendV2JsonCmdAsync(
+                                    mainWs,
+                                    mainBuf,
+                                    txId,
+                                    sessionToken,
+                                    "PUT",
+                                    "/v1/peripheral/param",
+                                    new JsonObject { ["type"] = "fill_light" },
+                                    new JsonObject
+                                    {
+                                        ["action"] = "set_bri",
+                                        ["front"] = fillLightTargets.Value.Front,
+                                        ["back"] = fillLightTargets.Value.Back
+                                    },
+                                    cts.Token).ConfigureAwait(false);
+                                fillLightChanged = true;
+                                if (flResp == null)
+                                {
+                                    await SendLegacyHttpFillLightFallbackAsync(safeIp, fillLightTargets.Value.Front, fillLightTargets.Value.Back).ConfigureAwait(false);
+                                }
+                            }
+
                             _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "POST", "/v1/camera", new JsonObject { ["exp"] = 0, ["stream"] = "0" }, new JsonObject(), cts.Token).ConfigureAwait(false);
+
+                            if (fillLightTargets.HasValue)
+                            {
+                                await Task.Delay(160, cts.Token).ConfigureAwait(false);
+                                _ = await SendV2JsonCmdAsync(
+                                    mainWs,
+                                    mainBuf,
+                                    txId,
+                                    sessionToken,
+                                    "PUT",
+                                    "/v1/peripheral/param",
+                                    new JsonObject { ["type"] = "fill_light" },
+                                    new JsonObject
+                                    {
+                                        ["action"] = "set_bri",
+                                        ["front"] = fillLightTargets.Value.Front,
+                                        ["back"] = fillLightTargets.Value.Back
+                                    },
+                                    cts.Token).ConfigureAwait(false);
+                                await Task.Delay(520, cts.Token).ConfigureAwait(false);
+                            }
+
                             var snap = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "GET", "/v1/camera/snap", new JsonObject { ["name"] = "main", ["timeOut"] = 30000 }, new JsonObject(), cts.Token).ConfigureAwait(false);
                             string remoteFile = snap?["data"]?["filename"]?.GetValue<string>()
                                              ?? snap?["data"]?["params"]?["filename"]?.GetValue<string>()
@@ -1304,14 +1508,52 @@ namespace FunkenwerkMcp
                                 if (rawJpeg != null && rawJpeg.Length >= 10000)
                                     source = "win_v2_wss_28900";
                             }
-
-                            _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "on", ["index"] = 0 }, cts.Token).ConfigureAwait(false);
-                            _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 128 }, cts.Token).ConfigureAwait(false);
                         }
                     }
                     catch { }
                     finally
                     {
+                        if (!string.IsNullOrWhiteSpace(sessionToken) && mainWs.State == WebSocketState.Open)
+                        {
+                            using var cleanupCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                            if (fillLightChanged)
+                            {
+                                try
+                                {
+                                    var restResp = await SendV2JsonCmdAsync(
+                                        mainWs,
+                                        mainBuf,
+                                        txId,
+                                        sessionToken,
+                                        "PUT",
+                                        "/v1/peripheral/param",
+                                        new JsonObject { ["type"] = "fill_light" },
+                                        new JsonObject
+                                        {
+                                            ["action"] = "set_bri",
+                                            ["front"] = restoreFrontBri,
+                                            ["back"] = restoreBackBri
+                                        },
+                                        cleanupCts.Token).ConfigureAwait(false);
+                                    if (restResp == null)
+                                    {
+                                        await SendLegacyHttpFillLightFallbackAsync(safeIp, restoreFrontBri, restoreBackBri).ConfigureAwait(false);
+                                    }
+                                }
+                                catch { }
+                            }
+
+                            if (peripheralsDimmed)
+                            {
+                                try
+                                {
+                                    _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/peripheral/param", new JsonObject { ["type"] = "ir_led" }, new JsonObject { ["action"] = "on", ["index"] = 0 }, cleanupCts.Token).ConfigureAwait(false);
+                                    _ = await SendV2JsonCmdAsync(mainWs, mainBuf, txId, sessionToken, "PUT", "/v1/laser-head/parameter", new JsonObject(), new JsonObject { ["action"] = "power", ["ctrl"] = "set", ["value"] = 128 }, cleanupCts.Token).ConfigureAwait(false);
+                                }
+                                catch { }
+                            }
+                        }
+
                         try { if (fileWs.State == WebSocketState.Open) await fileWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
                         try { if (mainWs.State == WebSocketState.Open) await mainWs.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).ConfigureAwait(false); } catch { }
                     }
@@ -1361,7 +1603,7 @@ namespace FunkenwerkMcp
                 };
             }
 
-            var (warped, usedCalib) = TryWarpRawCameraJpeg2000x2000(rawJpeg, calibJson);
+            var (warped, usedCalib) = TryWarpRawCameraJpeg2000x2000(rawJpeg, calibJson, resolvedLightMode != "normal");
             if (warped != null && warped.Length > 10000)
             {
                 return new LaserCameraCaptureResult
@@ -1807,7 +2049,7 @@ namespace FunkenwerkMcp
 
             if (string.Equals(job.Action, "capture_camera", StringComparison.OrdinalIgnoreCase))
             {
-                var camRes = await CaptureLiveCameraDetailedAsync(safeIp).ConfigureAwait(false);
+                var camRes = await CaptureLiveCameraDetailedAsync(safeIp, job.LightMode, job.FocusMm).ConfigureAwait(false);
                 lock (s_laserCacheLock)
                 {
                     s_cachedLaserOnline = camRes.LaserOnline;

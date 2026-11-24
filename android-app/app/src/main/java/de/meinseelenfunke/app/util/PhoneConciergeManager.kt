@@ -12,12 +12,15 @@ import android.os.Build
 import android.os.PowerManager
 import android.os.SystemClock
 import android.telecom.TelecomManager
+import android.telephony.SubscriptionManager
+import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
+import de.meinseelenfunke.app.data.api.CallVerificationReportDto
 import de.meinseelenfunke.app.data.api.ManagementContactDto
 import de.meinseelenfunke.app.data.api.PhoneConciergeCompleteBody
 import de.meinseelenfunke.app.data.api.PhoneConciergeConfigUpdateBody
@@ -25,6 +28,8 @@ import de.meinseelenfunke.app.data.api.PhoneConciergeSignalBody
 import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
 import de.meinseelenfunke.app.data.api.PhoneWhitelistToggleBody
 import de.meinseelenfunke.app.di.ServiceLocator
+import de.meinseelenfunke.app.services.CallNoteVerificationEngine
+import de.meinseelenfunke.app.services.CallVerificationInput
 import de.meinseelenfunke.app.services.FunkiraPhoneConciergeService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +42,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+
+enum class CallRoutingDecision {
+    REJECT_TO_CARRIER,
+    DELAYED_CARRIER_DIVERT,
+    ON_DEVICE_SECRETARY
+}
+
+data class LocalNoteEdit(
+    val summary: String,
+    val actionRequired: String,
+    val rahmenbedingungen: List<String>,
+    val updatedAtIso: String = Instant.now().toString()
+)
 
 data class PendingPhoneSecretaryNote(
     val callId: String,
@@ -47,7 +70,12 @@ data class PendingPhoneSecretaryNote(
     val summary: String,
     val urgency: String,
     val callbackRequested: Boolean,
-    val createdAtIso: String = Instant.now().toString()
+    val createdAtIso: String = Instant.now().toString(),
+    val rahmenbedingungen: List<String> = emptyList(),
+    val actionRequired: String = "",
+    val durationSeconds: Int = 0,
+    val transcript: List<String> = emptyList(),
+    val verification: CallVerificationReportDto? = null
 )
 
 data class CachedWhitelistContact(
@@ -67,9 +95,16 @@ object PhoneConciergeManager {
     const val DEFAULT_GATEWAY_PHONE = "+4953717269023"
     const val DEFAULT_CARRIER_NO_ANSWER_SEC = 20
 
+    const val ANSWER_MODE_AUTO = "auto"
+    const val ANSWER_MODE_CARRIER = "carrier"
+    const val ANSWER_MODE_ON_DEVICE = "on_device"
+
     private const val PREFS_NAME = "funkira_phone_concierge_prefs"
     private const val KEY_ENABLED = "concierge_enabled"
     private const val KEY_RING_DELAY = "concierge_ring_delay_sec"
+    private const val KEY_ANSWER_MODE = "concierge_answer_mode_v1"
+    private const val KEY_CARRIER_CONFIRMED = "concierge_carrier_forwarding_confirmed_v1"
+    private const val KEY_AUTO_VERIFY = "concierge_auto_verify_notes_v1"
     private const val KEY_GATEWAY_PHONE = "concierge_gateway_phone_v1"
     private const val KEY_CACHED_CONTACTS_JSON = "concierge_cached_contacts_json"
     private const val KEY_LOCAL_WHITELIST_IDS = "concierge_local_whitelist_ids"
@@ -79,10 +114,15 @@ object PhoneConciergeManager {
     private const val KEY_SEEDED_DEFAULTS = "concierge_seeded_papa_v1"
     private const val KEY_PENDING_NOTES_ENC = "concierge_pending_secretary_notes_enc_v1"
     private const val KEY_RECENT_CALLS_ENC = "concierge_recent_calls_enc_v1"
+    private const val KEY_LOCAL_CALLS_ENC = "concierge_local_calls_enc_v1"
+    private const val KEY_VERIFICATIONS_ENC = "concierge_verifications_enc_v1"
+    private const val KEY_NOTE_EDITS_ENC = "concierge_note_edits_enc_v1"
     private const val KEY_SEEN_CALL_IDS = "concierge_seen_call_ids_v1"
     private val pendingLock = Any()
     private val _unseenCallCount = MutableStateFlow(0)
     val unseenCallCountFlow: StateFlow<Int> = _unseenCallCount.asStateFlow()
+    private val _recentCallsFlow = MutableStateFlow<List<PhoneSecretaryCallSummaryDto>>(emptyList())
+    val recentCallsFlow: StateFlow<List<PhoneSecretaryCallSummaryDto>> = _recentCallsFlow.asStateFlow()
     private val bgScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @Volatile private var delayedDivertJob: Job? = null
     @Volatile private var lastScreenedAtRealtimeMs: Long = 0L
@@ -104,6 +144,82 @@ object PhoneConciergeManager {
 
     fun setRingDelayLocal(ctx: Context, seconds: Int) {
         prefs(ctx).edit().putInt(KEY_RING_DELAY, seconds.coerceIn(0, 30)).apply()
+    }
+
+    fun getAnswerMode(ctx: Context): String {
+        val raw = prefs(ctx).getString(KEY_ANSWER_MODE, ANSWER_MODE_AUTO).orEmpty()
+        return when (raw) {
+            ANSWER_MODE_CARRIER, ANSWER_MODE_ON_DEVICE, ANSWER_MODE_AUTO -> raw
+            else -> ANSWER_MODE_AUTO
+        }
+    }
+
+    fun setAnswerMode(ctx: Context, mode: String) {
+        val clean = when (mode) {
+            ANSWER_MODE_CARRIER, ANSWER_MODE_ON_DEVICE -> mode
+            else -> ANSWER_MODE_AUTO
+        }
+        prefs(ctx).edit().putString(KEY_ANSWER_MODE, clean).apply()
+    }
+
+    fun isCarrierForwardingConfirmed(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_CARRIER_CONFIRMED, false)
+
+    fun setCarrierForwardingConfirmed(ctx: Context, confirmed: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_CARRIER_CONFIRMED, confirmed).apply()
+    }
+
+    fun isAutoVerifyEnabled(ctx: Context): Boolean =
+        prefs(ctx).getBoolean(KEY_AUTO_VERIFY, true)
+
+    fun setAutoVerifyEnabled(ctx: Context, enabled: Boolean) {
+        prefs(ctx).edit().putBoolean(KEY_AUTO_VERIFY, enabled).apply()
+    }
+
+    fun hasMicrophonePermission(ctx: Context): Boolean =
+        ContextCompat.checkSelfPermission(ctx.applicationContext, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    fun isBatteryOptimizationIgnored(ctx: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val pm = ctx.applicationContext.getSystemService(PowerManager::class.java) ?: return true
+        return try {
+            pm.isIgnoringBatteryOptimizations(ctx.applicationContext.packageName)
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    internal fun resolveCallRoutingDecision(
+        answerMode: String,
+        carrierForwardingConfirmed: Boolean,
+        delaySeconds: Int,
+        hasAnswerPerms: Boolean
+    ): CallRoutingDecision {
+        return when (answerMode) {
+            ANSWER_MODE_ON_DEVICE -> {
+                if (hasAnswerPerms) {
+                    CallRoutingDecision.ON_DEVICE_SECRETARY
+                } else if (delaySeconds <= 0) {
+                    CallRoutingDecision.REJECT_TO_CARRIER
+                } else {
+                    CallRoutingDecision.DELAYED_CARRIER_DIVERT
+                }
+            }
+            ANSWER_MODE_CARRIER -> {
+                if (delaySeconds <= 0) CallRoutingDecision.REJECT_TO_CARRIER else CallRoutingDecision.DELAYED_CARRIER_DIVERT
+            }
+            else -> {
+                // AUTO: Nutze direkte Smartphone-Sekretärin, solange Netz-Rufumleitung (**004*) noch nicht bestätigt ist;
+                // sobald Netz-Rufumleitung aktiv ist, übernimmt die schnellere Gifhorn-Leitung (Twilio).
+                if (!carrierForwardingConfirmed && hasAnswerPerms) {
+                    CallRoutingDecision.ON_DEVICE_SECRETARY
+                } else if (delaySeconds <= 0) {
+                    CallRoutingDecision.REJECT_TO_CARRIER
+                } else {
+                    CallRoutingDecision.DELAYED_CARRIER_DIVERT
+                }
+            }
+        }
     }
 
     fun getGatewayPhone(ctx: Context): String =
@@ -148,6 +264,7 @@ object PhoneConciergeManager {
         } else {
             buildCarrierForwardingDisableMmi()
         }
+        setCarrierForwardingConfirmed(ctx, activate)
         appendDiagnosticTrace(ctx, "Wählfeld geöffnet ($mmi)")
         try {
             // Uri.fromParts encodes trailing '#' as '%23' so Pixel Phone preserves the full GSM MMI string
@@ -167,15 +284,29 @@ object PhoneConciergeManager {
         }
     }
 
-    fun signalWhitelistDiversionAsync(ctx: Context, matched: CachedWhitelistContact, rawNumber: String) {
+    fun signalWhitelistDiversionAsync(
+        ctx: Context,
+        matched: CachedWhitelistContact,
+        rawNumber: String,
+        callId: String? = null,
+        audioMode: String = "twilio_divert"
+    ) {
         val app = ctx.applicationContext
         bgScope.launch(Dispatchers.IO) {
+            val pm = app.getSystemService(PowerManager::class.java)
+            val wl = try {
+                pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "funkenwerk:call_signal")?.apply {
+                    setReferenceCounted(false)
+                    acquire(10_000L)
+                }
+            } catch (_: Exception) { null }
             try {
                 ServiceLocator.ensureInitialized(app)
                 if (ServiceLocator.getAuthToken().isNullOrBlank()) return@launch
                 val cleanId = matched.id.takeUnless { it == "default-papa" || it.isBlank() }
                 ServiceLocator.getOrganizerApi().signalPhoneConciergeCall(
                     PhoneConciergeSignalBody(
+                        call_id = callId,
                         state = "ringing",
                         is_simulation = false,
                         contact_id = cleanId,
@@ -184,7 +315,28 @@ object PhoneConciergeManager {
                         relation_type = matched.relationType,
                         caller_phone = rawNumber,
                         system_instructions = matched.systemInstructions,
-                        audio_mode = "twilio_divert"
+                        audio_mode = audioMode
+                    )
+                )
+            } catch (_: Exception) {
+            } finally {
+                try {
+                    if (wl?.isHeld == true) wl.release()
+                } catch (_: Exception) { }
+            }
+        }
+    }
+
+    fun signalCallCancelledAsync(ctx: Context, callId: String?) {
+        val app = ctx.applicationContext
+        bgScope.launch(Dispatchers.IO) {
+            try {
+                ServiceLocator.ensureInitialized(app)
+                if (ServiceLocator.getAuthToken().isNullOrBlank()) return@launch
+                ServiceLocator.getOrganizerApi().signalPhoneConciergeCall(
+                    PhoneConciergeSignalBody(
+                        call_id = callId,
+                        state = "cancelled"
                     )
                 )
             } catch (_: Exception) { }
@@ -197,7 +349,8 @@ object PhoneConciergeManager {
         ctx: Context,
         matched: CachedWhitelistContact,
         rawNumber: String,
-        delaySeconds: Int
+        delaySeconds: Int,
+        signalCallId: String? = null
     ) {
         val app = ctx.applicationContext
         delayedDivertJob?.cancel()
@@ -206,24 +359,28 @@ object PhoneConciergeManager {
             val wl = try {
                 pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "funkenwerk:call_divert_timer")?.apply {
                     setReferenceCounted(false)
-                    acquire(((delaySeconds.coerceIn(0, 25) + 5) * 1_000L))
+                    acquire(((delaySeconds.coerceIn(0, 25) + 6) * 1_000L))
                 }
             } catch (_: Exception) { null }
+
+            val telecom = app.getSystemService(TelecomManager::class.java)
+            val audio = app.getSystemService(AudioManager::class.java)
+            val telephony = app.getSystemService(TelephonyManager::class.java)
+            val subStates = ConcurrentHashMap<Int, Int>()
+            val registeredCallbacks = registerSubscriptionCallbacksSafe(app, telephony, subStates)
 
             try {
                 val targetMs = delaySeconds.coerceIn(0, 30) * 1_000L
                 var elapsedMs = 0L
-                val telecom = app.getSystemService(TelecomManager::class.java)
-                val audio = app.getSystemService(AudioManager::class.java)
-                val telephony = app.getSystemService(TelephonyManager::class.java)
+                var sawRingingOnce = false
+                val hasPhoneState = ContextCompat.checkSelfPermission(
+                    app,
+                    Manifest.permission.READ_PHONE_STATE
+                ) == PackageManager.PERMISSION_GRANTED
 
                 while (isActive && elapsedMs < targetMs) {
-                    delay(500L)
-                    elapsedMs += 500L
-                    val hasPhoneState = ContextCompat.checkSelfPermission(
-                        app,
-                        Manifest.permission.READ_PHONE_STATE
-                    ) == PackageManager.PERMISSION_GRANTED
+                    delay(250L)
+                    elapsedMs += 250L
                     val inCall = if (hasPhoneState) {
                         try { telecom?.isInCall == true } catch (_: Exception) { true }
                     } else {
@@ -238,15 +395,20 @@ object PhoneConciergeManager {
                         telecomInCall = inCall,
                         audioMode = audio?.mode ?: AudioManager.MODE_NORMAL,
                         legacyTelephonyState = legacyState,
-                        subscriptionStates = emptyList(),
+                        subscriptionStates = subStates.values,
                         secretaryAudioOverrideActive = false
                     )
+                    if (unified == TelephonyManager.CALL_STATE_RINGING) {
+                        sawRingingOnce = true
+                    }
                     if (unified == TelephonyManager.CALL_STATE_OFFHOOK) {
                         appendDiagnosticTrace(app, "Selbst angenommen (${matched.fullName})")
+                        signalCallCancelledAsync(app, signalCallId)
                         return@launch
                     }
-                    if (elapsedMs >= 1_500L && unified == TelephonyManager.CALL_STATE_IDLE) {
+                    if ((sawRingingOnce || elapsedMs >= 3_500L) && unified == TelephonyManager.CALL_STATE_IDLE) {
                         appendDiagnosticTrace(app, "Anrufer aufgelegt (${matched.fullName})")
+                        signalCallCancelledAsync(app, signalCallId)
                         return@launch
                     }
                 }
@@ -270,10 +432,53 @@ object PhoneConciergeManager {
                     appendDiagnosticTrace(app, "Warte auf Netz-Weiterleitung (${matched.fullName})")
                 }
             } finally {
+                unregisterSubscriptionCallbacksSafe(registeredCallbacks)
                 try {
                     if (wl?.isHeld == true) wl.release()
                 } catch (_: Exception) { }
             }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun registerSubscriptionCallbacksSafe(
+        app: Context,
+        baseTelephony: TelephonyManager?,
+        subStates: ConcurrentHashMap<Int, Int>
+    ): List<Pair<TelephonyManager, TelephonyCallback>> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || baseTelephony == null) return emptyList()
+        if (ContextCompat.checkSelfPermission(app, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            return emptyList()
+        }
+        val list = mutableListOf<Pair<TelephonyManager, TelephonyCallback>>()
+        val subIds = mutableSetOf<Int>()
+        try {
+            val sm = app.getSystemService(SubscriptionManager::class.java)
+            sm?.activeSubscriptionInfoList?.forEach { subIds.add(it.subscriptionId) }
+        } catch (_: Exception) { }
+        val targets = if (subIds.isNotEmpty()) {
+            subIds.map { it to baseTelephony.createForSubscriptionId(it) }
+        } else {
+            listOf(-1 to baseTelephony)
+        }
+        for ((subId, tm) in targets) {
+            try {
+                val cb = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
+                    override fun onCallStateChanged(state: Int) {
+                        subStates[subId] = state
+                    }
+                }
+                tm.registerTelephonyCallback(app.mainExecutor, cb)
+                list.add(tm to cb)
+            } catch (_: Exception) { }
+        }
+        return list
+    }
+
+    private fun unregisterSubscriptionCallbacksSafe(registered: List<Pair<TelephonyManager, TelephonyCallback>>) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        for ((tm, cb) in registered) {
+            try { tm.unregisterTelephonyCallback(cb) } catch (_: Exception) { }
         }
     }
 
@@ -331,6 +536,12 @@ object PhoneConciergeManager {
             gson.fromJson<List<String>>(raw, t) ?: emptyList()
         } catch (_: Exception) {
             emptyList()
+        }
+    }
+
+    fun clearDiagnosticTrace(ctx: Context) {
+        synchronized(pendingLock) {
+            prefs(ctx).edit().remove(KEY_DIAG_TRACE_JSON).apply()
         }
     }
 
@@ -463,36 +674,173 @@ object PhoneConciergeManager {
         _unseenCallCount.value = 0
     }
 
-    fun loadCachedRecentCalls(ctx: Context): List<PhoneSecretaryCallSummaryDto> {
-        val enc = prefs(ctx).getString(KEY_RECENT_CALLS_ENC, null)
-        if (enc.isNullOrBlank()) {
-            _unseenCallCount.value = 0
-            return emptyList()
-        }
-        val json = ServiceLocator.decryptPayloadFromPrefs(enc)
-        if (json == null) {
-            _unseenCallCount.value = 0
-            return emptyList()
-        }
-        val list = try {
-            val t = object : TypeToken<List<PhoneSecretaryCallSummaryDto>>() {}.type
-            gson.fromJson<List<PhoneSecretaryCallSummaryDto>>(json, t) ?: emptyList()
+    private fun formatLocalCallTimeLabel(iso: String): String {
+        return try {
+            val berlinZone = ZoneId.of("Europe/Berlin")
+            val dt = Instant.parse(iso).atZone(berlinZone)
+            val today = ZonedDateTime.now(berlinZone).toLocalDate()
+            val timeStr = dt.format(DateTimeFormatter.ofPattern("HH:mm", Locale.GERMAN))
+            when (dt.toLocalDate()) {
+                today -> "Heute, $timeStr"
+                today.minusDays(1) -> "Gestern, $timeStr"
+                else -> dt.format(DateTimeFormatter.ofPattern("dd.MM.yyyy, HH:mm", Locale.GERMAN))
+            }
         } catch (_: Exception) {
-            emptyList()
+            "Heute"
         }
-        _unseenCallCount.value = countUnseenCalls(ctx, list)
-        return list
     }
 
-    private fun saveCachedRecentCalls(ctx: Context, calls: List<PhoneSecretaryCallSummaryDto>) {
+    private fun loadLocalCallsUnsafe(ctx: Context): MutableList<PhoneSecretaryCallSummaryDto> {
+        val enc = prefs(ctx).getString(KEY_LOCAL_CALLS_ENC, null) ?: return mutableListOf()
+        val json = ServiceLocator.decryptPayloadFromPrefs(enc) ?: return mutableListOf()
+        return try {
+            val t = object : TypeToken<MutableList<PhoneSecretaryCallSummaryDto>>() {}.type
+            gson.fromJson<MutableList<PhoneSecretaryCallSummaryDto>>(json, t) ?: mutableListOf()
+        } catch (_: Exception) {
+            mutableListOf()
+        }
+    }
+
+    private fun saveLocalCallsUnsafe(ctx: Context, calls: List<PhoneSecretaryCallSummaryDto>) {
         if (calls.isEmpty()) {
-            prefs(ctx).edit().remove(KEY_RECENT_CALLS_ENC).apply()
-            _unseenCallCount.value = 0
+            prefs(ctx).edit().remove(KEY_LOCAL_CALLS_ENC).apply()
             return
         }
-        val enc = ServiceLocator.encryptPayloadForPrefs(gson.toJson(calls))
-        prefs(ctx).edit().putString(KEY_RECENT_CALLS_ENC, enc).apply()
-        _unseenCallCount.value = countUnseenCalls(ctx, calls)
+        val enc = ServiceLocator.encryptPayloadForPrefs(gson.toJson(calls.take(25)))
+        prefs(ctx).edit().putString(KEY_LOCAL_CALLS_ENC, enc).apply()
+    }
+
+    private fun loadVerificationMapUnsafe(ctx: Context): MutableMap<String, CallVerificationReportDto> {
+        val enc = prefs(ctx).getString(KEY_VERIFICATIONS_ENC, null) ?: return mutableMapOf()
+        val json = ServiceLocator.decryptPayloadFromPrefs(enc) ?: return mutableMapOf()
+        return try {
+            val t = object : TypeToken<MutableMap<String, CallVerificationReportDto>>() {}.type
+            gson.fromJson<MutableMap<String, CallVerificationReportDto>>(json, t) ?: mutableMapOf()
+        } catch (_: Exception) {
+            mutableMapOf()
+        }
+    }
+
+    private fun saveVerificationMapUnsafe(ctx: Context, map: Map<String, CallVerificationReportDto>) {
+        if (map.isEmpty()) {
+            prefs(ctx).edit().remove(KEY_VERIFICATIONS_ENC).apply()
+            return
+        }
+        val trimmed = map.entries.toList().takeLast(60).associate { it.key to it.value }
+        val enc = ServiceLocator.encryptPayloadForPrefs(gson.toJson(trimmed))
+        prefs(ctx).edit().putString(KEY_VERIFICATIONS_ENC, enc).apply()
+    }
+
+    private fun loadNoteEditsMapUnsafe(ctx: Context): MutableMap<String, LocalNoteEdit> {
+        val enc = prefs(ctx).getString(KEY_NOTE_EDITS_ENC, null) ?: return mutableMapOf()
+        val json = ServiceLocator.decryptPayloadFromPrefs(enc) ?: return mutableMapOf()
+        return try {
+            val t = object : TypeToken<MutableMap<String, LocalNoteEdit>>() {}.type
+            gson.fromJson<MutableMap<String, LocalNoteEdit>>(json, t) ?: mutableMapOf()
+        } catch (_: Exception) {
+            mutableMapOf()
+        }
+    }
+
+    private fun saveNoteEditsMapUnsafe(ctx: Context, map: Map<String, LocalNoteEdit>) {
+        if (map.isEmpty()) {
+            prefs(ctx).edit().remove(KEY_NOTE_EDITS_ENC).apply()
+            return
+        }
+        val trimmed = map.entries.toList().takeLast(60).associate { it.key to it.value }
+        val enc = ServiceLocator.encryptPayloadForPrefs(gson.toJson(trimmed))
+        prefs(ctx).edit().putString(KEY_NOTE_EDITS_ENC, enc).apply()
+    }
+
+    internal fun applyLocalEnhancementsToCalls(
+        remoteCalls: List<PhoneSecretaryCallSummaryDto>,
+        localCalls: List<PhoneSecretaryCallSummaryDto>,
+        verifications: Map<String, CallVerificationReportDto>,
+        edits: Map<String, LocalNoteEdit>
+    ): List<PhoneSecretaryCallSummaryDto> {
+        val remoteIds = remoteCalls.mapNotNull { it.id.takeIf(String::isNotBlank) }.toSet()
+        val combined = mutableListOf<PhoneSecretaryCallSummaryDto>()
+        localCalls.forEach { local ->
+            if (local.id.isNotBlank() && local.id !in remoteIds) {
+                combined.add(local)
+            }
+        }
+        combined.addAll(remoteCalls)
+
+        return combined.map { call ->
+            val ver = verifications[call.id] ?: call.verification
+            val edit = edits[call.id]
+            val effectiveSummary = when {
+                edit != null && edit.summary.isNotBlank() -> edit.summary
+                ver != null && ver.status == CallNoteVerificationEngine.STATUS_CORRECTED && ver.corrected_summary.isNotBlank() ->
+                    ver.corrected_summary
+                else -> call.summary
+            }
+            val effectiveRahmen = when {
+                edit != null -> edit.rahmenbedingungen
+                ver != null && ver.status == CallNoteVerificationEngine.STATUS_CORRECTED && !ver.corrected_rahmenbedingungen.isNullOrEmpty() ->
+                    ver.corrected_rahmenbedingungen
+                else -> call.rahmenbedingungen
+            }
+            val effectiveAction = when {
+                edit != null && edit.actionRequired.isNotBlank() -> edit.actionRequired
+                ver != null && ver.status == CallNoteVerificationEngine.STATUS_CORRECTED && ver.corrected_action_required.isNotBlank() ->
+                    ver.corrected_action_required
+                else -> call.action_required
+            }
+            val effectiveUrgency = if (ver != null && ver.status == CallNoteVerificationEngine.STATUS_CORRECTED && ver.corrected_urgency.isNotBlank()) {
+                ver.corrected_urgency
+            } else {
+                call.urgency
+            }
+            call.copy(
+                summary = effectiveSummary,
+                rahmenbedingungen = effectiveRahmen,
+                action_required = effectiveAction,
+                urgency = effectiveUrgency,
+                verification = ver
+            )
+        }
+    }
+
+    fun loadCachedRecentCalls(ctx: Context): List<PhoneSecretaryCallSummaryDto> {
+        val rawRemote = synchronized(pendingLock) {
+            val enc = prefs(ctx).getString(KEY_RECENT_CALLS_ENC, null)
+            val json = if (!enc.isNullOrBlank()) ServiceLocator.decryptPayloadFromPrefs(enc) else null
+            if (json != null) {
+                try {
+                    val t = object : TypeToken<List<PhoneSecretaryCallSummaryDto>>() {}.type
+                    gson.fromJson<List<PhoneSecretaryCallSummaryDto>>(json, t) ?: emptyList()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+        }
+        val merged = synchronized(pendingLock) {
+            applyLocalEnhancementsToCalls(
+                remoteCalls = rawRemote,
+                localCalls = loadLocalCallsUnsafe(ctx),
+                verifications = loadVerificationMapUnsafe(ctx),
+                edits = loadNoteEditsMapUnsafe(ctx)
+            )
+        }
+        _recentCallsFlow.value = merged
+        _unseenCallCount.value = countUnseenCalls(ctx, merged)
+        return merged
+    }
+
+    private fun saveCachedRecentCalls(ctx: Context, calls: List<PhoneSecretaryCallSummaryDto>): List<PhoneSecretaryCallSummaryDto> {
+        synchronized(pendingLock) {
+            if (calls.isEmpty()) {
+                prefs(ctx).edit().remove(KEY_RECENT_CALLS_ENC).apply()
+            } else {
+                val enc = ServiceLocator.encryptPayloadForPrefs(gson.toJson(calls))
+                prefs(ctx).edit().putString(KEY_RECENT_CALLS_ENC, enc).apply()
+            }
+        }
+        return loadCachedRecentCalls(ctx)
     }
 
     suspend fun fetchRecentCalls(ctx: Context): List<PhoneSecretaryCallSummaryDto> {
@@ -500,19 +848,109 @@ object PhoneConciergeManager {
         if (ServiceLocator.getAuthToken().isNullOrBlank()) {
             return loadCachedRecentCalls(ctx)
         }
-        return try {
+        val merged = try {
             val cfgRes = ServiceLocator.getOrganizerApi().getPhoneConciergeConfig()
             val cfg = cfgRes.data
             if (cfgRes.success && cfg != null) {
-                val recent = cfg.recent_calls.orEmpty()
-                saveCachedRecentCalls(ctx, recent)
-                recent
+                saveCachedRecentCalls(ctx, cfg.recent_calls.orEmpty())
             } else {
                 loadCachedRecentCalls(ctx)
             }
         } catch (_: Exception) {
             loadCachedRecentCalls(ctx)
         }
+        if (isAutoVerifyEnabled(ctx)) {
+            verifyUncheckedCallsInBackground(ctx, merged)
+        }
+        return loadCachedRecentCalls(ctx)
+    }
+
+    private suspend fun verifyUncheckedCallsInBackground(ctx: Context, calls: List<PhoneSecretaryCallSummaryDto>) {
+        val candidates = calls.filter { c ->
+            c.id.isNotBlank() &&
+                c.verification == null &&
+                !c.transcript.isNullOrEmpty() &&
+                CallNoteVerificationEngine.extractCallerLines(c.transcript).isNotEmpty()
+        }.take(2)
+        for (c in candidates) {
+            try {
+                verifyCallNow(ctx, c)
+            } catch (_: Exception) { }
+        }
+    }
+
+    suspend fun verifyCallNow(ctx: Context, call: PhoneSecretaryCallSummaryDto): PhoneSecretaryCallSummaryDto {
+        val input = CallVerificationInput(
+            callerName = call.caller_name,
+            greetingName = call.caller_name,
+            transcriptLines = call.transcript.orEmpty(),
+            understoodSummary = call.summary,
+            understoodRahmenbedingungen = call.rahmenbedingungen.orEmpty(),
+            understoodActionRequired = call.action_required,
+            understoodUrgency = call.urgency,
+            understoodCallbackRequested = call.callback_requested
+        )
+        val report = CallNoteVerificationEngine.verifyCallNotes(ctx, input, allowNetwork = true)
+        synchronized(pendingLock) {
+            val map = loadVerificationMapUnsafe(ctx)
+            map[call.id] = report
+            saveVerificationMapUnsafe(ctx, map)
+        }
+        val refreshed = loadCachedRecentCalls(ctx)
+        return refreshed.firstOrNull { it.id == call.id } ?: call.copy(verification = report)
+    }
+
+    fun confirmCallVerifiedByUser(ctx: Context, callId: String): List<PhoneSecretaryCallSummaryDto> {
+        synchronized(pendingLock) {
+            val map = loadVerificationMapUnsafe(ctx)
+            val prev = map[callId]
+            val confirmed = (prev ?: CallVerificationReportDto()).copy(
+                status = CallNoteVerificationEngine.STATUS_USER_CONFIRMED,
+                confidence_score = 100,
+                verification_summary = "Von Alina persönlich geprüft und bestätigt.",
+                discrepancies = prev?.discrepancies.orEmpty().map { it.copy(resolved_by_correction = true) },
+                checked_at_iso = Instant.now().toString()
+            )
+            map[callId] = confirmed
+            saveVerificationMapUnsafe(ctx, map)
+        }
+        return loadCachedRecentCalls(ctx)
+    }
+
+    fun updateCallNoteByUser(
+        ctx: Context,
+        callId: String,
+        summary: String,
+        actionRequired: String,
+        rahmenbedingungen: List<String>
+    ): List<PhoneSecretaryCallSummaryDto> {
+        val cleanSum = CallNoteVerificationEngine.sanitizeCleanText(summary)
+        val cleanAct = CallNoteVerificationEngine.sanitizeCleanText(actionRequired)
+        val cleanRahmen = rahmenbedingungen.map { CallNoteVerificationEngine.sanitizeCleanText(it) }.filter { it.isNotBlank() }
+        synchronized(pendingLock) {
+            val edits = loadNoteEditsMapUnsafe(ctx)
+            edits[callId] = LocalNoteEdit(
+                summary = cleanSum,
+                actionRequired = cleanAct,
+                rahmenbedingungen = cleanRahmen
+            )
+            saveNoteEditsMapUnsafe(ctx, edits)
+
+            val map = loadVerificationMapUnsafe(ctx)
+            val prev = map[callId]
+            map[callId] = (prev ?: CallVerificationReportDto()).copy(
+                status = CallNoteVerificationEngine.STATUS_USER_CONFIRMED,
+                confidence_score = 100,
+                verification_summary = "Von Alina manuell angepasst und bestätigt.",
+                corrected_summary = cleanSum,
+                corrected_action_required = cleanAct,
+                corrected_rahmenbedingungen = cleanRahmen,
+                discrepancies = prev?.discrepancies.orEmpty().map { it.copy(resolved_by_correction = true) },
+                checked_at_iso = Instant.now().toString()
+            )
+            saveVerificationMapUnsafe(ctx, map)
+        }
+        return loadCachedRecentCalls(ctx)
     }
 
     private fun loadDirtyWhitelistMap(ctx: Context): MutableMap<String, Boolean> {
@@ -721,8 +1159,62 @@ object PhoneConciergeManager {
         return updated
     }
 
+    internal fun buildEnrichedServerSummary(note: PendingPhoneSecretaryNote): String {
+        val base = CallNoteVerificationEngine.sanitizeCleanText(note.summary)
+        val rahmen = note.rahmenbedingungen.map { CallNoteVerificationEngine.sanitizeCleanText(it) }.filter { it.isNotBlank() }
+        val action = CallNoteVerificationEngine.sanitizeCleanText(note.actionRequired)
+        val parts = mutableListOf<String>()
+        if (base.isNotBlank()) parts.add(base)
+        if (rahmen.isNotEmpty()) parts.add("Eckdaten: ${rahmen.joinToString(", ")}")
+        if (action.isNotBlank() && !base.contains(action, ignoreCase = true)) {
+            parts.add("Zu tun: $action")
+        }
+        val combined = parts.joinToString(" | ").ifBlank { "Anruf entgegengenommen." }
+        return if (combined.length > 960) combined.take(957) + "..." else combined
+    }
+
+    private fun saveLocalCallFromNote(ctx: Context, note: PendingPhoneSecretaryNote) {
+        val displayLabel = if (note.greetingName.isNotBlank() && !note.greetingName.equals(note.callerName, ignoreCase = true)) {
+            "${note.greetingName} (${note.callerName})"
+        } else {
+            note.callerName
+        }
+        val defaultAction = if (note.callbackRequested) {
+            "${note.greetingName.ifBlank { note.callerName }} zurückrufen."
+        } else {
+            "Zur Kenntnis nehmen."
+        }
+        val entry = PhoneSecretaryCallSummaryDto(
+            id = note.callId,
+            caller_name = displayLabel,
+            created_at_label = formatLocalCallTimeLabel(note.createdAtIso),
+            duration_seconds = note.durationSeconds,
+            summary = CallNoteVerificationEngine.sanitizeCleanText(note.summary),
+            rahmenbedingungen = note.rahmenbedingungen.map { CallNoteVerificationEngine.sanitizeCleanText(it) }.filter { it.isNotBlank() },
+            action_required = CallNoteVerificationEngine.sanitizeCleanText(note.actionRequired).ifBlank { defaultAction },
+            urgency = normalizeUrgency(note.urgency),
+            callback_requested = note.callbackRequested,
+            transcript = note.transcript,
+            handled_by = "android_secretary",
+            verification = note.verification
+        )
+        synchronized(pendingLock) {
+            val locals = loadLocalCallsUnsafe(ctx)
+            locals.removeAll { it.id == entry.id }
+            locals.add(0, entry)
+            saveLocalCallsUnsafe(ctx, locals.take(25))
+            note.verification?.let { rep ->
+                val vMap = loadVerificationMapUnsafe(ctx)
+                vMap[entry.id] = rep
+                saveVerificationMapUnsafe(ctx, vMap)
+            }
+        }
+        loadCachedRecentCalls(ctx)
+    }
+
     suspend fun persistOrQueueSecretaryCompletion(ctx: Context, note: PendingPhoneSecretaryNote): Boolean {
         ServiceLocator.ensureInitialized(ctx)
+        saveLocalCallFromNote(ctx, note)
         if (!ServiceLocator.getAuthToken().isNullOrBlank()) {
             if (sendSingleCompletionToServer(ctx, note)) {
                 flushPendingCompletions(ctx)
@@ -765,6 +1257,7 @@ object PhoneConciergeManager {
     private suspend fun sendSingleCompletionToServer(ctx: Context, note: PendingPhoneSecretaryNote): Boolean {
         val cleanUrgency = normalizeUrgency(note.urgency)
         val cleanContactId = note.contactId?.takeUnless { it == "default-papa" || it.isBlank() }
+        val serverSummary = buildEnrichedServerSummary(note)
         try {
             val res = ServiceLocator.getOrganizerApi().completePhoneConciergeCall(
                 PhoneConciergeCompleteBody(
@@ -775,7 +1268,7 @@ object PhoneConciergeManager {
                     greeting_name = note.greetingName.ifBlank { note.callerName },
                     caller_phone = note.callerPhone,
                     handled_by = "android_secretary",
-                    summary = note.summary,
+                    summary = serverSummary,
                     urgency = cleanUrgency,
                     callback_requested = note.callbackRequested
                 )
@@ -792,7 +1285,7 @@ object PhoneConciergeManager {
                     }
                     val prio = if (cleanUrgency == "hoch" || note.callbackRequested) "hoch" else cleanUrgency
                     val args = JsonObject().apply {
-                        addProperty("title", "📞 Anruf von $displayLabel: ${note.summary}".take(235))
+                        addProperty("title", "📞 Anruf von $displayLabel: $serverSummary".take(235))
                         addProperty("priority", prio)
                     }
                     val fallbackRes = ServiceLocator.aiRepository.executeTool("task_create", args, "android_secretary_${note.callId}")

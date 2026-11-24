@@ -89,7 +89,12 @@ class AccountingBank extends Component
         $this->bankAccounts = AccountingBankAccount::where('admin_id', $adminId)
             ->orderBy('bank_name')
             ->get()
-            ->toArray();
+            ->map(function (AccountingBankAccount $acc) {
+                $arr = $acc->toArray();
+                $arr['is_manual'] = ($acc->plaid_access_token === 'manual_managed' || $acc->plaid_item_id === 'manual_managed');
+                return $arr;
+            })
+            ->all();
             
         $this->availableCategories = AccountingCategory::where('admin_id', $adminId)->orderBy('name')->get()->toArray();
 
@@ -97,8 +102,10 @@ class AccountingBank extends Component
             $q->where('admin_id', $adminId);
         })->orderBy('name')->get()->toArray();
 
-        if (empty($this->csvTargetAccountId) && !empty($this->bankAccounts)) {
-            $this->csvTargetAccountId = $this->bankAccounts[0]['id'];
+        if ((empty($this->csvTargetAccountId) || $this->csvTargetAccountId === 'auto') && !empty($this->bankAccounts)) {
+            $this->csvTargetAccountId = (string) $this->bankAccounts[0]['id'];
+        } elseif (empty($this->bankAccounts)) {
+            $this->csvTargetAccountId = 'auto';
         }
 
         $dept = \App\Models\Ai\AiDepartment::where('name', $this->themingDepartment)->first();
@@ -698,10 +705,15 @@ class AccountingBank extends Component
     public function openCsvModal($accountId = null)
     {
         if ($accountId) {
-            $this->csvTargetAccountId = $accountId;
-        } elseif (empty($this->csvTargetAccountId) && !empty($this->bankAccounts)) {
-            $this->csvTargetAccountId = $this->bankAccounts[0]['id'];
+            $this->csvTargetAccountId = (string) $accountId;
+        } elseif (!empty($this->bankAccounts)) {
+            if (empty($this->csvTargetAccountId) || $this->csvTargetAccountId === 'auto') {
+                $this->csvTargetAccountId = (string) $this->bankAccounts[0]['id'];
+            }
+        } else {
+            $this->csvTargetAccountId = 'auto';
         }
+        $this->resetValidation();
         $this->reset('csvFile');
         $this->showCsvModal = true;
     }
@@ -763,50 +775,252 @@ class AccountingBank extends Component
         session()->flash('success', "Bankkonto '{$account->bank_name} - {$account->account_name}' erfolgreich angelegt!");
     }
 
+    private function normalizeCsvHeader(string $value): string
+    {
+        $mapped = strtr(trim($value), [
+            'ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue',
+            'Ä' => 'ae', 'Ö' => 'oe', 'Ü' => 'ue',
+            'ß' => 'ss',
+        ]);
+        return preg_replace('/[^a-z0-9]/', '', mb_strtolower($mapped)) ?? '';
+    }
+
+    private function parseCsvDate(?string $rawDate): ?\Carbon\Carbon
+    {
+        $rawDate = trim((string) $rawDate);
+        if ($rawDate === '') {
+            return null;
+        }
+
+        try {
+            if (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/', $rawDate, $m)) {
+                return \Carbon\Carbon::createFromDate((int) $m[3], (int) $m[2], (int) $m[1])->startOfDay();
+            }
+            if (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/', $rawDate, $m)) {
+                $year = (int) $m[3] < 50 ? 2000 + (int) $m[3] : 1900 + (int) $m[3];
+                return \Carbon\Carbon::createFromDate($year, (int) $m[2], (int) $m[1])->startOfDay();
+            }
+            if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})/', $rawDate, $m)) {
+                return \Carbon\Carbon::createFromDate((int) $m[1], (int) $m[2], (int) $m[3])->startOfDay();
+            }
+            if (preg_match('/^\d{1,2}\/\d{1,2}\/\d{2,4}$/', $rawDate)) {
+                return \Carbon\Carbon::parse($rawDate)->startOfDay();
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return null;
+    }
+
+    private function parseCsvAmount(?string $rawAmount, bool $isGermanFormat = true): ?float
+    {
+        $clean = str_replace(["\xC2\xA0", '€', 'EUR', 'USD', 'CHF', ' '], '', trim((string) $rawAmount));
+        if ($clean === '' || !preg_match('/\d/', $clean)) {
+            return null;
+        }
+
+        $isDebit = str_ends_with(strtoupper($clean), 'S') || str_starts_with($clean, '-') || str_ends_with($clean, '-');
+        $isCredit = str_ends_with(strtoupper($clean), 'H') || str_starts_with($clean, '+');
+        $clean = trim($clean, "+-SHsh \t");
+
+        if ($clean === '' || !preg_match('/^[\d.,]+$/', $clean)) {
+            return null;
+        }
+
+        if (strpos($clean, ',') !== false && strpos($clean, '.') !== false) {
+            $lastComma = strrpos($clean, ',');
+            $lastDot = strrpos($clean, '.');
+            if ($lastComma > $lastDot) {
+                // German: 1.234,56
+                $clean = str_replace('.', '', $clean);
+                $clean = str_replace(',', '.', $clean);
+            } else {
+                // English: 1,234.56
+                $clean = str_replace(',', '', $clean);
+            }
+        } elseif (strpos($clean, ',') !== false) {
+            if (!$isGermanFormat && preg_match('/^\d{1,3}(,\d{3})+$/', $clean)) {
+                $clean = str_replace(',', '', $clean);
+            } else {
+                $clean = str_replace(',', '.', $clean);
+            }
+        } elseif (strpos($clean, '.') !== false) {
+            // FYRST / Deutsche Bank omits ",00" on whole-Euro thousands: "-1.500" = -1500.00 EUR
+            if ($isGermanFormat && preg_match('/^\d{1,3}(\.\d{3})+$/', $clean)) {
+                $clean = str_replace('.', '', $clean);
+            }
+        }
+
+        if (!is_numeric($clean)) {
+            return null;
+        }
+
+        $value = (float) $clean;
+        if ($isDebit) {
+            return $value != 0.0 ? -abs($value) : 0.0;
+        }
+        if ($isCredit) {
+            return abs($value);
+        }
+
+        return $value;
+    }
+
+    private function extractCsvMetadata(array $lines, string $delimiter, string $originalFilename, bool $isGermanFormat): array
+    {
+        $meta = [
+            'bank_name' => null,
+            'account_name' => null,
+            'iban' => null,
+            'currency' => 'EUR',
+            'opening_balance' => null,
+            'closing_balance' => null,
+        ];
+
+        $lowerFilename = mb_strtolower($originalFilename);
+        if (str_contains($lowerFilename, 'fyrst') || preg_match('/kontoumsaetze_370_/i', $originalFilename)) {
+            $meta['bank_name'] = 'FYRST';
+        } elseif (str_contains($lowerFilename, 'sparkasse')) {
+            $meta['bank_name'] = 'Sparkasse';
+        } elseif (str_contains($lowerFilename, 'postbank')) {
+            $meta['bank_name'] = 'Postbank';
+        }
+
+        $preambleLimit = min(15, count($lines));
+        for ($i = 0; $i < $preambleLimit; $i++) {
+            $row = str_getcsv($lines[$i], $delimiter);
+            $joinedUpper = mb_strtoupper($lines[$i]);
+
+            if ($meta['bank_name'] === null) {
+                if (str_contains($joinedUpper, 'FYRST')) {
+                    $meta['bank_name'] = 'FYRST';
+                } elseif (str_contains($joinedUpper, 'DEUTSCHE BANK')) {
+                    $meta['bank_name'] = 'Deutsche Bank';
+                } elseif (str_contains($joinedUpper, 'POSTBANK')) {
+                    $meta['bank_name'] = 'Postbank';
+                } elseif (str_contains($joinedUpper, 'SPARKASSE')) {
+                    $meta['bank_name'] = 'Sparkasse';
+                }
+            }
+
+            // FYRST / Deutsche Bank 2-line metadata table: L1=["Konto","Filial-/Kontonummer","IBAN","Währung"], L2=["FYRST BASE",...]
+            $normFirst = $this->normalizeCsvHeader($row[0] ?? '');
+            if ($normFirst === 'konto' && isset($lines[$i + 1])) {
+                $valRow = str_getcsv($lines[$i + 1], $delimiter);
+                foreach ($row as $colIdx => $colLabel) {
+                    $colKey = $this->normalizeCsvHeader($colLabel);
+                    $cellVal = trim((string) ($valRow[$colIdx] ?? ''));
+                    if ($cellVal === '') {
+                        continue;
+                    }
+                    if ($colKey === 'konto') {
+                        if (stripos($cellVal, 'FYRST') !== false) {
+                            $meta['bank_name'] = 'FYRST';
+                        }
+                        $meta['account_name'] = stripos($cellVal, 'Geschäftskonto') !== false
+                            ? $cellVal
+                            : 'Geschäftskonto (' . $cellVal . ')';
+                    } elseif ($colKey === 'iban') {
+                        $cand = strtoupper(preg_replace('/\s+/', '', $cellVal));
+                        if (preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/', $cand)) {
+                            $meta['iban'] = $cand;
+                        }
+                    } elseif ($colKey === 'waehrung' && preg_match('/^[A-Z]{3}$/', strtoupper($cellVal))) {
+                        $meta['currency'] = strtoupper($cellVal);
+                    }
+                }
+            }
+
+            // Key-value IBAN fallback in preamble
+            if ($meta['iban'] === null) {
+                foreach ($row as $cell) {
+                    $cand = strtoupper(preg_replace('/\s+/', '', (string) $cell));
+                    if (preg_match('/^DE\d{20}$/', $cand) || ($normFirst === 'iban' && preg_match('/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/', $cand))) {
+                        $meta['iban'] = $cand;
+                        break;
+                    }
+                }
+            }
+
+            if (in_array($normFirst, ['letzterkontostand', 'alterkontostand', 'anfangssaldo', 'startsaldo'], true)) {
+                $bal = $this->extractBalanceFromSummaryRow($row, $isGermanFormat);
+                if ($bal !== null) {
+                    $meta['opening_balance'] = $bal;
+                }
+            } elseif (in_array($normFirst, ['kontostand', 'neuerkontostand', 'aktuellerkontostand', 'endsaldo'], true)) {
+                $bal = $this->extractBalanceFromSummaryRow($row, $isGermanFormat);
+                if ($bal !== null) {
+                    $meta['closing_balance'] = $bal;
+                }
+            }
+        }
+
+        return $meta;
+    }
+
+    private function extractBalanceFromSummaryRow(array $row, bool $isGermanFormat): ?float
+    {
+        // Walk backwards from end of row (skipping currency & dates) to pick the balance cell
+        for ($c = count($row) - 1; $c >= 1; $c--) {
+            $cell = trim((string) ($row[$c] ?? ''));
+            if ($cell === '' || preg_match('/^[A-Z]{3}$/i', $cell)) {
+                continue;
+            }
+            if ($this->parseCsvDate($cell) !== null) {
+                continue;
+            }
+            $parsed = $this->parseCsvAmount($cell, $isGermanFormat);
+            if ($parsed !== null) {
+                return $parsed;
+            }
+        }
+
+        return null;
+    }
+
     public function importCsvTransactions()
     {
         $this->validate([
             'csvFile' => 'required|file|mimes:csv,txt|max:10240',
-            'csvTargetAccountId' => 'required',
         ]);
 
         $adminId = auth('admin')->id();
-        $account = AccountingBankAccount::where('admin_id', $adminId)->find($this->csvTargetAccountId);
-        if (!$account) {
-            session()->flash('error', 'Ziel-Bankkonto nicht gefunden.');
-            return;
-        }
 
         try {
             $realPath = $this->csvFile->getRealPath();
+            $originalName = method_exists($this->csvFile, 'getClientOriginalName')
+                ? (string) $this->csvFile->getClientOriginalName()
+                : '';
+
             $finfo = $realPath ? new \finfo(FILEINFO_MIME_TYPE) : null;
             $detectedMime = ($finfo && $realPath && is_file($realPath)) ? $finfo->file($realPath) : null;
-            $allowedCsvMimes = ['text/plain', 'text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/x-csv', 'application/octet-stream'];
+            $allowedCsvMimes = ['text/plain', 'text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/x-csv', 'application/octet-stream', 'inode/x-empty'];
             if (!in_array($detectedMime, $allowedCsvMimes, true)) {
                 session()->flash('error', 'Ungültiges CSV-Dateiformat.');
                 return;
             }
 
-            $rawContent = file_get_contents($realPath);
+            $rawContent = (string) file_get_contents($realPath);
 
             // Remove UTF-8 BOM
             $bom = pack('H*', 'EFBBBF');
             $rawContent = preg_replace("/^$bom/", '', $rawContent);
 
-            // Detect & normalize encoding (German banks often use ISO-8859-1 or Windows-1252)
-            $encoding = mb_detect_encoding($rawContent, ['UTF-8', 'ISO-8859-1', 'Windows-1252'], true);
-            if ($encoding && $encoding !== 'UTF-8') {
+            // Normalize encoding (German banks often export Windows-1252 or ISO-8859-1)
+            if (!mb_check_encoding($rawContent, 'UTF-8')) {
+                $encoding = mb_detect_encoding($rawContent, ['Windows-1252', 'ISO-8859-1'], true) ?: 'Windows-1252';
                 $rawContent = mb_convert_encoding($rawContent, 'UTF-8', $encoding);
             }
 
             $lines = array_slice(preg_split("/\r\n|\n|\r/", trim($rawContent)), 0, 5000);
-            if (count($lines) < 2) {
-                session()->flash('error', 'Die CSV-Datei enthält keine Datenzeilen.');
+            if (count($lines) < 1 || trim($rawContent) === '') {
+                session()->flash('error', 'Die CSV-Datei ist leer.');
                 return;
             }
 
             // Auto-detect delimiter
-            $sample = implode("\n", array_slice($lines, 0, 15));
+            $sample = implode("\n", array_slice($lines, 0, 20));
             $semicolonCount = substr_count($sample, ';');
             $commaCount = substr_count($sample, ',');
             $tabCount = substr_count($sample, "\t");
@@ -818,24 +1032,85 @@ class AccountingBank extends Component
                 $delimiter = "\t";
             }
 
+            // Detect German number/date format
+            $isGermanFormat = ($delimiter === ';')
+                || (bool) preg_match('/\b\d{1,2}\.\d{1,2}\.\d{4}\b/', $sample)
+                || stripos($sample, 'Buchungstag') !== false
+                || stripos($sample, 'Kontostand') !== false;
+
+            $meta = $this->extractCsvMetadata($lines, $delimiter, $originalName, $isGermanFormat);
+
+            // Resolve or auto-create target bank account
+            $account = null;
+            $autoCreatedAccount = false;
+
+            if (!empty($this->csvTargetAccountId) && $this->csvTargetAccountId !== 'auto') {
+                $account = AccountingBankAccount::where('admin_id', $adminId)->find($this->csvTargetAccountId);
+            }
+
+            if (!$account && !empty($meta['iban'])) {
+                $account = AccountingBankAccount::where('admin_id', $adminId)
+                    ->where('iban', $meta['iban'])
+                    ->first();
+            }
+
+            if (!$account && !empty($meta['bank_name'])) {
+                $account = AccountingBankAccount::where('admin_id', $adminId)
+                    ->where('bank_name', $meta['bank_name'])
+                    ->where(function ($q) {
+                        $q->whereNull('iban')->orWhere('iban', '');
+                    })
+                    ->first();
+            }
+
+            if (!$account) {
+                $bankName = $meta['bank_name'] ?: 'FYRST';
+                $accountName = $meta['account_name'] ?: 'Geschäftskonto';
+                $cleanIban = $meta['iban'];
+                $initialBalance = $meta['closing_balance'] ?? $meta['opening_balance'] ?? 0.0;
+
+                $account = AccountingBankAccount::create([
+                    'admin_id' => $adminId,
+                    'plaid_item_id' => 'manual_managed',
+                    'plaid_access_token' => 'manual_managed',
+                    'plaid_account_id' => 'manual_' . ($cleanIban ?: uniqid()),
+                    'bank_name' => $bankName,
+                    'account_name' => $accountName,
+                    'iban' => $cleanIban,
+                    'balance' => $initialBalance,
+                    'currency' => $meta['currency'] ?: 'EUR',
+                    'is_business' => true,
+                    'is_active_for_analysis' => true,
+                    'last_synced_at' => now(),
+                ]);
+                $autoCreatedAccount = true;
+            } elseif (empty($account->iban) && !empty($meta['iban'])) {
+                $account->iban = $meta['iban'];
+                $account->save();
+            }
+
             // Locate Header Row
             $headerIndex = -1;
             $headers = [];
+            $hasNoBookingsNotice = stripos($rawContent, 'Keine Umsätze') !== false
+                || stripos($rawContent, 'keine gebuchten Umsätze') !== false;
 
             foreach ($lines as $idx => $line) {
                 $row = str_getcsv($line, $delimiter);
-                if (count($row) < 3) continue;
+                if (count($row) < 2) {
+                    continue;
+                }
 
-                $normalizedRow = array_map(fn($col) => mb_strtolower(trim(preg_replace('/[^a-zA-Z0-9äöüÄÖÜß]/', '', $col))), $row);
+                $normalizedRow = array_map(fn($col) => $this->normalizeCsvHeader((string) $col), $row);
 
                 $hasDate = false;
                 $hasAmount = false;
 
                 foreach ($normalizedRow as $colName) {
-                    if (in_array($colName, ['buchungstag', 'buchungsdatum', 'datum', 'wertstellung', 'valuta', 'date'])) {
+                    if (in_array($colName, ['buchungstag', 'buchungsdatum', 'datum', 'wertstellung', 'valuta', 'wert', 'date', 'bookingdate'], true)) {
                         $hasDate = true;
                     }
-                    if (in_array($colName, ['betrag', 'umsatz', 'betragineur', 'betrageur', 'amount'])) {
+                    if (in_array($colName, ['betrag', 'umsatz', 'betragineur', 'betrageur', 'amount', 'soll', 'haben', 'belastung', 'gutschrift'], true)) {
                         $hasAmount = true;
                     }
                 }
@@ -848,101 +1123,202 @@ class AccountingBank extends Component
             }
 
             if ($headerIndex === -1) {
-                session()->flash('error', 'Konnte die Spaltenüberschriften (Datum, Betrag, Verwendungszweck) in der CSV-Datei nicht automatisch erkennen.');
+                if ($hasNoBookingsNotice || ($meta['opening_balance'] !== null || $meta['closing_balance'] !== null)) {
+                    $finalBal = $meta['closing_balance'] ?? $meta['opening_balance'];
+                    $updates = ['last_synced_at' => now()];
+                    if ($finalBal !== null) {
+                        $updates['balance'] = $finalBal;
+                    }
+                    $account->update($updates);
+                    $this->selectedAccountId = $account->id;
+                    $this->csvTargetAccountId = (string) $account->id;
+                    $this->closeCsvModal();
+                    $this->loadBankAccounts();
+                    session()->flash('success', ($autoCreatedAccount ? "{$account->bank_name} Konto automatisch angelegt. " : '') . 'Aktuell liegen noch keine gebuchten Umsätze im Zeitraum vor.');
+                    return;
+                }
+
+                session()->flash('error', 'Spaltenüberschriften (Datum, Betrag oder Soll/Haben) konnten in der CSV-Datei nicht erkannt werden.');
                 return;
             }
 
             // Map Column Indices
             $dateCol = null;
+            $valueDateCol = null;
             $amountCol = null;
+            $sollCol = null;
+            $habenCol = null;
+            $shFlagCol = null;
             $nameCol = null;
+            $altNameCol = null;
             $purposeCol = null;
             $ibanCol = null;
             $typeCol = null;
+            $refCol = null;
+            $currencyCol = null;
 
             foreach ($headers as $idx => $headerText) {
-                $clean = mb_strtolower(trim(preg_replace('/[^a-zA-Z0-9äöüÄÖÜß]/', '', $headerText)));
+                $clean = $this->normalizeCsvHeader((string) $headerText);
 
-                if ($dateCol === null && in_array($clean, ['buchungstag', 'buchungsdatum', 'datum', 'date', 'wertstellung', 'valuta'])) {
+                if ($dateCol === null && in_array($clean, ['buchungstag', 'buchungsdatum', 'datum', 'date', 'bookingdate'], true)) {
                     $dateCol = $idx;
-                } elseif ($amountCol === null && in_array($clean, ['betrag', 'umsatz', 'betragineur', 'betrageur', 'amount'])) {
+                } elseif ($valueDateCol === null && in_array($clean, ['wert', 'wertstellung', 'valuta', 'valuedate'], true)) {
+                    $valueDateCol = $idx;
+                } elseif ($sollCol === null && in_array($clean, ['soll', 'belastung', 'ausgang', 'debit'], true)) {
+                    $sollCol = $idx;
+                } elseif ($habenCol === null && in_array($clean, ['haben', 'gutschrift', 'eingang', 'credit'], true)) {
+                    $habenCol = $idx;
+                } elseif ($amountCol === null && in_array($clean, ['betragineur', 'betrageur', 'umsatz', 'betrag', 'amount'], true)) {
                     $amountCol = $idx;
-                } elseif ($nameCol === null && in_array($clean, ['beguenstigterzahlungspflichtiger', 'beguenstigterauftraggeber', 'beguenstigter', 'auftraggeber', 'auftraggeberempfaenger', 'empfaenger', 'zahlungsempfaenger', 'name', 'counterparty'])) {
+                } elseif ($shFlagCol === null && in_array($clean, ['sollhaben', 'sollhabenkennung', 'sh', 'umsatzkennzeichen'], true)) {
+                    $shFlagCol = $idx;
+                } elseif ($nameCol === null && in_array($clean, ['beguenstigterauftraggeber', 'beguenstigterzahlungspflichtiger', 'auftraggeberempfaenger', 'beguenstigter', 'auftraggeber', 'empfaenger', 'zahlungsempfaenger', 'zahlungspflichtiger', 'name', 'counterparty', 'partnername'], true)) {
                     $nameCol = $idx;
-                } elseif ($purposeCol === null && in_array($clean, ['verwendungszweck', 'buchungstext', 'umsatztext', 'text', 'zweck', 'details', 'description', 'reference'])) {
+                } elseif ($altNameCol === null && in_array($clean, ['abweichenderempfaenger', 'abweichenderauftraggeber'], true)) {
+                    $altNameCol = $idx;
+                } elseif ($purposeCol === null && in_array($clean, ['verwendungszweck', 'buchungstext', 'umsatztext', 'text', 'zweck', 'details', 'description', 'reference'], true)) {
                     $purposeCol = $idx;
-                } elseif ($ibanCol === null && in_array($clean, ['iban', 'kontonummer', 'gegenkonto', 'kontonummeriban'])) {
+                } elseif ($ibanCol === null && in_array($clean, ['ibankontonummer', 'kontonummeriban', 'iban', 'gegenkonto', 'auftraggeberkonto', 'kontonummer', 'ibanauftraggeber'], true)) {
                     $ibanCol = $idx;
-                } elseif ($typeCol === null && in_array($clean, ['buchungsart', 'transaktionstyp', 'geschaeftsvorfall', 'type'])) {
+                } elseif ($typeCol === null && in_array($clean, ['umsatzart', 'buchungsart', 'transaktionstyp', 'geschaeftsvorfall', 'buchungstextart', 'type'], true)) {
                     $typeCol = $idx;
+                } elseif ($refCol === null && in_array($clean, ['kundenreferenz', 'mandatsreferenz', 'endtoendreferenz'], true)) {
+                    $refCol = $idx;
+                } elseif ($currencyCol === null && in_array($clean, ['waehrung', 'currency', 'whrg'], true)) {
+                    $currencyCol = $idx;
                 }
             }
 
-            if ($dateCol === null || $amountCol === null) {
-                session()->flash('error', 'Datum oder Betragspalte konnte nicht zugeordnet werden.');
+            if ($dateCol === null && $valueDateCol !== null) {
+                $dateCol = $valueDateCol;
+            }
+
+            if ($dateCol === null || ($amountCol === null && $sollCol === null && $habenCol === null)) {
+                session()->flash('error', 'Datum- oder Betragsspalte konnte nicht zugeordnet werden.');
                 return;
             }
 
             $importedCount = 0;
             $skippedDuplicates = 0;
+            $importedAmountSum = 0.0;
+            $closingBalance = $meta['closing_balance'];
+            $seenInCurrentFile = [];
 
             for ($i = $headerIndex + 1; $i < count($lines); $i++) {
                 $line = trim($lines[$i]);
-                if (empty($line)) continue;
-
-                $row = str_getcsv($line, $delimiter);
-                if (!isset($row[$dateCol]) || !isset($row[$amountCol])) continue;
-
-                $rawDate = trim($row[$dateCol]);
-                $rawAmount = trim($row[$amountCol]);
-                if (empty($rawDate) || empty($rawAmount)) continue;
-
-                // Parse Date
-                $parsedDate = null;
-                try {
-                    if (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/', $rawDate, $m)) {
-                        $parsedDate = \Carbon\Carbon::createFromDate($m[3], $m[2], $m[1])->startOfDay();
-                    } elseif (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/', $rawDate, $m)) {
-                        $year = (int)$m[3] < 50 ? 2000 + (int)$m[3] : 1900 + (int)$m[3];
-                        $parsedDate = \Carbon\Carbon::createFromDate($year, $m[2], $m[1])->startOfDay();
-                    } elseif (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})/', $rawDate, $m)) {
-                        $parsedDate = \Carbon\Carbon::createFromDate($m[1], $m[2], $m[3])->startOfDay();
-                    } else {
-                        $parsedDate = \Carbon\Carbon::parse($rawDate)->startOfDay();
-                    }
-                } catch (\Throwable $e) {
+                if ($line === '') {
                     continue;
                 }
 
-                // Parse Amount
-                $cleanAmountStr = str_replace(['€', 'EUR', ' '], '', $rawAmount);
-                $isSoll = str_ends_with(strtoupper($cleanAmountStr), 'S') || str_starts_with($cleanAmountStr, '-');
-                $isHaben = str_ends_with(strtoupper($cleanAmountStr), 'H') || str_starts_with($cleanAmountStr, '+');
-                $cleanAmountStr = rtrim(ltrim($cleanAmountStr, '+-'), 'SHsh ');
+                $row = str_getcsv($line, $delimiter);
+                $firstCellNorm = $this->normalizeCsvHeader((string) ($row[0] ?? ''));
 
-                if (strpos($cleanAmountStr, ',') !== false && strpos($cleanAmountStr, '.') !== false) {
-                    $cleanAmountStr = str_replace('.', '', $cleanAmountStr);
-                    $cleanAmountStr = str_replace(',', '.', $cleanAmountStr);
-                } elseif (strpos($cleanAmountStr, ',') !== false) {
-                    $cleanAmountStr = str_replace(',', '.', $cleanAmountStr);
+                // Capture & skip footer summary rows (e.g. FYRST L17: "Kontostand;24.11.2026;;;999,99;EUR")
+                if (in_array($firstCellNorm, ['kontostand', 'neuerkontostand', 'aktuellerkontostand', 'endsaldo', 'saldonachbuchung'], true)) {
+                    $footerBal = $this->extractBalanceFromSummaryRow($row, $isGermanFormat);
+                    if ($footerBal !== null) {
+                        $closingBalance = $footerBal;
+                    }
+                    continue;
+                }
+                if (in_array($firstCellNorm, ['letzterkontostand', 'alterkontostand', 'anfangssaldo'], true)) {
+                    continue;
                 }
 
-                $amount = (float) $cleanAmountStr;
-                if ($isSoll) {
-                    $amount = -abs($amount);
-                } elseif ($isHaben) {
-                    $amount = abs($amount);
+                $rawDate = trim((string) ($row[$dateCol] ?? ''));
+                $parsedDate = $this->parseCsvDate($rawDate);
+                if (!$parsedDate && $valueDateCol !== null) {
+                    $parsedDate = $this->parseCsvDate($row[$valueDateCol] ?? null);
+                }
+                if (!$parsedDate) {
+                    continue;
                 }
 
-                $name = $nameCol !== null && isset($row[$nameCol]) ? trim($row[$nameCol]) : null;
-                $purpose = $purposeCol !== null && isset($row[$purposeCol]) ? trim($row[$purposeCol]) : null;
-                $iban = $ibanCol !== null && isset($row[$ibanCol]) ? trim($row[$ibanCol]) : null;
-                $type = $typeCol !== null && isset($row[$typeCol]) ? trim($row[$typeCol]) : 'transfer';
+                $parsedValueDate = ($valueDateCol !== null ? $this->parseCsvDate($row[$valueDateCol] ?? null) : null) ?: $parsedDate;
 
-                // Hash key for deduplication
-                $hashKey = 'csv_' . md5($account->id . '|' . $parsedDate->toDateString() . '|' . number_format($amount, 2, '.', '') . '|' . trim((string)$name) . '|' . mb_substr(trim((string)$purpose), 0, 40));
+                // Resolve amount: prefer authoritative Soll/Haben columns when present (FYRST / Deutsche Bank), fallback to single Betrag column
+                $amount = null;
+                if ($sollCol !== null || $habenCol !== null) {
+                    $rawSoll = $sollCol !== null ? trim((string) ($row[$sollCol] ?? '')) : '';
+                    $rawHaben = $habenCol !== null ? trim((string) ($row[$habenCol] ?? '')) : '';
 
-                $existing = AccountingBankTransaction::where('finapi_transaction_id', $hashKey)->exists();
+                    if ($rawSoll !== '') {
+                        $parsedSoll = $this->parseCsvAmount($rawSoll, $isGermanFormat);
+                        if ($parsedSoll !== null) {
+                            $amount = $parsedSoll != 0.0 ? -abs($parsedSoll) : 0.0;
+                        }
+                    } elseif ($rawHaben !== '') {
+                        $parsedHaben = $this->parseCsvAmount($rawHaben, $isGermanFormat);
+                        if ($parsedHaben !== null) {
+                            $amount = abs($parsedHaben);
+                        }
+                    }
+                }
+
+                if ($amount === null && $amountCol !== null) {
+                    $rawAmount = trim((string) ($row[$amountCol] ?? ''));
+                    $amount = $this->parseCsvAmount($rawAmount, $isGermanFormat);
+
+                    if ($amount !== null && $shFlagCol !== null) {
+                        $shFlag = strtoupper(trim((string) ($row[$shFlagCol] ?? '')));
+                        if (in_array($shFlag, ['S', 'SOLL', 'D', 'DR'], true)) {
+                            $amount = $amount != 0.0 ? -abs($amount) : 0.0;
+                        } elseif (in_array($shFlag, ['H', 'HABEN', 'C', 'CR'], true)) {
+                            $amount = abs($amount);
+                        }
+                    }
+                }
+
+                if ($amount === null) {
+                    continue;
+                }
+
+                $name = $nameCol !== null && isset($row[$nameCol]) ? trim((string) $row[$nameCol]) : '';
+                if ($name === '' && $altNameCol !== null && isset($row[$altNameCol])) {
+                    $name = trim((string) $row[$altNameCol]);
+                }
+
+                $purpose = $purposeCol !== null && isset($row[$purposeCol]) ? trim((string) $row[$purposeCol]) : '';
+                $type = $typeCol !== null && isset($row[$typeCol]) && trim((string) $row[$typeCol]) !== ''
+                    ? trim((string) $row[$typeCol])
+                    : 'transfer';
+                $customerRef = $refCol !== null && isset($row[$refCol]) ? trim((string) $row[$refCol]) : '';
+
+                if ($purpose === '') {
+                    $fallbackParts = array_filter([
+                        $type !== 'transfer' ? $type : null,
+                        ($customerRef !== '' && strtoupper($customerRef) !== 'NONREF') ? 'Ref: ' . $customerRef : null,
+                    ]);
+                    $purpose = !empty($fallbackParts) ? implode(' · ', $fallbackParts) : '';
+                }
+
+                $iban = $ibanCol !== null && isset($row[$ibanCol]) ? trim((string) $row[$ibanCol]) : '';
+                $rowCurrency = ($currencyCol !== null && !empty(trim((string) ($row[$currencyCol] ?? ''))))
+                    ? strtoupper(trim((string) $row[$currencyCol]))
+                    : ($account->currency ?? 'EUR');
+
+                // Deterministic deduplication hash (supports genuine duplicate transfers on the same day via file occurrence counter)
+                $baseSig = implode('|', [
+                    $account->id,
+                    $parsedDate->toDateString(),
+                    number_format($amount, 2, '.', ''),
+                    mb_strtolower($name),
+                    mb_strtolower($purpose),
+                    strtoupper(str_replace(' ', '', $iban)),
+                    mb_strtolower($customerRef),
+                ]);
+                $seenInCurrentFile[$baseSig] = ($seenInCurrentFile[$baseSig] ?? 0) + 1;
+                $occ = $seenInCurrentFile[$baseSig];
+
+                $hashKey = 'csv_' . md5($baseSig . '|occ:' . $occ);
+
+                // Also check legacy hash format so previously imported rows are never duplicated
+                $legacyHashKey = 'csv_' . md5($account->id . '|' . $parsedDate->toDateString() . '|' . number_format($amount, 2, '.', '') . '|' . $name . '|' . mb_substr($purpose, 0, 40));
+
+                $existing = AccountingBankTransaction::where('accounting_bank_account_id', $account->id)
+                    ->whereIn('finapi_transaction_id', $occ === 1 ? [$hashKey, $legacyHashKey] : [$hashKey])
+                    ->exists();
+
                 if ($existing) {
                     $skippedDuplicates++;
                     continue;
@@ -952,30 +1328,41 @@ class AccountingBank extends Component
                     'accounting_bank_account_id' => $account->id,
                     'finapi_transaction_id' => $hashKey,
                     'amount' => $amount,
-                    'currency' => $account->currency ?? 'EUR',
-                    'is_business' => null,
-                    'purpose' => $purpose,
-                    'counterpart_name' => $name,
-                    'counterpart_iban' => $iban,
+                    'currency' => $rowCurrency,
+                    'is_business' => $account->is_business,
+                    'purpose' => $purpose !== '' ? $purpose : null,
+                    'counterpart_name' => $name !== '' ? mb_substr($name, 0, 191) : null,
+                    'counterpart_iban' => $iban !== '' ? mb_substr($iban, 0, 191) : null,
                     'transaction_date' => $parsedDate,
-                    'value_date' => $parsedDate,
-                    'type' => $type,
+                    'value_date' => $parsedValueDate,
+                    'type' => mb_substr($type, 0, 191),
                     'is_pending' => false,
                     'raw_data' => $row,
                 ]);
 
                 $importedCount++;
+                $importedAmountSum += $amount;
             }
 
-            $account->update(['last_synced_at' => now()]);
+            $accountUpdates = ['last_synced_at' => now()];
+            if ($closingBalance !== null) {
+                $accountUpdates['balance'] = $closingBalance;
+            } elseif ($autoCreatedAccount && $importedCount > 0 && $meta['opening_balance'] === null) {
+                $accountUpdates['balance'] = round($importedAmountSum, 2);
+            }
+            $account->update($accountUpdates);
 
             $assignedCount = $this->autoAssignTransactions('system', 'Schablonen-Engine', true);
+            $msgCreated = $autoCreatedAccount ? "{$account->bank_name} Konto angelegt · " : "";
             $msgAuto = $assignedCount > 0 ? " ({$assignedCount} automatisch kategorisiert)" : "";
             $msgDup = $skippedDuplicates > 0 ? " ({$skippedDuplicates} Duplikate übersprungen)" : "";
 
-            session()->flash('success', "{$importedCount} Umsätze erfolgreich importiert!{$msgDup}{$msgAuto}");
+            $this->selectedAccountId = $account->id;
+            $this->csvTargetAccountId = (string) $account->id;
             $this->closeCsvModal();
             $this->loadBankAccounts();
+
+            session()->flash('success', "{$msgCreated}{$importedCount} Umsätze erfolgreich importiert!{$msgDup}{$msgAuto}");
 
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('CSV Bank Import Fehler: ' . $e->getMessage());

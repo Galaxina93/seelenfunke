@@ -43,6 +43,15 @@ class SettingsViewModel : ViewModel() {
     private val _phoneRingDelaySec = MutableStateFlow(PhoneConciergeManager.getRingDelaySeconds(ServiceLocator.context))
     val phoneRingDelaySec: StateFlow<Int> = _phoneRingDelaySec.asStateFlow()
 
+    private val _phoneAnswerMode = MutableStateFlow(PhoneConciergeManager.getAnswerMode(ServiceLocator.context))
+    val phoneAnswerMode: StateFlow<String> = _phoneAnswerMode.asStateFlow()
+
+    private val _carrierForwardingConfirmed = MutableStateFlow(PhoneConciergeManager.isCarrierForwardingConfirmed(ServiceLocator.context))
+    val carrierForwardingConfirmed: StateFlow<Boolean> = _carrierForwardingConfirmed.asStateFlow()
+
+    private val _autoVerifyNotes = MutableStateFlow(PhoneConciergeManager.isAutoVerifyEnabled(ServiceLocator.context))
+    val autoVerifyNotes: StateFlow<Boolean> = _autoVerifyNotes.asStateFlow()
+
     private val _whitelistContacts = MutableStateFlow(PhoneConciergeManager.loadCachedContacts(ServiceLocator.context))
     val whitelistContacts: StateFlow<List<CachedWhitelistContact>> = _whitelistContacts.asStateFlow()
 
@@ -50,11 +59,14 @@ class SettingsViewModel : ViewModel() {
     val recentSecretaryCalls: StateFlow<List<PhoneSecretaryCallSummaryDto>> = _recentSecretaryCalls.asStateFlow()
 
     init {
-        refreshPhoneConcierge()
-        refreshKdriveConfig()
+        if (ServiceLocator.getUserType() == "admin") {
+            refreshPhoneConcierge()
+            refreshKdriveConfig()
+        }
     }
 
     fun refreshKdriveConfig() {
+        if (ServiceLocator.getUserType() != "admin") return
         viewModelScope.launch(Dispatchers.IO) {
             ServiceLocator.financeRepository.getKdriveTrichterConfig()
                 .onSuccess { dto ->
@@ -111,6 +123,7 @@ class SettingsViewModel : ViewModel() {
     }
 
     fun refreshPhoneConcierge() {
+        if (ServiceLocator.getUserType() != "admin") return
         viewModelScope.launch(Dispatchers.IO) {
             val ctx = ServiceLocator.context
             val synced = PhoneConciergeManager.syncFromBackend(ctx)
@@ -118,7 +131,30 @@ class SettingsViewModel : ViewModel() {
             _recentSecretaryCalls.value = PhoneConciergeManager.loadCachedRecentCalls(ctx)
             _phoneConciergeEnabled.value = PhoneConciergeManager.isEnabled(ctx)
             _phoneRingDelaySec.value = PhoneConciergeManager.getRingDelaySeconds(ctx)
+            _phoneAnswerMode.value = PhoneConciergeManager.getAnswerMode(ctx)
+            _carrierForwardingConfirmed.value = PhoneConciergeManager.isCarrierForwardingConfirmed(ctx)
+            _autoVerifyNotes.value = PhoneConciergeManager.isAutoVerifyEnabled(ctx)
         }
+    }
+
+    fun setPhoneAnswerMode(mode: String) {
+        val ctx = ServiceLocator.context
+        PhoneConciergeManager.setAnswerMode(ctx, mode)
+        _phoneAnswerMode.value = PhoneConciergeManager.getAnswerMode(ctx)
+    }
+
+    fun setAutoVerifyNotes(enabled: Boolean) {
+        val ctx = ServiceLocator.context
+        PhoneConciergeManager.setAutoVerifyEnabled(ctx, enabled)
+        _autoVerifyNotes.value = enabled
+    }
+
+    fun refreshCarrierForwardingState() {
+        _carrierForwardingConfirmed.value = PhoneConciergeManager.isCarrierForwardingConfirmed(ServiceLocator.context)
+    }
+
+    fun clearPhoneDiagnosticTrace() {
+        PhoneConciergeManager.clearDiagnosticTrace(ServiceLocator.context)
     }
 
     fun setPhoneConciergeEnabled(enabled: Boolean) {

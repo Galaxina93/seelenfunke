@@ -212,14 +212,14 @@ class KdriveTrichterRelayTest extends TestCase
         $this->assertArrayNotHasKey('app_password', $statusRes->json('data'));
         $this->assertTrue((bool) $statusRes->json('data.has_password'));
 
-        // Waiting scan was directly sorted into 01_Mein-Seelenfunke/Eingangsrechnungen_Belege!
+        // Waiting scan was directly sorted into 01_Mein-Seelenfunke/Rechnungen/2026/11!
         $this->assertCount(1, $uploadedFilesOnWebDav);
         $firstUrl = array_key_first($uploadedFilesOnWebDav);
-        $this->assertStringContainsString('/Meine%20Daten/01_Mein-Seelenfunke/Eingangsrechnungen_Belege/', $firstUrl);
+        $this->assertStringContainsString('/Meine%20Daten/01_Mein-Seelenfunke/Rechnungen/', $firstUrl);
         $this->assertStringContainsString('Westpack_Geschenkboxen.pdf', $firstUrl);
         $this->assertSame($waitingPdf, $uploadedFilesOnWebDav[$firstUrl]);
 
-        // 4. New scan arrives -> directly classified & uploaded into 8-pillar subfolder without touching relay disk
+        // 4. New scan arrives -> directly classified & uploaded into 9-pillar subfolder without touching relay disk
         $bkkBytes = "%PDF-1.4\n1 0 obj\n<< /Title (BKK Bescheid) >>\nendobj\n%%EOF";
         $bkkFile = UploadedFile::fake()->createWithContent('Scan_2026-11-22_154500.pdf', $bkkBytes);
 
@@ -232,6 +232,24 @@ class KdriveTrichterRelayTest extends TestCase
           ->assertJsonPath('direct_uploaded', true);
 
         $this->assertStringStartsWith('06_Gesundheit/Krankenkasse/', (string) $directRes->json('remote_path'));
+
+        // 5. Verify new canonical schema targets (03_Haus, 04_Versicherungen, 05_Verträge, 06_Gesundheit/Befunde)
+        $hausPdf = KdriveTrichterRelayService::classifyBytesForDirectSort($bkkBytes, 'Scan_LSW.pdf', 'application/pdf', 'LSW Stromabrechnung');
+        $this->assertSame('03_Haus', $hausPdf['main_folder']);
+        $this->assertSame('Gas_Wasser_Strom', $hausPdf['sub_folder']);
+
+        $versPdf = KdriveTrichterRelayService::classifyBytesForDirectSort($bkkBytes, 'Scan_Barmenia.pdf', 'application/pdf', 'Barmenia Gebaeudeversicherung Police');
+        $this->assertSame('04_Versicherungen', $versPdf['main_folder']);
+        $this->assertSame('Gebaeudeversicherung', $versPdf['sub_folder']);
+
+        $vertragPdf = KdriveTrichterRelayService::classifyBytesForDirectSort($bkkBytes, 'Scan_SimplyTel.pdf', 'application/pdf', 'SimplyTel Handyvertrag Rechnung');
+        $this->assertSame('05_Verträge', $vertragPdf['main_folder']);
+        $this->assertSame('Handy', $vertragPdf['sub_folder']);
+
+        $befundPdf = KdriveTrichterRelayService::classifyBytesForDirectSort($bkkBytes, 'Scan_Arzt.pdf', 'application/pdf', 'Augenarzt Befund Dr. Fiedler');
+        $this->assertSame('06_Gesundheit', $befundPdf['main_folder']);
+        $this->assertSame('Befunde', $befundPdf['sub_folder']);
+
         $this->assertSame(0, KdriveTrichterRelayService::countPending());
     }
 

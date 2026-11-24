@@ -997,17 +997,29 @@ namespace FunkenwerkFtp
             string confirmText = "Löschen",
             bool isDanger = true)
         {
-            var dlg = CreateBaseDialog(owner, isDark, title, 450, 185);
+            var dlg = CreateBaseDialog(owner, isDark, title, 500, 190);
             var fgPrimary = BrushHex(isDark ? "#F9FAFB" : "#111827");
 
-            var stack = new StackPanel { Margin = new Thickness(20, 18, 20, 16) };
-            stack.Children.Add(new TextBlock
+            var rootGrid = new Grid { Margin = new Thickness(22, 18, 22, 18) };
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var bodyScroll = new ScrollViewer
+            {
+                MaxHeight = 360,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            };
+            bodyScroll.Content = new TextBlock
             {
                 Text = targetSummary,
                 Foreground = fgPrimary,
                 FontSize = 13.5,
+                LineHeight = 20,
                 TextWrapping = TextWrapping.Wrap
-            });
+            };
+            Grid.SetRow(bodyScroll, 0);
+            rootGrid.Children.Add(bodyScroll);
 
             var btnRow = new StackPanel
             {
@@ -1017,21 +1029,24 @@ namespace FunkenwerkFtp
             };
 
             var cancelBtn = CreateDialogButton("Abbrechen", isDark, isPrimary: false, isDanger: false);
+            cancelBtn.IsCancel = true;
             cancelBtn.Click += (_, _) => dlg.DialogResult = false;
 
             var okBtn = CreateDialogButton(confirmText, isDark, isPrimary: !isDanger, isDanger: isDanger);
-            okBtn.Margin = new Thickness(8, 0, 0, 0);
+            okBtn.IsDefault = !isDanger;
+            okBtn.Margin = new Thickness(10, 0, 0, 0);
             okBtn.Click += (_, _) => dlg.DialogResult = true;
 
             btnRow.Children.Add(cancelBtn);
             btnRow.Children.Add(okBtn);
-            stack.Children.Add(btnRow);
-            dlg.Content = stack;
+            Grid.SetRow(btnRow, 1);
+            rootGrid.Children.Add(btnRow);
+            dlg.Content = rootGrid;
 
             dlg.PreviewKeyDown += (_, ke) =>
             {
                 if (ke.Key == Key.Escape) { dlg.DialogResult = false; ke.Handled = true; }
-                else if (ke.Key == Key.Enter) { dlg.DialogResult = true; ke.Handled = true; }
+                else if (ke.Key == Key.Enter && !isDanger) { dlg.DialogResult = true; ke.Handled = true; }
             };
 
             return dlg.ShowDialog() == true;
@@ -1441,14 +1456,16 @@ namespace FunkenwerkFtp
             win.ShowDialog();
         }
 
-        private static Window CreateBaseDialog(Window owner, bool isDark, string title, double width, double height)
+        private static Window CreateBaseDialog(Window owner, bool isDark, string title, double width, double minHeight)
         {
             var w = new Window
             {
                 Title = title,
                 Icon = owner.Icon,
                 Width = width,
-                Height = height,
+                MinHeight = minHeight,
+                MaxHeight = Math.Max(480, SystemParameters.WorkArea.Height * 0.88),
+                SizeToContent = SizeToContent.Height,
                 ResizeMode = ResizeMode.NoResize,
                 WindowStartupLocation = owner.IsLoaded ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen,
                 Background = BrushHex(isDark ? "#141821" : "#FFFFFF"),

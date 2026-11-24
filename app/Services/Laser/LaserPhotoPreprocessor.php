@@ -605,11 +605,175 @@ class LaserPhotoPreprocessor
      *
      * @return \GdImage|resource|null
      */
+    /**
+     * Hebt das PHP-Speicherlimit bei Bedarf fuer hochaufloesende Smartphone-Rohfotos (50 MP+) sanft an.
+     */
+    public static function ensureMemoryHeadroom(int $minMegabytes = 512): void
+    {
+        $raw = trim((string) ini_get('memory_limit'));
+        if ($raw === '' || $raw === '-1') {
+            return;
+        }
+        $unit = strtolower(substr($raw, -1));
+        $num = (float) $raw;
+        $bytes = match ($unit) {
+            'g' => (int) ($num * 1073741824),
+            'm' => (int) ($num * 1048576),
+            'k' => (int) ($num * 1024),
+            default => (int) $num,
+        };
+        $targetBytes = $minMegabytes * 1048576;
+        if ($bytes > 0 && $bytes < $targetBytes) {
+            @ini_set('memory_limit', $minMegabytes . 'M');
+        }
+    }
+
+    /**
+     * Liefert fuer extrem hochaufloesende Smartphone-Originalfotos (> 5,2 MP bzw. > $maxEdgePx, z. B. 50 MP 8160x6144)
+     * einen einmalig erzeugten, EXIF-orientierten Arbeits-Master (<stem>_work2400.jpg/.png) im selben Ordner,
+     * waehrend das unberuehrte Originalfoto (<stem>_raw.*) zu 100 % unveraendert erhalten bleibt.
+     * Verhindert zuverlaessig >250 MB GD-Speicherspitzen (HTTP 500 OOM) beim Oeffnen von Bestellungen & Foto-Studio.
+     */
+    public static function ensureLaserWorkMasterPath(string $sourceAbsPath, int $maxEdgePx = 2400): string
+    {
+        if ($sourceAbsPath === '' || !@is_file($sourceAbsPath)) {
+            return '';
+        }
+
+        $maxEdgePx = max(600, $maxEdgePx);
+        $info = @getimagesize($sourceAbsPath);
+        if (!is_array($info) || ($info[0] ?? 0) <= 0 || ($info[1] ?? 0) <= 0) {
+            return $sourceAbsPath;
+        }
+
+        $origW = (int) $info[0];
+        $origH = (int) $info[1];
+        $mime = strtolower((string) ($info['mime'] ?? ''));
+        $isJpeg = ($mime === 'image/jpeg' || str_ends_with(strtolower($sourceAbsPath), '.jpg') || str_ends_with(strtolower($sourceAbsPath), '.jpeg'));
+
+        $angle = 0;
+        if ($isJpeg && function_exists('exif_read_data')) {
+            $exif = @exif_read_data($sourceAbsPath);
+            $orientation = is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1;
+            $angle = match ($orientation) {
+                3       => 180,
+                6       => -90,
+                8       => 90,
+                default => 0,
+            };
+        }
+
+        if ($angle === 0 && ($origW * $origH) <= 16_000_000) {
+            return $sourceAbsPath;
+        }
+
+        $dir = dirname($sourceAbsPath);
+        $stem = (string) pathinfo($sourceAbsPath, PATHINFO_FILENAME);
+        if (str_ends_with($stem, '_work' . $maxEdgePx)) {
+            return $sourceAbsPath;
+        }
+
+        $outExt = $isJpeg ? 'jpg' : 'png';
+        $sidecarAbs = $dir . '/' . $stem . '_work' . $maxEdgePx . '.' . $outExt;
+        if (@is_file($sidecarAbs) && (@filesize($sidecarAbs) ?: 0) > 256) {
+            return $sidecarAbs;
+        }
+
+        self::ensureMemoryHeadroom(512);
+
+        // Sicherheitsbremse falls der Server-Host memory_limit hart deckelt (z. B. 128M php_admin_value):
+        // Lieber sauber auf _proc.png zurueckfallen als einen Fatal-OOM-500 auszuloesen!
+        $effLimitRaw = trim((string) ini_get('memory_limit'));
+        if ($effLimitRaw !== '' && $effLimitRaw !== '-1') {
+            $u = strtolower(substr($effLimitRaw, -1));
+            $n = (float) $effLimitRaw;
+            $limitBytes = match ($u) {
+                'g' => (int) ($n * 1073741824),
+                'm' => (int) ($n * 1048576),
+                'k' => (int) ($n * 1024),
+                default => (int) $n,
+            };
+            $freeBytes = $limitBytes - memory_get_usage(true);
+            $estimatedGdBytes = (int) (($origW * $origH) * 5.4) + 25_165_824;
+            if ($limitBytes > 0 && $estimatedGdBytes > $freeBytes) {
+                return '';
+            }
+        }
+
+        $src = null;
+        if ($isJpeg && function_exists('imagecreatefromjpeg')) {
+            $src = @imagecreatefromjpeg($sourceAbsPath);
+        } elseif ($mime === 'image/png' && function_exists('imagecreatefrompng')) {
+            $src = @imagecreatefrompng($sourceAbsPath);
+        } elseif ($mime === 'image/webp' && function_exists('imagecreatefromwebp')) {
+            $src = @imagecreatefromwebp($sourceAbsPath);
+        }
+        if (!$src && function_exists('imagecreatefromstring')) {
+            $bytes = @file_get_contents($sourceAbsPath);
+            if (is_string($bytes) && $bytes !== '') {
+                $src = @imagecreatefromstring($bytes);
+            }
+            unset($bytes);
+        }
+        if (!$src) {
+            return '';
+        }
+
+        $sw = imagesx($src);
+        $sh = imagesy($src);
+        $maxSide = max($sw, $sh);
+        if ($maxSide > $maxEdgePx) {
+            $scale = $maxEdgePx / (float) $maxSide;
+            $dw = max(1, (int) round($sw * $scale));
+            $dh = max(1, (int) round($sh * $scale));
+            $resized = imagecreatetruecolor($dw, $dh);
+            if ($resized) {
+                imagealphablending($resized, false);
+                imagesavealpha($resized, true);
+                imagefill($resized, 0, 0, imagecolorallocatealpha($resized, 0, 0, 0, 127));
+                imagecopyresampled($resized, $src, 0, 0, 0, 0, $dw, $dh, $sw, $sh);
+                imagedestroy($src);
+                $src = $resized;
+                unset($resized);
+            }
+        }
+
+        if ($angle !== 0 && function_exists('imagerotate')) {
+            $rotated = @imagerotate($src, $angle, 0);
+            if ($rotated) {
+                imagealphablending($rotated, false);
+                imagesavealpha($rotated, true);
+                imagedestroy($src);
+                $src = $rotated;
+                unset($rotated);
+            }
+        }
+
+        $savedOk = false;
+        if ($isJpeg && function_exists('imagejpeg')) {
+            $savedOk = @imagejpeg($src, $sidecarAbs, 94);
+        } elseif (function_exists('imagepng')) {
+            $savedOk = @imagepng($src, $sidecarAbs, 4);
+        }
+        imagedestroy($src);
+
+        return ($savedOk && @is_file($sidecarAbs)) ? $sidecarAbs : $sourceAbsPath;
+    }
+
     public static function loadOrientedGdImageFromPath(string $sourceAbsPath, int $maxDimHint = 0, bool $fastSubsample = false, ?bool &$outIsJpeg = null)
     {
         if ($sourceAbsPath === '' || !@is_file($sourceAbsPath) || !function_exists('imagecreatefromstring')) {
             $outIsJpeg = false;
             return null;
+        }
+
+        self::ensureMemoryHeadroom(512);
+        $probeDim = @getimagesize($sourceAbsPath);
+        if (is_array($probeDim) && (($probeDim[0] ?? 0) * ($probeDim[1] ?? 0)) > 16_000_000) {
+            $workMaster = self::ensureLaserWorkMasterPath($sourceAbsPath, 2400);
+            if ($workMaster !== '' && @is_file($workMaster)) {
+                $sourceAbsPath = $workMaster;
+            }
         }
 
         $fSize = @filesize($sourceAbsPath) ?: 0;

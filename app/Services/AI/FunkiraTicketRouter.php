@@ -341,7 +341,7 @@ class FunkiraTicketRouter
         // 2. Kurzes Status-Ping ("Funkira?", "Kurzstatus", "Tagesbriefing")
         if (in_array($lower, ['funkira', 'funkira?', 'bist du da?', 'status', 'kurzstatus', 'briefing'], true)) {
             $openTasks = Schema::hasTable('management_tasks')
-                ? ManagementTask::where('is_completed', false)->count()
+                ? ManagementTask::countOpenRootTickets()
                 : 0;
             $todayEvents = Schema::hasTable('management_calendar_events')
                 ? ManagementCalendarEvent::whereDate('start_date', today())->count()

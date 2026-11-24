@@ -54,6 +54,7 @@ use HasUuids;
     protected $table = 'management_task_lists';
 
     protected $fillable = [
+        'id',
         'name',
         'icon',
         'color',

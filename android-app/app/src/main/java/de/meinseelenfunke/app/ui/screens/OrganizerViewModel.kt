@@ -71,6 +71,31 @@ class OrganizerViewModel : ViewModel() {
         }
     }
 
+    suspend fun verifySecretaryCall(call: PhoneSecretaryCallSummaryDto): PhoneSecretaryCallSummaryDto {
+        val updated = PhoneConciergeManager.verifyCallNow(ServiceLocator.context, call)
+        _recentSecretaryCalls.value = PhoneConciergeManager.loadCachedRecentCalls(ServiceLocator.context)
+        return updated
+    }
+
+    fun confirmSecretaryCall(callId: String) {
+        _recentSecretaryCalls.value = PhoneConciergeManager.confirmCallVerifiedByUser(ServiceLocator.context, callId)
+    }
+
+    fun updateSecretaryCallNote(
+        callId: String,
+        summary: String,
+        actionRequired: String,
+        rahmenbedingungen: List<String>
+    ) {
+        _recentSecretaryCalls.value = PhoneConciergeManager.updateCallNoteByUser(
+            ctx = ServiceLocator.context,
+            callId = callId,
+            summary = summary,
+            actionRequired = actionRequired,
+            rahmenbedingungen = rahmenbedingungen
+        )
+    }
+
     fun loadAllOrganizerData(showLoading: Boolean = true) {
         viewModelScope.launch {
             if (showLoading && _uiState.value !is OrganizerUiState.Success) {
@@ -83,9 +108,9 @@ class OrganizerViewModel : ViewModel() {
                 kotlinx.coroutines.coroutineScope {
                     val listsDef = async { repository.getTaskLists() }
                     val tasksDef = async { repository.getTasks() }
-                    val routinesDef = async { repository.getRoutines() }
-                    val shoppingDef = async { repository.getShoppingItems() }
-                    val calDef = async { repository.getCalendarEvents() }
+                    val routinesDef = if (isAdmin) async { repository.getRoutines() } else null
+                    val shoppingDef = if (isAdmin) async { repository.getShoppingItems() } else null
+                    val calDef = if (isAdmin) async { repository.getCalendarEvents() } else null
                     val secretaryDef = if (isAdmin) {
                         async { PhoneConciergeManager.fetchRecentCalls(ServiceLocator.context) }
                     } else null
@@ -104,26 +129,26 @@ class OrganizerViewModel : ViewModel() {
                             if (errorMsg == null) errorMsg = "Aufgaben konnten nicht geladen werden: " + it.localizedMessage
                         }
 
-                    routinesDef.await()
-                        .onSuccess {
+                    routinesDef?.await()
+                        ?.onSuccess {
                             _routines.value = it
                             android.util.Log.d("OrganizerViewModel", "Routines loaded successfully: ${it.size} items")
                         }
-                        .onFailure {
+                        ?.onFailure {
                             android.util.Log.e("OrganizerViewModel", "Routines load failed", it)
                             if (errorMsg == null) errorMsg = "Routinen konnten nicht geladen werden: " + it.localizedMessage
                         }
 
-                    shoppingDef.await()
-                        .onSuccess { _shoppingItems.value = it }
-                        .onFailure {
+                    shoppingDef?.await()
+                        ?.onSuccess { _shoppingItems.value = it }
+                        ?.onFailure {
                             android.util.Log.e("OrganizerViewModel", "Shopping items load failed", it)
                             if (errorMsg == null) errorMsg = "Einkaufsliste konnte nicht geladen werden: " + it.localizedMessage
                         }
 
-                    calDef.await()
-                        .onSuccess { _calendarEvents.value = it }
-                        .onFailure {
+                    calDef?.await()
+                        ?.onSuccess { _calendarEvents.value = it }
+                        ?.onFailure {
                             android.util.Log.e("OrganizerViewModel", "Calendar events load failed", it)
                             if (errorMsg == null) errorMsg = "Kalender konnte nicht geladen werden: " + it.localizedMessage
                         }

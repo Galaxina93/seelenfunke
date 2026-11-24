@@ -28,6 +28,18 @@
      class="flex flex-nowrap items-center justify-start gap-1.5 sm:gap-2 lg:gap-1.5 xl:gap-2.5 2xl:gap-3 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl p-1.5 sm:p-2 rounded-2xl border border-gray-200/80 dark:border-gray-800 shadow-sm dark:shadow-inner overflow-x-auto no-scrollbar w-fit max-w-full z-[999] snap-x snap-mandatory touch-pan-x ml-auto"
      style="-webkit-overflow-scrolling: touch;">
 
+    @if(auth()->guard('admin')->check())
+        {{-- GLOBALE PROJEKT-SUCHE (Seelenfunke Gold) --}}
+        <button type="button"
+                @click="$dispatch('open-sf-global-search'); if (window.spawnSparks) window.spawnSparks($event)"
+                @mouseenter="window.spawnSparks ? window.spawnSparks($event) : null"
+                title="Globale Projekt-Suche öffnen"
+                class="flex flex-col items-center justify-center w-14 h-14 sm:w-16 sm:h-16 lg:w-14 lg:h-14 xl:w-16 xl:h-16 2xl:w-[4.5rem] 2xl:h-[4.5rem] rounded-xl bg-[#C5A059]/10 border border-[#C5A059]/35 text-[#C5A059] hover:bg-[#C5A059]/20 hover:border-[#C5A059] transition-all hover:scale-105 group shrink-0 snap-start relative overflow-hidden cursor-pointer">
+            <span class="text-[8px] xl:text-[9px] 2xl:text-[10px] font-black uppercase tracking-widest mb-0.5 xl:mb-1 opacity-85 group-hover:opacity-100 transition-colors">Suche</span>
+            <x-heroicon-s-magnifying-glass class="w-5 h-5 xl:w-6 xl:h-6 group-hover:scale-110 group-active:scale-90 transition-transform duration-300 text-[#C5A059]" />
+        </button>
+    @endif
+
     @if($allowThemeSwitch)
         {{-- TAILWIND SUN / MOON THEME SWITCH (Nur für Admin & Mitarbeiter im Backend sichtbar) --}}
         <button type="button"

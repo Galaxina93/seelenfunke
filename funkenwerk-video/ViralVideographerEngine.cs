@@ -232,6 +232,14 @@ namespace FunkenwerkVideo
                 return appBase.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             }
 
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                string progVideoDir = Path.Combine(localAppData, "Programs", "Funkenwerk Collection", "Module", "Funkenwerk Video");
+                if (Directory.Exists(progVideoDir))
+                    return Path.GetFullPath(progVideoDir);
+            }
+
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             if (!string.IsNullOrWhiteSpace(desktop))
             {
@@ -386,6 +394,12 @@ namespace FunkenwerkVideo
             yield return Path.Combine(GetBaseDir(), "effectcraft");
             yield return Path.Combine(AppContext.BaseDirectory, "effectcraft");
 
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                yield return Path.Combine(localAppData, "Programs", "Funkenwerk Collection", "Module", "Funkenwerk Video", "effectcraft");
+            }
+
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             if (!string.IsNullOrWhiteSpace(desktop))
             {
@@ -435,6 +449,13 @@ namespace FunkenwerkVideo
 
                 string sibling = Path.GetFullPath(Path.Combine(appBase, "..", "Funkenwerk", binaryName));
                 if (File.Exists(sibling)) return sibling;
+
+                string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                if (!string.IsNullOrWhiteSpace(localAppData))
+                {
+                    string progFw = Path.Combine(localAppData, "Programs", "Funkenwerk Collection", "Funkenwerk", binaryName);
+                    if (File.Exists(progFw)) return Path.GetFullPath(progFw);
+                }
 
                 string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                 if (!string.IsNullOrWhiteSpace(desktop))

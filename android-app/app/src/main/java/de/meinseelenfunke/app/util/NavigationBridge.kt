@@ -108,6 +108,28 @@ object NavigationBridge {
     }
 
     /**
+     * Strict 1:1 Web-Dashboard parity for internal Employee accounts:
+     * Employees ONLY see [Screen.Zentrum], optional [Screen.Orders] (if contract grants production),
+     * optional [Screen.Organizer] -> Tasks (if contract grants tasks), and [Screen.Settings] —
+     * NEVER Admin-only [Screen.Finances] or [Screen.Chat].
+     */
+    fun bottomNavScreensForUserRole(
+        userType: String?,
+        canTasks: Boolean = true,
+        canProduction: Boolean = false
+    ): List<Screen> {
+        if (userType == "admin") {
+            return listOf(Screen.Zentrum, Screen.Orders, Screen.Finances, Screen.Organizer, Screen.Chat, Screen.Settings)
+        }
+        return buildList {
+            add(Screen.Zentrum)
+            if (canProduction) add(Screen.Orders)
+            if (canTasks) add(Screen.Organizer)
+            add(Screen.Settings)
+        }
+    }
+
+    /**
      * Resolves a [NavTarget] deterministically to the target [Screen] for Admin vs. Employee.
      * Employees do not have access to [Screen.Orders] and safely land on [Screen.Zentrum]
      * without ever colliding with [Screen.Finances].
@@ -123,6 +145,24 @@ object NavigationBridge {
         }
     }
 
+    fun resolveScreenForUserRole(
+        target: NavTarget,
+        userType: String?,
+        canTasks: Boolean = true,
+        canProduction: Boolean = false
+    ): Screen {
+        if (userType == "admin") {
+            return resolveScreen(target, isAdmin = true)
+        }
+        return when (target) {
+            NavTarget.ZENTRUM -> Screen.Zentrum
+            NavTarget.ORDERS -> if (canProduction) Screen.Orders else Screen.Zentrum
+            NavTarget.ORGANIZER -> if (canTasks) Screen.Organizer else Screen.Zentrum
+            NavTarget.SETTINGS -> Screen.Settings
+            NavTarget.FINANCES, NavTarget.CHAT -> Screen.Zentrum
+        }
+    }
+
     fun resolveScreen(tabIndex: Int, isAdmin: Boolean): Screen {
         return resolveScreen(resolveTarget(tabIndex), isAdmin)
     }
@@ -130,6 +170,17 @@ object NavigationBridge {
     fun resolvePageIndex(target: NavTarget, isAdmin: Boolean): Int {
         val items = bottomNavScreensForRole(isAdmin)
         val screen = resolveScreen(target, isAdmin)
+        return items.indexOfFirst { it.route == screen.route }.coerceAtLeast(0)
+    }
+
+    fun resolvePageIndexForUserRole(
+        target: NavTarget,
+        userType: String?,
+        canTasks: Boolean = true,
+        canProduction: Boolean = false
+    ): Int {
+        val items = bottomNavScreensForUserRole(userType, canTasks, canProduction)
+        val screen = resolveScreenForUserRole(target, userType, canTasks, canProduction)
         return items.indexOfFirst { it.route == screen.route }.coerceAtLeast(0)
     }
 

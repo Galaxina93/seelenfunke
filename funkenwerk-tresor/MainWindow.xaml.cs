@@ -163,6 +163,13 @@ namespace FunkenwerkTresor
 
             InitializeComponent();
 
+            if (SystemParameters.WorkArea.Height > 0)
+            {
+                double maxInitialHeight = Math.Max(MinHeight, SystemParameters.WorkArea.Height - 28);
+                if (Height > maxInitialHeight)
+                    Height = maxInitialHeight;
+            }
+
             ApplyTheme(_settings.DarkMode);
             LoadBrandAndToolbarIcons();
 

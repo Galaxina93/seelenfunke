@@ -67,8 +67,9 @@ class SystemSecurityAuditCommandTest extends TestCase
         $this->assertSame(34, $report['apps']['android']['compile_sdk'] ?? null);
 
         // 4. Guardrails Layer
-        $this->assertSame(6, $report['guardrails']['total_count'] ?? 0);
-        $this->assertSame(6, $report['guardrails']['passed_count'] ?? 0);
+        $this->assertSame(7, $report['guardrails']['total_count'] ?? 0);
+        $this->assertSame(7, $report['guardrails']['passed_count'] ?? 0);
+        $this->assertTrue($report['guardrails']['checks']['route_middleware_safety']['passed'] ?? false);
     }
 
     #[Test]

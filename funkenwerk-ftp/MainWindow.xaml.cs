@@ -631,6 +631,8 @@ namespace FunkenwerkFtp
                     string[] pdfCandidates =
                     {
                         Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Funkenwerk PDF", "FunkenwerkPdf.exe")),
+                        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Funkenwerk Collection", "Module", "Funkenwerk PDF", "FunkenwerkPdf.exe"),
+                        @"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection\Module\Funkenwerk PDF\FunkenwerkPdf.exe",
                         @"C:\Users\konta\Desktop\Funkenwerk Collection\Module\Funkenwerk PDF\FunkenwerkPdf.exe",
                         @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk PDF\FunkenwerkPdf.exe"
                     };
@@ -1012,59 +1014,71 @@ namespace FunkenwerkFtp
 
                     var connInfo = new ConnectionInfo(host, port, user, authMethods.ToArray())
                     {
-                        Timeout = TimeSpan.FromSeconds(12)
+                        Timeout = TimeSpan.FromSeconds(30)
                     };
 
-                    var sftp = new SftpClient(connInfo)
-                    {
-                        KeepAliveInterval = TimeSpan.FromSeconds(15)
-                    };
                     bool hostKeyChangedAbort = false;
                     bool hostKeyRejectedAbort = false;
+                    bool newlyPinnedByUser = false;
                     string? hostKeyVaultError = null;
 
-                    sftp.HostKeyReceived += (s, hkArgs) =>
+                    SftpClient CreateConfiguredSftpClient()
                     {
-                        try
+                        var client = new SftpClient(connInfo)
                         {
-                            string alg = hkArgs.HostKeyName;
-                            var check = FunkenwerkFtpSecurity.VerifyAndPinHostKey(
-                                host,
-                                port,
-                                alg,
-                                hkArgs.HostKey,
-                                trustNewKeys: false,
-                                confirmNewKeyCallback: fp => Dispatcher.Invoke(() =>
-                                    FtpModalDialogs.ShowConfirmDialog(
-                                        this,
-                                        _isDarkMode,
-                                        "SSH-Host-Key prüfen",
-                                        $"Neuer Server-Schlüssel für '{host}:{port}' ({alg}):\n\n{fp}\n\nDiesem Fingerabdruck vertrauen und dauerhaft pinnen?",
-                                        "Vertrauen & Pinnen",
-                                        isDanger: false)));
+                            KeepAliveInterval = TimeSpan.FromSeconds(15)
+                        };
+                        client.HostKeyReceived += (s, hkArgs) =>
+                        {
+                            try
+                            {
+                                string alg = hkArgs.HostKeyName;
+                                var check = FunkenwerkFtpSecurity.VerifyAndPinHostKey(
+                                    host,
+                                    port,
+                                    alg,
+                                    hkArgs.HostKey,
+                                    trustNewKeys: false,
+                                    confirmNewKeyCallback: fp =>
+                                    {
+                                        bool accepted = Dispatcher.Invoke(() =>
+                                            FtpModalDialogs.ShowConfirmDialog(
+                                                this,
+                                                _isDarkMode,
+                                                "SSH-Host-Key prüfen",
+                                                $"Neuer Server-Schlüssel für '{host}:{port}' ({alg}):\n\n{fp}\n\nDiesem Fingerabdruck vertrauen und dauerhaft pinnen?",
+                                                "Vertrauen & Pinnen",
+                                                isDanger: false));
+                                        if (accepted) newlyPinnedByUser = true;
+                                        return accepted;
+                                    });
 
-                            _lastPinnedFingerprint = check.FingerprintSha256;
-                            if (check.IsChanged)
+                                _lastPinnedFingerprint = check.FingerprintSha256;
+                                if (check.IsChanged)
+                                {
+                                    hostKeyChangedAbort = true;
+                                    hkArgs.CanTrust = false;
+                                }
+                                else if (!check.IsTrusted)
+                                {
+                                    hostKeyRejectedAbort = true;
+                                    hkArgs.CanTrust = false;
+                                }
+                                else
+                                {
+                                    hkArgs.CanTrust = true;
+                                }
+                            }
+                            catch (Exception hkEx)
                             {
-                                hostKeyChangedAbort = true;
+                                hostKeyVaultError = hkEx.Message;
                                 hkArgs.CanTrust = false;
                             }
-                            else if (!check.IsTrusted)
-                            {
-                                hostKeyRejectedAbort = true;
-                                hkArgs.CanTrust = false;
-                            }
-                            else
-                            {
-                                hkArgs.CanTrust = true;
-                            }
-                        }
-                        catch (Exception hkEx)
-                        {
-                            hostKeyVaultError = hkEx.Message;
-                            hkArgs.CanTrust = false;
-                        }
-                    };
+                        };
+                        return client;
+                    }
+
+                    var sftp = CreateConfiguredSftpClient();
 
                     try
                     {
@@ -1088,7 +1102,19 @@ namespace FunkenwerkFtp
                             StatusText.Text = "Verbindung abgebrochen (Server-Host-Key nicht bestätigt).";
                             return;
                         }
-                        throw;
+
+                        // If the server closed the pre-auth socket while the user inspected & accepted the host key modal,
+                        // reconnect immediately using the newly pinned fingerprint.
+                        if (newlyPinnedByUser)
+                        {
+                            newlyPinnedByUser = false;
+                            sftp = CreateConfiguredSftpClient();
+                            await Task.Run(() => sftp.Connect());
+                        }
+                        else
+                        {
+                            throw;
+                        }
                     }
 
                     if (hostKeyChangedAbort || hostKeyRejectedAbort || !string.IsNullOrEmpty(hostKeyVaultError))
@@ -1298,6 +1324,8 @@ namespace FunkenwerkFtp
                 string[] candidatePaths =
                 {
                     Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "Funkenwerk SSH", "FunkenwerkSsh.exe")),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Funkenwerk Collection", "Module", "Funkenwerk SSH", "FunkenwerkSsh.exe"),
+                    @"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection\Module\Funkenwerk SSH\FunkenwerkSsh.exe",
                     @"C:\Users\konta\Desktop\Funkenwerk Collection\Module\Funkenwerk SSH\FunkenwerkSsh.exe",
                     @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk SSH\FunkenwerkSsh.exe"
                 };

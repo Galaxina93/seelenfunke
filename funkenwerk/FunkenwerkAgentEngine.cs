@@ -341,7 +341,17 @@ namespace Funkenwerk
                     : null;
 
                 LocalBridgeResult res;
-                if (domain == "music")
+                bool isAdminSession = FunkenwerkSharedSession.IsAdminSession();
+                if (!isAdminSession && domain is "music" or "smarthome" or "archive")
+                {
+                    res = new LocalBridgeResult
+                    {
+                        Ok = false,
+                        Badge = "Gesperrt",
+                        Summary = "Dieser Bereich ist ausschließlich für die Geschäftsleitung freigegeben."
+                    };
+                }
+                else if (domain == "music")
                     res = await _bridge.ExecuteMusicCommandAsync(action, query, volume).ConfigureAwait(false);
                 else if (domain == "smarthome")
                     res = await _bridge.ExecuteSmartHomeCommandAsync(action, target ?? query, direction).ConfigureAwait(false);
@@ -602,6 +612,7 @@ namespace Funkenwerk
                 "\n[FUNKENWERK DESKTOP-SEKRETÄRIN KONTEXT]\n" +
                 "Du bist Funkira aus dem Mein-Seelenfunke Webportal, direkt als persönliche Notebook-Sekretärin in Funkenwerk integriert. Antworte herzlich, taktsicher, präzise auf Deutsch und ohne lange Gedankenstriche.\n" +
                 "WICHTIGE ARCHIV-REGEL: Bei Fragen zu Alinas Dateien, Scans, Dokumentdaten oder Prüfbitten (z. B. 'prüf nochmal') stütze dich AUSSCHLIESSLICH auf die unten mitgelieferten verifizierten Einträge aus Alinas lokalem Meine-Daten-Gehirn! Erfinde oder zitiere NIEMALS ältere Webportal-Dokumente (wie Dr. Schmidt vom 05.10.2026), wenn neuere Dateien vorliegen.\n" +
+                "Aktuelle 9-Säulen-Datenablageschablone (kDrive/Meine Daten): 00_Eingang_Trichter -> 01_Mein-Seelenfunke (Anleitungen, Banken/FYRST, Businessplan, Design, Hosting/Mittwald, Markenschutz_DPMA, Marketing, Medien, Rechnungen, Steuern, Versicherungen, Zertifikate), 02_Finanzen_Steuern_Banken, 03_Haus, 04_Versicherungen, 05_Familie_Ausweise_Vorsorge, 05_Verträge (Handy, Internet), 06_Gesundheit (Befunde, Krankenkasse, Krankmeldungen, Transition), 07_Behoerden_Recht_Berufshistorie, 08_Tresor_Backups.\n" +
                 "Aktueller Live-Status auf Alinas Notebook:\n" + pcContext + archiveContextBlock + executedNote +
                 "\nBei Bedarf kannst du am Ende deiner Antwort lokale Aktionen als <fw_action>{\"tool\":\"NAME\",\"args\":{...}}</fw_action> anhängen:\n" +
                 "- archive_open: {\"action\":\"preview\"|\"pdf\"|\"reveal\",\"relPath\":\"...\"}\n" +
@@ -996,10 +1007,10 @@ namespace Funkenwerk
             if (Regex.IsMatch(q, @"^(?:öffne|starte)\s+(?:funkenwerk\s+)?(3d|os|leitstand|festung|tresor|craft|pdf|drucker|scanner|ftp|ssh|player|musikplayer|video|smarthome|kamera|marketing|browser)\s*$"))
                 return false;
 
-            if (Regex.IsMatch(normQ, @"\b(rentenbescheid|renteninfo|renteninformation|renteninformationen|rente|drv|versorgungsausgleich|kontenklaerung|sozialversicherungsausweis|steuerbescheid|steuererklaerung|lohnsteuerbescheinigung|elster|finanzamt|kaufvertrag|notar|grundbuch|hauskredit|lastenzuschuss|darlehen|schufa|kontoauszug|kontoauszuege|volksbank|umsaetze|personalausweis|fuehrerschein|geburtsurkunde|eheurkunde|namensaenderung|testament|vorsorgevollmacht|todesfallcheckliste|krankschreibung|krankschreibungen|krankmeldung|arbeitsunfaehigkeit|eau|krankengeld|bkk|firmus|sozialgericht|eilantrag|arbeitsamt|agentur fuer arbeit|bundesagentur|bewilligungsbescheid|aufhebungsbescheid|aenderungsbescheid|gruendungszuschuss|tragfaehigkeit|gewerbeanmeldung|laserschutzbeauftragte|businessplan|liquiditaetsplanung|betriebshaftpflicht|hiscox|arag|barmenia|allianz|axa|devk|ergo|neodigital|keepass|kdbx|zaehlerstand|zaehlerstaende|wasserzaehler|drehstromzaehler|stromzaehler|photovoltaik|waermepumpe|arbeitszeugnis|gehaltsabrechnung|telekom|vodafone|rundfunk|lsw|vattenfall)\b"))
+            if (Regex.IsMatch(normQ, @"\b(rentenbescheid|renteninfo|renteninformation|renteninformationen|rentenversicherung|rente|drv|versorgungsausgleich|kontenklaerung|sozialversicherungsausweis|steuerbescheid|steuererklaerung|lohnsteuerbescheinigung|elster|finanzamt|kaufvertrag|notar|grundbuch|hauskredit|lastenzuschuss|darlehen|schufa|kontoauszug|kontoauszuege|volksbank|umsaetze|fyrst|personalausweis|fuehrerschein|geburtsurkunde|eheurkunde|namensaenderung|elterngeld|kindergeld|testament|vorsorgevollmacht|todesfallcheckliste|krankschreibung|krankschreibungen|krankmeldung|arbeitsunfaehigkeit|eau|krankengeld|bkk|firmus|sozialgericht|eilantrag|befund|befunde|arbeitsamt|agentur fuer arbeit|bundesagentur|bewilligungsbescheid|aufhebungsbescheid|aenderungsbescheid|gruendungszuschuss|tragfaehigkeit|gewerbeanmeldung|laserschutzbeauftragte|businessplan|liquiditaetsplanung|dpma|markenschutz|mittwald|hosting|anleitung|anleitungen|zertifikat|zertifikate|betriebshaftpflicht|gebaeudeversicherung|haftpflicht|haftpflichversicherung|zahnzusatz|zahnzusatzversicherung|unfallversicherung|autoversicherung|hiscox|arag|barmenia|allianz|axa|devk|ergo|neodigital|allsafe|kravag|verti|adac|keepass|kdbx|zaehlerstand|zaehlerstaende|wasserzaehler|drehstromzaehler|stromzaehler|photovoltaik|waermepumpe|arbeitszeugnis|gehaltsabrechnung|telekom|vodafone|o2|glasfaser|simplytel|handyvertrag|internetvertrag|rundfunk|lsw|vattenfall)\b"))
                 return true;
 
-            if (Regex.IsMatch(q, @"\b(wo\s+liegt|wo\s+finde|gib\s+mir|zeig\s+mir|such(?:e)?\s+(?:nach|die|den|das)|finde\s+(?:die|den|das)|öffne\s+(?:die|den|das)|welche\s+datei|welches\s+dokument|letzte[rn]?\s+(?:\w+\s+)?(?:bescheid|rechnung|vertrag|brief|auszug|attest|befund|dokument|datei|scan))\b") &&
+            if (Regex.IsMatch(q, @"\b(wo\s+liegt|wo\s+finde|gib\s+mir|zeig\s+mir|such(?:e)?\s+(?:nach|die|den|das)|finde\s+(?:die|den|das)|öffne\s+(?:die|den|das)|welche\s+datei|welches\s+dokument|letzte[rn]?\s+(?:\w+\s+)?(?:bescheid|rechnung|vertrag|brief|auszug|attest|befund|dokument|datei|scan|police|versicherung|anleitung|zertifikat|urkunde|abrechnung))\b") &&
                 !q.Contains("umsatz") && !q.Contains("shop") && !q.Contains("stripe") && !q.Contains("server") && !q.Contains("live-server"))
             {
                 return true;

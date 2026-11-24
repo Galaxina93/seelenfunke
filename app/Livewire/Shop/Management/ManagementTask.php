@@ -186,6 +186,11 @@ class ManagementTask extends Component
         $this->leftColWidthPx = (int) ($uiCfg['left_col_width_px'] ?? 330);
         $this->myTicketsHeightPct = (int) ($uiCfg['my_tickets_height_pct'] ?? 52);
         $this->soundMuted = (bool) ($uiCfg['sound_muted'] ?? false);
+
+        $deepTaskId = trim((string) request()->query('task', ''));
+        if ($deepTaskId !== '' && TaskModel::where('id', $deepTaskId)->exists()) {
+            $this->selectTask($deepTaskId);
+        }
     }
 
     #[Renderless]
@@ -1156,9 +1161,7 @@ class ManagementTask extends Component
         $teamListIds = $lists->pluck('id')->all();
 
         if ($isEmployeeViewer) {
-            $totalAllCount = TaskModel::whereNull('parent_id')
-                ->where('is_completed', false)
-                ->where('is_archived', false)
+            $totalAllCount = TaskModel::openRootTickets()
                 ->where(function ($q) use ($teamListIds, $empViewer, $hasAssigneeCols) {
                     if (!empty($teamListIds)) {
                         $q->whereIn('task_list_id', $teamListIds);
@@ -1173,10 +1176,7 @@ class ManagementTask extends Component
                 })
                 ->count();
         } else {
-            $totalAllCount = TaskModel::whereNull('parent_id')
-                ->where('is_completed', false)
-                ->where('is_archived', false)
-                ->count();
+            $totalAllCount = TaskModel::countOpenRootTickets();
         }
 
         $activeList = null;
@@ -1190,8 +1190,7 @@ class ManagementTask extends Component
         // 1. "Meine Tickets" (Personenbezogen fuer die aktuell eingeloggte Person!)
         $myTicketsQuery = TaskModel::with(['subtasks', 'list'])
             ->withCount('messages')
-            ->whereNull('parent_id')
-            ->where('is_archived', false)
+            ->rootTickets()
             ->where('is_mine', true);
 
         if ($hasAssigneeCols) {
@@ -1231,8 +1230,7 @@ class ManagementTask extends Component
         // 2. "Offene Tickets" Tabelle (Rechts: inkl. an Mitarbeiter delegierte Tickets fuer Admin)
         $poolQuery = TaskModel::with(['subtasks', 'list'])
             ->withCount('messages')
-            ->whereNull('parent_id')
-            ->where('is_archived', false);
+            ->rootTickets();
 
         if ($isEmployeeViewer) {
             $poolQuery->where(function ($q) use ($teamListIds, $currentActor, $hasAssigneeCols) {

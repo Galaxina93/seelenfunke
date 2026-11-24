@@ -262,4 +262,84 @@ class AccountingBankTest extends TestCase
         $this->assertEquals($category->id, $tx->accounting_category_id);
         $this->assertEquals('agent', $tx->assigned_by_type);
     }
+
+    #[Test]
+    public function it_auto_creates_fyrst_account_and_imports_18_column_fyrst_csv_accurately()
+    {
+        // Start with 0 bank accounts (mirrors fresh live setup)
+        AccountingBankAccount::query()->delete();
+
+        $csvLines = [
+            "\xEF\xBB\xBFUmsätze",
+            'Konto;Filial-/Kontonummer;IBAN;Währung',
+            'FYRST BASE;370 0000000 00;DE89370400440532013000;EUR',
+            '',
+            '01.11.2026 - 24.11.2026',
+            'Letzter Kontostand;;;;0;EUR',
+            'Vorgemerkte und noch nicht gebuchte Umsätze sind nicht Bestandteil dieser Übersicht.',
+            'Buchungstag;Wert;Umsatzart;Begünstigter / Auftraggeber;Verwendungszweck;IBAN / Kontonummer;BIC;Kundenreferenz;Mandatsreferenz;Gläubiger ID;Fremde Gebühren;Betrag;Abweichender Empfänger;Anzahl der Aufträge;Anzahl der Schecks;Soll;Haben;Währung',
+            '5.11.2026;5.11.2026;Gutschrift;Max Mustermann;Starteinlage Manufaktur;DE12500105170648489890;;REF-1001;;;;2.000;;;;;2.000;EUR',
+            '12.11.2026;12.11.2026;SEPA-Überweisung;Westpack A/S;Schmuckboxen Rechnung 29001;DK5000400440116243;;INV-29001;;;;-145,95;;;;-145,95;;EUR',
+            '18.11.2026;18.11.2026;Lastschrift;xTool Laser GmbH;;DE44500105175407324931;;KREF-5544;;;;-1.500;;;;-1.500;;EUR',
+            'Kontostand;24.11.2026;;;354,05;EUR',
+            '',
+        ];
+
+        $csvFile = UploadedFile::fake()->createWithContent(
+            'Kontoumsaetze_370_0000000_00_20261124_205306.csv',
+            implode("\r\n", $csvLines)
+        );
+
+        Livewire::test(AccountingBank::class)
+            ->call('openCsvModal')
+            ->set('csvFile', $csvFile)
+            ->call('importCsvTransactions')
+            ->assertHasNoErrors();
+
+        $createdAccount = AccountingBankAccount::where('admin_id', $this->admin->id)->first();
+        $this->assertNotNull($createdAccount);
+        $this->assertEquals('FYRST', $createdAccount->bank_name);
+        $this->assertEquals('Geschäftskonto (FYRST BASE)', $createdAccount->account_name);
+        $this->assertEquals('DE89370400440532013000', $createdAccount->iban);
+        $this->assertTrue((bool) $createdAccount->is_business);
+        $this->assertEquals(354.05, (float) $createdAccount->balance);
+
+        // Must import exactly 3 real bookings (skipping preamble & trailing Kontostand row)
+        $txs = AccountingBankTransaction::where('accounting_bank_account_id', $createdAccount->id)
+            ->orderBy('transaction_date')
+            ->get();
+        $this->assertCount(3, $txs);
+
+        // 1) Whole-thousand credit "2.000" -> +2000.00 (NOT +2.00!)
+        $this->assertEquals(2000.00, (float) $txs[0]->amount);
+        $this->assertEquals('Max Mustermann', $txs[0]->counterpart_name);
+        $this->assertEquals('DE12500105170648489890', $txs[0]->counterpart_iban);
+
+        // 2) Standard decimal debit "-145,95" -> -145.95
+        $this->assertEquals(-145.95, (float) $txs[1]->amount);
+        $this->assertEquals('Westpack A/S', $txs[1]->counterpart_name);
+
+        // 3) Whole-thousand debit "-1.500" -> -1500.00 with empty Verwendungszweck fallback
+        $this->assertEquals(-1500.00, (float) $txs[2]->amount);
+        $this->assertEquals('xTool Laser GmbH', $txs[2]->counterpart_name);
+        $this->assertStringContainsString('Lastschrift', (string) $txs[2]->purpose);
+
+        // Verify financeCategory alias works for FinancialService & TaxAdvisorDashboard
+        $loadedWithFinanceCat = AccountingBankTransaction::with(['account', 'financeCategory'])->find($txs[0]->id);
+        $this->assertNotNull($loadedWithFinanceCat);
+
+        // Re-importing the identical CSV must skip all 3 duplicates
+        $csvFileRepeat = UploadedFile::fake()->createWithContent(
+            'Kontoumsaetze_370_0000000_00_20261124_205306.csv',
+            implode("\r\n", $csvLines)
+        );
+
+        Livewire::test(AccountingBank::class)
+            ->call('openCsvModal')
+            ->set('csvFile', $csvFileRepeat)
+            ->call('importCsvTransactions')
+            ->assertHasNoErrors();
+
+        $this->assertEquals(3, AccountingBankTransaction::where('accounting_bank_account_id', $createdAccount->id)->count());
+    }
 }

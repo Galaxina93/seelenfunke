@@ -195,22 +195,24 @@ fun ZentrumScreen(
                             modifier = Modifier.size(17.dp)
                         )
                     }
-                    // Mic
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(AppTheme.colors.glassSurface)
-                            .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
-                            .clickable { onNavigateToLiveChat() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = "Sprachchat",
-                            tint = Gold,
-                            modifier = Modifier.size(17.dp)
-                        )
+                    // Mic (Admin only)
+                    if (isAdmin) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(AppTheme.colors.glassSurface)
+                                .border(1.dp, AppTheme.colors.glassBorder, CircleShape)
+                                .clickable { onNavigateToLiveChat() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Mic,
+                                contentDescription = "Sprachchat",
+                                tint = Gold,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
                     }
                     // Refresh
                     Box(
@@ -316,41 +318,43 @@ fun ZentrumScreen(
             }
         }
 
-        // Floating Action Button for Funkira Live Voice Call
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 18.dp, end = 18.dp),
-            contentAlignment = Alignment.Center
-        ) {
+        // Floating Action Button for Funkira Live Voice Call (Admin only)
+        if (isAdmin) {
             Box(
                 modifier = Modifier
-                    .size(60.dp)
-                    .scale(pulseScale)
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Gold.copy(alpha = 0.38f), Color.Transparent)
-                        ),
-                        shape = CircleShape
-                    )
-            )
-
-            FloatingActionButton(
-                onClick = {
-                    SoundManager.playSound(R.raw.open_project_brain)
-                    onNavigateToLiveChat()
-                },
-                containerColor = Gold,
-                contentColor = SpaceBlack,
-                shape = CircleShape,
-                modifier = Modifier.size(52.dp)
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 18.dp, end = 18.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = "Start Live Call",
-                    tint = SpaceBlack,
-                    modifier = Modifier.size(22.dp)
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .scale(pulseScale)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Gold.copy(alpha = 0.38f), Color.Transparent)
+                            ),
+                            shape = CircleShape
+                        )
                 )
+
+                FloatingActionButton(
+                    onClick = {
+                        SoundManager.playSound(R.raw.open_project_brain)
+                        onNavigateToLiveChat()
+                    },
+                    containerColor = Gold,
+                    contentColor = SpaceBlack,
+                    shape = CircleShape,
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Start Live Call",
+                        tint = SpaceBlack,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
@@ -375,6 +379,56 @@ fun DashboardContent(
     onNavigateToSettings: () -> Unit = {},
     viewModel: ZentrumViewModel
 ) {
+    val canTasks by ServiceLocator.employeeCanTasksState.collectAsState(initial = ServiceLocator.canEmployeeAccessTasks())
+    val canProduction by ServiceLocator.employeeCanProductionState.collectAsState(initial = ServiceLocator.canEmployeeAccessProduction())
+
+    if (!isAdmin) {
+        val openTasksCount = remember(tasks) { tasks.count { !it.is_completed && it.parent_id == null } }
+        val highPrioCount = remember(tasks) {
+            tasks.count { !it.is_completed && it.parent_id == null && (it.priority.equals("hoch", true) || it.priority.equals("high", true)) }
+        }
+        val openOrdersCount = remember(orders) {
+            orders.count {
+                it.status.equals("pending", ignoreCase = true) ||
+                    it.status.equals("processing", ignoreCase = true) ||
+                    it.status.equals("ausstehend", ignoreCase = true) ||
+                    it.status.equals("in_bearbeitung", ignoreCase = true)
+            }
+        }
+        val expressCount = remember(orders) { orders.count { it.is_express == true } }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (canTasks) {
+                    CompactDashboardTile(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Default.CheckCircle,
+                        title = "To-do Liste",
+                        value = if (openTasksCount > 0) "$openTasksCount offen" else "Erledigt ✓",
+                        subtitle = if (highPrioCount > 0) "🔥 $highPrioCount hohe Prio" else "Aufgaben öffnen",
+                        isAlert = highPrioCount > 0,
+                        onClick = { onNavigateToOrganizer(0) }
+                    )
+                }
+                if (canProduction) {
+                    CompactDashboardTile(
+                        modifier = Modifier.weight(1f),
+                        icon = if (expressCount > 0) Icons.Default.Bolt else Icons.Default.ShoppingBag,
+                        title = "Produktion",
+                        value = if (openOrdersCount > 0) "$openOrdersCount offen" else "$totalOrdersCount gesamt",
+                        subtitle = if (expressCount > 0) "⚡ $expressCount Express!" else "Aufträge öffnen",
+                        isAlert = expressCount > 0,
+                        onClick = onNavigateToOrders
+                    )
+                }
+            }
+        }
+        return
+    }
+
     // 1. NÄCHSTER SCHRITT (getUltimateCommand() in einem Satz)
     UltimateCommandCard(
         ultimateCommand = ultimateCommand,
@@ -397,9 +451,15 @@ fun DashboardContent(
 
     // 1b. ANRUFBEANTWORTER-HINWEIS (Kurzer 1-Zeilen-Hinweis bei neuem Eintrag -> öffnet Organizer Telefon-Tab)
     val unseenPhoneEntries by de.meinseelenfunke.app.util.PhoneConciergeManager.unseenCallCountFlow.collectAsState()
+    val recentPhoneCalls by de.meinseelenfunke.app.util.PhoneConciergeManager.recentCallsFlow.collectAsState()
+    val uncertainPhoneCalls = remember(recentPhoneCalls) {
+        recentPhoneCalls.count { it.verification?.status == de.meinseelenfunke.app.services.CallNoteVerificationEngine.STATUS_UNCERTAIN }
+    }
     if (isAdmin && unseenPhoneEntries > 0) {
         NewPhoneEntryHintBanner(
             unseenCount = unseenPhoneEntries,
+            latestCallerLabel = recentPhoneCalls.firstOrNull()?.caller_name,
+            uncertainCount = uncertainPhoneCalls,
             onClick = { onNavigateToOrganizer(7) }
         )
     }

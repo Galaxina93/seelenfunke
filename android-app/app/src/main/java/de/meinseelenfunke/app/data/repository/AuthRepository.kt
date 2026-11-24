@@ -56,13 +56,18 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
             if (response.status == "success" && response.token != null) {
                 serviceLocator.saveAuthToken(response.token)
                 response.user_type?.let { serviceLocator.saveUserType(it) }
+                response.permissions?.let { p ->
+                    serviceLocator.saveEmployeePermissions(p.can_access_tasks, p.can_access_production)
+                }
+                if (response.user_type == "admin") {
+                    EmailWebSocketClient.startWebSocket()
+                }
                 serviceLocator.getFcmToken()?.let { token ->
                     try {
                         updateFcmToken(token)
                     } catch (_: Exception) {
                     }
                 }
-                EmailWebSocketClient.startWebSocket()
 
                 Result.success(response)
             } else {
@@ -97,6 +102,9 @@ class AuthRepository(private val serviceLocator: ServiceLocator) {
         return try {
             val user = serviceLocator.getAuthApi().getUser()
             user.user_type?.let { serviceLocator.saveUserType(it) }
+            user.permissions?.let { p ->
+                serviceLocator.saveEmployeePermissions(p.can_access_tasks, p.can_access_production)
+            }
             Result.success(user)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

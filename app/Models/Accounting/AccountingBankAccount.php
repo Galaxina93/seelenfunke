@@ -71,4 +71,15 @@ class AccountingBankAccount extends Model implements HasSystemBlueprint
         'is_active_for_analysis' => 'boolean',
         'is_business' => 'boolean',
     ];
+
+    public function getNameAttribute(): string
+    {
+        $parts = array_filter([trim((string) $this->bank_name), trim((string) $this->account_name)]);
+        return !empty($parts) ? implode(' · ', $parts) : 'Bankkonto';
+    }
+
+    public function getIsBusinessAccountAttribute(): bool
+    {
+        return (bool) $this->is_business;
+    }
 }

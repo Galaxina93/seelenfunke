@@ -454,14 +454,14 @@
                     :class="mobileTab === 'open' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 dark:text-gray-400'"
                     class="flex-1 min-w-0 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer">
                 <span class="truncate">Offene</span>
-                <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200/80 dark:bg-gray-700 shrink-0">{{ $openPoolTickets->count() }}</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-gray-200/80 dark:bg-gray-700 shrink-0">{{ $openPoolTickets->where('is_completed', false)->count() }}</span>
             </button>
             <button type="button"
                     @click="mobileTab = 'mine'; playRandomSound()"
                     :class="mobileTab === 'mine' ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs' : 'text-gray-500 dark:text-gray-400'"
                     class="flex-1 min-w-0 py-1.5 px-2 rounded-lg text-[11px] font-black transition-all flex items-center justify-center gap-1 cursor-pointer">
                 <span class="truncate">Meine & Listen</span>
-                <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-[var(--theme-color-20)] text-[var(--theme-color)] shrink-0">{{ $myTickets->count() }}</span>
+                <span class="px-1.5 py-0.5 rounded-full text-[10px] bg-[var(--theme-color-20)] text-[var(--theme-color)] shrink-0">{{ $myTickets->where('is_completed', false)->count() }}</span>
             </button>
         </div>
 
@@ -523,7 +523,7 @@
                         @endif
 
                         <span class="px-2 py-0.5 rounded-full text-[11px] font-black bg-[var(--theme-color-15)] text-[var(--theme-color)]">
-                            {{ $myTickets->count() }}
+                            {{ $myTickets->where('is_completed', false)->count() }}
                         </span>
                         <button type="button"
                                 @click="toggleMute()"
@@ -714,7 +714,7 @@
                             {{ $activeList ? ($activeList->name . ' · Offene Tickets') : ($isEmployeeViewer ? 'Offene Team-Tickets' : 'Offene Tickets') }}
                         </h1>
                         <span class="px-2 py-0.5 rounded-full text-[11px] font-black bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 shrink-0">
-                            {{ $openPoolTickets->count() }}
+                            {{ $openPoolTickets->where('is_completed', false)->count() }}
                         </span>
                     </div>
 

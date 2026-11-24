@@ -27,9 +27,10 @@ class KdriveTrichterRelayService
     public const DEFAULT_TARGET_FOLDERS = [
         '01_Mein-Seelenfunke',
         '02_Finanzen_Steuern_Banken',
-        '03_Haus_Immobilie',
-        '04_Versicherungen_Vertraege_Mobilitaet',
+        '03_Haus',
+        '04_Versicherungen',
         '05_Familie_Ausweise_Vorsorge',
+        '05_Verträge',
         '06_Gesundheit',
         '07_Behoerden_Recht_Berufshistorie',
         '08_Tresor_Backups',
@@ -37,57 +38,74 @@ class KdriveTrichterRelayService
 
     public const ALLOWED_SUBFOLDERS_BY_PILLAR = [
         '01_Mein-Seelenfunke' => [
-            'Eingangsrechnungen_Belege',
-            'Laser_Manufaktur',
-            'Bank_FYRST',
-            'Steuern_Finanzamt_Gewerbe',
-            'Vertraege_Versicherungen',
-            'Gruendung_Businessplan',
-            'Projekte_Notizen',
+            'Rechnungen',
+            'Rechnungen/Archiv_Belege',
+            'Anleitungen',
+            'Banken/FYRST',
+            'Businessplan',
+            'Design',
+            'Hosting/Mittwald',
+            'Markenschutz_DPMA',
+            'Marketing',
+            'Medien',
+            'Steuern',
+            'Steuern/Elster',
+            'Steuern/Gewerbeanmeldung',
+            'Versicherungen/Betriebshaftpflicht_Hiscox',
+            'Versicherungen/Uebersicht_Vertraege',
+            'Zertifikate',
         ],
         '02_Finanzen_Steuern_Banken' => [
             'Rechnungen',
-            'Banken',
+            'Banken/Volksbank_BraWo',
             'Darlehen',
             'Steuern_Elster',
+            'Steuern_Elster/Finanzamt_Gifhorn',
             'Schufa',
         ],
-        '03_Haus_Immobilie' => [
-            'Angebote_Handwerker',
+        '03_Haus' => [
             'Bauakten_Grundriss',
+            'Angebote_Handwerker',
             'Gas_Wasser_Strom',
             'Gas_Wasser_Strom/Zaehlerstaende',
-            'Gebaeudeversicherung',
             'Kaufvertrag_Notar',
             'Kredit_Lastenzuschuss',
             'Photovoltaik_Waermepumpe',
             'Vermietung',
         ],
-        '04_Versicherungen_Vertraege_Mobilitaet' => [
-            'Handy_Internet',
-            'Mobilitaet_Roller_Kfz',
-            'Rundfunk',
-            'Versicherungen_Privat',
+        '04_Versicherungen' => [
+            'Haftpflichversicherung',
+            'Autoversicherung',
+            'Gebaeudeversicherung',
+            'Gekuendigt',
+            'Rentenversicherung',
+            'Unfallversicherung',
+            'Zahnzusatzversicherung',
         ],
         '05_Familie_Ausweise_Vorsorge' => [
+            'Rente_Vorsorge',
             'Antraege_Elterngeld_Kindergeld',
             'Ausweise_Fuehrerschein',
             'Erbe_Vorsorge',
             'Erbe_Vorsorgevollmacht',
             'Familie',
-            'Rente_Vorsorge',
             'Urkunden',
         ],
+        '05_Verträge' => [
+            'Handy',
+            'Internet',
+        ],
         '06_Gesundheit' => [
-            'Arztbriefe_Befunde',
+            'Befunde',
             'Krankenkasse',
+            'Krankenkasse/4_-_BKK_firmus',
             'Krankmeldungen',
             'Transition',
         ],
         '07_Behoerden_Recht_Berufshistorie' => [
+            'Gifhorn_Behoerden',
             'Agentur_fuer_Arbeit',
             'Arbeitgeber_Historie',
-            'Gifhorn_Behoerden',
             'Polizei_Recht',
         ],
         '08_Tresor_Backups' => [
@@ -98,9 +116,13 @@ class KdriveTrichterRelayService
 
     private const YEAR_SUFFIX_SUBFOLDERS = [
         'Rechnungen',
+        'Rechnungen/Archiv_Belege',
+        'Steuern',
         'Steuern_Elster',
+        'Steuern_Elster/Finanzamt_Gifhorn',
         'Gas_Wasser_Strom/Zaehlerstaende',
         'Rente_Vorsorge',
+        'Krankenkasse/4_-_BKK_firmus',
         'Krankmeldungen',
         'Agentur_fuer_Arbeit',
     ];
@@ -694,14 +716,15 @@ Ordne das beigefügte Dokument sachlich exakt EINEM der folgenden vorhandenen Zi
 [{$folderListStr}]
 
 Ordner-Regeln:
-- "01_Mein-Seelenfunke": Alle geschäftlichen Unterlagen, Lieferantenrechnungen (PrintEquipment, Glücksfieber, Westpack, Kartonfritze, xTool, Verpackung, Laser, Shop, Hosting, Gewerbe).
-- "02_Finanzen_Steuern_Banken": Bankunterlagen, Kontoauszüge, Steuerbescheide, Finanzamt, ELSTER, private Rechnungen/Quittungen ohne Bezug zu Mein-Seelenfunke.
-- "03_Haus_Immobilie": Haus, Miete, Grundsteuer, Strom, Gas, Wasser, Schornsteinfeger, Handwerker am Haus, Internet/Festnetz daheim.
-- "04_Versicherungen_Vertraege_Mobilitaet": Versicherungen (Haftpflicht, ARAG, Rechtsschutz, Hausrat, KFZ), Mobilfunkverträge, Auto/Mobilität.
-- "05_Familie_Ausweise_Vorsorge": Ausweise, Urkunden, Vollmachten, Rente, Vorsorge, Familie.
-- "06_Gesundheit": Arztbriefe, Befunde, Krankenkasse (BKK firmus), Rezepte, Atteste, Apotheke, Kliniken.
-- "07_Behoerden_Recht_Berufshistorie": Behördenbriefe, Agentur für Arbeit, Gründungszuschuss, Gericht, frühere Arbeitgeber, Zeugnisse.
-- "08_Tresor_Backups": Nur echte Recovery-Codes, Lizenzschlüssel, Sicherheits-Backups.
+- "01_Mein-Seelenfunke": Alle geschäftlichen Unterlagen (PrintEquipment, Glücksfieber, Westpack, Kartonfritze, xTool, Laser, FYRST, Mittwald Hosting, DPMA Markenschutz, Businessplan, Anleitungen, Medien, Zertifikate, Gewerbesteuern, Hiscox Betriebshaftpflicht).
+- "02_Finanzen_Steuern_Banken": Private Bankunterlagen (Volksbank BraWo), Darlehen, Einkommensteuer, Finanzamt, ELSTER, Schufa, private Rechnungen ohne Bezug zu Mein-Seelenfunke.
+- "03_Haus": Eigenheim, Grundriss, Bauakten, Grundsteuer, Strom, Gas, Wasser, Zählerstände (LSW/Vattenfall), Handwerker-Angebote, Kaufvertrag, Notar, Photovoltaik, Wärmepumpe, Vermietung (keine Gebäudeversicherung!).
+- "04_Versicherungen": Alle privaten Versicherungen (Autoversicherung, Gebaeudeversicherung, Haftpflichversicherung, Zahnzusatzversicherung, Unfallversicherung, private Rentenversicherung, gekündigte Policen wie ARAG/Hausrat/BU/Baloise).
+- "05_Familie_Ausweise_Vorsorge": Ausweise, Führerschein, Urkunden, Vollmachten, Erbe, Deutsche Rentenversicherung (Renteninformation/Rentenbescheid), Elterngeld/Kindergeld, Familie.
+- "05_Verträge": Mobilfunkverträge/Handy (SimplyTel, Handyvertrag.de, 1&1) und Internet/Festnetz/Glasfaser (Telekom, Vodafone, O2, Deutsche Glasfaser).
+- "06_Gesundheit": Arztbriefe/Befunde, Krankenkasse (BKK firmus, Barmer, HEK, Salus), AU/Krankmeldungen, Transition/Kliniken/Rezepte/Atteste.
+- "07_Behoerden_Recht_Berufshistorie": Agentur für Arbeit (ALG, Gründungszuschuss-Bescheide), Stadt/Landkreis/Amtsgericht Gifhorn, Polizei/Recht, frühere Arbeitgeber, Arbeitszeugnisse, Gehaltsabrechnungen.
+- "08_Tresor_Backups": Nur echte KeePass/Recovery-Codes, Sicherheits-Backups und wichtige Nummern/Daten.
 
 Antworte AUSSCHLIESSLICH mit validem JSON ohne Markdown:
 {
@@ -856,17 +879,19 @@ PROMPT;
         };
 
         $targetFolder = match (true) {
-            str_contains($lower, 'seelenfunke') || str_contains($lower, 'xtool') || str_contains($lower, 'westpack') || str_contains($lower, 'printequipment') || str_contains($lower, 'gluecksfieber') || str_contains($lower, 'gewerbe')
+            str_contains($lower, 'seelenfunke') || str_contains($lower, 'xtool') || str_contains($lower, 'westpack') || str_contains($lower, 'printequipment') || str_contains($lower, 'gluecksfieber') || str_contains($lower, 'glücksfieber') || str_contains($lower, 'kartonfritze') || str_contains($lower, 'mittwald') || str_contains($lower, 'dpma') || str_contains($lower, 'hiscox') || str_contains($lower, 'fyrst') || str_contains($lower, 'gewerbe')
                 => $pick(['01_Mein-Seelenfunke', 'Mein-Seelenfunke']),
-            str_contains($lower, 'bkk') || str_contains($lower, 'arzt') || str_contains($lower, 'befund') || str_contains($lower, 'krank') || str_contains($lower, 'gesundheit') || str_contains($lower, 'rezept')
+            str_contains($lower, 'bkk') || str_contains($lower, 'arzt') || str_contains($lower, 'befund') || str_contains($lower, 'krank') || str_contains($lower, 'gesundheit') || str_contains($lower, 'rezept') || str_contains($lower, 'lubos')
                 => $pick(['06_Gesundheit', 'Gesundheit']),
-            str_contains($lower, 'versicherung') || str_contains($lower, 'arag') || str_contains($lower, 'police') || str_contains($lower, 'kfz') || str_contains($lower, 'vertrag')
-                => $pick(['04_Versicherungen', 'Versicherungen', 'Vertraege']),
-            str_contains($lower, 'haus') || str_contains($lower, 'miete') || str_contains($lower, 'immobilie') || str_contains($lower, 'strom') || str_contains($lower, 'wasser')
-                => $pick(['03_Haus', 'Haus_Immobilie', 'Haus']),
-            str_contains($lower, 'ausweis') || str_contains($lower, 'urkunde') || str_contains($lower, 'familie') || str_contains($lower, 'vorsorge')
+            str_contains($lower, 'handyvertrag') || str_contains($lower, 'simplytel') || str_contains($lower, 'telekom') || str_contains($lower, 'vodafone') || str_contains($lower, 'glasfaser') || str_contains($lower, 'internetvertrag') || str_contains($lower, 'mobilfunk')
+                => $pick(['05_Verträge', '05_Vertraege', 'Verträge']),
+            str_contains($lower, 'gebäudeversicherung') || str_contains($lower, 'gebaeudeversicherung') || str_contains($lower, 'versicherung') || str_contains($lower, 'arag') || str_contains($lower, 'police') || str_contains($lower, 'kfz') || str_contains($lower, 'barmenia') || str_contains($lower, 'allianz') || str_contains($lower, 'axa') || str_contains($lower, 'devk') || str_contains($lower, 'ergo') || str_contains($lower, 'neodigital') || str_contains($lower, 'zahnzusatz') || str_contains($lower, 'haftpflicht')
+                => $pick(['04_Versicherungen', 'Versicherungen']),
+            str_contains($lower, 'haus') || str_contains($lower, 'miete') || str_contains($lower, 'immobilie') || str_contains($lower, 'strom') || str_contains($lower, 'gas') || str_contains($lower, 'wasser') || str_contains($lower, 'zähler') || str_contains($lower, 'zaehler') || str_contains($lower, 'photovoltaik') || str_contains($lower, 'wärmepumpe') || str_contains($lower, 'notar')
+                => $pick(['03_Haus', 'Haus']),
+            str_contains($lower, 'ausweis') || str_contains($lower, 'urkunde') || str_contains($lower, 'familie') || str_contains($lower, 'vorsorge') || str_contains($lower, 'renteninformation') || str_contains($lower, 'rentenbescheid') || str_contains($lower, 'drv')
                 => $pick(['05_Familie', 'Ausweise', 'Vorsorge']),
-            str_contains($lower, 'behoerde') || str_contains($lower, 'gericht') || str_contains($lower, 'arbeitsamt') || str_contains($lower, 'bescheid') || str_contains($lower, 'zeugnis')
+            str_contains($lower, 'behoerde') || str_contains($lower, 'behörde') || str_contains($lower, 'gericht') || str_contains($lower, 'arbeitsamt') || str_contains($lower, 'agentur') || str_contains($lower, 'bescheid') || str_contains($lower, 'zeugnis') || str_contains($lower, 'rundfunk')
                 => $pick(['07_Behoerden', 'Behoerden', 'Beruf']),
             str_contains($lower, 'backup') || str_contains($lower, 'tresor') || str_contains($lower, 'recovery') || str_contains($lower, 'keepass')
                 => $pick(['08_Tresor', 'Tresor', 'Keepass']),
@@ -1920,13 +1945,14 @@ Ordne das Dokument exakt EINER Haupt-Säule (main_folder) und EINEM passenden Un
 Originaldateiname: "{$safeOrig}"
 
 Wichtige Zuordnungsregeln:
-- Gewerbe Mein-Seelenfunke (PrintEquipment, Glücksfieber, Westpack, Kartonfritze, Karton.eu, LUCID, Lizenzero, Verpackung, Rohlinge) -> 01_Mein-Seelenfunke / Eingangsrechnungen_Belege (bei xTool/Laser -> Laser_Manufaktur, bei FYRST -> Bank_FYRST, bei Hiscox/Betriebshaftpflicht -> Vertraege_Versicherungen, bei Gründungszuschuss -> Gruendung_Businessplan).
-- Privat Finanzen/Bank/Steuern -> 02_Finanzen_Steuern_Banken (Volksbank/Konto -> Banken, Kredit -> Darlehen, Einkommensteuer/ELSTER -> Steuern_Elster, sonstige private Rechnungen/Quittungen -> Rechnungen).
-- Eigenheim/Versorger -> 03_Haus_Immobilie (Strom/Gas/Wasser/LSW/Vattenfall -> Gas_Wasser_Strom, Zählerstände -> Gas_Wasser_Strom/Zaehlerstaende, Wohngebäude -> Gebaeudeversicherung).
-- Verträge/Versicherungen/KFZ -> 04_Versicherungen_Vertraege_Mobilitaet (Telekom/Vodafone/Glasfaser -> Handy_Internet, GEZ/Beitragsservice -> Rundfunk, Auto/Roller -> Mobilitaet_Roller_Kfz, ARAG/Privathaftpflicht -> Versicherungen_Privat).
-- Familie/Ausweise/Rente -> 05_Familie_Ausweise_Vorsorge (Deutsche Rentenversicherung/Renteninfo -> Rente_Vorsorge, Ausweis/Pass -> Ausweise_Fuehrerschein, Urkunden -> Urkunden).
-- Gesundheit -> 06_Gesundheit (BKK firmus/Krankenkasse -> Krankenkasse, AU/Krankschreibung -> Krankmeldungen, Arztbrief/Befund/Rezept -> Arztbriefe_Befunde).
-- Behörden/Beruf -> 07_Behoerden_Recht_Berufshistorie (Agentur für Arbeit/ALG -> Agentur_fuer_Arbeit, Stadt/Landkreis Gifhorn -> Gifhorn_Behoerden, Gericht/Anwalt -> Polizei_Recht, frühere Arbeitgeber/Zeugnisse -> Arbeitgeber_Historie).
+- Gewerbe Mein-Seelenfunke (PrintEquipment, Glücksfieber, Westpack, Kartonfritze, Karton.eu, LUCID, Lizenzero, Verpackung, Rohlinge, xTool/Laser-Rechnungen) -> 01_Mein-Seelenfunke / Rechnungen (bei Geräte-Anleitungen -> Anleitungen, bei FYRST -> Banken/FYRST, bei Hiscox Betriebshaftpflicht -> Versicherungen/Betriebshaftpflicht_Hiscox, bei Businessplan/Tragfähigkeit -> Businessplan, bei Mittwald Hosting -> Hosting/Mittwald, bei DPMA Markenschutz -> Markenschutz_DPMA, bei Gewerbesteuer/USt -> Steuern, bei Zertifikaten/Laserschutz -> Zertifikate).
+- Privat Finanzen/Bank/Steuern -> 02_Finanzen_Steuern_Banken (Volksbank BraWo/Konto -> Banken/Volksbank_BraWo, Darlehen -> Darlehen, Einkommensteuer/Finanzamt/ELSTER -> Steuern_Elster, Schufa -> Schufa, sonstige private Rechnungen -> Rechnungen).
+- Eigenheim & Vermietung -> 03_Haus (Strom/Gas/Wasser/LSW/Vattenfall -> Gas_Wasser_Strom, Zählerstände -> Gas_Wasser_Strom/Zaehlerstaende, Notar/Kaufvertrag -> Kaufvertrag_Notar, Photovoltaik/Wärmepumpe -> Photovoltaik_Waermepumpe, Handwerker-Angebote -> Angebote_Handwerker, Vermietung -> Vermietung, Grundriss/Bauakten/Grundsteuer -> Bauakten_Grundriss; KEINE Gebäudeversicherung!).
+- Private Versicherungen -> 04_Versicherungen (Auto/KFZ -> Autoversicherung, Wohngebäude/Barmenia-Wohngebäude/DEVK/ERGO/Neodigital/Allsafe -> Gebaeudeversicherung, Privathaftpflicht/AXA-Haftpflicht -> Haftpflichversicherung, Zahnzusatz -> Zahnzusatzversicherung, Unfallversicherung -> Unfallversicherung, private Rentenversicherung -> Rentenversicherung, gekündigte Policen ARAG/Hausrat/BU/Risikoleben -> Gekuendigt).
+- Familie/Ausweise/DRV-Rente -> 05_Familie_Ausweise_Vorsorge (Deutsche Rentenversicherung/Renteninformation/Rentenbescheid -> Rente_Vorsorge, Elterngeld/Kindergeld -> Antraege_Elterngeld_Kindergeld, Ausweis/Führerschein -> Ausweise_Fuehrerschein, Urkunden -> Urkunden, Testament/Vorsorgevollmacht -> Erbe_Vorsorge).
+- Handy & Internet-Verträge -> 05_Verträge (SimplyTel, Handyvertrag.de, Mobilfunk -> Handy; Telekom, Vodafone, O2, Deutsche Glasfaser, 1&1 -> Internet).
+- Gesundheit -> 06_Gesundheit (BKK firmus/Krankenkasse -> Krankenkasse/4_-_BKK_firmus, AU/Krankschreibung -> Krankmeldungen, Arztbrief/Befund/Rezept/Untersuchung -> Befunde, Transition/Kliniken -> Transition).
+- Behörden/Beruf -> 07_Behoerden_Recht_Berufshistorie (Agentur für Arbeit/ALG -> Agentur_fuer_Arbeit, Stadt/Landkreis/Amtsgericht Gifhorn -> Gifhorn_Behoerden, Polizei/Gericht/Recht -> Polizei_Recht, frühere Arbeitgeber/Zeugnisse/Gehaltsabrechnung -> Arbeitgeber_Historie).
 
 Antworte AUSSCHLIESSLICH mit validem JSON ohne Markdown:
 {
@@ -2022,19 +2048,25 @@ PROMPT;
 
         $allowedSubs = self::ALLOWED_SUBFOLDERS_BY_PILLAR[$mainFolder] ?? [];
         $rawSub = trim(str_replace('\\', '/', (string) ($parsed['sub_folder'] ?? '')), '/');
-        // Strip optional trailing /YYYY if AI included a year segment
-        $rawSubBase = (string) preg_replace('#/20\d{2}$#', '', $rawSub);
+        // Strip optional trailing /YYYY or /YYYY/MM if AI included a date hierarchy segment
+        $rawSubBase = (string) preg_replace('#/20\d{2}(?:/(?:0[1-9]|1[0-2]))?$#', '', $rawSub);
+        $fallbackSubBase = (string) preg_replace('#/20\d{2}(?:/(?:0[1-9]|1[0-2]))?$#', '', trim((string) ($fallback['sub_folder'] ?? ''), '/'));
         $subFolder = in_array($rawSubBase, $allowedSubs, true)
             ? $rawSubBase
-            : ($allowedSubs[0] ?? '');
+            : ((($fallback['main_folder'] ?? '') === $mainFolder && in_array($fallbackSubBase, $allowedSubs, true))
+                ? $fallbackSubBase
+                : ($allowedSubs[0] ?? ''));
 
         $docDate = trim((string) ($parsed['document_date'] ?? ''));
         if (!preg_match('/^(19\d\d|20[0-3]\d)-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/', $docDate)) {
             $docDate = $today;
         }
         $year = substr($docDate, 0, 4);
+        $month = substr($docDate, 5, 2);
 
-        if (in_array($subFolder, self::YEAR_SUFFIX_SUBFOLDERS, true)) {
+        if ($mainFolder === '01_Mein-Seelenfunke' && $subFolder === 'Rechnungen') {
+            $subFolder = "Rechnungen/{$year}/{$month}";
+        } elseif (in_array($subFolder, self::YEAR_SUFFIX_SUBFOLDERS, true)) {
             $subFolder = "{$subFolder}/{$year}";
         }
 
@@ -2102,6 +2134,7 @@ PROMPT;
     ): array {
         $safeExt = self::sanitizeSafeArchiveExtension($ext);
         $year = substr($today, 0, 4);
+        $month = substr($today, 5, 2);
         $low = mb_strtolower($origName . ' ' . $customTitle);
 
         $main = '02_Finanzen_Steuern_Banken';
@@ -2113,107 +2146,166 @@ PROMPT;
             || str_contains($low, 'printequipment') || str_contains($low, 'glücksfieber') || str_contains($low, 'gluecksfieber')
             || str_contains($low, 'kartonfritze') || str_contains($low, 'karton.eu') || str_contains($low, 'fyrst')
             || str_contains($low, 'hiscox') || str_contains($low, 'betriebshaftpflicht') || str_contains($low, 'lucid')
-            || str_contains($low, 'lizenzero') || str_contains($low, 'gewerbe') || str_contains($low, 'gründungszuschuss')
-            || str_contains($low, 'gruendungszuschuss')) {
+            || str_contains($low, 'lizenzero') || str_contains($low, 'gewerbe') || str_contains($low, 'businessplan')
+            || str_contains($low, 'tragfähigkeit') || str_contains($low, 'mittwald') || str_contains($low, 'dpma')
+            || str_contains($low, 'markenschutz') || str_contains($low, 'laserschutzbeauftragte')) {
             $main = '01_Mein-Seelenfunke';
-            $sub = 'Eingangsrechnungen_Belege';
+            $sub = "Rechnungen/{$year}/{$month}";
             $sender = 'Mein-Seelenfunke';
-            if (str_contains($low, 'xtool') || str_contains($low, 'laser')) {
-                $sub = 'Laser_Manufaktur';
+            if ((str_contains($low, 'xtool') || str_contains($low, 'laser')) && str_contains($low, 'anleitung')) {
+                $sub = 'Anleitungen';
                 $sender = 'xTool';
-                $subject = 'Laser';
+                $subject = 'Anleitung';
+            } elseif (str_contains($low, 'xtool') || str_contains($low, 'laser')) {
+                $sender = 'xTool';
+                $subject = str_contains($low, 'zertifikat') || str_contains($low, 'laserschutzbeauftragte') ? 'Zertifikat' : 'Laser';
+                if ($subject === 'Zertifikat') {
+                    $sub = 'Zertifikate';
+                }
             } elseif (str_contains($low, 'fyrst')) {
-                $sub = 'Bank_FYRST';
+                $sub = 'Banken/FYRST';
                 $sender = 'FYRST';
                 $subject = 'Konto';
             } elseif (str_contains($low, 'hiscox') || str_contains($low, 'betriebshaftpflicht')) {
-                $sub = 'Vertraege_Versicherungen';
+                $sub = 'Versicherungen/Betriebshaftpflicht_Hiscox';
                 $sender = 'Hiscox';
                 $subject = 'Versicherung';
-            } elseif (str_contains($low, 'gründungszuschuss') || str_contains($low, 'gruendungszuschuss') || str_contains($low, 'businessplan')) {
-                $sub = 'Gruendung_Businessplan';
-                $subject = 'Gruendungszuschuss';
+            } elseif (str_contains($low, 'mittwald') || str_contains($low, 'hosting')) {
+                $sub = 'Hosting/Mittwald';
+                $sender = 'Mittwald';
+                $subject = 'Hosting';
+            } elseif (str_contains($low, 'dpma') || str_contains($low, 'markenschutz')) {
+                $sub = 'Markenschutz_DPMA';
+                $sender = 'DPMA';
+                $subject = 'Markenschutz';
+            } elseif (str_contains($low, 'businessplan') || str_contains($low, 'tragfähigkeit') || str_contains($low, 'tragfaehigkeit')) {
+                $sub = 'Businessplan';
+                $subject = 'Businessplan';
             } elseif (str_contains($low, 'gewerbesteuer') || str_contains($low, 'umsatzsteuer') || str_contains($low, 'gewerbeanmeldung')) {
-                $sub = 'Steuern_Finanzamt_Gewerbe';
+                $sub = str_contains($low, 'gewerbeanmeldung') ? 'Steuern/Gewerbeanmeldung' : "Steuern/{$year}";
                 $subject = 'Gewerbe';
             }
-        } elseif (str_contains($low, 'rente') || str_contains($low, 'drv') || str_contains($low, 'versorgungsausgleich')
+        } elseif ((str_contains($low, 'rente') || str_contains($low, 'drv') || str_contains($low, 'versorgungsausgleich')
             || str_contains($low, 'kontenklärung') || str_contains($low, 'kontenklaerung')
-            || str_contains($low, 'sozialversicherungsausweis')) {
+            || str_contains($low, 'sozialversicherungsausweis'))
+            && !str_contains($low, 'private rentenversicherung')) {
             $main = '05_Familie_Ausweise_Vorsorge';
             $sub = "Rente_Vorsorge/{$year}";
             $sender = 'DRV';
             $subject = 'Renteninformation';
         } elseif (str_contains($low, 'arbeitslos') || str_contains($low, 'agentur für arbeit')
-            || str_contains($low, 'agentur fuer arbeit') || str_contains($low, 'bundesagentur')) {
+            || str_contains($low, 'agentur fuer arbeit') || str_contains($low, 'bundesagentur')
+            || str_contains($low, 'gründungszuschuss') || str_contains($low, 'gruendungszuschuss')) {
             $main = '07_Behoerden_Recht_Berufshistorie';
             $sub = "Agentur_fuer_Arbeit/{$year}";
             $sender = 'Bundesagentur';
             $subject = 'Bescheid';
         } elseif (str_contains($low, 'bkk') || str_contains($low, 'firmus') || str_contains($low, 'krank')
             || str_contains($low, 'arzt') || str_contains($low, 'befund') || str_contains($low, 'rezept')
-            || str_contains($low, 'gesundheit') || str_contains($low, 'attest') || str_contains($low, 'eau')) {
+            || str_contains($low, 'gesundheit') || str_contains($low, 'attest') || str_contains($low, 'eau')
+            || str_contains($low, 'lubos') || str_contains($low, 'indikation')) {
             $main = '06_Gesundheit';
             if (str_contains($low, 'krankschreibung') || str_contains($low, 'arbeitsunfähig') || str_contains($low, 'eau')) {
                 $sub = "Krankmeldungen/{$year}";
                 $sender = 'Arzt';
                 $subject = 'AU-Bescheinigung';
             } elseif (str_contains($low, 'bkk') || str_contains($low, 'firmus') || str_contains($low, 'krankenkasse')) {
-                $sub = 'Krankenkasse';
+                $sub = "Krankenkasse/4_-_BKK_firmus/{$year}";
                 $sender = 'BKK-firmus';
                 $subject = 'Schreiben';
+            } elseif (str_contains($low, 'lubos') || str_contains($low, 'transition') || str_contains($low, 'indikation')) {
+                $sub = 'Transition';
+                $sender = 'Klinik';
+                $subject = 'Unterlage';
             } else {
-                $sub = 'Arztbriefe_Befunde';
+                $sub = 'Befunde';
                 $sender = 'Arzt';
                 $subject = 'Befund';
             }
+        } elseif (str_contains($low, 'gebäudeversicherung') || str_contains($low, 'gebaeudeversicherung')
+            || str_contains($low, 'wohngebäude') || str_contains($low, 'zahnzusatz') || str_contains($low, 'unfallversicherung')
+            || str_contains($low, 'haftpflicht') || str_contains($low, 'autoversicherung')
+            || str_contains($low, 'private rentenversicherung') || str_contains($low, 'versicherung')
+            || str_contains($low, 'arag') || str_contains($low, 'allianz') || str_contains($low, 'axa')
+            || str_contains($low, 'barmenia') || str_contains($low, 'devk') || str_contains($low, 'ergo')
+            || str_contains($low, 'neodigital') || str_contains($low, 'allsafe') || str_contains($low, 'kravag')
+            || str_contains($low, 'verti') || str_contains($low, 'adac') || str_contains($low, 'kfz') || str_contains($low, 'roller')) {
+            $main = '04_Versicherungen';
+            if (str_contains($low, 'gebäude') || str_contains($low, 'gebaeude') || str_contains($low, 'neodigital')
+                || str_contains($low, 'allsafe') || str_contains($low, 'devk') || str_contains($low, 'ergo')) {
+                $sub = 'Gebaeudeversicherung';
+                $subject = 'Gebaeude';
+            } elseif (str_contains($low, 'zahnzusatz')) {
+                $sub = 'Zahnzusatzversicherung';
+                $subject = 'Zahnzusatz';
+            } elseif (str_contains($low, 'unfall')) {
+                $sub = 'Unfallversicherung';
+                $subject = 'Unfall';
+            } elseif (str_contains($low, 'private rentenversicherung')) {
+                $sub = 'Rentenversicherung';
+                $subject = 'Rentenversicherung';
+            } elseif (str_contains($low, 'kfz') || str_contains($low, 'auto') || str_contains($low, 'roller')
+                || str_contains($low, 'kravag') || str_contains($low, 'verti') || str_contains($low, 'adac')) {
+                $sub = 'Autoversicherung';
+                $subject = 'KFZ';
+            } elseif (str_contains($low, 'arag') || str_contains($low, 'hausrat') || str_contains($low, 'berufsunfähigkeit')
+                || str_contains($low, 'risikoleben') || str_contains($low, 'baloise') || str_contains($low, 'nürnberger')) {
+                $sub = 'Gekuendigt';
+                $subject = 'Police';
+            } else {
+                $sub = 'Haftpflichversicherung';
+                $subject = 'Haftpflicht';
+            }
+        } elseif (str_contains($low, 'simplytel') || str_contains($low, 'handyvertrag') || str_contains($low, 'mobilfunk')
+            || str_contains($low, 'telekom') || str_contains($low, 'vodafone') || str_contains($low, 'glasfaser')
+            || str_contains($low, 'o2') || str_contains($low, '1&1') || str_contains($low, 'internetvertrag')
+            || str_contains($low, 'handy')) {
+            $main = '05_Verträge';
+            if (str_contains($low, 'simplytel') || str_contains($low, 'handy') || str_contains($low, 'mobilfunk')) {
+                $sub = 'Handy';
+                $subject = 'Mobilfunk';
+            } else {
+                $sub = 'Internet';
+                $subject = 'Internet';
+            }
         } elseif (str_contains($low, 'zähler') || str_contains($low, 'zaehler') || str_contains($low, 'wasserwerk')
             || str_contains($low, 'lsw') || str_contains($low, 'vattenfall') || str_contains($low, 'strom')
-            || str_contains($low, 'gebäudeversicherung') || str_contains($low, 'gebaeudeversicherung')
             || str_contains($low, 'grundsteuer') || str_contains($low, 'haus') || str_contains($low, 'immobilie')
-            || str_contains($low, 'notar') || str_contains($low, 'photovoltaik') || str_contains($low, 'miete')) {
-            $main = '03_Haus_Immobilie';
+            || str_contains($low, 'notar') || str_contains($low, 'kaufvertrag') || str_contains($low, 'photovoltaik')
+            || str_contains($low, 'wärmepumpe') || str_contains($low, 'waermepumpe') || str_contains($low, 'miete')) {
+            $main = '03_Haus';
             if (str_contains($low, 'zähler') || str_contains($low, 'zaehler')) {
                 $sub = "Gas_Wasser_Strom/Zaehlerstaende/{$year}";
                 $sender = 'Zaehlerstand';
                 $subject = 'Ablesung';
-            } elseif (str_contains($low, 'lsw') || str_contains($low, 'vattenfall') || str_contains($low, 'strom') || str_contains($low, 'wasser')) {
+            } elseif (str_contains($low, 'lsw') || str_contains($low, 'vattenfall') || str_contains($low, 'strom') || str_contains($low, 'wasser') || str_contains($low, 'gas')) {
                 $sub = 'Gas_Wasser_Strom';
                 $sender = 'Versorger';
                 $subject = 'Abrechnung';
-            } elseif (str_contains($low, 'gebäudeversicherung') || str_contains($low, 'gebaeudeversicherung')) {
-                $sub = 'Gebaeudeversicherung';
-                $sender = 'Versicherung';
-                $subject = 'Gebaeude';
+            } elseif (str_contains($low, 'photovoltaik') || str_contains($low, 'wärmepumpe') || str_contains($low, 'waermepumpe')) {
+                $sub = 'Photovoltaik_Waermepumpe';
+                $subject = 'Anlage';
+            } elseif (str_contains($low, 'vermiet') || str_contains($low, 'miete')) {
+                $sub = 'Vermietung';
+                $subject = 'Miete';
             } elseif (str_contains($low, 'notar') || str_contains($low, 'kaufvertrag')) {
                 $sub = 'Kaufvertrag_Notar';
                 $subject = 'Vertrag';
+            } elseif (str_contains($low, 'handwerker') || str_contains($low, 'angebot') || str_contains($low, 'dach')) {
+                $sub = 'Angebote_Handwerker';
+                $subject = 'Angebot';
             } else {
                 $sub = 'Bauakten_Grundriss';
                 $subject = 'Haus';
             }
-        } elseif (str_contains($low, 'telekom') || str_contains($low, 'vodafone') || str_contains($low, 'glasfaser')
-            || str_contains($low, 'rundfunk') || str_contains($low, 'versicherung') || str_contains($low, 'arag')
-            || str_contains($low, 'allianz') || str_contains($low, 'kfz') || str_contains($low, 'roller')) {
-            $main = '04_Versicherungen_Vertraege_Mobilitaet';
-            if (str_contains($low, 'rundfunk')) {
-                $sub = 'Rundfunk';
-                $subject = 'Rundfunkbeitrag';
-            } elseif (str_contains($low, 'telekom') || str_contains($low, 'vodafone') || str_contains($low, 'glasfaser') || str_contains($low, 'handy')) {
-                $sub = 'Handy_Internet';
-                $subject = 'Vertrag';
-            } elseif (str_contains($low, 'kfz') || str_contains($low, 'roller') || str_contains($low, 'auto')) {
-                $sub = 'Mobilitaet_Roller_Kfz';
-                $subject = 'KFZ';
-            } else {
-                $sub = 'Versicherungen_Privat';
-                $subject = 'Police';
-            }
-        } elseif (str_contains($low, 'ausweis')
+        } elseif (str_contains($low, 'ausweis') || str_contains($low, 'elterngeld') || str_contains($low, 'kindergeld')
             || str_contains($low, 'führerschein') || str_contains($low, 'fuehrerschein') || str_contains($low, 'urkunde')
             || str_contains($low, 'vollmacht') || str_contains($low, 'testament')) {
             $main = '05_Familie_Ausweise_Vorsorge';
-            if (str_contains($low, 'ausweis') || str_contains($low, 'führerschein') || str_contains($low, 'fuehrerschein')) {
+            if (str_contains($low, 'elterngeld') || str_contains($low, 'kindergeld')) {
+                $sub = 'Antraege_Elterngeld_Kindergeld';
+                $subject = 'Antrag';
+            } elseif (str_contains($low, 'ausweis') || str_contains($low, 'führerschein') || str_contains($low, 'fuehrerschein')) {
                 $sub = 'Ausweise_Fuehrerschein';
                 $subject = 'Ausweis';
             } elseif (str_contains($low, 'urkunde')) {
@@ -2223,9 +2315,10 @@ PROMPT;
                 $sub = 'Erbe_Vorsorge';
                 $subject = 'Vorsorge';
             }
-        } elseif (str_contains($low, 'arbeitsamt') || str_contains($low, 'agentur für arbeit') || str_contains($low, 'bundesagentur')
+        } elseif (str_contains($low, 'arbeitsamt') || str_contains($low, 'agentur') || str_contains($low, 'bundesagentur')
             || str_contains($low, 'gifhorn') || str_contains($low, 'behörde') || str_contains($low, 'behoerde')
-            || str_contains($low, 'gericht') || str_contains($low, 'zeugnis') || str_contains($low, 'gehaltsabrechnung')) {
+            || str_contains($low, 'gericht') || str_contains($low, 'zeugnis') || str_contains($low, 'gehaltsabrechnung')
+            || str_contains($low, 'rundfunk')) {
             $main = '07_Behoerden_Recht_Berufshistorie';
             if (str_contains($low, 'arbeitsamt') || str_contains($low, 'agentur') || str_contains($low, 'bundesagentur')) {
                 $sub = "Agentur_fuer_Arbeit/{$year}";
@@ -2252,7 +2345,7 @@ PROMPT;
             $subject = 'Steuern';
         } elseif (str_contains($low, 'volksbank') || str_contains($low, 'kontoauszug') || str_contains($low, 'iban')) {
             $main = '02_Finanzen_Steuern_Banken';
-            $sub = 'Banken';
+            $sub = 'Banken/Volksbank_BraWo';
             $sender = 'Volksbank';
             $subject = 'Kontoauszug';
         } elseif (str_contains($low, 'schufa')) {

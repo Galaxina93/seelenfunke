@@ -733,4 +733,128 @@ class ManagementTaskTicketSystemTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $service->getOrCreateOperatorProfile('admin', '   ');
     }
+
+    #[Test]
+    public function dashboard_and_tasks_count_only_open_root_tickets_and_self_heal_subtasks_archives_and_desyncs(): void
+    {
+        // 1. Zwei echte offene Haupt-Tickets (1x Meine Tickets, 1x Offene Tickets)
+        $mineRoot = TaskModel::create([
+            'id' => (string) Str::uuid(),
+            'task_list_id' => $this->list->id,
+            'title' => '01. Finanzamt nachhaken',
+            'status' => TaskModel::STATUS_IN_PROGRESS,
+            'is_mine' => true,
+            'assignee_type' => 'admin',
+            'assignee_id' => (string) $this->admin->id,
+            'assignee_name' => 'Alina Steinhauer',
+            'position' => 1,
+        ]);
+
+        $poolRoot = TaskModel::create([
+            'id' => (string) Str::uuid(),
+            'task_list_id' => $this->list->id,
+            'title' => '02. Produktfotos erstellen',
+            'status' => TaskModel::STATUS_OPEN,
+            'is_mine' => false,
+            'position' => 2,
+        ]);
+
+        // 2. Fuenf offene Checklisten-Teilschritte (duerfen NIEMALS als Haupt-Tickets mitgezaehlt werden!)
+        for ($i = 1; $i <= 5; $i++) {
+            TaskModel::create([
+                'id' => (string) Str::uuid(),
+                'task_list_id' => $this->list->id,
+                'parent_id' => $poolRoot->id,
+                'title' => "Teilschritt {$i}",
+                'status' => TaskModel::STATUS_OPEN,
+                'is_mine' => true, // muss automatisch auf false korrigiert werden
+                'position' => $i,
+            ]);
+        }
+
+        // 3. Ein erledigtes Haupt-Ticket + ein archiviertes Haupt-Ticket + ein Ticket in archivierter Liste
+        TaskModel::create([
+            'id' => (string) Str::uuid(),
+            'task_list_id' => $this->list->id,
+            'title' => 'Bereits erledigt',
+            'is_completed' => true,
+            'status' => TaskModel::STATUS_OPEN, // absichtlich widerspruechlich -> muss zu completed heilen!
+        ]);
+
+        TaskModel::create([
+            'id' => (string) Str::uuid(),
+            'task_list_id' => $this->list->id,
+            'title' => 'Archiviertes Ticket',
+            'status' => TaskModel::STATUS_OPEN,
+            'is_archived' => true,
+        ]);
+
+        $archivedList = ManagementTaskList::create([
+            'id' => (string) Str::uuid(),
+            'name' => 'Alte Archivliste',
+            'is_archived' => true,
+        ]);
+        TaskModel::create([
+            'id' => (string) Str::uuid(),
+            'task_list_id' => $archivedList->id,
+            'title' => 'Ticket in archivierter Liste',
+            'status' => TaskModel::STATUS_OPEN,
+        ]);
+
+        // 4. Roh-DB Anomalien (verwaistes Subtask + desynced Row via FK-Bypass simulieren)
+        \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+        \Illuminate\Support\Facades\DB::table('management_tasks')->insert([
+            [
+                'id' => (string) Str::uuid(),
+                'task_list_id' => $this->list->id,
+                'parent_id' => (string) Str::uuid(), // nicht existierendes Parent-Ticket
+                'title' => 'Verwaister Teilschritt',
+                'status' => 'open',
+                'is_completed' => 0,
+                'is_archived' => 0,
+                'position' => 99,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) Str::uuid(),
+                'task_list_id' => $this->list->id,
+                'parent_id' => null,
+                'title' => 'Roh-SQL Desynced Erledigt',
+                'status' => 'open',
+                'is_completed' => 1,
+                'is_archived' => 0,
+                'position' => 100,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+        \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
+
+        \Illuminate\Support\Facades\Cache::forget('sf_management_tasks_integrity_v1');
+
+        // Dashboard AnalyticsService::checkTasks() muss exakt 2 liefern (NICHT 2 + 5 = 7!)
+        $ref = new \ReflectionMethod(\App\Services\AnalyticsService::class, 'checkTasks');
+        $ref->setAccessible(true);
+        $dashboardCheck = $ref->invoke(app(\App\Services\AnalyticsService::class));
+
+        $this->assertSame(2, $dashboardCheck['count']);
+        $this->assertSame('2 Todos offen', $dashboardCheck['message']);
+        $this->assertSame(2, TaskModel::countOpenRootTickets());
+
+        // Verwaister Teilschritt wurde automatisch bereinigt & Subtasks sind niemals is_mine
+        $this->assertSame(5, TaskModel::whereNotNull('parent_id')->count());
+        $this->assertSame(0, TaskModel::whereNotNull('parent_id')->where('is_mine', true)->count());
+
+        // Livewire /admin/tasks stimmt 1:1 mit Dashboard ueberein (1 Meine + 1 Offene = 2 Alle Listen)
+        $lw = Livewire::test(ManagementTask::class);
+        $this->assertSame(2, $lw->viewData('totalAllCount'));
+        $this->assertSame(1, $lw->viewData('myTickets')->where('is_completed', false)->count());
+        $this->assertSame(1, $lw->viewData('openPoolTickets')->where('is_completed', false)->count());
+
+        // Loeschen eines Haupt-Tickets loescht kaskadierend alle zugehoerigen Teilschritte
+        $poolRoot->delete();
+        $this->assertSame(0, TaskModel::where('parent_id', $poolRoot->id)->count());
+        $this->assertSame(1, TaskModel::countOpenRootTickets());
+    }
 }

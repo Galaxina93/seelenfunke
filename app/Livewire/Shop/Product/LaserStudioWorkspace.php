@@ -498,7 +498,7 @@ class LaserStudioWorkspace extends Component
             $this->angleDeg = round((float) ($coords['angle_deg'] ?? 0.0), 2);
         }
         $this->framingMode = (string) ($conf['framing_mode'] ?? 'contour');
-        $this->cameraLightMode = XtoolLaserCockpitService::normalizeCameraLightMode($conf['laser_camera_light_mode'] ?? 'normal');
+        $this->cameraLightMode = XtoolLaserCockpitService::resolveDefaultCameraLightMode($project->product ?? null, $conf, $side);
 
         $effective = app(XtoolLaserCockpitService::class)->resolveEffectiveLaserParameters($project, $side);
         $this->laserParams = [

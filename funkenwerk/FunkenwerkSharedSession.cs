@@ -17,7 +17,10 @@ namespace Funkenwerk
     {
         public string ApiBaseUrl { get; set; } = "https://stage.mein-seelenfunke.de/api";
         public string BearerToken { get; set; } = "";
-        public string UserEmail { get; set; } = "kontakt@mein-seelenfunke.de";
+        public string UserEmail { get; set; } = "";
+        public string UserType { get; set; } = "employee";
+        public string[] AllowedSpaces { get; set; } = new[] { "launcher" };
+        public string[] AllowedModules { get; set; } = Array.Empty<string>();
         public bool HasVerifiedOnlineOnce { get; set; }
         public bool IsSessionLocked { get; set; }
         public string PasswordSaltB64 { get; set; } = "";
@@ -290,6 +293,58 @@ namespace Funkenwerk
                 return false;
             }
         }
+
+        public static void SaveRolePermissions(string? userType, IEnumerable<string>? allowedSpaces, IEnumerable<string>? allowedModules)
+        {
+            var current = Load();
+            current.UserType = string.IsNullOrWhiteSpace(userType) ? "employee" : userType.Trim().ToLowerInvariant();
+            if (string.Equals(current.UserType, "admin", StringComparison.OrdinalIgnoreCase))
+            {
+                current.AllowedSpaces = new[] { "*" };
+                current.AllowedModules = new[] { "*" };
+            }
+            else
+            {
+                current.AllowedSpaces = (allowedSpaces ?? new[] { "launcher" })
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s.Trim().ToLowerInvariant())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+                current.AllowedModules = (allowedModules ?? Array.Empty<string>())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s.Trim().ToLowerInvariant())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
+            Save(current);
+        }
+
+        public static bool IsAdminSession(SharedSessionDto? dto = null)
+        {
+            var s = dto ?? Load();
+            return string.Equals(s.UserType, "admin", StringComparison.OrdinalIgnoreCase);
+        }
+
+        public static bool IsSpaceAllowed(string? spaceKey, SharedSessionDto? dto = null)
+        {
+            if (string.IsNullOrWhiteSpace(spaceKey)) return false;
+            string norm = spaceKey.Trim().ToLowerInvariant();
+            if (norm == "launcher") return true;
+            var s = dto ?? Load();
+            if (IsAdminSession(s)) return true;
+            if (s.AllowedSpaces == null || s.AllowedSpaces.Length == 0) return false;
+            return s.AllowedSpaces.Any(x => x == "*" || string.Equals(x, norm, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public static bool IsModuleAllowed(string? moduleKey, SharedSessionDto? dto = null)
+        {
+            if (string.IsNullOrWhiteSpace(moduleKey)) return false;
+            string norm = moduleKey.Trim().ToLowerInvariant();
+            var s = dto ?? Load();
+            if (IsAdminSession(s)) return true;
+            if (s.AllowedModules == null || s.AllowedModules.Length == 0) return false;
+            return s.AllowedModules.Any(x => x == "*" || string.Equals(x, norm, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     public static class CollectionModuleRegistry
@@ -506,6 +561,15 @@ namespace Funkenwerk
                 }
             }
 
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                string programsCol = Path.Combine(localAppData, "Programs", "Funkenwerk Collection");
+                if (Directory.Exists(programsCol)) return programsCol;
+            }
+            if (Directory.Exists(@"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection"))
+                return @"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection";
+
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             if (!string.IsNullOrWhiteSpace(desktop))
             {
@@ -517,7 +581,9 @@ namespace Funkenwerk
             if (Directory.Exists(@"C:\Funkenwerk Collection"))
                 return @"C:\Funkenwerk Collection";
 
-            return @"C:\Users\konta\Desktop\Funkenwerk Collection";
+            return !string.IsNullOrWhiteSpace(localAppData)
+                ? Path.Combine(localAppData, "Programs", "Funkenwerk Collection")
+                : @"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection";
         }
 
         public static string ResolveModuleDirectory(string folderName)
@@ -567,6 +633,9 @@ namespace Funkenwerk
             var spec = FindByKeyOrAlias(keyOrAlias);
             if (spec == null)
                 return (false, false, $"Modul '{keyOrAlias}' ist nicht registriert.");
+
+            if (!FunkenwerkSharedSession.IsModuleAllowed(spec.Key))
+                return (false, false, $"Kein Zugriff auf '{spec.FullName}' für dieses Mitarbeiter-Konto.");
 
             if (string.IsNullOrWhiteSpace(validatedExtraArg))
             {

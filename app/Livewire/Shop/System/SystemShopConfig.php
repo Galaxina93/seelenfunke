@@ -31,6 +31,11 @@ class SystemShopConfig extends Component
     public int $androidVersionCode = 13;
     public string $androidVersionName = '1.6.0';
 
+    // Funkenwerk Windows Suite OTA Release Vault
+    public $windowsSuiteUpload = null;
+    public int $windowsVersionCode = 1;
+    public string $windowsVersionName = '1.0.0';
+
     // Kleinunternehmer § 19 UStG Transition Modal
     public bool $showSmallBusinessModal = false;
     public string $smallBusinessTransitionMode = 'immediate_retroactive';
@@ -279,6 +284,12 @@ class SystemShopConfig extends Component
         if ($existingAndroid !== null) {
             $this->androidVersionCode = max(1, (int) ($existingAndroid['version_code'] ?? 13));
             $this->androidVersionName = (string) ($existingAndroid['version_name'] ?? '1.6.0');
+        }
+
+        $existingWindows = app(\App\Services\System\WindowsReleaseService::class)->getLatestManifest();
+        if ($existingWindows !== null) {
+            $this->windowsVersionCode = max(1, (int) ($existingWindows['version_code'] ?? 1));
+            $this->windowsVersionName = (string) ($existingWindows['version_name'] ?? '1.0.0');
         }
     }
 
@@ -1085,6 +1096,44 @@ class SystemShopConfig extends Component
         }
     }
 
+    public function publishWindowsSuite()
+    {
+        if (!Auth::guard('admin')->check()) {
+            abort(403);
+        }
+
+        $this->validate([
+            'windowsSuiteUpload' => 'required|file|max:524288',
+            'windowsVersionCode' => 'required|integer|min:1|max:100000000',
+            'windowsVersionName' => ['required', 'string', 'max:32', 'regex:/^[0-9]+(\.[0-9]+){1,3}(-[A-Za-z0-9._]+)?$/'],
+        ], [
+            'windowsSuiteUpload.required' => 'Bitte ein gültiges Funkenwerk-ZIP-Paket auswählen.',
+            'windowsVersionName.regex'    => 'Ungültiges Versionsformat (z. B. 1.0.0).',
+        ]);
+
+        try {
+            $releaseService = app(\App\Services\System\WindowsReleaseService::class);
+            $manifest = $releaseService->storeVerifiedRelease(
+                sourceTempFile: $this->windowsSuiteUpload->getRealPath(),
+                versionCode: (int) $this->windowsVersionCode,
+                versionName: trim($this->windowsVersionName),
+                expectedSha256: null,
+                releaseNotes: null,
+                allowSameVersionRebuild: true
+            );
+
+            try {
+                $this->windowsSuiteUpload->delete();
+            } catch (\Throwable $e) {
+            }
+            $this->windowsSuiteUpload = null;
+            $this->windowsVersionCode = ((int) $manifest['version_code']) + 1;
+            session()->flash('message', 'Funkenwerk Windows Suite v' . $manifest['version_name'] . ' (Build ' . $manifest['version_code'] . ') im Tresor bereitgestellt.');
+        } catch (\Throwable $e) {
+            $this->addError('windowsSuiteUpload', $e->getMessage());
+        }
+    }
+
     public function render() 
     { 
         $laravelVersion = app()->version();
@@ -1142,6 +1191,11 @@ class SystemShopConfig extends Component
             ? \Illuminate\Support\Facades\URL::temporarySignedRoute('admin.system.funkenwerk-apk.download', now()->addMinutes(15))
             : null;
 
+        $windowsRelease = app(\App\Services\System\WindowsReleaseService::class)->getLatestManifest();
+        $windowsDownloadUrl = $windowsRelease
+            ? \Illuminate\Support\Facades\URL::temporarySignedRoute('admin.system.funkenwerk-windows.download', now()->addMinutes(15))
+            : null;
+
         return view('livewire.shop.system.system-shop-config', [
             'laravelVersion'         => $laravelVersion,
             'phpVersion'             => $phpVersion,
@@ -1150,6 +1204,8 @@ class SystemShopConfig extends Component
             'databaseDriverLabel'    => $databaseDriverLabel,
             'androidRelease'         => $androidRelease,
             'androidDownloadUrl'     => $androidDownloadUrl,
+            'windowsRelease'         => $windowsRelease,
+            'windowsDownloadUrl'     => $windowsDownloadUrl,
             'seasonsDefinition'      => $configService->getSeasonsDefinition(),
             'activeSeasonKey'        => $configService->getActiveSeasonKey(),
             'animationTimeline'      => $configService->getAnimationTimeline(),

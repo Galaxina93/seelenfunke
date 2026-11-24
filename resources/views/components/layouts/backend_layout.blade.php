@@ -428,6 +428,11 @@
                 @persist('funkenwerk-music-player')
                     <x-backend.global-music-player />
                 @endpersist
+                @if(auth()->guard('admin')->check())
+                    @persist('seelenfunke-global-project-search')
+                        <x-backend.global-project-search />
+                    @endpersist
+                @endif
             @endif
 
             <main class="{{ ($guard !== 'customer' && !$isExternalEmployee) ? 'py-8 flex-1 min-w-0' : 'flex-1 min-w-0' }}">

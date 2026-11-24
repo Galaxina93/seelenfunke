@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 class ManagementTaskSeeder extends Seeder
 {
     /**
-     * Zentraler, streng chronologisch & kausal sortierter Master-Fahrplan (01 bis 22) bis zum Shop-Livegang.
+     * Zentraler, streng chronologisch & kausal sortierter Master-Fahrplan (01 bis 23) bis zum Shop-Livegang.
      *
      * Aktueller Bereinigungsstand:
      * - Freiwillige Arbeitslosenversicherung (§ 28a SGB III): erledigt/beantragt -> entfernt.
@@ -20,7 +20,7 @@ class ManagementTaskSeeder extends Seeder
      * Reihenfolge-Logik (keine blockierte Aufgabe steht vor ihrer Voraussetzung):
      * - 01 bis 08 (Prio 'hoch'    = SOFORT MACHBAR): Finanzamt nachhaken + Videos (P1, P2, P5) + Echtfotos vorhandener Rohlinge (Flachbett vor RA3).
      * - 09 bis 18 (Prio 'mittel'  = SOBALD USt-IdNr. DA IST & SHOP-FINALISIERUNG): FBM -> LUCID -> Westpack-Korrektur -> Steuerberater -> FBM-Armbänder -> Landingpages -> Google Ads -> Beileger -> Westpack-Großrolle (Nachschub).
-     * - 19 bis 22 (Prio 'niedrig' = FINALER LIVEGANG-CUTOVER & LAUNCH): DHL Live -> Stripe Live + FYRST -> Instagram Start-Reel -> UGC-Creatorinnen.
+     * - 19 bis 23 (Prio 'niedrig' = FINALER LIVEGANG-CUTOVER & LAUNCH): DHL Live -> Stripe Live + FYRST -> Vertex AI Live -> Instagram Start-Reel -> UGC-Creatorinnen.
      */
     public function run(): void
     {
@@ -216,7 +216,7 @@ class ManagementTaskSeeder extends Seeder
                     ],
 
                     // =========================================================================
-                    // STUFE 3 (19 - 22 | Prio: niedrig): FINALER LIVEGANG-SCHALTER & LAUNCH-START
+                    // STUFE 3 (19 - 23 | Prio: niedrig): FINALER LIVEGANG-SCHALTER & LAUNCH-START
                     // =========================================================================
                     [
                         'title' => '19. Vor Livegang: DHL API Keys auf Live umstellen',
@@ -235,12 +235,22 @@ class ManagementTaskSeeder extends Seeder
                         ],
                     ],
                     [
-                        'title' => '21. Direkt zum Livegang: Instagram Start-Reel drehen (Handy in Geschenkschleife einpacken, Öffnen filmen & offenen Shop/Instagram-Account auf Zweithandy zeigen)',
+                        'title' => '21. Vor Livegang: Vertex AI Postpay (vertex-service-account.json & Live-.env) auf seelenfunke-live prüfen',
+                        'priority' => 'niedrig',
+                        'ai_plan' => "Vor dem Aktivieren von 'Shop Live-Freigabe' sicherstellen, dass Google Cloud Vertex AI Postpay auf seelenfunke-live aktiv ist, damit Funki (Support-Chat) nicht stillschweigend auf den AI-Studio-Fallback (GEMINI_API_KEY) zurückfällt.",
+                        'subtasks' => [
+                            'storage/app/vertex-service-account.json auf seelenfunke-live ablegen (chmod 600)',
+                            'GOOGLE_VERTEX_ENABLED=true & GOOGLE_VERTEX_PROJECT_ID=gen-lang-client-0670786367 in der Live-.env prüfen',
+                            'Kurze Testfrage im Funki-Support-Chat auf Live prüfen (Vertex AI Postpay aktiv)',
+                        ],
+                    ],
+                    [
+                        'title' => '22. Direkt zum Livegang: Instagram Start-Reel drehen (Handy in Geschenkschleife einpacken, Öffnen filmen & offenen Shop/Instagram-Account auf Zweithandy zeigen)',
                         'priority' => 'niedrig',
                         'ai_plan' => 'Sobald mein-seelenfunke.de live geschaltet ist: Zweithandy mit geöffnetem Instagram-Profil / Live-Shop in eine edle Geschenkschleife binden, das Aufmachen aus Ich-Perspektive filmen und als erstes Launch-Reel veröffentlichen.',
                     ],
                     [
-                        'title' => '22. Nach Livegang (sobald alle Produkte echt gelasert & online sind): Erste 2 UGC-Creatorinnen (@content.by.lea & @anna_lena_plz) für PR-Sample + 15 % Partner-Deal anschreiben',
+                        'title' => '23. Nach Livegang (sobald alle Produkte echt gelasert & online sind): Erste 2 UGC-Creatorinnen (@content.by.lea & @anna_lena_plz) für PR-Sample + 15 % Partner-Deal anschreiben',
                         'priority' => 'niedrig',
                         'ai_plan' => "WICHTIG: Erst starten, wenn der Shop live ist und alle Produkte einmal echt gelasert, fotografiert und im Live-Shop aktiv sind!\n\nKandidatin 1 (Top-Empfehlung Schmuck & Lifestyle, direkt aus Niedersachsen):\n- Name: Lea Heitmann (@content.by.lea, Winsen)\n- Instagram: https://www.instagram.com/content.by.lea/\n- Portfolio: https://collabstr.com/contentbylea\n\nKandidatin 2 (Ideal für Familien-, Kinder- & Haustier-Gravuren wie Schiefer/Glas/Anhänger):\n- Name: Anna-Lena Palazzo (@anna_lena_plz)\n- Instagram: https://www.instagram.com/anna_lena_plz/\n\nKonditionen (0 € Fixkosten vorab über /admin/marketing-influencers):\n- 100 % Gratis-Muster (SAMPLE-... Code für den 3D-Konfigurator, Pflicht zur Verlinkung/Reel innerhalb von 14 Tagen)\n- 15 % Netto-Provision auf jeden vermittelten Verkauf (30 Tage Cookie + Code)\n- 10 % Rabattcode für ihre Community\n\nDM-Vorlage für Instagram:\n\"Hey [Lea / Anna-Lena], ich bin Alina aus Gifhorn und bin gerade mit meiner Laser-Manufaktur Mein Seelenfunke (personalisierter Edelstahl-Goldschmuck & gravierte Unikate mit eigenem 3D-Konfigurator) gestartet. Mir gefällt dein heller, natürlicher Unboxing-Stil extrem gut! Hättest du Lust, dir in unserem 3D-Konfigurator kostenlos dein eigenes Unikat mit Wunschgravur zu gestalten? Du bekommst es gratis im edlen Geschenk-Etui zugeschickt, zeigst es in einem kurzen Unboxing-Video und erhältst über unser Creator-Portal zusätzlich 15 % Provision auf jeden Verkauf sowie einen 10 % Code für deine Community. Sag gern Bescheid, dann schicke ich dir direkt deinen persönlichen Einladungslink!\"",
                         'subtasks' => [

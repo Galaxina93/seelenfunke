@@ -1,4 +1,4 @@
-<div x-show="activeTab === 'system'" class="animate-fade-in space-y-8" style="display: none;">
+<div data-config-tab="system" data-config-tab-label="System" x-show="isTabVisible('system')" class="animate-fade-in space-y-8" style="display: none;">
 
     {{-- LIVE GEHEN & WARTUNGSMODUS SOFORT-SCHALTER --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 relative z-30">
@@ -186,6 +186,93 @@
                         @error('androidApkUpload') <div>{{ $message }}</div> @enderror
                         @error('androidVersionName') <div>{{ $message }}</div> @enderror
                         @error('androidVersionCode') <div>{{ $message }}</div> @enderror
+                    </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- FUNKENWERK WINDOWS SUITE OTA TRESOR --}}
+    <div data-windows-ota-card class="bg-white dark:bg-gray-900/80 backdrop-blur-xl p-6 sm:p-8 rounded-2xl shadow-sm dark:shadow-xl dark:shadow-[var(--theme-color-10)] border border-gray-200 dark:border-gray-800 relative z-20">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div class="flex items-center gap-2.5">
+                <h2 class="text-xl sm:text-2xl font-black text-[var(--theme-color)] font-sans">Funkenwerk Windows Suite</h2>
+                @include('components.alerts.info-tooltip', ['text' => 'Privater Admin- & Mitarbeiter-Update-Tresor (storage/app/private/releases/windows): SHA-256-geprüfte Bereitstellung der Funkenwerk Windows Suite inkl. Auto-Updater für berechtigte Arbeitsplätze.'])
+            </div>
+
+            @if(!empty($windowsRelease) && !empty($windowsDownloadUrl))
+                <a href="{{ $windowsDownloadUrl }}" class="px-5 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-900 hover:brightness-110 text-xs font-black uppercase tracking-widest transition-all inline-flex items-center justify-center gap-2">
+                    <x-heroicon-o-arrow-down-tray class="w-4 h-4" />
+                    <span>Suite herunterladen (v{{ $windowsRelease['version_name'] }})</span>
+                </a>
+            @endif
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {{-- Aktueller Windows-Release-Status --}}
+            <div class="bg-gray-50/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/60 rounded-xl p-5 flex flex-col justify-between gap-4">
+                @if(!empty($windowsRelease))
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Version</div>
+                            <div class="text-sm font-black text-gray-900 dark:text-white">v{{ $windowsRelease['version_name'] }}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Build</div>
+                            <div class="text-sm font-black text-gray-900 dark:text-white">#{{ $windowsRelease['version_code'] }}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Größe</div>
+                            <div class="text-sm font-black text-gray-900 dark:text-white">{{ number_format(($windowsRelease['file_size'] ?? 0) / 1048576, 2, ',', '.') }} MB</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-1">Stand</div>
+                            <div class="text-xs font-bold text-gray-700 dark:text-gray-300">{{ !empty($windowsRelease['published_at']) ? \Carbon\Carbon::parse($windowsRelease['published_at'])->format('d.m.Y H:i') : '-' }}</div>
+                        </div>
+                    </div>
+                    <div class="pt-3 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between gap-2">
+                        <span class="text-[10px] font-black uppercase tracking-widest text-gray-500">SHA-256</span>
+                        <code class="text-[11px] text-gray-700 dark:text-gray-300 font-mono truncate">{{ $windowsRelease['sha256'] }}</code>
+                    </div>
+                @else
+                    <div class="flex items-center justify-center h-full py-6 text-gray-400 dark:text-gray-500 text-xs font-bold uppercase tracking-widest">
+                        Noch kein Release hinterlegt
+                    </div>
+                @endif
+            </div>
+
+            {{-- Manuelles Windows-ZIP-Release Bereitstellen --}}
+            <div class="bg-gray-50/80 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800/60 rounded-xl p-5 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[9px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1">Version</label>
+                        <input type="text" wire:model="windowsVersionName" placeholder="1.0.0" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl text-xs p-2.5 outline-none focus:border-[var(--theme-color)]">
+                    </div>
+                    <div>
+                        <label class="block text-[9px] font-black uppercase tracking-widest text-gray-600 dark:text-gray-500 mb-1">Build-Code</label>
+                        <input type="number" wire:model="windowsVersionCode" min="1" class="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white rounded-xl text-xs p-2.5 outline-none focus:border-[var(--theme-color)]">
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <label class="flex-1 cursor-pointer rounded-xl border border-dashed border-gray-300 dark:border-gray-700 hover:border-[var(--theme-color)] bg-white dark:bg-gray-950 px-3 py-2.5 text-xs font-bold text-gray-700 dark:text-gray-300 truncate text-center transition-colors">
+                        <input type="file" wire:model="windowsSuiteUpload" accept=".zip" class="hidden">
+                        <span wire:loading.remove wire:target="windowsSuiteUpload">
+                            {{ $windowsSuiteUpload ? $windowsSuiteUpload->getClientOriginalName() : 'ZIP-Paket wählen' }}
+                        </span>
+                        <span wire:loading wire:target="windowsSuiteUpload" class="text-[var(--theme-color)]">Lade Datei...</span>
+                    </label>
+
+                    <button type="button" wire:click="publishWindowsSuite" wire:loading.attr="disabled" class="px-4 py-2.5 rounded-xl bg-[var(--theme-color)] text-gray-900 hover:brightness-110 text-xs font-black uppercase tracking-widest transition-all shrink-0 cursor-pointer">
+                        Bereitstellen
+                    </button>
+                </div>
+
+                @if($errors->has('windowsSuiteUpload') || $errors->has('windowsVersionName') || $errors->has('windowsVersionCode'))
+                    <div class="rounded-xl border border-red-500/40 bg-red-500/10 p-2.5 text-xs font-bold text-red-500 space-y-0.5">
+                        @error('windowsSuiteUpload') <div>{{ $message }}</div> @enderror
+                        @error('windowsVersionName') <div>{{ $message }}</div> @enderror
+                        @error('windowsVersionCode') <div>{{ $message }}</div> @enderror
                     </div>
                 @endif
             </div>

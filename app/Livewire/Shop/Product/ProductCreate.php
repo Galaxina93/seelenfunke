@@ -1629,7 +1629,7 @@ class ProductCreate extends Component
         $inferred = $this->inferFromQuickAiUrl($url);
 
         $rawName = trim($this->quickAiName) !== '' ? trim($this->quickAiName) : (string) $inferred['name'];
-        $name = str_replace([' – ', ' — '], ' ', $rawName);
+        $name = str_replace([" \u{2013} ", " \u{2014} "], ' ', $rawName);
         $rawSku = trim($this->quickAiSku) !== '' ? trim($this->quickAiSku) : (string) $inferred['sku'];
         $sku = $this->normalizeCleanSku($rawSku, (string) ($inferred['sku_prefix'] ?? 'MSF-UNIKAT'));
         $ekFloat = trim((string) $this->quickAiPurchasePrice) !== ''

@@ -20,6 +20,7 @@ Route::get('/user', function (Request $request) {
 
     $userData = $user->toArray();
     $userData['user_type'] = $type;
+    $userData['permissions'] = \App\Models\Employee\Employee::buildPermissionsForUser($user);
 
     return response()->json($userData);
 });

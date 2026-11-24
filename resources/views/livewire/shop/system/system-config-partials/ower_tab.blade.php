@@ -1,4 +1,4 @@
-<div x-show="activeTab === 'owner'" class="space-y-6 md:space-y-8 animate-fade-in" style="display: none;">
+<div data-config-tab="owner" data-config-tab-label="Stammdaten" x-show="isTabVisible('owner')" class="space-y-6 md:space-y-8 animate-fade-in" style="display: none;">
     <div class="bg-white dark:bg-gray-900/80 backdrop-blur-md rounded-[2.5rem] shadow-sm dark:shadow-2xl border border-gray-200 dark:border-gray-800 p-6 sm:p-10 relative">
         <div class="hidden dark:block absolute inset-0 overflow-hidden rounded-[2.5rem] pointer-events-none">
             <div class="absolute top-0 right-0 w-64 h-64 bg-[var(--theme-color)]/5 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3"></div>

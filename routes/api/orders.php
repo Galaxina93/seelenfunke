@@ -1,15 +1,11 @@
 <?php
 
+use App\Http\Middleware\EnsureFunkenwerkDomainAccess;
+use App\Models\Order\OrderOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Models\Order\OrderOrder;
 
-Route::group(['middleware' => [function ($request, $next) {
-    if (!$request->user() instanceof \App\Models\Admin\Admin) {
-        abort(403, 'Nur Admins dürfen Bestellungen verwalten.');
-    }
-    return $next($request);
-}]], function () {
+Route::middleware([EnsureFunkenwerkDomainAccess::class . ':production'])->group(function () {
 
     // Get all orders
     Route::get('/shop/orders', function (Request $request) {
@@ -481,25 +477,9 @@ Route::group(['middleware' => [function ($request, $next) {
         }
 
         // --- WERKSTATT MINI-PC 1-AUFTRAG FOKUS-LEITSTAND API ---
-        Route::group([
-            'prefix' => 'shop/workshop-focus',
-            'middleware' => [function (Request $request, $next) {
-                $user = $request->user();
-                if (!$user instanceof \App\Models\Admin\Admin) {
-                    abort(403, 'Nur Admins dürfen Bestellungen verwalten.');
-                }
-                if (
-                    method_exists($user, 'currentAccessToken')
-                    && $user->currentAccessToken()
-                    && !$user->tokenCan('*')
-                    && !$user->tokenCan('ai:funkira')
-                    && !$user->tokenCan('orders:manage')
-                ) {
-                    abort(403, 'Unzureichende Token-Berechtigung.');
-                }
-                return $next($request);
-            }],
-        ], function () {
+        Route::prefix('shop/workshop-focus')
+            ->middleware([\App\Http\Middleware\EnsureAdminApiAccess::class . ':*,ai:funkira,orders:manage'])
+            ->group(function () {
             Route::get('/', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'index']);
             Route::post('/send-laser', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'sendLaser']);
             Route::post('/finish-laser-item', [\App\Http\Controllers\Api\WorkshopFocusApiController::class, 'finishLaserItem']);

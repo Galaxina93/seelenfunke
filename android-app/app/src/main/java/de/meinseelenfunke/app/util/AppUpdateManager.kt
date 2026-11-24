@@ -129,7 +129,8 @@ object AppUpdateManager {
         val appCtx = context.applicationContext
         if (authTokenOverrideForTests == null) {
             ServiceLocator.ensureInitialized(appCtx)
-            if (!ServiceLocator.authRepository.isLoggedIn() || ServiceLocator.getUserType() != "admin") {
+            val ut = ServiceLocator.getUserType()
+            if (!ServiceLocator.authRepository.isLoggedIn() || (ut != "admin" && ut != "employee")) {
                 return
             }
         }

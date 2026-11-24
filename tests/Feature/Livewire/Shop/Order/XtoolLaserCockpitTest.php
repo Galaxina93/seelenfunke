@@ -2142,7 +2142,7 @@ class XtoolLaserCockpitTest extends TestCase
             app_path('Livewire/Shop/Order/OrderOverview.php'),
             resource_path('views/livewire/shop/order/order-offer-detail-partials/laser-cockpit-card.blade.php'),
             database_path('seeders/ProductSeeder.php'),
-            database_path('migrations/2026_11_17_220000_sync_multi_laser_profiles_on_products.php'),
+            app_path('Livewire/Shop/Product/LaserStudioWorkspace.php'),
             base_path('tests/Feature/Livewire/Shop/Order/XtoolLaserCockpitTest.php'),
         ];
 
@@ -2228,5 +2228,100 @@ class XtoolLaserCockpitTest extends TestCase
         $this->assertStringContainsString('wire:loading.class="invisible" wire:target="sendJobDirectlyToLaser"', $html);
         $this->assertStringContainsString('wire:loading.flex wire:target="refreshLaserCameraAndAlign"', $html);
         $this->assertStringContainsString('wire:loading.flex wire:target="sendJobDirectlyToLaser"', $html);
+    }
+
+    #[Test]
+    public function it_supports_anti_glare_auto_default_hairline_contour_edge_focus_and_8_handle_stretch(): void
+    {
+        $metalHeart = Product::create([
+            'name'   => 'Der Seelenanhänger Blendfrei-Test',
+            'slug'   => 'seelenanhaenger-blendfrei-' . Str::lower(Str::random(5)),
+            'type'   => 'physical',
+            'status' => 'active',
+            'price'  => 2490,
+            'width'  => 35,
+            'height' => 35,
+            'length' => 3,
+            'weight' => 25,
+            'configurator_settings' => [
+                'allow_personalization' => true,
+                'overlay_type'          => 'plane',
+                'laser_material'        => '0,2 mm Aluminiumlegierung',
+                'xtool_plane_width'     => 31.0,
+                'xtool_plane_height'    => 30.0,
+            ],
+        ]);
+
+        $woodSign = Product::create([
+            'name'   => 'Holz-Untersetzer Matt-Test',
+            'slug'   => 'holz-untersetzer-matt-' . Str::lower(Str::random(5)),
+            'type'   => 'physical',
+            'status' => 'active',
+            'price'  => 1490,
+            'width'  => 90,
+            'height' => 90,
+            'length' => 5,
+            'weight' => 40,
+            'configurator_settings' => [
+                'allow_personalization' => true,
+                'laser_material'        => 'Bambus Holz',
+            ],
+        ]);
+
+        $this->assertSame('anti_glare', XtoolLaserCockpitService::resolveDefaultCameraLightMode($metalHeart, [], 'front'));
+        $this->assertSame('normal', XtoolLaserCockpitService::resolveDefaultCameraLightMode($woodSign, [], 'front'));
+        $this->assertSame('dim', XtoolLaserCockpitService::resolveDefaultCameraLightMode($metalHeart, ['laser_camera_light_mode' => 'dim'], 'front'));
+
+        $admin = $this->createAdmin();
+        [$order, $item] = $this->createSampleOrderWithItem($metalHeart);
+
+        $component = Livewire::actingAs($admin, 'admin')
+            ->test(OrderOverview::class)
+            ->call('openDetail', $order->id);
+
+        $this->assertSame('anti_glare', $component->get('laserCameraLightMode'));
+
+        $html = $component->html();
+        $this->assertStringContainsString('data-cockpit-edge-focus', $html);
+        $this->assertStringContainsString('data-cockpit-undo', $html);
+        $this->assertStringContainsString('data-cockpit-redo', $html);
+        $this->assertStringContainsString('data-cockpit-focus-zoom', $html);
+        $this->assertStringContainsString('data-cockpit-xray-toggle', $html);
+        $this->assertStringContainsString('data-cockpit-frame-lock', $html);
+        $this->assertStringContainsString('undoCoords()', $html);
+        $this->assertStringContainsString('redoCoords()', $html);
+        $this->assertStringContainsString('resetFrameAxis(', $html);
+        $this->assertStringContainsString('stroke-width="0.45"', $html);
+        foreach (['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'] as $handleKey) {
+            $this->assertStringContainsString('data-resize-handle="' . $handleKey . '"', $html);
+        }
+
+        // Einseitiges Breiterziehen um +1,2 mm (w = 32,2 mm, h bleibt 30,0 mm) muss 1:1 bis in Border-GCode & .xcs fließen
+        $component->call('updateLaserCoordinates', $item->id, 100.6, 100.0, 0.0, 32.2, 30.0, 1);
+        $item->refresh();
+        $savedFront = $item->configuration['laser_cockpit_coordinates']['front'] ?? [];
+        $this->assertEqualsWithDelta(32.2, (float) ($savedFront['w_mm'] ?? 0.0), 0.01);
+        $this->assertEqualsWithDelta(30.0, (float) ($savedFront['h_mm'] ?? 0.0), 0.01);
+
+        // Beidseitige Maß-Übernahme: übernimmt w_mm x h_mm der Vorderseite auf die Rückseite, ohne X/Y/Winkel der Rückseite zu überschreiben
+        $component->call('switchLaserCockpitSide', 'back');
+        $component->call('updateLaserCoordinates', $item->id, 114.5, 92.3, -4.0, 31.0, 30.0, 2);
+        $component->call('copyOtherSideLaserDimensions', $item->id, 'back');
+        $item->refresh();
+        $savedBack = $item->configuration['laser_cockpit_coordinates']['back'] ?? [];
+        $this->assertEqualsWithDelta(114.5, (float) ($savedBack['x_mm'] ?? 0.0), 0.01);
+        $this->assertEqualsWithDelta(92.3, (float) ($savedBack['y_mm'] ?? 0.0), 0.01);
+        $this->assertEqualsWithDelta(-4.0, (float) ($savedBack['angle_deg'] ?? 0.0), 0.01);
+        $this->assertEqualsWithDelta(32.2, (float) ($savedBack['w_mm'] ?? 0.0), 0.01);
+        $this->assertEqualsWithDelta(30.0, (float) ($savedBack['h_mm'] ?? 0.0), 0.01);
+
+        $cockpit = app(XtoolLaserCockpitService::class);
+        $border = $cockpit->buildItemFramingGcode($item->id, 'front');
+        $this->assertEqualsWithDelta(32.2, (float) $border['width_mm'], 0.02);
+        $this->assertEqualsWithDelta(30.0, (float) $border['height_mm'], 0.02);
+
+        $xcs = $cockpit->generateXcsProjectBytes($item->id, 'front');
+        $this->assertEqualsWithDelta(32.2, (float) $xcs['width_mm'], 0.02);
+        $this->assertEqualsWithDelta(30.0, (float) $xcs['height_mm'], 0.02);
     }
 }

@@ -10,18 +10,32 @@ data class LoginRequest(
     val two_factor_code: String? = null
 )
 
+data class RolePermissionsDto(
+    val role: String? = null,
+    val is_admin: Boolean = false,
+    val is_internal_employee: Boolean = false,
+    val can_access_tasks: Boolean = false,
+    val can_access_production: Boolean = false,
+    val can_access_support: Boolean = false,
+    val can_access_inventory: Boolean = false,
+    val can_access_time: Boolean = false,
+    val can_access_payslips: Boolean = false
+)
+
 data class User(
     val id: String,
     val first_name: String?,
     val last_name: String?,
     val email: String,
-    val user_type: String? = null
+    val user_type: String? = null,
+    val permissions: RolePermissionsDto? = null
 )
 
 data class LoginResponse(
     val status: String,
     val token: String?,
     val user_type: String?,
+    val permissions: RolePermissionsDto? = null,
     val user: User?,
     val message: String? = null,
     val two_factor_required: Boolean? = null

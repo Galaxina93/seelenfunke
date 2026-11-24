@@ -98,6 +98,7 @@ namespace Funkenwerk
             ["rente"] = new[] { "renteninformation", "renteninformationen", "renteninfo", "rentenversicherung", "deutsche rentenversicherung", "drv", "feststellungsbescheid", "versorgungsausgleich", "altersrente" },
             ["renteninfo"] = new[] { "renteninformation", "renteninformationen", "rentenversicherung", "drv" },
             ["renteninformation"] = new[] { "renteninformationen", "renteninfo", "rentenbescheid", "rentenversicherung", "drv" },
+            ["rentenversicherung"] = new[] { "deutsche rentenversicherung", "drv", "renteninformation", "rentenbescheid", "private rentenversicherung" },
             ["drv"] = new[] { "deutsche rentenversicherung", "renteninformation", "renteninformationen", "rentenversicherung" },
             ["sozialversicherungsausweis"] = new[] { "rentenversicherung", "versicherungsnummer", "nachweis" },
             ["steuerbescheid"] = new[] { "einkommenssteuerbescheid", "einkommensteuerbescheid", "bescheid", "steuererklaerung", "finanzamt", "elster" },
@@ -111,6 +112,8 @@ namespace Funkenwerk
             ["krankengeld"] = new[] { "bkk firmus", "sozialgericht", "eilantrag", "widerspruch", "aussteuerung", "s26kr337" },
             ["krankschreibung"] = new[] { "krankschreibungen", "krankmeldungen", "arbeitsunfaehigkeit", "au", "eau", "folgebescheinigung" },
             ["au"] = new[] { "krankschreibung", "krankschreibungen", "arbeitsunfaehigkeit", "eau", "krankmeldungen" },
+            ["befund"] = new[] { "befunde", "arztbrief", "augen", "fiedler", "stefanidis", "haut", "urologe", "gynaekologe", "impfung", "schulter", "klinik" },
+            ["befunde"] = new[] { "befund", "arztbrief", "augen", "fiedler", "haut", "urologe", "klinik" },
             ["kaufvertrag"] = new[] { "notar", "esser", "haus", "immobilie", "grundbuch", "carl goerdeler ring" },
             ["notar"] = new[] { "esser", "kaufvertrag", "grundbuch", "haus", "immobilie" },
             ["hauskredit"] = new[] { "kredit", "volksbank", "darlehen", "lastenzuschuss", "grundschuld" },
@@ -131,10 +134,22 @@ namespace Funkenwerk
             ["gehaltsabrechnung"] = new[] { "gehalt", "lohnsteuerbescheinigung", "biceps", "skon", "high office", "computacenter" },
             ["gehalt"] = new[] { "gehaltsabrechnung", "lohnsteuerbescheinigung", "biceps", "skon", "high office", "computacenter" },
             ["arbeitszeugnis"] = new[] { "zeugnis", "high office", "biceps", "computacenter", "dis ag", "qualifikation" },
-            ["seelenfunke"] = new[] { "mein seelenfunke", "gewerbeanmeldung", "businessplan", "xtool", "hiscox", "laserschutzbeauftragte" },
+            ["seelenfunke"] = new[] { "mein seelenfunke", "gewerbeanmeldung", "businessplan", "xtool", "hiscox", "laserschutzbeauftragte", "dpma", "mittwald" },
+            ["dpma"] = new[] { "markenschutz", "markenanmeldung", "mein seelenfunke", "dpmadirektweb", "marke" },
+            ["mittwald"] = new[] { "hosting", "server", "domain", "mein seelenfunke", "rechnungen" },
+            ["anleitung"] = new[] { "anleitungen", "handbuch", "xtool", "f2 ultra", "ra3", "safetypro" },
+            ["medien"] = new[] { "funki", "manufaktur", "produkte", "screencasts", "lasertests", "seelen kristall", "seelen-talisman", "seelenanhaenger", "seelen-pfote" },
+            ["design"] = new[] { "logo", "grafik", "branding", "mein seelenfunke" },
             ["laser"] = new[] { "xtool", "f2 ultra", "ra3", "laserschutzbeauftragte", "anleitung", "barthaarentfernung" },
-            ["versicherung"] = new[] { "hiscox", "arag", "barmenia", "allianz", "axa", "ergo", "devk", "neodigital", "allsafe", "kravag", "verti" },
-            ["vertrag"] = new[] { "telekom", "vodafone", "o2", "glasfaser", "handyvertrag", "simplytel", "all inkl", "rundfunk" },
+            ["versicherung"] = new[] { "hiscox", "arag", "barmenia", "allianz", "axa", "ergo", "devk", "neodigital", "allsafe", "kravag", "verti", "adac", "gev", "zahnzusatz", "haftpflicht", "gebaeudeversicherung", "unfallversicherung" },
+            ["gebaeudeversicherung"] = new[] { "barmenia", "devk", "neodigital", "allsafe", "ergo", "allianz", "wohngebaeude", "badewanne", "wasserschaden" },
+            ["haftpflicht"] = new[] { "haftpflichversicherung", "privathaftpflicht", "axa", "gev", "hiscox", "betriebshaftpflicht" },
+            ["zahnzusatz"] = new[] { "zahnzusatzversicherung", "allianz", "axa", "zahn", "zaehne" },
+            ["unfallversicherung"] = new[] { "unfall", "versicherung" },
+            ["autoversicherung"] = new[] { "kfz", "barmenia", "kravag", "verti", "allianz", "adac", "audi", "hyundai", "ioniq", "vw", "golf" },
+            ["vertrag"] = new[] { "telekom", "vodafone", "o2", "glasfaser", "handyvertrag", "simplytel", "all inkl", "1&1", "handy", "internet" },
+            ["handy"] = new[] { "simplytel", "handyvertrag", "mobilfunk", "1&1", "sim", "esim" },
+            ["internet"] = new[] { "telekom", "vodafone", "o2", "glasfaser", "deutsche glasfaser", "1&1", "router", "festnetz" },
             ["kontoauszug"] = new[] { "volksbank", "umsaetze", "kontoauszuege", "8583196000", "bank" },
             ["schufa"] = new[] { "schufaauszug", "bonitaet" }
         };
@@ -830,9 +845,10 @@ namespace Funkenwerk
 
             string exDate = ExtractDate(origName, cleanText, fi.LastWriteTime);
             string year = exDate.Length >= 4 ? exDate[..4] : DateTime.Now.Year.ToString();
+            string month = exDate.Length >= 7 ? exDate.Substring(5, 2) : DateTime.Now.ToString("MM", CultureInfo.InvariantCulture);
             var facts = ExtractKeyFacts(cleanText);
 
-            var (mainF, subF, cat, tags, purpose, senderLabel, topicLabel) = ResolveFolderAndMeta(combined, year, ext, rootDir);
+            var (mainF, subF, cat, tags, purpose, senderLabel, topicLabel) = ResolveFolderAndMeta(combined, year, month, ext, rootDir);
 
             // Rename generic scans cleanly: YYYY-MM-DD_Sender_Topic.ext
             string finalName = origName;
@@ -872,7 +888,7 @@ namespace Funkenwerk
         }
 
         private static (string MainFolder, string SubFolder, string Category, List<string> Tags, string Purpose, string Sender, string Topic)
-            ResolveFolderAndMeta(string low, string year, string ext, string rootDir)
+            ResolveFolderAndMeta(string low, string year, string month, string ext, string rootDir)
         {
             var tags = new List<string>();
             void AddTag(string t) { if (!string.IsNullOrWhiteSpace(t) && !tags.Contains(t)) tags.Add(t); }
@@ -882,23 +898,61 @@ namespace Funkenwerk
                 low.Contains("printequipment") || low.Contains("glücksfieber") || low.Contains("gluecksfieber") ||
                 low.Contains("kartonfritze") || low.Contains("karton.eu") || low.Contains("fyrst") ||
                 low.Contains("laserschutzbeauftragte") || low.Contains("betriebshaftpflicht") || low.Contains("hiscox") ||
-                low.Contains("gewerbeanmeldung") || low.Contains("gewerbesteuer") || low.Contains("gründungszuschuss") || low.Contains("gruendungszuschuss"))
+                low.Contains("gewerbeanmeldung") || low.Contains("gewerbesteuer") || low.Contains("businessplan") ||
+                low.Contains("tragfähigkeit") || low.Contains("tragfaehigkeit") || low.Contains("dpma") ||
+                low.Contains("markenschutz") || low.Contains("mittwald"))
             {
-                string sub = "Eingangsrechnungen_Belege";
+                string sub = $"Rechnungen/{year}/{month}";
                 string topic = "Beleg";
                 string sender = "Mein-Seelenfunke";
-                if (low.Contains("xtool") || low.Contains("laser")) { sub = "Laser_Manufaktur"; topic = "Laser"; AddTag("Laser"); }
-                else if (low.Contains("fyrst")) { sub = "Bank_FYRST"; topic = "Konto"; sender = "FYRST"; AddTag("FYRST"); }
-                else if (low.Contains("gewerbesteuer") || low.Contains("umsatzsteuer") || low.Contains("gewerbeanmeldung")) { sub = "Steuern_Finanzamt_Gewerbe"; topic = "Gewerbe"; AddTag("Gewerbe"); }
-                else if (low.Contains("hiscox") || low.Contains("betriebshaftpflicht")) { sub = "Vertraege_Versicherungen"; sender = "Hiscox"; topic = "Betriebshaftpflicht"; AddTag("Hiscox"); }
-                else if (low.Contains("gründungszuschuss") || low.Contains("gruendungszuschuss") || low.Contains("businessplan") || low.Contains("tragfähigkeit")) { sub = "Gruendung_Businessplan"; topic = "Gruendungszuschuss"; AddTag("Gruendungszuschuss"); }
+                if ((low.Contains("xtool") || low.Contains("laser")) && (low.Contains("anleitung") || low.Contains("handbuch")))
+                {
+                    sub = "Anleitungen"; topic = "Anleitung"; sender = "xTool"; AddTag("Anleitung"); AddTag("Laser");
+                }
+                else if (low.Contains("zertifikat") || low.Contains("laserschutzbeauftragte"))
+                {
+                    sub = "Zertifikate"; topic = "Zertifikat"; AddTag("Zertifikat");
+                }
+                else if (low.Contains("xtool") || low.Contains("laser"))
+                {
+                    topic = "Laser"; sender = "xTool"; AddTag("Laser");
+                }
+                else if (low.Contains("fyrst") || low.Contains("fin api"))
+                {
+                    sub = "Banken/FYRST"; topic = "Konto"; sender = "FYRST"; AddTag("FYRST");
+                }
+                else if (low.Contains("mittwald") || low.Contains("hosting"))
+                {
+                    sub = "Hosting/Mittwald"; topic = "Hosting"; sender = "Mittwald"; AddTag("Hosting"); AddTag("Mittwald");
+                }
+                else if (low.Contains("dpma") || low.Contains("markenschutz"))
+                {
+                    sub = "Markenschutz_DPMA"; topic = "Markenschutz"; sender = "DPMA"; AddTag("DPMA"); AddTag("Markenschutz");
+                }
+                else if (low.Contains("gewerbeanmeldung"))
+                {
+                    sub = "Steuern/Gewerbeanmeldung"; topic = "Gewerbe"; AddTag("Gewerbe");
+                }
+                else if (low.Contains("gewerbesteuer") || low.Contains("umsatzsteuer"))
+                {
+                    sub = $"Steuern/{year}"; topic = "Gewerbe"; AddTag("Gewerbe");
+                }
+                else if (low.Contains("hiscox") || low.Contains("betriebshaftpflicht"))
+                {
+                    sub = "Versicherungen/Betriebshaftpflicht_Hiscox"; sender = "Hiscox"; topic = "Betriebshaftpflicht"; AddTag("Hiscox");
+                }
+                else if (low.Contains("businessplan") || low.Contains("tragfähigkeit") || low.Contains("tragfaehigkeit"))
+                {
+                    sub = "Businessplan"; topic = "Businessplan"; AddTag("Businessplan");
+                }
                 AddTag("Mein-Seelenfunke"); AddTag(year); AddTag(ext.ToUpperInvariant());
-                return ("01_Mein-Seelenfunke", sub, $"Mein-Seelenfunke (Gewerbe) › {sub.Replace('_', ' ')}", tags, "Geschäftsunterlage für Mein-Seelenfunke.", sender, topic);
+                return ("01_Mein-Seelenfunke", sub, $"Mein-Seelenfunke (Gewerbe) › {sub.Split('/')[0]}", tags, "Geschäftsunterlage für Mein-Seelenfunke.", sender, topic);
             }
 
             // 2. Rente & Vorsorge / Ausweise / Urkunden
-            if (low.Contains("renteninformation") || low.Contains("rentenbescheid") || low.Contains("deutsche rentenversicherung") ||
-                low.Contains("versorgungsausgleich") || low.Contains("kontenklärung") || low.Contains("kontenklaerung") || low.Contains("sozialversicherungsausweis"))
+            if ((low.Contains("renteninformation") || low.Contains("rentenbescheid") || low.Contains("deutsche rentenversicherung") ||
+                 low.Contains("versorgungsausgleich") || low.Contains("kontenklärung") || low.Contains("kontenklaerung") || low.Contains("sozialversicherungsausweis")) &&
+                !low.Contains("private rentenversicherung"))
             {
                 AddTag("Rente"); AddTag("Renteninformation"); AddTag("Rentenbescheid"); AddTag("Deutsche Rentenversicherung"); AddTag(year); AddTag(ext.ToUpperInvariant());
                 return ("05_Familie_Ausweise_Vorsorge", $"Rente_Vorsorge/{year}", "Familie, Ausweise, Rente & Vorsorge › Rente Vorsorge", tags, "Renteninformation bzw. Bescheid der Deutschen Rentenversicherung.", "DRV", "Renteninformation");
@@ -907,6 +961,11 @@ namespace Funkenwerk
             {
                 AddTag("Ausweis"); AddTag(year); AddTag(ext.ToUpperInvariant());
                 return ("05_Familie_Ausweise_Vorsorge", "Ausweise_Fuehrerschein", "Familie, Ausweise, Rente & Vorsorge › Ausweise", tags, "Persönliches Ausweisdokument.", "Ausweis", "Dokument");
+            }
+            if (low.Contains("elterngeld") || low.Contains("kindergeld") || low.Contains("elternzeit"))
+            {
+                AddTag("Familie"); AddTag("Antrag"); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("05_Familie_Ausweise_Vorsorge", "Antraege_Elterngeld_Kindergeld", "Familie, Ausweise, Rente & Vorsorge › Elterngeld & Kindergeld", tags, "Familienantrag oder Bescheid.", "Familie", "Antrag");
             }
             if (low.Contains("geburtsurkunde") || low.Contains("eheurkunde") || low.Contains("standesamt") || low.Contains("namensänderung") || low.Contains("namensaenderung"))
             {
@@ -919,79 +978,116 @@ namespace Funkenwerk
                 return ("05_Familie_Ausweise_Vorsorge", "Erbe_Vorsorge", "Familie, Ausweise, Rente & Vorsorge › Erbe & Vorsorge", tags, "Vorsorge- oder Erbdokument.", "Vorsorge", "Vollmacht");
             }
 
-            // 3. Gesundheit & Krankenkasse
+            // 3. Gesundheit & Krankenkasse (vor Versicherungen pruefen!)
             if (low.Contains("arbeitsunfähigkeit") || low.Contains("arbeitsunfaehigkeit") || low.Contains("krankschreibung") || low.Contains("folgebescheinigung") || low.Contains("eau"))
             {
                 AddTag("Krankschreibung"); AddTag("AU"); AddTag(year); AddTag(ext.ToUpperInvariant());
                 return ("06_Gesundheit", $"Krankmeldungen/{year}", "Gesundheit & Krankenkasse › Krankmeldungen", tags, "Arbeitsunfähigkeitsbescheinigung (AU/eAU).", "Arzt", "AU_Bescheinigung");
             }
-            if (low.Contains("bkk") || low.Contains("firmus") || low.Contains("krankengeld") || low.Contains("sozialgericht") ||
-                low.Contains("lubos") || low.Contains("endokrinolog") || low.Contains("arztbrief") || low.Contains("befund") || low.Contains("rezept") || low.Contains("attest"))
+            if (low.Contains("bkk") || low.Contains("firmus") || low.Contains("barmer") || low.Contains("salus") || low.Contains("hek") || low.Contains("krankengeld") || low.Contains("sozialgericht") ||
+                low.Contains("lubos") || low.Contains("endokrinolog") || low.Contains("arztbrief") || low.Contains("befund") || low.Contains("rezept") || low.Contains("attest") || low.Contains("indikationsschreiben"))
             {
                 string sub = (low.Contains("bkk") || low.Contains("firmus") || low.Contains("krankengeld") || low.Contains("sozialgericht"))
-                    ? "Krankenkasse/4_BKK_firmus"
-                    : "Arztbriefe_Befunde";
+                    ? $"Krankenkasse/4_-_BKK_firmus/{year}"
+                    : (low.Contains("lubos") || low.Contains("transition") || low.Contains("indikationsschreiben"))
+                        ? "Transition"
+                        : "Befunde";
                 AddTag("Gesundheit"); AddTag(low.Contains("bkk") ? "BKK firmus" : "Arzt"); AddTag(year); AddTag(ext.ToUpperInvariant());
                 return ("06_Gesundheit", sub, $"Gesundheit & Krankenkasse › {sub.Split('/')[0]}", tags, "Medizinisches Dokument bzw. Krankenkassen-Korrespondenz.", low.Contains("bkk") ? "BKK-firmus" : "Arzt", "Unterlage");
             }
 
-            // 4. Haus & Immobilie (inkl. Zählerstände)
+            // 4. Private Versicherungen (inkl. Gebaeudeversicherung, Zahnzusatz, Haftpflicht, Auto, Unfall, Private Rente, Gekuendigt)
+            if (low.Contains("gebäudeversicherung") || low.Contains("gebaeudeversicherung") || low.Contains("wohngebäude") ||
+                low.Contains("neodigital") || low.Contains("allsafe") || low.Contains("devk") || low.Contains("ergo"))
+            {
+                AddTag("Gebaeudeversicherung"); AddTag("Versicherung"); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("04_Versicherungen", "Gebaeudeversicherung", "Versicherungen › Gebäudeversicherung", tags, "Wohngebäudeversicherungs-Dokument.", "Versicherung", "Gebaeude");
+            }
+            if (low.Contains("zahnzusatz"))
+            {
+                AddTag("Zahnzusatzversicherung"); AddTag("Versicherung"); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("04_Versicherungen", "Zahnzusatzversicherung", "Versicherungen › Zahnzusatzversicherung", tags, "Zahnzusatzversicherungs-Dokument.", "Versicherung", "Zahnzusatz");
+            }
+            if (low.Contains("unfallversicherung"))
+            {
+                AddTag("Unfallversicherung"); AddTag("Versicherung"); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("04_Versicherungen", "Unfallversicherung", "Versicherungen › Unfallversicherung", tags, "Unfallversicherungs-Dokument.", "Versicherung", "Unfall");
+            }
+            if (low.Contains("private rentenversicherung"))
+            {
+                AddTag("Rentenversicherung"); AddTag("Versicherung"); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("04_Versicherungen", "Rentenversicherung", "Versicherungen › Private Rentenversicherung", tags, "Private Rentenversicherung.", "Versicherung", "Rente");
+            }
+            if (low.Contains("autoversicherung") || low.Contains("kfz") || low.Contains("kravag") || low.Contains("verti") || low.Contains("adac") ||
+                ((low.Contains("barmenia") || low.Contains("allianz")) && (low.Contains("auto") || low.Contains("audi") || low.Contains("hyundai") || low.Contains("golf"))))
+            {
+                AddTag("Autoversicherung"); AddTag("KFZ"); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("04_Versicherungen", "Autoversicherung", "Versicherungen › Autoversicherung", tags, "KFZ-Versicherungsdokument.", "Versicherung", "KFZ");
+            }
+            if (low.Contains("arag") || low.Contains("rechtsschutz") || low.Contains("hausrat") || low.Contains("berufsunfähigkeit") ||
+                low.Contains("risikoleben") || low.Contains("baloise") || low.Contains("nürnberger") || low.Contains("nuernberger"))
+            {
+                AddTag("Versicherung"); AddTag("Gekuendigt"); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("04_Versicherungen", "Gekuendigt", "Versicherungen › Gekündigt", tags, "Gekündigte Versicherungspolice.", "Versicherung", "Police");
+            }
+            if (low.Contains("haftpflicht") || low.Contains("versicherung") || low.Contains("axa") || low.Contains("allianz") || low.Contains("barmenia"))
+            {
+                AddTag("Versicherung"); AddTag("Haftpflicht"); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("04_Versicherungen", "Haftpflichversicherung", "Versicherungen › Haftpflichtversicherung", tags, "Private Versicherungsunterlage.", "Versicherung", "Police");
+            }
+
+            // 5. Vertraege (Handy & Internet)
+            if (low.Contains("simplytel") || low.Contains("handyvertrag") || low.Contains("mobilfunk") ||
+                low.Contains("telekom") || low.Contains("vodafone") || low.Contains("o2") || low.Contains("glasfaser") || low.Contains("internetvertrag"))
+            {
+                string sub = (low.Contains("simplytel") || low.Contains("handy") || low.Contains("mobilfunk")) ? "Handy" : "Internet";
+                AddTag("Vertrag"); AddTag(sub); AddTag(year); AddTag(ext.ToUpperInvariant());
+                return ("05_Verträge", sub, $"Verträge › {sub}", tags, "Handy- oder Internet-Vertragsdokument.", "Vertrag", sub);
+            }
+
+            // 6. Haus & Eigenheim (inkl. Zaehlerstaende, ohne Gebaeudeversicherung)
             if (low.Contains("zähler") || low.Contains("zaehler") || low.Contains("drehstromzähler") || low.Contains("wasserwerk") ||
-                low.Contains("lsw") || low.Contains("vattenfall") || low.Contains("grünewelt") || low.Contains("gruenewelt"))
+                low.Contains("lsw") || low.Contains("vattenfall") || low.Contains("grünewelt") || low.Contains("gruenewelt") || low.Contains("komfortgas"))
             {
                 bool isMeter = low.Contains("zähler") || low.Contains("zaehler") || low.Contains("drehstromzähler") || low.Contains("wasserwerk");
                 string sub = isMeter ? $"Gas_Wasser_Strom/Zaehlerstaende/{year}" : "Gas_Wasser_Strom";
                 AddTag("Haus"); AddTag(isMeter ? "Zaehlerstand" : "Energie"); AddTag(year); AddTag(ext.ToUpperInvariant());
-                return ("03_Haus_Immobilie", sub, "Haus & Immobilie › Gas, Wasser & Strom", tags, "Zählerstand oder Versorgerunterlage fürs Eigenheim.", isMeter ? "Zaehler" : "Versorger", "Stand");
+                return ("03_Haus", sub, "Haus › Gas, Wasser & Strom", tags, "Zählerstand oder Versorgerunterlage fürs Eigenheim.", isMeter ? "Zaehler" : "Versorger", "Stand");
             }
-            if (low.Contains("gebäudeversicherung") || low.Contains("gebaeudeversicherung") || low.Contains("barmenia") || low.Contains("devk") || low.Contains("neodigital"))
-            {
-                AddTag("Gebaeudeversicherung"); AddTag("Haus"); AddTag(year); AddTag(ext.ToUpperInvariant());
-                return ("03_Haus_Immobilie", "Gebaeudeversicherung", "Haus & Immobilie › Gebäudeversicherung", tags, "Gebäudeversicherungs-Dokument.", "Versicherung", "Gebaeude");
-            }
-            if (low.Contains("photovoltaik") || low.Contains("wärmepumpe") || low.Contains("waermepumpe") || low.Contains("grundsteuer") || low.Contains("kaufvertrag") || low.Contains("notar") || low.Contains("miete") || low.Contains("vermietung"))
+            if (low.Contains("photovoltaik") || low.Contains("wärmepumpe") || low.Contains("waermepumpe") || low.Contains("grundsteuer") ||
+                low.Contains("kaufvertrag") || low.Contains("notar") || low.Contains("miete") || low.Contains("vermietung") ||
+                low.Contains("bauakte") || low.Contains("grundriss") || low.Contains("lastenzuschuss") || low.Contains("haus"))
             {
                 string sub = (low.Contains("photovoltaik") || low.Contains("wärmepumpe") || low.Contains("waermepumpe")) ? "Photovoltaik_Waermepumpe" :
                              (low.Contains("kaufvertrag") || low.Contains("notar")) ? "Kaufvertrag_Notar" :
+                             (low.Contains("lastenzuschuss")) ? "Kredit_Lastenzuschuss" :
                              (low.Contains("miete") || low.Contains("vermietung")) ? "Vermietung" : "Bauakten_Grundriss";
                 AddTag("Haus"); AddTag(year); AddTag(ext.ToUpperInvariant());
-                return ("03_Haus_Immobilie", sub, $"Haus & Immobilie › {sub.Replace('_', ' ')}", tags, "Immobilien-Unterlage.", "Haus", "Dokument");
+                return ("03_Haus", sub, $"Haus › {sub.Replace('_', ' ')}", tags, "Immobilien-Unterlage.", "Haus", "Dokument");
             }
 
-            // 5. Behörden, Arbeit, Recht
-            if (low.Contains("agentur für arbeit") || low.Contains("agentur fuer arbeit") || low.Contains("bundesagentur") || low.Contains("arbeitsamt") || low.Contains("arbeitslosengeld") || low.Contains("alg 1"))
+            // 7. Behörden, Arbeit, Recht
+            if (low.Contains("agentur für arbeit") || low.Contains("agentur fuer arbeit") || low.Contains("bundesagentur") || low.Contains("arbeitsamt") ||
+                low.Contains("arbeitslosengeld") || low.Contains("alg 1") || low.Contains("gründungszuschuss") || low.Contains("gruendungszuschuss"))
             {
                 AddTag("Arbeitsamt"); AddTag("Agentur für Arbeit"); AddTag("ALG 1"); AddTag(year); AddTag(ext.ToUpperInvariant());
                 return ("07_Behoerden_Recht_Berufshistorie", $"Agentur_fuer_Arbeit/{year}", "Behörden, Recht & Beruf › Agentur für Arbeit", tags, "Bescheid oder Mitteilung der Agentur für Arbeit.", "Bundesagentur", "Bescheid");
             }
-            if (low.Contains("polizei") || low.Contains("amtsgericht") || low.Contains("stadt gifhorn") || low.Contains("landkreis gifhorn"))
+            if (low.Contains("polizei") || low.Contains("amtsgericht") || low.Contains("stadt gifhorn") || low.Contains("landkreis gifhorn") || low.Contains("rundfunk"))
             {
+                string sub = low.Contains("polizei") ? "Polizei_Recht" : "Gifhorn_Behoerden";
                 AddTag("Gifhorn"); AddTag("Behoerde"); AddTag(year); AddTag(ext.ToUpperInvariant());
-                return ("07_Behoerden_Recht_Berufshistorie", "Gifhorn_Behoerden", "Behörden, Recht & Beruf › Gifhorn Behörden", tags, "Behördliches Schreiben.", "Behoerde", "Schreiben");
+                return ("07_Behoerden_Recht_Berufshistorie", sub, $"Behörden, Recht & Beruf › {sub.Replace('_', ' ')}", tags, "Behördliches Schreiben.", "Behoerde", "Schreiben");
             }
 
-            // 6. Versicherungen & Alltag
-            if (low.Contains("telekom") || low.Contains("vodafone") || low.Contains("handyvertrag") || low.Contains("glasfaser") || low.Contains("rundfunk"))
-            {
-                string sub = low.Contains("rundfunk") ? "Rundfunk" : "Handy_Internet";
-                AddTag("Vertrag"); AddTag(year); AddTag(ext.ToUpperInvariant());
-                return ("04_Versicherungen_Vertraege_Mobilitaet", sub, $"Versicherungen, Verträge & Mobilität › {sub.Replace('_', ' ')}", tags, "Telekommunikations- oder Rundfunk-Vertragsdokument.", "Vertrag", "Unterlage");
-            }
-            if (low.Contains("versicherung") || low.Contains("arag") || low.Contains("axa") || low.Contains("allianz") || low.Contains("kfz") || low.Contains("roller"))
-            {
-                string sub = (low.Contains("kfz") || low.Contains("auto") || low.Contains("roller")) ? "Mobilitaet_Roller_Kfz" : "Versicherungen_Privat";
-                AddTag("Versicherung"); AddTag(year); AddTag(ext.ToUpperInvariant());
-                return ("04_Versicherungen_Vertraege_Mobilitaet", sub, $"Versicherungen, Verträge & Mobilität › {sub.Replace('_', ' ')}", tags, "Private Versicherungs- oder Mobilitätsunterlage.", "Versicherung", "Police");
-            }
-
-            // 7. Tresor / Backups
+            // 8. Tresor / Backups
             if (low.Contains("keepass") || low.Contains("kdbx") || low.Contains("recovery") || low.Contains("passwort"))
             {
                 AddTag("Tresor"); AddTag("Backup"); AddTag(year); AddTag(ext.ToUpperInvariant());
                 return ("08_Tresor_Backups", "Keepass_Backups", "Tresor & Backups › KeePass Backups", tags, "Sicherheits-Backup oder Zugangsdaten.", "Tresor", "Backup");
             }
 
-            // 8. Finanzen, Steuern & Banken (Default)
+            // 9. Finanzen, Steuern & Banken (Default)
             if (low.Contains("steuer") || low.Contains("finanzamt") || low.Contains("elster") || low.Contains("lohnsteuer"))
             {
                 AddTag("Steuern"); AddTag("Finanzamt"); AddTag(year); AddTag(ext.ToUpperInvariant());

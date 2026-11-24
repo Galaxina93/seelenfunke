@@ -161,6 +161,9 @@ namespace FunkenwerkCraft
                 if (baseDir.EndsWith("Funkenwerk Craft", StringComparison.OrdinalIgnoreCase))
                     return baseDir;
 
+                string programsCol = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Funkenwerk Collection", "Module", "Funkenwerk Craft");
+                if (Directory.Exists(programsCol)) return programsCol;
+
                 string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
                 string modularCol = Path.Combine(desktop, "Funkenwerk Collection", "Module", "Funkenwerk Craft");
                 if (Directory.Exists(modularCol)) return modularCol;
@@ -168,11 +171,14 @@ namespace FunkenwerkCraft
                 string legacyCol = Path.Combine(desktop, "Funkenwerk Collection", "Funkenwerk Craft");
                 if (Directory.Exists(legacyCol)) return legacyCol;
 
+                const string sharedKontaPrograms = @"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection\Module\Funkenwerk Craft";
+                if (Directory.Exists(sharedKontaPrograms)) return sharedKontaPrograms;
+
                 const string sharedKontaCol = @"C:\Users\konta\Desktop\Funkenwerk Collection\Module\Funkenwerk Craft";
                 if (Directory.Exists(sharedKontaCol)) return sharedKontaCol;
 
-                Directory.CreateDirectory(modularCol);
-                return modularCol;
+                Directory.CreateDirectory(programsCol);
+                return programsCol;
             }
         }
 
@@ -558,6 +564,8 @@ namespace FunkenwerkCraft
 
             string[] collectionRoots =
             [
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Funkenwerk Collection"),
+                @"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection",
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Funkenwerk Collection"),
                 @"C:\Users\konta\Desktop\Funkenwerk Collection"
             ];

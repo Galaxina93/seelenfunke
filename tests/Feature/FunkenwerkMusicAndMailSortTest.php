@@ -121,6 +121,11 @@ class FunkenwerkMusicAndMailSortTest extends TestCase
         $this->assertStringNotContainsString('🔁', $bladeContent, 'Old blue repeat emoji must be removed');
         $this->assertStringContainsString('<x-backend.global-music-player />', $backendLayoutContent);
         $this->assertStringContainsString('id="funkenwerk-global-music-shell"', $globalPlayerContent);
+        $this->assertStringContainsString('fw_music_active_owner_v1', $globalPlayerContent);
+        $this->assertStringContainsString('fw_music_cross_tab_v1', $globalPlayerContent);
+        $this->assertStringContainsString('isAnotherTabActivelyPlaying()', $globalPlayerContent);
+        $this->assertStringContainsString('yieldToOtherTab()', $globalPlayerContent);
+        $this->assertStringContainsString('step="0.01"', $bladeContent);
         $this->assertStringContainsString('playTrackById(', $bladeContent);
         $this->assertStringContainsString('@music-view-tracks-synced.window', $bladeContent);
     }

@@ -558,9 +558,7 @@ class MasterNextBestActionService
         $todayDate = $now->format('Y-m-d');
 
         $tasks = ManagementTask::query()
-            ->where('is_completed', false)
-            ->where('is_archived', false)
-            ->whereNull('parent_id')
+            ->openRootTickets()
             ->with(['list', 'subtasks'])
             ->orderByRaw("CASE COALESCE(priority, 'niedrig') WHEN 'hoch' THEN 1 WHEN 'mittel' THEN 2 WHEN 'niedrig' THEN 3 ELSE 4 END")
             ->orderByRaw('CASE WHEN relevant_from IS NOT NULL AND relevant_from <= ? THEN 0 WHEN relevant_from IS NULL THEN 1 ELSE 2 END', [$todayDate])

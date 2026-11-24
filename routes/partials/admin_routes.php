@@ -9,6 +9,20 @@ Route::middleware(['auth:admin'])->group(function () {
     // -----------------------------------------------------------------------
     Route::get('/admin/dashboard', \App\Livewire\Shop\Master\MasterAnalytics::class)->name('admin.dashboard');
     Route::get('/admin/master/analytics', \App\Livewire\Shop\Master\MasterAnalytics::class)->name('admin.master-analytics');
+    Route::get('/admin/global-search', function (\Illuminate\Http\Request $request, \App\Services\System\GlobalProjectSearchService $searchService) {
+        if (!\Illuminate\Support\Facades\Auth::guard('admin')->check()) {
+            abort(403);
+        }
+        if ($request->hasSession()) {
+            $request->session()->save();
+        }
+        if (function_exists('session_write_close')) {
+            @session_write_close();
+        }
+
+        $q = (string) $request->query('q', '');
+        return response()->json($searchService->searchAll($q, 5));
+    })->name('admin.global-search');
 
     // -----------------------------------------------------------------------
     // Management
@@ -354,6 +368,9 @@ Route::middleware(['auth:admin'])->group(function () {
     Route::get('/admin/system/funkenwerk-apk/download', function (\Illuminate\Http\Request $request, \App\Services\System\AndroidReleaseService $releaseService) {
         return $releaseService->streamLatestApk($request);
     })->middleware(['signed', 'throttle:ota-download'])->name('admin.system.funkenwerk-apk.download');
+    Route::get('/admin/system/funkenwerk-windows/download', function (\Illuminate\Http\Request $request, \App\Services\System\WindowsReleaseService $releaseService) {
+        return $releaseService->streamLatestSuite($request);
+    })->middleware(['signed', 'throttle:ota-download'])->name('admin.system.funkenwerk-windows.download');
     Route::get('/admin/system/neural-analysis', \App\Livewire\Backend\System\SystemNeuralAnalysisIndex::class)->name('admin.system.neural-analysis');
 
     // -----------------------------------------------------------------------

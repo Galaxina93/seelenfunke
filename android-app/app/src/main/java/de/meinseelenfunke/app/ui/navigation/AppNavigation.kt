@@ -654,13 +654,15 @@ fun MainTabbedScreen(
     onLogout: () -> Unit
 ) {
     val userType by ServiceLocator.userTypeState.collectAsState(initial = ServiceLocator.getUserType())
+    val canTasks by ServiceLocator.employeeCanTasksState.collectAsState(initial = ServiceLocator.canEmployeeAccessTasks())
+    val canProduction by ServiceLocator.employeeCanProductionState.collectAsState(initial = ServiceLocator.canEmployeeAccessProduction())
     val isAdmin = userType == "admin"
-    val bottomNavItems = remember(isAdmin) {
-        de.meinseelenfunke.app.util.NavigationBridge.bottomNavScreensForRole(isAdmin)
+    val bottomNavItems = remember(userType, canTasks, canProduction) {
+        de.meinseelenfunke.app.util.NavigationBridge.bottomNavScreensForUserRole(userType, canTasks, canProduction)
     }
 
     val coroutineScope = rememberCoroutineScope()
-    val pagerState = androidx.compose.runtime.key(isAdmin) {
+    val pagerState = androidx.compose.runtime.key(userType, canTasks, canProduction) {
         rememberPagerState(
             initialPage = 0,
             pageCount = { bottomNavItems.size }
@@ -670,7 +672,7 @@ fun MainTabbedScreen(
     var organizerNavTrigger by remember { mutableIntStateOf(0) }
     var isFirstLoad by remember { mutableStateOf(true) }
 
-    LaunchedEffect(isAdmin) {
+    LaunchedEffect(userType, canTasks, canProduction) {
         if (ServiceLocator.authRepository.isLoggedIn()) {
             coroutineScope.launch {
                 ServiceLocator.authRepository.getCurrentUser()
@@ -678,10 +680,10 @@ fun MainTabbedScreen(
         }
         val targetImmediate = de.meinseelenfunke.app.util.NavigationBridge.consumePendingTarget()
         if (targetImmediate != null) {
-            val targetScreen = de.meinseelenfunke.app.util.NavigationBridge.resolveScreen(targetImmediate, isAdmin)
-            val resolvedIndex = de.meinseelenfunke.app.util.NavigationBridge.resolvePageIndex(targetImmediate, isAdmin)
+            val targetScreen = de.meinseelenfunke.app.util.NavigationBridge.resolveScreenForUserRole(targetImmediate, userType, canTasks, canProduction)
+            val resolvedIndex = de.meinseelenfunke.app.util.NavigationBridge.resolvePageIndexForUserRole(targetImmediate, userType, canTasks, canProduction)
             if (targetScreen == Screen.Organizer) {
-                organizerInitialTab = de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab
+                organizerInitialTab = if (isAdmin) de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab else 0
                 organizerNavTrigger++
             }
             coroutineScope.launch {
@@ -692,10 +694,10 @@ fun MainTabbedScreen(
         de.meinseelenfunke.app.util.NavigationBridge.navigationTrigger.collect {
             val target = de.meinseelenfunke.app.util.NavigationBridge.consumePendingTarget()
             if (target != null) {
-                val targetScreen = de.meinseelenfunke.app.util.NavigationBridge.resolveScreen(target, isAdmin)
-                val resolvedIndex = de.meinseelenfunke.app.util.NavigationBridge.resolvePageIndex(target, isAdmin)
+                val targetScreen = de.meinseelenfunke.app.util.NavigationBridge.resolveScreenForUserRole(target, userType, canTasks, canProduction)
+                val resolvedIndex = de.meinseelenfunke.app.util.NavigationBridge.resolvePageIndexForUserRole(target, userType, canTasks, canProduction)
                 if (targetScreen == Screen.Organizer) {
-                    organizerInitialTab = de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab
+                    organizerInitialTab = if (isAdmin) de.meinseelenfunke.app.util.NavigationBridge.organizerSubTab else 0
                     organizerNavTrigger++
                 }
                 coroutineScope.launch {

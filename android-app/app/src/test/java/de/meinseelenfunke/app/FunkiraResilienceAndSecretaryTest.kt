@@ -2,10 +2,18 @@ package de.meinseelenfunke.app
 
 import android.content.pm.ServiceInfo
 import android.media.AudioDeviceInfo
+import de.meinseelenfunke.app.data.api.CallDiscrepancyDto
+import de.meinseelenfunke.app.data.api.CallFactCheckDto
+import de.meinseelenfunke.app.data.api.CallVerificationReportDto
+import de.meinseelenfunke.app.data.api.PhoneSecretaryCallSummaryDto
+import de.meinseelenfunke.app.services.CallNoteVerificationEngine
+import de.meinseelenfunke.app.services.CallVerificationInput
 import de.meinseelenfunke.app.services.FunkiraPhoneConciergeService
 import de.meinseelenfunke.app.services.StandalonePhoneSecretaryEngine
 import de.meinseelenfunke.app.ui.screens.FunkiraLiveViewModel
+import de.meinseelenfunke.app.util.CallRoutingDecision
 import de.meinseelenfunke.app.util.ErrorSentinelReporter
+import de.meinseelenfunke.app.util.LocalNoteEdit
 import de.meinseelenfunke.app.util.PendingPhoneSecretaryNote
 import de.meinseelenfunke.app.util.PhoneConciergeManager
 import org.junit.Assert.assertEquals
@@ -557,5 +565,193 @@ class FunkiraResilienceAndSecretaryTest {
             AudioDeviceInfo.TYPE_UNKNOWN,
             FunkiraLiveViewModel.selectPreferredCommunicationDeviceType(emptyList())
         )
+    }
+
+    @Test
+    fun callRoutingDecision_preventsBlackHoleDropWithoutCarrierConfirmationAndRespectsExplicitModes() {
+        // AUTO without confirmed carrier forwarding -> answers safely on-device
+        assertEquals(
+            CallRoutingDecision.ON_DEVICE_SECRETARY,
+            PhoneConciergeManager.resolveCallRoutingDecision(
+                answerMode = PhoneConciergeManager.ANSWER_MODE_AUTO,
+                carrierForwardingConfirmed = false,
+                delaySeconds = 0,
+                hasAnswerPerms = true
+            )
+        )
+
+        // AUTO with confirmed carrier forwarding + Sofort -> instant silent carrier reject
+        assertEquals(
+            CallRoutingDecision.REJECT_TO_CARRIER,
+            PhoneConciergeManager.resolveCallRoutingDecision(
+                answerMode = PhoneConciergeManager.ANSWER_MODE_AUTO,
+                carrierForwardingConfirmed = true,
+                delaySeconds = 0,
+                hasAnswerPerms = true
+            )
+        )
+
+        // AUTO with confirmed carrier forwarding + 12s -> delayed carrier diversion
+        assertEquals(
+            CallRoutingDecision.DELAYED_CARRIER_DIVERT,
+            PhoneConciergeManager.resolveCallRoutingDecision(
+                answerMode = PhoneConciergeManager.ANSWER_MODE_AUTO,
+                carrierForwardingConfirmed = true,
+                delaySeconds = 12,
+                hasAnswerPerms = true
+            )
+        )
+
+        // Explicit ON_DEVICE -> always answers on smartphone when permissions granted
+        assertEquals(
+            CallRoutingDecision.ON_DEVICE_SECRETARY,
+            PhoneConciergeManager.resolveCallRoutingDecision(
+                answerMode = PhoneConciergeManager.ANSWER_MODE_ON_DEVICE,
+                carrierForwardingConfirmed = true,
+                delaySeconds = 0,
+                hasAnswerPerms = true
+            )
+        )
+
+        // Explicit CARRIER -> always uses carrier route
+        assertEquals(
+            CallRoutingDecision.REJECT_TO_CARRIER,
+            PhoneConciergeManager.resolveCallRoutingDecision(
+                answerMode = PhoneConciergeManager.ANSWER_MODE_CARRIER,
+                carrierForwardingConfirmed = false,
+                delaySeconds = 0,
+                hasAnswerPerms = true
+            )
+        )
+    }
+
+    @Test
+    fun callNoteVerificationEngine_detectsTimeAndCallbackDiscrepanciesAndParsesAiCorrections() {
+        val mismatchInput = CallVerificationInput(
+            callerName = "Philip Goik",
+            greetingName = "Philip",
+            transcriptLines = listOf(
+                "Funkira: Hallo Philip, hier ist Funkira. Worum geht es?",
+                "Anrufer: Sag Alina bitte, ich komme heute um 19 Uhr vorbei. Du brauchst nicht zurückrufen."
+            ),
+            understoodSummary = "Philip kommt heute um 17:00 Uhr vorbei.",
+            understoodRahmenbedingungen = listOf("Heute, 17:00 Uhr"),
+            understoodActionRequired = "Philip zurückrufen.",
+            understoodUrgency = "mittel",
+            understoodCallbackRequested = true
+        )
+
+        val (detDiffs, _) = CallNoteVerificationEngine.runDeterministicCrossCheck(mismatchInput)
+        assertTrue(detDiffs.any { it.category == "Uhrzeit" && it.severity == "critical" })
+        assertTrue(detDiffs.any { it.category == "Rückruf" && it.severity == "warning" })
+
+        val aiJson = """
+            ```json
+            {
+              "status": "corrected",
+              "confidence_score": 92,
+              "verification_summary": "Uhrzeit und Rückrufwunsch anhand des Gesprächs korrigiert.",
+              "verified_facts": [
+                {"fact": "Uhrzeit 19:00 Uhr", "evidence_quote": "ich komme heute um 19 Uhr vorbei", "matched": true}
+              ],
+              "discrepancies": [
+                {"category": "Uhrzeit", "understood": "17:00 Uhr", "spoken": "19 Uhr", "severity": "critical", "resolved_by_correction": true},
+                {"category": "Rückruf", "understood": "Rückruf erbeten", "spoken": "Du brauchst nicht zurückrufen", "severity": "warning", "resolved_by_correction": true}
+              ],
+              "corrected_summary": "Philip kommt heute um 19:00 Uhr vorbei.",
+              "corrected_rahmenbedingungen": ["Heute, 19:00 Uhr", "Kein Rückruf nötig"],
+              "corrected_action_required": "Zur Kenntnis nehmen.",
+              "corrected_urgency": "niedrig",
+              "corrected_callback_requested": false
+            }
+            ```
+        """.trimIndent()
+
+        val report = CallNoteVerificationEngine.parseVerificationJson(aiJson, mismatchInput, detDiffs, emptyList())
+        assertEquals(CallNoteVerificationEngine.STATUS_CORRECTED, report.status)
+        assertEquals(92, report.confidence_score)
+        assertEquals("Philip kommt heute um 19:00 Uhr vorbei.", report.corrected_summary)
+        assertEquals("Zur Kenntnis nehmen.", report.corrected_action_required)
+        assertEquals("niedrig", report.corrected_urgency)
+        assertFalse(report.corrected_callback_requested)
+        assertFalse(report.verification_summary.contains(" \u2013 "))
+    }
+
+    @Test
+    fun mergeAndServerSummaryHelpers_applyVerifiedCorrectionsAndPreserveLocalCalls() {
+        val localCall = PhoneSecretaryCallSummaryDto(
+            id = "local-call-1",
+            caller_name = "Papa (Jan Steinhauer)",
+            created_at_label = "Heute, 18:10",
+            duration_seconds = 38,
+            summary = "Vorläufig: Kommt um 15 Uhr",
+            rahmenbedingungen = listOf("15:00 Uhr"),
+            action_required = "Bestätigen",
+            handled_by = "android_secretary"
+        )
+        val remoteCall = PhoneSecretaryCallSummaryDto(
+            id = "remote-call-2",
+            caller_name = "Philip Goik",
+            created_at_label = "Heute, 17:00",
+            duration_seconds = 25,
+            summary = "Abendessen geplant",
+            rahmenbedingungen = listOf("Samstag, 19:00 Uhr"),
+            action_required = "Zusagen"
+        )
+        val verifications = mapOf(
+            "local-call-1" to CallVerificationReportDto(
+                status = CallNoteVerificationEngine.STATUS_CORRECTED,
+                confidence_score = 94,
+                corrected_summary = "Papa kommt morgen um 16:00 Uhr vorbei.",
+                corrected_rahmenbedingungen = listOf("Morgen, 16:00 Uhr"),
+                corrected_action_required = "Kaffee vorbereiten",
+                corrected_urgency = "mittel",
+                corrected_callback_requested = false,
+                verified_facts = listOf(CallFactCheckDto("16:00 Uhr", "morgen um 16 Uhr", true)),
+                discrepancies = listOf(CallDiscrepancyDto("Uhrzeit", "15:00", "16 Uhr", "critical", true))
+            )
+        )
+        val edits = mapOf(
+            "remote-call-2" to LocalNoteEdit(
+                summary = "Abendessen beim Italiener bestätigt.",
+                actionRequired = "Tisch für 19:00 Uhr merken",
+                rahmenbedingungen = listOf("Samstag, 19:00 Uhr", "Italiener")
+            )
+        )
+
+        val merged = PhoneConciergeManager.applyLocalEnhancementsToCalls(
+            remoteCalls = listOf(remoteCall),
+            localCalls = listOf(localCall),
+            verifications = verifications,
+            edits = edits
+        )
+
+        assertEquals(2, merged.size)
+        val mergedLocal = merged.first { it.id == "local-call-1" }
+        assertEquals("Papa kommt morgen um 16:00 Uhr vorbei.", mergedLocal.summary)
+        assertEquals("Kaffee vorbereiten", mergedLocal.action_required)
+        assertEquals(listOf("Morgen, 16:00 Uhr"), mergedLocal.rahmenbedingungen)
+
+        val mergedRemote = merged.first { it.id == "remote-call-2" }
+        assertEquals("Abendessen beim Italiener bestätigt.", mergedRemote.summary)
+        assertEquals("Tisch für 19:00 Uhr merken", mergedRemote.action_required)
+
+        val note = PendingPhoneSecretaryNote(
+            callId = "note-1",
+            contactId = null,
+            callerName = "Jan Steinhauer",
+            greetingName = "Papa",
+            callerPhone = "+4917657793016",
+            summary = "Papa kommt morgen vorbei",
+            urgency = "mittel",
+            callbackRequested = false,
+            rahmenbedingungen = listOf("Morgen, 16:00 Uhr"),
+            actionRequired = "Kaffee vorbereiten"
+        )
+        val serverSummary = PhoneConciergeManager.buildEnrichedServerSummary(note)
+        assertTrue(serverSummary.contains("Papa kommt morgen vorbei"))
+        assertTrue(serverSummary.contains("Morgen, 16:00 Uhr"))
+        assertTrue(serverSummary.contains("Kaffee vorbereiten"))
+        assertFalse(serverSummary.contains(" \u2013 "))
     }
 }

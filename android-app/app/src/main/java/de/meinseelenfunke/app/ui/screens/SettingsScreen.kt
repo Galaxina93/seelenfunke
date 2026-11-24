@@ -2,7 +2,10 @@ package de.meinseelenfunke.app.ui.screens
 
 import android.Manifest
 import android.app.role.RoleManager
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -101,6 +104,8 @@ fun SettingsScreen(
     onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val userType by ServiceLocator.userTypeState.collectAsState(initial = ServiceLocator.getUserType())
+    val isAdmin = userType == "admin"
     val apiKey by viewModel.apiKey.collectAsState()
     var inputKey by remember(apiKey) { mutableStateOf(apiKey) }
     var apiKeyVisible by remember { mutableStateOf(false) }
@@ -128,10 +133,14 @@ fun SettingsScreen(
 
     val phoneConciergeEnabled by viewModel.phoneConciergeEnabled.collectAsState()
     val phoneRingDelaySec by viewModel.phoneRingDelaySec.collectAsState()
+    val phoneAnswerMode by viewModel.phoneAnswerMode.collectAsState()
+    val carrierForwardingConfirmed by viewModel.carrierForwardingConfirmed.collectAsState()
+    val autoVerifyNotes by viewModel.autoVerifyNotes.collectAsState()
     val whitelistContacts by viewModel.whitelistContacts.collectAsState()
     var showPhoneInfoDialog by remember { mutableStateOf(false) }
     var showOtaInfoDialog by remember { mutableStateOf(false) }
     var permCheckTick by remember { mutableIntStateOf(0) }
+    var contactSearchQuery by remember { mutableStateOf("") }
 
     val updateState by AppUpdateManager.state.collectAsState()
     val (installedVerName, installedVerCode) = remember(permCheckTick) {
@@ -145,12 +154,14 @@ fun SettingsScreen(
         AppUpdateManager.checkForUpdate(context, silent = true)
     }
 
-    DisposableEffect(lifecycleOwner) {
+    DisposableEffect(lifecycleOwner, isAdmin) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 permCheckTick++
-                viewModel.refreshPhoneConcierge()
-                viewModel.refreshKdriveConfig()
+                if (isAdmin) {
+                    viewModel.refreshPhoneConcierge()
+                    viewModel.refreshKdriveConfig()
+                }
                 AppUpdateManager.resumePendingInstallIfPermitted(context)
             }
         }
@@ -162,9 +173,17 @@ fun SettingsScreen(
 
     val hasPhonePerms = remember(permCheckTick) { PhoneConciergeManager.hasRequiredPermissions(context) }
     val hasScreeningRole = remember(permCheckTick) { PhoneConciergeManager.hasCallScreeningRole(context) }
+    val hasMicPerm = remember(permCheckTick) { PhoneConciergeManager.hasMicrophonePermission(context) }
+    val batteryIgnored = remember(permCheckTick) { PhoneConciergeManager.isBatteryOptimizationIgnored(context) }
 
     val roleLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        permCheckTick++
+    }
+
+    val micPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
     ) {
         permCheckTick++
     }
@@ -189,6 +208,10 @@ fun SettingsScreen(
             if (rm != null && rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING)) {
                 roleLauncher.launch(rm.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING))
             }
+        } else if (!PhoneConciergeManager.hasMicrophonePermission(context) &&
+            phoneAnswerMode != PhoneConciergeManager.ANSWER_MODE_CARRIER
+        ) {
+            micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
 
@@ -209,12 +232,17 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Funkira übernimmt Anrufe deiner freigegebenen Kontakte sofort lautlos (oder nach deiner gewählten Klingelzeit) über deine persönliche Gifhorner Assistenz-Leitung, führt live ein echtes Gespräch wie deine persönliche Sekretärin, klärt aktiv alle Rahmenbedingungen und legt den Eintrag im Organizer unter dem Telefon-Tab sowie unter Aufgaben ab. Unbekannte Nummern klingeln normal durch.",
+                        text = "Funkira übernimmt Anrufe deiner freigegebenen Kontakte sofort oder nach deiner gewählten Klingelzeit, klärt aktiv alle Rahmenbedingungen und prüft jede Notiz per KI-Abgleich (Verstandenes gegen Gesagtes). Unbekannte Nummern klingeln normal durch.",
                         fontSize = 13.sp,
                         color = AppTheme.colors.textPrimary
                     )
                     Text(
-                        text = "Einmalige Einrichtung: Tippe auf 'Rufumleitung verbinden' und drücke im geöffneten Telefonfeld einmal den grünen Hörer.",
+                        text = "Annahme-Modi: 'Auto' nutzt das Mobilfunknetz (sobald Rufumleitung aktiv) und springt sonst direkt am Handy ein. 'Netz' nutzt ausschließlich die Gifhorn-Leitung (**004*). 'Handy' nimmt Anrufe direkt am Smartphone entgegen.",
+                        fontSize = 12.sp,
+                        color = AppTheme.colors.textSecondary
+                    )
+                    Text(
+                        text = "Einmalige Netz-Einrichtung: Tippe auf 'Rufumleitung verbinden' und drücke im geöffneten Telefonfeld einmal den grünen Hörer.",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = Gold
@@ -223,6 +251,7 @@ fun SettingsScreen(
                         onClick = {
                             showPhoneInfoDialog = false
                             PhoneConciergeManager.openCarrierForwardingDialer(context, activate = false)
+                            viewModel.refreshCarrierForwardingState()
                         }
                     ) {
                         Text(
@@ -234,12 +263,26 @@ fun SettingsScreen(
                     }
                     if (diagLines.isNotEmpty()) {
                         HorizontalDivider(color = AppTheme.colors.cardBorder)
-                        Text(
-                            text = "Letztes Anruf-Protokoll",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Gold
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Letztes Anruf-Protokoll",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Gold
+                            )
+                            TextButton(
+                                onClick = {
+                                    viewModel.clearPhoneDiagnosticTrace()
+                                    permCheckTick++
+                                }
+                            ) {
+                                Text("Leeren", fontSize = 11.sp, color = AppTheme.colors.textMuted)
+                            }
+                        }
                         Text(
                             text = diagLines.takeLast(6).joinToString("\n"),
                             fontSize = 11.sp,
@@ -737,6 +780,7 @@ fun SettingsScreen(
                 }
             }
 
+            if (isAdmin) {
             // kDrive Eingang-Trichter (WebDAV Direct Sort) Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1277,6 +1321,51 @@ fun SettingsScreen(
                         )
                     }
 
+                    // Answer Mode Chips
+                    Text(
+                        text = "Annahme-Modus",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppTheme.colors.textSecondary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val modeOptions = listOf(
+                            PhoneConciergeManager.ANSWER_MODE_AUTO to "Auto",
+                            PhoneConciergeManager.ANSWER_MODE_CARRIER to "Netz",
+                            PhoneConciergeManager.ANSWER_MODE_ON_DEVICE to "Handy"
+                        )
+                        modeOptions.forEach { (mode, label) ->
+                            val selected = phoneAnswerMode == mode
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (selected) Gold.copy(alpha = 0.18f) else AppTheme.colors.glassSurface)
+                                    .border(
+                                        1.dp,
+                                        if (selected) Gold else AppTheme.colors.cardBorder,
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable {
+                                        viewModel.setPhoneAnswerMode(mode)
+                                        if (phoneConciergeEnabled) ensurePhoneAssistantAccess()
+                                    }
+                                    .padding(vertical = 9.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selected) Gold else AppTheme.colors.textPrimary
+                                )
+                            }
+                        }
+                    }
+
                     // Ring Delay Chips
                     Text(
                         text = "Klingelzeit",
@@ -1318,17 +1407,72 @@ fun SettingsScreen(
                         }
                     }
 
-                    // Permission & Call Screening Role Setup
-                    if (!hasPhonePerms || !hasScreeningRole) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "KI-Notizen-Gegenprüfung",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = AppTheme.colors.textPrimary
+                        )
+                        Switch(
+                            checked = autoVerifyNotes,
+                            onCheckedChange = { viewModel.setAutoVerifyNotes(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Gold,
+                                checkedTrackColor = Gold.copy(alpha = 0.45f)
+                            )
+                        )
+                    }
+
+                    // Permission, Microphone, Call Screening Role & Battery Setup
+                    val needsMicForMode = phoneAnswerMode != PhoneConciergeManager.ANSWER_MODE_CARRIER && !hasMicPerm
+                    if (!hasPhonePerms || !hasScreeningRole || needsMicForMode) {
                         Button(
                             onClick = { ensurePhoneAssistantAccess() },
                             colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = SpaceBlack),
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp)
                         ) {
+                            val btnLabel = when {
+                                !hasPhonePerms -> "Telefon-Freigabe aktivieren"
+                                !hasScreeningRole -> "Als Anruffilter bestätigen"
+                                else -> "Mikrofon-Freigabe aktivieren"
+                            }
+                            Text(text = btnLabel, fontWeight = FontWeight.Bold)
+                        }
+                    } else if (!batteryIgnored) {
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                } catch (_: Exception) {
+                                    try {
+                                        context.startActivity(
+                                            Intent(
+                                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                                Uri.fromParts("package", context.packageName, null)
+                                            ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                                        )
+                                    } catch (_: Exception) { }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f))
+                        ) {
                             Text(
-                                text = if (!hasPhonePerms) "Telefon-Freigabe aktivieren" else "Als Anruffilter bestätigen",
-                                fontWeight = FontWeight.Bold
+                                text = "Akku-Schutz für Anrufe freigeben",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                color = Gold
                             )
                         }
                     } else {
@@ -1343,7 +1487,7 @@ fun SettingsScreen(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "Telefon-Freigabe aktiv",
+                                text = "Telefon-Assistent einsatzbereit",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Emerald500
@@ -1352,36 +1496,61 @@ fun SettingsScreen(
                     }
 
                     OutlinedButton(
-                        onClick = { PhoneConciergeManager.openCarrierForwardingDialer(context, activate = true) },
+                        onClick = {
+                            PhoneConciergeManager.openCarrierForwardingDialer(context, activate = true)
+                            viewModel.refreshCarrierForwardingState()
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f))
+                        border = BorderStroke(1.dp, (if (carrierForwardingConfirmed) Emerald500 else Gold).copy(alpha = 0.6f))
                     ) {
                         Icon(
-                            imageVector = Icons.Default.PhoneForwarded,
+                            imageVector = if (carrierForwardingConfirmed) Icons.Default.Check else Icons.Default.PhoneForwarded,
                             contentDescription = null,
-                            tint = Gold,
+                            tint = if (carrierForwardingConfirmed) Emerald500 else Gold,
                             modifier = Modifier.size(17.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Rufumleitung verbinden",
+                            text = if (carrierForwardingConfirmed) "Rufumleitung verbunden" else "Rufumleitung verbinden",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp,
-                            color = Gold
+                            color = if (carrierForwardingConfirmed) Emerald500 else Gold
                         )
                     }
 
                     if (whitelistContacts.isNotEmpty()) {
                         HorizontalDivider(color = AppTheme.colors.cardBorder)
+                        val activeCount = whitelistContacts.count { it.whitelisted }
                         Text(
-                            text = "Freigegebene Kontakte",
+                            text = "Freigegebene Kontakte ($activeCount)",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = AppTheme.colors.textSecondary
                         )
+                        if (whitelistContacts.size > 6) {
+                            OutlinedTextField(
+                                value = contactSearchQuery,
+                                onValueChange = { contactSearchQuery = it },
+                                placeholder = { Text("Kontakt suchen...", fontSize = 12.sp) },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Gold,
+                                    unfocusedBorderColor = AppTheme.colors.cardBorder,
+                                    focusedTextColor = AppTheme.colors.textPrimary,
+                                    unfocusedTextColor = AppTheme.colors.textPrimary
+                                )
+                            )
+                        }
+                        val shownContacts = remember(whitelistContacts, contactSearchQuery) {
+                            val q = contactSearchQuery.trim()
+                            if (q.isEmpty()) whitelistContacts else whitelistContacts.filter {
+                                it.fullName.contains(q, ignoreCase = true) || it.nickname.contains(q, ignoreCase = true)
+                            }
+                        }
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            whitelistContacts.forEach { contact ->
+                            shownContacts.forEach { contact ->
                                 val title = if (contact.nickname.isNotBlank()) {
                                     "${contact.nickname} · ${contact.fullName}"
                                 } else {
@@ -1416,6 +1585,7 @@ fun SettingsScreen(
                     }
                 }
             }
+            } // end if (isAdmin)
 
             // Clean Session Logout Card
             OutlinedButton(

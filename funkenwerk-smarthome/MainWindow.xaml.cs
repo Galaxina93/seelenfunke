@@ -2110,6 +2110,8 @@ namespace FunkenwerkSmartHome
                 Path.Combine(baseDir, "ffmpeg.exe"),
                 Path.Combine(baseDir, "tools", "ffmpeg.exe"),
                 Path.GetFullPath(Path.Combine(baseDir, "..", "..", "Funkenwerk", "ffmpeg.exe")),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Funkenwerk Collection", "Funkenwerk", "ffmpeg.exe"),
+                @"C:\Users\konta\AppData\Local\Programs\Funkenwerk Collection\Funkenwerk\ffmpeg.exe",
                 @"C:\Users\konta\Desktop\Funkenwerk Collection\Funkenwerk\ffmpeg.exe"
             };
             foreach (var c in candidates)

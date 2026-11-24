@@ -158,6 +158,69 @@ class XtoolLaserCockpitService
     }
 
     /**
+     * Ermittelt den optimalen Standard-Beleuchtungsmodus für einen Rohling, sofern noch keine manuelle
+     * Auswahl in $configuration['laser_camera_light_mode'] gespeichert wurde:
+     * Spiegelnde/glänzende Metall-, Eloxal-, Glas-, Kristall- und Schiefer-Rohlinge starten automatisch
+     * im Modus 'anti_glare' (Blendfrei / LED aus), damit keine LED-Balken die Gravurkanten überstrahlen.
+     */
+    public static function resolveDefaultCameraLightMode(?Product $product = null, array $configuration = [], string $side = 'front'): string
+    {
+        if (isset($configuration['laser_camera_light_mode']) && is_string($configuration['laser_camera_light_mode']) && trim($configuration['laser_camera_light_mode']) !== '') {
+            return self::normalizeCameraLightMode($configuration['laser_camera_light_mode'], $configuration);
+        }
+
+        $haystackParts = [];
+        if ($product !== null) {
+            $haystackParts[] = (string) ($product->name ?? '');
+            $haystackParts[] = (string) ($product->slug ?? '');
+            $haystackParts[] = (string) ($product->material ?? '');
+            $cfg = is_string($product->configurator_settings)
+                ? (json_decode($product->configurator_settings, true) ?: [])
+                : (is_array($product->configurator_settings) ? $product->configurator_settings : []);
+            $haystackParts[] = (string) ($cfg['laser_material'] ?? '');
+            $haystackParts[] = (string) ($cfg['material'] ?? '');
+            $haystackParts[] = (string) ($cfg['surface_color'] ?? '');
+            if (method_exists($product, 'getLaserProfiles')) {
+                foreach ($product->getLaserProfiles() as $prof) {
+                    if (is_array($prof)) {
+                        $haystackParts[] = (string) ($prof['material'] ?? '');
+                        $haystackParts[] = (string) ($prof['name'] ?? '');
+                    }
+                }
+            }
+        }
+
+        $sideOverrides = is_array($configuration['laser_parameter_overrides'][$side] ?? null)
+            ? $configuration['laser_parameter_overrides'][$side]
+            : [];
+        $haystackParts[] = (string) ($sideOverrides['material'] ?? '');
+        $haystackParts[] = (string) ($configuration['material'] ?? '');
+
+        $haystack = mb_strtolower(implode(' ', $haystackParts));
+        if ($haystack !== '') {
+            foreach ([
+                'holz', 'wood', 'bambus', 'kork', 'sperrholz', 'papier', 'karton', 'filz', 'leder', 'kunstleder',
+            ] as $matteToken) {
+                if (str_contains($haystack, $matteToken)) {
+                    return 'normal';
+                }
+            }
+
+            foreach ([
+                'aluminium', 'edelstahl', 'metall', 'messing', 'silber', 'gold', 'titan', 'kupfer',
+                'elox', 'pvd', 'kristall', 'glas', 'spiegel', 'acryl', 'schiefer',
+                'anhänger', 'anhaenger', 'talisman', 'marke', 'armband', 'kette', 'schere',
+            ] as $glossyToken) {
+                if (str_contains($haystack, $glossyToken)) {
+                    return 'anti_glare';
+                }
+            }
+        }
+
+        return 'normal';
+    }
+
+    /**
      * Ziel-PWM-Werte (0..255) für fill_light während der 1,5 s Kameraaufnahme bzw. null bei 'normal'.
      *
      * @return array{front: int, back: int}|null
@@ -700,7 +763,7 @@ class XtoolLaserCockpitService
             }
 
             // 7. Mit 21x21 Werkskalibrierung (global_calib.json) in das 2000x2000 px Arbeitsflächenbild (10 px = 1 mm) entzerren
-            $warpedOk = $this->warpRawCameraImageWithCalib($rawJpegBytes, $targetBackgroundPath, $calibPath);
+            $warpedOk = $this->warpRawCameraImageWithCalib($rawJpegBytes, $targetBackgroundPath, $calibPath, $resolvedLightMode);
             if ($warpedOk && @is_file($targetBackgroundPath)) {
                 $warpedBytes = @file_get_contents($targetBackgroundPath);
                 if (is_string($warpedBytes) && $warpedBytes !== '') {
@@ -802,8 +865,13 @@ class XtoolLaserCockpitService
      * Entzerrt das rohe 4000x3000 px Kamerabild des xTool F2 Ultra UV anhand des 21x21 Stützpunktrasters (data0)
      * aus global_calib.json auf das exakt maßstabsgetreue 2000x2000 px (200x200 mm, 10 px = 1 mm) Arbeitsflächenbild.
      */
-    public function warpRawCameraImageWithCalib(string $rawJpegBytes, string $targetBackgroundPath, ?string $calibJsonPath = null): bool
-    {
+    public function warpRawCameraImageWithCalib(
+        string $rawJpegBytes,
+        string $targetBackgroundPath,
+        ?string $calibJsonPath = null,
+        string $lightMode = 'normal'
+    ): bool {
+        LaserPhotoPreprocessor::ensureMemoryHeadroom(512);
         $src = @imagecreatefromstring($rawJpegBytes);
         if (!$src) {
             return false;

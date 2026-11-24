@@ -87,7 +87,10 @@ namespace Funkenwerk
                 LauncherClearSearchBtn.Visibility = string.IsNullOrEmpty(_launcherSearchQuery) ? Visibility.Collapsed : Visibility.Visible;
             }
 
-            var ranked = CollectionModuleRegistry.FilterAndRankModules(_launcherSearchQuery);
+            var currentSession = FunkenwerkSharedSession.Load();
+            var ranked = CollectionModuleRegistry.FilterAndRankModules(_launcherSearchQuery)
+                .Where(m => FunkenwerkSharedSession.IsModuleAllowed(m.Key, currentSession))
+                .ToList();
             if (LauncherEmptyHintTxt != null)
             {
                 LauncherEmptyHintTxt.Visibility = ranked.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -264,7 +267,10 @@ namespace Funkenwerk
             else if (e.Key == Key.Enter)
             {
                 e.Handled = true;
-                var ranked = CollectionModuleRegistry.FilterAndRankModules(_launcherSearchQuery);
+                var currentSession = FunkenwerkSharedSession.Load();
+                var ranked = CollectionModuleRegistry.FilterAndRankModules(_launcherSearchQuery)
+                    .Where(m => FunkenwerkSharedSession.IsModuleAllowed(m.Key, currentSession))
+                    .ToList();
                 if (ranked.Count > 0)
                 {
                     PlaySoundActionPop();
@@ -279,9 +285,7 @@ namespace Funkenwerk
         {
             try
             {
-                string email = !string.IsNullOrWhiteSpace(_layoutSettings.SavedAuthEmail)
-                    ? _layoutSettings.SavedAuthEmail.Trim()
-                    : "kontakt@mein-seelenfunke.de";
+                string email = (_layoutSettings.SavedAuthEmail ?? "").Trim();
 
                 if (!string.IsNullOrEmpty(verifiedPassword))
                 {
@@ -304,7 +308,10 @@ namespace Funkenwerk
                     {
                         s.BearerToken = "";
                     }
-                    s.UserEmail = email;
+                    if (!string.IsNullOrWhiteSpace(email))
+                    {
+                        s.UserEmail = email;
+                    }
                     s.IsDarkMode = _isDarkMode;
                     s.IsSessionLocked = _layoutSettings.IsSessionLocked;
                     FunkenwerkSharedSession.Save(s);

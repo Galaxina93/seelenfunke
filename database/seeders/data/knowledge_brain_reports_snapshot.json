@@ -1,6 +1,6 @@
 {
-    "generated_at": "2026-11-24T15:04:43+01:00",
-    "count": 178,
+    "generated_at": "2026-11-24T23:44:48+01:00",
+    "count": 182,
     "entries": [
         {
             "source_path": "Abschlussberichte\/Buchhaltung\/Buchhaltung_Steuer_Dokumentation.md",
@@ -3550,6 +3550,73 @@
             ],
             "content": "# Gründungsdaten, Gewerbeanmeldung & Steuerstatus (Mein-Seelenfunke)\n\n**Unternehmen:** Mein-Seelenfunke (Einzelunternehmen im Haupterwerb, Neugründung, Hauptniederlassung)\n**Inhaberin:** Alina Steinhauer | **Betriebsstätte:** Carl-Goerdeler-Ring 26, 38518 Gifhorn | **Bank:** FYRST (`DE76 2507 0370 0079 8629 00`, BIC `DEUTDE2HP24`)\n\n## 1. Erfolgte Gewerbeanmeldung zum 01.11.2026 (GewA 1)\n- **Status:** Amtlich angemeldet und bescheinigt (`§ 14 \/ § 55c GewO`) bei der **Stadt Gifhorn** (Gemeindekennzahl `03151009`).\n- **Datum des Beginns der angemeldeten Tätigkeit (Feld 20):** **`01.11.2026`**.\n- **Bescheinigt am:** `28.10.2026` (i.A. Ceylan, Dienstsiegel 68) | **Aktenzeichen:** `gew \/ 28-10-2026 \/ Ce \/ 402` | **Vorgangsnummer:** `gew \/ 28-10-2026 \/ Ce \/ 893`.\n- **Tätigkeitsschwerpunkt:** Online-Einzelhandel mit physischen und digitalen Produkten (personalisierte Geschenkartikel, Deko- und Wohnaccessoires), Veredelung\/Personalisierung (Lasergravur und UV-Druck), Grafik-\/Mediengestaltung sowie Laser-Lohnarbeiten.\n- **Original-Belege (`AccountingSeeder.php`):** `storage\/app\/buchhaltung\/receipts\/2026\/10\/2026-10-28_Stadt-Gifhorn_Gewerbeanmeldung-GewA1-Bescheinigung.pdf` (inkl. Vorgangsabschluss `A0007510` und Zahlungsbeleg `32,50 €`).\n\n## 2. Steuerliche Erfassung (ELSTER) & Status der Steuernummern (Finanzamt Gifhorn 2319)\n- **ELSTER-Fragebogen zur steuerlichen Erfassung:** Übermittelt am **`06.11.2026` um `15:35:38 Uhr`** an das **Finanzamt Gifhorn** (`2319`, `poststelle@fa-gf.niedersachsen.de`) unter Ordnungskriterium **`Ohne Steuernummer (Finanzamt Gifhorn)`**.\n- **ELSTER-Transferticket:** `ep3104hvg8fm3b1m4zrwrd3djc6ieugc` | **ELSTER-Referenz:** `2169193168 -B41`.\n- **Beantragte Besteuerung:** **Regelbesteuerung** (Verzicht auf Kleinunternehmerregelung nach § 19 Abs. 3 UStG mit Vorsteuerabzug, 19 % \/ 7 % USt) + **Istversteuerung** (§ 20 UStG) + **neue betriebliche Steuernummer** + **Umsatzsteuer-Identifikationsnummer (USt-IdNr.)** beim BZSt.\n- **Sachstandsanfrage:** Am **`17.11.2026`** per E-Mail an `poststelle@fa-gf.niedersachsen.de` versendet (Ticket `SF-0090`, automatische Eingangsbestätigung liegt vor).\n- **ELSTER-Nachweis:** `storage\/app\/buchhaltung\/receipts\/2026\/11\/2026-11-06_Finanzamt-Gifhorn_ELSTER-Steuerliche-Erfassung-Versandbestaetigung.pdf`.\n\n## 3. Dynamischer Status im System (`shop_settings` & Tool `finance_get_tax_and_founding_status`)\n- **Neue betriebliche Steuernummer (`owner_tax_id`, `tax_number_status`):** Solange noch kein neuer Bescheid vom Finanzamt Gifhorn vorliegt (`tax_number_status = pending`), steht im System noch der Alt-\/Defaultwert `19\/143\/11624`. Für neue Geschäftsprozesse (LUCID, Stripe Live, Steuerberater-Eröffnungsabstimmung) gilt die neue Betriebs-Steuernummer bis zur Zuteilung als **noch ausstehend**.\n- **USt-IdNr. (`owner_ust_id`, `ust_id_status`):** Solange noch keine `DE...`-Nummer vom BZSt zugeteilt wurde, bleibt der Shop-Platzhalter `'XXX'` aktiv (`SF-0048`), damit Impressum und XRechnung-Validierung sauber bleiben.\n- **Bereits vorliegende IDs:** Persönliche Steuer-ID `66324780911` (`owner_tax_ident_nr`), Wirtschafts-Identifikationsnummer `DE410594485` (`owner_economic_ident_nr`, nicht mit USt-IdNr. verwechseln!).\n- **Dynamische KI-Abfrage:** Das System prüft den Status in Echtzeit über `CentralBrainService::resolveCompanyFoundingAndTaxContext()` bzw. Tool `finance_get_tax_and_founding_status`. Sobald Alina eine neue Steuernummer oder `DE...`-USt-IdNr. in `\/admin\/settings` einträgt, aktualisiert sich die KI-Kontextualisierung automatisch.",
             "date": "2026-11-24T13:53:03+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/Buchhaltung\/Abschlussbericht_fyrst_bank_csv_import_auto_kontoanlage_18_spalten_sollhaben_parser_clean_design.md",
+            "rel_path": "Buchhaltung\/Abschlussbericht_fyrst_bank_csv_import_auto_kontoanlage_18_spalten_sollhaben_parser_clean_design.md",
+            "category": "Buchhaltung",
+            "title": "FYRST Bank-CSV Import: Auto-Kontoanlage, 18-Spalten Soll\/Haben-Parser & Clean-Design",
+            "tags": [
+                "abschlussbericht",
+                "buchhaltung",
+                "fyrst",
+                "csv-import",
+                "bank",
+                "clean-design"
+            ],
+            "content": "## Zusammenfassung\n- **Auto-Kontoanlage beim CSV-Import (`AccountingBank::importCsvTransactions`):** Wenn noch kein `AccountingBankAccount` existiert (oder `+ Neues Konto automatisch aus CSV erkennen` gewählt wird), liest der Parser automatisch Kontobezeichnung (`FYRST BASE`), IBAN, Währung und Endsaldo (`Kontostand`) aus dem CSV-Kopf\/Fuß aus und legt das gewerbliche FYRST-Konto in einem Klick an.\n- **18-Spalten FYRST \/ Deutsche Bank Format:** Unterstützung für getrennte `Soll`- und `Haben`-Spalten, deutsche Tausenderpunkte ohne Nachkommastellen (`-1.500` = `-1500,00 €`), Umlaut-Spalten (`Begünstigter \/ Auftraggeber`, `IBAN \/ Kontonummer`, `Währung`), Valuta (`Wert`) und Überspringen der `Kontostand`-Summenzeile am Dateiende bei gleichzeitiger Aktualisierung von `AccountingBankAccount::balance`.\n- **Modell-Kompatibilität & Clean-Design:** Alias `AccountingBankTransaction::financeCategory()` für `FinancialService` & `TaxAdvisorDashboard` ergänzt; `Bank via finAPI`-Button und Subtexte\/Info-Banner aus `accounting-bank.blade.php` entfernt.",
+            "date": "2026-11-24T21:13:56+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/System\/Abschlussbericht_multi_tab_musik_sperre_kanonische_aufgaben_zahler_hartung_dashboard_vs_tasks.md",
+            "rel_path": "System\/Abschlussbericht_multi_tab_musik_sperre_kanonische_aufgaben_zahler_hartung_dashboard_vs_tasks.md",
+            "category": "System",
+            "title": "Multi-Tab Musik-Sperre & Kanonische Aufgaben-Zähler-Härtung (Dashboard vs. Tasks)",
+            "tags": [
+                "abschlussbericht",
+                "system",
+                "musikplayer",
+                "multi-tab",
+                "aufgaben",
+                "dashboard",
+                "integritaet"
+            ],
+            "content": "## Zusammenfassung\n- **Cross-Tab Single-Audio-Owner (`global-music-player.blade.php`):** Eindeutige `TAB_ID` + `BroadcastChannel('fw_music_cross_tab_v1')` + `localStorage` Owner-Lock (`fw_music_active_owner_v1`) verhindern doppeltes Abspielen beim Öffnen neuer Browser-Tabs (geklontes `sessionStorage`), während `wire:navigate` und `F5`-Reloads im selben Tab nahtlos weiterlaufen. Startet man aktiv in Tab 2 die Wiedergabe, pausiert Tab 1 sofort.\n- **Kanonische `ManagementTask`-Zähler & Selbstheilung (`ManagementTask.php`, `AnalyticsService.php`, `ManagementTaskTicketService.php`):** Neue zentrale Scopes `rootTickets()` und `openRootTickets()` schließen Checklisten-Teilschritte (`parent_id IS NOT NULL`), archivierte Aufgaben und archivierte Listen fehlerresistent aus (`countOpenRootTickets()`). `healDataIntegrity()` bereinigt `status`\/`is_completed`-Divergenzen sowie verwaiste Teilschritte automatisch; `deleting`-Hook löscht Teilschritte kaskadierend.",
+            "date": "2026-11-24T21:29:39+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/System\/2026-11-24_Globale_Projekt_Und_Konfigurations_Suche.md",
+            "rel_path": "System\/2026-11-24_Globale_Projekt_Und_Konfigurations_Suche.md",
+            "category": "System",
+            "title": "Globale Projekt-Suche & Dynamische Shop-Konfigurations-Suche",
+            "tags": [
+                "abschlussbericht",
+                "system",
+                "Suche",
+                "Shop-Konfiguration",
+                "Dashboard",
+                "UX",
+                "Magie-Animation"
+            ],
+            "content": "# Globale Projekt-Suche & Dynamische Shop-Konfigurations-Suche\n\n**Stand:** 24.11.2026\n**Abteilung:** System & Leitung (`GlobalProjectSearchService`, `SystemShopConfig`, `MasterAnalytics`)\n\n## 1. Dynamische 0-ms Einstellungs-Suche in `Shop-Konfiguration` (`\/admin\/configuration`)\n- Oberhalb der 8 Konfigurations-Tabs (`Allgemein & Steuern`, `Produkt & Marketing`, `Versand & Lieferzeit`, `Stammdaten`, `Jahreszeiten`, `System`, `Cronjobs`, `Notfallplan`) filtert `sfShopConfigShell()` alle Karten und Eingabefelder in Echtzeit (`0 ms` Client-Index ueber sichtbare Labels, `$infoTexts` und Synonyme).\n- Waehrend einer aktiven Suche werden passende Bereiche tab-uebergreifend zusammengefasst und direkt inline bearbeitbar\/speicherbar angezeigt (`sf-cfg-hidden-by-search` schuetzt Alpine-Modals).\n- Schnelltreffer-Chips springen mit goldenem Spotlight-Puls (`sf-config-spotlight-active`) und Magie-Klang exakt zum gewünschten Eingabefeld (`\/admin\/configuration?tab=<tab>&focus=<key>`).\n\n## 2. Systemweite Projekt-Suche (`Globale Projekt-Suche`)\n- **Kommandozentrale (`\/admin\/dashboard`):** Direkt unterhalb von `Datenanalysezentrum` (sowie als kompakte Magie-Suchleiste im `Fokus-Modus` neben `Alle Kacheln`).\n- **Alle Admin-Seiten:** Erreichbar ueber das goldene `SUCHE`-Dock-Icon oben rechts im Admin-Header (`auth-profile-dropdown.blade.php`).\n- **Bewusster Verzicht auf `Strg + K`:** `Strg + K` (`Ctrl + K` \/ `Cmd + K`) wird im Browser niemals abgefangen, damit die native Google-Adressleisten-Suche in Chrome jederzeit unberuehrt funktioniert.\n- **7 Live-Suchbereiche (`GET \/admin\/global-search`, strikt `auth:admin` + `session_write_close()`):**\n  1. `Shop-Konfiguration` (inkl. Tippfehler-Toleranz via Levenshtein & 360-Grad-Feature-Gate `shop_settings`)\n  2. `Seiten & Module`\n  3. `Bestellungen` (Deep-Link `\/admin\/orders?openOrder=<uuid>`)\n  4. `Produkte & Lieferanten` (Deep-Link `\/admin\/products?editProduct=<uuid>`)\n  5. `Aufgaben` (`ManagementTask::rootTickets()` mit Deep-Link `\/admin\/tasks?task=<uuid>`)\n  6. `Buchhaltung & Kontakte` (`AccountingInvoice`, `AccountingSpecialIssue`, `AccountingCostItem`, `AccountingBankTransaction`, `ManagementContact`)\n  7. `Konzepte & Wissensgehirn` (`ConceptLifecycleService`, `AiKnowledgeBase`)\n- **Seelenfunke Magie-Animation & Musik-Persistenz:** Rotierender `1.5px` Gold-Conic-Ring (`.sf-magic-search-ring`), pulsierender `✦` Funkenstern, `✦ Magie wird aktiviert...` Shimmer-Sweep und Portal-Transition via `window.sfRunPortalThen` + `window.Livewire.navigate`, sodass der Hintergrund-Musikplayer (`\/admin\/music`) unterbrechungsfrei weiterlaeuft.",
+            "date": "2026-11-24T22:30:59+01:00"
+        },
+        {
+            "source_path": "Abschlussberichte\/System\/Abschlussbericht_zentrales_windows_ota_kontrollzentrum_11_mitarbeiter_rechteparitat_web_windows_android.md",
+            "rel_path": "System\/Abschlussbericht_zentrales_windows_ota_kontrollzentrum_11_mitarbeiter_rechteparitat_web_windows_android.md",
+            "category": "System",
+            "title": "Zentrales Windows-OTA-Kontrollzentrum & 1:1 Mitarbeiter-RechteparitÃ¤t (Web, Windows & Android)",
+            "tags": [
+                "abschlussbericht",
+                "system",
+                "windows-ota",
+                "auto-updater",
+                "employee-parity",
+                "funkenwerk",
+                "android-app"
+            ],
+            "content": "# Zentrales Windows-OTA-Kontrollzentrum & 1:1 Mitarbeiter-RechteparitÃ¤t (Web, Windows & Android)\n\n## Umgesetzte Architektur-Bausteine\n1. **Zentraler Windows-Suite OTA-Tresor im Webportal (`\/admin\/settings` -> Tab `SYSTEM`):**\n   - Neuer `WindowsReleaseService` (`storage\/app\/private\/releases\/windows\/`) mit SHA-256-PrÃ¼fung, Zip-Slip-Abwehr, BinÃ¤r-Validierung (`Funkenwerk*.exe`\/`.dll`) und Rollback-Schutz.\n   - Eigene Release-Karte `Funkenwerk Windows Suite` direkt unter `Funkenwerk Android App` (`Version`, `Build`, `GrÃ¶ÃŸe`, `Stand`, `SHA-256`, `SUITE HERUNTERLADEN`, `ZIP-Paket wÃ¤hlen` + `BEREITSTELLEN`).\n   - GeschÃ¼tzte OTA-Endpunkte `\/api\/funki\/system\/windows-update\/check`, `\/download` und `\/publish` (Bereitstellung strikt Admin-only).\n2. **Integrierter Auto-Updater in Funkenwerk Windows (`v2.7.0 Â· Build #53`):**\n   - `FunkenwerkAutoUpdater.cs` prÃ¼ft beim Start sowie zyklisch gegen das Webportal, blendet bei neuem Build den goldenen Header-Button `Update vX.Y.Z` ein, verifiziert die `SHA-256`-Signatur und tauscht die Dateien per Out-of-Process-Skript sauber unter `%LocalAppData%\\Programs\\Funkenwerk Collection` mit anschlieÃŸendem Neustart aus.\n3. **1:1 Mitarbeiter-Login & Web-Dashboard-ZugriffsparitÃ¤t (API, Windows & Android):**\n   - `Employee::buildFunkenwerkPermissionsPayload()` und `canAccessFunkenwerkDomain()` bilden die Vertragsrechte (`EmployeeContract`: `can_access_tasks`, `can_access_production`) exakt auf `\/api\/login`, `\/api\/user`, Funkenwerk Windows (`FunkenwerkSharedSession.cs`, `MainWindow.xaml.cs`, `LauncherDeckController.cs`) und Funkenwerk Android (`NavigationBridge.kt`, `AppNavigation.kt`, `ZentrumScreen.kt`, `OrganizerScreen.kt`) ab.\n   - Mitarbeiter sehen in `\/api\/funki\/tasks` ausschlieÃŸlich Team-Listen und eigene zugewiesene\/erstellte Aufgaben (niemals private Chef-Aufgaben, Finanzen, Mails, Tresor, SSH\/FTP\/Remote oder Chef-KI); externe Rollen (`influencer`, `tax_advisor`) werden am internen API-Login strikt mit `403` abgewiesen.",
+            "date": "2026-11-24T23:44:48+01:00"
         }
     ]
 }

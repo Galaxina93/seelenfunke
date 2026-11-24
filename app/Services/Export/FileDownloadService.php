@@ -27,7 +27,7 @@ class FileDownloadService
         ])->setOption('isRemoteEnabled', false);
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
-        }, 'Behandlungsplan_' . (Str::slug($plan->title) ?: 'Plan') . '.pdf');
+        }, 'Behandlungsplan_' . (Str::slug((string) ($plan->title ?? '')) ?: 'Plan') . '.pdf');
     }
 
     public function downloadProductAnalyticsFullReportPdf()
@@ -71,7 +71,7 @@ class FileDownloadService
 
         $pdf->setPaper('a4', 'portrait')->setOption('isRemoteEnabled', false);
 
-        $finalFilename = now()->format('Y-m-d_H-i') . '_LUCID_Jahresbericht_' . $lucidData['year'] . '.pdf';
+        $finalFilename = now()->format('Y-m-d_H-i') . '_LUCID_Jahresbericht_' . ($lucidData['year'] ?? now()->year) . '.pdf';
         
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
@@ -92,18 +92,26 @@ class FileDownloadService
 
         if ($runId) {
             $run = \App\Models\Product\ProductNicheCrawlerRun::findOrFail($runId);
-            $allData = is_array($run->products_data) ? collect($run->products_data) : collect(json_decode($run->products_data, true));
+            $decodedProducts = is_array($run->products_data)
+                ? $run->products_data
+                : json_decode((string) ($run->products_data ?? '[]'), true);
+            $allData = collect(is_array($decodedProducts) ? $decodedProducts : []);
             $top40 = $allData->sortByDesc('niche_score')->take(40)->values();
-            $top40 = $top40->map(function($item) { return (object)$item; });
+            $top40 = $top40->map(function ($item) {
+                return (object) $item;
+            });
             $aiRecommendation = $run->ai_recommendation;
 
             if ($run->ai_agent_id) {
                 $agent = \App\Models\Ai\AiAgent::find($run->ai_agent_id);
-                if ($agent) $aiAgentName = $agent->name;
+                if ($agent) {
+                    $aiAgentName = $agent->name;
+                }
             }
 
-            $docTitle = 'Crawler Anfrage: ' . $run->name;
-            $filenamePrefix = Str::slug($run->name) . '_Crawler_Ergebnis';
+            $runName = trim((string) ($run->name ?? ''));
+            $docTitle = 'Crawler Anfrage: ' . ($runName !== '' ? $runName : 'Analyse');
+            $filenamePrefix = (Str::slug($runName) ?: 'Crawler') . '_Crawler_Ergebnis';
         } else {
             $top40 = \App\Models\Product\ProductNicheItem::orderBy('niche_score', 'desc')->take(40)->get();
         }
@@ -2367,13 +2375,59 @@ class FileDownloadService
         bool $isDarkSurface = false,
         ?array $photoProfile = null
     ): array {
+        \App\Services\Laser\LaserPhotoPreprocessor::ensureMemoryHeadroom(512);
+
+        $widthMm = (is_finite($widthMm) && $widthMm > 0.0) ? $widthMm : 1.0;
+        $heightMm = (is_finite($heightMm) && $heightMm > 0.0) ? $heightMm : 1.0;
         $minDimMm = max(1.0, min($widthMm, $heightMm));
         $maxDimMm = max(1.0, max($widthMm, $heightMm));
-        $pxPerMm = min(32.0, max(12.5, max(1680.0 / $maxDimMm, 140.0 / $minDimMm)));
+        $pxPerMm = min(32.0, max(2.0, max(1680.0 / $maxDimMm, 140.0 / $minDimMm)));
         $stageW = max(32, (int) round($widthMm * $pxPerMm));
         $stageH = max(32, (int) round($heightMm * $pxPerMm));
 
+        // Pixel-Budget-Bremse: verhindert >256 MB GD-OOM bei grossen Rohlingen (z. B. 200x200 mm)
+        $maxStagePixels = 2_822_400; // 1680 x 1680
+        if (($stageW * $stageH) > $maxStagePixels || max($stageW, $stageH) > 3200) {
+            $budgetScale = min(
+                sqrt($maxStagePixels / max(1, $stageW * $stageH)),
+                3200.0 / max(1, max($stageW, $stageH))
+            );
+            $stageW = max(32, (int) floor($stageW * $budgetScale));
+            $stageH = max(32, (int) floor($stageH * $budgetScale));
+            $pxPerMm = min($stageW / $widthMm, $stageH / $heightMm);
+        }
+
+        // Vorab-Aufloesung aller Kundenfotos BEVOR die 5 Stage-Canvases (~65 MB) allokiert werden:
+        // Dadurch wird ein 50-MP-Smartphone-Rohfoto beim allerersten Aufruf mit maximalem freien RAM-Spielraum
+        // in einen kompakten 2400px-Arbeitsmaster ueberfuehrt.
+        $sortedQueue = $this->buildSortedLaserLayerQueue($logos, $texts);
+        $itemConfigForLogos = (is_object($item) && is_array($item->configuration ?? null)) ? $item->configuration : [];
+        $preResolvedLogos = [];
+        foreach ($sortedQueue as $qIdx => $entry) {
+            if (($entry['kind'] ?? '') === 'logo') {
+                $logo = $entry['data'];
+                $url = (string) ($logo['url'] ?? $logo['value'] ?? $logo['src'] ?? '');
+                if ($url === '' && empty($logo['value'])) {
+                    continue;
+                }
+                $preResolvedLogos[$qIdx] = $this->resolveEffectiveLogoSourceForLaser($logo, $item, $itemConfigForLogos);
+            }
+        }
+
         $canvas = imagecreatetruecolor($stageW, $stageH);
+        if (!$canvas) {
+            return [
+                'pngBytes'            => '',
+                'previewPngBytes'     => '',
+                'pixelWidth'          => $stageW,
+                'pixelHeight'         => $stageH,
+                'pxPerMm'             => $pxPerMm,
+                'photoLayerPngBytes'  => null,
+                'vectorLayerPngBytes' => null,
+                'photoLayerInfo'      => null,
+                'knockoutPixels'      => 0,
+            ];
+        }
         imagealphablending($canvas, false);
         imagesavealpha($canvas, true);
         $trans = imagecolorallocatealpha($canvas, 255, 255, 255, 127);
@@ -2391,31 +2445,73 @@ class FileDownloadService
         $photoLayerInfo = null;
         if ($isLayered) {
             $photoCanvas = imagecreatetruecolor($stageW, $stageH);
-            imagealphablending($photoCanvas, false);
-            imagesavealpha($photoCanvas, true);
-            $photoTrans = imagecolorallocatealpha($photoCanvas, 255, 255, 255, 127);
-            imagefill($photoCanvas, 0, 0, $photoTrans);
-
             $vectorCanvas = imagecreatetruecolor($stageW, $stageH);
-            imagealphablending($vectorCanvas, false);
-            imagesavealpha($vectorCanvas, true);
-            $vectorTrans = imagecolorallocatealpha($vectorCanvas, 255, 255, 255, 127);
-            imagefill($vectorCanvas, 0, 0, $vectorTrans);
+            if (!$photoCanvas || !$vectorCanvas) {
+                if ($photoCanvas) {
+                    imagedestroy($photoCanvas);
+                }
+                if ($vectorCanvas) {
+                    imagedestroy($vectorCanvas);
+                }
+                $photoCanvas = null;
+                $vectorCanvas = null;
+                $isLayered = false;
+            } else {
+                imagealphablending($photoCanvas, false);
+                imagesavealpha($photoCanvas, true);
+                $photoTrans = imagecolorallocatealpha($photoCanvas, 255, 255, 255, 127);
+                imagefill($photoCanvas, 0, 0, $photoTrans);
+
+                imagealphablending($vectorCanvas, false);
+                imagesavealpha($vectorCanvas, true);
+                $vectorTrans = imagecolorallocatealpha($vectorCanvas, 255, 255, 255, 127);
+                imagefill($vectorCanvas, 0, 0, $vectorTrans);
+            }
         }
 
         $overlayTrackImg = imagecreatetruecolor($stageW, $stageH);
+        $maskImg = imagecreatetruecolor($stageW, $stageH);
+        if (!$overlayTrackImg || !$maskImg) {
+            if ($overlayTrackImg) {
+                imagedestroy($overlayTrackImg);
+            }
+            if ($maskImg) {
+                imagedestroy($maskImg);
+            }
+            if ($photoCanvas) {
+                imagedestroy($photoCanvas);
+            }
+            if ($vectorCanvas) {
+                imagedestroy($vectorCanvas);
+            }
+            imagedestroy($canvas);
+
+            return [
+                'pngBytes'            => '',
+                'previewPngBytes'     => '',
+                'pixelWidth'          => $stageW,
+                'pixelHeight'         => $stageH,
+                'pxPerMm'             => $pxPerMm,
+                'photoLayerPngBytes'  => null,
+                'vectorLayerPngBytes' => null,
+                'photoLayerInfo'      => null,
+                'knockoutPixels'      => 0,
+            ];
+        }
         $trackZero = imagecolorallocate($overlayTrackImg, 0, 0, 0);
         imagefill($overlayTrackImg, 0, 0, $trackZero);
 
-        $maskImg = imagecreatetruecolor($stageW, $stageH);
         $maskBlack = imagecolorallocate($maskImg, 0, 0, 0);
         $maskWhite = imagecolorallocate($maskImg, 255, 255, 255);
         imagefill($maskImg, 0, 0, $maskBlack);
 
         $flatMaskPoly = [];
         foreach ($workingAreaPolygonPct as $pt) {
-            $flatMaskPoly[] = (int) round(($pt['x'] / 100.0) * ($stageW - 1));
-            $flatMaskPoly[] = (int) round(($pt['y'] / 100.0) * ($stageH - 1));
+            if (!is_array($pt) || !isset($pt['x'], $pt['y']) || !is_numeric($pt['x']) || !is_numeric($pt['y'])) {
+                continue;
+            }
+            $flatMaskPoly[] = (int) round((((float) $pt['x']) / 100.0) * ($stageW - 1));
+            $flatMaskPoly[] = (int) round((((float) $pt['y']) / 100.0) * ($stageH - 1));
         }
         if (count($flatMaskPoly) >= 6) {
             imagefilledpolygon($maskImg, $flatMaskPoly, $maskWhite);
@@ -2423,12 +2519,7 @@ class FileDownloadService
             imagefill($maskImg, 0, 0, $maskWhite);
         }
 
-        // Gemeinsame zIndex-Sortierung von Logos (Default 10 + idx) und Texten (Default 30 + idx)
-        // exakt identisch zur Kunden-Konfigurator-Engine (scripts_frontend_2.blade.php)
-        $sortedQueue = $this->buildSortedLaserLayerQueue($logos, $texts);
-        $itemConfigForLogos = (is_object($item) && is_array($item->configuration ?? null)) ? $item->configuration : [];
-
-        foreach ($sortedQueue as $entry) {
+        foreach ($sortedQueue as $qIdx => $entry) {
             if ($entry['kind'] === 'logo') {
                 $logo = $entry['data'];
                 $url = (string) ($logo['url'] ?? $logo['value'] ?? $logo['src'] ?? '');
@@ -2436,7 +2527,8 @@ class FileDownloadService
                     continue;
                 }
 
-                $resolvedSource = $this->resolveEffectiveLogoSourceForLaser($logo, $item, $itemConfigForLogos);
+                $resolvedSource = $preResolvedLogos[$qIdx] ?? $this->resolveEffectiveLogoSourceForLaser($logo, $item, $itemConfigForLogos);
+                unset($preResolvedLogos[$qIdx]);
                 $rawBytes = $resolvedSource['bytes'];
                 $ext = $resolvedSource['ext'];
                 if ($rawBytes === null) {
@@ -2724,7 +2816,9 @@ class FileDownloadService
             }
         }
         unset($rawBytes, $smoothBytes, $maskBytes);
-        imagedestroy($maskImg);
+        if ($maskImg) {
+            imagedestroy($maskImg);
+        }
         imagedestroy($overlayTrackImg);
         unset($maskImg, $overlayTrackImg);
 
@@ -3147,6 +3241,8 @@ class FileDownloadService
             }
 
             // Kein manuelles edited_path: zuerst echtes Originalfoto (_raw) auf Storage::disk('public') prüfen
+            // und bei riesigen Smartphone-Kamerabildern (> 5,2 MP, z. B. 50 MP 8160x6144) automatisch einen
+            // 2400px-Arbeitsmaster (_work2400) nutzen, waehrend _raw zu 100 % unangetastet bleibt.
             $candidateKey = $rawVal !== '' ? $rawVal : $url;
             if ($candidateKey !== '' && !str_starts_with($candidateKey, 'data:')) {
                 $origRel = \App\Services\Laser\LaserPhotoPreprocessor::resolveOriginalPhotoRelPath($candidateKey, $itemConfig);
@@ -3155,35 +3251,17 @@ class FileDownloadService
                     $origAbs = Storage::disk('public')->path($origNorm);
                     $origExt = strtolower(pathinfo($origAbs, PATHINFO_EXTENSION));
                     if (in_array($origExt, ['jpg', 'jpeg', 'png', 'webp'], true) && @is_file($origAbs)) {
-                        if (in_array($origExt, ['jpg', 'jpeg'], true) && function_exists('exif_read_data')) {
-                            $exif = @exif_read_data($origAbs);
-                            $orient = is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1;
-                            if (in_array($orient, [3, 6, 8], true)) {
-                                $orientedGd = \App\Services\Laser\LaserPhotoPreprocessor::loadOrientedGdImageFromPath($origAbs, 1600);
-                                if ($orientedGd) {
-                                    ob_start();
-                                    imagepng($orientedGd, null, 3);
-                                    $orientedPng = (string) ob_get_clean();
-                                    imagedestroy($orientedGd);
-                                    if ($orientedPng !== '') {
-                                        return [
-                                            'bytes'       => $orientedPng,
-                                            'ext'         => 'png',
-                                            'is_adjusted' => false,
-                                            'adjustment'  => null,
-                                        ];
-                                    }
-                                }
+                        $workAbs = \App\Services\Laser\LaserPhotoPreprocessor::ensureLaserWorkMasterPath($origAbs, 2400);
+                        if ($workAbs !== '' && @is_file($workAbs)) {
+                            $workBytes = @file_get_contents($workAbs);
+                            if (is_string($workBytes) && $workBytes !== '') {
+                                return [
+                                    'bytes'       => $workBytes,
+                                    'ext'         => strtolower(pathinfo($workAbs, PATHINFO_EXTENSION)) ?: $origExt,
+                                    'is_adjusted' => false,
+                                    'adjustment'  => null,
+                                ];
                             }
-                        }
-                        $origBytes = @file_get_contents($origAbs);
-                        if (is_string($origBytes) && $origBytes !== '') {
-                            return [
-                                'bytes'       => $origBytes,
-                                'ext'         => $origExt,
-                                'is_adjusted' => false,
-                                'adjustment'  => null,
-                            ];
                         }
                     }
                 }
@@ -4345,6 +4423,62 @@ class FileDownloadService
     }
 
     /**
+     * Dekodiert Bild-Bytes speicherschonend mit Vorab-Dimensionenprüfung und automatischem
+     * Downscaling auf maximal $maxEdgePx Kantenlänge, um >256 MB GD-OOM bei Großfotos zu verhindern.
+     */
+    protected function createSafeGdImageFromBytes(string $binaryData, int $maxEdgePx = 1600): mixed
+    {
+        if (!function_exists('imagecreatefromstring') || $binaryData === '' || strlen($binaryData) > 41_943_040) {
+            return null;
+        }
+
+        \App\Services\Laser\LaserPhotoPreprocessor::ensureMemoryHeadroom(512);
+
+        if (function_exists('getimagesizefromstring')) {
+            $info = @getimagesizefromstring($binaryData);
+            if (!is_array($info) || ($info[0] ?? 0) <= 0 || ($info[1] ?? 0) <= 0) {
+                return null;
+            }
+            $rawW = (int) $info[0];
+            $rawH = (int) $info[1];
+            if ($rawW > 16000 || $rawH > 16000 || ($rawW * $rawH) > 80_000_000) {
+                return null;
+            }
+        }
+
+        $src = @imagecreatefromstring($binaryData);
+        if (!$src) {
+            return null;
+        }
+
+        $srcW = imagesx($src);
+        $srcH = imagesy($src);
+        if ($srcW <= 0 || $srcH <= 0) {
+            imagedestroy($src);
+            return null;
+        }
+
+        $maxEdgePx = max(64, $maxEdgePx);
+        if ($srcW > $maxEdgePx || $srcH > $maxEdgePx) {
+            $scale = min($maxEdgePx / $srcW, $maxEdgePx / $srcH);
+            $dstW = max(1, (int) round($srcW * $scale));
+            $dstH = max(1, (int) round($srcH * $scale));
+            $resized = imagecreatetruecolor($dstW, $dstH);
+            if ($resized) {
+                imagealphablending($resized, false);
+                imagesavealpha($resized, true);
+                $trans = imagecolorallocatealpha($resized, 0, 0, 0, 127);
+                imagefill($resized, 0, 0, $trans);
+                imagecopyresampled($resized, $src, 0, 0, 0, 0, $dstW, $dstH, $srcW, $srcH);
+                imagedestroy($src);
+                return $resized;
+            }
+        }
+
+        return $src;
+    }
+
+    /**
      * Rendert ein Kunden-Rasterbild in seinen exakten Stage-Koordinaten (x, y, size, rotation),
      * maskiert es hart an der Arbeitsbereich-Kontur (custom_points / circle / rect) mit
      * 100 % Transparenz (PNG Alpha = 0 / GD Alpha = 127) außerhalb der Kontur und
@@ -4369,11 +4503,28 @@ class FileDownloadService
         bool $knockoutOnlyTexts = false,
         ?array $photoProfile = null
     ): ?array {
-        if (!function_exists('imagecreatefromstring') || $binaryData === '' || empty($workingAreaPolygonPct)) {
+        if (
+            !function_exists('imagecreatefromstring')
+            || $binaryData === ''
+            || empty($workingAreaPolygonPct)
+            || !is_finite($widthMm) || $widthMm <= 0.0
+            || !is_finite($heightMm) || $heightMm <= 0.0
+        ) {
             return null;
         }
 
-        $src = @imagecreatefromstring($binaryData);
+        $validPolyPts = [];
+        foreach ($workingAreaPolygonPct as $pt) {
+            if (!is_array($pt) || !isset($pt['x'], $pt['y']) || !is_numeric($pt['x']) || !is_numeric($pt['y'])) {
+                continue;
+            }
+            $validPolyPts[] = ['x' => (float) $pt['x'], 'y' => (float) $pt['y']];
+        }
+        if (empty($validPolyPts)) {
+            return null;
+        }
+
+        $src = $this->createSafeGdImageFromBytes($binaryData, 1600);
         if (!$src) {
             return null;
         }
@@ -4393,8 +4544,8 @@ class FileDownloadService
         $logoH_mm = $logoW_mm * ($srcH / max(1, $srcW));
 
         // Bounding-Box des Arbeitsbereichs in Millimetern
-        $xsMm = array_map(fn(array $p) => ($p['x'] / 100.0) * $widthMm, $workingAreaPolygonPct);
-        $ysMm = array_map(fn(array $p) => ($p['y'] / 100.0) * $heightMm, $workingAreaPolygonPct);
+        $xsMm = array_map(static fn (array $p): float => ($p['x'] / 100.0) * $widthMm, $validPolyPts);
+        $ysMm = array_map(static fn (array $p): float => ($p['y'] / 100.0) * $heightMm, $validPolyPts);
         $minX_mm = max(0.0, min($xsMm));
         $maxX_mm = min($widthMm, max($xsMm));
         $minY_mm = max(0.0, min($ysMm));
@@ -4402,36 +4553,19 @@ class FileDownloadService
         $areaW_mm = max(1.0, $maxX_mm - $minX_mm);
         $areaH_mm = max(1.0, $maxY_mm - $minY_mm);
 
-        // Hochauflösendes Arbeitsbereich-Canvas (bis 60 px/mm, max ~1200 px Kantenlänge auch bei kleinen Anhängern)
-        $pxPerMm = min(60.0, max(12.0, 1200.0 / max($areaW_mm, $areaH_mm)));
-        $canvasW = max(64, (int) round($areaW_mm * $pxPerMm));
-        $canvasH = max(64, (int) round($areaH_mm * $pxPerMm));
-
-        // 1. Polygon-Maske des erlaubten Arbeitsbereichs zeichnen
-        $maskImg = imagecreatetruecolor($canvasW, $canvasH);
-        if (!$maskImg) {
-            imagedestroy($src);
-            return null;
-        }
-        $maskBlack = imagecolorallocate($maskImg, 0, 0, 0);
-        $maskWhite = imagecolorallocate($maskImg, 255, 255, 255);
-        imagefill($maskImg, 0, 0, $maskBlack);
-
-        $flatPoly = [];
-        foreach ($workingAreaPolygonPct as $pt) {
-            $ptX_mm = ($pt['x'] / 100.0) * $widthMm;
-            $ptY_mm = ($pt['y'] / 100.0) * $heightMm;
-            $flatPoly[] = (int) round((($ptX_mm - $minX_mm) / $areaW_mm) * ($canvasW - 1));
-            $flatPoly[] = (int) round((($ptY_mm - $minY_mm) / $areaH_mm) * ($canvasH - 1));
+        // Hochauflösendes Arbeitsbereich-Canvas (bis 60 px/mm, max ~1200 px Kantenlänge auch bei großen Rohlingen)
+        $pxPerMm = min(60.0, max(2.0, 1200.0 / max($areaW_mm, $areaH_mm)));
+        $canvasW = max(64, min(1400, (int) round($areaW_mm * $pxPerMm)));
+        $canvasH = max(64, min(1400, (int) round($areaH_mm * $pxPerMm)));
+        $maxCanvasPixels = 1_600_000;
+        if (($canvasW * $canvasH) > $maxCanvasPixels) {
+            $budgetScale = sqrt($maxCanvasPixels / max(1, $canvasW * $canvasH));
+            $canvasW = max(64, (int) floor($canvasW * $budgetScale));
+            $canvasH = max(64, (int) floor($canvasH * $budgetScale));
         }
 
-        if (count($flatPoly) >= 6) {
-            imagefilledpolygon($maskImg, $flatPoly, $maskWhite);
-        } else {
-            imagefill($maskImg, 0, 0, $maskWhite);
-        }
-
-        // 2. Kundenbild (ggf. gedreht) maßstabsgetreu in den Arbeitsbereich-Puffer projizieren
+        // 1. Kundenbild (ggf. gedreht) maßstabsgetreu in den Arbeitsbereich-Puffer projizieren
+        // und Quell-Puffer sofort freigeben, bevor Maske & Ziel-Canvas allokiert werden.
         $workSrc = $src;
         $workSrcW = $srcW;
         $workSrcH = $srcH;
@@ -4444,6 +4578,8 @@ class FileDownloadService
             $rotTrans = imagecolorallocatealpha($src, 0, 0, 0, 127);
             $rotated = @imagerotate($src, -$rotDeg, $rotTrans);
             if ($rotated) {
+                imagedestroy($src);
+                $src = null;
                 $workSrc = $rotated;
                 $workSrcW = imagesx($rotated);
                 $workSrcH = imagesy($rotated);
@@ -4454,11 +4590,10 @@ class FileDownloadService
 
         $stageBuf = imagecreatetruecolor($canvasW, $canvasH);
         if (!$stageBuf) {
-            if ($workSrc !== $src) {
-                imagedestroy($workSrc);
+            imagedestroy($workSrc);
+            if ($src && $src !== $workSrc) {
+                imagedestroy($src);
             }
-            imagedestroy($src);
-            imagedestroy($maskImg);
             return null;
         }
         imagealphablending($stageBuf, false);
@@ -4506,10 +4641,35 @@ class FileDownloadService
         }
 
         imagecopyresampled($stageBuf, $workSrc, $dstX, $dstY, 0, 0, $dstW, $dstH, $workSrcW, $workSrcH);
-        if ($workSrc !== $src) {
-            imagedestroy($workSrc);
+        imagedestroy($workSrc);
+        if ($src && $src !== $workSrc) {
+            imagedestroy($src);
         }
-        imagedestroy($src);
+        unset($workSrc, $src);
+
+        // 2. Polygon-Maske des erlaubten Arbeitsbereichs zeichnen
+        $maskImg = imagecreatetruecolor($canvasW, $canvasH);
+        if (!$maskImg) {
+            imagedestroy($stageBuf);
+            return null;
+        }
+        $maskBlack = imagecolorallocate($maskImg, 0, 0, 0);
+        $maskWhite = imagecolorallocate($maskImg, 255, 255, 255);
+        imagefill($maskImg, 0, 0, $maskBlack);
+
+        $flatPoly = [];
+        foreach ($validPolyPts as $pt) {
+            $ptX_mm = ($pt['x'] / 100.0) * $widthMm;
+            $ptY_mm = ($pt['y'] / 100.0) * $heightMm;
+            $flatPoly[] = (int) round((($ptX_mm - $minX_mm) / $areaW_mm) * ($canvasW - 1));
+            $flatPoly[] = (int) round((($ptY_mm - $minY_mm) / $areaH_mm) * ($canvasH - 1));
+        }
+
+        if (count($flatPoly) >= 6) {
+            imagefilledpolygon($maskImg, $flatPoly, $maskWhite);
+        } else {
+            imagefill($maskImg, 0, 0, $maskWhite);
+        }
 
         // 3. Kontur-Maskierung + Normalisierung auf opake Graustufen (innerhalb) & Alpha-0 (außerhalb)
         $dst = imagecreatetruecolor($canvasW, $canvasH);
@@ -4584,6 +4744,12 @@ class FileDownloadService
         }
 
         imagedestroy($stageBuf);
+        if (empty($texts) || !function_exists('imagettftext')) {
+            if ($maskImg) {
+                imagedestroy($maskImg);
+                $maskImg = null;
+            }
+        }
 
         // 3b. Automatische Laser-Porträt-Aufbereitung (HDR-Tiefenentzerrung + Mikrokontrast/Kantenschärfung nach xTool-Referenz):
         // Verhindert, dass großflächige Hautpartien (Stirn, Wangen, Hände) im Negativ zu blinden tiefschwarzen Blöcken (0)
@@ -5007,7 +5173,9 @@ class FileDownloadService
             if ($haloMask) imagedestroy($haloMask);
         }
 
-        imagedestroy($maskImg);
+        if ($maskImg) {
+            imagedestroy($maskImg);
+        }
 
         if ($tightMaxX < $tightMinX || $tightMaxY < $tightMinY) {
             imagedestroy($dst);
@@ -5075,7 +5243,7 @@ class FileDownloadService
             return [$binaryData, $fallbackType];
         }
 
-        $src = @imagecreatefromstring($binaryData);
+        $src = $this->createSafeGdImageFromBytes($binaryData, 2048);
         if (!$src) {
             return [$binaryData, $fallbackType];
         }

@@ -1,5 +1,5 @@
 # Seelenfunke System-Architektur & AI Map (`ai_map.md`)
-> Generiert via `php artisan ai:generate-map` (2026-11-24 18:33)
+> Generiert via `php artisan ai:generate-map` (2026-11-24 23:46)
 
 ## 1. Ökosystem-Pfade & Umgebungen
 - **Hauptportal (`Mein-Seelenfunke`)**: Win-UNC `\\wsl.localhost\Ubuntu\home\ubuntuxina\meine-projekte\seelenfunke` | WSL `/home/ubuntuxina/meine-projekte/seelenfunke` (Docker PHP: `mein_php_server`) | Lokal `http://127.0.0.1` (`http://seelenfunke.test`) | Stage `https://stage.mein-seelenfunke.de` | Live `https://mein-seelenfunke.de`
@@ -115,6 +115,6 @@
 - **Shipping**: `GrossbriefLabelService`
 - **Shop**: `ShowroomChatGuardService, ShowroomMultiplayerService`
 - **Storage**: `GlbOptimizerService`
-- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, KdriveTrichterRelayService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemAlertTicketService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory, ZeroTokenSelfHealer`
+- **System**: `AndroidReleaseService, AntigravityDirectInboxService, AudioMulawCodec, FunkenwerkPrintService, FunkiraPhoneConciergeService, GlobalProjectSearchService, KdriveTrichterRelayService, LogArchiveService, MiniPcTrichterRelayService, SentinelTriageService, SystemAlertTicketService, SystemBlueprintService, SystemBrainDiagnosticsService, SystemErrorLogger, SystemHealthPulseService, SystemSecurityService, TwilioGeminiLiveBridgeService, TwilioReverbServerFactory, WindowsReleaseService, ZeroTokenSelfHealer`
 - **Tax**: `TaxSettingService`
 

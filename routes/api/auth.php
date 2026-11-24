@@ -132,6 +132,9 @@ Route::post('/login', function (Request $request) {
                 'token' => $token,
                 'scope' => $scopeLabel,
                 'user_type' => $guard,
+                'permissions' => ($isMonitorOnly || $isManufakturFunkira)
+                    ? ['role' => 'monitor', 'is_admin' => false, 'allowed_spaces' => [], 'allowed_modules' => []]
+                    : \App\Models\Employee\Employee::buildPermissionsForUser($user),
                 'user' => ($isMonitorOnly || $isManufakturFunkira) ? ['id' => $user->id] : $user,
             ]);
         }

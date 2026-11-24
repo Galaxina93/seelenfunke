@@ -96,6 +96,8 @@ class ZentrumViewModel : ViewModel() {
             }
             try {
                 val isAdmin = ServiceLocator.userTypeState.value == "admin" || ServiceLocator.getUserType() == "admin"
+                val canTasks = isAdmin || ServiceLocator.canEmployeeAccessTasks()
+                val canProduction = isAdmin || ServiceLocator.canEmployeeAccessProduction()
                 if (isAdmin) {
                     launch {
                         try {
@@ -106,23 +108,23 @@ class ZentrumViewModel : ViewModel() {
                 }
 
                 coroutineScope {
-                    val commandDeferred = async { aiRepository.getUltimateCommand() }
-                    val kpisDeferred = async { financeRepository.getKpis() }
-                    val routinesDeferred = async { organizerRepository.getRoutines() }
-                    val tasksDeferred = async { organizerRepository.getTasks() }
-                    val eventsDeferred = async { organizerRepository.getCalendarEvents() }
-                    val ordersDeferred = if (isAdmin) {
+                    val commandDeferred = if (isAdmin) async { aiRepository.getUltimateCommand() } else null
+                    val kpisDeferred = if (isAdmin) async { financeRepository.getKpis() } else null
+                    val routinesDeferred = if (isAdmin) async { organizerRepository.getRoutines() } else null
+                    val tasksDeferred = if (canTasks) async { organizerRepository.getTasks() } else null
+                    val eventsDeferred = if (isAdmin) async { organizerRepository.getCalendarEvents() } else null
+                    val ordersDeferred = if (canProduction) {
                         async { orderRepository.getOrders(status = null, search = null, page = 1) }
                     } else null
                     val secretaryDeferred = if (isAdmin) {
                         async { PhoneConciergeManager.fetchRecentCalls(ServiceLocator.context) }
                     } else null
 
-                    commandDeferred.await().onSuccess { _ultimateCommand.value = it }
-                    kpisDeferred.await().onSuccess { _kpis.value = it }
-                    routinesDeferred.await().onSuccess { _routines.value = it }
-                    tasksDeferred.await().onSuccess { _tasks.value = it }
-                    eventsDeferred.await().onSuccess { rawEvents ->
+                    commandDeferred?.await()?.onSuccess { _ultimateCommand.value = it }
+                    kpisDeferred?.await()?.onSuccess { _kpis.value = it }
+                    routinesDeferred?.await()?.onSuccess { _routines.value = it }
+                    tasksDeferred?.await()?.onSuccess { _tasks.value = it }
+                    eventsDeferred?.await()?.onSuccess { rawEvents ->
                         val now = Date()
                         _events.value = rawEvents.filter { event ->
                             val startD = parseEventDate(event.start)

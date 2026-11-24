@@ -210,4 +210,132 @@ use HasFactory, SoftDeletes, AuthenticatableTrait, HasApiTokens, Notifiable;
         ]);
         $this->setRelation('profile', $profile->fresh());
     }
+
+    public function canAccessFunkenwerkDomain(string $domain): bool
+    {
+        if (!$this->isInternalEmployee() || !$this->isAccountActive()) {
+            return false;
+        }
+
+        $perms = $this->buildFunkenwerkPermissionsPayload();
+
+        return match ($domain) {
+            'tasks', 'todo'       => (bool) ($perms['can_access_tasks'] ?? false),
+            'production', 'orders'=> (bool) ($perms['can_access_production'] ?? false),
+            'support'             => (bool) ($perms['can_access_support'] ?? false),
+            'inventory'           => (bool) ($perms['can_access_inventory'] ?? false),
+            'time'                => (bool) ($perms['can_access_time'] ?? false),
+            'payslips'            => (bool) ($perms['can_access_payslips'] ?? false),
+            'ota_download'        => true,
+            default               => false,
+        };
+    }
+
+    /**
+     * Erzeugt die 1:1 Rechte-Matrix analog zum Web-Mitarbeiter-Dashboard (EmployeeDashboard)
+     * für Funkenwerk Windows & Funkenwerk Android.
+     *
+     * @return array<string, mixed>
+     */
+    public function buildFunkenwerkPermissionsPayload(): array
+    {
+        if (!$this->isInternalEmployee() || !$this->isAccountActive()) {
+            return [
+                'role'                  => $this->role ?? 'external',
+                'is_admin'              => false,
+                'is_internal_employee'  => false,
+                'can_access_tasks'      => false,
+                'can_access_production' => false,
+                'can_access_support'    => false,
+                'can_access_inventory'  => false,
+                'can_access_time'       => false,
+                'can_access_payslips'   => false,
+                'allowed_spaces'        => [],
+                'allowed_modules'       => [],
+            ];
+        }
+
+        $contract = null;
+        if (\Illuminate\Support\Facades\Schema::hasTable('employee_contracts')) {
+            $contract = $this->relationLoaded('employmentContract')
+                ? $this->employmentContract
+                : $this->employmentContract()->first();
+        }
+
+        $canTasks = $contract ? (bool) ($contract->can_access_tasks ?? true) : true;
+        $canProduction = $contract ? (bool) ($contract->can_access_production ?? false) : false;
+        $canSupport = $contract ? (bool) ($contract->can_access_support ?? false) : false;
+        $canInventory = $contract ? (bool) ($contract->can_access_inventory ?? false) : false;
+        $hasContract = $contract !== null;
+
+        $allowedSpaces = ['launcher'];
+        if ($canTasks) {
+            $allowedSpaces[] = 'todo';
+        }
+        if ($canProduction) {
+            $allowedSpaces[] = 'orders';
+        }
+
+        $allowedModules = ['pdf'];
+        if ($canProduction) {
+            $allowedModules[] = 'drucker';
+            $allowedModules[] = '3d';
+        }
+
+        return [
+            'role'                  => 'employee',
+            'is_admin'              => false,
+            'is_internal_employee'  => true,
+            'can_access_tasks'      => $canTasks,
+            'can_access_production' => $canProduction,
+            'can_access_support'    => $canSupport,
+            'can_access_inventory'  => $canInventory,
+            'can_access_time'       => $hasContract,
+            'can_access_payslips'   => $hasContract,
+            'allowed_spaces'        => array_values(array_unique($allowedSpaces)),
+            'allowed_modules'       => array_values(array_unique($allowedModules)),
+        ];
+    }
+
+    /**
+     * Einheitlicher Permissions-Builder für Admin, Employee und Customer (für /api/login & /api/user).
+     *
+     * @return array<string, mixed>
+     */
+    public static function buildPermissionsForUser(mixed $user): array
+    {
+        if ($user instanceof \App\Models\Admin\Admin) {
+            return [
+                'role'                  => 'admin',
+                'is_admin'              => true,
+                'is_internal_employee'  => false,
+                'can_access_tasks'      => true,
+                'can_access_production' => true,
+                'can_access_support'    => true,
+                'can_access_inventory'  => true,
+                'can_access_time'       => true,
+                'can_access_payslips'   => true,
+                'allowed_spaces'        => ['*'],
+                'allowed_modules'       => ['*'],
+            ];
+        }
+
+        if ($user instanceof self) {
+            return $user->buildFunkenwerkPermissionsPayload();
+        }
+
+        return [
+            'role'                  => 'customer',
+            'is_admin'              => false,
+            'is_internal_employee'  => false,
+            'can_access_tasks'      => false,
+            'can_access_production' => false,
+            'can_access_support'    => false,
+            'can_access_inventory'  => false,
+            'can_access_time'       => false,
+            'can_access_payslips'   => false,
+            'allowed_spaces'        => [],
+            'allowed_modules'       => [],
+        ];
+    }
 }
