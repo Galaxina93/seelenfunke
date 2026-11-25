@@ -53,7 +53,7 @@ class QuickEntryWidgetActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardAdminWidgetDialogActivity(this)) return
 
         setContent {
             SeelenfunkeTheme(darkTheme = true) {

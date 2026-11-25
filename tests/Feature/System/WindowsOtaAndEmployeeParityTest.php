@@ -314,9 +314,10 @@ class WindowsOtaAndEmployeeParityTest extends TestCase
         $this->postJson('/api/funki/system/windows-update/publish', [])
             ->assertStatus(403);
 
-        // 2. Employee NEVER accesses Admin-only emails, finance, or ag-direct-inbox
+        // 2. Employee NEVER accesses Admin-only emails, finance, command ("Nächster Schritt"), or ag-direct-inbox
         $this->getJson('/api/funki/emails/accounts')->assertStatus(403);
         $this->getJson('/api/funki/financials/kpis')->assertStatus(403);
+        $this->getJson('/api/funki/command')->assertStatus(403);
         $this->getJson('/api/system/ag-direct-inbox')->assertStatus(403);
 
         // 3. Employee without production flag gets 403 on orders
@@ -342,5 +343,82 @@ class WindowsOtaAndEmployeeParityTest extends TestCase
         $this->getJson('/api/shop/orders')
             ->assertOk()
             ->assertJsonPath('total', 1);
+    }
+
+    #[Test]
+    public function dedicated_employee_cockpit_api_mirrors_web_employee_dashboard_1_to_1(): void
+    {
+        $admin = $this->createAdmin();
+        $employee = $this->createEmployee('internal', canTasks: true, canProduction: true);
+        $influencer = $this->createEmployee('influencer');
+
+        // Admin & external influencer are strictly separated from internal Employee Cockpit API
+        Sanctum::actingAs($admin, ['*']);
+        $this->getJson('/api/employee/cockpit')->assertStatus(403);
+
+        Sanctum::actingAs($influencer, ['*']);
+        $this->getJson('/api/employee/cockpit')->assertStatus(403);
+
+        // Internal employee gets clean 1:1 cockpit data
+        Sanctum::actingAs($employee, ['*']);
+
+        $cockpit = $this->getJson('/api/employee/cockpit')->assertOk();
+        $cockpit->assertJsonPath('success', true)
+            ->assertJsonPath('data.has_contract', true)
+            ->assertJsonPath('data.contract.job_title', 'Manufaktur-Mitarbeiter')
+            ->assertJsonPath('data.contract.can_access_tasks', true)
+            ->assertJsonPath('data.contract.can_access_production', true)
+            ->assertJsonPath('data.kpis.vacation_days_per_year', 24)
+            ->assertJsonPath('data.running_entry', null);
+
+        // Live Clock-In & Clock-Out
+        $clockIn = $this->postJson('/api/employee/clock-in', [
+            'activity_note' => 'Lasergravur & Versand',
+        ])->assertOk();
+        $this->assertNotNull($clockIn->json('data.running_entry.id'));
+
+        $clockOut = $this->postJson('/api/employee/clock-out', [
+            'activity_note' => 'Lasergravur & Versand abgeschlossen',
+        ])->assertOk();
+        $this->assertNull($clockOut->json('data.running_entry'));
+
+        // Manual work time entry + delete
+        $workDate = now()->subDay()->toDateString();
+        $manualRes = $this->postJson('/api/employee/time-entries', [
+            'work_date'     => $workDate,
+            'start_time'    => '09:00',
+            'end_time'      => '13:30',
+            'break_minutes' => 30,
+            'activity_note' => 'Packtisch Schicht',
+        ])->assertOk();
+
+        $entries = collect($manualRes->json('data.time_entries'));
+        $createdEntry = $entries->firstWhere('activity_note', 'Packtisch Schicht');
+        $this->assertNotNull($createdEntry);
+        $this->assertSame('4:00 Std.', $createdEntry['formatted_hours']);
+
+        $this->deleteJson('/api/employee/time-entries/' . $createdEntry['id'])
+            ->assertOk();
+
+        // Vacation / Sick leave entry
+        $leaveDate = now()->addDays(2)->toDateString();
+        $leaveRes = $this->postJson('/api/employee/leave-entries', [
+            'entry_type'    => 'vacation',
+            'start_date'    => $leaveDate,
+            'end_date'      => $leaveDate,
+            'activity_note' => 'Erholungsurlaub',
+        ])->assertOk();
+        $this->assertTrue($leaveRes->json('success'));
+
+        // PDF Document endpoints (Arbeitsvertrag & Stundenzettel)
+        $contractPdf = $this->get('/api/employee/documents/contract');
+        $contractPdf->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $contractPdf->headers->get('Content-Type'));
+
+        $year = (int) now()->year;
+        $month = (int) now()->month;
+        $timesheetPdf = $this->get("/api/employee/documents/timesheet/{$year}/{$month}");
+        $timesheetPdf->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $timesheetPdf->headers->get('Content-Type'));
     }
 }

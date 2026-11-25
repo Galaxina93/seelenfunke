@@ -49,7 +49,8 @@ class CalendarAppWidgetProvider : AppWidgetProvider() {
         ServiceLocator.ensureInitialized(appContext)
         if (action != null && action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
             if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
-                ServiceLocator.getAuthToken().isNullOrBlank()
+                ServiceLocator.getAuthToken().isNullOrBlank() ||
+                ServiceLocator.getUserType() != "admin"
             ) {
                 return
             }

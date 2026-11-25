@@ -50,7 +50,8 @@ class ShoppingListWidgetProvider : AppWidgetProvider() {
         val resolvedAction = clickAction ?: rawAction
         if (resolvedAction != null && resolvedAction != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
             if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
-                ServiceLocator.getAuthToken().isNullOrBlank()
+                ServiceLocator.getAuthToken().isNullOrBlank() ||
+                ServiceLocator.getUserType() != "admin"
             ) {
                 return
             }

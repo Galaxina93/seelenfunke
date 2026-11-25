@@ -254,7 +254,8 @@ class MasterWidgetProvider : AppWidgetProvider() {
 
     private fun triggerGlobalSync(context: Context) {
         val appContext = context.applicationContext
-        if (MusicPlayerManager.allTracks.value.isEmpty()) {
+        val isAdmin = ServiceLocator.getUserType() == "admin"
+        if (isAdmin && MusicPlayerManager.allTracks.value.isEmpty()) {
             MusicPlayerManager.fetchPlaylists(appContext)
         }
         val pendingResult = goAsync()
@@ -262,8 +263,10 @@ class MasterWidgetProvider : AppWidgetProvider() {
             try {
                 ServiceLocator.organizerRepository.getTaskLists()
                 ServiceLocator.organizerRepository.getTasks()
-                ServiceLocator.organizerRepository.getCalendarEvents()
-                ServiceLocator.organizerRepository.getShoppingItems()
+                if (isAdmin) {
+                    ServiceLocator.organizerRepository.getCalendarEvents()
+                    ServiceLocator.organizerRepository.getShoppingItems()
+                }
                 MasterWidgetRamCache.refreshFromPrefsIfChanged(appContext)
                 updateAllWidgets(appContext, isPartial = true)
             } catch (e: Exception) {
@@ -319,7 +322,8 @@ class MasterWidgetProvider : AppWidgetProvider() {
             val appContext = context.applicationContext
             ServiceLocator.ensureInitialized(appContext)
             val masterPrefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val activeTab = masterPrefs.getInt("$PREF_ACTIVE_TAB_PREFIX$appWidgetId", TAB_TASKS)
+            val isAdmin = ServiceLocator.getUserType() == "admin"
+            val activeTab = if (isAdmin) masterPrefs.getInt("$PREF_ACTIVE_TAB_PREFIX$appWidgetId", TAB_TASKS) else TAB_TASKS
             val selectedListId = masterPrefs.getString("$PREF_SELECTED_LIST_ID_PREFIX$appWidgetId", null)
             val selectedListName = ServiceLocator.getDecryptedPref(masterPrefs, "$PREF_SELECTED_LIST_NAME_PREFIX$appWidgetId")
 
@@ -381,6 +385,12 @@ class MasterWidgetProvider : AppWidgetProvider() {
                 if (activeTab == TAB_MUSIC) R.drawable.widget_tab_active_shape else R.drawable.widget_tab_inactive_shape
             )
             views.setInt(R.id.tab_master_music_icon, "setColorFilter", if (activeTab == TAB_MUSIC) goldColor else mutedColor)
+
+            views.setViewVisibility(R.id.tab_master_calendar, if (isAdmin) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.tab_master_shopping, if (isAdmin) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.tab_master_music, if (isAdmin) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.btn_master_falcone, if (isAdmin) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.btn_master_receipt, if (isAdmin) View.VISIBLE else View.GONE)
 
             views.setOnClickPendingIntent(
                 R.id.tab_master_tasks,

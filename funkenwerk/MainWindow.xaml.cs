@@ -710,6 +710,7 @@ namespace Funkenwerk
                 RenderActiveMailReader();
                 _currentRenderingSpaceKey = "launcher";
                 RenderLauncherDeck();
+                RenderEmployeeCockpitUI();
                 _currentRenderingSpaceKey = "contacts";
                 RenderContactsList();
                 _currentRenderingSpaceKey = "calendar";
@@ -1441,6 +1442,7 @@ namespace Funkenwerk
             bool isAdmin = FunkenwerkSharedSession.IsAdminSession(s);
             if (isAdmin)
             {
+                ClearEmployeeCockpitMemory();
                 await LoadMailAccountsAsync();
                 await LoadContactsAsync();
                 await LoadCalendarEventsAsync();
@@ -1448,6 +1450,10 @@ namespace Funkenwerk
                 {
                     await LoadFilesWorkspaceAsync();
                 }
+            }
+            else
+            {
+                await LoadEmployeeCockpitAsync(silent: true);
             }
             if (FunkenwerkSharedSession.IsSpaceAllowed("todo", s))
             {
@@ -1522,7 +1528,11 @@ namespace Funkenwerk
                     await LoadFilesWorkspaceAsync();
                 }
 
-                // Always keep Tasks in sync with Android App & Webportal
+                // Always keep Tasks & Employee Cockpit in sync with Android App & Webportal
+                if (!isAdminUser)
+                {
+                    await LoadEmployeeCockpitAsync(silent: true);
+                }
                 if (FunkenwerkSharedSession.IsSpaceAllowed("todo", sessionSnap) && !isEditingTask)
                 {
                     await LoadTodoListsAsync();
@@ -1644,9 +1654,8 @@ namespace Funkenwerk
             }
             else
             {
-                // Open API settings pane so the user can inspect server configuration immediately
                 OpenSettings_Click(sender, new RoutedEventArgs());
-                SwitchSettingsTab("api");
+                SwitchSettingsTab(FunkenwerkSharedSession.IsAdminSession() ? "api" : "design");
             }
         }
 
@@ -2846,6 +2855,7 @@ namespace Funkenwerk
 
                 _filesDbByRelPath.Clear();
                 _archiveKnowledgeIndex.Rebuild(Array.Empty<FunkenwerkFileDbRecord>());
+                ClearEmployeeCockpitMemory();
 
                 _printerPollTimer?.Stop();
                 _kdriveTrichterTimer?.Stop();
@@ -2892,6 +2902,7 @@ namespace Funkenwerk
                 SpaceAgentBtn.Visibility = FunkenwerkSharedSession.IsSpaceAllowed("agent", s) ? Visibility.Visible : Visibility.Collapsed;
 
             RenderLauncherDeck();
+            RenderEmployeeCockpitUI();
             if (!FunkenwerkSharedSession.IsSpaceAllowed(_activeSpace, s))
             {
                 SwitchSpaceUI("launcher");
@@ -14749,11 +14760,25 @@ namespace Funkenwerk
         private void OpenSettings_Click(object sender, RoutedEventArgs e)
         {
             PlaySoundNav();
-            ApiUrlBox.Text = _apiBaseUrl;
-            ApiTokenBox.Text = _apiToken;
-            _isApiTokenVisible = false;
-            UpdateApiTokenMaskDisplay();
-            UpdateApiPresetButtonsVisual(_apiBaseUrl);
+            var sessionSnap = FunkenwerkSharedSession.Load();
+            bool isAdmin = FunkenwerkSharedSession.IsAdminSession(sessionSnap);
+
+            if (isAdmin)
+            {
+                ApiUrlBox.Text = _apiBaseUrl;
+                ApiTokenBox.Text = _apiToken;
+                _isApiTokenVisible = false;
+                UpdateApiTokenMaskDisplay();
+                UpdateApiPresetButtonsVisual(_apiBaseUrl);
+            }
+            if (SettingsTabApiBtn != null)
+                SettingsTabApiBtn.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
+            if (SoundMailDivider != null)
+                SoundMailDivider.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
+            if (SoundMailRowGrid != null)
+                SoundMailRowGrid.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
+            if (DesignSpaceColorsCard != null)
+                DesignSpaceColorsCard.Visibility = isAdmin ? Visibility.Visible : Visibility.Collapsed;
 
             SoundMasterCheck.IsChecked = _layoutSettings.SoundsEnabled;
             SoundVolumeSlider.Value = _layoutSettings.SoundVolume;
@@ -14769,11 +14794,19 @@ namespace Funkenwerk
 
             foreach (ComboBoxItem item in StartupModuleCombo.Items)
             {
-                if (item.Tag is string tag && tag == _layoutSettings.StartupModule)
+                if (item.Tag is string tag)
                 {
-                    StartupModuleCombo.SelectedItem = item;
-                    break;
+                    bool itemAllowed = isAdmin || tag == "launcher" || tag == "remember" || FunkenwerkSharedSession.IsSpaceAllowed(tag, sessionSnap);
+                    item.Visibility = itemAllowed ? Visibility.Visible : Visibility.Collapsed;
+                    if (itemAllowed && tag == _layoutSettings.StartupModule)
+                    {
+                        StartupModuleCombo.SelectedItem = item;
+                    }
                 }
+            }
+            if (StartupModuleCombo.SelectedItem is ComboBoxItem selItem && selItem.Visibility != Visibility.Visible)
+            {
+                StartupModuleCombo.SelectedIndex = 0;
             }
 
             _selectedDesignSpaceTab = AllSpaceKeys.Contains(_activeSpace) ? _activeSpace : "launcher";
@@ -14794,6 +14827,10 @@ namespace Funkenwerk
 
         private void SwitchSettingsTab(string tab)
         {
+            if (tab == "api" && !FunkenwerkSharedSession.IsAdminSession())
+            {
+                tab = "sounds";
+            }
             SettingsPaneSounds.Visibility = tab == "sounds" ? Visibility.Visible : Visibility.Collapsed;
             SettingsPaneDesign.Visibility = tab == "design" ? Visibility.Visible : Visibility.Collapsed;
             SettingsPaneApi.Visibility = tab == "api" ? Visibility.Visible : Visibility.Collapsed;
@@ -15038,10 +15075,13 @@ namespace Funkenwerk
         private async void SaveSettings_Click(object sender, RoutedEventArgs e)
         {
             StopDesignSpaceEyedropper(commit: true);
-            _apiBaseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(ApiUrlBox.Text);
-            ApiUrlBox.Text = _apiBaseUrl;
-            _apiToken = ApiTokenBox.Text.Trim();
-            RememberTokenForCurrentPreset(_apiBaseUrl, _apiToken);
+            if (FunkenwerkSharedSession.IsAdminSession())
+            {
+                _apiBaseUrl = FunkenwerkSecurityVault.NormalizeSecureApiUrl(ApiUrlBox.Text);
+                ApiUrlBox.Text = _apiBaseUrl;
+                _apiToken = ApiTokenBox.Text.Trim();
+                RememberTokenForCurrentPreset(_apiBaseUrl, _apiToken);
+            }
 
             _layoutSettings.SoundsEnabled = SoundMasterCheck.IsChecked == true;
             _layoutSettings.SoundVolume = Math.Round(SoundVolumeSlider.Value);

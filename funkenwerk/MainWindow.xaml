@@ -710,12 +710,15 @@
                     </Grid>
                 </Border>
 
-                <!-- Modular Tile Matrix -->
+                <!-- Modular Tile Matrix + Dedicated Employee Cockpit (when user_type == employee) -->
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="32,4,32,32">
-                    <Grid HorizontalAlignment="Center" MaxWidth="1160">
-                        <WrapPanel x:Name="LauncherTilesWrapPanel" Orientation="Horizontal" HorizontalAlignment="Center"/>
-                        <TextBlock x:Name="LauncherEmptyHintTxt" Visibility="Collapsed" Text="Kein Treffer" FontSize="15" FontWeight="SemiBold" Foreground="#6B7280" HorizontalAlignment="Center" Margin="0,48,0,0"/>
-                    </Grid>
+                    <StackPanel HorizontalAlignment="Center" MaxWidth="1160" Width="1100">
+                        <Border x:Name="EmployeeCockpitHostBorder" Visibility="Collapsed" Margin="0,0,0,22"/>
+                        <Grid HorizontalAlignment="Center" MaxWidth="1160">
+                            <WrapPanel x:Name="LauncherTilesWrapPanel" Orientation="Horizontal" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="LauncherEmptyHintTxt" Visibility="Collapsed" Text="Kein Treffer" FontSize="15" FontWeight="SemiBold" Foreground="#6B7280" HorizontalAlignment="Center" Margin="0,48,0,0"/>
+                        </Grid>
+                    </StackPanel>
                 </ScrollViewer>
             </Grid>
 
@@ -3010,9 +3013,9 @@
                                             <Button.Resources><Style TargetType="Border"><Setter Property="CornerRadius" Value="7"/></Style></Button.Resources>
                                         </Button>
                                     </Grid>
-                                    <Border Height="1" Background="#1E222D" Margin="0,6"/>
+                                    <Border x:Name="SoundMailDivider" Height="1" Background="#1E222D" Margin="0,6"/>
 
-                                    <Grid Margin="0,4">
+                                    <Grid x:Name="SoundMailRowGrid" Margin="0,4">
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                         <CheckBox x:Name="SoundMailCheck" IsChecked="True" VerticalAlignment="Center" Cursor="Hand"/>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">

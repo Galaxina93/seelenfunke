@@ -61,11 +61,8 @@ Route::post('/logout', function (Request $request) {
 });
 
 Route::get('/funki/command', function (Request $request, AiSupportService $bot) {
-    $user = $request->user();
-    $isAdmin = $user instanceof \App\Models\Admin\Admin;
-    $isInternalEmployee = $user instanceof \App\Models\Employee\Employee && $user->isInternalEmployee() && $user->isAccountActive();
-    if (!$isAdmin && !$isInternalEmployee) {
-        abort(403, 'Nur für Administratoren und interne Mitarbeiter verfügbar.');
+    if (!$request->user() instanceof \App\Models\Admin\Admin) {
+        abort(403, 'Nur für die Geschäftsleitung verfügbar.');
     }
     return response()->json($bot->getUltimateCommand());
 });

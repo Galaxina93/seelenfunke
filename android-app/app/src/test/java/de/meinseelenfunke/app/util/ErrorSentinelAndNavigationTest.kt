@@ -201,4 +201,39 @@ class ErrorSentinelAndNavigationTest {
             latest.app_version
         )
     }
+
+    @Test
+    fun employeeRoleUsesDedicatedCleanEmployeeCockpitAndNeverExposesAdminScreens() {
+        val fullEmployeeScreens = NavigationBridge.bottomNavScreensForUserRole(
+            userType = "employee",
+            canTasks = true,
+            canProduction = true
+        )
+        assertEquals(
+            listOf(Screen.EmployeeOverview, Screen.Organizer, Screen.Orders, Screen.EmployeeTimePay, Screen.Settings),
+            fullEmployeeScreens
+        )
+        assertFalse(fullEmployeeScreens.contains(Screen.Zentrum))
+        assertFalse(fullEmployeeScreens.contains(Screen.Finances))
+        assertFalse(fullEmployeeScreens.contains(Screen.Chat))
+
+        val minimalEmployeeScreens = NavigationBridge.bottomNavScreensForUserRole(
+            userType = "employee",
+            canTasks = false,
+            canProduction = false
+        )
+        assertEquals(
+            listOf(Screen.EmployeeOverview, Screen.EmployeeTimePay, Screen.Settings),
+            minimalEmployeeScreens
+        )
+
+        assertEquals(
+            Screen.EmployeeOverview,
+            NavigationBridge.resolveScreenForUserRole(NavigationBridge.NavTarget.FINANCES, "employee", true, true)
+        )
+        assertEquals(
+            Screen.EmployeeOverview,
+            NavigationBridge.resolveScreenForUserRole(NavigationBridge.NavTarget.CHAT, "employee", true, true)
+        )
+    }
 }

@@ -11,6 +11,7 @@ import de.meinseelenfunke.app.data.api.AgDirectApi
 import de.meinseelenfunke.app.data.api.AiApi
 import de.meinseelenfunke.app.data.api.AuthApi
 import de.meinseelenfunke.app.data.api.EmailApi
+import de.meinseelenfunke.app.data.api.EmployeeApi
 import de.meinseelenfunke.app.data.api.FinanceApi
 import de.meinseelenfunke.app.data.api.OrderApi
 import de.meinseelenfunke.app.data.api.OrganizerApi
@@ -59,6 +60,7 @@ object ServiceLocator {
     private var organizerApi: OrganizerApi? = null
     private var emailApi: EmailApi? = null
     private var orderApi: OrderApi? = null
+    private var employeeApi: EmployeeApi? = null
     private var agDirectApiInstance: AgDirectApi? = null
 
     val agDirectApi: AgDirectApi
@@ -641,6 +643,7 @@ object ServiceLocator {
         organizerApi = null
         emailApi = null
         orderApi = null
+        employeeApi = null
         agDirectApiInstance = null
     }
 
@@ -771,6 +774,13 @@ object ServiceLocator {
             orderApi = getRetrofit().create(OrderApi::class.java)
         }
         return orderApi!!
+    }
+
+    fun getEmployeeApi(): EmployeeApi {
+        if (employeeApi == null) {
+            employeeApi = getRetrofit().create(EmployeeApi::class.java)
+        }
+        return employeeApi!!
     }
 
     fun isRememberMeEnabled(): Boolean {

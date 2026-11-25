@@ -122,9 +122,10 @@ object NavigationBridge {
             return listOf(Screen.Zentrum, Screen.Orders, Screen.Finances, Screen.Organizer, Screen.Chat, Screen.Settings)
         }
         return buildList {
-            add(Screen.Zentrum)
-            if (canProduction) add(Screen.Orders)
+            add(Screen.EmployeeOverview)
             if (canTasks) add(Screen.Organizer)
+            if (canProduction) add(Screen.Orders)
+            add(Screen.EmployeeTimePay)
             add(Screen.Settings)
         }
     }
@@ -155,11 +156,11 @@ object NavigationBridge {
             return resolveScreen(target, isAdmin = true)
         }
         return when (target) {
-            NavTarget.ZENTRUM -> Screen.Zentrum
-            NavTarget.ORDERS -> if (canProduction) Screen.Orders else Screen.Zentrum
-            NavTarget.ORGANIZER -> if (canTasks) Screen.Organizer else Screen.Zentrum
+            NavTarget.ZENTRUM -> Screen.EmployeeOverview
+            NavTarget.ORDERS -> if (canProduction) Screen.Orders else Screen.EmployeeOverview
+            NavTarget.ORGANIZER -> if (canTasks) Screen.Organizer else Screen.EmployeeOverview
             NavTarget.SETTINGS -> Screen.Settings
-            NavTarget.FINANCES, NavTarget.CHAT -> Screen.Zentrum
+            NavTarget.FINANCES, NavTarget.CHAT -> Screen.EmployeeOverview
         }
     }
 

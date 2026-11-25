@@ -155,6 +155,7 @@ class WakeWordService : Service() {
             ) == PackageManager.PERMISSION_GRANTED
             val shouldRun = ServiceLocator.isWakeWordEnabled() &&
                 !ServiceLocator.getAuthToken().isNullOrBlank() &&
+                ServiceLocator.getUserType() == "admin" &&
                 hasMicPermission
 
             val intent = Intent(appCtx, WakeWordService::class.java)

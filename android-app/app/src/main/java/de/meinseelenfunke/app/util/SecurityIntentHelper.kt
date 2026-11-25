@@ -131,4 +131,20 @@ object SecurityIntentHelper {
 
         return true
     }
+
+    /**
+     * Protects Admin-only widget/share activities (e.g. Beleg-Scanner, Trichter-Share, Einkauf):
+     * blocks non-admin sessions cleanly so employees never see Admin accounting or personal widgets.
+     */
+    fun guardAdminWidgetDialogActivity(activity: ComponentActivity, showToastOnLocked: Boolean = true): Boolean {
+        if (!guardWidgetDialogActivity(activity, showToastOnLocked)) return false
+        if (ServiceLocator.getUserType() != "admin") {
+            if (showToastOnLocked) {
+                Toast.makeText(activity, "Nur für die Leitung freigegeben.", Toast.LENGTH_SHORT).show()
+            }
+            activity.finish()
+            return false
+        }
+        return true
+    }
 }

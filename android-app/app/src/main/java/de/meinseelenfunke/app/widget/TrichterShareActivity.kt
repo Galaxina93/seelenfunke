@@ -58,7 +58,7 @@ class TrichterShareActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardWidgetDialogActivity(this)) return
+        if (!de.meinseelenfunke.app.util.SecurityIntentHelper.guardAdminWidgetDialogActivity(this)) return
 
         val sharedUris = extractSafeExternalUris(intent)
 

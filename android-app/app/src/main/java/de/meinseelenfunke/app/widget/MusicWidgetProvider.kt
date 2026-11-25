@@ -38,7 +38,8 @@ class MusicWidgetProvider : AppWidgetProvider() {
         de.meinseelenfunke.app.di.ServiceLocator.ensureInitialized(context.applicationContext)
         if (action != null && action != AppWidgetManager.ACTION_APPWIDGET_UPDATE) {
             if (de.meinseelenfunke.app.util.SecurityIntentHelper.isDeviceLocked(context) ||
-                de.meinseelenfunke.app.di.ServiceLocator.getAuthToken().isNullOrBlank()
+                de.meinseelenfunke.app.di.ServiceLocator.getAuthToken().isNullOrBlank() ||
+                de.meinseelenfunke.app.di.ServiceLocator.getUserType() != "admin"
             ) {
                 return
             }

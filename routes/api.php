@@ -1196,6 +1196,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // Basis User- & Geräte-Funktionen (Für alle authentifizierten Benutzer: Admin, Mitarbeiter, Kunde)
         require __DIR__ . '/api/core.php';
 
+        // Eigenes Mitarbeiter-Cockpit (Stempeluhr, Zeiten/Urlaub, Lohnzettel, Vertrags-PDFs, optional Support & Bruch)
+        require __DIR__ . '/api/employee.php';
+
         // Gemeinsame interne Manufaktur-Endpunkte (Admin + aktive interne Mitarbeiter gemäß EmployeeContract-Rechten)
         Route::middleware([\App\Http\Middleware\EnsureFunkenwerkDomainAccess::class])->group(function () {
             // Tasks (Aufgaben - bei Mitarbeitern strikt auf eigene zugewiesene Aufgaben isoliert)

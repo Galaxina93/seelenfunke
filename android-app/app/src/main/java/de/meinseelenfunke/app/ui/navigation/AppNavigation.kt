@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -66,6 +67,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import de.meinseelenfunke.app.di.ServiceLocator
 import de.meinseelenfunke.app.ui.screens.ChatScreen
+import de.meinseelenfunke.app.ui.screens.EmployeeOverviewScreen
+import de.meinseelenfunke.app.ui.screens.EmployeeTimeAndPayslipsScreen
 import de.meinseelenfunke.app.ui.screens.FalconFocusScreen
 import de.meinseelenfunke.app.ui.screens.FinanceScreen
 import de.meinseelenfunke.app.ui.screens.FunkiraLiveScreen
@@ -102,6 +105,8 @@ import de.meinseelenfunke.app.R
 sealed class Screen(val route: String, val title: String = "", val icon: ImageVector? = null) {
     object Login : Screen("login")
     object Zentrum : Screen("zentrum", "Zentrum", Icons.Default.Home)
+    object EmployeeOverview : Screen("emp_overview", "Übersicht", Icons.Default.Home)
+    object EmployeeTimePay : Screen("emp_time_pay", "Zeiten & Lohn", Icons.Default.Schedule)
     object Finances : Screen("finances", "Finanzen", Icons.Default.AttachMoney)
     object Organizer : Screen("organizer", "Organizer", Icons.Default.DateRange)
     object Chat : Screen("chat", "Agenten", Icons.Default.Person)
@@ -209,33 +214,35 @@ fun AppNavigation(
                 de.meinseelenfunke.app.services.WakeWordService.syncServiceState(context)
                 AppUpdateManager.onAppStartCheck(context)
                 launch {
-                    withContext(Dispatchers.IO) {
-                        PhoneConciergeManager.syncFromBackend(context)
-                    }
-                    delay(1_600L)
-                    val otaNow = AppUpdateManager.state.value
-                    val otaBusy = otaNow is OtaUpdateState.Available ||
-                        otaNow is OtaUpdateState.Downloading ||
-                        otaNow is OtaUpdateState.AwaitingInstallPermission ||
-                        otaNow is OtaUpdateState.InstallerLaunched
-                    if (
-                        !hasPromptedPhoneSetupThisSession &&
-                        !otaBusy &&
-                        !de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.value &&
-                        !de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive &&
-                        PhoneConciergeManager.isEnabled(context)
-                    ) {
-                        if (!PhoneConciergeManager.hasRequiredPermissions(context)) {
-                            hasPromptedPhoneSetupThisSession = true
-                            navPhonePermLauncher.launch(PhoneConciergeManager.buildRuntimePermissionRequestArray())
-                        } else if (
-                            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
-                            !PhoneConciergeManager.hasCallScreeningRole(context)
+                    if (ServiceLocator.getUserType() == "admin") {
+                        withContext(Dispatchers.IO) {
+                            PhoneConciergeManager.syncFromBackend(context)
+                        }
+                        delay(1_600L)
+                        val otaNow = AppUpdateManager.state.value
+                        val otaBusy = otaNow is OtaUpdateState.Available ||
+                            otaNow is OtaUpdateState.Downloading ||
+                            otaNow is OtaUpdateState.AwaitingInstallPermission ||
+                            otaNow is OtaUpdateState.InstallerLaunched
+                        if (
+                            !hasPromptedPhoneSetupThisSession &&
+                            !otaBusy &&
+                            !de.meinseelenfunke.app.util.FunkenwerkAlarmManager.isAlarmRingingFlow.value &&
+                            !de.meinseelenfunke.app.util.NavigationBridge.isLiveCallActive &&
+                            PhoneConciergeManager.isEnabled(context)
                         ) {
-                            val rm = context.getSystemService(android.app.role.RoleManager::class.java)
-                            if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_CALL_SCREENING)) {
+                            if (!PhoneConciergeManager.hasRequiredPermissions(context)) {
                                 hasPromptedPhoneSetupThisSession = true
-                                navRoleLauncher.launch(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING))
+                                navPhonePermLauncher.launch(PhoneConciergeManager.buildRuntimePermissionRequestArray())
+                            } else if (
+                                android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q &&
+                                !PhoneConciergeManager.hasCallScreeningRole(context)
+                            ) {
+                                val rm = context.getSystemService(android.app.role.RoleManager::class.java)
+                                if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_CALL_SCREENING)) {
+                                    hasPromptedPhoneSetupThisSession = true
+                                    navRoleLauncher.launch(rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_CALL_SCREENING))
+                                }
                             }
                         }
                     }
@@ -263,11 +270,12 @@ fun AppNavigation(
                 if (currentRoute != null) {
                     if (de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger) {
                         val isAdminNow = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
-                        val targetRoute = if (isAdminNow) Screen.FalconFocus.route else Screen.LiveVoice.route
                         de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
-                        if (isAdminNow) wakeWordAutoStart = true
-                        if (currentRoute != targetRoute) {
-                            navController.navigate(targetRoute) { launchSingleTop = true }
+                        if (isAdminNow) {
+                            wakeWordAutoStart = true
+                            if (currentRoute != Screen.FalconFocus.route) {
+                                navController.navigate(Screen.FalconFocus.route) { launchSingleTop = true }
+                            }
                         }
                     } else if ((de.meinseelenfunke.app.util.NavigationBridge.pendingTarget != null ||
                             de.meinseelenfunke.app.util.NavigationBridge.pendingTab != null) &&
@@ -287,12 +295,13 @@ fun AppNavigation(
             if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
                 try {
                     val isAdminNow = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
-                    val targetRoute = if (isAdminNow) Screen.FalconFocus.route else Screen.LiveVoice.route
-                    val currentRoute = navController.currentDestination?.route
                     de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
-                    if (isAdminNow) wakeWordAutoStart = true
-                    if (currentRoute != targetRoute) {
-                        navController.navigate(targetRoute) { launchSingleTop = true }
+                    if (isAdminNow) {
+                        val currentRoute = navController.currentDestination?.route
+                        wakeWordAutoStart = true
+                        if (currentRoute != Screen.FalconFocus.route) {
+                            navController.navigate(Screen.FalconFocus.route) { launchSingleTop = true }
+                        }
                     }
                 } catch (e: IllegalStateException) {
                     // NavController graph is not yet initialized; preserve the pending trigger so the backstack listener handles it later.
@@ -306,11 +315,12 @@ fun AppNavigation(
             if (ServiceLocator.authRepository.isLoggedIn() && isBiometricUnlocked) {
                 if (de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger) {
                     val isAdminNow = ServiceLocator.getUserType() == "admin" || ServiceLocator.userTypeState.value == "admin"
-                    val targetRoute = if (isAdminNow) Screen.FalconFocus.route else Screen.LiveVoice.route
                     de.meinseelenfunke.app.util.NavigationBridge.pendingWakeWordTrigger = false
-                    if (isAdminNow) wakeWordAutoStart = true
-                    if (backStackEntry.destination.route != targetRoute) {
-                        navController.navigate(targetRoute) { launchSingleTop = true }
+                    if (isAdminNow) {
+                        wakeWordAutoStart = true
+                        if (backStackEntry.destination.route != Screen.FalconFocus.route) {
+                            navController.navigate(Screen.FalconFocus.route) { launchSingleTop = true }
+                        }
                     }
                 } else if ((de.meinseelenfunke.app.util.NavigationBridge.pendingTarget != null ||
                         de.meinseelenfunke.app.util.NavigationBridge.pendingTab != null) &&
@@ -767,6 +777,31 @@ fun MainTabbedScreen(
                 }
             ) {
                 when (bottomNavItems[page]) {
+                    Screen.EmployeeOverview -> EmployeeOverviewScreen(
+                        isPageVisible = pagerState.currentPage == page,
+                        onNavigateToTasks = {
+                            coroutineScope.launch {
+                                val organizerIndex = bottomNavItems.indexOf(Screen.Organizer)
+                                if (organizerIndex >= 0) pagerState.animateScrollToPage(organizerIndex)
+                            }
+                        },
+                        onNavigateToProduction = {
+                            coroutineScope.launch {
+                                val ordersIndex = bottomNavItems.indexOf(Screen.Orders)
+                                if (ordersIndex >= 0) pagerState.animateScrollToPage(ordersIndex)
+                            }
+                        },
+                        onNavigateToTimeAndPay = {
+                            coroutineScope.launch {
+                                val timeIdx = bottomNavItems.indexOf(Screen.EmployeeTimePay)
+                                if (timeIdx >= 0) pagerState.animateScrollToPage(timeIdx)
+                            }
+                        },
+                        onLogout = onLogout
+                    )
+                    Screen.EmployeeTimePay -> EmployeeTimeAndPayslipsScreen(
+                        isPageVisible = pagerState.currentPage == page
+                    )
                     Screen.Zentrum -> ZentrumScreen(
                         onNavigateToLiveChat = onNavigateToLiveChat,
                         onNavigateToFinances = {
